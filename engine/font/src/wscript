@@ -1,13 +1,12 @@
 #! /usr/bin/env python
 import os
 from waf_dynamo import dmsdk_add_files
-from BuildUtility import create_build_utility
 
 def options(opt):
     pass
 
 def build(bld):
-    # build_util = create_build_utility(bld.env)
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     bld.stlib(features = 'cxx',
                 includes = ['.'],

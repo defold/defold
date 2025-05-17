@@ -1,6 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
-// Copyright 2014-2020 King
-// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Copyright 2021 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -12,46 +10,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#pragma once
+#ifndef DM_FONT_RES_FONT_H
+#define DM_FONT_RES_FONT_H
 
-#include <stdint.h>
-#include <dmsdk/gamesys/resources/res_font.h>
+#include <dmsdk/font/resources/res_ttf.h>
 
-namespace dmFontGen
-{
-    struct TTFResource;
-
-    const char* GetFontPath(TTFResource* resource);
-
-    /*
-     *
-     */
-    int CodePointToGlyphIndex(TTFResource* resource, int codepoint);
-
-    /*
-     * Calculate a scaling value based on the desired font height (in pixels)
-     */
-    float SizeToScale(TTFResource* resource, int size);
-
-    /*
-     * Gets the max ascent of the glyphs in the font
-     */
-    float GetAscent(TTFResource* resource, float scale);
-
-    /*
-     * Gets the max descent of the glyphs in the font
-     */
-    float GetDescent(TTFResource* resource, float scale);
-
-    /*
-     * Gets the max bounds of a glyph
-     */
-    void GetCellSize(TTFResource* resource, uint32_t* width, uint32_t* height, uint32_t* max_ascent);
-
-    /*
-     *
-     */
-    uint8_t* GenerateGlyphSdf(TTFResource* font, uint32_t glyph_index,
-                            float scale, int padding, int edge,
-                            dmGameSystem::FontGlyph* glyph);
-}
+#endif // DM_FONT_RES_FONT_H

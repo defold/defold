@@ -16,6 +16,7 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/log.h>
+#include <dmsdk/dlib/mutex.h>
 #include <dmsdk/dlib/time.h>
 #include <dmsdk/dlib/utf8.h>
 #include <dmsdk/script/script.h>
@@ -32,9 +33,10 @@
 
 namespace dmFontGen
 {
-    static const uint32_t WHITESPACE_TAB               = 0x09;
-    static const uint32_t WHITESPACE_NEW_LINE          = 0x0A;
-    static const uint32_t WHITESPACE_SPACE             = 0x20;
+    static const uint32_t WHITESPACE_TAB               = 0x09;      // '\t'
+    static const uint32_t WHITESPACE_NEW_LINE          = 0x0A;      // '\n'
+    static const uint32_t WHITESPACE_CARRIAGE_RETURN   = 0x0D;      // '\r'
+    static const uint32_t WHITESPACE_SPACE             = 0x20;      // ' '
     static const uint32_t WHITESPACE_ZERO_WIDTH_SPACE  = 0x200b;
     static const uint32_t WHITESPACE_NO_BREAK_SPACE    = 0x00a0;
     static const uint32_t WHITESPACE_IDEOGRAPHIC_SPACE = 0x3000;
@@ -46,25 +48,30 @@ namespace dmFontGen
                c == WHITESPACE_TAB ||
                c == WHITESPACE_ZERO_WIDTH_SPACE ||
                c == WHITESPACE_NO_BREAK_SPACE ||
-               c == WHITESPACE_IDEOGRAPHIC_SPACE;
+               c == WHITESPACE_IDEOGRAPHIC_SPACE ||
+               c == WHITESPACE_CARRIAGE_RETURN;
     }
 
 struct FontInfo
 {
+    dmMutex::HMutex             m_Mutex;
     dmGameSystem::FontResource* m_FontResource;
-    dmFontGen::TTFResource*     m_TTFResource;
+    dmFont::TTFResource*        m_TTFResource;
     int                         m_Padding;
     int                         m_EdgeValue;
     float                       m_Scale;
 
     uint8_t                     m_IsSdf:1;
     uint8_t                     m_HasShadow:1;
+    uint8_t                     m_Deleted:1;
 };
 
 struct Context
 {
+    dmMutex::HMutex             m_Mutex;
     HResourceFactory            m_ResourceFactory;
-    dmHashTable64<FontInfo*>    m_FontInfos; // Loaded .fontc files
+    dmHashTable64<FontInfo*>    m_FontInfos;        // Loaded .fontc files
+    dmHashTable64<FontInfo*>    m_DeletedFontInfos; // Unloaded .fontc files about to be deleted
     dmJobThread::HContext       m_Jobs;
     uint8_t                     m_DefaultSdfPadding;
     uint8_t                     m_DefaultSdfEdge;
@@ -93,14 +100,13 @@ static bool CheckType(HResourceFactory factory, const char* path, const char** t
     return false;
 }
 
-static TTFResource* LoadFontData(Context* ctx, const char* path)
+static dmFont::TTFResource* LoadFontData(Context* ctx, const char* path)
 {
-    TTFResource* resource = 0;
+    dmFont::TTFResource* resource = 0;
     dmResource::Result r = dmResource::Get(ctx->m_ResourceFactory, path, (void**)&resource);
     if (dmResource::RESULT_OK != r)
     {
         dmLogError("Failed to get resource '%s'", path);
-        //DeleteFontData(ctx, data);
         return 0;
     }
 
@@ -109,7 +115,6 @@ static TTFResource* LoadFontData(Context* ctx, const char* path)
     {
         dmLogError("Wrong type of resource %s (expected %s)", path, types[0]);
         dmResource::Release(ctx->m_ResourceFactory, resource);
-        //DeleteFontData(ctx, data);
         return 0;
     }
 
@@ -117,25 +122,55 @@ static TTFResource* LoadFontData(Context* ctx, const char* path)
     return resource;
 }
 
-static void DeleteFont(Context* ctx, FontInfo* info)
+static void ReleaseResources(Context* ctx, FontInfo* info)
 {
     if (info->m_FontResource)
         dmResource::Release(ctx->m_ResourceFactory, info->m_FontResource);
+    info->m_FontResource = 0;
+
     if (info->m_TTFResource)
         dmResource::Release(ctx->m_ResourceFactory, info->m_TTFResource);
+    info->m_TTFResource = 0;
+}
+
+static void DeleteFontNoLock(Context* ctx, FontInfo* info)
+{
+    ReleaseResources(ctx, info);
     delete info;
+}
+
+static void DeleteFont(Context* ctx, FontInfo* info)
+{
+    DM_MUTEX_SCOPED_LOCK(info->m_Mutex);
+    DeleteFontNoLock(ctx, info);
+}
+
+static void DelayDeleteFont(Context* ctx, FontInfo* info, dmhash_t path_hash)
+{
+    DM_MUTEX_SCOPED_LOCK(info->m_Mutex);
+    // Release resources as early as possible
+    // This will also stop any pending jobs from doing work
+    ReleaseResources(ctx, info);
+    info->m_Deleted = 1;
+    if (ctx->m_DeletedFontInfos.Full())
+    {
+        uint32_t cap = ctx->m_DeletedFontInfos.Capacity() + 8;
+        ctx->m_DeletedFontInfos.SetCapacity((cap*3/2), cap);
+    }
+    ctx->m_DeletedFontInfos.Put(path_hash, info);
 }
 
 static bool UnloadFont(Context* ctx, dmhash_t fontc_path_hash)
 {
-    FontInfo** ppinfo = ctx->m_FontInfos.Get(fontc_path_hash);
-    if (!ppinfo)
+    FontInfo** infop = ctx->m_FontInfos.Get(fontc_path_hash);
+    if (!infop)
     {
         dmLogError("Font not loaded: %s", dmHashReverseSafe64(fontc_path_hash));
         return false;
     }
 
-    DeleteFont(ctx, *ppinfo);
+    FontInfo* info = *infop;
+    DelayDeleteFont(ctx, info, fontc_path_hash);
     ctx->m_FontInfos.Erase(fontc_path_hash);
     return true;
 }
@@ -151,21 +186,21 @@ static FontInfo* LoadFont(Context* ctx, const char* fontc_path, const char* ttf_
     if (dmResource::RESULT_OK != r)
     {
         dmLogError("Failed to get .fontc resource '%s'", fontc_path);
-        DeleteFont(ctx, info);
+        DeleteFontNoLock(ctx, info);
         return 0;
     }
 
     const char* types[] = { "fontc" };
     if (!CheckType(ctx->m_ResourceFactory, fontc_path, types, 1))
     {
-        DeleteFont(ctx, info);
+        DeleteFontNoLock(ctx, info);
         return 0;
     }
 
     info->m_TTFResource = LoadFontData(ctx, ttf_path);
     if (!info->m_TTFResource)
     {
-        DeleteFont(ctx, info);
+        DeleteFontNoLock(ctx, info);
         return 0;
     }
 
@@ -174,16 +209,18 @@ static FontInfo* LoadFont(Context* ctx, const char* fontc_path, const char* ttf_
     if (dmResource::RESULT_OK != r)
     {
         dmLogError("Failed to get font info from '%s'", fontc_path);
-        DeleteFont(ctx, info);
+        DeleteFontNoLock(ctx, info);
         return 0;
     }
 
     if (dmRenderDDF::TYPE_DISTANCE_FIELD != font_info.m_OutputFormat)
     {
         dmLogError("Currently only distance field fonts are supported: %s", fontc_path);
-        DeleteFont(ctx, info);
+        DeleteFontNoLock(ctx, info);
         return 0;
     }
+
+    info->m_Mutex = ctx->m_Mutex;
 
     info->m_Padding = ctx->m_DefaultSdfPadding;
     if (dmRenderDDF::MODE_MULTI_LAYER == font_info.m_RenderMode)
@@ -202,17 +239,22 @@ static FontInfo* LoadFont(Context* ctx, const char* fontc_path, const char* ttf_
     info->m_HasShadow    = font_info.m_ShadowAlpha > 0.0f && font_info.m_ShadowBlur > 0.0f;
 
     info->m_EdgeValue    = ctx->m_DefaultSdfEdge;
-    info->m_Scale        = dmFontGen::SizeToScale(info->m_TTFResource, font_info.m_Size);
+    info->m_Scale        = dmFont::SizeToScale(info->m_TTFResource, font_info.m_Size);
 
     // TODO: Support bitmap fonts
     info->m_IsSdf        = dmRenderDDF::TYPE_DISTANCE_FIELD == font_info.m_OutputFormat;
+
+    // In our system, both ascent/descent are positive distances from the baseline
+    float max_ascent = dmFont::GetAscent(info->m_TTFResource, info->m_Scale);
+    float max_descent = -dmFont::GetDescent(info->m_TTFResource, info->m_Scale);
+    dmGameSystem::ResFontSetLineHeight(info->m_FontResource, max_ascent, max_descent);
 
     // This returns a too large size, which is impractical, and causes the cache to be filled too quickly
     // Instead, we do the cell size check in the engine, when adding more dybnamic glyphs
     // uint32_t cell_width = 0;
     // uint32_t cell_height = 0;
     // uint32_t max_ascent = 0;
-    // dmFontGen::GetCellSize(info->m_TTFResource, &cell_width, &cell_height, &max_ascent);
+    // dmFont::GetCellSize(info->m_TTFResource, &cell_width, &cell_height, &max_ascent);
 
     if (ctx->m_FontInfos.Full())
     {
@@ -228,16 +270,12 @@ static FontInfo* LoadFont(Context* ctx, const char* fontc_path, const char* ttf_
 // Only called at shutdown of the extension
 static void DeleteFontInfoIter(Context* ctx, const dmhash_t* hash, FontInfo** infop)
 {
-    (void)hash;
     FontInfo* info = *infop;
-
-    dmhash_t path_hash;
-    dmResource::GetPath(ctx->m_ResourceFactory, info->m_FontResource, &path_hash);
-    dmLogWarning("Font resource wasn't released: %s", dmHashReverseSafe64(path_hash));
-
-    dmResource::Release(ctx->m_ResourceFactory, info->m_FontResource);
-    dmResource::Release(ctx->m_ResourceFactory, info->m_TTFResource);
-    delete info;
+    if (!info->m_Deleted)
+    {
+        dmLogWarning("Font resource wasn't released: %s", dmHashReverseSafe64(*hash));
+    }
+    DeleteFont(ctx, info);
 }
 
 // ****************************************************************************************************
@@ -269,20 +307,28 @@ struct JobItem
 // Called on the worker thread
 static int JobGenerateGlyph(void* context, void* data)
 {
-    Context* ctx = (Context*)context;
+    (void)context;
     JobItem* item = (JobItem*)data;
     FontInfo* info = item->m_FontInfo;
+    DM_MUTEX_SCOPED_LOCK(info->m_Mutex);
+    if (!info->m_FontResource)
+        return 0;
+
     uint32_t codepoint = item->m_Codepoint;
 
     uint64_t tstart = dmTime::GetTime();
 
+    item->m_Data = 0;
+    item->m_DataSize = 0;
+
+    bool is_whitespace = IsWhiteSpace(codepoint);
+
     //
-    TTFResource* ttfresource = info->m_TTFResource;
-    uint32_t glyph_index = dmFontGen::CodePointToGlyphIndex(ttfresource, codepoint);
+    dmFont::TTFResource* ttfresource = info->m_TTFResource;
+    uint32_t glyph_index = dmFont::CodePointToGlyphIndex(ttfresource, codepoint);
     if (!glyph_index)
     {
-        bool is_space = IsWhiteSpace(codepoint);
-        if (is_space)
+        if (is_whitespace)
         {
             return 1; // We deal with white spaces in the next callback
         }
@@ -290,14 +336,10 @@ static int JobGenerateGlyph(void* context, void* data)
         return 0;
     }
 
-    uint32_t cell_width, cell_height, cell_ascent;
-    dmGameSystem::ResFontGetCacheCellSize(info->m_FontResource, &cell_width, &cell_height, &cell_ascent);
-
-    item->m_Data = 0;
-    item->m_DataSize = 1 + cell_width * cell_height;
     if (info->m_IsSdf)
     {
-        item->m_Data = dmFontGen::GenerateGlyphSdf(ttfresource, glyph_index, info->m_Scale, info->m_Padding, info->m_EdgeValue, &item->m_Glyph);
+        item->m_Data = dmFont::GenerateGlyphSdf(ttfresource, glyph_index, info->m_Scale, info->m_Padding, info->m_EdgeValue, &item->m_Glyph);
+        item->m_DataSize = 1 + item->m_Glyph.m_Width * item->m_Glyph.m_Height;
     }
 
     if (info->m_HasShadow && item->m_Data)
@@ -336,8 +378,7 @@ static int JobGenerateGlyph(void* context, void* data)
 
     if (!item->m_Data) // Some glyphs (e.g. ' ') don't have an image, which is ok
     {
-        bool is_space = IsWhiteSpace(codepoint);
-        if (!is_space)
+        if (!is_whitespace)
             return 0; // Something went wrong
 
         item->m_DataSize = 0;
@@ -392,9 +433,17 @@ static void DeleteItem(JobItem* item)
 // Called on the main thread
 static void JobPostProcessGlyph(void* context, void* data, int result)
 {
-    Context* ctx = (Context*)context;
+    (void)context;
     JobItem* item = (JobItem*)data;
-    JobStatus* status = item->m_Status;
+    FontInfo* info = item->m_FontInfo;
+
+    DM_MUTEX_SCOPED_LOCK(info->m_Mutex);
+    if (!info->m_FontResource)
+    {
+        DeleteItem(item);
+        return;
+    }
+
     uint32_t codepoint = item->m_Codepoint;
 
     if (!result)
@@ -408,7 +457,7 @@ static void JobPostProcessGlyph(void* context, void* data, int result)
     }
 
     // The font system takes ownership of the image data
-    dmResource::Result r = dmGameSystem::ResFontAddGlyph(item->m_FontInfo->m_FontResource, codepoint, &item->m_Glyph, item->m_Data, item->m_DataSize);
+    dmResource::Result r = dmGameSystem::ResFontAddGlyph(info->m_FontResource, codepoint, &item->m_Glyph, item->m_Data, item->m_DataSize);
 
     if (dmResource::RESULT_OK != r)
     {
@@ -468,8 +517,6 @@ static void RemoveGlyphs(FontInfo* info, const char* text)
 {
     const char* cursor = text;
     uint32_t c = 0;
-
-    uint32_t num_added = 0;
     while ((c = dmUtf8::NextChar(&cursor)))
     {
         dmGameSystem::ResFontRemoveGlyph(info->m_FontResource, c);
@@ -480,6 +527,7 @@ bool Initialize(dmExtension::Params* params)
 {
     g_FontExtContext = new Context;
     g_FontExtContext->m_ResourceFactory = params->m_ResourceFactory;
+    g_FontExtContext->m_Mutex = dmMutex::New();
 
     // 3 is arbitrary but resembles the output from out generator
     g_FontExtContext->m_DefaultSdfPadding = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.sdf_base_padding", 3);
@@ -491,16 +539,25 @@ bool Initialize(dmExtension::Params* params)
 
 void Finalize(dmExtension::Params* params)
 {
-    g_FontExtContext->m_FontInfos.Iterate(DeleteFontInfoIter, g_FontExtContext);
-    g_FontExtContext->m_FontInfos.Clear();
+    Context* ctx = g_FontExtContext;
 
-    delete g_FontExtContext;
-    g_FontExtContext = 0;
+    ctx->m_FontInfos.Iterate(DeleteFontInfoIter, ctx);
+    ctx->m_FontInfos.Clear();
+
+    ctx->m_DeletedFontInfos.Iterate(DeleteFontInfoIter, ctx);
+    ctx->m_DeletedFontInfos.Clear();
+
+    dmMutex::Delete(ctx->m_Mutex);
+
+    delete ctx;
+    ctx = 0;
 }
 
 
 void Update(dmExtension::Params* params)
 {
+    g_FontExtContext->m_DeletedFontInfos.Iterate(DeleteFontInfoIter, g_FontExtContext);
+    g_FontExtContext->m_DeletedFontInfos.Clear();
 }
 
 // Scripting

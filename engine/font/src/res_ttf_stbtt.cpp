@@ -16,12 +16,11 @@
 #include <dmsdk/resource/resource.h>
 
 #include <stdlib.h> // free
-#include <stdio.h> // printf
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
-namespace dmFontGen
+namespace dmFont
 {
 
 struct TTFResource
@@ -223,4 +222,4 @@ uint8_t* GenerateGlyphSdf(TTFResource* ttfresource, uint32_t glyph_index,
 } // namespace
 
 
-DM_DECLARE_RESOURCE_TYPE(ResourceTypeTTFFont, "ttf", dmFontGen::RegisterResourceType_TTFFont, dmFontGen::DeregisterResourceType_TTFFont);
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeTTFFont, "ttf", dmFont::RegisterResourceType_TTFFont, dmFont::DeregisterResourceType_TTFFont);
