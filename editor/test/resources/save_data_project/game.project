@@ -270,5 +270,5 @@ player_name = Player One
 player_health = 120
 
 [fontgen]
-sdf_base_padding = 3
-sdf_edge_value = 190
+stbtt_sdf_base_padding = 3
+stbtt_sdf_edge_value = 190

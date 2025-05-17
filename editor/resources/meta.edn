@@ -523,11 +523,11 @@
   {:type :integer,
    :help "The base padding when generating sdf glyphs. [0-255]. 3 by default",
    :default 3,
-   :path ["fontgen" "sdf_base_padding"]}
+   :path ["fontgen" "stbtt_sdf_base_padding"]}
   {:type :integer,
    :help "The on edge when generating sdf glyphs. [0-255]. 190 by default",
    :default 190,
-   :path ["fontgen" "sdf_edge_value"]}
+   :path ["fontgen" "stbtt_sdf_edge_value"]}
   {:type :integer,
    :help "max number of particle fx components, 64 by default",
    :default 64,

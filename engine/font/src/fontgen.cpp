@@ -40,7 +40,7 @@ struct FontInfo
     dmGameSystem::FontResource* m_FontResource;
     dmFont::TTFResource*        m_TTFResource;
     int                         m_Padding;
-    int                         m_EdgeValue;
+    int                         m_StbttEdgeValue;
     float                       m_Scale;
 
     uint8_t                     m_IsSdf:1;
@@ -55,8 +55,8 @@ struct Context
     dmHashTable64<FontInfo*>    m_FontInfos;        // Loaded .fontc files
     dmHashTable64<FontInfo*>    m_DeletedFontInfos; // Unloaded .fontc files about to be deleted
     dmJobThread::HContext       m_Jobs;
-    uint8_t                     m_DefaultSdfPadding;
-    uint8_t                     m_DefaultSdfEdge;
+    uint8_t                     m_StbttDefaultSdfPadding;
+    uint8_t                     m_StbttDefaultSdfEdge;
 };
 
 Context* g_FontExtContext = 0;
@@ -204,7 +204,7 @@ static FontInfo* LoadFont(Context* ctx, const char* fontc_path, const char* ttf_
 
     info->m_Mutex = ctx->m_Mutex;
 
-    info->m_Padding = ctx->m_DefaultSdfPadding;
+    info->m_Padding = ctx->m_StbttDefaultSdfPadding;
     if (dmRenderDDF::MODE_MULTI_LAYER == font_info.m_RenderMode)
     {
         // see Fontc.java
@@ -220,8 +220,8 @@ static FontInfo* LoadFont(Context* ctx, const char* fontc_path, const char* ttf_
     // See Fontc.java. If we have shadow blur, we need 3 channels
     info->m_HasShadow    = font_info.m_ShadowAlpha > 0.0f && font_info.m_ShadowBlur > 0.0f;
 
-    info->m_EdgeValue    = ctx->m_DefaultSdfEdge;
-    info->m_Scale        = dmFont::SizeToScale(info->m_TTFResource, font_info.m_Size);
+    info->m_StbttEdgeValue  = ctx->m_StbttDefaultSdfEdge;
+    info->m_Scale           = dmFont::SizeToScale(info->m_TTFResource, font_info.m_Size);
 
     // TODO: Support bitmap fonts
     info->m_IsSdf        = dmRenderDDF::TYPE_DISTANCE_FIELD == font_info.m_OutputFormat;
@@ -320,7 +320,7 @@ static int JobGenerateGlyph(void* context, void* data)
 
     if (info->m_IsSdf)
     {
-        item->m_Data = dmFont::GenerateGlyphSdf(ttfresource, glyph_index, info->m_Scale, info->m_Padding, info->m_EdgeValue, &item->m_Glyph);
+        item->m_Data = dmFont::GenerateGlyphSdf(ttfresource, glyph_index, info->m_Scale, info->m_Padding, info->m_StbttEdgeValue, &item->m_Glyph);
         item->m_DataSize = 1 + item->m_Glyph.m_Width * item->m_Glyph.m_Height;
     }
 
@@ -512,8 +512,8 @@ bool Initialize(dmExtension::Params* params)
     g_FontExtContext->m_Mutex = dmMutex::New();
 
     // 3 is arbitrary but resembles the output from out generator
-    g_FontExtContext->m_DefaultSdfPadding = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.sdf_base_padding", 3);
-    g_FontExtContext->m_DefaultSdfEdge = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.sdf_edge_value", 190);
+    g_FontExtContext->m_StbttDefaultSdfPadding = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.stbtt_sdf_base_padding", 3);
+    g_FontExtContext->m_StbttDefaultSdfEdge = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.stbtt_sdf_edge_value", 190);
 
     g_FontExtContext->m_Jobs = dmExtension::GetContextAsType<dmJobThread::HContext>(params, "job_thread");
     return true;
