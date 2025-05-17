@@ -117,9 +117,9 @@ static void JobThread(void* _ctx)
 #else
 static void UpdateSingleThread(JobThreadContext* ctx, uint64_t max_time)
 {
+    uint64_t tstart = dmTime::GetTime();
     while (!ctx->m_Work.Empty())
     {
-        uint64_t tstart = dmTime::GetTime();
         JobItem item = ctx->m_Work.Pop();
 
         item.m_Result = item.m_Process(item.m_Context, item.m_Data);
