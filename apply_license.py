@@ -69,6 +69,7 @@ excluded_files = [
     "engine/ddf/src/ddfc.py",
     "engine/engine/contents/builtins/edn.lua",
     "engine/engine/contents/builtins/mobdebug.lua",
+    "engine/font/src/stb_truetype.h",
     "editor/bundle-resources/_defold/debugger/start.lua",
     "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props.lua",
     "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props_url.lua",

@@ -66,7 +66,7 @@ TEST(dmJobThread, PushJobsMultipleThreads)
     bool tests_done = false;
     while (dmTime::GetMonotonicTime() < stop_time && !tests_done)
     {
-        dmJobThread::Update(ctx);
+        dmJobThread::Update(ctx, 0);
 
         tests_done = true;
         for (int i = 0; i < DM_ARRAY_SIZE(contexts); ++i)
