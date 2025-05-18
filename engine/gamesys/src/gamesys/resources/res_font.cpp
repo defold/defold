@@ -109,20 +109,20 @@ namespace dmGameSystem
         delete font_map;
     }
 
-    static dmRender::FontGlyph* GetGlyph(FontResource* resource, uint32_t codepoint)
+    // Api for the font renderer
+    static dmRender::FontGlyph* GetDynamicGlyph(uint32_t codepoint, FontResource* resource)
     {
         DynamicGlyph** dynglyphp = resource->m_DynamicGlyphs.Get(codepoint);
         if (dynglyphp)
             return &(*dynglyphp)->m_Glyph;
-
-        dmRender::FontGlyph** glyphp = resource->m_Glyphs.Get(codepoint);
-        return glyphp ? *glyphp : 0;
+        return 0;
     }
 
     // Api for the font renderer
-    static dmRender::FontGlyph* GetGlyph(uint32_t codepoint, void* user_ctx)
+    static dmRender::FontGlyph* GetGlyph(uint32_t codepoint, FontResource* resource)
     {
-        return GetGlyph((FontResource*)user_ctx, codepoint);
+        dmRender::FontGlyph** glyphp = resource->m_Glyphs.Get(codepoint);
+        return glyphp ? *glyphp : 0;
     }
 
     static inline uint8_t* GetPointer(void* data, uint32_t offset)
@@ -130,24 +130,26 @@ namespace dmGameSystem
         return ((uint8_t*)data) + offset;
     }
 
+    static void* GetDynamicGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels)
+    {
+        DM_STATIC_ASSERT(sizeof(ImageDataHeader) == 1, Invalid_struct_size);
+        FontResource* resource = (FontResource*)user_ctx;
+        DynamicGlyph** dynglyphp = resource->m_DynamicGlyphs.Get(codepoint);
+        if (!dynglyphp)
+            return 0;
+
+        DynamicGlyph* dynglyph = *dynglyphp;
+        *out_width = dynglyph->m_DataImageWidth;
+        *out_height = dynglyph->m_DataImageHeight;
+        *out_channels = dynglyph->m_DataImageChannels;
+        *out_compression = (uint32_t)dynglyph->m_Compression;
+        *out_size = dynglyph->m_DataSize - sizeof(ImageDataHeader);
+        return dynglyph->m_Data + sizeof(ImageDataHeader); // we return only the image data here
+    }
+
     static void* GetGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels)
     {
         FontResource* resource = (FontResource*)user_ctx;
-
-        DynamicGlyph** dynglyphp = resource->m_DynamicGlyphs.Get(codepoint);
-        if (dynglyphp)
-        {
-            DM_STATIC_ASSERT(sizeof(ImageDataHeader) == 1, Invalid_struct_size);
-
-            DynamicGlyph* dynglyph = *dynglyphp;
-            *out_width = dynglyph->m_DataImageWidth;
-            *out_height = dynglyph->m_DataImageHeight;
-            *out_channels = dynglyph->m_DataImageChannels;
-            *out_compression = (uint32_t)dynglyph->m_Compression;
-            *out_size = dynglyph->m_DataSize - sizeof(ImageDataHeader);
-            return dynglyph->m_Data + sizeof(ImageDataHeader); // we return only the image data here
-        }
-
         dmRender::FontGlyph** glyphp = resource->m_Glyphs.Get(codepoint);
         if (!glyphp)
             return 0;
@@ -196,15 +198,19 @@ namespace dmGameSystem
         metrics->m_MaxDescent = dmMath::Max(metrics->m_MaxDescent, (float)g->m_Glyph.m_Descent);
     }
 
-    static uint32_t GetFontMetrics(void* user_ctx, dmRender::FontMetrics* metrics)
+    static uint32_t GetDynamicFontMetrics(void* user_ctx, dmRender::FontMetrics* metrics)
     {
         FontResource* font = (FontResource*)user_ctx;
-
-        font->m_Glyphs.Iterate(GetGlyphMetric, metrics);
         font->m_DynamicGlyphs.Iterate(GetDynamicGlyphMetric, metrics);
         return font->m_Glyphs.Size() + font->m_DynamicGlyphs.Size();
     }
 
+    static uint32_t GetFontMetrics(void* user_ctx, dmRender::FontMetrics* metrics)
+    {
+        FontResource* font = (FontResource*)user_ctx;
+        font->m_Glyphs.Iterate(GetGlyphMetric, metrics);
+        return font->m_Glyphs.Size() + font->m_DynamicGlyphs.Size();
+    }
 
     static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRender::HRenderContext context,
         dmRenderDDF::FontMap* ddf, FontResource* font_map, const char* filename)
@@ -269,9 +275,18 @@ namespace dmGameSystem
         }
 
         // User data is set with SetFontMapUserData
-        params.m_GetGlyph = (dmRender::FGetGlyph)GetGlyph;
-        params.m_GetGlyphData = (dmRender::FGetGlyphData)GetGlyphData;
-        params.m_GetFontMetrics = (dmRender::FGetFontMetrics)GetFontMetrics;
+        if (ddf->m_Dynamic)
+        {
+            params.m_GetGlyph = (dmRender::FGetGlyph)GetDynamicGlyph;
+            params.m_GetGlyphData = (dmRender::FGetGlyphData)GetDynamicGlyphData;
+            params.m_GetFontMetrics = (dmRender::FGetFontMetrics)GetDynamicFontMetrics;
+        }
+        else
+        {
+            params.m_GetGlyph = (dmRender::FGetGlyph)GetGlyph;
+            params.m_GetGlyphData = (dmRender::FGetGlyphData)GetGlyphData;
+            params.m_GetFontMetrics = (dmRender::FGetFontMetrics)GetFontMetrics;
+        }
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(context);
         if (font_map->m_FontMap == 0)
