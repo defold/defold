@@ -46,4 +46,7 @@ public class CopyBuilders {
 
     @BuilderParams(name = "Glsl", inExts = ".glsl", outExt = ".glslc")
     public static class GlslBuilder extends CopyBuilder {}
+
+    @BuilderParams(name = "TTF", inExts = ".ttf", outExt = ".ttf")
+    public static class TTFBuilder extends CopyBuilder {}
 }

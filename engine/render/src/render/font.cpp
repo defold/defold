@@ -163,7 +163,7 @@ namespace dmRender
         ClearTexture(font_map, width, height);
     }
 
-    void SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params)
+    bool SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params)
     {
         assert(params.m_GetGlyph);
         assert(params.m_GetGlyphData);
@@ -208,8 +208,7 @@ namespace dmRender
             break;
             default:
                 dmLogError("Invalid channel count for glyph data: %u", params.m_GlyphChannels);
-                delete font_map;
-                return;
+                return false;
         };
 
         if (params.m_ImageFormat == dmRenderDDF::TYPE_BITMAP)
@@ -226,13 +225,19 @@ namespace dmRender
 
         font_map->m_GraphicsContext = graphics_context;
         RecreateTexture(font_map, font_map->m_GraphicsContext, params.m_CacheWidth, params.m_CacheHeight);
+        return true;
     }
 
     HFontMap NewFontMap(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params)
     {
-        FontMap* font_map = new FontMap();
+        FontMap* font_map = new FontMap;
         font_map->m_Mutex = dmMutex::New();
-        SetFontMap(font_map, render_context, graphics_context, params);
+        bool result = SetFontMap(font_map, render_context, graphics_context, params);
+        if (!result)
+        {
+            DeleteFontMap(font_map);
+            return 0;
+        }
         return font_map;
     }
 

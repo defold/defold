@@ -42,10 +42,21 @@ public class FontBuilder extends Builder  {
                 .addOutput(input.changeExt(params.outExt()));
 
         Task glyphBankTask = createSubTask(input, GlyphBankBuilder.class, taskBuilder);
+
         createSubTask(fontDesc.getMaterial(),"material", taskBuilder);
+
+        Task ttfTask = null;
+        if (fontDesc.getDynamic())
+        {
+            IResource ttfResource = input.getResource(fontDesc.getFont());
+            ttfTask = createSubTask(ttfResource, CopyBuilders.TTFBuilder.class, taskBuilder);
+        }
 
         Task task = taskBuilder.build();
         glyphBankTask.setProductOf(task);
+        if (ttfTask != null) {
+            ttfTask.setProductOf(task);
+        }
         return task;
     }
 
@@ -62,6 +73,13 @@ public class FontBuilder extends Builder  {
 
         FontMap.Builder fontMapBuilder = FontMap.newBuilder();
         fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
+
+        fontMapBuilder.setDynamic(fontDesc.getDynamic());
+
+        if (fontDesc.getDynamic())
+        {
+            fontMapBuilder.setFont(fontDesc.getFont()); // Keep the suffix as-is (i.e. ".ttf")
+        }
 
         fontMapBuilder.setGlyphBank(genResourcePath);
 

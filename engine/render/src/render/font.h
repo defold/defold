@@ -89,7 +89,8 @@ namespace dmRender
         uint8_t m_LayerMask;
 
         uint8_t m_IsMonospaced:1;
-        uint8_t m_Padding:7;
+        uint8_t m_IsDynamic:1;
+        uint8_t m_Padding:6;        // Note: Not C struct padding, but actual glyph padding.
 
         dmRenderDDF::FontTextureFormat m_ImageFormat;
     };
@@ -163,7 +164,7 @@ namespace dmRender
      * @param font_map Font map handle
      * @param params Parameters to update
      */
-    void SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params);
+    bool SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params);
 
     /**
      * Get texture from a font map

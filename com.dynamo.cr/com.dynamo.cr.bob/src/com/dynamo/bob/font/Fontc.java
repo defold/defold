@@ -171,6 +171,9 @@ public class Fontc {
 
         fontDescbuilder.mergeFrom(fontDesc);
         FontDesc desc = fontDescbuilder.build();
+        String characters = desc.getCharacters();
+        if (desc.getDynamic())
+            characters = "";
 
         // the list of parameters which affect the glyph_bank
         String result = ""
@@ -179,9 +182,10 @@ public class Fontc {
             + desc.getAntialias()
             + desc.getOutlineWidth()
             + desc.getShadowBlur()
-            + desc.getCharacters()
+            + characters
             + desc.getOutputFormat()
             + desc.getAllChars()
+            + desc.getDynamic()
             + desc.getCacheWidth()
             + desc.getCacheHeight()
             + desc.getRenderMode();
@@ -238,6 +242,10 @@ public class Fontc {
 
     private boolean isBitmapFont(FontDesc fd) {
         return StringUtil.toLowerCase(fd.getFont()).endsWith("fnt");
+    }
+
+    private boolean isTrueTypeFont(FontDesc fd) {
+        return StringUtil.toLowerCase(fd.getFont()).endsWith("ttf");
     }
 
     public void TTFBuilder(InputStream fontStream) throws FontFormatException, IOException {
@@ -984,14 +992,22 @@ public class Fontc {
     public BufferedImage compile(InputStream fontStream, FontDesc fontDesc, boolean preview, final FontResourceResolver resourceResolver) throws FontFormatException, TextureGeneratorException, IOException {
         this.fontDesc       = fontDesc;
         this.glyphBankBuilder = GlyphBank.newBuilder();
+        this.glyphBankBuilder.setImageFormat(fontDesc.getOutputFormat());
 
-        if (isBitmapFont(fontDesc)) {
+        if (fontDesc.getDynamic() && isTrueTypeFont(fontDesc)) {
+            // Leave most of the defaults in the glyphBankBuilder
+            this.glyphBankBuilder.setCacheWidth(fontDesc.getCacheWidth());
+            this.glyphBankBuilder.setCacheHeight(fontDesc.getCacheHeight());
+            // TODO: Fix a preview for the editor (probably have to have STBTT as a standalone tool too)
+            // Not used by Fontc itself, but as a preview
+            return new BufferedImage(glyphBankBuilder.getCacheWidth(), glyphBankBuilder.getCacheHeight(), BufferedImage.TYPE_3BYTE_BGR);
+
+        } if (isBitmapFont(fontDesc)) {
             FNTBuilder(fontStream);
         } else {
             TTFBuilder(fontStream);
         }
 
-        glyphBankBuilder.setImageFormat(fontDesc.getOutputFormat());
         return generateGlyphData(preview, resourceResolver);
     }
 

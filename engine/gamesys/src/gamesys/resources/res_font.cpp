@@ -258,6 +258,16 @@ namespace dmGameSystem
         params.m_IsMonospaced       = glyph_bank->m_IsMonospaced;
         params.m_Padding            = glyph_bank->m_Padding;
 
+        if (ddf->m_Dynamic && glyph_bank->m_ImageFormat == dmRenderDDF::TYPE_DISTANCE_FIELD)
+        {
+            if (ddf->m_ShadowBlur > 0.0f && ddf->m_ShadowAlpha > 0.0f) {
+                params.m_GlyphChannels = 3;
+            }
+            else {
+                params.m_GlyphChannels = 1;
+            }
+        }
+
         // User data is set with SetFontMapUserData
         params.m_GetGlyph = (dmRender::FGetGlyph)GetGlyph;
         params.m_GetGlyphData = (dmRender::FGetGlyphData)GetGlyphData;
@@ -267,6 +277,11 @@ namespace dmGameSystem
         if (font_map->m_FontMap == 0)
         {
             font_map->m_FontMap = dmRender::NewFontMap(context, graphics_context, params);
+            if (!font_map->m_FontMap)
+            {
+                dmLogError("Failed creating resource '%s'", filename);
+                return dmResource::RESULT_INVALID_DATA;
+            }
         }
         else
         {
@@ -278,6 +293,7 @@ namespace dmGameSystem
         font_map->m_GlyphBankResource = glyph_bank_res;
         font_map->m_DDF               = ddf;
         font_map->m_CacheCellPadding  = params.m_CacheCellPadding;
+        font_map->m_IsDynamic         = ddf->m_Dynamic;
 
         uint32_t capacity = glyph_bank->m_Glyphs.m_Count;
         font_map->m_Glyphs.Clear();
