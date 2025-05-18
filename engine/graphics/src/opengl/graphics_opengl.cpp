@@ -4383,11 +4383,11 @@ static void LogFrameBufferError(GLenum status)
                     {
                         if (params.m_SubUpdate)
                         {
-                            DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Y, params.m_Slice, params.m_Width, params.m_Height, params.m_LayerCount, gl_format, gl_type, params.m_Data);
+                            DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Y, params.m_Slice, params.m_Width, params.m_Height, params.m_LayerCount, gl_format, params.m_DataSize, params.m_Data);
                         }
                         else
                         {
-                            DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, gl_format, params.m_Width, params.m_Height, params.m_LayerCount, 0, params.m_DataSize * params.m_Depth, params.m_Data);
+                            DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, gl_format, params.m_Width, params.m_Height, params.m_LayerCount, 0, params.m_DataSize * params.m_LayerCount, params.m_Data);
                         }
                         CHECK_GL_ERROR;
                     }
@@ -4399,7 +4399,7 @@ static void LogFrameBufferError(GLenum status)
                         }
                         else
                         {
-                            DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_3D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, params.m_Depth, 0, params.m_DataSize, params.m_Data);
+                            DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_3D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, params.m_Depth, 0, params.m_DataSize * params.m_Depth, params.m_Data);
                         }
                         CHECK_GL_ERROR;
                     }
