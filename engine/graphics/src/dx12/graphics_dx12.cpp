@@ -299,6 +299,13 @@ namespace dmGraphics
             view_desc.Texture2DArray.ArraySize       = texture->m_LayerCount;  // Number of slices
             view_desc.Texture2DArray.PlaneSlice      = 0;  // This is generally 0 for 2D arrays (1D textures have planes)
         }
+        else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP)
+        {
+            view_desc.ViewDimension                   = D3D12_SRV_DIMENSION_TEXTURECUBE;
+            view_desc.TextureCube.MipLevels           = texture->m_MipMapCount;
+            view_desc.TextureCube.MostDetailedMip     = 0;
+            view_desc.TextureCube.ResourceMinLODClamp = 0.0f;
+        }
 
         uint32_t desc_size   = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         uint32_t desc_offset = desc_size * m_MemoryPools[0].m_DescriptorCursor;
@@ -774,38 +781,34 @@ namespace dmGraphics
     }
 
     static void CopyTextureDataMipmapLevel(const TextureParams& params, TextureFormat format_dst, TextureFormat format_src,
-            const D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts, const uint32_t* num_rows, uint32_t array_count,
-            uint32_t mipmap_count, const uint32_t* slice_row_pitch, const uint8_t* pixels, uint8_t* upload_data, uint32_t mipmap)
+        const D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts, const uint32_t* num_rows, uint32_t array_count,
+        uint32_t mipmap_count, const uint32_t* slice_row_pitch, const uint8_t* pixels, uint8_t* upload_data, uint32_t mipmap)
     {
         const uint8_t bpp_dst = GetTextureFormatBitsPerPixel(format_dst) / 8;
         const uint8_t bpp_src = GetTextureFormatBitsPerPixel(format_src) / 8;
-
-        const uint64_t rowPitch = slice_row_pitch[0]; // only one mip
+        const uint64_t srcRowPitch = slice_row_pitch[0];  // Assuming only one mip being uploaded
+        const uint32_t copy_width = params.m_Width;
+        const uint32_t copy_height = params.m_Height;
+        const uint32_t copy_x = params.m_X;
+        const uint32_t copy_y = params.m_Y;
 
         for (uint32_t array = 0; array < array_count; ++array)
         {
             const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& layout = layouts[array];
-            const uint32_t numRows = num_rows[array];
             const uint64_t dstRowPitch = layout.Footprint.RowPitch;
             const uint32_t depth = layout.Footprint.Depth;
 
             uint8_t* dst = upload_data + layout.Offset;
-
-            const uint64_t slice_size = rowPitch * numRows * depth;
-            const uint64_t pixel_offset = slice_size * array;
-
-            const uint8_t* src = pixels + pixel_offset;
+            const uint8_t* src = pixels + array * copy_height * srcRowPitch * depth;
 
             for (uint32_t z = 0; z < depth; ++z)
             {
-                const uint8_t* srcSlice = src + rowPitch * numRows * z;
-                uint8_t* dstSlice = dst + dstRowPitch * numRows * z;
-
-                for (uint32_t row = 0; row < numRows; ++row)
+                for (uint32_t row = 0; row < copy_height; ++row)
                 {
-                    memcpy(dstSlice, srcSlice, dmMath::Min((uint32_t)dstRowPitch, (uint32_t)rowPitch));
-                    srcSlice += rowPitch;
-                    dstSlice += dstRowPitch;
+                    const uint8_t* src_row = src + (z * copy_height + row) * srcRowPitch;
+                    uint8_t* dst_row = dst + (z * copy_height + row) * dstRowPitch;
+
+                    memcpy(dst_row, src_row, copy_width * bpp_dst);
                 }
             }
         }
@@ -847,15 +850,16 @@ namespace dmGraphics
 
     static void TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, TextureFormat format_dst, TextureFormat format_src, const TextureParams& params, uint8_t* pixels)
     {
-        const uint32_t target_mip = params.m_MipMap;
-        const uint16_t tex_layer_count = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
+        const uint32_t target_mip        = params.m_MipMap;
+        const uint16_t tex_layer_count   = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
         const uint32_t subresource_count = tex_layer_count; // only one mip, full array
 
-        D3D12_PLACED_SUBRESOURCE_FOOTPRINT fp[16];
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT fp[16] = {};
         uint32_t num_rows[16];
         uint64_t row_size_in_bytes[16];
         uint64_t total_upload_size = 0;
 
+        // Calculate offset/footprint per array slice
         for (uint32_t array = 0; array < tex_layer_count; ++array)
         {
             const uint32_t subresource = D3D12CalcSubresource(target_mip, array, 0, texture->m_MipMapCount, tex_layer_count);
@@ -866,15 +870,8 @@ namespace dmGraphics
             UINT64 size = 0;
             
             context->m_Device->GetCopyableFootprints(
-                &texture->m_ResourceDesc,
-                subresource,
-                1,
-                total_upload_size,  // running offset
-                &layout,
-                &rows,
-                &rowSize,
-                &size
-            );
+                &texture->m_ResourceDesc, subresource, 1,
+                total_upload_size, &layout, &rows, &rowSize, &size);
             
             fp[array] = layout;
             num_rows[array] = rows;
@@ -909,9 +906,8 @@ namespace dmGraphics
         CHECK_HR_ERROR(hr);
 
         // Compute only the target mip’s row pitch
-        uint8_t bpp_dst = GetTextureFormatBitsPerPixel(format_dst) / 8;
-        uint32_t mip_width = dmMath::Max(((uint32_t)texture->m_Width) >> target_mip, 1u);
-        uint32_t slice_row_pitch[1] = { mip_width * bpp_dst };
+        uint8_t bpp_src = GetTextureFormatBitsPerPixel(format_src) / 8;
+        uint32_t slice_row_pitch[1] = { params.m_Width * bpp_src };
 
         // Copy only the selected mip level's data
         CopyTextureDataMipmapLevel(params, format_dst, format_src, fp, num_rows, tex_layer_count,
@@ -934,31 +930,29 @@ namespace dmGraphics
             texture->m_ResourceStates[target_mip] = D3D12_RESOURCE_STATE_COPY_DEST;
         }
 
-        uint16_t mm_width = GetMipmapSize(params.m_Width, target_mip);
-        uint16_t mm_height = GetMipmapSize(params.m_Height, target_mip);
-
         // Copy per array slice
         for (uint32_t array = 0; array < texture->m_LayerCount; ++array)
         {
             const uint32_t subresourceIndex = D3D12CalcSubresource(target_mip, array, 0, texture->m_MipMapCount, texture->m_LayerCount);
 
             D3D12_TEXTURE_COPY_LOCATION copy_dst = {};
-            copy_dst.pResource = texture->m_Resource;
-            copy_dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-            copy_dst.SubresourceIndex = subresourceIndex;
+            copy_dst.pResource                   = texture->m_Resource;
+            copy_dst.Type                        = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+            copy_dst.SubresourceIndex            = subresourceIndex;
 
             D3D12_TEXTURE_COPY_LOCATION copy_src = {};
-            copy_src.pResource = upload_heap;
-            copy_src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-            copy_src.PlacedFootprint = fp[array];  // One footprint per array slice
+            copy_src.pResource                   = upload_heap;
+            copy_src.Type                        = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+            copy_src.PlacedFootprint             = fp[array];  // One footprint per array slice
 
+            // This box represents the region of the "source" data that we should copy
             D3D12_BOX box = {};
-            box.left = params.m_X;
-            box.top = params.m_Y;
-            box.right = params.m_X + mm_width;
-            box.bottom = params.m_Y + mm_height;
-            box.front = 0;
-            box.back = 1;
+            box.left      = 0;
+            box.top       = 0;
+            box.front     = 0;
+            box.right     = params.m_Width;
+            box.bottom    = params.m_Height;
+            box.back      = 1;
 
             cmd_list->CopyTextureRegion(&copy_dst, params.m_X, params.m_Y, 0, &copy_src, &box);
         }
@@ -2556,13 +2550,13 @@ namespace dmGraphics
             default:break;
         }
 
-        DX12Texture* tex            = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture);
-        TextureFormat format_orig   = params.m_Format;
-        TextureFormat format_actual = params.m_Format;
-        void* tex_data_ptr          = (void*) params.m_Data;
-        uint32_t tex_layer_count    = tex->m_Depth;
-        uint32_t tex_data_size      = params.m_DataSize;
-        DXGI_FORMAT dxgi_format     = GetDXGIFormatFromTextureFormat(format_orig);
+        DX12Texture* tex             = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture);
+        TextureFormat format_orig    = params.m_Format;
+        TextureFormat format_actual  = params.m_Format;
+        void* tex_data_ptr           = (void*) params.m_Data;
+        uint32_t depth_or_array_size = dmMath::Max(1U, dmMath::Max((uint32_t) params.m_Depth, (uint32_t) params.m_LayerCount));
+        uint32_t tex_data_size       = params.m_DataSize;
+        DXGI_FORMAT dxgi_format      = GetDXGIFormatFromTextureFormat(format_orig);
 
         if (tex->m_MipMapCount == 1 && params.m_MipMap > 0)
         {
@@ -2578,7 +2572,7 @@ namespace dmGraphics
             format_actual = TEXTURE_FORMAT_RGBA;
             dxgi_format   = GetDXGIFormatFromTextureFormat(format_actual);
 
-            uint32_t data_pixel_count = params.m_Width * params.m_Height * tex_layer_count;
+            uint32_t data_pixel_count = params.m_Width * params.m_Height * depth_or_array_size;
             uint8_t bpp_new           = 4;
             uint8_t* data_new         = new uint8_t[data_pixel_count * bpp_new];
 
@@ -2588,8 +2582,6 @@ namespace dmGraphics
 
         if (!tex->m_Resource)
         {
-            uint32_t depth_or_array_size = dmMath::Max(1U, dmMath::Max((uint32_t) params.m_Depth, (uint32_t) params.m_LayerCount));
-
             D3D12_RESOURCE_DESC desc = {};
             desc.Format              = dxgi_format;
             desc.Width               = params.m_Width;
@@ -2616,7 +2608,7 @@ namespace dmGraphics
             tex->m_ResourceDesc = desc;
         }
 
-        TextureBufferUploadHelper(g_DX12Context, tex, format_actual, format_orig, params, (uint8_t*) tex_data_ptr);
+        TextureBufferUploadHelper(g_DX12Context, tex, format_actual, format_actual, params, (uint8_t*) tex_data_ptr);
 
         DX12SetTextureParamsInternal(g_DX12Context, tex, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
 
