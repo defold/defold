@@ -1159,12 +1159,13 @@
       :always (mapv properties/round-scalar))))
 
 (defn- rect->absolute-pivot-pos
-  [rect]
-  (let [{:keys [geometry ^double x ^double y ^double width ^double height]} rect
+  [rect layout-width]
+  (let [{:keys [geometry ^double x ^double y ^double width ^double height page]} rect
         {:keys [rotated ^double pivot-x ^double pivot-y]} geometry
         absolute-pivot-x (* pivot-x (if rotated height width))
         absolute-pivot-y (* pivot-y (if rotated width height))
-        x (+ x (if rotated (- width absolute-pivot-y) absolute-pivot-x))
+        page-offset-x (get-rect-page-offset layout-width page)
+        x (+ x page-offset-x (if rotated (- width absolute-pivot-y) absolute-pivot-x))
         y (+ y (- height (if rotated absolute-pivot-x absolute-pivot-y)))]
     [x y 0.0]))
 
@@ -1201,12 +1202,12 @@
     {}
     (let [reference-renderable (last selected-renderables)
           {:keys [world-rotation]} reference-renderable
-          rect (-> reference-renderable :user-data :rect)
+          {:keys [rect layout-width]} (:user-data reference-renderable)
           [pivot-x pivot-y] (updated-pivot rect manip-delta snap-enabled snap-threshold)
           rect (-> rect
                    (assoc-in [:geometry :pivot-x] pivot-x)
                    (assoc-in [:geometry :pivot-y] pivot-y))
-          pivot-pos (rect->absolute-pivot-pos rect)
+          pivot-pos (rect->absolute-pivot-pos rect layout-width)
           scale (scene-tools/scale-factor camera viewport (Vector3d. (first pivot-pos) (second pivot-pos) 0.0))
           world-transform (scene-tools/manip-world-transform reference-renderable manip-space scale)
           adjusted-pivot-pos (mapv #(/ ^double % scale) pivot-pos)
@@ -1218,7 +1219,8 @@
 
 (g/defnk produce-scale [selected-renderables camera viewport]
   (when (show-pivot? selected-renderables)
-    (let [pivot-pos (rect->absolute-pivot-pos (-> selected-renderables util/only :user-data :rect))]
+    (let [{:keys [rect layout-width]} (-> selected-renderables util/only :user-data)
+          pivot-pos (rect->absolute-pivot-pos rect layout-width)]
       (scene-tools/scale-factor camera viewport (Vector3d. (first pivot-pos) (second pivot-pos) 0.0)))))
 
 (defn- image-resources->image-msgs
