@@ -27,6 +27,7 @@
  * @name WebServer
  * @namespace dmWebServer
  * @path engine/dlib/src/dmsdk/dlib/webserver.h
+ * @language C++
  */
 
 namespace dmWebServer

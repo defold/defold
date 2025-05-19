@@ -37,6 +37,7 @@ namespace dmGameObject
      * @document
      * @name Script
      * @namespace dmGameObject
+     * @language C++
      */
 
     Result PostScriptMessage(const dmDDF::Descriptor* descriptor, const uint8_t* payload, uint32_t payload_size, const dmMessage::URL* sender, const dmMessage::URL* receiver, int function_ref, bool unref_function_after_call);

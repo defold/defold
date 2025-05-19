@@ -45,6 +45,7 @@ namespace dmGameSystem
      * @document
      * @name Model
      * @namespace model
+     * @language Lua
      */
 
     /*# [type:number] model cursor
@@ -612,7 +613,7 @@ namespace dmGameSystem
 
     /*# get the AABB of the whole model in local coordinate space
      * Get AABB of the whole model in local coordinate space.
-     * AABB information return as a table with `min` and `max` fields, where `min` and `max` has type `vmath.vector4`.
+     * AABB information return as a table with `min` and `max` fields, where `min` and `max` has type `vmath.vector3`.
      *
      * @name model.get_aabb
      * @param url [type:string|hash|url] the model
@@ -649,7 +650,7 @@ namespace dmGameSystem
 
     /*# get the AABB of all meshes
      * Get AABB of all meshes.
-     * AABB information return as a table with `min` and `max` fields, where `min` and `max` has type `vmath.vector4`.
+     * AABB information return as a table with `min` and `max` fields, where `min` and `max` has type `vmath.vector3`.
      *
      * @name model.get_mesh_aabb
      * @param url [type:string|hash|url] the model

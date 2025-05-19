@@ -1806,3 +1806,20 @@
     (concat
       (when old-value (disconnect-resource-node evaluation-context project old-value self connections))
       (when new-value (:tx-data (connect-resource-node evaluation-context project new-value self connections))))))
+
+(defn node-refers-to-resource?
+  [project node-id resource acc-fn]
+  (let [path (resource/proj-path (g/node-value node-id :resource))]
+    (loop [resources [resource]
+           checked-paths #{}]
+      (when-let [resource (first resources)]
+        (let [current-path (resource/proj-path resource)]
+          (or (= path current-path)
+              (let [resources (rest resources)]
+                (recur (if (contains? checked-paths current-path)
+                         resources
+                         (let [target-node (get-resource-node project resource)]
+                           (cond-> resources
+                             target-node
+                             (concat (acc-fn target-node resource)))))
+                       (conj checked-paths current-path)))))))))

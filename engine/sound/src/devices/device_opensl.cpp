@@ -386,7 +386,7 @@ cleanup_sl:
         delete opensl;
     }
 
-    dmSound::Result DeviceOpenSLQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
+    dmSound::Result DeviceOpenSLQueue(dmSound::HDevice device, const void* samples, uint32_t sample_count)
     {
         assert(device);
         OpenSLDevice* opensl = (OpenSLDevice*) device;
@@ -399,7 +399,7 @@ cleanup_sl:
         assert(opensl->m_Free.Size() > 0);
         Buffer b = opensl->m_Free.Pop();
 
-        memcpy(b.m_Buffer, samples, sample_count * sizeof(uint16_t) * 2);
+        memcpy(b.m_Buffer, (const int16_t*)samples, sample_count * sizeof(uint16_t) * 2);
         b.m_FrameCount = sample_count;
         opensl->m_Ready.Push(b);
 

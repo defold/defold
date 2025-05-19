@@ -3,9 +3,10 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.control.Label?>
 
-<AnchorPane id="gl-view-anchor-pane" xmlns="http://javafx.com/javafx/8">
+<AnchorPane id="scene-view-anchor-pane" xmlns="http://javafx.com/javafx/8">
     <children>
-        <Label id="scene-view-info-label" mouseTransparent="true" AnchorPane.topAnchor="15" AnchorPane.leftAnchor="30" />
+        <AnchorPane id="overlay-anchor-pane" AnchorPane.topAnchor="0" AnchorPane.bottomAnchor="0" AnchorPane.leftAnchor="0" AnchorPane.rightAnchor="0"/>
+        <Label id="info-label" mouseTransparent="true" AnchorPane.topAnchor="15" AnchorPane.leftAnchor="30" />
         <HBox id="toolbar" AnchorPane.topAnchor="15" AnchorPane.rightAnchor="15" />
     </children>
 </AnchorPane>

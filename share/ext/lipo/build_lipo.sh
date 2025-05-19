@@ -99,4 +99,5 @@ pushd $BUILD_DIR
 tar cfvz ${PACKAGE} bin
 popd
 
-echo "Wrote ${PACKAGE}"
+mv ${BUILD_DIR}/${PACKAGE} ${DEFOLD_HOME}/packages/${PACKAGE}
+echo "Wrote ${DEFOLD_HOME}/packages/${PACKAGE}"

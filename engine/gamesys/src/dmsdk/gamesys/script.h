@@ -36,6 +36,7 @@ extern "C"
  * @name Script
  * @namespace dmScript
  * @path engine/gamesys/src/dmsdk/gamesys/script.h
+ * @language C++
  */
 namespace dmScript
 {

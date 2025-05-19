@@ -217,8 +217,13 @@ namespace dmSound
         void*                   m_DecoderTempOutput;
         float*                  m_DecoderOutput[SOUND_MAX_DECODE_CHANNELS];
 
-        int16_t*                m_OutBuffers[SOUND_OUTBUFFER_COUNT];
+        void*                   m_OutBuffers[SOUND_OUTBUFFER_MAX_COUNT];
+        uint16_t                m_OutBufferCount;
         uint16_t                m_NextOutBuffer;
+        uint8_t                 m_UseFloatOutput : 1;
+        uint8_t                 m_NormalizeFloatOutput : 1;
+        uint8_t                 m_NonInterleavedOutput : 1;
+        uint8_t                 : 5;
 
         bool                    m_IsDeviceStarted;
         bool                    m_IsAudioInterrupted;
@@ -365,7 +370,10 @@ namespace dmSound
         OpenDeviceParams device_params;
 
         // TODO: m_BufferCount configurable?
-        device_params.m_BufferCount = SOUND_OUTBUFFER_COUNT;
+        const uint16_t num_outbuffers = params->m_UseThread ? SOUND_OUTBUFFER_COUNT : SOUND_OUTBUFFER_COUNT_NO_THREADS;
+        assert(num_outbuffers <= SOUND_OUTBUFFER_MAX_COUNT);
+
+        device_params.m_BufferCount = num_outbuffers;
         device_params.m_FrameCount = sample_frame_count; // May be 0
         DeviceType* device_type;
         DeviceInfo device_info = {0};
@@ -450,8 +458,12 @@ namespace dmSound
         }
         sound->m_DecoderTempOutput = malloc((sound->m_DeviceFrameCount * SOUND_MAX_SPEED + SOUND_MAX_HISTORY + SOUND_MAX_FUTURE) * sizeof(int16_t) * SOUND_MAX_DECODE_CHANNELS);
 
-        for (int i = 0; i < SOUND_OUTBUFFER_COUNT; ++i) {
-            sound->m_OutBuffers[i] = (int16_t*) malloc(sound->m_DeviceFrameCount * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
+        sound->m_UseFloatOutput = device_info.m_UseFloats;
+        sound->m_NormalizeFloatOutput = device_info.m_UseNormalized;
+        sound->m_NonInterleavedOutput = device_info.m_UseNonInterleaved;
+        sound->m_OutBufferCount = num_outbuffers;
+        for (int i = 0; i < num_outbuffers; ++i) {
+            sound->m_OutBuffers[i] = malloc(sound->m_DeviceFrameCount * (sound->m_UseFloatOutput ? sizeof(float) : sizeof(int16_t)) * SOUND_MAX_MIX_CHANNELS);
         }
         sound->m_NextOutBuffer = 0;
 
@@ -522,8 +534,8 @@ namespace dmSound
                 free(sound->m_DecoderOutput[i]);
             }
 
-            for (int i = 0; i < SOUND_OUTBUFFER_COUNT; ++i) {
-                free((void*) sound->m_OutBuffers[i]);
+            for (int i = 0; i < sound->m_OutBufferCount; ++i) {
+                free(sound->m_OutBuffers[i]);
             }
 
             for (uint32_t i = 0; i < MAX_GROUPS; i++) {
@@ -1538,15 +1550,18 @@ namespace dmSound
         DM_PROFILE(__FUNCTION__);
 
         SoundSystem* sound = g_SoundSystem;
+
+        uint32_t frame_size = 2 * (sound->m_UseFloatOutput ? sizeof(float) : sizeof(int16_t));
+
         uint32_t n = mix_context->m_FrameCount;
-        int16_t* out = sound->m_OutBuffers[sound->m_NextOutBuffer];
+        void* out = sound->m_OutBuffers[sound->m_NextOutBuffer];
         int* master_index = sound->m_GroupMap.Get(MASTER_GROUP_HASH);
         SoundGroup* master = &sound->m_Groups[*master_index];
         float* mix_buffer[2] = {master->m_MixBuffer[0], master->m_MixBuffer[1]};
 
         if (master->m_Gain.IsZero())
         {
-            memset(out, 0, n * sizeof(uint16_t) * 2);
+            memset(out, 0, n * frame_size);
             return;
         }
 
@@ -1571,7 +1586,18 @@ namespace dmSound
 
         float gain;
         float gaind = GetRampDelta(mix_context, &master->m_Gain, n, gain);
-        ApplyGainAndInterleaveToS16(out, mix_buffer, n, gain, gaind);
+        if (sound->m_UseFloatOutput == 0 && sound->m_NonInterleavedOutput == 0) {
+            ApplyGainAndInterleaveToS16((int16_t*)out, mix_buffer, n, gain, gaind);
+        }
+        else {
+            assert(sound->m_UseFloatOutput == 1 && sound->m_NonInterleavedOutput == 1);
+            if (sound->m_NormalizeFloatOutput) {
+                gain *= 1.0f / 32768.0f;
+                gaind *= 1.0f / 32768.0f;
+            }
+            float* ob[] = {(float*)out, (float*)out + n};
+            ApplyGain(ob, mix_buffer, n, gain, gaind);
+        }
     }
 
     static void StepGroupValues()
@@ -1657,7 +1683,7 @@ namespace dmSound
                 // still playing we will get the wrong result in isMusicPlaying on android if we release audio focus to soon
                 // since it detects our buffered sounds as "other application".
                 uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
-                if (free_slots == SOUND_OUTBUFFER_COUNT)
+                if (free_slots == sound->m_OutBufferCount)
                 {
                     sound->m_DeviceType->m_DeviceStop(sound->m_Device);
                     sound->m_IsDeviceStarted = false;
@@ -1709,10 +1735,10 @@ namespace dmSound
             // resulting in a huge performance hit. Also, you'll fast forward the sounds.
             {
                 DM_PROFILE("QueueBuffer");
-                sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
+                sound->m_DeviceType->m_Queue(sound->m_Device, sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
             }
 
-            sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
+            sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % sound->m_OutBufferCount;
             current_buffer++;
             free_slots--;
         }

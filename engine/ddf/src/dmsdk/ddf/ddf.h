@@ -28,6 +28,7 @@ namespace dmDDF
      * @document
      * @name Ddf
      * @namespace dmDDF
+     * @language C++
      */
 
     /*# descriptor handle

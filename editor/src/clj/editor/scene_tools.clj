@@ -24,9 +24,7 @@
             [editor.gl.vertex :as vtx]
             [editor.math :as math]
             [editor.prefs :as prefs]
-            [editor.scene-picking :as scene-picking]
-            [util.coll :as coll]
-            [util.eduction :as e])
+            [editor.scene-picking :as scene-picking])
   (:import [com.jogamp.opengl GL GL2]
            [java.lang Math Runnable]
            [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point3d Quat4d Tuple3d Vector3d]))
@@ -502,15 +500,6 @@
       (apply-fn start-pos pos))))
 
 (def ^:private original-values #(select-keys % [:node-id :world-rotation :world-transform :parent-world-transform]))
- 
-(defn- top-nodes
-  [nodes]
-  (let [node-ids (into #{} (map :node-id) nodes)
-        child? (fn [node]
-                 (->> (:node-id-path node)
-                      (coll/some #(and (not= % (:node-id node))
-                                       (contains? node-ids %)))))]
-    (e/remove child? nodes)))
 
 (defn handle-input [self action selection-data]
   (case (:type action)
@@ -521,7 +510,7 @@
                            filter-fn (:filter-fn tool)
                            selected-renderables (filter #(filter-fn (:node-id %)) (g/node-value self :selected-renderables evaluation-context))
                            original-values (->> selected-renderables
-                                                top-nodes
+                                                scene-picking/top-nodes
                                                 (mapv original-values))]
                        (when (not (empty? original-values))
                          (g/transact

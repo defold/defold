@@ -329,29 +329,32 @@ the `do-gl` macro from `editor.gl`."
 
 (defn new-transient-vertex-buffer
   ([^PersistentVertexBuffer persistent-vertex-buffer]
-    (let [buffer-starts (buffer-starts (.capacity persistent-vertex-buffer) (.layout persistent-vertex-buffer))
-          storage       (b/copy-buffer (.buffer persistent-vertex-buffer))
-          slices        (b/slice storage buffer-starts)]
-      (TransientVertexBuffer.    (.layout persistent-vertex-buffer)
-                                 (.capacity persistent-vertex-buffer)
-                                 storage
-                                 slices
-                                 (AtomicBoolean. true)
-                                 (AtomicLong. (.count persistent-vertex-buffer))
-                                 (.set-fn persistent-vertex-buffer)
-                                 (.get-fn persistent-vertex-buffer))))
+   (let [buffer-starts (buffer-starts (.capacity persistent-vertex-buffer) (.layout persistent-vertex-buffer))
+         storage (b/copy-buffer (.buffer persistent-vertex-buffer))
+         slices (b/slice storage buffer-starts)]
+     (TransientVertexBuffer.
+       (.layout persistent-vertex-buffer)
+       (.capacity persistent-vertex-buffer)
+       storage
+       slices
+       (AtomicBoolean. true)
+       (AtomicLong. (.count persistent-vertex-buffer))
+       (.set-fn persistent-vertex-buffer)
+       (.get-fn persistent-vertex-buffer))))
   ([capacity layout vx-size set-fn get-fn]
-    (let [buffer-starts (buffer-starts capacity layout)
-          storage       (b/little-endian (b/new-byte-buffer capacity vx-size))
-          slices        (b/slice storage buffer-starts)]
-      (TransientVertexBuffer. layout
-                              capacity
-                              storage
-                              slices
-                              (AtomicBoolean. true)
-                              (AtomicLong. 0)
-                              set-fn
-                              get-fn))))
+   (let [buffer-starts (buffer-starts capacity layout)
+         byte-size (* capacity vx-size)
+         storage (b/new-byte-buffer byte-size :byte-order/little-endian)
+         slices (b/slice storage buffer-starts)]
+     (TransientVertexBuffer.
+       layout
+       capacity
+       storage
+       slices
+       (AtomicBoolean. true)
+       (AtomicLong. 0)
+       set-fn
+       get-fn))))
 
 (def ^:private type-component-counts
   {'vec1 1
@@ -540,11 +543,11 @@ the `do-gl` macro from `editor.gl`."
   vbo)
 
 (defn- make-vbo [^GL2 gl data]
-  (let [vbo (first (gl/gl-gen-buffers gl 1))]
+  (let [vbo (gl/gl-gen-buffer gl)]
     (update-vbo gl vbo data)))
 
 (defn- destroy-vbos [^GL2 gl vbos _]
-  (apply gl/gl-delete-buffers gl vbos))
+  (gl/gl-delete-buffers gl vbos))
 
 (scene-cache/register-object-cache! ::vbo make-vbo update-vbo destroy-vbos)
 
@@ -557,10 +560,10 @@ the `do-gl` macro from `editor.gl`."
   ibo)
 
 (defn- make-ibo [^GL2 gl data]
-  (let [ibo (first (gl/gl-gen-buffers gl 1))]
+  (let [ibo (gl/gl-gen-buffer gl)]
     (update-ibo gl ibo data)))
 
 (defn- destroy-ibos [^GL2 gl ibos _]
-  (apply gl/gl-delete-buffers gl ibos))
+  (gl/gl-delete-buffers gl ibos))
 
 (scene-cache/register-object-cache! ::ibo make-ibo update-ibo destroy-ibos)

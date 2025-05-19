@@ -26,7 +26,7 @@
 (deftest valid-fps
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/graphics/atlas.atlas")
-          anim (:node-id (test-util/outline node-id [2]))]
+          anim (:node-id (test-util/outline node-id [0]))]
       (is (nil? (test-util/prop-error anim :fps)))
       (test-util/prop! anim :fps -1)
       (is (g/error? (test-util/prop-error anim :fps))))))

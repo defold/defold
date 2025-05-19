@@ -1127,3 +1127,119 @@ GET /test/resources/test.json as json => 200
                          (when-not (properties/read-only? p)
                            (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))
              dorun)))))
+
+(def ^:private expected-attachment-test-output
+  "Atlas initial state:
+  images: 0
+  animations: 0
+  can add images: true
+  can add animations: true
+Transaction: add image and animation
+After transaction (add):
+  images: 1
+    image: /builtins/assets/images/logo/logo_256.png
+  animations: 1
+    animation id: logos
+    animation images: 2
+      animation image: /builtins/assets/images/logo/logo_blue_256.png
+      animation image: /builtins/assets/images/logo/logo_256.png
+Transaction: remove image
+After transaction (remove image):
+  images: 0
+  animations: 1
+    animation id: logos
+    animation images: 2
+      animation image: /builtins/assets/images/logo/logo_blue_256.png
+      animation image: /builtins/assets/images/logo/logo_256.png
+Transaction: clear animation images
+After transaction (clear):
+  images: 0
+  animations: 1
+    animation id: logos
+    animation images: 0
+Transaction: remove animation
+After transaction (remove animation):
+  images: 0
+  animations: 0
+Expected errors:
+  Wrong list name to add => AtlasNode does not define \"layers\"
+  Wrong list name to remove => AtlasNode does not define \"layers\"
+  Wrong list item to remove => /test.atlas is not in the \"images\" list of /test.atlas
+  Wrong list name to clear => AtlasNode does not define \"layers\"
+  Wrong child property name => Can't set property \"no_such_prop\" of AtlasAnimation
+  Added value is not a table => \"/foo.png\" is not a table
+  Added nested value is not a table => \"/foo.png\" is not a table
+  Added node has invalid property value => \"invalid-pivot\" is not a tuple
+  Added resource has wrong type => resource extension should be jpg or png
+Tilesource initial state:
+  animations: 0
+  collision groups: 0
+  tile collision groups: 0
+Transaction: add animations and collision groups
+After transaction (add animations and collision groups):
+  animations: 2
+    animation: idle
+    animation: walk
+  collision groups: 4
+    collision group: obstacle
+    collision group: character
+    collision group: collision_group
+    collision group: collision_group1
+  tile collision groups: 2
+    tile collision group: 1 obstacle
+    tile collision group: 3 character
+Transaction: set tile_collision_groups to its current value
+After transaction (tile_collision_groups roundtrip):
+  animations: 2
+    animation: idle
+    animation: walk
+  collision groups: 4
+    collision group: obstacle
+    collision group: character
+    collision group: collision_group
+    collision group: collision_group1
+  tile collision groups: 2
+    tile collision group: 1 obstacle
+    tile collision group: 3 character
+Expected errors
+  Using non-existent collision group => Collision group \"does-not-exist\" is not defined in the tilesource
+Transaction: clear tilesource
+After transaction (clear):
+  animations: 0
+  collision groups: 0
+  tile collision groups: 0
+")
+
+(deftest attachment-properties-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/transact_attachment_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (let [actual (.toString out)]
+        (is (= expected-attachment-test-output actual)
+            (string/join "\n" (diff/make-diff-output-lines actual expected-attachment-test-output 3)))))))
+
+(def ^:private expected-resources-as-nodes-test-output
+  "Directory read:
+  can get path: true
+  can set path: false
+  can get children: true
+  can set children: false
+  can add children: false
+Assets path:
+  /assets
+Assets images:
+  /assets/a.png
+  /assets/b.png
+Expected errors:
+  Setting a property => /assets is not a file resource
+")
+
+(deftest resources-as-nodes-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/resources_as_nodes_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (let [actual (.toString out)]
+        (is (= expected-resources-as-nodes-test-output actual)
+            (string/join "\n" (diff/make-diff-output-lines actual expected-resources-as-nodes-test-output 3)))))))

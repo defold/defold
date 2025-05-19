@@ -42,6 +42,7 @@ extern "C"
  * @document
  * @name BitOp
  * @namespace bit
+ * @language Lua
  */
 
 /*# normalize number to the numeric range for bit operations

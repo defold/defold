@@ -25,6 +25,7 @@
  * @document
  * @name Graphics OpenGL
  * @namespace dmGraphics
+ * @language C++
  */
 
 namespace dmGraphics

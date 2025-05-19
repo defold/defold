@@ -37,6 +37,7 @@ extern "C" {
  * @document
  * @name Extension
  * @path engine/dlib/src/dmsdk/extension/extension.h
+ * @language C++
  */
 
 /*# result enumeration

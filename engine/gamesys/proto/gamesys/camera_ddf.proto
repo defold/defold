@@ -14,6 +14,7 @@ option java_outer_classname = "Camera";
  * @document
  * @name Camera
  * @namespace camera
+ * @language Lua
  */
 
 message CameraDesc

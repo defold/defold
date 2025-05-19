@@ -22,9 +22,9 @@
  * SDK Defold String Utils API documentation
  *
  * @document
- * @namespace dmStringFunc
  * @name DStrings
  * @path engine/dlib/src/dmsdk/dlib/dstrings.h
+ * @language C++
  */
 
 /*# Size-bounded string formating.
