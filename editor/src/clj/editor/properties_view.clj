@@ -276,13 +276,13 @@
 (defn- make-control-draggable
   ([^Node control drag-event-handler]
    (make-control-draggable control drag-event-handler true))
-  ([^Node control drag-event-handler is-right-aligned]
+  ([^Node control drag-event-handler is-left-aligned]
    (let [drag-icon (doto (Button. "" (jfx/get-image-view "icons/32/Icons_X_10_scalesides.png" 16))
                      (ui/add-style! "action-button")
                      (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (drag-event-handler event)))
                      (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-label-press-event! event)))
                      (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-label-release-event! event))))]
-     (if is-right-aligned
+     (if is-left-aligned
        (AnchorPane/setRightAnchor drag-icon 4.0)
        (AnchorPane/setLeftAnchor drag-icon 4.0))
      (doto control
