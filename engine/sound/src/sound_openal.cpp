@@ -864,9 +864,6 @@ namespace dmSound
                     r = dmSoundCodec::Result::RESULT_OK;
                 } else if (read_result == Result::RESULT_END_OF_STREAM) {
                     r = dmSoundCodec::RESULT_END_OF_STREAM;
-                    sound_instance->m_StreamOffset = 0;
-                    alSourcei(source, sound->m_Eos, AL_TRUE);
-                    checkForAlErrors("alSourcei");
                 } else {
                     dmLogError("stream read error: %i\n", (int)read_result);
                     r = dmSoundCodec::Result::RESULT_UNKNOWN_ERROR;
@@ -892,7 +889,7 @@ namespace dmSound
             total_decoded += decoded;
             buffer_ptr += decoded;
         } while (total_decoded < buffer_size);
-        if (r == dmSoundCodec::RESULT_OK && total_decoded) {
+        if ((r == dmSoundCodec::RESULT_OK || r == dmSoundCodec::RESULT_END_OF_STREAM) && total_decoded) {
             alBufferData(*buffer, sound_instance->m_Format, original_ptr, (ALsizei)total_decoded, sound_instance->m_Rate);
             checkForAlErrors("alBufferData");
             alSourceQueueBuffers(source, 1, buffer);
@@ -926,6 +923,11 @@ namespace dmSound
             }
             sound_instance->m_BufferPtr = (sound_instance->m_BufferPtr + 1) % sound->m_BuffersPerSource;
             ++sound_instance->m_BufferCount;
+        }
+        if (r == dmSoundCodec::RESULT_END_OF_STREAM) {
+            sound_instance->m_StreamOffset = 0;
+            alSourcei(source, sound->m_Eos, AL_TRUE);
+            checkForAlErrors("alSourcei");
         }
         return r;
     }
