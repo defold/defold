@@ -969,67 +969,128 @@
       (assert (= value (resource/proj-path clj-value)))
       value)))
 
-(defn lift-overrides-plan
-  "Returns a lift-overrides-plan for transferring overridden properties from the
-  specified source-node-id to its immediate override-original. You can specify a
-  sequence of property-labels to consider for transfer, or supply :all to
+(defn transfer-overrides-plan
+  "Returns a transfer-overrides-plan for transferring overridden properties from
+  the supplied source-node-id to the specified target-node-ids. You can specify
+  a sequence of property-labels to consider for transfer or supply :all to
   include all overridden properties. Returns nil if no properties match the
-  criteria. Otherwise, returns a map containing the :target-node-id and a
-  :lifted-properties map of overridden property labels to override values."
+  criteria or the target cannot accept the transfer. Otherwise, returns a map
+  suitable for use with functions that accept a transfer-overrides-plan."
+  ([source-node-id target-node-ids property-labels]
+   (g/with-auto-evaluation-context evaluation-context
+     (transfer-overrides-plan source-node-id target-node-ids property-labels evaluation-context)))
+  ([source-node-id target-node-ids property-labels {:keys [basis] :as evaluation-context}]
+   {:pre [(g/node-id? source-node-id)
+          (every? keyword? property-labels)]}
+   (let [overridden-properties (g/overridden-properties source-node-id evaluation-context)]
+     (when-some [transferred-properties
+                 (coll/not-empty
+                   (case property-labels
+                     :all overridden-properties
+                     (select-keys overridden-properties property-labels)))]
+       (when-some [target-resources+node-ids
+                   (coll/not-empty
+                     (coll/transfer target-node-ids []
+                       (keep (fn [target-node-id]
+                               (let [target-owner-resource (resource-node/owner-resource basis target-node-id)]
+                                 (when (and (resource/file-resource? target-owner-resource)
+                                            (resource/editable? target-owner-resource))
+                                   (pair target-owner-resource target-node-id)))))))]
+         {:source-node-id source-node-id
+          :target-resources+node-ids target-resources+node-ids
+          :transferred-properties transferred-properties})))))
+
+(defn transfer-overrides-description
+  "Given a transfer-overrides-plan, return a user-friendly textual description
+  of its effects if executed. The resulting string is suitable for use with
+  user-interface elements such as menu items or tooltips."
+  (^String [transfer-overrides-plan]
+   (g/with-auto-evaluation-context evaluation-context
+     (transfer-overrides-description transfer-overrides-plan evaluation-context)))
+  (^String [transfer-overrides-plan evaluation-context]
+   {:pre [(map? transfer-overrides-plan)]}
+   (let [{:keys [source-node-id target-resources+node-ids transferred-properties]} transfer-overrides-plan
+         target-node-count (count target-resources+node-ids)
+         transferred-property-count (count transferred-properties)
+
+         overrides-qualifier
+         (or (when (= 1 transferred-property-count)
+               (let [property-keyword (ffirst transferred-properties)
+                     declared-properties (g/maybe-node-value source-node-id :_declared-properties)
+                     properties (:properties declared-properties)]
+                 (or (-> properties
+                         (get property-keyword)
+                         (:label))
+                     (-> property-keyword
+                         (keyword->name)
+                         (str " Override")))))
+             (text-util/amount-text transferred-property-count "Override"))
+
+         [target-nodes-qualifier target-resources-qualifier]
+         (if (= 1 target-node-count)
+           (let [[target-owner-resource target-node-id] (first target-resources+node-ids)
+                 node-qualifier-label (gu/node-qualifier-label target-node-id evaluation-context)]
+             (pair (if node-qualifier-label
+                     (str \' node-qualifier-label \')
+                     "Object")
+                   (str \' (resource/proj-path target-owner-resource) \')))
+           (let [target-owner-proj-paths
+                 (coll/transfer target-resources+node-ids #{}
+                   (map key)
+                   (map resource/proj-path))
+
+                 target-proj-path-count (count target-owner-proj-paths)]
+             (pair (text-util/amount-text target-node-count "Object")
+                   (if (= 1 target-proj-path-count)
+                     (str \' (first target-owner-proj-paths) \')
+                     (text-util/amount-text target-proj-path-count "Resource")))))]
+
+     (-> (format "Transfer %s to %s in %s"
+                 overrides-qualifier
+                 target-nodes-qualifier
+                 target-resources-qualifier)
+         (string/replace "_" "__")))))
+
+(defn transfer-overrides-tx-data
+  "Given a transfer-overrides-plan, return a sequence of transaction steps that
+  will transfer the overridden properties to the target nodes, or nil if there
+  is nothing to transfer."
+  [transfer-overrides-plan]
+  (when-some [{:keys [source-node-id target-resources+node-ids transferred-properties]} transfer-overrides-plan]
+    (let [transferred-property-kvs (coll/mapcat identity transferred-properties)]
+      (-> []
+          (into (mapcat #(apply g/set-property (val %) transferred-property-kvs))
+                target-resources+node-ids)
+          (into (map #(g/clear-property source-node-id (key %)))
+                transferred-properties)))))
+
+(defn pull-up-overrides-plan
+  "Returns a transfer-overrides-plan for transferring overridden properties from
+  the specified source-node-id to its immediate override-original. You can
+  specify a sequence of property-labels to consider for transfer or supply :all
+  to include all overridden properties. Returns nil if no properties match the
+  criteria. Otherwise, returns a map suitable for use with functions that accept
+  a transfer-overrides-plan."
   ([source-node-id property-labels]
    (g/with-auto-evaluation-context evaluation-context
-     (lift-overrides-plan source-node-id property-labels evaluation-context)))
+     (pull-up-overrides-plan source-node-id property-labels evaluation-context)))
   ([source-node-id property-labels {:keys [basis] :as evaluation-context}]
    (when-some [target-node-id (g/override-original basis source-node-id)]
-     (let [overridden-properties (g/overridden-properties source-node-id evaluation-context)
-           lifted-properties (case property-labels
-                               :all overridden-properties
-                               (select-keys overridden-properties property-labels))]
-       (when (pos? (count lifted-properties))
-         {:source-node-id source-node-id
-          :target-node-id target-node-id
-          :lifted-properties lifted-properties})))))
+     (transfer-overrides-plan source-node-id [target-node-id] property-labels evaluation-context))))
 
-(defn lift-overrides-description
-  "Given a lift-overrides-plan, return a user-friendly textual description of
-  its effects if executed, or nil if we cannot proceed with the transfer. The
-  resulting string is suitable for use with user-interface elements such as menu
-  items or tooltips. If this function returns nil, you should disallow the
-  action in the user-interface."
-  (^String [lift-overrides-plan]
-   (g/with-auto-evaluation-context evaluation-context
-     (lift-overrides-description lift-overrides-plan evaluation-context)))
-  (^String [lift-overrides-plan {:keys [basis] :as evaluation-context}]
-   (when-some [{:keys [source-node-id target-node-id lifted-properties]} lift-overrides-plan]
-     (when-some [target-owner-resource (resource-node/owner-resource basis target-node-id)]
-       (when (and (resource/file-resource? target-owner-resource)
-                  (resource/editable? target-owner-resource))
-         (let [lifted-property-count (count lifted-properties)
-               overrides-qualifier (or (when (= 1 lifted-property-count)
-                                         (let [property-keyword (ffirst lifted-properties)
-                                               properties (:properties (g/maybe-node-value source-node-id :_declared-properties))]
-                                           (or (-> properties
-                                                   (get property-keyword)
-                                                   (:label))
-                                               (-> property-keyword
-                                                   (keyword->name)
-                                                   (str " Override")))))
-                                       (text-util/amount-text lifted-property-count "Override"))
-               target-node-qualifier (or (gu/node-qualifier-label target-node-id evaluation-context)
-                                         "Node")
-               target-owner-proj-path (resource/proj-path target-owner-resource)]
-           (-> (format "Lift %s to '%s' in '%s'"
-                       overrides-qualifier
-                       target-node-qualifier
-                       target-owner-proj-path)
-               (string/replace "_" "__"))))))))
-
-(defn lift-overrides-tx-data
-  "Given a lift-overrides-plan, return a sequence of transaction steps that will
-  transfer the overridden properties to their immediate override-original, or
-  nil if there is nothing to transfer."
-  [lift-overrides-plan]
-  (when-some [{:keys [source-node-id target-node-id lifted-properties]} lift-overrides-plan]
-    (into (vec (apply g/set-property target-node-id (mapcat identity lifted-properties)))
-          (map #(g/clear-property source-node-id %))
-          (keys lifted-properties))))
+;; TODO: Override transfers probably need to be hierarchical. Try to figure out
+;; the possibilities for a Gui Layout override transfer, for example, and
+;; consider how the options could be presented to
+;; the user. Something along the lines of:
+;;
+;; [Transfer|Apply] >
+;;   [All Overrides|Color Override] >
+;;     To [Default|Landscape|Portrait] Layout in >
+;;       [Immediate Original in tv.gui|Immediate Successors in house.gui]
+;;
+;; [Transfer|Apply] >
+;;   [All Overrides|Color Override] >
+;;     To [Immediate Original in tv.go|Immediate Successors in house.collection]
+;;
+;; Distant Original in ???
+;; Distant Successors in ???

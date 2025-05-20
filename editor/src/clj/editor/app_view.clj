@@ -1635,7 +1635,7 @@ If you do not specifically require different script states, consider changing th
                 :command :file.show-references}
                {:label "Dependencies..."
                 :command :file.show-dependencies}
-               {:label "Show Overrides"
+               {:label "Show Overrides..."
                 :command :edit.show-overrides}
                {:label "Hot Reload"
                 :command :run.hot-reload}
@@ -1755,7 +1755,7 @@ If you do not specifically require different script states, consider changing th
     :command :file.show-references}
    {:label "Dependencies..."
     :command :file.show-dependencies}
-   {:label "Show Overrides"
+   {:label "Show Overrides..."
     :command :edit.show-overrides}])
 
 (defrecord SelectionProvider [app-view]

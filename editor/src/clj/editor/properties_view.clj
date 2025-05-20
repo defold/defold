@@ -862,28 +862,69 @@
   (run [property selection search-results-view app-view]
     (app-view/show-override-inspector! app-view search-results-view (handler/selection->node-id selection) [(:key property)])))
 
-(handler/defhandler :edit.lift-overrides :property
-  (label [property selection]
-    (let [node-id (handler/selection->node-id selection)
-          lift-overrides-plan (some-> node-id (properties/lift-overrides-plan [(:key property)]))]
-      (properties/lift-overrides-description lift-overrides-plan)))
-  (active? [evaluation-context property selection]
-    (and (:values property)
-         (let [node-id (handler/selection->node-id selection)
-               lift-overrides-plan (some-> node-id (properties/lift-overrides-plan [(:key property)] evaluation-context))]
-           (some? (properties/lift-overrides-description lift-overrides-plan evaluation-context)))))
-  (run [property selection search-results-view app-view]
-    (let [node-id (handler/selection->node-id selection)
-          lift-overrides-plan (some-> node-id (properties/lift-overrides-plan [(:key property)]))
-          tx-data (properties/lift-overrides-tx-data lift-overrides-plan)]
-      (when (coll/not-empty tx-data)
-        (g/transact tx-data)))))
+(defn- transfer-overrides-handler-active?
+  [property user-data]
+  (or (some? user-data)
+      (:original-values property)))
+
+(defn- transfer-overrides-handler-run!
+  [user-data]
+  (let [transfer-overrides-plan (:transfer-overrides-plan user-data)
+        tx-data (properties/transfer-overrides-tx-data transfer-overrides-plan)]
+    (when (coll/not-empty tx-data)
+      (g/transact tx-data))))
+
+(handler/defhandler :edit.pull-up-override :property
+  (active? [property user-data]
+    (transfer-overrides-handler-active? property user-data))
+  (run [user-data]
+    (transfer-overrides-handler-run! user-data))
+  (options [property selection user-data]
+    (when-not user-data
+    (g/with-auto-evaluation-context evaluation-context
+      (let [basis (:basis evaluation-context)
+            property-labels [(:key property)]
+            node-id (handler/selection->node-id selection)
+            original-node-ids (iterate #(g/override-original basis %)
+                                       (g/override-original basis node-id))]
+        (coll/transfer
+          original-node-ids []
+          (take-while some?)
+          (keep (fn [original-node-id]
+                  (properties/transfer-overrides-plan node-id [original-node-id] property-labels evaluation-context)))
+          (map (fn [transfer-overrides-plan]
+                 {:label (properties/transfer-overrides-description transfer-overrides-plan)
+                  :command :edit.pull-up-override
+                  :user-data {:transfer-overrides-plan transfer-overrides-plan}}))))))))
+
+(handler/defhandler :edit.push-down-override :property
+  (active? [evaluation-context selection]
+    (when-let [node-id (handler/selection->node-id selection)]
+      (let [basis (:basis evaluation-context)
+            override-node-ids (g/overrides basis node-id)]
+        (pos? (count override-node-ids)))))
+  (run [user-data]
+    (transfer-overrides-handler-run! user-data))
+  (options [property selection user-data]
+    (when-not user-data
+      (g/with-auto-evaluation-context evaluation-context
+        (let [basis (:basis evaluation-context)
+              property-labels [(:key property)]
+              node-id (handler/selection->node-id selection)
+              override-node-ids (g/overrides basis node-id)
+              transfer-overrides-plan (properties/transfer-overrides-plan node-id override-node-ids property-labels evaluation-context)]
+          (when transfer-overrides-plan
+            [{:label (properties/transfer-overrides-description transfer-overrides-plan)
+              :command :edit.push-down-override
+              :user-data {:transfer-overrides-plan transfer-overrides-plan}}]))))))
 
 (handler/register-menu! ::properties-menu
-  [{:label "Show Overrides"
+  [{:label "Show Overrides..."
     :command :edit.show-overrides}
-   {:label "Lift Overrides"
-    :command :edit.lift-overrides}])
+   {:label "Pull Up Override"
+    :command :edit.pull-up-override}
+   {:label "Push Down Override"
+    :command :edit.push-down-override}])
 
 (defrecord SelectionProvider [original-node-ids]
   handler/SelectionProvider
@@ -898,8 +939,8 @@
         ^Label label (doto (Label.)
                        (ui/register-context-menu ::properties-menu true)
                        (.setTooltip (doto (Tooltip.)
-                                          (.setHideDelay Duration/ZERO)
-                                          (.setShowDuration (Duration/seconds 30))))
+                                      (.setHideDelay Duration/ZERO)
+                                      (.setShowDuration (Duration/seconds 30))))
                        (ui/add-style! "property-label")
                        (.setMinWidth Label/USE_PREF_SIZE)
                        (.setMinHeight 28.0)

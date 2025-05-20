@@ -90,7 +90,7 @@
     :command :file.show-references}
    {:label "Dependencies..."
     :command :file.show-dependencies}
-   {:label "Show Overrides"
+   {:label "Show Overrides..."
     :command :edit.show-overrides}
    {:label :separator}
    {:label "View Diff"

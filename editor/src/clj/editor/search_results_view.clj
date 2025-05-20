@@ -521,8 +521,8 @@
           [[:open-resource (cond-> {:resource resource}
                                    node-id (assoc :opts {:select-node node-id}))]])))))
 
-(defmethod handle-override-inspector-event :on-lift-overrides [{:keys [lift-overrides-plan]}]
-  [[:lift-overrides lift-overrides-plan]])
+(defmethod handle-override-inspector-event :on-transfer-overrides [{:keys [transfer-overrides-plan]}]
+  [[:transfer-overrides transfer-overrides-plan]])
 
 (defmethod handle-override-inspector-event :on-select-item [{:keys [^TreeItem fx/event]}]
   [[:select-item (some-> event .getValue)]])
@@ -596,23 +596,23 @@
                 :props {:selection-mode :single
                         :on-selected-item-changed {:event-type :on-select-item}}
                 :desc
-                (let [lifted-property-labels (:overridden-properties selected-item)
+                (let [overridden-property-labels (:overridden-properties selected-item)
 
                       context-menu
-                      (when (coll/not-empty lifted-property-labels)
-                        (let [lift-overrides-plan
+                      (when (coll/not-empty overridden-property-labels)
+                        (let [transfer-overrides-plan
                               (when-some [source-node-id (:node-id selected-item)]
-                                (properties/lift-overrides-plan source-node-id lifted-property-labels))
+                                (properties/pull-up-overrides-plan source-node-id overridden-property-labels))
 
                               action-description
-                              (some-> lift-overrides-plan properties/lift-overrides-description)]
+                              (some-> transfer-overrides-plan properties/transfer-overrides-description)]
 
                           {:fx/type fx.context-menu/lifecycle
                            :items [{:fx/type fx.menu-item/lifecycle
-                                    :text (or action-description "Lift Overrides")
+                                    :text (or action-description "Pull Up Overrides")
                                     :disable (nil? action-description)
-                                    :on-action {:event-type :on-lift-overrides
-                                                :lift-overrides-plan lift-overrides-plan}}]}))]
+                                    :on-action {:event-type :on-transfer-overrides
+                                                :transfer-overrides-plan transfer-overrides-plan}}]}))]
 
                   (cond-> {:fx/type fx.tree-table-view/lifecycle
                            :fixed-cell-size 24
@@ -746,11 +746,11 @@
           handle-override-inspector-event
           {:refresh-view (fn [_ _]
                            (refresh-view!))
-           :lift-overrides (fn [lift-overrides-plan _]
-                             (let [tx-data (properties/lift-overrides-tx-data lift-overrides-plan)]
-                               (when (coll/not-empty tx-data)
-                                 (g/transact tx-data)
-                                 (refresh-view!))))
+           :transfer-overrides (fn [transfer-overrides-plan _]
+                                 (let [tx-data (properties/transfer-overrides-tx-data transfer-overrides-plan)]
+                                   (when (coll/not-empty tx-data)
+                                     (g/transact tx-data)
+                                     (refresh-view!))))
            :open-resource (fn [{:keys [resource opts]} _]
                             (open-resource! search-results-view resource opts))
            :select-item (fn [item _]
