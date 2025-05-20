@@ -20,6 +20,7 @@
 
 #include <dlib/array.h>
 #include <dlib/hash.h>
+#include <dlib/double_linked_list.h>
 #include <dlib/log.h>
 #include <dlib/message.h>
 #include <dlib/profile.h>
@@ -66,17 +67,28 @@ namespace dmGameSystem
     };
 
     const uint32_t MAX_TEXTURE_COUNT = dmRender::RenderObject::MAX_TEXTURE_COUNT;
+    const uint8_t CACHE_EVICTION_FRAMES = 10; // how many frames cache entry is stored before eviction
 
     struct AnimationData
     {
+        dmDoubleLinkedList::ListNode    node;
         // Used after resolving info from all textures
         dmhash_t                        m_AnimationID;                      // The animation of the driving atlas
         uint32_t                        m_Frames[MAX_TEXTURE_COUNT];        // The resolved frame indices
+        uint32_t                        m_LastAccessTick;
+        uint32_t                        m_CacheKey;
         float                           m_PageIndices[MAX_TEXTURE_COUNT];
 
         const dmGameSystemDDF::TextureSetAnimation* m_Animations[MAX_TEXTURE_COUNT];
         const dmGameSystemDDF::SpriteGeometry*      m_Geometries[MAX_TEXTURE_COUNT];
         bool                                        m_UsesGeometries;
+    };
+
+    struct AnimationDataCache
+    {
+        dmHashTable32<AnimationData*> m_Cache;
+        dmDoubleLinkedList::List      m_LRU;
+        uint32_t                      m_CurrentEngineTick;
     };
 
     struct SpriteComponent
@@ -125,7 +137,7 @@ namespace dmGameSystem
 
     struct SpriteWorld
     {
-        dmHashTable32<AnimationData*>       m_AnimationDataCache;
+        AnimationDataCache                  m_AnimationDataCache;
         dmObjectPool<SpriteComponent>       m_Components;
         DynamicAttributePool                m_DynamicVertexAttributePool;
         dmArray<dmRender::RenderObject*>    m_RenderObjects;
@@ -209,7 +221,8 @@ namespace dmGameSystem
         sprite_world->m_Components.SetCapacity(comp_count);
         sprite_world->m_BoundingVolumes.SetCapacity(comp_count);
         sprite_world->m_BoundingVolumes.SetSize(comp_count);
-        sprite_world->m_AnimationDataCache.SetCapacity(100);
+        sprite_world->m_AnimationDataCache.m_Cache.SetCapacity(100);
+        dmDoubleLinkedList::ListInit(&sprite_world->m_AnimationDataCache.m_LRU);
         memset(sprite_world->m_Components.GetRawObjects().Begin(), 0, sizeof(SpriteComponent) * comp_count);
         sprite_world->m_RenderObjectsInUse = 0;
         sprite_world->m_VertexBuffer     = 0;
@@ -239,6 +252,13 @@ namespace dmGameSystem
         free(sprite_world->m_VertexBufferData);
         dmRender::DeleteBufferedRenderBuffer(sprite_context->m_RenderContext, sprite_world->m_IndexBuffer);
         free(sprite_world->m_IndexBufferData);
+
+        dmHashTable32<AnimationData*>::Iterator iter = sprite_world->m_AnimationDataCache.m_Cache.GetIterator();
+        while(iter.Next())
+        {
+            AnimationData* data = iter.GetValue();
+            free(data);
+        }
 
         delete sprite_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -1221,10 +1241,13 @@ namespace dmGameSystem
         uint32_t hash = dmHashFinal32(&state);
 
         // 1. Search in hastable
-        AnimationData** found = sprite_world->m_AnimationDataCache.Get(hash);
+        AnimationData** found = sprite_world->m_AnimationDataCache.m_Cache.Get(hash);
         if (found != 0x0)
         {
-            dmLogWarning("-=-=-=-==Animation data cache hit");
+            dmDoubleLinkedList::ListNode* node = (dmDoubleLinkedList::ListNode*)(*found);
+            dmDoubleLinkedList::ListRemove(&sprite_world->m_AnimationDataCache.m_LRU, node);
+            dmDoubleLinkedList::ListAdd(&sprite_world->m_AnimationDataCache.m_LRU, node);
+            (*found)->m_LastAccessTick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick;
             return *found;
         }
 
@@ -1234,13 +1257,14 @@ namespace dmGameSystem
         memset(anim_data, 0, sizeof(AnimationData));
         ResolveAnimationData(component, anim_data);
 
-        dmLogWarning("-=-=-=-==Put animation data to cache");
-        if (sprite_world->m_AnimationDataCache.Full())
+        anim_data->m_LastAccessTick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick;
+        anim_data->m_CacheKey = hash;
+        if (sprite_world->m_AnimationDataCache.m_Cache.Full())
         {
-            sprite_world->m_AnimationDataCache.OffsetCapacity(30);
+            sprite_world->m_AnimationDataCache.m_Cache.OffsetCapacity(30);
         }
-        sprite_world->m_AnimationDataCache.Put(hash, anim_data);
-        dmLogWarning("-=-=-=-==Cache size now is: %d", sprite_world->m_AnimationDataCache.Size());
+        sprite_world->m_AnimationDataCache.m_Cache.Put(hash, anim_data);
+        dmDoubleLinkedList::ListAdd(&sprite_world->m_AnimationDataCache.m_LRU, (dmDoubleLinkedList::ListNode*)anim_data);
         return anim_data;
     }
 
@@ -1876,6 +1900,33 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    static void UpdateCache(SpriteWorld* sprite_world)
+    {
+        DM_PROFILE("UpdateCache");
+        // update current tick
+        sprite_world->m_AnimationDataCache.m_CurrentEngineTick++;
+        // evict all cache entries which olders then 10 ticks
+        dmDoubleLinkedList::List* list = &sprite_world->m_AnimationDataCache.m_LRU;
+        dmDoubleLinkedList::ListNode* current = dmDoubleLinkedList::ListGetLast(list);
+        while (current != 0x0)
+        {
+            // list node is used as pointer to memory block where AnimationData structure is placed
+            // cast to AnimationData allows to work wit memory block as structure
+            AnimationData* data = (AnimationData*)current;
+            if (data->m_LastAccessTick + CACHE_EVICTION_FRAMES <= sprite_world->m_AnimationDataCache.m_CurrentEngineTick)
+            {
+                sprite_world->m_AnimationDataCache.m_Cache.Erase(data->m_CacheKey);
+                dmDoubleLinkedList::ListRemove(list, current);
+                free(data);
+            }
+            else
+            {
+                break;
+            }
+            current = dmDoubleLinkedList::ListGetLast(list);
+        }
+    }
+
     dmGameObject::UpdateResult CompSpriteUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         /*
@@ -1885,6 +1936,8 @@ namespace dmGameSystem
          */
 
         SpriteWorld* world = (SpriteWorld*)params.m_World;
+        UpdateCache(world);
+
         Animate(world, params.m_UpdateContext->m_DT);
 
         PostMessages(world);
