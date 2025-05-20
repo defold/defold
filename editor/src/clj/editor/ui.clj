@@ -2235,9 +2235,8 @@
       (.start (Thread. #(.browse desktop (as-url url))))
       true)
     (do
-      (log/warn :message (format "Cannot open browser"))
-      (if (os/is-linux?) (log/warn :message (format "Installing gvfs may fix this error")))
-    false)))
+      (log/warn :message (str "Cannot open browser." (when (os/is-linux?) " Installing gvfs may fix this.")))
+      false)))
 
 (defn open-file
   ([^File file]
@@ -2254,8 +2253,8 @@
                                 (throw e)))))))
        true)
      (do
-       (log/warn :message (format "Cannot open file handler"))
-     false))))
+       (log/warn :message "Cannot open file handler")
+       false))))
 
 (defn- make-path-data
   ^String [^double col ^double row outlines]
