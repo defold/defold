@@ -86,7 +86,6 @@ static int32_atomic_t           g_ProfileInitialized = 0;
 static dmMutex::HMutex          g_Lock = 0;
 
 static struct ProfileContext*   g_ProfileContext = 0;
-uint8_t g_ProfilerGeneration = 0;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 // UTILS
@@ -277,7 +276,6 @@ static void PropertyInitialize()
     g_Properties[0].m_Parent    = DM_PROFILE_PROPERTY_INVALID_IDX;
     g_Properties[0].m_FirstChild= DM_PROFILE_PROPERTY_INVALID_IDX;
     g_Properties[0].m_Sibling   = DM_PROFILE_PROPERTY_INVALID_IDX;
-    g_ProfilerGeneration++;
 }
 
 static void ResetProperties(ProfileContext* ctx)
@@ -380,6 +378,7 @@ static ThreadData* GetOrCreateThreadData(ProfileContext* ctx, int32_t thread_id)
 namespace dmProfile
 {
     static const uint32_t INVALID_INDEX = 0xFFFFFFFF;
+    uint8_t g_ProfilerGeneration = 0;
 
     void Initialize(const Options* options)
     {
@@ -389,6 +388,7 @@ namespace dmProfile
         assert(!IsInitialized());
         g_ProfileContext = new ProfileContext;
 
+        g_ProfilerGeneration++;
         dmAtomicIncrement32(&g_ProfileInitialized);
 
         SetThreadName("Main");
