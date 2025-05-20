@@ -219,7 +219,7 @@
                         ctrls))
     box))
 
-(defn- handle-label-drag-event! [property-fn drag-update-fn update-ui-fn ^MouseDragEvent event]
+(defn- handle-control-drag-event! [property-fn drag-update-fn update-ui-fn ^MouseDragEvent event]
   (.consume event)
   (let [property (property-fn)
         target (.getTarget event)
@@ -258,24 +258,39 @@
 
 (defn handle-label-press-event!
   [^MouseEvent event]
+  (.consume event)
   (doto (.getTarget event)
+    (ui/add-style! "active")
     (ui/user-data! ::op-seq (gensym))
     (ui/user-data! ::position [(.getX event) (.getY event)])
     (ui/user-data! ::values nil)))
 
 (defn handle-label-release-event!
   [^MouseEvent event]
+  (.consume event)
   (doto (.getTarget event)
+    (ui/remove-style! "active")
     (ui/user-data! ::op-seq nil)
     (ui/user-data! ::position nil)))
 
-(defn- make-label-draggable!
-  [^Label label drag-event-handler]
-  (doto label
-    (ui/add-style! "draggable")
-    (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (drag-event-handler event)))
-    (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-label-press-event! event)))
-    (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-label-release-event! event)))))
+(defn- make-control-draggable
+  ([^Node control drag-event-handler]
+   (make-control-draggable control drag-event-handler true))
+  ([^Node control drag-event-handler is-right-aligned]
+   (let [drag-icon (doto (Button. "" (jfx/get-image-view "icons/32/Icons_X_10_scalesides.png" 16))
+                     (ui/add-style! "action-button")
+                     (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (drag-event-handler event)))
+                     (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-label-press-event! event)))
+                     (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-label-release-event! event))))]
+     (if is-right-aligned
+       (AnchorPane/setRightAnchor drag-icon 4.0)
+       (AnchorPane/setLeftAnchor drag-icon 4.0))
+     (doto control
+       (AnchorPane/setRightAnchor 0.0)
+       (AnchorPane/setLeftAnchor 0.0))
+     (doto (AnchorPane. (ui/node-array [control drag-icon]))
+       (GridPane/setHgrow Priority/ALWAYS)
+       (ui/add-style! "overlay-action-pane")))))
 
 (defn- create-multi-text-field! [labels property-fn]
   (let [text-fields (mapv (fn [_] (TextField.)) labels)
@@ -290,15 +305,6 @@
         (fn [index ^TextField text-field ^String label-text]
           (let [drag-update-fn (fn [v update-val]
                                  (update v index #(properties/round-scalar (+ % update-val))))
-                children (if (seq label-text)
-                           (let [label (doto (Label. label-text)
-                                         (.setMinWidth Region/USE_PREF_SIZE))]
-                             (make-label-draggable! label (partial handle-label-drag-event! property-fn drag-update-fn update-ui-fn))
-                             [label text-field])
-                           [text-field])
-                comp (doto (create-grid-pane children)
-                       (GridPane/setConstraints index 0)
-                       (GridPane/setHgrow Priority/ALWAYS))
                 cancel-fn (fn [_]
                             (let [property (property-fn)
                                   current-vals (properties/values property)]
@@ -312,8 +318,17 @@
                                   num (parse-num (.getText text-field) old-num)]
                               (if (and num (not= num old-num))
                                 (properties/set-values! property (mapv #(assoc % index num) current-vals))
-                                (cancel-fn nil))))]
-            (customize! text-field update-fn cancel-fn)
+                                (cancel-fn nil))))
+                _ (customize! text-field update-fn cancel-fn)
+                text-field (make-control-draggable text-field (partial handle-control-drag-event! property-fn drag-update-fn update-ui-fn) false) 
+                children (if (seq label-text)
+                           (let [label (doto (Label. label-text)
+                                         (.setMinWidth Region/USE_PREF_SIZE))]
+                             [label text-field])
+                           [text-field])
+                comp (doto (create-grid-pane children)
+                       (GridPane/setConstraints index 0)
+                       (GridPane/setHgrow Priority/ALWAYS))]
             (ui/add-child! box comp)))
         (range)
         text-fields
@@ -584,7 +599,7 @@
         pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha? edit-type) c))
         saved-colors ^Collection (get-saved-colors prefs)
         color-dropper (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
-                        (ui/add-style! "color-dropper")
+                        (ui/add-style! "action-button")
                         (AnchorPane/setRightAnchor 0.0)
                         (ui/on-click! (fn [^MouseEvent event] (color-dropper/activate! color-dropper-view pick-fn event))))
         text (TextField.)
@@ -594,7 +609,7 @@
         get-overlay #(.lookup (ui/main-root) "#overlay")
         pane (doto (AnchorPane. (ui/node-array [text color-dropper]))
                (HBox/setHgrow Priority/ALWAYS)
-               (ui/add-style! "color-pane"))
+               (ui/add-style! "overlay-action-pane"))
         update-ui-fn (fn [values message read-only?]
                        (update-text-fn text value->display-color values message read-only?)
                        (.setValue color-picker (some-> (properties/unify-values values) value->color))
@@ -613,8 +628,6 @@
     (when (seq saved-colors)
       (.setAll (.getCustomColors color-picker) saved-colors))
     (doto text
-      (AnchorPane/setTopAnchor 0.0)
-      (AnchorPane/setBottomAnchor 0.0)
       (AnchorPane/setRightAnchor 0.0)
       (AnchorPane/setLeftAnchor 0.0)
       (ui/add-style! "color-input")
@@ -906,9 +919,10 @@
                          (update-label-box overridden?)
                          (update-ctrl-fn (properties/values property)
                                          (properties/validation-message property)
-                                         (properties/read-only? property))))]
-    (when drag-update-fn
-      (make-label-draggable! label (partial handle-label-drag-event! (fn [] property) drag-update-fn update-ctrl-fn)))
+                                         (properties/read-only? property))))
+        control (cond-> control
+                  drag-update-fn
+                  (make-control-draggable (partial handle-control-drag-event! (fn [] property) drag-update-fn update-ctrl-fn)))]
 
     (update-label-box (properties/overridden? property))
 
