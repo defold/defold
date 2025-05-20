@@ -46,7 +46,7 @@ Build full engine, but without: docs, bob light, tests, skipping the tests (for 
 
 Rebuild a single library, and then relink the dmengine executable. No tests are run. The fastest option while iterating on a feature.
 
-    $ ./scripts/submodule x86_64-win32 gamesys
+    $ ./scripts/submodule.sh x86_64-win32 gamesys
 
 
 You can also specify the platform explicitly:
