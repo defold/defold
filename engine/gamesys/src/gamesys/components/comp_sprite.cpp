@@ -1905,15 +1905,21 @@ namespace dmGameSystem
         DM_PROFILE("UpdateCache");
         // update current tick
         sprite_world->m_AnimationDataCache.m_CurrentEngineTick++;
-        // evict all cache entries which olders then 10 ticks
+        // evict all cache entries which older than CACHE_EVICTION_FRAMES ticks
         dmDoubleLinkedList::List* list = &sprite_world->m_AnimationDataCache.m_LRU;
         dmDoubleLinkedList::ListNode* current = dmDoubleLinkedList::ListGetLast(list);
         while (current != 0x0)
         {
             // list node is used as pointer to memory block where AnimationData structure is placed
-            // cast to AnimationData allows to work wit memory block as structure
+            // cast to AnimationData allows to work with memory block as structure
             AnimationData* data = (AnimationData*)current;
-            if (data->m_LastAccessTick + CACHE_EVICTION_FRAMES <= sprite_world->m_AnimationDataCache.m_CurrentEngineTick)
+            uint32_t cache_eviction_frame = data->m_LastAccessTick + CACHE_EVICTION_FRAMES;
+            uint32_t underflow_tick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick - CACHE_EVICTION_FRAMES;
+
+            //in normal case we evict cache entry when CACHE_EVICTION_FRAMES passed
+            // but also in case if m_LastAccessTick tick or m_CurrentEngineTick is near overflow
+            if (cache_eviction_frame <= sprite_world->m_AnimationDataCache.m_CurrentEngineTick
+                && (data->m_LastAccessTick < cache_eviction_frame || underflow_tick > sprite_world->m_AnimationDataCache.m_CurrentEngineTick))
             {
                 sprite_world->m_AnimationDataCache.m_Cache.Erase(data->m_CacheKey);
                 dmDoubleLinkedList::ListRemove(list, current);
@@ -2056,7 +2062,7 @@ namespace dmGameSystem
             const AnimationData* anim_data = GetOrCreateAnimationData(sprite_world, &component);
             float pivot_x = 0.f, pivot_y = 0.f;
             GetPivot(anim_data, &pivot_x, &pivot_y);
-            Vector3 pivot(pivot_x, pivot_y, 0.f);
+            Point3 pivot(-pivot_x, -pivot_y, 0.f);
             Vector3 world_pos = (component.m_World * pivot).getXYZ();
             write_ptr->m_WorldPosition = Point3(world_pos);
             write_ptr->m_UserData = i; // Assuming the object pool stays intact
