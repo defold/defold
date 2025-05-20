@@ -656,12 +656,14 @@ namespace dmProfile
         {
             if (name)
             {
+#if !defined(NDEBUG) && !defined(DM_PROFILE_NULL)
                 if (m_ScopeInfo->m_Generation != g_ProfilerGeneration)
                 {
                     if (name_hash)
                         *name_hash = 0;
                     m_ScopeInfo->m_Generation = g_ProfilerGeneration;
                 }
+#endif
                 m_Valid = 1;
                 StartScope(name, name_hash);
             }
