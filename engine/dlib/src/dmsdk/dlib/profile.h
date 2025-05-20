@@ -568,6 +568,7 @@ enum ProfilePropertyFlags
     struct ProfileScope
     {
         void* m_Internal; // used by each profiler implementation to store scope relevant data
+        uint32_t m_Generation;
     };
 
     #define _DM_PROFILE_PASTE(x, y) x ## y
@@ -588,14 +589,14 @@ enum ProfilePropertyFlags
     #define DM_PROFILE_TEXT(format, ...)              dmProfile::LogText(format, __VA_ARGS__)
 
     // The profiler property api
-    #define DM_PROPERTY_GROUP(name, desc, parent)                      dmProfileIdx *name() { static dmProfileIdx n = dmProfileCreatePropertyGroup(#name, desc, parent); return &n; } static dmProfileIdx *name##_p = name()
-    #define DM_PROPERTY_BOOL(name, default_value, flags, desc, parent) dmProfileIdx *name() { static dmProfileIdx n = dmProfileCreatePropertyBool(#name, desc, default_value, flags, parent); return &n; } static dmProfileIdx *name##_p = name()
-    #define DM_PROPERTY_S32(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static dmProfileIdx n = dmProfileCreatePropertyS32(#name, desc, default_value, flags, parent); return &n; } static dmProfileIdx *name##_p = name()
-    #define DM_PROPERTY_U32(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static dmProfileIdx n = dmProfileCreatePropertyU32(#name, desc, default_value, flags, parent); return &n; } static dmProfileIdx *name##_p = name()
-    #define DM_PROPERTY_F32(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static dmProfileIdx n = dmProfileCreatePropertyF32(#name, desc, default_value, flags, parent); return &n; } static dmProfileIdx *name##_p = name()
-    #define DM_PROPERTY_S64(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static dmProfileIdx n = dmProfileCreatePropertyS64(#name, desc, default_value, flags, parent); return &n; } static dmProfileIdx *name##_p = name()
-    #define DM_PROPERTY_U64(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static dmProfileIdx n = dmProfileCreatePropertyU64(#name, desc, default_value, flags, parent); return &n; } static dmProfileIdx *name##_p = name()
-    #define DM_PROPERTY_F64(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static dmProfileIdx n = dmProfileCreatePropertyF64(#name, desc, default_value, flags, parent); return &n; } static dmProfileIdx *name##_p = name()
+    #define DM_PROPERTY_GROUP(name, desc, parent)                      dmProfileIdx *name() { static uint8_t gen = 0; static dmProfileIdx n = DM_PROFILE_PROPERTY_INVALID_IDX; if (gen != dmProfile::g_ProfilerGeneration) { n = dmProfileCreatePropertyGroup(#name, desc, parent); gen = dmProfile::g_ProfilerGeneration; } return &n; } static dmProfileIdx *name##_p = name()
+    #define DM_PROPERTY_BOOL(name, default_value, flags, desc, parent) dmProfileIdx *name() { static uint8_t gen = 0; static dmProfileIdx n = DM_PROFILE_PROPERTY_INVALID_IDX; if (gen != dmProfile::g_ProfilerGeneration) { n = dmProfileCreatePropertyBool(#name, desc, default_value, flags, parent); gen = dmProfile::g_ProfilerGeneration; } return &n; } static dmProfileIdx *name##_p = name()
+    #define DM_PROPERTY_S32(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static uint8_t gen = 0; static dmProfileIdx n = DM_PROFILE_PROPERTY_INVALID_IDX; if (gen != dmProfile::g_ProfilerGeneration) { n = dmProfileCreatePropertyS32(#name, desc, default_value, flags, parent); gen = dmProfile::g_ProfilerGeneration; } return &n; } static dmProfileIdx *name##_p = name()
+    #define DM_PROPERTY_U32(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static uint8_t gen = 0; static dmProfileIdx n = DM_PROFILE_PROPERTY_INVALID_IDX; if (gen != dmProfile::g_ProfilerGeneration) { n = dmProfileCreatePropertyU32(#name, desc, default_value, flags, parent); gen = dmProfile::g_ProfilerGeneration; } return &n; } static dmProfileIdx *name##_p = name()
+    #define DM_PROPERTY_F32(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static uint8_t gen = 0; static dmProfileIdx n = DM_PROFILE_PROPERTY_INVALID_IDX; if (gen != dmProfile::g_ProfilerGeneration) { n = dmProfileCreatePropertyF32(#name, desc, default_value, flags, parent); gen = dmProfile::g_ProfilerGeneration; } return &n; } static dmProfileIdx *name##_p = name()
+    #define DM_PROPERTY_S64(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static uint8_t gen = 0; static dmProfileIdx n = DM_PROFILE_PROPERTY_INVALID_IDX; if (gen != dmProfile::g_ProfilerGeneration) { n = dmProfileCreatePropertyS64(#name, desc, default_value, flags, parent); gen = dmProfile::g_ProfilerGeneration; } return &n; } static dmProfileIdx *name##_p = name()
+    #define DM_PROPERTY_U64(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static uint8_t gen = 0; static dmProfileIdx n = DM_PROFILE_PROPERTY_INVALID_IDX; if (gen != dmProfile::g_ProfilerGeneration) { n = dmProfileCreatePropertyU64(#name, desc, default_value, flags, parent); gen = dmProfile::g_ProfilerGeneration; } return &n; } static dmProfileIdx *name##_p = name()
+    #define DM_PROPERTY_F64(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static uint8_t gen = 0; static dmProfileIdx n = DM_PROFILE_PROPERTY_INVALID_IDX; if (gen != dmProfile::g_ProfilerGeneration) { n = dmProfileCreatePropertyF64(#name, desc, default_value, flags, parent); gen = dmProfile::g_ProfilerGeneration; } return &n; } static dmProfileIdx *name##_p = name()
 
     // Set properties to the given value
     #define DM_PROPERTY_SET_BOOL(name, set_value)   dmProfilePropertySetBool(name, set_value)
@@ -622,6 +623,8 @@ enum ProfilePropertyFlags
 
 namespace dmProfile
 {
+    extern uint8_t g_ProfilerGeneration;
+
     /*# Profile snapshot handle
      * @typedef
      * @name HProfile
@@ -653,6 +656,12 @@ namespace dmProfile
         {
             if (name)
             {
+                if (m_ScopeInfo->m_Generation != g_ProfilerGeneration)
+                {
+                    if (name_hash)
+                        *name_hash = 0;
+                    m_ScopeInfo->m_Generation = g_ProfilerGeneration;
+                }
                 m_Valid = 1;
                 StartScope(name, name_hash);
             }

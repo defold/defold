@@ -86,6 +86,7 @@ static int32_atomic_t           g_ProfileInitialized = 0;
 static dmMutex::HMutex          g_Lock = 0;
 
 static struct ProfileContext*   g_ProfileContext = 0;
+uint8_t g_ProfilerGeneration = 0;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 // UTILS
@@ -276,6 +277,7 @@ static void PropertyInitialize()
     g_Properties[0].m_Parent    = DM_PROFILE_PROPERTY_INVALID_IDX;
     g_Properties[0].m_FirstChild= DM_PROFILE_PROPERTY_INVALID_IDX;
     g_Properties[0].m_Sibling   = DM_PROFILE_PROPERTY_INVALID_IDX;
+    g_ProfilerGeneration++;
 }
 
 static void ResetProperties(ProfileContext* ctx)
