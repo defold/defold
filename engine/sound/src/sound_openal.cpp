@@ -1107,8 +1107,7 @@ namespace dmSound
                 ++i;
             } else {
                 // finished playing; reclaim source
-                ReclaimSource(&instance);
-                SwapAndPopActiveInstance(i);
+                Stop(&instance);
             }
         }
 
