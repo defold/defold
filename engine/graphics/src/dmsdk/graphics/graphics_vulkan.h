@@ -15,6 +15,7 @@
 #ifndef DMSDK_GRAPHICS_VULKAN_H
 #define DMSDK_GRAPHICS_VULKAN_H
 
+#include <vulkan/vulkan_core.h>
 #include <dmsdk/graphics/graphics.h>
 
 /*# Graphics API documentation

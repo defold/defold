@@ -4634,42 +4634,42 @@ bail:
         return context->m_CurrentSwapchainTexture;
     }
 
-    VkDevice VulkanGetDevice(HContext context)
+    VkDevice VulkanGetDevice(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        return context->m_LogicalDevice->m_Device;
+        return context->m_LogicalDevice.m_Device;
     }
 
-    VkPhysicalDevice VulkanGetPhysicalDevice(HContext context)
+    VkPhysicalDevice VulkanGetPhysicalDevice(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        return context->m_PhysicalDevice->m_Device;
+        return context->m_PhysicalDevice.m_Device;
     }
 
-    VkInstance VulkanGetInstance(HContext context)
+    VkInstance VulkanGetInstance(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
         return context->m_Instance;
     }
 
-    uint16_t VulkanGetQueueFamily(HContext context)
+    uint16_t VulkanGetQueueFamily(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
         return context->m_SwapChain->m_QueueFamily.m_GraphicsQueueIx;
     }
 
-    VkQueue VulkanGetQueue(HContext context)
+    VkQueue VulkanGetQueue(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
         return context->m_LogicalDevice.m_GraphicsQueue;
 
     }
-    VkRenderPass VulkanGetRenderPass(HContext context)
+
+    VkRenderPass VulkanGetRenderPass(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
         return context->m_MainRenderPass;
     }
-
 
 
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
