@@ -786,9 +786,13 @@ namespace dmGraphics
                 if (rt->m_TextureColor[i])
                 {
                     DX12Texture* attachment = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, rt->m_TextureColor[i]);
-                    // Transition the first mipmap into a render target
-                    context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(attachment->m_Resource, attachment->m_ResourceStates[0], D3D12_RESOURCE_STATE_RENDER_TARGET));
-                    attachment->m_ResourceStates[0] = D3D12_RESOURCE_STATE_RENDER_TARGET;
+
+                    if (attachment->m_ResourceStates[0] != D3D12_RESOURCE_STATE_RENDER_TARGET)
+                    {
+                        // Transition the first mipmap into a render target
+                        context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(attachment->m_Resource, attachment->m_ResourceStates[0], D3D12_RESOURCE_STATE_RENDER_TARGET));
+                        attachment->m_ResourceStates[0] = D3D12_RESOURCE_STATE_RENDER_TARGET;
+                    }
                     num_attachments++;
                 }
             }
@@ -2307,7 +2311,7 @@ namespace dmGraphics
                     &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
                     D3D12_HEAP_FLAG_NONE,
                     &texture_desc,
-                    D3D12_RESOURCE_STATE_RENDER_TARGET,
+                    D3D12_RESOURCE_STATE_COMMON,
                     &clear_value,
                     IID_PPV_ARGS(&new_texture_color->m_Resource)
                 );
