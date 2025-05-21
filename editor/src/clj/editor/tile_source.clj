@@ -552,7 +552,7 @@
       (keep (fn [[prop-kw f]]
               (validation/prop-error :fatal node-id prop-kw f (get anim prop-kw) (properties/keyword->name prop-kw)))))))
 
-(defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id :digest-ignored/layout-result tile-source-attributes image-resource animation-ddfs collision-groups convex-hulls]}]
+(defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id digest-ignored/layout-result tile-source-attributes image-resource animation-ddfs collision-groups convex-hulls]}]
   (let [buffered-image (resource-io/with-error-translation image-resource error-node-id :image
                          (image-util/read-image image-resource))]
     (if (g/error? buffered-image)
