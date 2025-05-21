@@ -618,7 +618,7 @@ def default_flags(self):
         if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
             emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
             # This is needed so long as we have to use sleep to make initialization
-            emflags_link += ['ASYNCIFY']
+            emflags_link += ['ASYNCIFY', 'PTHREAD_POOL_SIZE=1']
             if int(opt_level) >= 3:
                 emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
 

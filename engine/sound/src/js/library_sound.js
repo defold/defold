@@ -141,20 +141,20 @@ var LibrarySoundDevice =
         }
         return -1;
     },
-    dmDeviceJSOpen__proxy: 'sync',
-    dmDeviceJSOpen__sig: 'ii',
+    //dmDeviceJSOpen__proxy: 'sync',
+    //dmDeviceJSOpen__sig: 'ii',
 
     dmDeviceJSQueue: function(id, samples, sample_count) {
         window._dmJSDeviceShared.devices[id]._queue(samples, sample_count)
     },
-    dmDeviceJSQueue__proxy: 'sync',
-    dmDeviceJSQueue__sig: 'viii',
+    //dmDeviceJSQueue__proxy: 'sync',
+    //dmDeviceJSQueue__sig: 'viii',
 
     dmDeviceJSFreeBufferSlots: function(id) {
         return window._dmJSDeviceShared.devices[id]._freeBufferSlots();
     },
-    dmDeviceJSFreeBufferSlots__proxy: 'sync',
-    dmDeviceJSFreeBufferSlots__sig: 'ii',
+    //dmDeviceJSFreeBufferSlots__proxy: 'sync',
+    //dmDeviceJSFreeBufferSlots__sig: 'ii',
 
     dmGetDeviceSampleRate: function(id) {
         return window._dmJSDeviceShared.devices[id].sampleRate;
