@@ -89,11 +89,13 @@
 (defn- make-ddf-glyphs [semi-glyphs glyph-extents padding]
   (map
     (fn [glyph glyph-extents]
-      (let [wh (:glyph-wh glyph-extents)]
-        {:character (:character glyph)
-         :width (if (positive-wh? wh)
+      (let [wh (:glyph-wh glyph-extents)
+            width (if (positive-wh? wh)
                   (:width (:image-wh glyph-extents))
-                  (:width wh))
+                  (:width wh))]
+        {:character (:character glyph)
+         :width width
+         :image-width width
          :advance (:advance glyph)
          :left-bearing (:left-bearing glyph)
          :ascent (+ ^int (:ascent glyph) ^int padding)
@@ -140,6 +142,7 @@
                          :advance (double (.xadvance c))
                          :left-bearing (double (.xoffset c))
                          :width (.width c)
+                         :image-width (.width c)
                          }))]
     (when-not (seq semi-glyphs)
       (throw (ex-info "No character glyphs were included! Maybe turn on 'all_chars'?" {})))
@@ -417,13 +420,15 @@
   (let [glyph-vector (.createGlyphVector font (font-render-context antialias) (Character/toChars codepoint))
         visual-bounds (.. glyph-vector getOutline getBounds)
         metrics (.getGlyphMetrics glyph-vector 0)
-        left-bearing (double (.getLSB metrics))]
+        left-bearing (double (.getLSB metrics))
+        width (+ (.getWidth visual-bounds) (if (not= left-bearing 0.0) 1 0))]
     {:ascent (int (Math/ceil (- (.getMinY visual-bounds))))
      :descent (int (Math/ceil (.getMaxY visual-bounds)))
      :character codepoint
      :advance (double (Math/round (.getAdvance metrics)))
      :left-bearing (Math/floor left-bearing)
-     :width (+ (.getWidth visual-bounds) (if (not= left-bearing 0.0) 1 0))
+     :width width
+     :image-width width
      :vector glyph-vector}))
 
 (defn- ttf-semi-glyphs [font-desc ^Font font antialias]
