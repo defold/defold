@@ -59,6 +59,7 @@ var LibrarySoundDevice =
                     return 0;
                 },
                 _queue: function(samples, frame_count) {
+console.log("QUEUE!");
                     var lastBufferDuration = this.bufferDuration;
                     var len = frame_count / this.sampleRate;
                     // use real buffer length next time.
@@ -71,6 +72,7 @@ var LibrarySoundDevice =
                         return;
                     }
 
+console.log("Q1");
                     // Setup buffer for data delivery...
                     var buf = shared.audioCtx.createBuffer(2, frame_count, this.sampleRate);
 
@@ -84,6 +86,7 @@ var LibrarySoundDevice =
                     var source = shared.audioCtx.createBufferSource();
                     source.buffer = buf;
                     source.connect(shared.audioCtx.destination);
+console.log("Q2");
 
                     var t = shared.audioCtx.currentTime;
                     // Underrun or first buffer?
@@ -91,19 +94,24 @@ var LibrarySoundDevice =
                         // Yes, restart buffering - offset is always computed based on queue length...
                         var off = (bufferCount - 1) * this.bufferDuration;
                         this.bufferedTo = (t + off) * this.sampleRate + frame_count;
+console.log("Q3", t, off, frame_count, this.sampleRate);
                         source.start(t + off);
                     } else {
                         // No, normal delivery...
                         source.start(this.bufferedTo / this.sampleRate);
+console.log("Q4", t, this.bufferedTo);
                     }
                     this.bufferedTo = this.bufferedTo + frame_count;
                 },
                 _freeBufferSlots: function() {
+//console.log(shared.audioCtx.currentTime, this._isContextRunning());
                     var ahead = 0;
                     if (this._isContextRunning()) {
                         // before knowing the length of each buffer, we return a dummy count to enable initial delivery
-                        if (this.bufferDuration == 0)
+                        if (this.bufferDuration == 0) {
+ console.log("Initial FREE claim");
                             return 1;
+                        }
                         ahead = this.bufferedTo / this.sampleRate - shared.audioCtx.currentTime;
                     } else {
                         // if audio context in suspended or closed state we simulate audio play

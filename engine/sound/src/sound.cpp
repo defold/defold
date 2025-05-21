@@ -368,39 +368,11 @@ namespace dmSound
             use_linear_gain = dmConfigFile::GetInt(config, "sound.use_linear_gain", (int32_t) use_linear_gain) != 0;
         }
 
-        HDevice device = 0;
-        OpenDeviceParams device_params;
-
-        // TODO: m_BufferCount configurable?
-        const uint16_t num_outbuffers = params->m_UseThread ? SOUND_OUTBUFFER_COUNT : SOUND_OUTBUFFER_COUNT_NO_THREADS;
-        assert(num_outbuffers <= SOUND_OUTBUFFER_MAX_COUNT);
-
-        #if 0
-        device_params.m_BufferCount = num_outbuffers;
-        device_params.m_FrameCount = sample_frame_count; // May be 0
-        DeviceType* device_type;
-        DeviceInfo device_info = {0};
-        r = OpenDevice(params->m_OutputDevice, &device_params, &device_type, &device);
-        if (r != RESULT_OK) {
-            dmLogError("Failed to open device '%s'", params->m_OutputDevice);
-            device_info.m_MixRate = 44100;
-            device_type = 0;
-        }
-        else
-        {
-            device_type->m_DeviceInfo(device, &device_info);
-        }
-        #endif
-
-dmLogInfo("======================================");
-
         g_SoundSystem = new SoundSystem();
         SoundSystem* sound = g_SoundSystem;
         sound->m_IsDeviceStarted = false;
         sound->m_IsAudioInterrupted = false;
         sound->m_HasWindowFocus = true; // Assume we startup with the window focused
-//        sound->m_DeviceType = device_type;
-        sound->m_Device = device;
         dmSoundCodec::NewCodecContextParams codec_params;
         codec_params.m_MaxDecoders = params->m_MaxInstances;
         sound->m_CodecContext = dmSoundCodec::New(&codec_params);
@@ -416,15 +388,14 @@ dmLogInfo("======================================");
         sound->m_CondVar = 0;
         if (params->m_UseThread)
         {
-dmLogInfo("SI0");
             sound->m_Mutex = dmMutex::New();
             sound->m_CondVar = dmConditionVariable::New();
             sound->m_Thread = dmThread::New((dmThread::ThreadStart)SoundThread, 0x80000, sound, "sound");
-
-dmLogInfo("SI1");
+//NOTE: NEEDS THREADPOOL OR THIS DEADLOCKS
             dmConditionVariable::Wait(sound->m_CondVar, sound->m_Mutex);
-dmLogInfo("SI2");
         }
+
+        const uint16_t num_outbuffers = params->m_UseThread ? SOUND_OUTBUFFER_COUNT : SOUND_OUTBUFFER_COUNT_NO_THREADS;
 
         sound->m_Instances.SetCapacity(max_instances);
         sound->m_Instances.SetSize(max_instances);
@@ -1679,7 +1650,6 @@ dmLogInfo("SI2");
         }
         // DEF-3130 Don't start the device unless something is being played
         // This allows the client to check for sound.is_music_playing() and mute sounds accordingly
-
         if (sound->m_IsDeviceStarted == false)
         {
             sound->m_DeviceType->m_DeviceStart(sound->m_Device);
@@ -1734,12 +1704,15 @@ dmLogInfo("SI2");
     static void SoundThread(void* ctx)
     {
         SoundSystem* sound = (SoundSystem*)ctx;
-dmLogInfo("ST0");
 
         HDevice device = 0;
         OpenDeviceParams device_params;
+
+        // TODO: m_BufferCount configurable?
+        const uint16_t num_outbuffers = /*params->m_UseThread*/ true ? SOUND_OUTBUFFER_COUNT : SOUND_OUTBUFFER_COUNT_NO_THREADS;
+        assert(num_outbuffers <= SOUND_OUTBUFFER_MAX_COUNT);
         
-device_params.m_BufferCount = 6; //num_outbuffers;
+        device_params.m_BufferCount = num_outbuffers;
 device_params.m_FrameCount = 0; //sample_frame_count; // May be 0
         DeviceType* device_type;
         DeviceInfo device_info = {0};
@@ -1755,8 +1728,9 @@ device_params.m_FrameCount = 0; //sample_frame_count; // May be 0
         {
             device_type->m_DeviceInfo(device, &device_info);
         }
+
+        sound->m_Device = device;
         sound->m_DeviceType = device_type;
-dmLogInfo("ST0a");
 
         // The device wanted to provide the count (e.g. Wasapi)
         if (device_info.m_FrameCount)
@@ -1774,7 +1748,6 @@ dmLogInfo("ST0a");
                 sound->m_DeviceFrameCount = GetDefaultFrameCount(device_info.m_MixRate);
             }
         }
-dmLogInfo("ST0b");
 
         // note: this will be an NoOp if the build target has DM_SOUND_EXPECTED_SIMD defined (compile-time implementation selection)
         DSPImplType dsp_impl = DSPImplType::DSPIMPL_TYPE_DEFAULT;
@@ -1789,16 +1762,13 @@ dmLogInfo("ST0b");
         sound->m_NormalizeFloatOutput = device_info.m_UseNormalized;
         sound->m_NonInterleavedOutput = device_info.m_UseNonInterleaved;
 
-dmLogInfo("ST1");
-
+        // Signal: init done!
         dmConditionVariable::Signal(sound->m_CondVar);
 
         while (dmAtomicGet32(&sound->m_IsRunning))
         {
-dmLogInfo("ST2");
             Result result = RESULT_OK;
             if (!dmAtomicGet32(&sound->m_IsPaused)) {
-                dmLogInfo("ST3");
                 result = UpdateInternal(sound);
             }
 
