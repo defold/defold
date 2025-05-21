@@ -15,6 +15,7 @@
 (ns editor.tile-source
   (:require [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.attachment :as attachment]
             [editor.build-target :as bt]
             [editor.camera :as camera]
             [editor.collision-groups :as collision-groups]
@@ -29,6 +30,7 @@
             [editor.gl.vertex2 :as vtx2]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.id :as id]
             [editor.image :as image]
             [editor.image-util :as image-util]
             [editor.outline :as outline]
@@ -44,6 +46,7 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [util.coll :as coll :refer [pair]]
             [util.digestable :as digestable])
   (:import [com.dynamo.gamesys.proto TextureSetProto$TextureSet Tile$Animation Tile$ConvexHull Tile$Playback Tile$TileSet]
@@ -266,10 +269,18 @@
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? id)))
   (property start-tile g/Int ; Required protobuf field.
             (dynamic error (g/fnk [_node-id start-tile tile-count]
-                             (validation/prop-error :fatal _node-id :start-tile (partial prop-tile-range? tile-count) start-tile "Start Tile"))))
+                             ;; Editor scripts evaluate _properties output
+                             ;; during node initialization while it's not
+                             ;; connected to the tile source
+                             (when tile-count
+                               (validation/prop-error :fatal _node-id :start-tile (partial prop-tile-range? tile-count) start-tile "Start Tile")))))
   (property end-tile g/Int ; Required protobuf field.
             (dynamic error (g/fnk [_node-id end-tile tile-count]
-                             (validation/prop-error :fatal _node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile"))))
+                             ;; Editor scripts evaluate _properties output
+                             ;; during node initialization while it's not
+                             ;; connected to the tile source
+                             (when tile-count
+                               (validation/prop-error :fatal _node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile")))))
   (property playback types/AnimationPlayback (default (protobuf/default Tile$Animation :playback))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$Playback))))
   (property fps g/Int (default (protobuf/default Tile$Animation :fps))
@@ -687,33 +698,54 @@
   (output anim-ids g/Any :cached (gu/passthrough animation-ids))
 
   (output collision-groups-data g/Any :cached (gu/passthrough collision-groups-data))
-  (output tile-count g/Int (g/fnk [tile-source-attributes]
-                                       (* (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))))
-  (output image-dim-error g/Err (g/fnk [image-size collision-size]
-                                       (when (and image-size collision-size)
-                                         (let [{img-w :width img-h :height} image-size
-                                               {coll-w :width coll-h :height} collision-size]
-                                           (when (or (not= img-w coll-w)
-                                                     (not= img-h coll-h))
-                                             (g/error-fatal (format "both 'Image' and 'Collision' must have the same dimensions (%dx%d vs %dx%d)"
-                                                                    img-w img-h
-                                                                    coll-w coll-h)))))))
-  (output tile-width-error g/Err (g/fnk [image-size collision-size tile-width tile-margin]
-                                        (let [dims (or image-size collision-size)]
-                                          (when dims
-                                            (let [{w :width} dims
-                                                  total-w (+ tile-width tile-margin)]
-                                              (when (< w total-w)
-                                                (g/error-fatal (format "the total width ('Tile Width' + 'Tile Margin') is greater than the 'Image' width (%d vs %d)"
-                                                                       total-w w))))))))
-  (output tile-height-error g/Err (g/fnk [image-size collision-size tile-height tile-margin]
-                                         (let [dims (or image-size collision-size)]
-                                           (when dims
-                                             (let [{h :height} dims
-                                                   total-h (+ tile-height tile-margin)]
-                                               (when (< h total-h)
-                                                 (g/error-fatal (format "the total height ('Tile Height' + 'Tile Margin') is greater than the 'Image' height (%d vs %d)"
-                                                                        total-h h)))))))))
+  (output tile-count g/Int
+          (g/fnk [tile-source-attributes]
+            (* (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))))
+  (output image-dim-error g/Err
+          (g/fnk [image-size collision-size]
+            (when (and image-size collision-size)
+              (let [{img-w :width img-h :height} image-size
+                    {coll-w :width coll-h :height} collision-size]
+                (when (or (not= img-w coll-w)
+                          (not= img-h coll-h))
+                  (g/error-fatal (format "both 'Image' and 'Collision' must have the same dimensions (%dx%d vs %dx%d)"
+                                         img-w img-h
+                                         coll-w coll-h)))))))
+  (output tile-width-error g/Err
+          (g/fnk [image-size collision-size tile-width tile-margin]
+            (let [dims (or image-size collision-size)]
+              (when dims
+                (let [{w :width} dims
+                      total-w (+ tile-width tile-margin)]
+                  (when (< w total-w)
+                    (g/error-fatal (format "the total width ('Tile Width' + 'Tile Margin') is greater than the 'Image' width (%d vs %d)"
+                                           total-w w))))))))
+  (output tile-height-error g/Err
+          (g/fnk [image-size collision-size tile-height tile-margin]
+            (let [dims (or image-size collision-size)]
+              (when dims
+                (let [{h :height} dims
+                      total-h (+ tile-height tile-margin)]
+                  (when (< h total-h)
+                    (g/error-fatal (format "the total height ('Tile Height' + 'Tile Margin') is greater than the 'Image' height (%d vs %d)"
+                                           total-h h)))))))))
+
+(defn- get-nodes-by-type [child-node-type]
+  (fn get-children-nodes-by-type [node evaluation-context]
+    (let [basis (:basis evaluation-context)]
+      (coll/transfer (g/explicit-arcs-by-target basis node :nodes) []
+        (map gt/source-id)
+        (filter #(= child-node-type (g/node-type* basis %)))))))
+
+(attachment/register!
+  TileSourceNode :animations
+  :add {:node-type TileAnimationNode :tx-attach-fn attach-animation-node}
+  :get (get-nodes-by-type TileAnimationNode))
+
+(attachment/register!
+  TileSourceNode :collision-groups
+  :add {:node-type CollisionGroupNode :tx-attach-fn attach-collision-group-node}
+  :get (get-nodes-by-type CollisionGroupNode))
 
 
 ;;--------------------------------------------------------------------
@@ -985,22 +1017,13 @@
 (defn add-animation-node! [self select-fn]
   (g/transact (make-animation-node self (project/get-project self) select-fn default-animation)))
 
-(defn- gen-unique-name
-  [basename existing-names]
-  (let [existing-names (set existing-names)]
-    (loop [postfix 0]
-      (let [name (if (= postfix 0) basename (str basename postfix))]
-        (if (existing-names name)
-          (recur (inc postfix))
-          name)))))
-
 (defn add-collision-group-node!
   [self select-fn]
   (let [project (project/get-project self)
         collision-groups-data (g/node-value project :collision-groups-data)
-        collision-group (gen-unique-name "New Collision Group" (collision-groups/collision-groups collision-groups-data))]
+        id (id/gen "collision_group" (collision-groups/collision-groups collision-groups-data))]
     (g/transact
-      (make-collision-group-node self project select-fn collision-group))))
+      (make-collision-group-node self project select-fn id))))
 
 (defn- selection->tile-source [selection]
   (handler/adapt-single selection TileSourceNode))

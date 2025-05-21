@@ -47,6 +47,7 @@ namespace dmScript
      * @document
      * @name Message
      * @namespace msg
+     * @language Lua
      */
 
     const uint32_t MAX_MESSAGE_DATA_SIZE = 2048;

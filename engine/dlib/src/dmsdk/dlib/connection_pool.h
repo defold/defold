@@ -34,6 +34,7 @@ namespace dmSSLSocket
  * @name Connection Pool
  * @namespace dmConnectionPool
  * @path engine/dlib/src/dmsdk/dlib/connection_pool.h
+ * @language C++
  */
 
 namespace dmConnectionPool

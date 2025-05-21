@@ -29,7 +29,9 @@ extern "C" {
  *
  * @document
  * @name ConfigFile
+ * @namespace dmConfigFile
  * @path engine/dlib/src/dmsdk/dlib/configfile.h
+ * @language C++
  */
 
 /*# HConfigFile type definition

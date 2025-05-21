@@ -25,6 +25,7 @@
             [editor.game-object-common :as game-object-common]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.id :as id]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -157,14 +158,14 @@
                      :tx-attach-fn (fn [self-id child-id]
                                      (let [coll-id (core/scope-of-type self-id CollectionNode)]
                                        (concat
-                                         (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
+                                         (g/update-property child-id :id id/resolve (go-id->node-ids self-id))
                                          (attach-coll-ref-go coll-id child-id)
                                          (child-go-go self-id child-id))))}
                     {:node-type EmbeddedGOInstanceNode
                      :tx-attach-fn (fn [self-id child-id]
                                      (let [coll-id (core/scope-of-type self-id CollectionNode)]
                                        (concat
-                                         (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
+                                         (g/update-property child-id :id id/resolve (go-id->node-ids self-id))
                                          (attach-coll-embedded-go coll-id child-id)
                                          (child-go-go self-id child-id))))}]}
       (merge node-outline-extras)
@@ -435,19 +436,19 @@
      :child-reqs [{:node-type ReferencedGOInstanceNode
                    :tx-attach-fn (fn [self-id child-id]
                                    (concat
-                                     (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
+                                     (g/update-property child-id :id id/resolve (g/node-value self-id :ids))
                                      (attach-coll-ref-go self-id child-id)
                                      (child-coll-any self-id child-id)))}
                   {:node-type EmbeddedGOInstanceNode
                    :tx-attach-fn (fn [self-id child-id]
                                    (concat
-                                     (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
+                                     (g/update-property child-id :id id/resolve (g/node-value self-id :ids))
                                      (attach-coll-embedded-go self-id child-id)
                                      (child-coll-any self-id child-id)))}
                   {:node-type CollectionInstanceNode
                    :tx-attach-fn (fn [self-id child-id]
                                    (concat
-                                     (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
+                                     (g/update-property child-id :id id/resolve (g/node-value self-id :ids))
                                      (attach-coll-coll self-id child-id)
                                      (child-coll-any self-id child-id)))}]}))
 
@@ -624,12 +625,7 @@
   (output go-inst-ids g/Any :cached (g/fnk [id go-inst-ids] (into {} (map (fn [[k v]] [(format "%s/%s" id k) v]) go-inst-ids)))))
 
 (defn- gen-instance-id [coll-node base]
-  (let [ids (g/node-value coll-node :ids)]
-    (loop [postfix 0]
-      (let [id (if (= postfix 0) base (str base postfix))]
-        (if (empty? (filter #(= id %) ids))
-          id
-          (recur (inc postfix)))))))
+  (id/gen base (g/node-value coll-node :ids)))
 
 (defn- make-ref-go [self source-resource id transform-properties parent overrides select-fn]
   (let [path {:resource source-resource

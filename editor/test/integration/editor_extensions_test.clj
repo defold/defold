@@ -1129,7 +1129,7 @@ GET /test/resources/test.json as json => 200
              dorun)))))
 
 (def ^:private expected-attachment-test-output
-  "Initial state:
+  "Atlas initial state:
   images: 0
   animations: 0
   can add images: true
@@ -1171,6 +1171,43 @@ Expected errors:
   Added nested value is not a table => \"/foo.png\" is not a table
   Added node has invalid property value => \"invalid-pivot\" is not a tuple
   Added resource has wrong type => resource extension should be jpg or png
+Tilesource initial state:
+  animations: 0
+  collision groups: 0
+  tile collision groups: 0
+Transaction: add animations and collision groups
+After transaction (add animations and collision groups):
+  animations: 2
+    animation: idle
+    animation: walk
+  collision groups: 4
+    collision group: obstacle
+    collision group: character
+    collision group: collision_group
+    collision group: collision_group1
+  tile collision groups: 2
+    tile collision group: 1 obstacle
+    tile collision group: 3 character
+Transaction: set tile_collision_groups to its current value
+After transaction (tile_collision_groups roundtrip):
+  animations: 2
+    animation: idle
+    animation: walk
+  collision groups: 4
+    collision group: obstacle
+    collision group: character
+    collision group: collision_group
+    collision group: collision_group1
+  tile collision groups: 2
+    tile collision group: 1 obstacle
+    tile collision group: 3 character
+Expected errors
+  Using non-existent collision group => Collision group \"does-not-exist\" is not defined in the tilesource
+Transaction: clear tilesource
+After transaction (clear):
+  animations: 0
+  collision groups: 0
+  tile collision groups: 0
 ")
 
 (deftest attachment-properties-test

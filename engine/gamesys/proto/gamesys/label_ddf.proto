@@ -12,6 +12,7 @@ option java_outer_classname = "Label";
  * @document
  * @name Label
  * @namespace label
+ * @language Lua
  */
 
 message LabelDesc

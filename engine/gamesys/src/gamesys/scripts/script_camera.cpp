@@ -36,6 +36,7 @@ namespace dmGameSystem
      * @document
      * @name Camera
      * @namespace camera
+     * @language Lua
      */
 
     #define LIB_NAME "camera"

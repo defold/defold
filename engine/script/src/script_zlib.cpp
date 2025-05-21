@@ -41,6 +41,7 @@ namespace dmScript
      * @document
      * @name Zlib
      * @namespace zlib
+     * @language Lua
      */
 
     static bool Writer(void* context, const void* buffer, uint32_t buffer_size)
