@@ -176,6 +176,7 @@ namespace dmGraphics
     {
         DX12RenderTarget        m_RenderTarget;
         ID3D12Resource*         m_MsaaRenderTarget;
+        ID3D12Resource*         m_DepthStencil;
         ID3D12CommandAllocator* m_CommandAllocator;
         ID3D12Fence*            m_Fence;
         DX12ScratchBuffer       m_ScratchBuffer;
@@ -199,11 +200,13 @@ namespace dmGraphics
         IDXGISwapChain3*                   m_SwapChain;
         ID3D12CommandQueue*                m_CommandQueue;
         ID3D12DescriptorHeap*              m_RtvDescriptorHeap;
+        ID3D12DescriptorHeap*              m_DsvDescriptorHeap;
         ID3D12GraphicsCommandList*         m_CommandList;
         ID3D12Debug*                       m_DebugInterface;
         HANDLE                             m_FenceEvent;
         DX12FrameResource                  m_FrameResources[MAX_FRAMEBUFFERS];
         CD3DX12_CPU_DESCRIPTOR_HANDLE      m_RtvHandle;
+        CD3DX12_CPU_DESCRIPTOR_HANDLE      m_DsvHandle;
 
         dmPlatform::HWindow                m_Window;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
@@ -231,6 +234,7 @@ namespace dmGraphics
         uint32_t                           m_Height;
         uint32_t                           m_CurrentFrameIndex;
         uint32_t                           m_RtvDescriptorSize;
+        uint32_t                           m_DsvDescriptorSize;
         uint32_t                           m_NumFramesInFlight    : 2;
         uint32_t                           m_FrameBegun           : 1;
         uint32_t                           m_CullFaceChanged      : 1;
