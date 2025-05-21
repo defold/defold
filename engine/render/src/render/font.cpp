@@ -362,7 +362,7 @@ namespace dmRender
 
     static void ResetCache(HFontMap font_map, dmGraphics::HContext graphics_context, bool recreate_texture, dmRender::FontMetrics* metrics)
     {
-        font_map->m_CacheWidth = dmMath::Max(font_map->m_CacheWidth, (uint32_t)metrics->m_ImageMaxHeight);
+        font_map->m_CacheWidth = dmMath::Max(font_map->m_CacheWidth, (uint32_t)metrics->m_ImageMaxWidth);
         font_map->m_CacheHeight = dmMath::Max(font_map->m_CacheHeight, (uint32_t)metrics->m_ImageMaxHeight);
 
         if (!IsPowerOfTwo(font_map->m_CacheWidth))
@@ -381,7 +381,7 @@ namespace dmRender
             ClearTexture(font_map, font_map->m_CacheWidth, font_map->m_CacheHeight);
 #endif
 
-        SetFontMapCacheSize(font_map, metrics->m_ImageMaxHeight, metrics->m_ImageMaxHeight, metrics->m_MaxAscent);
+        SetFontMapCacheSize(font_map, metrics->m_ImageMaxWidth, metrics->m_ImageMaxHeight, metrics->m_MaxAscent);
     }
 
     static bool IsTextureTooSmall(HFontMap font_map, dmRender::FontMetrics& font_metrics)
