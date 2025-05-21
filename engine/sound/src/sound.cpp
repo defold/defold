@@ -1098,7 +1098,7 @@ namespace dmSound
 
     static inline void MixResampleIdentity(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
- //       DM_PROFILE(__FUNCTION__);
+        DM_PROFILE(__FUNCTION__);
         (void)delta;
 
         PrepTempBufferState(instance, channels);
@@ -1124,7 +1124,7 @@ namespace dmSound
 
     static inline void MixResamplePolyphase(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
-    //    DM_PROFILE(__FUNCTION__);
+        DM_PROFILE(__FUNCTION__);
         static_assert(SOUND_MAX_MIX_CHANNELS == 2, "this code assumes 2 mix channels");
 
         PrepTempBufferState(instance, channels);
@@ -1155,7 +1155,7 @@ namespace dmSound
 
     static inline void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
-    //    DM_PROFILE(__FUNCTION__);
+        DM_PROFILE(__FUNCTION__);
         // Make sure to update the mixing scale values...
         if (instance->m_ScaleDirty != 0) {
             instance->m_ScaleDirty = 0;
@@ -1200,7 +1200,7 @@ namespace dmSound
 
     static inline void Mix(const MixContext* mix_context, SoundInstance* instance, uint64_t delta, uint32_t avail_frames, const dmSoundCodec::Info* info, SoundGroup* group)
     {
-    //    DM_PROFILE(__FUNCTION__);
+        DM_PROFILE(__FUNCTION__);
 
         uint32_t avail_mix_count = ((avail_frames << RESAMPLE_FRACTION_BITS) - instance->m_FrameFraction) / delta;
         uint32_t mix_count = dmMath::Min(mix_context->m_FrameCount, avail_mix_count);
@@ -1240,7 +1240,7 @@ namespace dmSound
 
     static inline void MixInstance(const MixContext* mix_context, SoundInstance* instance)
     {
-    //    DM_PROFILE(__FUNCTION__);
+        DM_PROFILE(__FUNCTION__);
         SoundSystem* sound = g_SoundSystem;
 
         dmSoundCodec::Info info;
@@ -1469,7 +1469,7 @@ namespace dmSound
 
     static void MixInstances(const MixContext* mix_context)
     {
-    //    DM_PROFILE(__FUNCTION__);
+        DM_PROFILE(__FUNCTION__);
         SoundSystem* sound = g_SoundSystem;
 
         uint32_t frame_count = mix_context->m_FrameCount;
@@ -1507,7 +1507,7 @@ namespace dmSound
 
     static void Master(const MixContext* mix_context)
     {
-    //    DM_PROFILE(__FUNCTION__);
+        DM_PROFILE(__FUNCTION__);
 
         SoundSystem* sound = g_SoundSystem;
 
@@ -1592,7 +1592,7 @@ namespace dmSound
 
     static Result UpdateInternal(SoundSystem* sound)
     {
-//CAUSES HANG ETC        DM_PROFILE(__FUNCTION__);
+        DM_PROFILE(__FUNCTION__);
         if (!sound->m_Device)
         {
             return RESULT_OK;
@@ -1693,7 +1693,7 @@ namespace dmSound
             // if you don't you'll get more slots free, thus updating sound (redundantly) every call,
             // resulting in a huge performance hit. Also, you'll fast forward the sounds.
             {
-//HACK (not sure if problematic)                DM_PROFILE("QueueBuffer");
+                DM_PROFILE("QueueBuffer");
                 sound->m_DeviceType->m_Queue(sound->m_Device, sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
             }
 
@@ -1787,7 +1787,7 @@ device_params.m_FrameCount = 0; //sample_frame_count; // May be 0
 
     Result Update()
     {
-//        DM_PROFILE("Sound");
+        DM_PROFILE("Sound");
         SoundSystem* sound = g_SoundSystem;
         if (!sound)
             return RESULT_OK;
