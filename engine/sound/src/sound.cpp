@@ -34,6 +34,8 @@
 
 #include <math.h>
 
+#include <emscripten.h>
+
 /**
  * Defold simple sound system
  * NOTE: Must units is in frames, i.e a sample in time with N channels
@@ -391,8 +393,10 @@ namespace dmSound
             sound->m_Mutex = dmMutex::New();
             sound->m_CondVar = dmConditionVariable::New();
             sound->m_Thread = dmThread::New((dmThread::ThreadStart)SoundThread, 0x80000, sound, "sound");
-//NOTE: NEEDS THREADPOOL OR THIS DEADLOCKS
+
+            dmMutex::Lock(sound->m_Mutex);
             dmConditionVariable::Wait(sound->m_CondVar, sound->m_Mutex);
+            dmMutex::Unlock(sound->m_Mutex);
         }
 
         const uint16_t num_outbuffers = params->m_UseThread ? SOUND_OUTBUFFER_COUNT : SOUND_OUTBUFFER_COUNT_NO_THREADS;
@@ -1094,7 +1098,7 @@ namespace dmSound
 
     static inline void MixResampleIdentity(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
-        DM_PROFILE(__FUNCTION__);
+ //       DM_PROFILE(__FUNCTION__);
         (void)delta;
 
         PrepTempBufferState(instance, channels);
@@ -1120,7 +1124,7 @@ namespace dmSound
 
     static inline void MixResamplePolyphase(const MixContext* mix_context, SoundInstance* instance, uint32_t channels, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
-        DM_PROFILE(__FUNCTION__);
+    //    DM_PROFILE(__FUNCTION__);
         static_assert(SOUND_MAX_MIX_CHANNELS == 2, "this code assumes 2 mix channels");
 
         PrepTempBufferState(instance, channels);
@@ -1151,7 +1155,7 @@ namespace dmSound
 
     static inline void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
     {
-        DM_PROFILE(__FUNCTION__);
+    //    DM_PROFILE(__FUNCTION__);
         // Make sure to update the mixing scale values...
         if (instance->m_ScaleDirty != 0) {
             instance->m_ScaleDirty = 0;
@@ -1196,7 +1200,7 @@ namespace dmSound
 
     static inline void Mix(const MixContext* mix_context, SoundInstance* instance, uint64_t delta, uint32_t avail_frames, const dmSoundCodec::Info* info, SoundGroup* group)
     {
-        DM_PROFILE(__FUNCTION__);
+    //    DM_PROFILE(__FUNCTION__);
 
         uint32_t avail_mix_count = ((avail_frames << RESAMPLE_FRACTION_BITS) - instance->m_FrameFraction) / delta;
         uint32_t mix_count = dmMath::Min(mix_context->m_FrameCount, avail_mix_count);
@@ -1236,7 +1240,7 @@ namespace dmSound
 
     static inline void MixInstance(const MixContext* mix_context, SoundInstance* instance)
     {
-        DM_PROFILE(__FUNCTION__);
+    //    DM_PROFILE(__FUNCTION__);
         SoundSystem* sound = g_SoundSystem;
 
         dmSoundCodec::Info info;
@@ -1465,7 +1469,7 @@ namespace dmSound
 
     static void MixInstances(const MixContext* mix_context)
     {
-        DM_PROFILE(__FUNCTION__);
+    //    DM_PROFILE(__FUNCTION__);
         SoundSystem* sound = g_SoundSystem;
 
         uint32_t frame_count = mix_context->m_FrameCount;
@@ -1503,7 +1507,7 @@ namespace dmSound
 
     static void Master(const MixContext* mix_context)
     {
-        DM_PROFILE(__FUNCTION__);
+    //    DM_PROFILE(__FUNCTION__);
 
         SoundSystem* sound = g_SoundSystem;
 
@@ -1588,7 +1592,7 @@ namespace dmSound
 
     static Result UpdateInternal(SoundSystem* sound)
     {
-        DM_PROFILE(__FUNCTION__);
+//CAUSES HANG ETC        DM_PROFILE(__FUNCTION__);
         if (!sound->m_Device)
         {
             return RESULT_OK;
@@ -1689,7 +1693,7 @@ namespace dmSound
             // if you don't you'll get more slots free, thus updating sound (redundantly) every call,
             // resulting in a huge performance hit. Also, you'll fast forward the sounds.
             {
-                DM_PROFILE("QueueBuffer");
+//HACK (not sure if problematic)                DM_PROFILE("QueueBuffer");
                 sound->m_DeviceType->m_Queue(sound->m_Device, sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
             }
 
@@ -1711,7 +1715,7 @@ namespace dmSound
         // TODO: m_BufferCount configurable?
         const uint16_t num_outbuffers = /*params->m_UseThread*/ true ? SOUND_OUTBUFFER_COUNT : SOUND_OUTBUFFER_COUNT_NO_THREADS;
         assert(num_outbuffers <= SOUND_OUTBUFFER_MAX_COUNT);
-        
+
         device_params.m_BufferCount = num_outbuffers;
 device_params.m_FrameCount = 0; //sample_frame_count; // May be 0
         DeviceType* device_type;
@@ -1765,6 +1769,8 @@ device_params.m_FrameCount = 0; //sample_frame_count; // May be 0
         // Signal: init done!
         dmConditionVariable::Signal(sound->m_CondVar);
 
+// ------------------- LOOP
+
         while (dmAtomicGet32(&sound->m_IsRunning))
         {
             Result result = RESULT_OK;
@@ -1773,13 +1779,15 @@ device_params.m_FrameCount = 0; //sample_frame_count; // May be 0
             }
 
             dmAtomicStore32(&sound->m_Status, (int)result);
-            dmTime::Sleep(8000);
+//AUDIO / NO-AUDIO... THIS(!) IS KEY!
+//            dmTime::Sleep(8000); // usleep() -- nanosleep() -- does this push the queue?
+            emscripten_sleep(8);    // this does!
         }
     }
 
     Result Update()
     {
-        DM_PROFILE("Sound");
+//        DM_PROFILE("Sound");
         SoundSystem* sound = g_SoundSystem;
         if (!sound)
             return RESULT_OK;

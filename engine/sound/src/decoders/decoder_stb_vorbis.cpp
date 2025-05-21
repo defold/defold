@@ -116,7 +116,7 @@ namespace dmSoundCodec
         // note: EOS detection is solely based on data consumption and hence not sample precise (the last decoded block may contain silence not part of the original material)
         
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
-        DM_PROFILE(__FUNCTION__);
+    //    DM_PROFILE(__FUNCTION__);
 
         int needed_frames = buffer_size / sizeof(float);    // in non-interleaved case (here) we have per channel sizes
         int done_frames = 0;
