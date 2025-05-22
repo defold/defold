@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/message.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/hid/hid.h>
@@ -100,6 +101,20 @@ namespace dmGameObject
      * @name HComponent
      */
     typedef void* HComponent;
+
+    /*#
+     * Used for mapping instance ids from a collection definition to newly spawned instances
+     * @typedef
+     * @name InstanceIdMap
+     */
+    typedef dmHashTable<dmhash_t, dmhash_t> InstanceIdMap;
+
+    /*#
+     * Contains property buffers for game objects to be spawned
+     * @typedef
+     * @name InstancePropertyBuffers
+     */
+    typedef dmHashTable<dmhash_t, HPropertyContainer> InstancePropertyBuffers;
 
     /*#
      * Opaque handle to internal representation of a component instance
