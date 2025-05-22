@@ -344,7 +344,13 @@ namespace dmScript
         {
             int key_type = lua_type(L, -2);
             int value_type = lua_type(L, -1);
-            if (key_type != LUA_TSTRING && key_type != LUA_TNUMBER)
+
+            if (IsHash(L, -2))
+            {
+                key_type = LUA_THASH;
+            }
+
+            if (key_type != LUA_TSTRING && key_type != LUA_TNUMBER && key_type != LUA_THASH)
             {
                 luaL_error(L, "keys in table must be of type number or string (found %s)", lua_typename(L, key_type));
             }

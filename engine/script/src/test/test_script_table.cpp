@@ -421,6 +421,38 @@ TEST_F(LuaTableTest, NestedTableSizeCheck)
     ASSERT_EQ(calculated_table_size, actual_table_size);
 }
 
+TEST_F(LuaTableTest, KeyTypesTableSizeCheck)
+{
+    // create table
+    lua_newtable(L);
+
+    // string key
+    lua_pushnumber(L, 1234);
+    lua_setfield(L, -2, "foo");
+
+    // hash key
+    dmScript::PushHash(L, dmHashString64("key1"));
+    lua_pushnumber(L, 1234);
+    lua_settable(L, -3);
+
+    // number key
+    lua_pushnumber(L, 128);
+    lua_pushnumber(L, 1234);
+    lua_settable(L, -3);
+
+    // negative, bigger number key
+    lua_pushnumber(L, -123456789);
+    lua_pushnumber(L, 1234);
+    lua_settable(L, -3);
+
+    uint32_t calculated_table_size = dmScript::CheckTableSize(L, -1);
+    uint32_t actual_table_size = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
+
+    lua_pop(L, 1);
+
+    ASSERT_EQ(calculated_table_size, actual_table_size);
+}
+
 static int g_CustomPanicFunctionCalled = 0;
 static int CustomPanicFn(lua_State* L)
 {
