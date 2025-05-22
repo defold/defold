@@ -501,14 +501,10 @@ namespace dmScript
             count++;
 
             int key_type = lua_type(L, -2);
+            dmhash_t *key_hash = ToHash(L, -2);
             int value_type = lua_type(L, -1);
 
-            if (IsHash(L, -2))
-            {
-                key_type = LUA_THASH;
-            }
-
-            if (key_type != LUA_TSTRING && key_type != LUA_TNUMBER && key_type != LUA_THASH)
+            if (key_type != LUA_TSTRING && key_type != LUA_TNUMBER && !key_hash)
             {
                 luaL_error(L, "keys in table must be of type number, string or hash (found %s)", lua_typename(L, key_type));
             }
@@ -531,12 +527,11 @@ namespace dmScript
                 (*buffer++) = (char) value_type;
                 buffer = WriteEncodedIndex(L, key, header, buffer, buffer_end);
             }
-            else if (key_type == LUA_THASH)
+            else if (key_hash)
             {
                 (*buffer++) = (char) LUA_THASH;
                 (*buffer++) = (char) value_type;
             
-                dmhash_t *hash = (dmhash_t*)lua_touserdata(L, -2);
                 const uint32_t hash_size = sizeof(dmhash_t);
 
                 if (buffer_end - buffer < int32_t(hash_size))
@@ -544,7 +539,7 @@ namespace dmScript
                     luaL_error(L, "buffer (%d bytes) too small for table, exceeded at key (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                 }
 
-                memcpy(buffer, (const void*)hash, hash_size);
+                memcpy(buffer, (const void*)key_hash, hash_size);
                 buffer += hash_size;
             }
 
