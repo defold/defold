@@ -1688,6 +1688,7 @@ TEST_F(FontTest, DynamicGlyph)
     // Add a new glyph
     const char* data = "Test Image Data";
     uint32_t data_size = strlen(data) + 2;
+    uint32_t glyph_padding = 2; // see the glyph bank for the actual number
     {
         uint8_t* mem = (uint8_t*)malloc(strlen(data) + 2);
         memcpy(mem+1, data, data_size-1);
@@ -1701,6 +1702,8 @@ TEST_F(FontTest, DynamicGlyph)
         new_glyph.m_LeftBearing = 5;
         new_glyph.m_Ascent = 6;
         new_glyph.m_Descent = 7;
+        new_glyph.m_ImageWidth = 8;
+        new_glyph.m_ImageHeight = 9;
 
         dmResource::Result r = dmGameSystem::ResFontAddGlyph(font, codepoint, &new_glyph, mem, data_size);
         ASSERT_EQ(dmResource::RESULT_OK, r);
@@ -1720,12 +1723,13 @@ TEST_F(FontTest, DynamicGlyph)
 
         ASSERT_EQ(0U, glyph_data_compression);
         ASSERT_EQ(data_size-1, glyph_data_size);
-        ASSERT_EQ(1U, glyph_image_width);
-        ASSERT_EQ(2U, glyph_image_height);
+        ASSERT_EQ(8U, glyph_image_width);
+        ASSERT_EQ(9U, glyph_image_height);
         ASSERT_EQ(3U, glyph_image_channels);
 
         ASSERT_EQ(codepoint, glyph->m_Character);
-        ASSERT_EQ(1U, glyph->m_Width);
+        ASSERT_EQ(1U + glyph_padding * 2, glyph->m_Width);
+        ASSERT_EQ(8U, glyph->m_ImageWidth);
         ASSERT_EQ(4.0f, glyph->m_Advance);
         ASSERT_EQ(5.0f, glyph->m_LeftBearing);
         ASSERT_EQ(6U, glyph->m_Ascent);
