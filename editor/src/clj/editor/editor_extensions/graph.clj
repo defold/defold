@@ -22,6 +22,7 @@
             [editor.defold-project :as project]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.runtime :as rt]
+            [editor.editor-extensions.tile-map :as tile-map]
             [editor.game-project :as game-project]
             [editor.id :as id]
             [editor.outline :as outline]
@@ -32,7 +33,8 @@
             [editor.workspace :as workspace]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [org.luaj.vm2 LuaError]))
+  (:import [org.luaj.vm2 LuaError]
+           [editor.editor_extensions.tile_map Tiles]))
 
 (set! *warn-on-reflection* true)
 
@@ -150,6 +152,9 @@
     #(g/node-value (val %) :id evaluation-context)
     (g/node-value node-id :tile->collision-group-node evaluation-context)))
 
+(defmethod ext-get [:editor.tile-map/LayerNode "tiles"] [node-id _ evaluation-context]
+  (tile-map/make (g/node-value node-id :cell-map evaluation-context)))
+
 (defn ext-value-getter
   "Create 0-arg fn that produces node property value
 
@@ -224,6 +229,13 @@
                   one-indexed-tile-index->collision-group-id)]
             (g/set-property node-id :tile->collision-group-node new-tile->collision-group-node)))))))
 
+(def ^:private tiles-coercer
+  (coerce/wrap-with-pred coerce/userdata #(instance? Tiles %) "is not a tiles datatype"))
+
+(defmethod ext-setter [:editor.tile-map/LayerNode "tiles"] [node-id _ rt _]
+  (fn [lua-value]
+    (g/set-property node-id :cell-map ((rt/->clj rt tiles-coercer lua-value)))))
+
 (defn ext-lua-value-setter
   "Create 1-arg fn from new lua value to transaction steps setting the property
 
@@ -245,37 +257,46 @@
 
 ;; region attach
 
-(defmulti init-attachment (fn init-attachment-dispatch-fn [node-type _attachment _project _evaluation-context]
+(defmulti init-attachment (fn init-attachment-dispatch-fn [node-type _attachment _parent-node-id _project _evaluation-context]
                             (:k node-type)))
 
-(defmethod init-attachment :default [_ attachment _ _] attachment)
+(defmethod init-attachment :default [_ attachment _ _ _] attachment)
 
 (def ^:private default-new-animation-name-lua-value (rt/->lua "New Animation"))
-(defmethod init-attachment :editor.atlas/AtlasAnimation [_ attachment _ _]
-  (cond-> attachment (not (contains? attachment "id")) (assoc "id" default-new-animation-name-lua-value)))
+(defmethod init-attachment :editor.atlas/AtlasAnimation [_ attachment _ _ _]
+  (util/provide-defaults attachment "id" default-new-animation-name-lua-value))
 
 (def ^:private default-start-tile-lua-value (rt/->lua 1))
 (def ^:private default-end-tile-lua-value (rt/->lua 1))
-(defmethod init-attachment :editor.tile-source/TileAnimationNode [_ attachment _ _]
-  (cond-> attachment
-          (not (contains? attachment "id")) (assoc "id" default-new-animation-name-lua-value)
-          (not (contains? attachment "start_tile")) (assoc "start_tile" default-start-tile-lua-value)
-          (not (contains? attachment "end_tile")) (assoc "end_tile" default-end-tile-lua-value)))
+(defmethod init-attachment :editor.tile-source/TileAnimationNode [_ attachment _ _ _]
+  (util/provide-defaults
+    attachment
+    "id" default-new-animation-name-lua-value
+    "start_tile" default-start-tile-lua-value
+    "end_tile" default-end-tile-lua-value))
 
-(defmethod init-attachment :editor.tile-source/CollisionGroupNode [_ attachment project evaluation-context]
-  (cond-> attachment
-          (not (contains? attachment "id"))
-          (assoc "id" (rt/->lua (id/gen "collision_group" (collision-groups/collision-groups (g/node-value project :collision-groups-data evaluation-context)))))))
+(defmethod init-attachment :editor.tile-source/CollisionGroupNode [_ attachment _ project evaluation-context]
+  (util/provide-defaults
+    attachment
+    "id" (rt/->lua
+           (id/gen "collision_group"
+                   (collision-groups/collision-groups
+                     (g/node-value project :collision-groups-data evaluation-context))))))
 
-(defn- init-txs [evaluation-context rt project node-type node-id attachment]
+(defmethod init-attachment :editor.tile-map/LayerNode [_ attachment tilemap-node-id _project evaluation-context]
+  (util/provide-defaults
+    attachment
+    "id" (rt/->lua (id/gen "layer" (g/node-value tilemap-node-id :layer-ids evaluation-context)))))
+
+(defn- init-txs [evaluation-context rt project parent-node-id child-node-type child-node-id attachment]
   (mapcat
     (fn [[property lua-value]]
-      (if-let [setter (ext-lua-value-setter node-id property rt project evaluation-context)]
+      (if-let [setter (ext-lua-value-setter child-node-id property rt project evaluation-context)]
         (setter lua-value)
         (throw (LuaError. (format "Can't set property \"%s\" of %s"
                                   property
-                                  (name (node-id->type-keyword node-id evaluation-context)))))))
-    (init-attachment node-type attachment project evaluation-context)))
+                                  (name (node-id->type-keyword child-node-id evaluation-context)))))))
+    (init-attachment child-node-type attachment parent-node-id project evaluation-context)))
 
 (def ^:private attachment-coercer (coerce/map-of coerce/string coerce/untouched))
 (def ^:private attachments-coercer (coerce/vector-of attachment-coercer))

@@ -1,0 +1,70 @@
+local M = {}
+
+local function print_tiles(message, tiles) 
+    print(("%s => {"):format(message))
+    for x, y, tile in tilemap.tiles.iterator(tiles) do 
+        print(("  [%s, %s] = %s"):format(x, y, tile))
+    end
+    print("}")
+end
+
+function M.get_commands()
+    return {
+        editor.command({
+            label = "Test",
+            locations = {"Edit"},
+            id = "defold.test",
+            run = function() 
+                local tiles = tilemap.tiles.new()
+                print_tiles("new", tiles)
+                
+                for x = 1, 3 do 
+                    for y = 1, 3 do
+                        tilemap.tiles.set(tiles, x, y, 2)
+                    end
+                end
+                print_tiles("fill 3x3", tiles)
+
+                tilemap.tiles.remove(tiles, 2, 2)
+                print_tiles("remove center", tiles)
+
+                tilemap.tiles.clear(tiles)
+                print_tiles("clear", tiles)
+
+                tilemap.tiles.set(tiles, 8, 8, {index = 1, h_flip = true, v_flip = true, rotate_90 = true})
+                print_tiles("set using table", tiles)
+                print(("get tile: %s"):format(tilemap.tiles.get_tile(tiles, 8, 8)))
+                print("get info:")
+                for key, value in pairs(tilemap.tiles.get_info(tiles, 8, 8)) do
+                    print(("  %s: %s"):format(key, tostring(value)))
+                end
+                print(("non-existent tile: %s"):format(tostring(tilemap.tiles.get_tile(tiles, -1, -1))))
+                print(("non-existent info: %s"):format(tostring(tilemap.tiles.get_info(tiles, -1, -1))))
+
+                tilemap.tiles.set(tiles, -100, -100, 1)
+                print_tiles("negative keys", tiles)
+
+                print("create a layer with tiles...")
+                editor.transact({editor.tx.add("/test.tilemap", "layers", {
+                    tiles = tiles
+                })})
+
+                local layer = editor.get("/test.tilemap", "layers")[1]
+                local layer_tiles = editor.get(layer, "tiles")
+                print_tiles("tiles from the graph", layer_tiles)
+
+                print("set layer tiles to new value...")
+                tilemap.tiles.remove(tiles, -100, -100)
+                tilemap.tiles.set(tiles, 8, 8, 2)
+                editor.transact({editor.tx.set(layer, "tiles", tiles)})
+                print_tiles("new tiles from the graph", editor.get(layer, "tiles"))
+
+                -- cleanup
+                editor.transact({editor.tx.clear("/test.tilemap", "layers")})
+            end
+        })
+    }
+end
+
+
+return M
