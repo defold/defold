@@ -366,15 +366,14 @@ namespace dmGameSystem
         int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         dmGameObject::InstanceIdMap instances;
-        bool success = dmGameObject::SpawnFromCollection(collection, CompCollectionFactoryGetResource(component)->m_CollectionDesc, &prop_bufs,
-                                                         position, rotation, scale, &instances);
+        dmGameObject::Result result = dmGameSystem::CompCollectionFactorySpawn(world, component, collection, position, rotation, scale, &prop_bufs, &instances);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
         dmScript::SetInstance(L);
         dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
 
         // Construct return table
-        if (success)
+        if (result == dmGameObject::RESULT_OK)
         {
             lua_newtable(L);
             lua_createtable(L, 0, 1);
