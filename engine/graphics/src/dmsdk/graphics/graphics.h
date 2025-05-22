@@ -499,6 +499,174 @@ namespace dmGraphics
     };
 
     /*#
+     * Adapter family
+     * @enum
+     * @name AdapterFamily
+     * @member ADAPTER_FAMILY_NONE
+     * @member ADAPTER_FAMILY_NULL
+     * @member ADAPTER_FAMILY_OPENGL
+     * @member ADAPTER_FAMILY_OPENGLES
+     * @member ADAPTER_FAMILY_VULKAN
+     * @member ADAPTER_FAMILY_VENDOR
+     * @member ADAPTER_FAMILY_WEBGPU
+     * @member ADAPTER_FAMILY_DIRECTX
+     */
+    enum AdapterFamily
+    {
+        ADAPTER_FAMILY_NONE     = -1,
+        ADAPTER_FAMILY_NULL     = 1,
+        ADAPTER_FAMILY_OPENGL   = 2,
+        ADAPTER_FAMILY_OPENGLES = 3,
+        ADAPTER_FAMILY_VULKAN   = 4,
+        ADAPTER_FAMILY_VENDOR   = 5,
+        ADAPTER_FAMILY_WEBGPU   = 6,
+        ADAPTER_FAMILY_DIRECTX  = 7,
+    };
+
+    /*#
+     * Texture types
+     * @enum
+     * @name TextureType
+     * @member TEXTURE_TYPE_2D
+     * @member TEXTURE_TYPE_2D_ARRAY
+     * @member TEXTURE_TYPE_3D
+     * @member TEXTURE_TYPE_CUBE_MAP
+     * @member TEXTURE_TYPE_IMAGE_2D
+     * @member TEXTURE_TYPE_IMAGE_3D
+     * @member TEXTURE_TYPE_SAMPLER
+     * @member TEXTURE_TYPE_TEXTURE_2D
+     * @member TEXTURE_TYPE_TEXTURE_2D_ARRAY
+     * @member TEXTURE_TYPE_TEXTURE_3D
+     * @member TEXTURE_TYPE_TEXTURE_CUBE
+     */
+    enum TextureType
+    {
+        TEXTURE_TYPE_2D               = 0,
+        TEXTURE_TYPE_2D_ARRAY         = 1,
+        TEXTURE_TYPE_3D               = 2,
+        TEXTURE_TYPE_CUBE_MAP         = 3,
+        TEXTURE_TYPE_IMAGE_2D         = 4,
+        TEXTURE_TYPE_IMAGE_3D         = 5,
+        TEXTURE_TYPE_SAMPLER          = 6,
+        TEXTURE_TYPE_TEXTURE_2D       = 7,
+        TEXTURE_TYPE_TEXTURE_2D_ARRAY = 8,
+        TEXTURE_TYPE_TEXTURE_3D       = 9,
+        TEXTURE_TYPE_TEXTURE_CUBE     = 10,
+    };
+
+    /*#
+     * Texture filter
+     * @enum
+     * @name TextureFilter
+     * @member TEXTURE_FILTER_DEFAULT
+     * @member TEXTURE_FILTER_NEAREST
+     * @member TEXTURE_FILTER_LINEAR
+     * @member TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST
+     * @member TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR
+     * @member TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST
+     * @member TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR
+     */ 
+    enum TextureFilter
+    {
+        TEXTURE_FILTER_DEFAULT                = 0,
+        TEXTURE_FILTER_NEAREST                = 1,
+        TEXTURE_FILTER_LINEAR                 = 2,
+        TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST = 3,
+        TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR  = 4,
+        TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST  = 5,
+        TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR   = 6,
+    };
+
+    /*#
+     * Texture wrap
+     * @enum
+     * @name TextureWrap
+     * @member TEXTURE_WRAP_CLAMP_TO_BORDER
+     * @member TEXTURE_WRAP_CLAMP_TO_EDGE
+     * @member TEXTURE_WRAP_MIRRORED_REPEAT
+     * @member TEXTURE_WRAP_REPEAT
+     */ 
+    enum TextureWrap
+    {
+        TEXTURE_WRAP_CLAMP_TO_BORDER = 0,
+        TEXTURE_WRAP_CLAMP_TO_EDGE   = 1,
+        TEXTURE_WRAP_MIRRORED_REPEAT = 2,
+        TEXTURE_WRAP_REPEAT          = 3,
+    };    
+
+
+    struct TextureCreationParams
+    {
+        TextureCreationParams()
+        : m_Type(TEXTURE_TYPE_2D)
+        , m_Width(0)
+        , m_Height(0)
+        , m_Depth(1)
+        , m_LayerCount(1)
+        , m_OriginalWidth(0)
+        , m_OriginalHeight(0)
+        , m_OriginalDepth(1)
+        , m_MipMapCount(1)
+        , m_UsageHintBits(TEXTURE_USAGE_FLAG_SAMPLE)
+        {}
+
+        TextureType m_Type;
+        uint16_t    m_Width;
+        uint16_t    m_Height;
+        uint16_t    m_Depth;
+        uint16_t    m_LayerCount;
+        uint16_t    m_OriginalWidth;
+        uint16_t    m_OriginalHeight;
+        uint16_t    m_OriginalDepth;
+        uint8_t     m_MipMapCount;
+        uint8_t     m_UsageHintBits;
+    };
+
+    struct TextureParams
+    {
+        TextureParams()
+        : m_Data(0x0)
+        , m_DataSize(0)
+        , m_Format(TEXTURE_FORMAT_RGBA)
+        , m_MinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
+        , m_MagFilter(TEXTURE_FILTER_LINEAR)
+        , m_UWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
+        , m_VWrap(TEXTURE_WRAP_CLAMP_TO_EDGE)
+        , m_X(0)
+        , m_Y(0)
+        , m_Z(0)
+        , m_Slice(0)
+        , m_Width(0)
+        , m_Height(0)
+        , m_Depth(0)
+        , m_LayerCount(0)
+        , m_MipMap(0)
+        , m_SubUpdate(false)
+        {}
+
+        const void*   m_Data;
+        uint32_t      m_DataSize;
+        TextureFormat m_Format;
+        TextureFilter m_MinFilter;
+        TextureFilter m_MagFilter;
+        TextureWrap   m_UWrap;
+        TextureWrap   m_VWrap;
+
+        // For sub texture updates
+        uint32_t m_X;
+        uint32_t m_Y;
+        uint32_t m_Z;
+        uint32_t m_Slice;
+
+        uint16_t m_Width;
+        uint16_t m_Height;
+        uint16_t m_Depth;
+        uint16_t m_LayerCount; // For array texture, this is slice count
+        uint8_t  m_MipMap    : 7;
+        uint8_t  m_SubUpdate : 1;
+    };
+
+    /*#
      * Create new vertex stream declaration. A stream declaration contains a list of vertex streams
      * that should be used to create a vertex declaration from.
      * @name NewVertexStreamDeclaration
@@ -715,7 +883,8 @@ namespace dmGraphics
      */
     const char* GetSupportedExtension(HContext context, uint32_t index);
 
-    /*# Read frame buffer pixels in BGRA format
+    /*#
+     * Read frame buffer pixels in BGRA format
      * @name ReadPixels
      * @param context [type:dmGraphics::HContext] the context
      * @param x [type:int32_t] x-coordinate of the starting position
@@ -727,7 +896,8 @@ namespace dmGraphics
      */
     void ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size);
 
-    /*# Get viewport's parameters
+    /*#
+     * Get viewport's parameters
      * @name GetViewport
      * @param context [type:dmGraphics::HContext] the context
      * @param x [type:int32_t] x-coordinate of the viewport's origin
@@ -736,6 +906,131 @@ namespace dmGraphics
      * @param height [type:uint32_t] viewport's height
      */
     void GetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height);
+
+    /*#
+     * Get installed graphics adapter family
+     * @name GetInstalledAdapterFamily
+     * @return family [type:AdapterFamily] Installed adapter family
+     */
+    AdapterFamily GetInstalledAdapterFamily();
+
+    /*#
+     * Create new texture
+     * @name NewTexture
+     * @param context [type:HContext] Graphics context
+     * @param params [type:const TextureCreationParams&] Creation parameters
+     * @return texture_handle [type:HTexture] Opaque texture handle
+     */
+    HTexture NewTexture(HContext context, const TextureCreationParams& params);
+
+    /*#
+     * Delete texture
+     * @name DeleteTexture
+     * @param texture [type:HTexture] Texture handle
+     */
+    void DeleteTexture(HTexture texture);
+
+    /*#
+     * Set texture data. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
+     * 6 mip-maps are present contiguously in memory with stride m_DataSize
+     * @name SetTexture
+     * @param texture [type:HTexture] Texture handle
+     * @param params [type: const TextureParams&]
+     */
+    void SetTexture(HTexture texture, const TextureParams& params);
+
+    /*#
+     * Function called when a texture has been set asynchronously
+     * @name SetTextureAsyncCallback
+     * @param texture [type:HTexture] Texture handle
+     * @param user_data [type:void*] User data that will be passed to the SetTextureAsyncCallback
+     */
+    typedef void (*SetTextureAsyncCallback)(HTexture texture, void* user_data);
+
+    /*#
+     * Set texture data asynchronously. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
+     * 6 mip-maps are present contiguously in memory with stride m_DataSize
+     * @name SetTextureAsync
+     * @param texture [type:HTexture] Texture handle
+     * @param params [type:const TextureParams&] Texture parameters. Texture will be recreated if parameters differ from creation parameters
+     * @param callback [type:SetTextureAsyncCallback] Completion callback
+     * @param user_data [type:void*] User data that will be passed to completion callback
+     */
+    void SetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
+
+    /*#
+     * Set texture parameters
+     * @name SetTextureParams
+     * @param texture [type:HTexture] Texture handle
+     * @param min_filter [type:TextureFilter]
+     * @param mag_filter [type:TextureFilter]
+     * @param uwrap [type:TextureWrap]
+     * @param vwrap [type:TextureWrap]
+     * @param max_anisotropy [type:float]
+     */
+    void        SetTextureParams(HTexture texture, TextureFilter min_filter, TextureFilter mag_filter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
+
+    /*#
+     * @name GetTextureResourceSize
+     * @param texture [type:HTexture] Texture handle
+     * @return data_size [type:uint32_t] Resource data size in bytes
+     */ 
+    uint32_t    GetTextureResourceSize(HTexture texture);
+
+    /*#
+     * Get texture's width
+     * @name GetTextureWidth
+     * @param texture [type:HTexture] Texture handle
+     * @return width [type:uint16_t] Texture's width
+     */
+    uint16_t    GetTextureWidth(HTexture texture);
+
+    /*#
+     * Get texture's height
+     * @name GetTextureHeight
+     * @param texture [type:HTexture] Texture handle
+     * @return height [type:uint16_t] Texture's height
+     */
+    uint16_t    GetTextureHeight(HTexture texture);
+
+    /*#
+     * Get texture's depth
+     * @name GetTextureDepth
+     * @param texture [type:HTexture] texture handle
+     * @return depth [type:uint16_t] Texture's depth
+     */
+    uint16_t    GetTextureDepth(HTexture texture);
+
+    /*#
+     * @name GetOriginalTextureWidth
+     * @param texture [type:HTexture] Texture handle
+     * @return original_width [type:uin16_t] Texture's original width
+     */
+    uint16_t    GetOriginalTextureWidth(HTexture texture);
+
+    /*#
+     * @name GetOriginalTextureHeight
+     */
+    uint16_t    GetOriginalTextureHeight(HTexture texture);
+    uint8_t     GetTextureMipmapCount(HTexture texture);
+    TextureType GetTextureType(HTexture texture);
+    uint8_t     GetNumTextureHandles(HTexture texture);
+    uint32_t    GetTextureUsageHintFlags(HTexture texture);
+
+    /**
+     * Get status of texture.
+     *
+     * @name GetTextureStatusFlags
+     * @param texture HTexture
+     * @return  TextureStatusFlags enumerated status bit flags
+     */
+    uint32_t    GetTextureStatusFlags(HTexture texture);
+    void        EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
+    void        DisableTexture(HContext context, uint32_t unit, HTexture texture);
+
+    const char* GetTextureTypeLiteral(TextureType texture_type);
+    const char* GetTextureFormatLiteral(TextureFormat format);
+    uint32_t    GetMaxTextureSize(HContext context);
 }
 
 #endif // DMSDK_GRAPHICS_H
