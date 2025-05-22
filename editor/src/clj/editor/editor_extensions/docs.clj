@@ -720,7 +720,7 @@ http.server.route(
                                {:name "h_flip" :types ["boolean"] :doc "horizontal flip"}
                                {:name "v_flip" :types ["boolean"] :doc "vertical flip"}
                                {:name "rotate_90" :types ["boolean"] :doc "whether the tile is rotated 90 degrees clockwise"}]))
-              tile-param {:name "tile" :types ["integer"] :doc "1-indexed tile index of a tilemap's tilesource"}
+              tile-param {:name "tile_index" :types ["integer"] :doc tile-doc}
               info-param {:name "info" :types ["table"] :doc info-doc}]
           [{:name "tilemap"
             :type :module
@@ -735,7 +735,7 @@ http.server.route(
             :returnvalues [tiles-param]}
            {:name "tilemap.tiles.get_tile"
             :type :function
-            :description "Get a tile at a particular coordinate"
+            :description "Get a tile index at a particular coordinate"
             :parameters [tiles-param x-param y-param]
             :returnvalues [tile-param]}
            {:name "tilemap.tiles.get_info"
@@ -745,7 +745,7 @@ http.server.route(
             :returnvalues [info-param]}
            {:name "tilemap.tiles.iterator"
             :type :function
-            :description "Create an iterator over all tiles in a tiles data structure\n\nWhen iterating using for loop, each iteration return x, y and tile index of a tile in a tile map"
+            :description "Create an iterator over all tiles in a tiles data structure\n\nWhen iterating using for loop, each iteration returns x, y and tile index of a tile in a tile map"
             :parameters [tiles-param]
             :returnvalues [{:name "iter" :types ["function"] :doc "iterator"}]
             :examples "Iterate over all tiles in a tile map:
@@ -753,8 +753,8 @@ http.server.route(
 local layers = editor.get(\"/level.tilemap\", \"layers\")
 for i = 1, #layers do
   local tiles = editor.get(layers[i], \"tiles\")
-  for x, y, tile in tilemap.tiles.iterator(tiles) do
-    print(x, y, tile)
+  for x, y, i in tilemap.tiles.iterator(tiles) do
+    print(x, y, i)
   end
 end
 ```"}
