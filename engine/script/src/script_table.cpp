@@ -501,7 +501,7 @@ namespace dmScript
             count++;
 
             int key_type = lua_type(L, -2);
-            dmhash_t *key_hash = ToHash(L, -2);
+            dmhash_t* key_hash = ToHash(L, -2);
             int value_type = lua_type(L, -1);
 
             if (key_type != LUA_TSTRING && key_type != LUA_TNUMBER && !key_hash)
