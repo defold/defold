@@ -536,7 +536,7 @@ namespace dmScript
 
                 if (buffer_end - buffer < int32_t(hash_size))
                 {
-                    luaL_error(L, "buffer (%d bytes) too small for table, exceeded at key (hash) for element #%d", buffer_size, lua_typename(L, key_type), count);
+                    luaL_error(L, "buffer (%d bytes) too small for table, exceeded at key (hash) for element #%d", buffer_size, count);
                 }
 
                 memcpy(buffer, (const void*)key_hash, hash_size);
