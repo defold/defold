@@ -48,7 +48,7 @@ namespace dmGameSystem
     bool                        CompCollectionFactoryIsLoading(CollectionFactoryComponent* component);
     bool                        CompCollectionFactoryIsDynamicPrototype(CollectionFactoryComponent* component);
 
-    bool CompCollectionFactorySpawn(HCollectionFactoryComponent component, dmGameObject::HCollection collection,
+    dmGameObject::Result CompCollectionFactorySpawn(HCollectionFactoryWorld world, HCollectionFactoryComponent component, dmGameObject::HCollection collection,
                                     const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
                                     dmGameObject::InstancePropertyBuffers* properties, dmGameObject::InstanceIdMap* out_instances);
 }

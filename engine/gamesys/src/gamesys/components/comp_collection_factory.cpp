@@ -407,12 +407,17 @@ namespace dmGameSystem
         component->m_CustomResource = resource;
     }
 
-    bool CompCollectionFactorySpawn(HCollectionFactoryComponent component, dmGameObject::HCollection collection,
+    dmGameObject::Result CompCollectionFactorySpawn(HCollectionFactoryWorld world, HCollectionFactoryComponent component, dmGameObject::HCollection collection,
                                                 const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
                                                 dmGameObject::InstancePropertyBuffers* properties, dmGameObject::InstanceIdMap* out_instances)
     {
-        return dmGameObject::SpawnFromCollection(collection, CompCollectionFactoryGetResource(component)->m_CollectionDesc, properties,
+        bool success = dmGameObject::SpawnFromCollection(collection, CompCollectionFactoryGetResource(component)->m_CollectionDesc, properties,
                                                          position, rotation, scale, out_instances);
+        if (!success)
+        {
+            return dmGameObject::RESULT_UNKNOWN_ERROR;
+        }
+        return dmGameObject::RESULT_OK;
     }
 
 }
