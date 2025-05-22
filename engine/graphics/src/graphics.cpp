@@ -869,7 +869,7 @@ namespace dmGraphics
         ps.m_WriteDepth               = 1;
         ps.m_PrimtiveType             = PRIMITIVE_TRIANGLES;
         ps.m_DepthTestEnabled         = 1;
-        ps.m_DepthTestFunc            = COMPARE_FUNC_LEQUAL;
+        ps.m_DepthTestFunc            = COMPARE_FUNC_LESS;
         ps.m_BlendEnabled             = 0;
         ps.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
         ps.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
