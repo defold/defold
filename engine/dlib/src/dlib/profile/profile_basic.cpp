@@ -378,6 +378,7 @@ static ThreadData* GetOrCreateThreadData(ProfileContext* ctx, int32_t thread_id)
 namespace dmProfile
 {
     static const uint32_t INVALID_INDEX = 0xFFFFFFFF;
+    uint8_t g_ProfilerGeneration = 0;
 
     void Initialize(const Options* options)
     {
@@ -387,6 +388,7 @@ namespace dmProfile
         assert(!IsInitialized());
         g_ProfileContext = new ProfileContext;
 
+        g_ProfilerGeneration++;
         dmAtomicIncrement32(&g_ProfileInitialized);
 
         SetThreadName("Main");

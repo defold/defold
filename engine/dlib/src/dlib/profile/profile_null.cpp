@@ -16,6 +16,8 @@
 
 namespace dmProfile
 {
+    uint8_t g_ProfilerGeneration = 0;
+        
     void Initialize(const Options* options)
     {
     }

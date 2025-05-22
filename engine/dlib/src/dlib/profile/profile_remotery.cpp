@@ -35,6 +35,7 @@ namespace dmProfile
     static void*                    g_PropertyTreeCallbackCtx = 0;
     static int32_atomic_t           g_ProfilerInitialized = 0;
     static dmSpinlock::Spinlock     g_ProfilerLock;
+    uint8_t g_ProfilerGeneration = 0;
 
     static inline rmtSample* SampleFromHandle(HSample sample)
     {
@@ -123,6 +124,7 @@ namespace dmProfile
 
         dmSpinlock::Create(&g_ProfilerLock);
         dmAtomicStore32(&g_ProfilerInitialized, 1);
+        g_ProfilerGeneration++;
 
         dmLogInfo("Initialized Remotery (ws://127.0.0.1:%d/rmt)", settings->port);
     }
