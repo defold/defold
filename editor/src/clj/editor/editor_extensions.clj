@@ -31,6 +31,7 @@
             [editor.editor-extensions.http-server :as ext.http-server]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
+            [editor.editor-extensions.tile-map :as tile-map]
             [editor.editor-extensions.ui-components :as ui-components]
             [editor.editor-extensions.zip :as zip]
             [editor.fs :as fs]
@@ -878,6 +879,7 @@
                            "setlocale" nil
                            "tmpname" nil}
                      "pprint" ext-pprint
+                     "tilemap" tile-map/env
                      "zip" (zip/env project-path reload-resources!)})
           _ (rt/invoke-immediate rt (rt/bind rt prelude-prototype) evaluation-context)
           new-state (re-create-ext-state
