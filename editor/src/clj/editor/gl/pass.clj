@@ -41,9 +41,9 @@
 (make-passes
   ; name selection model-transform depth-clipping
   background            false false false
-  infinity-grid         false true  false
   opaque                false true  true
   transparent           false true  true
+  infinity-grid         false true  false
   outline               false true  true
   manipulator           false true  false
   overlay               false false true

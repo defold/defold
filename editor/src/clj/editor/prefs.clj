@@ -211,7 +211,19 @@
                                    :description "Arguments that will be passed to the dmengine executables when the editor builds and runs.\n Use one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan"}}}}
     :scene {:type :object
             :properties
-            {:move-whole-pixels {:type :boolean :default true}}}
+            {:move-whole-pixels {:type :boolean :default true}
+             :grid {:type :object
+                    :scope :project
+                    :properties {:size {:type :object
+                                        :scope :project
+                                        :properties
+                                        {:x {:type :integer :default 10}
+                                         :y {:type :integer :default 10}
+                                         :z {:type :integer :default 10}}}
+                                 :active-plane {:type :keyword :default :z}
+                                 :auto-scale {:type :boolean :default true}
+                                 :opacity {:type :number :default 0.1}
+                                 :color {:type :string :default "#ffffff"}}}}}
     :dev {:type :object
           :properties
           {:custom-engine {:type :any
