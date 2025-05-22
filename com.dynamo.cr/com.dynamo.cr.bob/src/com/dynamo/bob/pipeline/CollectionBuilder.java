@@ -216,11 +216,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 s = MathUtil.ddfToVecmath(collInst.getScale3());
             } else {
                 double scale = collInst.getScale();
-                if (subCollBuilder.getScaleAlongZ() != 0) {
-                    s = new Vector3d(scale, scale, scale);
-                } else {
-                    s = new Vector3d(scale, scale, 1);
-                }
+                s = new Vector3d(scale, scale, scale);
             }
 
             for (InstanceDesc inst : subCollBuilder.getInstancesList()) {
@@ -291,11 +287,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                     instS.set(instS.getX() * s.getX(), instS.getY() * s.getY(), instS.getZ() * s.getZ());
 
                     Point3d instP = MathUtil.ddfToVecmath(inst.getPosition());
-                    if (subCollBuilder.getScaleAlongZ() != 0) {
-                        instP.set(s.getX() * instP.getX(), s.getY() * instP.getY(), s.getZ() * instP.getZ());
-                    } else {
-                        instP.set(s.getX() * instP.getX(), s.getY() * instP.getY(), instP.getZ());
-                    }
+                    instP.set(s.getX() * instP.getX(), s.getY() * instP.getY(), s.getZ() * instP.getZ());
                     MathUtil.rotate(r, instP);
                     instP.add(p);
                     instBuilder.setPosition(MathUtil.vecmathToDDF(instP));

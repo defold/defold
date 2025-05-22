@@ -42,7 +42,6 @@ namespace dmGameObject
         }
 
         Collection* collection = hcollection->m_Collection;
-        collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
 
         res = LoadPropertyResources(factory, collection_desc->m_PropertyResources.m_Data, collection_desc->m_PropertyResources.m_Count, collection->m_PropertyResources);
         if(res != dmResource::RESULT_OK)
@@ -50,7 +49,6 @@ namespace dmGameObject
             goto bail;
         }
 
-        collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
         for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
         {
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
@@ -68,8 +66,6 @@ namespace dmGameObject
             }
             if (instance != 0x0)
             {
-                instance->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
-
                 // support legacy pipeline which outputs 0 for Scale3 and scale in Scale
                 Vector3 scale = instance_desc.m_Scale3;
                 if (scale.getX() == 0 && scale.getY() == 0 && scale.getZ() == 0) {
