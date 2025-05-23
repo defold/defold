@@ -122,16 +122,6 @@ namespace dmGameObject
     void ReleaseInstanceIndex(uint32_t index, HCollection collection);
 
     /**
-     * Used for mapping instance ids from a collection definition to newly spawned instances
-     */
-    typedef dmHashTable<dmhash_t, dmhash_t> InstanceIdMap;
-
-    /**
-     * Contains property buffers for game objects to be spawned
-     */
-    typedef dmHashTable<dmhash_t, HPropertyContainer> InstancePropertyBuffers;
-
-    /**
      * Spawns a collection into an existing one, from a collection definition resource. Script properties
      * can be overridden by passing property buffers through the property_buffers hashtable. An empty game
      * object is created under which all spawned children are placed.
