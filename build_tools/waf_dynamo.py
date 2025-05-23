@@ -620,7 +620,7 @@ def default_flags(self):
             # This is needed so long as we have to use sleep to make initialization
             emflags_link += ['ASYNCIFY', 'PTHREAD_POOL_SIZE=1']
             if int(opt_level) >= 3:
-                emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
+                emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)", "dmSound::SoundThread(void*)"]' ]
 
         flags = []
         linkflags = []

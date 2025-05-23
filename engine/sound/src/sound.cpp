@@ -45,7 +45,7 @@ namespace dmSound
 {
     using namespace dmVMath;
 
-    static void SoundThread(void* ctx);
+    void SoundThread(void* ctx);
 
     /**
      * Value with memory for "ramping" of values. See also struct Ramp below.
@@ -233,6 +233,7 @@ namespace dmSound
         bool                    m_IsAudioInterrupted;
         bool                    m_HasWindowFocus;
         bool                    m_UseLinearGain;
+        char*                   m_OutputDeviceName;
 
         float* GetDecoderBufferBase(uint8_t channel) const { assert(channel < SOUND_MAX_DECODE_CHANNELS); return (float*)((uintptr_t)m_DecoderOutput[channel] + SOUND_MAX_HISTORY * sizeof(float)); }
     };
@@ -346,6 +347,72 @@ namespace dmSound
         return index;
     }
 
+    static void InitializeDevice(SoundSystem* sound)
+    {
+        HDevice device = 0;
+        OpenDeviceParams device_params;
+
+        // TODO: m_BufferCount configurable?
+        const uint16_t num_outbuffers = (sound->m_Thread != 0) ? SOUND_OUTBUFFER_COUNT : SOUND_OUTBUFFER_COUNT_NO_THREADS;
+        assert(num_outbuffers <= SOUND_OUTBUFFER_MAX_COUNT);
+
+        device_params.m_BufferCount = num_outbuffers;
+        device_params.m_FrameCount = sound->m_DeviceFrameCount; // May be 0
+        DeviceType* device_type;
+        DeviceInfo device_info = {0};
+        Result r = OpenDevice(sound->m_OutputDeviceName, &device_params, &device_type, &device);
+        if (r != RESULT_OK) {
+            dmLogError("Failed to open device '%s'", sound->m_OutputDeviceName);
+            device_info.m_MixRate = 44100;
+            device_type = 0;
+        }
+        else
+        {
+            device_type->m_DeviceInfo(device, &device_info);
+        }
+
+        sound->m_Device = device;
+        sound->m_DeviceType = device_type;
+
+        // The device wanted to provide the count (e.g. Wasapi)
+        if (device_info.m_FrameCount)
+        {
+            sound->m_DeviceFrameCount = device_info.m_FrameCount;
+        }
+        else
+        {
+            if (sound->m_DeviceFrameCount == 0)
+            {
+                sound->m_DeviceFrameCount = GetDefaultFrameCount(device_info.m_MixRate);
+            }
+        }
+
+        // note: this will be an NoOp if the build target has DM_SOUND_EXPECTED_SIMD defined (compile-time implementation selection)
+        DSPImplType dsp_impl = DSPImplType::DSPIMPL_TYPE_DEFAULT;
+        if (dsp_impl == DSPIMPL_TYPE_DEFAULT) {
+            dsp_impl = device_info.m_DSPImplementation;
+        }
+        SelectDSPImpl(dsp_impl);
+
+        sound->m_FrameCount = sound->m_DeviceFrameCount;
+        sound->m_MixRate = device_info.m_MixRate;
+        sound->m_UseFloatOutput = device_info.m_UseFloats;
+        sound->m_NormalizeFloatOutput = device_info.m_UseNormalized;
+        sound->m_NonInterleavedOutput = device_info.m_UseNonInterleaved;
+    }
+
+    static void FinalizeDevice(SoundSystem* sound)
+    {
+        if (sound->m_Device)
+        {
+            if (sound->m_IsDeviceStarted)
+            {
+                sound->m_DeviceType->m_DeviceStop(sound->m_Device);
+            }
+            sound->m_DeviceType->m_Close(sound->m_Device);
+        }
+    }
+
     Result Initialize(dmConfigFile::HConfig config, const InitializeParams* params)
     {
         Result r = PlatformInitialize(config, params);
@@ -372,6 +439,8 @@ namespace dmSound
 
         g_SoundSystem = new SoundSystem();
         SoundSystem* sound = g_SoundSystem;
+
+        sound->m_OutputDeviceName = strdup(params->m_OutputDevice);
         sound->m_IsDeviceStarted = false;
         sound->m_IsAudioInterrupted = false;
         sound->m_HasWindowFocus = true; // Assume we startup with the window focused
@@ -379,7 +448,7 @@ namespace dmSound
         codec_params.m_MaxDecoders = params->m_MaxInstances;
         sound->m_CodecContext = dmSoundCodec::New(&codec_params);
         sound->m_UseLinearGain = use_linear_gain;
-
+        sound->m_DeviceFrameCount = sample_frame_count;
 
         dmAtomicStore32(&sound->m_IsRunning, 1);
         dmAtomicStore32(&sound->m_IsPaused, 0);
@@ -391,12 +460,25 @@ namespace dmSound
         if (params->m_UseThread)
         {
             sound->m_Mutex = dmMutex::New();
-            sound->m_CondVar = dmConditionVariable::New();
-            sound->m_Thread = dmThread::New((dmThread::ThreadStart)SoundThread, 0x80000, sound, "sound");
-
             dmMutex::Lock(sound->m_Mutex);
-            dmConditionVariable::Wait(sound->m_CondVar, sound->m_Mutex);
-            dmMutex::Unlock(sound->m_Mutex);
+
+//MAKE CONDITIONAL
+            #if 1
+                sound->m_CondVar = dmConditionVariable::New();
+            #endif
+
+            sound->m_Thread = dmThread::New(SoundThread, 0x80000, sound, "sound");
+
+            #if 1
+                // Wait for device initialization
+                dmConditionVariable::Wait(sound->m_CondVar, sound->m_Mutex);
+            #else
+                InitializeDevice(sound);
+            #endif
+        }
+        else
+        {
+            InitializeDevice(sound);
         }
 
         const uint16_t num_outbuffers = params->m_UseThread ? SOUND_OUTBUFFER_COUNT : SOUND_OUTBUFFER_COUNT_NO_THREADS;
@@ -449,8 +531,13 @@ namespace dmSound
         master->m_GainParameter = master_gain;
         master->m_Gain.Reset(GainToScale(master->m_GainParameter));
 
+        if (sound->m_Mutex)
+        {
+            dmMutex::Unlock(sound->m_Mutex);
+        }
+
         dmLogInfo("Sound");
-//HACK        dmLogInfo("  nSamplesPerSec:   %d", device_info.m_MixRate);
+        dmLogInfo("  nSamplesPerSec:   %d", sound->m_MixRate);
 
         return r;
     }
@@ -466,6 +553,8 @@ namespace dmSound
         {
             dmThread::Join(sound->m_Thread);
             dmMutex::Delete(sound->m_Mutex);
+            if (sound->m_CondVar)
+                dmConditionVariable::Delete(sound->m_CondVar);
         }
 
         PlatformFinalize();
@@ -506,14 +595,13 @@ namespace dmSound
                 }
             }
 
-            if (sound->m_Device)
-            {
-                if (sound->m_IsDeviceStarted)
-                {
-                    sound->m_DeviceType->m_DeviceStop(sound->m_Device);
-                }
-                sound->m_DeviceType->m_Close(sound->m_Device);
-            }
+//MAKE CONDITIONAL
+#if 0
+            FinalizeDevice(sound);
+#endif
+
+            if (sound->m_OutputDeviceName)
+                free(sound->m_OutputDeviceName);
 
             delete sound;
             g_SoundSystem = 0;
@@ -1705,71 +1793,16 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    static void SoundThread(void* ctx)
+    // note: not static to enable asyncify with Emscripten
+    void SoundThread(void* ctx)
     {
         SoundSystem* sound = (SoundSystem*)ctx;
 
-        HDevice device = 0;
-        OpenDeviceParams device_params;
-
-        // TODO: m_BufferCount configurable?
-        const uint16_t num_outbuffers = /*params->m_UseThread*/ true ? SOUND_OUTBUFFER_COUNT : SOUND_OUTBUFFER_COUNT_NO_THREADS;
-        assert(num_outbuffers <= SOUND_OUTBUFFER_MAX_COUNT);
-
-        device_params.m_BufferCount = num_outbuffers;
-device_params.m_FrameCount = 0; //sample_frame_count; // May be 0
-        DeviceType* device_type;
-        DeviceInfo device_info = {0};
-        Result r = OpenDevice("default", &device_params, &device_type, &device);
-//        Result r = OpenDevice(params->m_OutputDevice, &device_params, &device_type, &device);
-        if (r != RESULT_OK) {
-//            dmLogError("Failed to open device '%s'", params->m_OutputDevice);
-            dmLogError("Failed to open device 'default'");
-            device_info.m_MixRate = 44100;
-            device_type = 0;
-        }
-        else
-        {
-            device_type->m_DeviceInfo(device, &device_info);
-        }
-
-        sound->m_Device = device;
-        sound->m_DeviceType = device_type;
-
-        // The device wanted to provide the count (e.g. Wasapi)
-        if (device_info.m_FrameCount)
-        {
-            sound->m_DeviceFrameCount = device_info.m_FrameCount;
-        }
-        else
-        {
-/*            if (sample_frame_count != 0)
-            {
-                sound->m_DeviceFrameCount = sample_frame_count;
-            }
-            else
-*/            {
-                sound->m_DeviceFrameCount = GetDefaultFrameCount(device_info.m_MixRate);
-            }
-        }
-
-        // note: this will be an NoOp if the build target has DM_SOUND_EXPECTED_SIMD defined (compile-time implementation selection)
-        DSPImplType dsp_impl = DSPImplType::DSPIMPL_TYPE_DEFAULT;
-        if (dsp_impl == DSPIMPL_TYPE_DEFAULT) {
-            dsp_impl = device_info.m_DSPImplementation;
-        }
-        SelectDSPImpl(dsp_impl);
-
-        sound->m_FrameCount = sound->m_DeviceFrameCount;
-        sound->m_MixRate = device_info.m_MixRate;
-        sound->m_UseFloatOutput = device_info.m_UseFloats;
-        sound->m_NormalizeFloatOutput = device_info.m_UseNormalized;
-        sound->m_NonInterleavedOutput = device_info.m_UseNonInterleaved;
-
-        // Signal: init done!
-        dmConditionVariable::Signal(sound->m_CondVar);
-
-// ------------------- LOOP
+//MAKE CONDITIONAL!
+        #if 1
+            InitializeDevice(sound);
+            dmConditionVariable::Signal(sound->m_CondVar);
+        #endif
 
         while (dmAtomicGet32(&sound->m_IsRunning))
         {
@@ -1779,10 +1812,17 @@ device_params.m_FrameCount = 0; //sample_frame_count; // May be 0
             }
 
             dmAtomicStore32(&sound->m_Status, (int)result);
-//AUDIO / NO-AUDIO... THIS(!) IS KEY!
-//            dmTime::Sleep(8000); // usleep() -- nanosleep() -- does this push the queue?
-            emscripten_sleep(8);    // this does!
+#ifndef __EMSCRIPTEN__
+            dmTime::Sleep(8000);
+#else
+            emscripten_sleep(8);
+#endif
         }
+
+//MAKE CONDITIONAL
+        #if 1
+            FinalizeDevice(sound);
+        #endif
     }
 
     Result Update()
