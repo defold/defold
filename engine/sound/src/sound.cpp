@@ -45,7 +45,7 @@ namespace dmSound
 {
     using namespace dmVMath;
 
-    void SoundThread(void* ctx);
+    static void SoundThread(void* ctx);
 
     /**
      * Value with memory for "ramping" of values. See also struct Ramp below.
@@ -1793,16 +1793,50 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    // note: not static to enable asyncify with Emscripten
-    void SoundThread(void* ctx)
+#ifdef __EMSCRIPTEN__
+    static void SoundThreadEmscriptenCallback(void* ctx)
     {
         SoundSystem* sound = (SoundSystem*)ctx;
 
-//MAKE CONDITIONAL!
-        #if 1
-            InitializeDevice(sound);
-            dmConditionVariable::Signal(sound->m_CondVar);
-        #endif
+        if (!dmAtomicGet32(&sound->m_IsRunning)) {
+            emscripten_cancel_main_loop();
+            return;
+        }
+
+        Result result = RESULT_OK;
+        if (!dmAtomicGet32(&sound->m_IsPaused)) {
+            result = UpdateInternal(sound);
+        }
+
+        dmAtomicStore32(&sound->m_Status, (int)result);
+    }
+#endif
+
+    static void SoundThread(void* ctx)
+    {
+#ifdef __EMSCRIPTEN__
+        /*
+            Emscripten - using Asyncify - should allow us to use the classic loop we use on all
+            other platforms (possibly using emscripten_sleep() instead of usleep()).
+            Sadly this exposes what seems to be an Emscripten bug(?). When optimized we switch off
+            following indirect calls, instead adding a number of functions to support rewind on manually.
+            Even if this is done for this function the runtime will still raise an exception as some function
+            needed cannot be found on rewind.
+            Using the code below is more excplicit (no need for asyncify) and works.
+        */
+        SoundSystem* sound = (SoundSystem*)ctx;
+
+//CONDITIONAL IF WE CAN USE IT ON THREAD!
+        InitializeDevice(sound);
+        dmConditionVariable::Signal(sound->m_CondVar);
+
+        // Call our code every 8ms until we cancel it
+        emscripten_set_main_loop_arg(SoundThreadEmscriptenCallback, ctx, 1000 / 8, 1);
+
+//CONDITIONAL IF WE CAN USE IT ON THREAD!
+        FinalizeDevice(sound);
+#else
+        SoundSystem* sound = (SoundSystem*)ctx;
 
         while (dmAtomicGet32(&sound->m_IsRunning))
         {
@@ -1812,17 +1846,9 @@ namespace dmSound
             }
 
             dmAtomicStore32(&sound->m_Status, (int)result);
-#ifndef __EMSCRIPTEN__
             dmTime::Sleep(8000);
-#else
-            emscripten_sleep(8);
-#endif
         }
-
-//MAKE CONDITIONAL
-        #if 1
-            FinalizeDevice(sound);
-        #endif
+#endif
     }
 
     Result Update()
