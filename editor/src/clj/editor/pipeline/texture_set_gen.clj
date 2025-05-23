@@ -274,7 +274,7 @@
             (run! #(.addCollisionHullPoints builder %) points))
           convex-hulls)))
 
-(defn tile-source->texture-set-data [tile-source-attributes ^BufferedImage buffered-image convex-hulls collision-groups animations]
+(defn tile-source->texture-set-data [layout-result tile-source-attributes ^BufferedImage buffered-image convex-hulls collision-groups animations]
   (let [image-rects (split-rects tile-source-attributes)
         anims-atom (atom animations)
         anim-indices-atom (atom [])
@@ -295,22 +295,17 @@
                         (rewind [_this]
                           (reset! anims-atom animations)
                           (reset! anim-indices-atom [])))
-        grid (TextureSetLayout$Grid. (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))
         sprite-trim-mode (sprite-trim-mode->enum (:sprite-trim-mode tile-source-attributes))
         sprite-geometries (map (fn [^TextureSetLayout$Rect image-rect]
                                  (let [sub-image (.getSubimage buffered-image (.getX image-rect) (.getY image-rect) (.getWidth image-rect) (.getHeight image-rect))]
                                    (TextureSetGenerator/buildConvexHull sub-image 0.0 0.0 sprite-trim-mode)))
                                image-rects)
         use-geometries (if (not= :sprite-trim-mode-off (:sprite-trim-mode tile-source-attributes)) 1 0)
-        result (TextureSetGenerator/calculateLayout
-                 image-rects
+        result (TextureSetGenerator/calculateTextureSetResult
+                 layout-result
                  sprite-geometries
                  use-geometries
-                 anim-iterator
-                 (:margin tile-source-attributes)
-                 (:inner-padding tile-source-attributes)
-                 (:extrude-borders tile-source-attributes)
-                 false true grid 0.0 0.0)]
+                 anim-iterator)]
     (doto (.builder result)
       (.setTileWidth (:width tile-source-attributes))
       (.setTileHeight (:height tile-source-attributes))
@@ -327,3 +322,15 @@
         extrude-borders (.-extrudeBorders layout-result)
         id->image (zipmap (map (fn [x] (format "tile%d" x)) (range)) (split-image image tile-source-attributes))]
     (TextureSetGenerator/layoutImages layout inner-padding extrude-borders id->image)))
+
+(defn calculate-layout-result
+  [tile-source-attributes]
+  (let [image-rects (split-rects tile-source-attributes)
+        grid (TextureSetLayout$Grid. (:tiles-per-row tile-source-attributes)
+                                     (:tiles-per-column tile-source-attributes))]
+    (TextureSetGenerator/calculateLayoutResult
+     image-rects
+     (:margin tile-source-attributes)
+     (:inner-padding tile-source-attributes)
+     (:extrude-borders tile-source-attributes)
+     false true grid 0.0 0.0)))
