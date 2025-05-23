@@ -291,10 +291,9 @@
                      (let [new-resource (:resource new-value)
                            resource-type (some-> new-resource resource/resource-type)
                            project (project/get-project self)
-                           override? (contains? (:tags resource-type) :overridable-properties)
 
                            [comp-node tx-data]
-                           (if override?
+                           (if (resource/overridable-resource-type? resource-type)
                              (let [workspace (project/workspace project)]
                                (when-some [{connect-tx-data :tx-data
                                             comp-node :node-id

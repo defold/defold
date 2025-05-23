@@ -20,7 +20,6 @@
             [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
-            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -52,6 +51,7 @@
             [editor.live-update-settings :as live-update-settings]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
+            [editor.menu-items :as menu-items]
             [editor.os :as os]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
@@ -59,6 +59,7 @@
             [editor.prefs-dialog :as prefs-dialog]
             [editor.process :as process]
             [editor.progress :as progress]
+            [editor.properties :as properties]
             [editor.recent-files :as recent-files]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
@@ -96,11 +97,11 @@
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
            [javafx.geometry HPos Orientation Pos]
-           [javafx.scene Parent Scene Node]
-           [javafx.scene.control Label Hyperlink MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
+           [javafx.scene Node Parent Scene]
+           [javafx.scene.control Hyperlink Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ClipboardContent MouseButton MouseEvent]
-           [javafx.scene.layout AnchorPane GridPane VBox HBox Region StackPane Priority]
+           [javafx.scene.layout AnchorPane GridPane HBox Priority Region StackPane VBox]
            [javafx.scene.paint Color]
            [javafx.scene.shape Ellipse]
            [javafx.scene.text Font]
@@ -1635,8 +1636,11 @@ If you do not specifically require different script states, consider changing th
                 :command :file.show-references}
                {:label "Dependencies..."
                 :command :file.show-dependencies}
-               {:label "Show Overrides..."
-                :command :edit.show-overrides}
+               menu-items/separator
+               menu-items/show-overrides
+               menu-items/pull-up-overrides
+               menu-items/push-down-overrides
+               menu-items/separator
                {:label "Hot Reload"
                 :command :run.hot-reload}
                {:label :separator}
@@ -1755,8 +1759,10 @@ If you do not specifically require different script states, consider changing th
     :command :file.show-references}
    {:label "Dependencies..."
     :command :file.show-dependencies}
-   {:label "Show Overrides..."
-    :command :edit.show-overrides}])
+   menu-items/separator
+   menu-items/show-overrides
+   menu-items/pull-up-overrides
+   menu-items/push-down-overrides])
 
 (defrecord SelectionProvider [app-view]
   handler/SelectionProvider
@@ -2399,7 +2405,7 @@ If you do not specifically require different script states, consider changing th
 (defn- select-possibly-overridable-resource-node [selection project evaluation-context]
   (or (handler/selection->node-id selection)
       (when-let [resource (handler/adapt-single selection resource/Resource)]
-        (when (contains? (:tags (resource/resource-type resource)) :overridable-properties)
+        (when (resource/overridable? resource)
           (project/get-resource-node project resource evaluation-context)))))
 
 (handler/defhandler :edit.show-overrides :global
@@ -2413,6 +2419,44 @@ If you do not specifically require different script states, consider changing th
       (g/with-auto-evaluation-context evaluation-context
         (select-possibly-overridable-resource-node selection project evaluation-context))
       :all)))
+
+(handler/defhandler :edit.pull-up-overrides :global
+  (enabled? [selection user-data evaluation-context]
+    (or (some? user-data)
+        (if-let [node-id (handler/selection->node-id selection)]
+          (not (coll/empty? (g/overridden-properties node-id evaluation-context)))
+          false)))
+  (options [selection user-data]
+    (when (nil? user-data)
+      (when-let [node-id (handler/selection->node-id selection)]
+        (g/with-auto-evaluation-context evaluation-context
+          (mapv (fn [transfer-overrides-plan]
+                  {:label (properties/transfer-overrides-description transfer-overrides-plan)
+                   :command :edit.pull-up-overrides
+                   :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                (properties/pull-up-overrides-plan-alternatives node-id :all evaluation-context))))))
+  (run [user-data]
+    (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
+
+(handler/defhandler :edit.push-down-overrides :global
+  (enabled? [selection user-data evaluation-context]
+    (or (some? user-data)
+        (if-let [node-id (handler/selection->node-id selection)]
+          (let [basis (:basis evaluation-context)]
+            (and (not (coll/empty? (g/overrides basis node-id)))
+                 (not (coll/empty? (g/overridden-properties node-id evaluation-context)))))
+          false)))
+  (options [selection user-data]
+    (when (nil? user-data)
+      (when-let [node-id (handler/selection->node-id selection)]
+        (g/with-auto-evaluation-context evaluation-context
+          (mapv (fn [transfer-overrides-plan]
+                  {:label (properties/transfer-overrides-description transfer-overrides-plan)
+                   :command :edit.push-down-overrides
+                   :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                (properties/push-down-overrides-plan-alternatives node-id :all evaluation-context))))))
+  (run [user-data]
+    (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 
 (handler/defhandler :window.toggle-left-pane :global
   (run [^Stage main-stage]

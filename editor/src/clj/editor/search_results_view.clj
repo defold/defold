@@ -22,6 +22,7 @@
             [cljfx.fx.grid-pane :as fx.grid-pane]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.hyperlink :as fx.hyperlink]
+            [cljfx.fx.menu :as fx.menu]
             [cljfx.fx.menu-item :as fx.menu-item]
             [cljfx.fx.progress-indicator :as fx.progress-indicator]
             [cljfx.fx.region :as fx.region]
@@ -40,6 +41,7 @@
             [editor.field-expression :as field-expression]
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
+            [editor.menu-items :as menu-items]
             [editor.outline :as outline]
             [editor.prefs :as prefs]
             [editor.properties :as properties]
@@ -50,7 +52,7 @@
             [editor.ui :as ui]
             [editor.util :as util]
             [editor.workspace :as workspace]
-            [util.coll :as coll :refer [flipped-pair]]
+            [util.coll :as coll :refer [flipped-pair pair]]
             [util.fn :as fn]
             [util.thread-util :as thread-util])
   (:import [java.util Collection]
@@ -596,23 +598,40 @@
                 :props {:selection-mode :single
                         :on-selected-item-changed {:event-type :on-select-item}}
                 :desc
-                (let [overridden-property-labels (:overridden-properties selected-item)
+                (let [source-node-id (:node-id selected-item)
+                      overridden-property-labels (coll/not-empty (:overridden-properties selected-item))
+
+                      transfer-overrides-context-menu-items
+                      (when (and source-node-id overridden-property-labels)
+                        (let [[pull-up-overrides-plan-alternatives push-down-overrides-plan-alternatives]
+                              (g/with-auto-evaluation-context evaluation-context
+                                (pair (properties/pull-up-overrides-plan-alternatives source-node-id overridden-property-labels evaluation-context)
+                                      (properties/push-down-overrides-plan-alternatives source-node-id overridden-property-labels evaluation-context)))
+
+                              transfer-overrides-plan-menu-item
+                              (fn transfer-overrides-plan-menu-item [transfer-overrides-plan]
+                                {:fx/type fx.menu-item/lifecycle
+                                 :text (properties/transfer-overrides-description transfer-overrides-plan)
+                                 :on-action {:event-type :on-transfer-overrides
+                                             :transfer-overrides-plan transfer-overrides-plan}})]
+                          (cond-> []
+
+                                  pull-up-overrides-plan-alternatives
+                                  (conj {:fx/type fx.menu/lifecycle
+                                         :text menu-items/pull-up-overrides-text
+                                         :items (mapv transfer-overrides-plan-menu-item
+                                                      pull-up-overrides-plan-alternatives)})
+
+                                  push-down-overrides-plan-alternatives
+                                  (conj {:fx/type fx.menu/lifecycle
+                                         :text menu-items/push-down-overrides-text
+                                         :items (mapv transfer-overrides-plan-menu-item
+                                                      push-down-overrides-plan-alternatives)}))))
 
                       context-menu
-                      (when (coll/not-empty overridden-property-labels)
-                        (let [transfer-overrides-plan
-                              (when-some [source-node-id (:node-id selected-item)]
-                                (properties/pull-up-overrides-plan source-node-id overridden-property-labels))
-
-                              action-description
-                              (some-> transfer-overrides-plan properties/transfer-overrides-description)]
-
-                          {:fx/type fx.context-menu/lifecycle
-                           :items [{:fx/type fx.menu-item/lifecycle
-                                    :text (or action-description "Pull Up Overrides")
-                                    :disable (nil? action-description)
-                                    :on-action {:event-type :on-transfer-overrides
-                                                :transfer-overrides-plan transfer-overrides-plan}}]}))]
+                      (when (coll/not-empty transfer-overrides-context-menu-items)
+                        {:fx/type fx.context-menu/lifecycle
+                         :items transfer-overrides-context-menu-items})]
 
                   (cond-> {:fx/type fx.tree-table-view/lifecycle
                            :fixed-cell-size 24
@@ -747,10 +766,8 @@
           {:refresh-view (fn [_ _]
                            (refresh-view!))
            :transfer-overrides (fn [transfer-overrides-plan _]
-                                 (let [tx-data (properties/transfer-overrides-tx-data transfer-overrides-plan)]
-                                   (when (coll/not-empty tx-data)
-                                     (g/transact tx-data)
-                                     (refresh-view!))))
+                                 (properties/transfer-overrides! transfer-overrides-plan)
+                                 (refresh-view!))
            :open-resource (fn [{:keys [resource opts]} _]
                             (open-resource! search-results-view resource opts))
            :select-item (fn [item _]

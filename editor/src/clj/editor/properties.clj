@@ -27,6 +27,7 @@
             [editor.types :as t]
             [editor.util :as eutil]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
@@ -969,36 +970,55 @@
       (assert (= value (resource/proj-path clj-value)))
       value)))
 
-(defn transfer-overrides-plan
-  "Returns a transfer-overrides-plan for transferring overridden properties from
-  the supplied source-node-id to the specified target-node-ids. You can specify
-  a sequence of property-labels to consider for transfer or supply :all to
-  include all overridden properties. Returns nil if no properties match the
-  criteria or the target cannot accept the transfer. Otherwise, returns a map
-  suitable for use with functions that accept a transfer-overrides-plan."
-  ([source-node-id target-node-ids property-labels]
+(defn transferred-properties
+  "Returns a map of overridden property values by prop-kw for the specified
+  source-node-id. The list can optionally be constrained to include specific
+  properties by supplying a seq of property keywords for the property-labels
+  argument. If :all is supplied in place of a seq, all overridden properties
+  are included in the returned map. Returns nil in case there are no properties
+  matching the criteria."
+  ([source-node-id property-labels]
    (g/with-auto-evaluation-context evaluation-context
-     (transfer-overrides-plan source-node-id target-node-ids property-labels evaluation-context)))
-  ([source-node-id target-node-ids property-labels {:keys [basis] :as evaluation-context}]
+     (transferred-properties source-node-id property-labels evaluation-context)))
+  ([source-node-id property-labels evaluation-context]
+   (coll/not-empty
+     (cond
+       (= :all property-labels)
+       (g/overridden-properties source-node-id evaluation-context)
+
+       (coll/empty? property-labels)
+       nil
+
+       :else
+       (select-keys (g/overridden-properties source-node-id evaluation-context)
+                    property-labels)))))
+
+(defn transfer-overrides-plan
+  "Returns a transfer-overrides-plan for transferring properties from
+  the supplied source-node-id to the specified target-node-ids. The
+  transferred-properties should be supplied as a map of property-labels to
+  values. Returns nil if no properties are supplied or the target cannot accept
+  the transfer. Otherwise, returns a map suitable for use with functions that
+  accept a transfer-overrides-plan."
+  ([source-node-id target-node-ids transferred-properties]
+   (transfer-overrides-plan (g/now) source-node-id target-node-ids transferred-properties))
+  ([basis source-node-id target-node-ids transferred-properties]
    {:pre [(g/node-id? source-node-id)
-          (every? keyword? property-labels)]}
-   (let [overridden-properties (g/overridden-properties source-node-id evaluation-context)]
-     (when-some [transferred-properties
+          (or (nil? transferred-properties)
+              (and (map? transferred-properties)
+                   (every? keyword? (keys transferred-properties))))]}
+   (when-not (coll/empty? transferred-properties)
+     (when-some [target-resources+node-ids
                  (coll/not-empty
-                   (case property-labels
-                     :all overridden-properties
-                     (select-keys overridden-properties property-labels)))]
-       (when-some [target-resources+node-ids
-                   (coll/not-empty
-                     (coll/transfer target-node-ids []
-                       (keep (fn [target-node-id]
-                               (let [target-owner-resource (resource-node/owner-resource basis target-node-id)]
-                                 (when (and (resource/file-resource? target-owner-resource)
-                                            (resource/editable? target-owner-resource))
-                                   (pair target-owner-resource target-node-id)))))))]
-         {:source-node-id source-node-id
-          :target-resources+node-ids target-resources+node-ids
-          :transferred-properties transferred-properties})))))
+                   (coll/transfer target-node-ids []
+                     (keep (fn [target-node-id]
+                             (let [target-owner-resource (resource-node/owner-resource basis target-node-id)]
+                               (when (and (resource/file-resource? target-owner-resource)
+                                          (resource/editable? target-owner-resource))
+                                 (pair target-owner-resource target-node-id)))))))]
+       {:source-node-id source-node-id
+        :target-resources+node-ids target-resources+node-ids
+        :transferred-properties transferred-properties}))))
 
 (defn transfer-overrides-description
   "Given a transfer-overrides-plan, return a user-friendly textual description
@@ -1064,33 +1084,59 @@
           (into (map #(g/clear-property source-node-id (key %)))
                 transferred-properties)))))
 
-(defn pull-up-overrides-plan
-  "Returns a transfer-overrides-plan for transferring overridden properties from
-  the specified source-node-id to its immediate override-original. You can
-  specify a sequence of property-labels to consider for transfer or supply :all
-  to include all overridden properties. Returns nil if no properties match the
-  criteria. Otherwise, returns a map suitable for use with functions that accept
-  a transfer-overrides-plan."
-  ([source-node-id property-labels]
-   (g/with-auto-evaluation-context evaluation-context
-     (pull-up-overrides-plan source-node-id property-labels evaluation-context)))
-  ([source-node-id property-labels {:keys [basis] :as evaluation-context}]
-   (when-some [target-node-id (g/override-original basis source-node-id)]
-     (transfer-overrides-plan source-node-id [target-node-id] property-labels evaluation-context))))
+(defn transfer-overrides!
+  "Given a transfer-overrides-plan, execute a transaction that will transfer the
+  overridden properties to the target nodes. Does nothing if the plan is empty."
+  [transfer-overrides-plan]
+  (let [tx-data (transfer-overrides-tx-data transfer-overrides-plan)]
+    (when (coll/not-empty tx-data)
+      (g/transact tx-data)
+      nil)))
 
-;; TODO: Override transfers probably need to be hierarchical. Try to figure out
-;; the possibilities for a Gui Layout override transfer, for example, and
-;; consider how the options could be presented to
-;; the user. Something along the lines of:
-;;
-;; [Transfer|Apply] >
-;;   [All Overrides|Color Override] >
-;;     To [Default|Landscape|Portrait] Layout in >
-;;       [Immediate Original in tv.gui|Immediate Successors in house.gui]
-;;
-;; [Transfer|Apply] >
-;;   [All Overrides|Color Override] >
-;;     To [Immediate Original in tv.go|Immediate Successors in house.collection]
-;;
-;; Distant Original in ???
-;; Distant Successors in ???
+(defn pull-up-overrides-plan-alternatives
+  "Returns a series of transfer-overrides-plans for transferring overridden
+  properties from the specified source-node-id to each of its override-originals
+  in succession, starting from its immediate override-original and proceeding
+  towards the override-root. You can specify a sequence of property-labels to
+  consider for transfer or supply :all to include all overridden properties.
+  Returns nil if no properties match the criteria. Otherwise, returns a sequence
+  of maps suitable for use with functions that take a transfer-overrides-plan."
+  [source-node-id property-labels evaluation-context]
+  (when-let [transferred-properties (transferred-properties source-node-id property-labels evaluation-context)]
+    (let [basis (:basis evaluation-context)
+
+          original-node-ids
+          (iterate #(g/override-original basis %)
+                   (g/override-original basis source-node-id))]
+
+      (coll/not-empty
+        (coll/transfer
+          original-node-ids []
+          (take-while some?)
+          (keep (fn [original-node-id]
+                  (transfer-overrides-plan basis source-node-id [original-node-id] transferred-properties))))))))
+
+(defn push-down-overrides-plan-alternatives
+  "Returns a series of transfer-overrides-plans for transferring overridden
+  properties from the specified source-node-id to each node overriding it. You
+  can specify a sequence of property-labels to consider for transfer or supply
+  :all to include all overridden properties. Returns nil if no properties match
+  the criteria. Otherwise, returns a sequence of maps suitable for use with
+  functions that take a transfer-overrides-plan."
+  [source-node-id property-labels {:keys [basis] :as evaluation-context}]
+  ;; Currently, we only support pushing down overrides one level. It is unclear
+  ;; how it would work over several levels given that the number of override
+  ;; nodes may vary between the individual override-chains.
+  (when-let [override-node-ids (coll/not-empty (g/overrides basis source-node-id))]
+    (when-let [transferred-properties (transferred-properties source-node-id property-labels evaluation-context)]
+      (when-let [transfer-overrides-plan (transfer-overrides-plan basis source-node-id override-node-ids transferred-properties)]
+        [transfer-overrides-plan]))))
+
+;; TODO: Implement a multimethod that takes a source-node-id and a seq of
+;; property-labels (or :all), and returns tx-data that transfers the overrides.
+;; The default implementation should evaluate :_properties, and use the set-fn
+;; and clear-fn associated with each virtual property. We may need to split it
+;; into multiple steps. Collect [set-fn, clear-fn, node-id, prop-kw, value]
+;; where we have an :original-value. Resolving node-id might be an issue when
+;; there are override nodes involved. Maybe we can evaluate :_properties on the
+;; target-node-id and match the property keys?

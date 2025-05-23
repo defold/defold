@@ -21,11 +21,12 @@
             [editor.error-reporting :as error-reporting]
             [editor.git :as git]
             [editor.handler :as handler]
+            [editor.menu-items :as menu-items]
+            [editor.notifications :as notifications]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.vcs-status :as vcs-status]
             [editor.workspace :as workspace]
-            [editor.notifications :as notifications]
             [service.log :as log])
   (:import [java.io File]
            [javafx.beans.value ChangeListener]
@@ -90,9 +91,11 @@
     :command :file.show-references}
    {:label "Dependencies..."
     :command :file.show-dependencies}
-   {:label "Show Overrides..."
-    :command :edit.show-overrides}
-   {:label :separator}
+   menu-items/separator
+   menu-items/show-overrides
+   menu-items/pull-up-overrides
+   menu-items/push-down-overrides
+   menu-items/separator
    {:label "View Diff"
     :icon "icons/32/Icons_S_06_arrowup.png"
     :command :vcs.diff}

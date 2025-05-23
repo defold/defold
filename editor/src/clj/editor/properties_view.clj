@@ -22,6 +22,7 @@
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.math :as math]
+            [editor.menu-items :as menu-items]
             [editor.prefs :as prefs]
             [editor.properties :as properties]
             [editor.resource :as resource]
@@ -862,69 +863,53 @@
   (run [property selection search-results-view app-view]
     (app-view/show-override-inspector! app-view search-results-view (handler/selection->node-id selection) [(:key property)])))
 
-(defn- transfer-overrides-handler-active?
-  [property user-data]
-  (or (some? user-data)
-      (:original-values property)))
-
-(defn- transfer-overrides-handler-run!
-  [user-data]
-  (let [transfer-overrides-plan (:transfer-overrides-plan user-data)
-        tx-data (properties/transfer-overrides-tx-data transfer-overrides-plan)]
-    (when (coll/not-empty tx-data)
-      (g/transact tx-data))))
-
-(handler/defhandler :edit.pull-up-override :property
+(handler/defhandler :edit.pull-up-overrides :property
+  (label [property user-data]
+    (when (nil? user-data)
+      (str "Pull Up " (properties/label property) " Override")))
   (active? [property user-data]
-    (transfer-overrides-handler-active? property user-data))
-  (run [user-data]
-    (transfer-overrides-handler-run! user-data))
+    (or (some? user-data)
+        (= 1 (count (:original-values property)))))
   (options [property selection user-data]
-    (when-not user-data
-    (g/with-auto-evaluation-context evaluation-context
-      (let [basis (:basis evaluation-context)
-            property-labels [(:key property)]
-            node-id (handler/selection->node-id selection)
-            original-node-ids (iterate #(g/override-original basis %)
-                                       (g/override-original basis node-id))]
-        (coll/transfer
-          original-node-ids []
-          (take-while some?)
-          (keep (fn [original-node-id]
-                  (properties/transfer-overrides-plan node-id [original-node-id] property-labels evaluation-context)))
-          (map (fn [transfer-overrides-plan]
-                 {:label (properties/transfer-overrides-description transfer-overrides-plan)
-                  :command :edit.pull-up-override
-                  :user-data {:transfer-overrides-plan transfer-overrides-plan}}))))))))
+    (when (nil? user-data)
+      (when-let [node-id (handler/selection->node-id selection)]
+        (g/with-auto-evaluation-context evaluation-context
+          (let [property-labels [(:key property)]]
+            (mapv (fn [transfer-overrides-plan]
+                    {:label (properties/transfer-overrides-description transfer-overrides-plan)
+                     :command :edit.pull-up-overrides
+                     :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                  (properties/pull-up-overrides-plan-alternatives node-id property-labels evaluation-context)))))))
+  (run [user-data]
+    (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 
-(handler/defhandler :edit.push-down-override :property
-  (active? [evaluation-context selection]
-    (when-let [node-id (handler/selection->node-id selection)]
-      (let [basis (:basis evaluation-context)
-            override-node-ids (g/overrides basis node-id)]
-        (pos? (count override-node-ids)))))
-  (run [user-data]
-    (transfer-overrides-handler-run! user-data))
+(handler/defhandler :edit.push-down-overrides :property
+  (label [property user-data]
+    (when (nil? user-data)
+      (str "Push Down " (properties/label property) " Override")))
+  (active? [property selection user-data evaluation-context]
+    (or (some? user-data)
+        (and (= 1 (count (:original-values property)))
+             (if-let [node-id (handler/selection->node-id selection)]
+               (not (coll/empty? (g/overrides (:basis evaluation-context) node-id)))
+               false))))
   (options [property selection user-data]
-    (when-not user-data
-      (g/with-auto-evaluation-context evaluation-context
-        (let [basis (:basis evaluation-context)
-              property-labels [(:key property)]
-              node-id (handler/selection->node-id selection)
-              override-node-ids (g/overrides basis node-id)
-              transfer-overrides-plan (properties/transfer-overrides-plan node-id override-node-ids property-labels evaluation-context)]
-          (when transfer-overrides-plan
-            [{:label (properties/transfer-overrides-description transfer-overrides-plan)
-              :command :edit.push-down-override
-              :user-data {:transfer-overrides-plan transfer-overrides-plan}}]))))))
+    (when (nil? user-data)
+      (when-let [node-id (handler/selection->node-id selection)]
+        (g/with-auto-evaluation-context evaluation-context
+          (let [property-labels [(:key property)]]
+            (mapv (fn [transfer-overrides-plan]
+                    {:label (properties/transfer-overrides-description transfer-overrides-plan)
+                     :command :edit.push-down-overrides
+                     :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                  (properties/push-down-overrides-plan-alternatives node-id property-labels evaluation-context)))))))
+  (run [user-data]
+    (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 
 (handler/register-menu! ::properties-menu
-  [{:label "Show Overrides..."
-    :command :edit.show-overrides}
-   {:label "Pull Up Override"
-    :command :edit.pull-up-override}
-   {:label "Push Down Override"
-    :command :edit.push-down-override}])
+  [menu-items/show-overrides
+   menu-items/pull-up-overrides
+   menu-items/push-down-overrides])
 
 (defrecord SelectionProvider [original-node-ids]
   handler/SelectionProvider
