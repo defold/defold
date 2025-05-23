@@ -121,7 +121,14 @@
                    (if (= (:id launched-target) (:id target))
                      (let [result-target (merge launched-target target-info)]
                        (when (and (:url target-info) (not (:url launched-target)))
-                         (on-service-url-found result-target))
+                         (future
+                           ;; Wait for the console stream to be marked as active
+                           (loop []
+                             (if (console/current-stream? (:log-stream result-target))
+                               (on-service-url-found result-target)
+                               (do
+                                 (Thread/sleep 100)
+                                 (recur))))))
                        result-target)
                      launched-target))
                  old))

@@ -60,8 +60,10 @@ namespace dmGameSystem
      * If there's an associated image, it is of size width * height * channels.
      * @struct
      * @name FontGlyph
-     * @member m_Width [type: int16_t] The glyph image width
-     * @member m_Height [type: int16_t] The glyph image height
+     * @member m_Width [type: float] The glyph bounding width
+     * @member m_Height [type: float] The glyph bounding height
+     * @member m_ImageWidth [type: int16_t] The glyph image width
+     * @member m_ImageHeight [type: int16_t] The glyph image height
      * @member m_Channels [type: int16_t] The glyph image height
      * @member m_Advance [type: float] The advance step of the glyph (in pixels)
      * @member m_LeftBearing [type: float] The left bearing of the glyph (in pixels)
@@ -70,8 +72,10 @@ namespace dmGameSystem
      */
     struct FontGlyph
     {
-        int16_t m_Width;
-        int16_t m_Height;
+        float   m_Width;
+        float   m_Height;
+        int16_t m_ImageWidth;
+        int16_t m_ImageHeight;
         int16_t m_Channels;
         float   m_Advance;
         float   m_LeftBearing;
