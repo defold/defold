@@ -352,7 +352,7 @@ namespace dmScript
 
             if (key_type != LUA_TSTRING && key_type != LUA_TNUMBER && key_type != LUA_THASH)
             {
-                luaL_error(L, "keys in table must be of type number or string (found %s)", lua_typename(L, key_type));
+                luaL_error(L, "keys in table must be of type number, string or hash (found %s)", lua_typename(L, key_type));
             }
 
             // key + value type
