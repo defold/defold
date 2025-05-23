@@ -18,6 +18,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.icons :as icons]
+            [editor.menu-items :as menu-items]
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.scene-visibility :as scene-visibility]
@@ -28,7 +29,7 @@
            [javafx.event Event]
            [javafx.geometry Orientation]
            [javafx.scene Node]
-           [javafx.scene.control ScrollBar SelectionMode TreeItem TreeView ToggleButton Label]
+           [javafx.scene.control Label ScrollBar SelectionMode ToggleButton TreeItem TreeView]
            [javafx.scene.image ImageView]
            [javafx.scene.input Clipboard DataFormat DragEvent MouseEvent TransferMode]
            [javafx.scene.layout AnchorPane HBox]
@@ -242,9 +243,11 @@
     :command :file.show-references}
    {:label "Dependencies..."
     :command :file.show-dependencies}
-   {:label "Show Overrides..."
-    :command :edit.show-overrides}
-   {:label :separator}
+   menu-items/separator
+   menu-items/show-overrides
+   menu-items/pull-up-overrides
+   menu-items/push-down-overrides
+   menu-items/separator
    {:label "Add"
     :icon "icons/32/Icons_M_07_plus.png"
     :command :edit.add-embedded-component

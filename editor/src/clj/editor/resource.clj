@@ -21,13 +21,14 @@
             [editor.fs :as fs]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
+            [util.defonce :as defonce]
             [util.digest :as digest]
             [util.fn :as fn]
             [util.http-server :as http-server]
             [util.text-util :as text-util])
   (:import [clojure.lang PersistentHashMap]
            [com.defold.editor Editor]
-           [java.io File Closeable FilterInputStream IOException InputStream]
+           [java.io Closeable File FilterInputStream IOException InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
            [java.util.zip ZipEntry ZipFile ZipInputStream]
@@ -36,10 +37,10 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defprotocol ResourceListener
+(defonce/protocol ResourceListener
   (handle-changes [this changes render-progress!]))
 
-(defprotocol Resource
+(defonce/protocol Resource
   (children [this])
   (ext [this])
   (resource-type [this])
@@ -96,6 +97,25 @@
         ext (type-ext resource)]
     (or (resource-types ext)
         (resource-types placeholder-resource-type-ext))))
+
+(defn overridable-resource-type?
+  "Returns whether the supplied value is a resource-type that hosts properties
+  that may be overridden."
+  [value]
+  (contains? (:tags value) :overridable-properties))
+
+(defn overridable?
+  "Returns whether the Resource hosts properties that may be overridden. Throws
+  if supplied a non-Resource value."
+  [resource]
+  (overridable-resource-type? (resource-type resource)))
+
+(defn overridable-resource?
+  "Returns whether the supplied value is a Resource whose type hosts properties
+  that may be overridden."
+  [value]
+  (and (resource? value)
+       (overridable? value)))
 
 (defn openable-resource? [value]
   ;; A resource is considered openable if its kind can be opened. Typically this
@@ -244,7 +264,7 @@
 ;; Note! Used to keep a file here instead of path parts, but on
 ;; Windows (File. "test") equals (File. "Test") which broke
 ;; FileResource equality tests.
-(defrecord FileResource [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable loaded children]
+(defonce/record FileResource [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable loaded children]
   Resource
   (children [this] children)
   (ext [this] ext)
@@ -343,7 +363,7 @@
 ;; Note that `data` is used for resource-hash, used to name
 ;; the output of build-resources. So better be unique for the
 ;; data the MemoryResource represents!
-(defrecord MemoryResource [workspace editable ext data]
+(defonce/record MemoryResource [workspace editable ext data]
   Resource
   (children [this] nil)
   (ext [this] ext)
@@ -397,7 +417,7 @@
           (proxy-super close)
           (.close zip-file))))))
 
-(defrecord ZipResource [workspace ^URI zip-uri name path zip-entry children]
+(defonce/record ZipResource [workspace ^URI zip-uri name path zip-entry children]
   Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension name))
