@@ -1,0 +1,319 @@
+{
+    "issues": [
+        {
+            "body": "* Build errors from `extension-lua-preprocessor` now show more information and are clickable in the Build Errors view.",
+            "is_issue": true,
+            "is_pr": false,
+            "labels": [
+                "editor"
+            ],
+            "number": 7562,
+            "title": "Clickable Lua preprocessor build errors",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/7562"
+        },
+        {
+            "body": "It is now possible to make the main Activity transparency by adding a meta-data option in `AndroidManifest.xml`:\r\n\r\n```xml\r\n    <meta-data android:name=\"alpha.transparency\" android:value=\"true\" />\r\n```\r\n\r\nNote: By default the feature is disabled and does not negatively impact performance.",
+            "is_issue": false,
+            "is_pr": true,
+            "labels": [],
+            "number": 7477,
+            "title": "Added option to make DefoldActivity transparent on Android",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/7477"
+        },
+        {
+            "body": "**Describe the bug (REQUIRED)**\r\nCrash when I try to load a tilesource as sprite of a game object. Works well with a tilesource having 30 tiles, but crashing with tilesource having 50 tiles.\r\n\r\n**To Reproduce (REQUIRED)**\r\nSteps to reproduce the behavior:\r\n1. Open the project and build it to see it works (maximize the window to see the girl at the bottom left - sorry for black on black, as I removed the backgrounds layers)\r\n2. Go back to the project\r\n3. Go to `main.collection`, \r\n4. On `girl` go, replace the image with `/main/GirlRunningRight.tilesource` and the default animation with `GirlRunsRight`\r\n5. Save and Build\r\n6. See error\r\n\r\n**Expected behavior (REQUIRED)**\r\n```\r\nAssertion failed: image->m_MipMapOffset.m_Count <= MAX_MIPMAP_COUNT, file ..\\src\\gamesys\\resources\\res_texture.cpp, line 129\r\nINFO:CRASH: Successfully wrote Crashdump to file: C:\\Users\\...\\AppData\\Roaming\\Defold/_crash\r\n```\r\n\r\n**Defold version (REQUIRED):**\r\n  - Version 1.4.3 - Channel editor-alpha\r\n\r\n**Platforms (REQUIRED):**\r\n - Platforms: Windows \r\n - OS: Windows 11 Pro 22H2 22621.1413\r\n - Device: PC AMD Ryzen 7 5700G with Radeon Graphics 3.80 GHz - 32G RAM\r\n\r\n**Minimal repro case project (OPTIONAL):**\r\nPlease attach a minimal project where the bug is reproduced. This will greatly help the person trying to investigate and fix the bug.\r\n\r\n**Logs (OPTIONAL):**\r\nPlease provide relevant logs from engine, editor or build server. Learn where the logs are stored [here](https://defold.com/manuals/getting-help/#log-files).\r\n\r\n**Workaround (OPTIONAL):**\r\nDoes not crash with default animation (`GirlStandingRight.tilesource` - `GirlStandsRight`).\r\n\r\n**Screenshots (OPTIONAL):**\r\nIf applicable, add screenshots to help explain your problem.\r\n\r\n**Additional context (OPTIONAL):**\r\nAdd any other context about the problem here.",
+            "is_issue": true,
+            "is_pr": false,
+            "labels": [
+                "bug",
+                "engine",
+                "tilemap"
+            ],
+            "number": 7510,
+            "title": "Crash when using a tilesource with 50 tiles",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/issues/7510"
+        },
+        {
+            "body": "The update speed for flipbook animations and particle effects were locked to 60 updates per second even if previewing on a high refresh rate screen (eg 144Hz).",
+            "is_issue": true,
+            "is_pr": false,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "number": 7570,
+            "title": "Correct animation preview speed on high refresh rate screens",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/7570"
+        },
+        {
+            "body": "",
+            "is_issue": false,
+            "is_pr": true,
+            "labels": [
+                "ci"
+            ],
+            "number": 7565,
+            "title": "CI: Disable pull_request_target trigger and remove 'skip-ci' commit message check",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/7565"
+        },
+        {
+            "body": "This fixes an issue in Defold 1.4.4 where output from the command line tool was not shown in the editor while bundling.",
+            "is_issue": true,
+            "is_pr": false,
+            "labels": [
+                "bug",
+                "editor",
+                "bob"
+            ],
+            "number": 7551,
+            "title": "Show output from the bundle process while bundling from the editor",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/7551"
+        },
+        {
+            "body": "The project templates that are used on the editor Welcome screen are downloaded from GitHub when used. This change shows the URL of each template project in the list. The URL is clickable and will download the template project if selected. This will help users understand that the templates are not stored locally with the editor but downloaded from the internet, and thus require an internet connection to use.",
+            "is_issue": true,
+            "is_pr": false,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "number": 7566,
+            "title": "Show project template URLs on editor Welcome screen",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/7566"
+        },
+        {
+            "body": "HTML5 bundles always included both asm.js and wasm binaries, even if the `--architectures` option specified only one architecture. This change makes sure to only include the specified architecture, and in the case when wasm is not included the engine loader will not attempt to load or stream it.",
+            "is_issue": true,
+            "is_pr": false,
+            "labels": [
+                "task",
+                "bob",
+                "html5"
+            ],
+            "number": 7544,
+            "title": "Bundle only specified architectures in HTML5 builds",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/7544"
+        },
+        {
+            "body": "Setting up persistent file storage while running an HTML5 build from a sandboxed iframe on Firefox would throw an exception and stop the game from loading. This change will catch any exceptions thrown while setting up persistent file storage and continue to load the game.",
+            "is_issue": true,
+            "is_pr": false,
+            "labels": [
+                "bug",
+                "html5"
+            ],
+            "number": 7603,
+            "title": "Fix issue when setting up persistent file storage on HTML5 from a sandboxed iframe",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/7603"
+        },
+        {
+            "body": "Fixed a bug where the cubemap +z and -z sides are uploaded incorrectly on OpenGL based graphics adapters.",
+            "is_issue": true,
+            "is_pr": false,
+            "labels": [
+                "bug",
+                "model",
+                "html5",
+                "3d"
+            ],
+            "number": 7607,
+            "title": "Cubemap faces are flipped when bundling",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/7607"
+        },
+        {
+            "body": "We've updated the MoltenVK library to version 1.2.1",
+            "is_issue": false,
+            "is_pr": true,
+            "labels": [],
+            "number": 7373,
+            "title": "Updated MoltenVK to v1.2.3 db8512a6",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/7373"
+        },
+        {
+            "body": "We fixed a use-after-free issue that was noticed on Windows platforms.",
+            "is_issue": true,
+            "is_pr": false,
+            "labels": [
+                "bug",
+                "editor",
+                "model"
+            ],
+            "number": 7633,
+            "title": "Fixed modelc exception handling for Win32",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/7633"
+        },
+        {
+            "body": "The generated build reports will now also list excluded live update content in a separate report file.\r\n\r\n```sh\r\njava -jar bob.jar --verbose --platform=x86_64-macos --archive --liveupdate=yes --build-report=report.json --build-report-html=report.html clean build bundle\r\n```\r\n\r\nWill generate:\r\n\r\n```\r\nexcluded_report.html\r\nexcluded_report.json\r\nreport.html\r\nreport.json\r\nreport_time.json\r\n```",
+            "is_issue": true,
+            "is_pr": false,
+            "labels": [
+                "task",
+                "engine",
+                "bob",
+                "live update"
+            ],
+            "number": 7521,
+            "title": "Generate a build report for live update content",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/7521"
+        },
+        {
+            "body": "This fixes a crash when the skin didn't have a name.",
+            "is_issue": true,
+            "is_pr": false,
+            "labels": [
+                "bug",
+                "bob",
+                "model"
+            ],
+            "number": 7635,
+            "title": "Fixed issue with finding the skin in an animated model",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/7635"
+        },
+        {
+            "body": "We've made the model compiler more robust and it will now catch any C/C++ errors, and then throw a Java error. This lets the editor handle such a case, and we minimise the risk of the user losing any edits in the project.",
+            "is_issue": false,
+            "is_pr": true,
+            "labels": [],
+            "number": 7594,
+            "title": "Added support for throwing a Java exception from the model compiler",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/7594"
+        },
+        {
+            "body": "Exposed floating point texture formats to the resource script API:\r\n\r\n```\r\nresource.TEXTURE_FORMAT_RGB16F\r\nresource.TEXTURE_FORMAT_RGB32F\r\nresource.TEXTURE_FORMAT_RGBA16F\r\nresource.TEXTURE_FORMAT_RGBA32F\r\nresource.TEXTURE_FORMAT_R16F\r\nresource.TEXTURE_FORMAT_RG16F\r\nresource.TEXTURE_FORMAT_R32F\r\nresource.TEXTURE_FORMAT_RG32F\r\n```\r\nNote that the device running your game might not support all of these features, and the constants will only be exposed if it does. To check if the device can support a certain format, you can check if it is nil:\r\n\r\n```\r\nif resource.TEXTURE_FORMAT_RGBA16F ~= nil then\r\n    -- it is safe to use this format\r\nend\r\n```",
+            "is_issue": false,
+            "is_pr": true,
+            "labels": [
+                "feature request",
+                "engine"
+            ],
+            "number": 7238,
+            "title": "Set texture float support",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/7238"
+        },
+        {
+            "body": "Refactored how textures and rendertargets are exposed and used in the engine, instead of passing around raw pointers, we now represent them as generic asset handles. This is the first step to bring the render and gameobject world closer together, where graphical assets can be transparently shared between them. Meaning, a texture that has been created by a script (or any texture, e.g an atlas texture) can be passed to the render scripts where it could be bound to the render state for drawing. Similarly, a render target could be created in a render script, passed to a game object and used as a texture on a model or an atlas.",
+            "is_issue": false,
+            "is_pr": true,
+            "labels": [
+                "feature request",
+                "engine",
+                "graphics"
+            ],
+            "number": 7559,
+            "title": "Refactor textures as handles",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/7559"
+        },
+        {
+            "body": "Added a wireframe rendering of the camera frustum for the editor.",
+            "is_issue": false,
+            "is_pr": true,
+            "labels": [
+                "editor",
+                "camera"
+            ],
+            "number": 7576,
+            "title": "Camera frustum preview",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/7576"
+        },
+        {
+            "body": "Added the new function `resource.get_texture_info` to get metadata from a texture resource or handle:\r\n\r\n```\r\nlocal my_texture_info = resource.get_texture_info(my_texture_path)\r\n\r\n-- my_texture_info is a table that contains\r\n{\r\n     handle, -- the numeric handle of the texture\r\n     width, -- width of the texture\r\n     height, -- height of the texture\r\n     depth, -- depth of the texture (1 for a 2D texture, 6 for a cube map and [1...slice-count] for an array texture)\r\n     mipmaps, -- number of mipmaps the texture has\r\n     type -- texture type\r\n}\r\n```",
+            "is_issue": false,
+            "is_pr": true,
+            "labels": [
+                "feature request",
+                "engine",
+                "graphics"
+            ],
+            "number": 7578,
+            "title": "Resource get texture info",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/7578"
+        },
+        {
+            "body": "Added new parameter `--max-cpu-threads` for `bob.jar` which controls the maximum number of threads `bob.jar` can use. At the moment this value used only by the texture encoder.\r\nAlso, if texture compression is ON in the editor, the editor uses at least `detected_max_threads - 1` in case when 2\u20134 threads are available and `detected_max_threads - 2` if more than 4 cores are available.",
+            "is_issue": true,
+            "is_pr": false,
+            "labels": [
+                "feature request"
+            ],
+            "number": 7585,
+            "title": "New paramenter `--max-cpu-threads` for `bob.jar`",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/7585"
+        },
+        {
+            "body": "Render scripts now support enabling texture handles via the `render.enable_texture` function. This means that you can pass a texture handle from scripts to the renderer and use them as global textures when rendering:\r\n\r\n```\r\n-- in a regular gameobject script:\r\nlocal my_texture_info = resource.get_texture_info(\"/my_atlas.a.texturesetc\")\r\nmsg.post(\"@render:\", \"set_my_texture\", { handle = my_texture_info.handle })\r\n\r\n-- in a render script:\r\nfunction update(self, dt)\r\n    render.enable_texture(0, self.my_texture)\r\nend\r\n\r\nfunction on_message(self, message_id, message)\r\n    if message_id == hash(\"set_my_texture\") then\r\n        self.my_texture = message.handle\r\n    end\r\nend\r\n```",
+            "is_issue": false,
+            "is_pr": true,
+            "labels": [
+                "feature request",
+                "engine",
+                "render"
+            ],
+            "number": 7583,
+            "title": "Support texture handles in render.enable_texture",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/7583"
+        },
+        {
+            "body": "Android 13 doesn't support Back button anymore. Instead, it uses back gesture. This \n\r\n>\u26a0\ufe0f `AndroidManifes.xml` updated with new flag `android:enableOnBackInvokedCallback=\"true\"` for the `<application>` tag. If you use your own manifest, make sure you apply the same changes.",
+            "is_issue": true,
+            "is_pr": false,
+            "labels": [
+                "task",
+                "engine",
+                "android"
+            ],
+            "number": 7591,
+            "title": "Added back gesture support for Android 13",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/7591"
+        },
+        {
+            "body": "The allocated buffers used too much memory due to a miscalculation in the struct size.",
+            "is_issue": true,
+            "is_pr": false,
+            "labels": [
+                "bug",
+                "engine",
+                "buffer"
+            ],
+            "number": 7612,
+            "title": "Fixed struct size calculation for buffer formats",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/7612"
+        },
+        {
+            "body": "",
+            "is_issue": true,
+            "is_pr": false,
+            "labels": [
+                "task",
+                "editor"
+            ],
+            "number": 7614,
+            "title": "Fix focus on committing values in the form view",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/7614"
+        }
+    ],
+    "version": "1.4.6"
+}
