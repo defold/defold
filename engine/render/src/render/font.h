@@ -68,8 +68,6 @@ namespace dmRender
         float m_MaxDescent;
         /// Value to scale SDF texture values with
         float m_SdfSpread;
-        /// Value to offset SDF texture values with
-        float m_SdfOffset;
         /// Distance value where outline should end
         float m_SdfOutline;
         /// Distance value where shadow should end

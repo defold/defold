@@ -378,7 +378,6 @@ namespace dmGameSystem
         else
         {
             params.m_GlyphChannels  = glyph_bank->m_GlyphChannels;
-            params.m_SdfOffset      = glyph_bank->m_SdfOffset;  // UNUSED!
             params.m_SdfSpread      = glyph_bank->m_SdfSpread;
             params.m_SdfOutline     = glyph_bank->m_SdfOutline;
             params.m_SdfShadow      = glyph_bank->m_SdfShadow;

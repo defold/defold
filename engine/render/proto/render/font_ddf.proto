@@ -79,18 +79,17 @@ message GlyphBank
     optional FontTextureFormat image_format          = 10 [default = TYPE_BITMAP];
 
     optional float             sdf_spread            = 11 [default = 1];
-    optional float             sdf_offset            = 12 [default = 0];
-    optional float             sdf_outline           = 13 [default = 0];
-    optional float             sdf_shadow            = 14 [default = 0];
+    optional float             sdf_outline           = 12 [default = 0];
+    optional float             sdf_shadow            = 13 [default = 0];
 
-    optional uint32            cache_width           = 15 [default = 0];
-    optional uint32            cache_height          = 16 [default = 0];
-    optional uint32            cache_cell_width      = 17 [default = 0];
-    optional uint32            cache_cell_height     = 18 [default = 0];
-    optional uint32            cache_cell_max_ascent = 19 [default = 0];
+    optional uint32            cache_width           = 14 [default = 0];
+    optional uint32            cache_height          = 15 [default = 0];
+    optional uint32            cache_cell_width      = 16 [default = 0];
+    optional uint32            cache_cell_height     = 17 [default = 0];
+    optional uint32            cache_cell_max_ascent = 18 [default = 0];
 
-    optional uint32            padding               = 20 [default = 0];
-    optional bool              is_monospaced         = 21 [default = false];
+    optional uint32            padding               = 19 [default = 0];
+    optional bool              is_monospaced         = 20 [default = false];
 }
 
 // Used at runtime.

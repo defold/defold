@@ -102,7 +102,6 @@ namespace dmRender
         float                   m_MaxAscent;
         float                   m_MaxDescent;
         float                   m_SdfSpread;
-        float                   m_SdfOffset;
         float                   m_SdfOutline;
         float                   m_SdfShadow;
         float                   m_Alpha;
