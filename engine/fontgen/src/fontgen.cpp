@@ -469,7 +469,7 @@ static void GenerateGlyph(Context* ctx, FontInfo* info, uint32_t codepoint, bool
 
 static void GenerateGlyphs(Context* ctx, FontInfo* info, const char* text, FGlyphCallback cbk, void* cbk_ctx)
 {
-    uint32_t len        = dmUtf8::StrLen(text);
+    uint32_t len = dmUtf8::StrLen(text);
 
     JobStatus* status      = new JobStatus;
     status->m_TimeGlyphGen = 0;

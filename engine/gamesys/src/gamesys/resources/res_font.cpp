@@ -258,24 +258,34 @@ namespace dmGameSystem
     static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRender::HRenderContext context,
         dmRenderDDF::FontMap* ddf, FontResource* font_map, const char* filename)
     {
-        MaterialResource* material_res;
-        dmResource::Result result = dmResource::Get(factory, ddf->m_Material, (void**) &material_res);
+        dmResource::Result result = dmResource::Get(factory, ddf->m_Material, (void**) &font_map->m_MaterialResource);
         if (result != dmResource::RESULT_OK)
         {
-            dmDDF::FreeMessage(ddf);
+            ReleaseResources(factory, font_map);
             return result;
         }
 
-        GlyphBankResource* glyph_bank_res;
-        result = dmResource::Get(factory, ddf->m_GlyphBank, (void**) &glyph_bank_res);
+        result = dmResource::Get(factory, ddf->m_GlyphBank, (void**) &font_map->m_GlyphBankResource);
         if (result != dmResource::RESULT_OK)
         {
-            dmResource::Release(factory, (void*)material_res);
-            dmDDF::FreeMessage(ddf);
+            ReleaseResources(factory, font_map);
             return result;
         }
 
-        dmRenderDDF::GlyphBank* glyph_bank = glyph_bank_res->m_DDF;
+        TTFResource* ttfresource = 0;
+        if (ddf->m_Dynamic)
+        {
+            result = dmResource::Get(factory, ddf->m_Font, (void**) &ttfresource);
+            if (result != dmResource::RESULT_OK)
+            {
+                ReleaseResources(factory, font_map);
+                return result;
+            }
+
+            AddFontRange(font_map, 0, 0xFFFFFFFF, ttfresource); // Add the default font/range
+        }
+
+        dmRenderDDF::GlyphBank* glyph_bank = font_map->m_GlyphBankResource->m_DDF;
         assert(glyph_bank);
 
         dmRender::FontMapParams params;
@@ -308,8 +318,14 @@ namespace dmGameSystem
         params.m_Padding            = glyph_bank->m_Padding;
         font_map->m_Padding         = glyph_bank->m_Padding;
 
-        if (ddf->m_Dynamic && glyph_bank->m_ImageFormat == dmRenderDDF::TYPE_DISTANCE_FIELD)
+        if (ddf->m_Dynamic)
         {
+            if (glyph_bank->m_ImageFormat != dmRenderDDF::TYPE_DISTANCE_FIELD)
+            {
+                dmLogError("Currently only distance field fonts are supported: %s", filename);
+                return dmResource::RESULT_NOT_SUPPORTED;
+            }
+
             if (ddf->m_ShadowBlur > 0.0f && ddf->m_ShadowAlpha > 0.0f) {
                 params.m_GlyphChannels = 3;
             }
@@ -348,22 +364,28 @@ namespace dmGameSystem
             ReleaseResources(factory, font_map);
         }
 
-        font_map->m_MaterialResource  = material_res;
-        font_map->m_GlyphBankResource = glyph_bank_res;
+        font_map->m_MaterialResource  = font_map->m_MaterialResource;
+        font_map->m_GlyphBankResource = font_map->m_GlyphBankResource;
         font_map->m_DDF               = ddf;
         font_map->m_CacheCellPadding  = params.m_CacheCellPadding;
         font_map->m_IsDynamic         = ddf->m_Dynamic;
 
-        uint32_t capacity = glyph_bank->m_Glyphs.m_Count;
-        font_map->m_Glyphs.Clear();
-        font_map->m_Glyphs.SetCapacity(dmMath::Max(1U, (capacity*2)/3), capacity);
-        for (uint32_t i = 0; i < glyph_bank->m_Glyphs.m_Count; ++i)
+        if (ddf->m_Dynamic)
         {
-            dmRenderDDF::GlyphBank::Glyph* glyph = &glyph_bank->m_Glyphs[i];
-            font_map->m_Glyphs.Put(glyph->m_Character, glyph);
+        }
+        else
+        {
+            uint32_t capacity = glyph_bank->m_Glyphs.m_Count;
+            font_map->m_Glyphs.Clear();
+            font_map->m_Glyphs.SetCapacity(dmMath::Max(1U, (capacity*2)/3), capacity);
+            for (uint32_t i = 0; i < glyph_bank->m_Glyphs.m_Count; ++i)
+            {
+                dmRenderDDF::GlyphBank::Glyph* glyph = &glyph_bank->m_Glyphs[i];
+                font_map->m_Glyphs.Put(glyph->m_Character, glyph);
+            }
         }
 
-        dmRender::SetFontMapMaterial(font_map->m_FontMap, material_res->m_Material);
+        dmRender::SetFontMapMaterial(font_map->m_FontMap, font_map->m_MaterialResource->m_Material);
         dmRender::SetFontMapUserData(font_map->m_FontMap, (void*)font_map);
 
         return dmResource::RESULT_OK;
@@ -380,6 +402,8 @@ namespace dmGameSystem
         }
 
         dmResource::PreloadHint(params->m_HintInfo, ddf->m_Material);
+        if (ddf->m_Dynamic)
+            dmResource::PreloadHint(params->m_HintInfo, ddf->m_Font);
 
         *params->m_PreloadData = ddf;
         return dmResource::RESULT_OK;
