@@ -117,9 +117,8 @@ namespace dmGraphics
 
     struct DX12RenderTarget
     {
-        ID3D12Resource*       m_Resource;
         ID3D12DescriptorHeap* m_ColorAttachmentDescriptorHeap;
-        ID3D12DescriptorHeap* m_DepthStencilAttachmentDescriptorHeap;
+        ID3D12DescriptorHeap* m_DepthStencilDescriptorHeap;
 
         TextureParams         m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams         m_DepthStencilTextureParams;
@@ -174,9 +173,10 @@ namespace dmGraphics
 
     struct DX12FrameResource
     {
+        HTexture                m_TextureColor;
+        HTexture                m_TextureDepthStencil;
         DX12RenderTarget        m_RenderTarget;
         ID3D12Resource*         m_MsaaRenderTarget;
-        ID3D12Resource*         m_DepthStencil;
         ID3D12CommandAllocator* m_CommandAllocator;
         ID3D12Fence*            m_Fence;
         DX12ScratchBuffer       m_ScratchBuffer;

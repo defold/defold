@@ -477,15 +477,26 @@ namespace dmGraphics
         // but we cannot literally use it like a c++ pointer.
         CD3DX12_CPU_DESCRIPTOR_HANDLE rtv_handle(context->m_RtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
+        TextureCreationParams texture_create_params;
+        texture_create_params.m_Width          = window_width;
+        texture_create_params.m_Height         = window_height;
+        texture_create_params.m_OriginalWidth  = window_width;
+        texture_create_params.m_OriginalHeight = window_height;
+
         for (int i = 0; i < MAX_FRAMEBUFFERS; i++)
         {
+            context->m_FrameResources[i].m_TextureColor        = NewTexture(_context, texture_create_params);
+            context->m_FrameResources[i].m_TextureDepthStencil = NewTexture(_context, texture_create_params);
+            DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, context->m_FrameResources[i].m_TextureColor);
+            DX12Texture* texture_depth = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, context->m_FrameResources[i].m_TextureDepthStencil);
+
             // first we get the n'th buffer in the swap chain and store it in the n'th
             // position of our ID3D12Resource array
-            hr = context->m_SwapChain->GetBuffer(i, IID_PPV_ARGS(&context->m_FrameResources[i].m_RenderTarget.m_Resource));
+            hr = context->m_SwapChain->GetBuffer(i, IID_PPV_ARGS(&texture_color->m_Resource));
             CHECK_HR_ERROR(hr);
 
             // we "create" a render target view which binds the swap chain buffer (ID3D12Resource[n]) to the rtv handle
-            context->m_Device->CreateRenderTargetView(context->m_FrameResources[i].m_RenderTarget.m_Resource, NULL, rtv_handle);
+            context->m_Device->CreateRenderTargetView(texture_color->m_Resource, NULL, rtv_handle);
             rtv_handle.Offset(1, context->m_RtvDescriptorSize);
 
 
@@ -550,7 +561,7 @@ namespace dmGraphics
                 &depth_desc,
                 D3D12_RESOURCE_STATE_DEPTH_WRITE,
                 &depth_clear,
-                IID_PPV_ARGS(&context->m_FrameResources[i].m_DepthStencil)
+                IID_PPV_ARGS(&texture_depth->m_Resource)
             );
             CHECK_HR_ERROR(hr);
 
@@ -562,7 +573,7 @@ namespace dmGraphics
             dsv_desc.ViewDimension = (context->m_MSAASampleCount > 1) ? D3D12_DSV_DIMENSION_TEXTURE2DMS : D3D12_DSV_DIMENSION_TEXTURE2D;
             dsv_desc.Flags         = D3D12_DSV_FLAG_NONE;
 
-            context->m_Device->CreateDepthStencilView(context->m_FrameResources[i].m_DepthStencil, &dsv_desc, dsv_handle);
+            context->m_Device->CreateDepthStencilView(texture_depth->m_Resource, &dsv_desc, dsv_handle);
 
             // Create the rest of the per-frame resources
             hr = context->m_Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&context->m_FrameResources[i].m_CommandAllocator));
@@ -782,30 +793,50 @@ namespace dmGraphics
 
         if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
+            // NOTE: We rotate the swap chain textures into the RT at the beginning of the frame
+            DX12Texture* texture_color         = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, current_rt->m_TextureColor[0]);
+            ID3D12Resource* color              = texture_color->m_Resource;
+
             if (context->m_MSAASampleCount > 1)
             {
                 ID3D12Resource* msaaRT = context->m_FrameResources[context->m_CurrentFrameIndex].m_MsaaRenderTarget;
-                ID3D12Resource* swapchainRT = current_rt->m_Resource;
 
                 // Transition targets into dest and source (TODO: We should track the state of the resources, or actually _all_ resources)
-                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(swapchainRT, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RESOLVE_DEST));
+                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(color, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RESOLVE_DEST));
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(msaaRT, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE));
 
                 // Resolve from MSAA to swapchain
                 context->m_CommandList->ResolveSubresource(
-                    swapchainRT, 0,
+                    color, 0,
                     msaaRT, 0,
                     DXGI_FORMAT_R8G8B8A8_UNORM
                 );
 
                 // Transition resources back to previous state (to be used for next frame)
-                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(swapchainRT, D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PRESENT));
+                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(color, D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PRESENT));
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(msaaRT, D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
             }
             else
             {
                 // No MSAA: just transition swapchain RT to PRESENT
-                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(current_rt->m_Resource, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(color, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+            }
+
+            DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, current_rt->m_TextureDepthStencil);
+
+            // Regardless of MSAA count (no resolve needed for depth target I think?), we need to transition backbuffer DSV to COMMON
+            if (texture_depth_stencil && texture_depth_stencil->m_Resource)
+            {
+                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COMMON));
+            }
+        }
+        else
+        {
+            // Transition custom render target's depth/stencil back to COMMON
+            if (current_rt->m_TextureDepthStencil)
+            {
+                DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, current_rt->m_TextureDepthStencil);
+                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COMMON));
             }
         }
 
@@ -836,10 +867,9 @@ namespace dmGraphics
 
             if (context->m_MSAASampleCount > 1)
             {
-                // The handles are acquired interleaved (first main RT then the MSAA one, one per swapchain frame)
+                // MSAA: bind the MSAA RT for current frame
                 uint32_t rtv_index = context->m_CurrentFrameIndex * 2 + 1;
 
-                // MSAA enabled: bind the MSAA RT for current frame
                 ID3D12Resource* msaaRT = context->m_FrameResources[context->m_CurrentFrameIndex].m_MsaaRenderTarget;
                 rtv_handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
                     context->m_RtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
@@ -849,15 +879,16 @@ namespace dmGraphics
             }
             else
             {
+                DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, current_rt->m_TextureColor[0]);
+
                 // No MSAA: use the regular swapchain RT
-                ID3D12Resource* rtResource = rt->m_Resource;
                 rtv_handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
                     context->m_RtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
                     context->m_CurrentFrameIndex,
                     context->m_RtvDescriptorSize
                 );
 
-                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(rtResource, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_color->m_Resource, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
             }
         }
         else
@@ -882,7 +913,7 @@ namespace dmGraphics
             }
         }
 
-        // Setup DSV if this is a backbuffer render pass
+        // Setup DSV if available
         D3D12_CPU_DESCRIPTOR_HANDLE* dsv_handle_ptr = NULL;
         CD3DX12_CPU_DESCRIPTOR_HANDLE dsv_handle;
 
@@ -895,11 +926,23 @@ namespace dmGraphics
             );
             dsv_handle_ptr = &dsv_handle;
         }
+        else if (rt->m_DepthStencilDescriptorHeap)
+        {
+            dsv_handle     = CD3DX12_CPU_DESCRIPTOR_HANDLE(rt->m_DepthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+            dsv_handle_ptr = &dsv_handle;
+
+            DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, rt->m_TextureDepthStencil);
+
+            if (texture_depth_stencil && texture_depth_stencil->m_Resource)
+            {
+                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
+            }
+        }
 
         context->m_RtvHandle = rtv_handle;
         context->m_DsvHandle = dsv_handle;
 
-        // Set the render targets and depth/stencil (if present)
+        // Bind render target(s) and optional depth-stencil
         context->m_CommandList->OMSetRenderTargets(1, &context->m_RtvHandle, FALSE, dsv_handle_ptr);
 
         rt->m_IsBound = 1;
@@ -947,7 +990,8 @@ namespace dmGraphics
         CHECK_HR_ERROR(hr);
 
         DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
-        rt->m_Resource = current_frame_resource.m_RenderTarget.m_Resource;
+        rt->m_TextureColor[0] = current_frame_resource.m_TextureColor;
+        rt->m_TextureDepthStencil = current_frame_resource.m_TextureDepthStencil;
 
         FlushResourcesToDestroy(current_frame_resource);
 
@@ -2426,14 +2470,9 @@ namespace dmGraphics
             }
         }
 
-        uint8_t has_depth   = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT;
-        uint8_t has_stencil = buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+        uint8_t has_depth         = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+        uint8_t has_stencil       = buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT;
         uint8_t has_depth_stencil = has_depth || has_stencil;
-
-        if(has_depth_stencil)
-        {
-            // TODO
-        }
 
         // Create attachments
         if (color_attachment_count)
@@ -2456,27 +2495,65 @@ namespace dmGraphics
                 rtv_handle.ptr += rtv_descriptor_size; // Move to the next descriptor
             }
         }
+
         if (has_depth_stencil)
         {
-            // D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
-            // dsvHeapDesc.NumDescriptors             = 1; // Only one depth/stencil buffer
-            // dsvHeapDesc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-            // dsvHeapDesc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-            // hr = context->m_Device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&rt->m_DepthStencilAttachmentDescriptorHeap));
-            // CHECK_HR_ERROR(hr);
 
-            /*
-            CD3DX12_RESOURCE_BARRIER::Transition(
-                depthStencilBuffer,
-                D3D12_RESOURCE_STATE_COMMON,
-                D3D12_RESOURCE_STATE_DEPTH_WRITE
-            )
-            */
+            const TextureCreationParams& stencil_depth_create_params = has_depth ? params.m_DepthBufferCreationParams : params.m_StencilBufferCreationParams;
 
-            // attachment_barriers_count++;
+            HTexture texture_depth_stencil         = NewTexture(_context, stencil_depth_create_params);
+            DX12Texture* texture_depth_stencil_ptr = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, texture_depth_stencil);
+
+            DXGI_FORMAT ds_format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+
+            if (has_depth && !has_stencil)
+            {
+                ds_format = DXGI_FORMAT_D32_FLOAT;
+            }
+
+            D3D12_RESOURCE_DESC ds_desc = {};
+            ds_desc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+            ds_desc.Width               = stencil_depth_create_params.m_Width;
+            ds_desc.Height              = stencil_depth_create_params.m_Height;
+            ds_desc.DepthOrArraySize    = 1;
+            ds_desc.MipLevels           = 1;
+            ds_desc.Format              = ds_format;
+            ds_desc.SampleDesc.Count    = 1;
+            ds_desc.SampleDesc.Quality  = 0;
+            ds_desc.Layout              = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+            ds_desc.Flags               = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+            D3D12_CLEAR_VALUE clear_value    = {};
+            clear_value.Format               = ds_format;
+            clear_value.DepthStencil.Depth   = 1.0f;
+            clear_value.DepthStencil.Stencil = 0;
+
+            hr = context->m_Device->CreateCommittedResource(
+                &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+                D3D12_HEAP_FLAG_NONE,
+                &ds_desc,
+                D3D12_RESOURCE_STATE_DEPTH_WRITE, // Initial state
+                &clear_value,
+                IID_PPV_ARGS(&texture_depth_stencil_ptr->m_Resource)
+            );
+            CHECK_HR_ERROR(hr);
+
+            // Create DSV descriptor heap
+            D3D12_DESCRIPTOR_HEAP_DESC dsv_heap_desc = {};
+            dsv_heap_desc.NumDescriptors             = 1;
+            dsv_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+            dsv_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+
+            hr = context->m_Device->CreateDescriptorHeap(&dsv_heap_desc, IID_PPV_ARGS(&rt->m_DepthStencilDescriptorHeap));
+            CHECK_HR_ERROR(hr);
+
+            D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {};
+            dsv_desc.Format              = ds_format;
+            dsv_desc.ViewDimension       = D3D12_DSV_DIMENSION_TEXTURE2D;
+            dsv_desc.Flags               = D3D12_DSV_FLAG_NONE;
+
+            context->m_Device->CreateDepthStencilView(texture_depth_stencil_ptr->m_Resource, &dsv_desc, rt->m_DepthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
         }
-
-        // commandList->ResourceBarrier(static_cast<UINT>(barriers.size()), barriers.data());
 
         return StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
