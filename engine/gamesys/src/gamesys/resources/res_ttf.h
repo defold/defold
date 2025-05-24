@@ -13,6 +13,6 @@
 #ifndef DM_FONT_RES_FONT_H
 #define DM_FONT_RES_FONT_H
 
-#include <dmsdk/font/resources/res_ttf.h>
+#include <dmsdk/gamesys/resources/res_ttf.h>
 
 #endif // DM_FONT_RES_FONT_H

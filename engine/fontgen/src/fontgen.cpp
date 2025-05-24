@@ -22,13 +22,11 @@
 #include <dmsdk/script/script.h>
 
 #include <dmsdk/gamesys/resources/res_font.h>
+#include <dmsdk/gamesys/resources/res_ttf.h>
 #include <dmsdk/extension/extension.h>
 
 #include <dlib/job_thread.h>
 
-#include <dmsdk/gamesys/resources/res_font.h>
-
-#include "res_ttf.h"
 #include "fontgen.h"
 
 namespace dmFontGen
@@ -38,7 +36,7 @@ struct FontInfo
 {
     dmMutex::HMutex             m_Mutex;
     dmGameSystem::FontResource* m_FontResource;
-    dmFont::TTFResource*        m_TTFResource;
+    dmGameSystem::TTFResource*        m_TTFResource;
     int                         m_Padding;
     int                         m_StbttEdgeValue;
     float                       m_Scale;
@@ -82,9 +80,9 @@ static bool CheckType(HResourceFactory factory, const char* path, const char** t
     return false;
 }
 
-static dmFont::TTFResource* LoadFontData(Context* ctx, const char* path)
+static dmGameSystem::TTFResource* LoadFontData(Context* ctx, const char* path)
 {
-    dmFont::TTFResource* resource = 0;
+    dmGameSystem::TTFResource* resource = 0;
     dmResource::Result r = dmResource::Get(ctx->m_ResourceFactory, path, (void**)&resource);
     if (dmResource::RESULT_OK != r)
     {
@@ -221,14 +219,14 @@ static FontInfo* LoadFont(Context* ctx, const char* fontc_path, const char* ttf_
     info->m_HasShadow    = font_info.m_ShadowAlpha > 0.0f && font_info.m_ShadowBlur > 0.0f;
 
     info->m_StbttEdgeValue  = ctx->m_StbttDefaultSdfEdge;
-    info->m_Scale           = dmFont::SizeToScale(info->m_TTFResource, font_info.m_Size);
+    info->m_Scale           = dmGameSystem::SizeToScale(info->m_TTFResource, font_info.m_Size);
 
     // TODO: Support bitmap fonts
     info->m_IsSdf        = dmRenderDDF::TYPE_DISTANCE_FIELD == font_info.m_OutputFormat;
 
     // In our system, both ascent/descent are positive distances from the baseline
-    float max_ascent = dmFont::GetAscent(info->m_TTFResource, info->m_Scale);
-    float max_descent = -dmFont::GetDescent(info->m_TTFResource, info->m_Scale);
+    float max_ascent = dmGameSystem::GetAscent(info->m_TTFResource, info->m_Scale);
+    float max_descent = -dmGameSystem::GetDescent(info->m_TTFResource, info->m_Scale);
     dmGameSystem::ResFontSetLineHeight(info->m_FontResource, max_ascent, max_descent);
 
     // This returns a too large size, which is impractical, and causes the cache to be filled too quickly
@@ -236,7 +234,7 @@ static FontInfo* LoadFont(Context* ctx, const char* fontc_path, const char* ttf_
     // uint32_t cell_width = 0;
     // uint32_t cell_height = 0;
     // uint32_t max_ascent = 0;
-    // dmFont::GetCellSize(info->m_TTFResource, &cell_width, &cell_height, &max_ascent);
+    // dmGameSystem::GetCellSize(info->m_TTFResource, &cell_width, &cell_height, &max_ascent);
 
     if (ctx->m_FontInfos.Full())
     {
@@ -302,12 +300,13 @@ static int JobGenerateGlyph(void* context, void* data)
 
     item->m_Data = 0;
     item->m_DataSize = 0;
+    memset(&item->m_Glyph, 0, sizeof(item->m_Glyph));
 
     bool is_whitespace = dmGameSystem::IsWhiteSpace(codepoint);
 
     //
-    dmFont::TTFResource* ttfresource = info->m_TTFResource;
-    uint32_t glyph_index = dmFont::CodePointToGlyphIndex(ttfresource, codepoint);
+    dmGameSystem::TTFResource* ttfresource = info->m_TTFResource;
+    uint32_t glyph_index = dmGameSystem::CodePointToGlyphIndex(ttfresource, codepoint);
     if (!glyph_index)
     {
         if (is_whitespace)
@@ -320,8 +319,8 @@ static int JobGenerateGlyph(void* context, void* data)
 
     if (info->m_IsSdf)
     {
-        item->m_Data = dmFont::GenerateGlyphSdf(ttfresource, glyph_index, info->m_Scale, info->m_Padding, info->m_StbttEdgeValue, &item->m_Glyph);
-        item->m_DataSize = 1 + item->m_Glyph.m_Width * item->m_Glyph.m_Height;
+        item->m_Data = dmGameSystem::GenerateGlyphSdf(ttfresource, glyph_index, info->m_Scale, info->m_Padding, info->m_StbttEdgeValue, &item->m_Glyph);
+        item->m_DataSize = 1 + item->m_Glyph.m_ImageWidth * item->m_Glyph.m_ImageHeight;
     }
 
     if (info->m_HasShadow && item->m_Data)
@@ -333,8 +332,8 @@ static int JobGenerateGlyph(void* context, void* data)
 
         // Make a copy
         item->m_Glyph.m_Channels = 3;
-        uint32_t w = item->m_Glyph.m_Width;
-        uint32_t h = item->m_Glyph.m_Height;
+        uint32_t w = item->m_Glyph.m_ImageWidth;
+        uint32_t h = item->m_Glyph.m_ImageHeight;
         uint32_t ch = item->m_Glyph.m_Channels;
         item->m_DataSize = w*h*ch + 1;
 
@@ -368,6 +367,8 @@ static int JobGenerateGlyph(void* context, void* data)
         item->m_Glyph.m_Height = 0;
         item->m_Glyph.m_Ascent = 0;
         item->m_Glyph.m_Descent = 0;
+        item->m_Glyph.m_ImageWidth = 0;
+        item->m_Glyph.m_ImageHeight = 0;
     }
 
     uint64_t tend = dmTime::GetTime();

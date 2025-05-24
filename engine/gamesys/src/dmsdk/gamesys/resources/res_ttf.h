@@ -18,7 +18,7 @@
 #include <stdint.h>
 #include <dmsdk/gamesys/resources/res_font.h>
 
-namespace dmFont
+namespace dmGameSystem
 {
     struct TTFResource;
 

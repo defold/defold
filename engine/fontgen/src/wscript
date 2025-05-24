@@ -6,8 +6,6 @@ def options(opt):
     pass
 
 def build(bld):
-    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
-
     bld.stlib(features = 'cxx',
                 includes = ['.'],
                 target   = 'fontgen',

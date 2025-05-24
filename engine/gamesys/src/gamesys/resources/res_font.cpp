@@ -14,6 +14,7 @@
 
 #include "res_font.h"
 #include "res_glyph_bank.h"
+#include "res_ttf.h"
 
 #include <string.h>
 

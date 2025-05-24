@@ -11,7 +11,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include "res_ttf.h"
-#include "util.h" // DebugPrintBitmap
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/resource/resource.h>
 
@@ -20,7 +19,7 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
-namespace dmFont
+namespace dmGameSystem
 {
 
 struct TTFResource
@@ -156,6 +155,7 @@ float GetDescent(TTFResource* resource, float scale)
     return resource->m_Descent * scale;
 }
 
+// UNUSED
 void GetCellSize(TTFResource* resource, uint32_t* width, uint32_t* height, uint32_t* max_ascent)
 {
     int x0, y0, x1, y1;
@@ -177,13 +177,13 @@ uint8_t* GenerateGlyphSdf(TTFResource* ttfresource, uint32_t glyph_index,
     stbtt_GetGlyphHMetrics(&ttfresource->m_Font, glyph_index, &advx, &lsb);
 
     int x0, y0, x1, y1;
-    stbtt_GetGlyphBitmapBox(&ttfresource->m_Font, glyph_index, scale, scale, &x0, &y0, &x1, &y1);
+    stbtt_GetGlyphBox(&ttfresource->m_Font, glyph_index, &x0, &y0, &x1, &y1);
 
     int ascent = 0;
     int descent = 0;
     int srcw = 0;
     int srch = 0;
-    int offsetx, offsety;
+    int offsetx = 0, offsety = 0;
     uint8_t* src = stbtt_GetGlyphSDF(&ttfresource->m_Font, scale, glyph_index, padding, edge, pixel_dist_scale,
                                         &srcw, &srch, &offsetx, &offsety);
 
@@ -203,16 +203,40 @@ uint8_t* GenerateGlyphSdf(TTFResource* ttfresource, uint32_t glyph_index,
         descent = srch - ascent;
     }
 
-    out->m_Width = srcw;
-    out->m_Height = srch;
+    // The dimensions of the visible area
+    if (x0 != x1 && y0 != y1)
+    {
+        // Only modify non empty glyphs (from stbtt_GetGlyphSDF())
+        x0 -= padding;
+        y0 -= padding;
+        x1 += padding;
+        y1 += padding;
+    }
+
+    out->m_Width = (x1 - x0) * scale;
+    out->m_Height = (y1 - y0) * scale;
+    out->m_ImageWidth = srcw;
+    out->m_ImageHeight = srch;
     out->m_Channels = 1;
     out->m_Advance = advx*scale;;
     out->m_LeftBearing = lsb*scale;
     out->m_Ascent = ascent;
     out->m_Descent = descent;
 
-    // int gi = dmFontGen::CodePointToGlyphIndex(ttfresource, 'T');
-    // int debug = glyph_index == gi;
+    // printf("glyph: %d  w/h: %f, %f adv: %.2f  lsb: %.2f  asc/dsc: %.2f, %.2f img w/h: %u, %d\n", glyph_index,
+    //         out->m_Width, out->m_Height,
+    //         out->m_Advance, out->m_LeftBearing,
+    //         out->m_Ascent, out->m_Descent,
+    //         out->m_ImageWidth, out->m_ImageHeight);
+
+
+    //printf("  box: p0: %f, %f p1: %f, %f\n", x0 * scale, y0 * scale, x1 * scale, y1 * scale);
+    //printf("  offset: %d, %d \n", offsetx, offsety);
+
+    // int gi_T = dmFontGen::CodePointToGlyphIndex(ttfresource, 'T');
+    // int gi_h = dmFontGen::CodePointToGlyphIndex(ttfresource, 'h');
+    // // int debug = glyph_index == 77 || glyph_index == 75;
+    // int debug = glyph_index == gi_T || glyph_index == gi_h;
     // if (debug)
     //     DebugPrintBitmap((mem+1), srcw, srch);
 
@@ -222,4 +246,4 @@ uint8_t* GenerateGlyphSdf(TTFResource* ttfresource, uint32_t glyph_index,
 } // namespace
 
 
-DM_DECLARE_RESOURCE_TYPE(ResourceTypeTTFFont, "ttf", dmFont::RegisterResourceType_TTFFont, dmFont::DeregisterResourceType_TTFFont);
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeTTF, "ttf", dmGameSystem::RegisterResourceType_TTFFont, dmGameSystem::DeregisterResourceType_TTFFont);
