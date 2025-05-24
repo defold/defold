@@ -25,6 +25,7 @@ import com.dynamo.bob.fs.IResource;
 
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Font.FontTextureFormat;
 
 @BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc")
 public class FontBuilder extends Builder  {
@@ -35,28 +36,33 @@ public class FontBuilder extends Builder  {
         ProtoUtil.merge(input, fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();
 
+        IResource ttfResource = input.getResource(fontDesc.getFont());
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
-                .addInput(input)
-                .addInput(input.getResource(fontDesc.getFont()))
                 .addOutput(input.changeExt(params.outExt()));
 
-        Task glyphBankTask = createSubTask(input, GlyphBankBuilder.class, taskBuilder);
+        // input(0)
+        taskBuilder.addInput(input);
 
+        // input(1)
         createSubTask(fontDesc.getMaterial(),"material", taskBuilder);
 
-        Task ttfTask = null;
+        Task subTask = null;
         if (fontDesc.getDynamic())
         {
-            IResource ttfResource = input.getResource(fontDesc.getFont());
-            ttfTask = createSubTask(ttfResource, CopyBuilders.TTFBuilder.class, taskBuilder);
+            // input(2)
+            subTask = createSubTask(ttfResource, CopyBuilders.TTFBuilder.class, taskBuilder);
+        }
+        else
+        {
+            // input(2)
+            taskBuilder.addInput(ttfResource);
+            // input(3)
+            subTask = createSubTask(input, GlyphBankBuilder.class, taskBuilder);
         }
 
         Task task = taskBuilder.build();
-        glyphBankTask.setProductOf(task);
-        if (ttfTask != null) {
-            ttfTask.setProductOf(task);
-        }
+        subTask.setProductOf(task);
         return task;
     }
 
@@ -65,34 +71,36 @@ public class FontBuilder extends Builder  {
         FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
         ProtoUtil.merge(task.firstInput(), fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();
+        boolean dynamic = fontDesc.getDynamic();
+        FontMap.Builder fontMapBuilder = FontMap.newBuilder();
+
 
         BuilderUtil.checkResource(this.project, task.firstInput(), "material", fontDesc.getMaterial());
+        if (dynamic)
+        {
+            BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
+            fontMapBuilder.setDynamic(dynamic);
+            fontMapBuilder.setFont(fontDesc.getFont()); // Keep the suffix as-is (i.e. ".ttf")
+        }
+        else
+        {
+            int buildDirLen        = this.project.getBuildDirectory().length();
+            String glyphBankPath   = task.input(3).getPath().substring(buildDirLen);
+            fontMapBuilder.setGlyphBank(glyphBankPath);
+        }
 
-        int buildDirLen        = this.project.getBuildDirectory().length();
-        String genResourcePath = task.input(2).getPath().substring(buildDirLen);
-
-        FontMap.Builder fontMapBuilder = FontMap.newBuilder();
         fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
 
-        boolean dynamic = fontDesc.getDynamic();
         boolean all_chars = fontDesc.getAllChars();
 
         if (all_chars)
         {
-            fontMapBuilder.setAllChars(all_chars);
+            fontMapBuilder.setAllChars(all_chars); // 0x000000 - 0x10FFFF
         }
         else
         {
             fontMapBuilder.setCharacters(fontDesc.getCharacters());
         }
-
-        fontMapBuilder.setDynamic(dynamic);
-        if (dynamic)
-        {
-            fontMapBuilder.setFont(fontDesc.getFont()); // Keep the suffix as-is (i.e. ".ttf")
-        }
-
-        fontMapBuilder.setGlyphBank(genResourcePath);
 
         fontMapBuilder.setSize(fontDesc.getSize());
         fontMapBuilder.setAntialias(fontDesc.getAntialias());
@@ -104,6 +112,18 @@ public class FontBuilder extends Builder  {
         fontMapBuilder.setOutlineAlpha(fontDesc.getOutlineAlpha());
         fontMapBuilder.setOutlineWidth(fontDesc.getOutlineWidth());
         fontMapBuilder.setLayerMask(Fontc.GetFontMapLayerMask(fontDesc));
+        fontMapBuilder.setCacheWidth(fontDesc.getCacheWidth());
+        fontMapBuilder.setCacheHeight(fontDesc.getCacheHeight());
+
+        // TODO: SDK vars
+        if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD)
+        {
+            fontMapBuilder.setSdfSpread(Fontc.GetFontMapSdfSpread(fontDesc));
+            fontMapBuilder.setSdfOutline(Fontc.GetFontMapSdfOutline(fontDesc));
+            fontMapBuilder.setSdfShadow(Fontc.GetFontMapSdfShadow(fontDesc));
+        }
+
+        fontMapBuilder.setPadding(Fontc.GetFontMapPadding(fontDesc));
 
         fontMapBuilder.setOutputFormat(fontDesc.getOutputFormat());
         fontMapBuilder.setRenderMode(fontDesc.getRenderMode());

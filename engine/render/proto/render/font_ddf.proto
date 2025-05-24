@@ -58,8 +58,8 @@ message GlyphBank
         optional uint32 image_width       = 3 [default = 0];    // glyph image width
         optional float  advance           = 4 [default = 0.0];
         optional float  left_bearing      = 5 [default = 0.0];
-        optional int32 ascent             = 6 [default = 0]; // WHY 32 bits???
-        optional int32 descent            = 7 [default = 0]; // WHY 32 bits???
+        optional int32  ascent            = 6 [default = 0]; // WHY 32 bits???
+        optional int32  descent           = 7 [default = 0]; // WHY 32 bits???
         optional int32  x                 = 8 [default = 0]; // only used in editor preview
         optional int32  y                 = 9 [default = 0]; // only used in editor preview
         optional uint64 glyph_data_offset = 10; // WHY 64 bits???
@@ -78,12 +78,15 @@ message GlyphBank
     optional float             max_height            = 9 [default = 0];
     optional FontTextureFormat image_format          = 10 [default = TYPE_BITMAP];
 
+    // TODO: Move to fontDesc
     optional float             sdf_spread            = 11 [default = 1];
     optional float             sdf_outline           = 12 [default = 0];
     optional float             sdf_shadow            = 13 [default = 0];
 
+    // TODO: Move to fontDesc
     optional uint32            cache_width           = 14 [default = 0];
     optional uint32            cache_height          = 15 [default = 0];
+
     optional uint32            cache_cell_width      = 16 [default = 0];
     optional uint32            cache_cell_height     = 17 [default = 0];
     optional uint32            cache_cell_max_ascent = 18 [default = 0];
@@ -96,24 +99,36 @@ message GlyphBank
 // Part of dmSDK
 message FontMap
 {
-    required string glyph_bank    = 1 [(resource)=true];
-    required string material      = 2 [(resource)=true];
-    required uint32 size          = 3 [default = 0];
+    optional string material      = 1 [default = "", (resource)=true];
+    optional string glyph_bank    = 2 [default = "", (resource)=true];
+    optional string font          = 3 [default = "", (resource)=true];
 
-    optional uint32 antialias     = 4 [default = 1];
-    optional float  shadow_x      = 5 [default = 0.0];
-    optional float  shadow_y      = 6 [default = 0.0];
-    optional uint32 shadow_blur   = 7 [default = 0];
-    optional float  shadow_alpha  = 8 [default = 1.0];
-    optional float  alpha         = 9 [default = 1.0];
-    optional float  outline_alpha = 10 [default = 1.0];
-    optional float  outline_width = 11 [default = 0.0];
-    optional uint32 layer_mask    = 12 [default = 1];
+    optional uint32 size          = 4 [default = 0];
+    optional uint32 antialias     = 5 [default = 1];
+    optional float  shadow_x      = 6 [default = 0.0];
+    optional float  shadow_y      = 7 [default = 0.0];
+    optional uint32 shadow_blur   = 8 [default = 0];
+    optional float  shadow_alpha  = 9 [default = 1.0];
+    optional float  alpha         = 10 [default = 1.0];
+    optional float  outline_alpha = 11 [default = 1.0];
+    optional float  outline_width = 12 [default = 0.0];
+    optional uint32 layer_mask    = 13 [default = 1];
 
-    optional FontTextureFormat output_format = 13 [default = TYPE_BITMAP];
-    optional FontRenderMode render_mode      = 14 [default = MODE_SINGLE_LAYER];
+    optional FontTextureFormat output_format = 14 [default = TYPE_BITMAP];
+    optional FontRenderMode render_mode      = 15 [default = MODE_SINGLE_LAYER];
 
-    optional bool dynamic         = 15 [default = false];
-    optional string font          = 16 [default = "", (resource)=true];
+    optional bool dynamic         = 16 [default = false];
+
+    optional bool all_chars       = 17 [default = false]; // 0x000000 - 0x10FFFF
+    optional string characters    = 18 [default = ""];
+
+    // If zero, it'll grow dynamically to our max size (2k x 4k)
+    optional uint32 cache_width   = 19 [default = 0];
+    optional uint32 cache_height  = 20 [default = 0];
+
+    optional float sdf_spread     = 21 [default = 1];
+    optional float sdf_outline    = 22 [default = 0];
+    optional float sdf_shadow     = 23 [default = 0];
+    optional uint32 padding       = 24 [default = 0];
 }
 
