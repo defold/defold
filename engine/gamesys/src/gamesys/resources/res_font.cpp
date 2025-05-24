@@ -320,8 +320,8 @@ namespace dmGameSystem
                 params.m_GlyphChannels = 1;
             }
 
-            params.m_CacheWidth     = dmMath::Max(ddf->m_CacheWidth, 64U);
-            params.m_CacheHeight    = dmMath::Max(ddf->m_CacheHeight, 64U);
+            params.m_CacheWidth     = ddf->m_CacheWidth;
+            params.m_CacheHeight    = ddf->m_CacheHeight;
         }
         else
         {

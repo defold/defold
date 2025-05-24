@@ -190,6 +190,15 @@ namespace dmRender
         font_map->m_CacheCellPadding = params.m_CacheCellPadding;
         font_map->m_CacheChannels = params.m_GlyphChannels;
 
+        // Is the cache allowed to grow?
+        font_map->m_DynamicCacheSize = font_map->m_CacheWidth == 0 && font_map->m_CacheHeight == 0;
+        if (font_map->m_DynamicCacheSize)
+        {
+            // we mustn't have a 0x0 size texture
+            font_map->m_CacheWidth  = 64;
+            font_map->m_CacheHeight = 64;
+        }
+
         SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheHeight,
                                 params.m_CacheCellWidth, params.m_CacheCellHeight, params.m_CacheCellMaxAscent);
 
@@ -222,7 +231,7 @@ namespace dmRender
         }
 
         font_map->m_GraphicsContext = graphics_context;
-        RecreateTexture(font_map, font_map->m_GraphicsContext, params.m_CacheWidth, params.m_CacheHeight);
+        RecreateTexture(font_map, font_map->m_GraphicsContext, font_map->m_CacheWidth, font_map->m_CacheHeight);
         return true;
     }
 
@@ -363,10 +372,30 @@ namespace dmRender
         return x + 1;
     }
 
+    static bool GetNextCacheSize(HFontMap font_map, uint32_t* width, uint32_t* height)
+    {
+        const uint32_t max_width = 2048;
+        const uint32_t max_height = 4096;
+        if (*height <= *width)
+            *height = NextPowerOfTwo(*height);
+        else
+            *width = NextPowerOfTwo(*width);
+
+        return *width <= max_width && *height <= max_height;
+    }
+
     static void ResetCache(HFontMap font_map, dmGraphics::HContext graphics_context, bool recreate_texture, dmRender::FontMetrics* metrics)
     {
-        font_map->m_CacheWidth = dmMath::Max(font_map->m_CacheWidth, (uint32_t)metrics->m_ImageMaxWidth);
-        font_map->m_CacheHeight = dmMath::Max(font_map->m_CacheHeight, (uint32_t)metrics->m_ImageMaxHeight);
+        if (font_map->m_IsCacheSizeTooSmall)
+        {
+            GetNextCacheSize(font_map, &font_map->m_CacheWidth, &font_map->m_CacheHeight);
+            font_map->m_IsCacheSizeTooSmall = 0;
+        }
+        else
+        {
+            font_map->m_CacheWidth = dmMath::Max(font_map->m_CacheWidth, (uint32_t)metrics->m_ImageMaxWidth);
+            font_map->m_CacheHeight = dmMath::Max(font_map->m_CacheHeight, (uint32_t)metrics->m_ImageMaxHeight);
+        }
 
         if (!IsPowerOfTwo(font_map->m_CacheWidth))
             font_map->m_CacheWidth = NextPowerOfTwo(font_map->m_CacheWidth);
@@ -387,6 +416,7 @@ namespace dmRender
         SetFontMapCacheSize(font_map, metrics->m_ImageMaxWidth, metrics->m_ImageMaxHeight, metrics->m_MaxAscent);
     }
 
+    // Is the font cache too small for the largest glyph?
     static bool IsTextureTooSmall(HFontMap font_map, dmRender::FontMetrics& font_metrics)
     {
         if (!font_map->m_GetFontMetrics)
@@ -550,6 +580,19 @@ namespace dmRender
         return GetFromCache(font_map, c) != 0;
     }
 
+    static bool CanCacheTextureGrow(HFontMap font_map)
+    {
+        if (!font_map->m_DynamicCacheSize)
+        {
+            return false;
+        }
+
+        uint32_t width  = font_map->m_CacheWidth;
+        uint32_t height = font_map->m_CacheHeight;
+        bool result = GetNextCacheSize(font_map, &width, &height);
+        return result;
+    }
+
     void AddGlyphToCache(HFontMap font_map, uint32_t frame, dmRender::FontGlyph* g, int32_t g_offset_y)
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
@@ -559,6 +602,14 @@ namespace dmRender
 
         if (cache_glyph->m_Glyph && cache_glyph->m_Frame == frame)
         {
+            bool can_resize = CanCacheTextureGrow(font_map);
+            if (can_resize)
+            {
+                font_map->m_IsCacheSizeDirty = 1;
+                font_map->m_IsCacheSizeTooSmall = 1;
+                return;
+            }
+
             // It means we've filled the entire cache with upload requests
             // We might then just as well skip the next uploads until the next frame
             dmLogWarning("Entire font glyph cache (%u x %u) is filled in a single frame %u ('%c' %u). Consider increasing the cache for %s", font_map->m_CacheWidth, font_map->m_CacheHeight, frame, g->m_Character < 255 ? g->m_Character : ' ', g->m_Character, dmHashReverseSafe64(font_map->m_NameHash));
