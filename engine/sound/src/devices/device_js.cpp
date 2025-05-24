@@ -23,12 +23,16 @@
 
 #include "sound.h"
 
+#include <emscripten.h>
+
 extern "C" {
     // Implementation in library_sound.js
     int dmDeviceJSOpen(int buffers);
     int dmGetDeviceSampleRate(int device);
     void dmDeviceJSQueue(int device, const float* samples, uint32_t sample_count);
+    void dmDeviceJSQueueOnMain(int device, const float* samples, uint32_t sample_count);
     int dmDeviceJSFreeBufferSlots(int device);
+    int dmDeviceJSFreeBufferSlotsOnMain(int device);
 }
 
 
@@ -50,6 +54,7 @@ namespace dmDeviceJS
         {
             return dmSound::RESULT_DEVICE_NOT_FOUND;
         }
+
         dev->devId = deviceId;
         dev->isStarted = false;
         *device = dev;
@@ -74,7 +79,12 @@ namespace dmDeviceJS
         {
             return dmSound::RESULT_INIT_ERROR;
         }
-        dmDeviceJSQueue(dev->devId, (const float*)samples, sample_count);
+
+        int is_worker = EM_ASM_INT({ return typeof window === "undefined"; });
+        if (!is_worker)
+            dmDeviceJSQueue(dev->devId, (const float*)samples, sample_count);
+        else
+            dmDeviceJSQueueOnMain(dev->devId, (const float*)samples, sample_count);
         return dmSound::RESULT_OK;
     }
 
@@ -82,7 +92,10 @@ namespace dmDeviceJS
     {
         assert(device);
         JSDevice *dev = (JSDevice*) device;
-        return dmDeviceJSFreeBufferSlots(dev->devId);
+        int is_worker = EM_ASM_INT({ return typeof window === "undefined"; });
+        if (!is_worker)
+            return dmDeviceJSFreeBufferSlots(dev->devId);
+        return dmDeviceJSFreeBufferSlotsOnMain(dev->devId);
     }
 
     void DeviceJSDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info)

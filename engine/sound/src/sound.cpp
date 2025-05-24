@@ -34,7 +34,9 @@
 
 #include <math.h>
 
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#endif
 
 /**
  * Defold simple sound system
@@ -347,7 +349,7 @@ namespace dmSound
         return index;
     }
 
-    static void InitializeDevice(SoundSystem* sound)
+    static Result InitializeDevice(SoundSystem* sound)
     {
         HDevice device = 0;
         OpenDeviceParams device_params;
@@ -363,8 +365,10 @@ namespace dmSound
         Result r = OpenDevice(sound->m_OutputDeviceName, &device_params, &device_type, &device);
         if (r != RESULT_OK) {
             dmLogError("Failed to open device '%s'", sound->m_OutputDeviceName);
-            device_info.m_MixRate = 44100;
-            device_type = 0;
+            sound->m_Device = 0;
+            sound->m_DeviceType = 0;
+            sound->m_MixRate = 44100;
+            return r;
         }
         else
         {
@@ -399,6 +403,7 @@ namespace dmSound
         sound->m_UseFloatOutput = device_info.m_UseFloats;
         sound->m_NormalizeFloatOutput = device_info.m_UseNormalized;
         sound->m_NonInterleavedOutput = device_info.m_UseNonInterleaved;
+        return Result::RESULT_OK;
     }
 
     static void FinalizeDevice(SoundSystem* sound)
@@ -410,6 +415,8 @@ namespace dmSound
                 sound->m_DeviceType->m_DeviceStop(sound->m_Device);
             }
             sound->m_DeviceType->m_Close(sound->m_Device);
+            sound->m_DeviceType = 0;
+            sound->m_Device = 0;
         }
     }
 
@@ -462,16 +469,20 @@ namespace dmSound
             sound->m_Mutex = dmMutex::New();
             dmMutex::Lock(sound->m_Mutex);
 
-//MAKE CONDITIONAL
-            #if 1
+            #ifdef __EMSCRIPTEN__
                 sound->m_CondVar = dmConditionVariable::New();
             #endif
 
             sound->m_Thread = dmThread::New(SoundThread, 0x80000, sound, "sound");
 
-            #if 1
+            #ifdef __EMSCRIPTEN__
                 // Wait for device initialization
                 dmConditionVariable::Wait(sound->m_CondVar, sound->m_Mutex);
+
+                // If we didn't get a device, create it on the main thread
+                if (sound->m_Device == 0) {
+                    InitializeDevice(sound);
+                }
             #else
                 InitializeDevice(sound);
             #endif
@@ -595,10 +606,9 @@ namespace dmSound
                 }
             }
 
-//MAKE CONDITIONAL
-#if 0
-            FinalizeDevice(sound);
-#endif
+            if (sound->m_Device) {
+                FinalizeDevice(sound);
+            }
 
             if (sound->m_OutputDeviceName)
                 free(sound->m_OutputDeviceName);
@@ -1826,15 +1836,19 @@ namespace dmSound
         */
         SoundSystem* sound = (SoundSystem*)ctx;
 
-//CONDITIONAL IF WE CAN USE IT ON THREAD!
-        InitializeDevice(sound);
+        // note: attempt to initialize device on thread
+        // (on standard browsers this will fail and the main thread will pickup the init there)
+        Result res = InitializeDevice(sound);
+
+        // main thread can proceed
         dmConditionVariable::Signal(sound->m_CondVar);
 
         // Call our code every 8ms until we cancel it
         emscripten_set_main_loop_arg(SoundThreadEmscriptenCallback, ctx, 1000 / 8, 1);
 
-//CONDITIONAL IF WE CAN USE IT ON THREAD!
-        FinalizeDevice(sound);
+        if (res == RESULT_OK) {
+            FinalizeDevice(sound);
+        }
 #else
         SoundSystem* sound = (SoundSystem*)ctx;
 
