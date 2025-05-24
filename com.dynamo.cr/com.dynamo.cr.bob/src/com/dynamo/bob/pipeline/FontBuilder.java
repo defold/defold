@@ -74,9 +74,20 @@ public class FontBuilder extends Builder  {
         FontMap.Builder fontMapBuilder = FontMap.newBuilder();
         fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
 
-        fontMapBuilder.setDynamic(fontDesc.getDynamic());
+        boolean dynamic = fontDesc.getDynamic();
+        boolean all_chars = fontDesc.getAllChars();
 
-        if (fontDesc.getDynamic())
+        if (all_chars)
+        {
+            fontMapBuilder.setAllChars(all_chars);
+        }
+        else
+        {
+            fontMapBuilder.setCharacters(fontDesc.getCharacters());
+        }
+
+        fontMapBuilder.setDynamic(dynamic);
+        if (dynamic)
         {
             fontMapBuilder.setFont(fontDesc.getFont()); // Keep the suffix as-is (i.e. ".ttf")
         }

@@ -255,6 +255,27 @@ namespace dmGameSystem
         return font->m_Glyphs.Size() + font->m_DynamicGlyphs.Size();
     }
 
+    // From Fontc.java
+    static float GetPaddedSdfSpread(float v)
+    {
+        // Make sure the output spread value is not zero. We distribute the distance values over
+        // the spread when we generate the DF glyphs, so if this value is zero we won't be able to map
+        // the distance values to a valid range..
+        // We use sqrt(2) since it is the diagonal length of a pixel, but any small positive value would do.
+        const float sqrt2 = 1.4142f;
+        return sqrt2 + v;
+    }
+
+    // From Fontc.java
+    static float CalculateSdfEdgeLimit(float width, float spread, float sdf_edge)
+    {
+        // Normalize the incoming value to [-1,1]
+        const float sdf_limit_value  = width / spread;
+
+        // Map the outgoing limit to the same 'space' as the face edge.
+        return sdf_limit_value * (1.0f - sdf_edge) + sdf_edge;
+    }
+
     static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRender::HRenderContext context,
         dmRenderDDF::FontMap* ddf, FontResource* font_map, const char* filename)
     {
@@ -299,13 +320,12 @@ namespace dmGameSystem
         params.m_Alpha              = ddf->m_Alpha;
         params.m_LayerMask          = ddf->m_LayerMask;
 
+        // TODO: For dynamic fonts, we shouldn't have to rely on a preexisting "glyph bank"
+        //       We should be able to create a font resource at runtime.
+
         // Glyphbank
         params.m_MaxAscent          = glyph_bank->m_MaxAscent;
         params.m_MaxDescent         = glyph_bank->m_MaxDescent;
-        params.m_SdfOffset          = glyph_bank->m_SdfOffset;
-        params.m_SdfSpread          = glyph_bank->m_SdfSpread;
-        params.m_SdfOutline         = glyph_bank->m_SdfOutline;
-        params.m_SdfShadow          = glyph_bank->m_SdfShadow;
         params.m_CacheCellWidth     = glyph_bank->m_CacheCellWidth;
         params.m_CacheCellHeight    = glyph_bank->m_CacheCellHeight;
         params.m_CacheCellMaxAscent = glyph_bank->m_CacheCellMaxAscent;
@@ -313,7 +333,6 @@ namespace dmGameSystem
         params.m_CacheWidth         = glyph_bank->m_CacheWidth;
         params.m_CacheHeight        = glyph_bank->m_CacheHeight;
         params.m_ImageFormat        = glyph_bank->m_ImageFormat;
-        params.m_GlyphChannels      = glyph_bank->m_GlyphChannels;
         params.m_IsMonospaced       = glyph_bank->m_IsMonospaced;
         params.m_Padding            = glyph_bank->m_Padding;
         font_map->m_Padding         = glyph_bank->m_Padding;
@@ -332,6 +351,37 @@ namespace dmGameSystem
             else {
                 params.m_GlyphChannels = 1;
             }
+
+            // From Fontc.java
+            const float sdf_edge    = 0.75f;
+            float outline_width     = ddf->m_OutlineWidth;
+            float shadow_width      = ddf->m_ShadowBlur;
+            float sdf_spread        = GetPaddedSdfSpread(outline_width);
+            float sdf_shadow_spread = GetPaddedSdfSpread(shadow_width);
+            float outline_edge      = CalculateSdfEdgeLimit(-outline_width, sdf_spread, sdf_edge);
+            float shadow_edge       = CalculateSdfEdgeLimit(-shadow_width, sdf_shadow_spread, sdf_edge);
+
+            // Special case!
+            // If there is no blur, the shadow should essentially work the same way as the outline.
+            // This enables effects like a hard drop shadow. In the shader, the pseudo code
+            // that does this looks something like this:
+            // shadow_alpha = mix(shadow_alpha,outline_alpha,floor(shadow_edge))
+            if (shadow_width == 0)
+            {
+                shadow_edge = 1.0f;
+            }
+
+            params.m_SdfSpread      = sdf_spread;
+            params.m_SdfOutline     = outline_edge;
+            params.m_SdfShadow      = shadow_edge;
+        }
+        else
+        {
+            params.m_GlyphChannels  = glyph_bank->m_GlyphChannels;
+            params.m_SdfOffset      = glyph_bank->m_SdfOffset;  // UNUSED!
+            params.m_SdfSpread      = glyph_bank->m_SdfSpread;
+            params.m_SdfOutline     = glyph_bank->m_SdfOutline;
+            params.m_SdfShadow      = glyph_bank->m_SdfShadow;
         }
 
         // User data is set with SetFontMapUserData
