@@ -30,8 +30,11 @@ namespace dmDoubleLinkedList
         ListNode* next = item->m_Next;
         item->m_Prev = 0;
         item->m_Next = 0;
-        prev->m_Next = next;
-        next->m_Prev = prev;
+        if (prev != 0 && next != 0)
+        {
+            prev->m_Next = next;
+            next->m_Prev = prev;
+        }
     }
 
     void ListAdd(List* list, ListNode* item)
