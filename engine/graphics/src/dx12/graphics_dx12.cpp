@@ -1118,7 +1118,7 @@ namespace dmGraphics
     static void TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, TextureFormat format_dst, TextureFormat format_src, const TextureParams& params, uint8_t* pixels)
     {
         const uint32_t target_mip        = params.m_MipMap;
-        const uint16_t tex_layer_count   = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
+        const uint16_t tex_layer_count   = dmMath::Max(texture->m_LayerCount, (uint16_t) params.m_LayerCount);
         const uint32_t subresource_count = tex_layer_count; // only one mip, full array
 
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT fp[16] = {};
@@ -2634,7 +2634,7 @@ namespace dmGraphics
         tex->m_Width       = params.m_Width;
         tex->m_Height      = params.m_Height;
         tex->m_Depth       = dmMath::Max((uint16_t)1, params.m_Depth);
-        tex->m_LayerCount  = dmMath::Max((uint16_t)1, params.m_LayerCount);
+        tex->m_LayerCount  = dmMath::Max((uint16_t)1, (uint16_t) params.m_LayerCount);
         tex->m_MipMapCount = params.m_MipMapCount;
         tex->m_PageCount   = params.m_LayerCount;
 
