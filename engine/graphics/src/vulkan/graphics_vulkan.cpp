@@ -3620,10 +3620,11 @@ bail:
         tex->m_Width          = params.m_Width;
         tex->m_Height         = params.m_Height;
         tex->m_Depth          = dmMath::Max((uint16_t)1, params.m_Depth);
-        tex->m_LayerCount     = dmMath::Max((uint16_t)1, params.m_LayerCount);
+        tex->m_LayerCount     = dmMath::Max((uint8_t)1, params.m_LayerCount);
         tex->m_MipMapCount    = params.m_MipMapCount;
         tex->m_UsageFlags     = GetVulkanUsageFromHints(params.m_UsageHintBits);
         tex->m_UsageHintFlags = params.m_UsageHintBits;
+        tex->m_PageCount      = params.m_LayerCount;
         tex->m_DataState      = 0;
 
         for (int i = 0; i < DM_ARRAY_SIZE(tex->m_ImageLayout); ++i)
@@ -3864,7 +3865,7 @@ bail:
         }
 
         TextureFormat format_orig   = params.m_Format;
-        uint16_t tex_layer_count    = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
+        uint8_t tex_layer_count     = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
         uint16_t tex_depth          = dmMath::Max(texture->m_Depth, params.m_Depth);
         uint8_t tex_bpp             = GetTextureFormatBitsPerPixel(params.m_Format);
         size_t tex_data_size        = params.m_DataSize * tex_layer_count * 8; // Convert into bits
@@ -4124,7 +4125,7 @@ bail:
             VkFence fence;
             VkCommandBuffer cmd_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
 
-            uint16_t tex_layer_count  = dmMath::Max(tex->m_LayerCount, ap.m_Params.m_LayerCount);
+            uint8_t tex_layer_count   = dmMath::Max(tex->m_LayerCount, ap.m_Params.m_LayerCount);
             uint16_t tex_depth        = dmMath::Max(tex->m_Depth, ap.m_Params.m_Depth);
             uint8_t tex_bpp           = GetTextureFormatBitsPerPixel(ap.m_Params.m_Format);
             uint32_t tex_data_size    = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
@@ -4257,7 +4258,7 @@ bail:
             VkFormatFeatureFlags vk_format_features = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
             VkMemoryPropertyFlags vk_memory_type    = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
             uint16_t tex_depth                      = dmMath::Max(texture->m_Depth, params.m_Depth);
-            uint16_t tex_layer_count                = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
+            uint8_t tex_layer_count                 = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
             TextureFormat format_orig               = params.m_Format;
             if (format_orig == TEXTURE_FORMAT_RGB)
             {
@@ -4445,6 +4446,13 @@ bail:
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         return tex ? tex->m_UsageHintFlags : 0;
+    }
+
+    static uint8_t VulkanGetTexturePageCount(HTexture texture)
+    {
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        return tex ? tex->m_PageCount : 0;
     }
 
     static HandleResult VulkanGetTextureHandle(HTexture texture, void** out_handle)

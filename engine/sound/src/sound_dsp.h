@@ -465,7 +465,7 @@ static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
     for(; num>0; --num)
     {
         int16_t s = *(in++);
-        *(out++) = (float)((s << 8) | (s && 0xff));
+        *(out++) = (float)((s << 8) | (s & 0xff));
     }
 }
 
@@ -534,8 +534,8 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
     {
         int16_t sl = *(in++);
         int16_t sr = *(in++);
-        *(out_l++) = (float)((sl << 8) | (sl && 0xff));
-        *(out_r++) = (float)((sr << 8) | (sr && 0xff));
+        *(out_l++) = (float)((sl << 8) | (sl & 0xff));
+        *(out_r++) = (float)((sr << 8) | (sr & 0xff));
     }
 }
 
@@ -1011,7 +1011,7 @@ static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
     for(; num>0; --num)
     {
         int16_t s = *(in++);
-        *(out++) = (float)((s << 8) | (s && 0xff));
+        *(out++) = (float)((s << 8) | (s & 0xff));
     }
 }
 
@@ -1102,8 +1102,8 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
     {
         int16_t sl = *(in++);
         int16_t sr = *(in++);
-        *(out_l++) = (float)((sl << 8) | (sl && 0xff));
-        *(out_r++) = (float)((sr << 8) | (sr && 0xff));
+        *(out_l++) = (float)((sl << 8) | (sl & 0xff));
+        *(out_r++) = (float)((sr << 8) | (sr & 0xff));
     }
 }
 
@@ -1293,7 +1293,7 @@ static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
     for(; num>0; --num)
     {
         int16_t s = *(in++);
-        *(out++) = (float)((s << 8) | (s && 0xff));
+        *(out++) = (float)((s << 8) | (s & 0xff));
     }
 }
 
@@ -1327,8 +1327,8 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
     {
         int16_t sl = *(in++);
         int16_t sr = *(in++);
-        *(out_l++) = (float)((sl << 8) | (sl && 0xff));
-        *(out_r++) = (float)((sr << 8) | (sr && 0xff));
+        *(out_l++) = (float)((sl << 8) | (sl & 0xff));
+        *(out_r++) = (float)((sr << 8) | (sr & 0xff));
     }
 }
 

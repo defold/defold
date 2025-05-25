@@ -865,14 +865,18 @@ nesting:
         (or (@hash->stable-id s)
             ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
 
+(defn- expect-script-output [expected actual]
+  (let [actual (normalize-pprint-output (str actual))]
+    (let [output-matches-expectation (= expected actual)]
+      (when-not output-matches-expectation
+        (is output-matches-expectation (string/join "\n" (diff/make-diff-output-lines actual expected 3)))))))
+
 (deftest pprint-test
   (test-util/with-loaded-project "test/resources/editor_extensions/pprint-test"
     (let [out (StringBuilder.)]
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
-      (let [actual (normalize-pprint-output (str out))]
-        (is (= actual expected-pprint-output)
-            (string/join "\n" (diff/make-diff-output-lines actual expected-pprint-output 3)))))))
+      (expect-script-output expected-pprint-output out))))
 
 (def expected-http-test-output
   "GET http://localhost:23000 => error (ConnectException)
@@ -912,9 +916,7 @@ POST http://localhost:23456/echo hello world! as string => 200
         (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
         ;; See test.editor_script: the test invokes http.request with various options and prints results
         (run-edit-menu-test-command!)
-        (let [actual (normalize-pprint-output (str out))]
-          (is (= actual expected-http-test-output)
-              (string/join "\n" (diff/make-diff-output-lines actual expected-http-test-output 3))))
+        (expect-script-output expected-http-test-output out)
         (finally
           (http-server/stop! server 0))))))
 
@@ -1101,9 +1103,7 @@ GET /test/resources/test.json as json => 200
                                 :display-output! #(doto out (.append %2) (.append \newline))
                                 :web-server server)
         (run-edit-menu-test-command!)
-        (let [actual (normalize-pprint-output (.toString out))]
-          (is (= expected-http-server-test-output actual)
-              (string/join "\n" (diff/make-diff-output-lines actual expected-http-server-test-output 3))))))))
+        (expect-script-output expected-http-server-test-output out)))))
 
 (deftest property-availability-test
   (test-util/with-loaded-project "test/resources/editor_extensions/property_availability_project"
@@ -1127,6 +1127,66 @@ GET /test/resources/test.json as json => 200
                          (when-not (properties/read-only? p)
                            (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))
              dorun)))))
+
+
+(def ^:private expected-tilemap-test-output
+  "new => {
+}
+fill 3x3 => {
+  [1, 1] = 2
+  [2, 1] = 2
+  [3, 1] = 2
+  [1, 2] = 2
+  [2, 2] = 2
+  [3, 2] = 2
+  [1, 3] = 2
+  [2, 3] = 2
+  [3, 3] = 2
+}
+remove center => {
+  [1, 1] = 2
+  [2, 1] = 2
+  [3, 1] = 2
+  [1, 2] = 2
+  [3, 2] = 2
+  [1, 3] = 2
+  [2, 3] = 2
+  [3, 3] = 2
+}
+clear => {
+}
+set using table => {
+  [8, 8] = 1
+}
+get tile: 1
+get info:
+  h_flip: true
+  index: 1
+  v_flip: true
+  rotate_90: true
+non-existent tile: nil
+non-existent info: nil
+negative keys => {
+  [-100, -100] = 1
+  [8, 8] = 1
+}
+create a layer with tiles...
+tiles from the graph => {
+  [-100, -100] = 1
+  [8, 8] = 1
+}
+set layer tiles to new value...
+new tiles from the graph => {
+  [8, 8] = 2
+}
+")
+
+(deftest tile-map-editing-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/tilemap_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-tilemap-test-output out))))
 
 (def ^:private expected-attachment-test-output
   "Atlas initial state:
@@ -1208,6 +1268,30 @@ After transaction (clear):
   animations: 0
   collision groups: 0
   tile collision groups: 0
+Tilemap initial state:
+  layers: 0
+Transaction: add 2 layers
+After transaction (add 2 layers):
+  layers: 2
+    layer: background
+    tiles: {
+      [1, 1] = 1
+      [2, 1] = 2
+      [3, 1] = 3
+      [1, 2] = 2
+      [2, 2] = 2
+      [3, 2] = 3
+      [1, 3] = 3
+      [2, 3] = 3
+      [3, 3] = 3
+    }
+    layer: items
+    tiles: {
+      [2, 2] = 3
+    }
+Transaction: clear tilemap
+After transaction (clear):
+  layers: 0
 ")
 
 (deftest attachment-properties-test
@@ -1215,9 +1299,7 @@ After transaction (clear):
     (let [out (StringBuilder.)]
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
-      (let [actual (.toString out)]
-        (is (= expected-attachment-test-output actual)
-            (string/join "\n" (diff/make-diff-output-lines actual expected-attachment-test-output 3)))))))
+      (expect-script-output expected-attachment-test-output out))))
 
 (def ^:private expected-resources-as-nodes-test-output
   "Directory read:
@@ -1240,6 +1322,4 @@ Expected errors:
     (let [out (StringBuilder.)]
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
-      (let [actual (.toString out)]
-        (is (= expected-resources-as-nodes-test-output actual)
-            (string/join "\n" (diff/make-diff-output-lines actual expected-resources-as-nodes-test-output 3)))))))
+      (expect-script-output expected-resources-as-nodes-test-output out))))

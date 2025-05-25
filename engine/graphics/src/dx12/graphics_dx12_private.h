@@ -52,6 +52,7 @@ namespace dmGraphics
         uint16_t            m_OriginalDepth;
         uint16_t            m_MipMapCount         : 5;
         uint16_t            m_TextureSamplerIndex : 10;
+        uint8_t             m_PageCount; // page count of texture array
     };
 
     struct DX12TextureSampler
