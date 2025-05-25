@@ -109,6 +109,7 @@ namespace dmGameSystem
         int32_t                     m_FunctionRef; // Animation callback function
         // Hash of the m_Resource-pointer etc. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
         uint32_t                    m_MixedHash;
+        uint32_t                    m_AnimationDataHash;
 
         uint32_t                    m_AnimationID; // index into array
         uint32_t                    m_DynamicVertexAttributeIndex;
@@ -132,7 +133,8 @@ namespace dmGameSystem
         uint16_t                    m_AddedToUpdate : 1;
         uint16_t                    m_ReHash : 1;
         uint16_t                    m_UseSlice9 : 1;
-        uint16_t                    : 6;
+        uint16_t                    m_AnimationReHash : 1;
+        uint16_t                    : 5;
     };
 
     struct SpriteWorld
@@ -526,12 +528,14 @@ namespace dmGameSystem
             frame_count = dmMath::Max(1u, frame_count * 2 - 2);
         }
         uint32_t frame = dmMath::Min(frame_count - 1, (uint32_t)(t * frame_count));
-        if (frame >= interval) {
+        if (frame >= interval)
+        {
             frame = 2 * (interval - 1) - frame;
         }
 
         uint32_t frame_current = component->m_CurrentAnimationFrame;
         component->m_CurrentAnimationFrame = frame;
+        component->m_AnimationReHash |= frame != frame_current;
 
         if (component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_AUTO && frame != frame_current)
         {
@@ -546,6 +550,7 @@ namespace dmGameSystem
         if (anim_id)
         {
             component->m_AnimationID = *anim_id;
+            component->m_AnimationReHash |= component->m_CurrentAnimation != animation;
             component->m_CurrentAnimation = animation;
             dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_TextureSet->m_Animations[*anim_id];
             uint32_t frame_count = animation->m_End - animation->m_Start;
@@ -565,7 +570,8 @@ namespace dmGameSystem
             }
 
             offset = dmMath::Clamp(offset, 0.0f, 1.0f);
-            if (animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD) {
+            if (animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD)
+            {
                 offset = 1.0f - offset;
             }
 
@@ -575,6 +581,7 @@ namespace dmGameSystem
         }
         else
         {
+            component->m_AnimationReHash |= component->m_CurrentAnimation != 0x0 && component->m_CurrentAnimationFrame != 0;
             // TODO: Why stop the current animation? Shouldn't it continue playing the current animation?
             component->m_Playing = 0;
             component->m_CurrentAnimation = 0x0;
@@ -607,6 +614,19 @@ namespace dmGameSystem
 
         component->m_MixedHash = dmHashFinal32(&state);
         component->m_ReHash = 0;
+        component->m_AnimationReHash = 1;
+    }
+
+    static void AnimationReHash(SpriteComponent* component)
+    {
+        // component, component->m_MixedHash, component->m_CurrentAnimation, component->m_CurrentAnimationFrame
+        HashState32 state;
+        dmHashInit32(&state, false);
+        dmHashUpdateBuffer32(&state, &component->m_MixedHash, sizeof(component->m_MixedHash));
+        dmHashUpdateBuffer32(&state, &component->m_CurrentAnimation, sizeof(component->m_CurrentAnimation));
+        dmHashUpdateBuffer32(&state, &component->m_CurrentAnimationFrame, sizeof(component->m_CurrentAnimationFrame));
+        component->m_AnimationDataHash = dmHashFinal32(&state);
+        component->m_AnimationReHash = 0;
     }
 
     dmGameObject::CreateResult CompSpriteCreate(const dmGameObject::ComponentCreateParams& params)
@@ -636,6 +656,7 @@ namespace dmGameSystem
         component->m_Enabled = 1;
         component->m_FunctionRef = 0;
         component->m_ReHash = 1;
+        component->m_AnimationReHash = 1;
         component->m_Slice9 = component->m_Resource->m_DDF->m_Slice9;
         component->m_UseSlice9 = sum(component->m_Slice9) != 0 &&
                 component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_MANUAL;
@@ -1232,15 +1253,8 @@ namespace dmGameSystem
 
     static AnimationData* GetOrCreateAnimationData(SpriteWorld* sprite_world, const SpriteComponent* component)
     {
-        // component, component->m_MixedHash, component->m_CurrentAnimation, component->m_CurrentAnimationFrame
-        HashState32 state;
-        dmHashInit32(&state, false);
-        dmHashUpdateBuffer32(&state, &component->m_MixedHash, sizeof(component->m_MixedHash));
-        dmHashUpdateBuffer32(&state, &component->m_CurrentAnimation, sizeof(component->m_CurrentAnimation));
-        dmHashUpdateBuffer32(&state, &component->m_CurrentAnimationFrame, sizeof(component->m_CurrentAnimationFrame));
-        uint32_t hash = dmHashFinal32(&state);
-
         // 1. Search in hastable
+        uint32_t hash = component->m_AnimationDataHash;
         AnimationData** found = sprite_world->m_AnimationDataCache.m_Cache.Get(hash);
         if (found != 0x0)
         {
@@ -1900,9 +1914,9 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static void UpdateCache(SpriteWorld* sprite_world)
+    static void UpdateAnimationDataCache(SpriteWorld* sprite_world)
     {
-        DM_PROFILE("UpdateCache");
+        DM_PROFILE("UpdateAnimationDataCache");
         // update current tick
         sprite_world->m_AnimationDataCache.m_CurrentEngineTick++;
         // evict all cache entries which older than CACHE_EVICTION_FRAMES ticks
@@ -1942,7 +1956,7 @@ namespace dmGameSystem
          */
 
         SpriteWorld* world = (SpriteWorld*)params.m_World;
-        UpdateCache(world);
+        UpdateAnimationDataCache(world);
 
         Animate(world, params.m_UpdateContext->m_DT);
 
@@ -2057,6 +2071,10 @@ namespace dmGameSystem
             if (component.m_ReHash || (constants && dmGameSystem::AreRenderConstantsUpdated(constants)))
             {
                 ReHash(&component);
+            }
+            if (component.m_AnimationReHash)
+            {
+                AnimationReHash(&component);
             }
 
             const AnimationData* anim_data = GetOrCreateAnimationData(sprite_world, &component);
@@ -2395,13 +2413,16 @@ namespace dmGameSystem
                 }
                 else
                 {
+                    component->m_AnimationReHash |= component->m_CurrentAnimation != 0x0 && component->m_CurrentAnimationFrame != 0;
                     component->m_Playing = 0;
                     component->m_CurrentAnimation = 0x0;
                     component->m_CurrentAnimationFrame = 0;
                     dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
-                    if (texture_set_ddf->m_Animations.m_Count <= component->m_AnimationID) {
+                    if (texture_set_ddf->m_Animations.m_Count <= component->m_AnimationID)
+                    {
                         component->m_AnimationID = 0;
                     }
+                    component->m_AnimationReHash = 1;
                 }
             }
             return res;

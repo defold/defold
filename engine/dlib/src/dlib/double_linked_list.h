@@ -15,28 +15,6 @@
 #ifndef DM_DOUBLE_LINKED_LIST_H
 #define DM_DOUBLE_LINKED_LIST_H
 
-namespace dmDoubleLinkedList
-{
-    struct ListNode
-    {
-        struct ListNode* m_Prev;
-        struct ListNode* m_Next;
-    };
-
-    struct List
-    {
-        ListNode m_Head;
-        ListNode m_Tail;
-
-    };
-
-    void ListInit(List* list);
-
-    void ListRemove(List* list, ListNode* item);
-
-    void ListAdd(List* list, ListNode* item);
-
-    ListNode* ListGetLast(List* list);
-}
+#include <dmsdk/dlib/double_linked_list.h>
 
 #endif

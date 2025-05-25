@@ -50,4 +50,10 @@ namespace dmDoubleLinkedList
         return last == &list->m_Head ? 0 : last;
     }
 
+    ListNode* ListGetFirst(List* list)
+    {
+        ListNode* first = list->m_Head.m_Next;
+        return first == &list->m_Tail ? 0 : first;
+    }
+
 }
