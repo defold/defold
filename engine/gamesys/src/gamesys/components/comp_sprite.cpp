@@ -68,10 +68,29 @@ namespace dmGameSystem
 
     const uint32_t MAX_TEXTURE_COUNT = dmRender::RenderObject::MAX_TEXTURE_COUNT;
     const uint8_t CACHE_EVICTION_FRAMES = 10; // how many frames cache entry is stored before eviction
+    const uint8_t MINIMUM_CACHE_CAPACITY = 100; // minimum hashtable capacity for AnimationData cache
 
+    /* AnimationData is used for storing calculation of sprite geometry.
+     * Those information is used during several parts of engine tick:
+     * 1. CompSpriteRender
+     * 2. RenderBatch
+     * 3. Pivot points which should be taken into account during frustrum culling
+     * So to avoid multiple calculation during the frame we caclulate it once and use in different places.
+     * Also some static sprites (without animations or with stopped animations) have the same AnimationData during several
+     * frames.
+     *
+     * AnimationData stores in hashtable to speedup accessing during the frame. Also AnimationData stores in double linked list
+     * to implement LRU cache.
+     * Every AnimationData entry stores engine tick when it was last accessed. Then every engine tick we check if AnimationData
+     * entry is old enough (see CACHE_EVICTION_FRAMES) and remove it from LRU and from hashtable.
+     *
+     * We use cache instead of resources here because AnimationData presents intemidiate calculations which can updates frequently
+     * and for different sprites it can be the same AnimationData entry (because they share the same texture set and same animation).
+     * So instead of storing cached information per component it stores as cache in sprite world to be sahrable between sprites.
+     */
     struct AnimationData
     {
-        dmDoubleLinkedList::ListNode    node;
+        dmDoubleLinkedList::ListNode    m_ListNode;
         // Used after resolving info from all textures
         dmhash_t                        m_AnimationID;                      // The animation of the driving atlas
         uint32_t                        m_Frames[MAX_TEXTURE_COUNT];        // The resolved frame indices
@@ -83,6 +102,10 @@ namespace dmGameSystem
         const dmGameSystemDDF::SpriteGeometry*      m_Geometries[MAX_TEXTURE_COUNT];
         bool                                        m_UsesGeometries;
     };
+
+#if __cplusplus >= 201103L
+    DM_STATIC_ASSERT(offsetof(AnimationData, m_ListNode) == 0, "m_ListNode must be first in struct!");
+#endif
 
     struct AnimationDataCache
     {
@@ -223,7 +246,7 @@ namespace dmGameSystem
         sprite_world->m_Components.SetCapacity(comp_count);
         sprite_world->m_BoundingVolumes.SetCapacity(comp_count);
         sprite_world->m_BoundingVolumes.SetSize(comp_count);
-        sprite_world->m_AnimationDataCache.m_Cache.SetCapacity(100);
+        sprite_world->m_AnimationDataCache.m_Cache.SetCapacity(MINIMUM_CACHE_CAPACITY);
         dmDoubleLinkedList::ListInit(&sprite_world->m_AnimationDataCache.m_LRU);
         memset(sprite_world->m_Components.GetRawObjects().Begin(), 0, sizeof(SpriteComponent) * comp_count);
         sprite_world->m_RenderObjectsInUse = 0;
