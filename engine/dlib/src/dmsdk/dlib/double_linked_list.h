@@ -35,6 +35,10 @@ namespace dmDoubleLinkedList
      */
     struct ListNode
     {
+        ListNode()
+            : m_Prev(0)
+            , m_Next(0)
+        { }
         struct ListNode* m_Prev;
         struct ListNode* m_Next;
     };
