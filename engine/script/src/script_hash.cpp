@@ -393,9 +393,18 @@ namespace dmScript
         if (context)
         {
             int* refp = context->m_HashInstances.Get(hash);
-            if (refp)
+            if (refp && context->m_ContextWeakTableRef != LUA_NOREF)
             {
-                context->m_HashInstances.Erase(hash);
+                lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
+                // [-1] weak_table
+                lua_rawgeti(L, -1, (lua_Integer)hash);
+                // [-2] weak_table
+                // [-1] hash
+                if (lua_isnil(L, -1))
+                {
+                    context->m_HashInstances.Erase(hash);
+                }
+                lua_pop(L, 2);
             }
         }
         return 0;
