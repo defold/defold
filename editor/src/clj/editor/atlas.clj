@@ -927,22 +927,15 @@
                                                               child-build-errors
                                                               own-build-errors))))
 
-(defn- get-nodes-by-type [child-node-type]
-  (fn get-children-nodes-by-type [node evaluation-context]
-    (let [basis (:basis evaluation-context)]
-      (coll/transfer (g/explicit-arcs-by-target basis node :nodes) []
-        (map gt/source-id)
-        (filter #(= child-node-type (g/node-type* basis %)))))))
-
 (attachment/register!
   AtlasNode :animations
   :add {:node-type AtlasAnimation :tx-attach-fn attach-animation-to-atlas}
-  :get (get-nodes-by-type AtlasAnimation))
+  :get (attachment/nodes-by-type-getter AtlasAnimation))
 
 (attachment/register!
   AtlasNode :images
   :add {:node-type AtlasImage :tx-attach-fn attach-image-to-atlas}
-  :get (get-nodes-by-type AtlasImage))
+  :get (attachment/nodes-by-type-getter AtlasImage))
 
 (defn- make-image-nodes
   [attach-fn parent image-msgs]

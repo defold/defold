@@ -728,7 +728,7 @@
 (attachment/register!
   TileMapNode :layers
   :add {:node-type LayerNode :tx-attach-fn attach-layer-node}
-  :get #(mapv gt/source-id (g/explicit-arcs-by-target (:basis %2) %1 :nodes)))
+  :get attachment/nodes-getter)
 
 ;;--------------------------------------------------------------------
 ;; tool
