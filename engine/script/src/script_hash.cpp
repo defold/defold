@@ -142,6 +142,57 @@ namespace dmScript
         return 1;
     }
 
+    static int CreateLuaHashUserdata(lua_State* L, dmhash_t hash)
+    {
+        HContext context = dmScript::GetScriptContext(L);
+        dmhash_t* lua_hash = (dmhash_t*)lua_newuserdata(L, sizeof(dmhash_t));
+        *lua_hash = hash;
+        luaL_getmetatable(L, SCRIPT_TYPE_NAME_HASH);
+        lua_setmetatable(L, -2);
+
+        // [-1] hash
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+        // [-2] hash
+        // [-1] Context table
+        lua_pushvalue(L, -2);
+        // [-3] hash
+        // [-2] Context table
+        // [-1] hash
+        int ref = luaL_ref(L, -2);
+        // [-2] hash
+        // [-1] Context table
+        lua_pop(L, 1);
+        // [-1] hash
+
+        dmHashTable64<int>* instances = &context->m_HashInstances;
+        if (instances->Full())
+        {
+            instances->SetCapacity(instances->Size(), instances->Capacity() + 256);
+        }
+        instances->Put(hash, ref);
+
+        // Also store the value in the weak table with the hash as key
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
+        // [-2] userdata
+        // [-1] weak_table
+        lua_pushinteger(L, (lua_Integer)hash);
+        // [-3] userdata
+        // [-2] weak_table
+        // [-1] key
+        lua_pushvalue(L, -3);
+        // [-4] userdata
+        // [-3] weak_table
+        // [-2] key
+        // [-1] value
+        lua_settable(L, -3); // weak_table[hash] = userdata
+        // [-2] userdata
+        // [-1] weak_table
+        lua_pop(L, 1);
+        // [-1] userdata
+
+        return lua_gettop(L); // return stack index of the new userdata
+    }
+
     void PushHash(lua_State* L, dmhash_t hash)
     {
         int top = lua_gettop(L);
@@ -150,51 +201,35 @@ namespace dmScript
 
         dmHashTable64<int>* instances = &context->m_HashInstances;
         int* refp = instances->Get(hash);
+
         if (refp)
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
-            // [-1] Context table
-            lua_rawgeti(L, -1, *refp);
-            // [-2] Context table
-            // [-1] hash
+            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
+            // [-1] weak_table
+            lua_pushinteger(L, (lua_Integer)hash);
+            // [-2] weak_table
+            // [-1] key
+            lua_gettable(L, -2);
+            // [-2] weak_table
+            // [-1] value or nil
             if (lua_isnil(L, -1))
             {
-                lua_pop(L, 1);
-                lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
-                lua_rawgeti(L, -1, *refp);
-                lua_remove(L, -2);
-            }
+                lua_pop(L, 1); // remove nil
+                //[-1] weak_table
 
-            lua_remove(L, -2);
-            // [-1] hash
+                // Create new userdata and re-register it
+                lua_pop(L, 1); // remove weak_table
+                CreateLuaHashUserdata(L, hash);
+            }
+            else
+            {
+                lua_remove(L, -2); // remove weak_table
+                // [-1] hash
+            }
         }
         else
         {
-            dmhash_t* lua_hash = (dmhash_t*)lua_newuserdata(L, sizeof(dmhash_t));
-            *lua_hash = hash;
-            luaL_getmetatable(L, SCRIPT_TYPE_NAME_HASH);
-            // [-2] hash
-            // [-1] meta table
-            lua_setmetatable(L, -2);
-            // [-1] hash
-            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
-            // [-2] hash
-            // [-1] Context table
-            lua_pushvalue(L, -2);
-            // [-3] hash
-            // [-2] Context table
-            // [-1] hash
-            int ref = luaL_ref(L, -2);
-            // [-2] hash
-            // [-1] Context table
-            lua_pop(L, 1);
-            // [-1] hash
-
-            if (instances->Full())
-            {
-                instances->SetCapacity(instances->Size(), instances->Capacity() + 256);
-            }
-            instances->Put(hash, ref);
+            CreateLuaHashUserdata(L, hash);
         }
 
         assert(top + 1 == lua_gettop(L));
@@ -214,7 +249,6 @@ namespace dmScript
         }
 
         int ref = *refp;
-
         // Retrieve the value from the strong table
         lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
         // [-1] context_table
@@ -222,7 +256,7 @@ namespace dmScript
         // [-2] context_table
         // [-1] value
 
-        if (lua_isnil(L, -1))
+        if (!lua_isuserdata(L, -1))
         {
             lua_pop(L, 2);
             return;
@@ -231,29 +265,12 @@ namespace dmScript
         lua_remove(L, -2);
         // [-1] value
 
-        // Store the value in the weak table with the same key
-        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
-        // [-2] value
-        // [-1] weak_table
-        lua_pushvalue(L, -2);
-        // [-3] value
-        // [-2] weak_table
-        // [-1] value_copy
-        lua_rawseti(L, -2, ref);
-        // [-2] value
-        // [-1] weak_table
-        lua_pop(L, 1);
-        // [-1] value
-
         // Remove value from strong table
         lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
         // [-2] value
         // [-1] context_table
         luaL_unref(L, -1, ref);
-        lua_pop(L, 1);
-        // [-1] value
-
-        lua_pop(L, 1); // pop value
+        lua_pop(L, 2);
         // stack balanced
 
         assert(top == lua_gettop(L));
@@ -376,14 +393,9 @@ namespace dmScript
         if (context)
         {
             int* refp = context->m_HashInstances.Get(hash);
-            context->m_HashInstances.Erase(hash);
-            if (refp && context->m_ContextWeakTableRef != LUA_NOREF)
+            if (refp)
             {
-                lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
-                lua_pushinteger(L, *refp);
-                lua_pushnil(L);
-                lua_settable(L, -3);
-                lua_pop(L, 1);
+                context->m_HashInstances.Erase(hash);
             }
         }
         return 0;
