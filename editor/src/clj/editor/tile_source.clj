@@ -552,7 +552,7 @@
       (keep (fn [[prop-kw f]]
               (validation/prop-error :fatal node-id prop-kw f (get anim prop-kw) (properties/keyword->name prop-kw)))))))
 
-(defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id digest-ignored/layout-result tile-source-attributes image-resource animation-ddfs collision-groups convex-hulls]}]
+(defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id layout-result tile-source-attributes image-resource animation-ddfs collision-groups convex-hulls]}]
   (let [buffered-image (resource-io/with-error-translation image-resource error-node-id :image
                          (image-util/read-image image-resource))]
     (if (g/error? buffered-image)
@@ -562,7 +562,7 @@
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
 
-(defn- generate-packed-image [{:keys [digest-ignored/error-node-id digest-ignored/layout-result image-resource tile-source-attributes]}]
+(defn- generate-packed-image [{:keys [digest-ignored/error-node-id layout-result image-resource tile-source-attributes]}]
   (let [buffered-image (resource-io/with-error-translation image-resource error-node-id :image
                          (image-util/read-image image-resource))]
     (if (g/error? buffered-image)
@@ -652,9 +652,8 @@
                                                  (let [animation-ddfs (mapv :ddf-message animation-data)]
                                                    {:f generate-texture-set-data
                                                     :args (-> args
-                                                              (dissoc :_node-id :animation-data :layout-result)
-                                                              (assoc :digest-ignored/layout-result layout-result
-                                                                     :animation-ddfs animation-ddfs
+                                                              (dissoc :_node-id :animation-data)
+                                                              (assoc :animation-ddfs animation-ddfs
                                                                      :digest-ignored/error-node-id _node-id))}))))
 
   (output texture-set-data g/Any :cached (g/fnk [texture-set-data-generator] (call-generator texture-set-data-generator)))
@@ -671,7 +670,7 @@
                                            {:f generate-packed-image
                                             :sha1 packed-image-sha1
                                             :args {:digest-ignored/error-node-id _node-id
-                                                   :digest-ignored/layout-result layout-result
+                                                   :layout-result layout-result
                                                    :image-resource image-resource
                                                    :tile-source-attributes tile-source-attributes}})))
 
