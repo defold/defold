@@ -552,23 +552,22 @@
       (keep (fn [[prop-kw f]]
               (validation/prop-error :fatal node-id prop-kw f (get anim prop-kw) (properties/keyword->name prop-kw)))))))
 
-(defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id tile-source-attributes image-resource animation-ddfs collision-groups convex-hulls]}]
+(defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id layout-result tile-source-attributes image-resource animation-ddfs collision-groups convex-hulls]}]
   (let [buffered-image (resource-io/with-error-translation image-resource error-node-id :image
                          (image-util/read-image image-resource))]
     (if (g/error? buffered-image)
       buffered-image
-      (texture-set-gen/tile-source->texture-set-data tile-source-attributes buffered-image convex-hulls collision-groups animation-ddfs))))
+      (texture-set-gen/tile-source->texture-set-data layout-result tile-source-attributes buffered-image convex-hulls collision-groups animation-ddfs))))
 
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
 
-(defn- generate-packed-image [{:keys [digest-ignored/error-node-id texture-set-data-generator image-resource tile-source-attributes]}]
-  (let [texture-set-data (call-generator texture-set-data-generator)
-        buffered-image (resource-io/with-error-translation image-resource error-node-id :image
+(defn- generate-packed-image [{:keys [digest-ignored/error-node-id layout-result image-resource tile-source-attributes]}]
+  (let [buffered-image (resource-io/with-error-translation image-resource error-node-id :image
                          (image-util/read-image image-resource))]
     (if (g/error? buffered-image)
       buffered-image
-      (texture-set-gen/layout-tile-source (:layout texture-set-data) buffered-image tile-source-attributes))))
+      (texture-set-gen/layout-tile-source layout-result buffered-image tile-source-attributes))))
 
 (g/defnode TileSourceNode
   (inherits resource-node/ResourceNode)
@@ -645,7 +644,9 @@
   (output tile-source-attributes g/Any :cached produce-tile-source-attributes)
   (output tile->collision-group-node g/Any :cached produce-tile->collision-group-node)
 
-  (output texture-set-data-generator g/Any (g/fnk [_node-id image-resource tile-source-attributes animation-data collision-groups convex-hulls tile-count :as args]
+  (output layout-result g/Any :cached (g/fnk [tile-source-attributes] (texture-set-gen/calculate-layout-result tile-source-attributes)))
+
+  (output texture-set-data-generator g/Any (g/fnk [_node-id layout-result image-resource tile-source-attributes animation-data collision-groups convex-hulls tile-count :as args]
                                              (or (when-let [errors (not-empty (mapcat #(check-anim-error tile-count %) animation-data))]
                                                    (g/error-aggregate errors))
                                                  (let [animation-ddfs (mapv :ddf-message animation-data)]
@@ -661,7 +662,7 @@
   (output uv-transforms g/Any (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
   (output texture-page-count g/Int (g/constantly 0)) ; We do not use pages. Built as TYPE_2D, not TYPE_2D_ARRAY.
 
-  (output packed-image-generator g/Any (g/fnk [_node-id texture-set-data-generator image-resource tile-source-attributes]
+  (output packed-image-generator g/Any (g/fnk [_node-id layout-result image-resource tile-source-attributes]
                                          (let [packed-image-sha1 (digestable/sha1-hash
                                                                    {:image-sha1 (resource/resource->path-inclusive-sha1-hex image-resource)
                                                                     :tile-source-attributes tile-source-attributes
@@ -669,7 +670,7 @@
                                            {:f generate-packed-image
                                             :sha1 packed-image-sha1
                                             :args {:digest-ignored/error-node-id _node-id
-                                                   :texture-set-data-generator texture-set-data-generator
+                                                   :layout-result layout-result
                                                    :image-resource image-resource
                                                    :tile-source-attributes tile-source-attributes}})))
 
