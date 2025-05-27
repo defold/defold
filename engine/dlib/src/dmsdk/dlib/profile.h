@@ -568,7 +568,7 @@ enum ProfilePropertyFlags
     struct ProfileScope
     {
         void* m_Internal; // used by each profiler implementation to store scope relevant data
-        uint32_t m_Generation;
+        uint8_t m_Generation;
     };
 
     #define _DM_PROFILE_PASTE(x, y) x ## y
