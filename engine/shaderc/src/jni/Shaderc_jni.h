@@ -86,6 +86,7 @@ struct ShaderCompileResultJNI {
     jclass cls;
     jfieldID data;
     jfieldID lastError;
+    jfieldID hLSLNumWorkGroupsId;
 };
 struct TypeInfos {
     ShaderCompilerOptionsJNI m_ShaderCompilerOptionsJNI;

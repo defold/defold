@@ -210,6 +210,7 @@ namespace dmShaderc
     {
         dmArray<uint8_t> m_Data;
         const char*      m_LastError;
+        uint8_t          m_HLSLNumWorkGroupsId;
     };
 
     // Shader context

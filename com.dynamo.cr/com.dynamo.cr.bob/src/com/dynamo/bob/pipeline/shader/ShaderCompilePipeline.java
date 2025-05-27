@@ -455,6 +455,13 @@ public class ShaderCompilePipeline {
                 bytes = RemapTextureSamplers(module.spirvReflector.getTextures(), new String(bytes));
             }
 
+            // If we are cross-compiling a compute shader to HLSL, we need to inject an extra resource into the reflection,
+            // because there is no gl_NumWorkGroups equivalent in HLSL
+            if (result.hLSLNumWorkGroupsId != 0xff)
+            {
+                
+            }
+
             return bytes;
         }
 

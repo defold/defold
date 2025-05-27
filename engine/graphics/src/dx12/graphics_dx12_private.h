@@ -34,6 +34,12 @@ namespace dmGraphics
     typedef ID3D12PipelineState*          DX12Pipeline;
     typedef dmHashTable64<DX12Pipeline>   DX12PipelineCache;
 
+    enum DX12PipelineType
+    {
+        PIPELINE_TYPE_GRAPHICS,
+        PIPELINE_TYPE_COMPUTE,
+    };
+
     struct DX12Context;
 
     struct DX12Texture
@@ -165,9 +171,9 @@ namespace dmGraphics
         uint32_t m_FrameIndex;
 
         void  Initialize(DX12Context* context, uint32_t frame_index);
-        void* AllocateConstantBuffer(DX12Context* context, uint32_t buffer_index, uint32_t non_aligned_byte_size);
-        void  AllocateSampler(DX12Context* context, const DX12TextureSampler& sampler, uint32_t sampler_index);
-        void  AllocateTexture2D(DX12Context* context, DX12Texture* texture, uint32_t texture_index);
+        void* AllocateConstantBuffer(DX12Context* context, DX12PipelineType pipeline_type, uint32_t buffer_index, uint32_t non_aligned_byte_size);
+        void  AllocateSampler(DX12Context* context, DX12PipelineType pipeline_type, const DX12TextureSampler& sampler, uint32_t sampler_index);
+        void  AllocateTexture2D(DX12Context* context, DX12PipelineType pipeline_type, DX12Texture* texture, uint32_t texture_index);
         void  Reset(DX12Context* context);
         void  Bind(DX12Context* context);
     };

@@ -260,6 +260,7 @@ public class Shaderc {
     public static class ShaderCompileResult {
         public byte[] data;
         public String lastError;
+        public byte hLSLNumWorkGroupsId = 0;
     };
 }
 
