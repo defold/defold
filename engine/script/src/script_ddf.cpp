@@ -547,16 +547,16 @@ namespace dmScript
                     else if (d->m_NameHash == DDF_TYPE_NAME_HASH_LUAREF)
                     {
                         dmScriptDDF::LuaRef* lua_ref = (dmScriptDDF::LuaRef*) ptr;
-                        lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref->m_ContextTableRef);
-                        lua_rawgeti(L, -1, lua_ref->m_Ref);
-                        if (lua_isnil(L, -1))
+                        if (lua_ref->m_Ref)
                         {
-                            lua_pop(L, 1); // remove nil
-                            lua_getfield(L, -1, "__weak"); // context_table["__weak"]
+                            lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref->m_ContextTableRef);
                             lua_rawgeti(L, -1, lua_ref->m_Ref);
-                            lua_remove(L, -2); // remove weak table
+                            lua_remove(L, -2);
                         }
-                        lua_remove(L, -2); // remove context table
+                        else
+                        {
+                            lua_pushnil(L);
+                        }
                     }
                     else
                     {

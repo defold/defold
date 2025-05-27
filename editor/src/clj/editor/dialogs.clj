@@ -37,6 +37,7 @@
             [editor.os :as os]
             [editor.progress :as progress]
             [editor.ui :as ui]
+            [editor.util :as util]
             [service.log :as log])
   (:import [clojure.lang Named]
            [java.io File]
@@ -112,7 +113,7 @@
 (defn dialog-buttons [props]
   (-> props
       (assoc :fx/type fx.h-box/lifecycle)
-      (fxui/provide-defaults :alignment :center-right)
+      (util/provide-defaults :alignment :center-right)
       (fxui/add-style-classes "spacing-smaller")))
 
 (defn- confirmation-dialog [{:keys [buttons icon]
@@ -125,7 +126,7 @@
                                                    (dissoc :result))]
                                (if (:default-button button-props)
                                  {:fx/type fxui/ext-focused-by-default
-                                  :desc (fxui/provide-defaults button-desc :variant :primary)}
+                                  :desc (util/provide-defaults button-desc :variant :primary)}
                                  button-desc)))
                            buttons)]
     (-> props
@@ -151,7 +152,7 @@
   (-> props
       (assoc :fx/type fxui/legacy-text-area)
       (fxui/add-style-classes "text-area-with-dialog-content-padding")
-      (fxui/provide-defaults
+      (util/provide-defaults
         :pref-row-count (max 3 (count (string/split (:text props "") #"\n" 10)))
         :variant :borderless
         :editable false)))
@@ -216,7 +217,7 @@
   [props]
   (make-confirmation-dialog
     (-> props
-        (fxui/provide-defaults :buttons [{:text "Close"
+        (util/provide-defaults :buttons [{:text "Close"
                                           :cancel-button true
                                           :default-button true}]))))
 

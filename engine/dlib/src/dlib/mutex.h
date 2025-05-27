@@ -23,9 +23,14 @@
 #elif defined(_WIN32)
     #include <dlib/win32/mutex.h>
 
-#elif defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+#elif defined(__linux__) || defined(__MACH__)
     #include <dlib/mutex_posix.h>
-
+#elif defined (__EMSCRIPTEN__)
+    #if defined(DM_NO_THREAD_SUPPORT)
+        #include <dlib/mutex_empty.h>
+    #else
+        #include <dlib/mutex_posix.h>
+    #endif
 #else
     #error "Unsupported platform"
 #endif

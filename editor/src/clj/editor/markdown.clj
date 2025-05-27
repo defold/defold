@@ -32,9 +32,9 @@
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.defold-project :as project]
-            [editor.fxui :as fxui]
             [editor.html-view :as html-view]
             [editor.ui :as ui]
+            [editor.util :as util]
             [editor.workspace :as workspace]
             [util.fn :as fn])
   (:import [java.net URI]
@@ -413,7 +413,7 @@
                  {:fx/type fx.region/lifecycle})
         scroll-pane-view (-> props
                              (dissoc :content :base-url :project)
-                             (fxui/provide-defaults :fit-to-width true
+                             (util/provide-defaults :fit-to-width true
                                                     :hbar-policy :never)
                              (assoc :fx/type fx.scroll-pane/lifecycle
                                     :style-class "md-scroll-pane"
