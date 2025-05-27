@@ -604,7 +604,7 @@ namespace dmGameSystem
             component->m_CurrentAnimation = 0x0;
             component->m_CurrentAnimationFrame = 0;
             component->m_AnimationPlayback = dmGameSystemDDF::PLAYBACK_NONE;
-            component->m_AnimationInterval = 1;
+            // component->m_AnimationInterval = 1;
             dmLogError("Unable to play animation '%s' from texture '%s' since it could not be found.", dmHashReverseSafe64(animation), dmHashReverseSafe64(texture_set->m_TexturePath));
         }
         return anim_id != 0;
@@ -686,7 +686,7 @@ namespace dmGameSystem
         component->m_Size = Vector3(0.0f, 0.0f, 0.0f);
         component->m_AnimationID = 0;
         component->m_AnimationPlayback = dmGameSystemDDF::PLAYBACK_NONE;
-        component->m_AnimationInterval = 1;
+        component->m_AnimationInterval = 0;
 
         if (component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_MANUAL)
         {
@@ -1667,7 +1667,7 @@ namespace dmGameSystem
 
     static void UpdateTransforms(SpriteComponent* component, bool scale_along_z, bool sub_pixels)
     {
-        DM_PROFILE("UpdateTransforms");
+        // DM_PROFILE("UpdateTransforms");
         Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(component->m_Position, component->m_Rotation, 1.0f));
         Matrix4 world = dmGameObject::GetWorldMatrix(component->m_Instance);
         Vector3 size( component->m_Size.getX() * component->m_Scale.getX(), component->m_Size.getY() * component->m_Scale.getY(), 1);
@@ -1701,7 +1701,7 @@ namespace dmGameSystem
 
     static void PostMessages(SpriteComponent* component)
     {
-        DM_PROFILE("PostMessages");
+        // DM_PROFILE("PostMessages");
 
         bool once = component->m_AnimationPlayback == dmGameSystemDDF::PLAYBACK_ONCE_FORWARD
                 || component->m_AnimationPlayback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD
@@ -1710,7 +1710,7 @@ namespace dmGameSystem
         if (once && component->m_AnimTimer >= 1.0f)
         {
             component->m_AnimationPlayback = dmGameSystemDDF::PLAYBACK_NONE;
-            component->m_AnimationInterval = 1;
+            // component->m_AnimationInterval = 1;
             if (component->m_Listener.m_Fragment != 0x0)
             {
                 dmMessage::URL sender;
@@ -1748,8 +1748,7 @@ namespace dmGameSystem
 
     static void Animate(SpriteComponent* component, float dt)
     {
-        DM_PROFILE("Animate");
-
+        // DM_PROFILE("Animate");
         if (component->m_AnimationPlayback != dmGameSystemDDF::PLAYBACK_NONE && component->m_AddedToUpdate)
         {
             // Animate
@@ -1781,7 +1780,7 @@ namespace dmGameSystem
     static void UpdateVertexAndIndexCount(SpriteWorld* sprite_world, const SpriteComponent* component, dmRender::HRenderContext render_context, uint32_t& num_vertices,
         uint32_t& num_indices, uint32_t& vertex_memsize)
     {
-        DM_PROFILE("UpdateVertexAndIndexCount");
+        // DM_PROFILE("UpdateVertexAndIndexCount");
 
         dmRender::HMaterial material           = GetRenderMaterial(render_context, component);
         dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
@@ -1922,15 +1921,9 @@ namespace dmGameSystem
             float radius_sq = dmVMath::LengthSqr((component->m_World.getCol(0).getXYZ() + component->m_World.getCol(1).getXYZ()) * 0.5f);
             world->m_BoundingVolumes[i] = radius_sq;
 
-            // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
             if (!component->m_Enabled)
                 continue;
             Animate(component, params.m_UpdateContext->m_DT);
-
-            if (component->m_AnimationPlayback == dmGameSystemDDF::PLAYBACK_NONE)
-                continue;
-            PostMessages(component);
-
             if (!component->m_AddedToUpdate)
                 continue;
             HComponentRenderConstants constants = GetRenderConstants(component);
@@ -1944,6 +1937,11 @@ namespace dmGameSystem
             }
 
             UpdateVertexAndIndexCount(world, component, render_context, num_vertices, num_indices, vertex_memsize);
+
+            // TODO: check when we need send messages
+            if (component->m_AnimationPlayback == dmGameSystemDDF::PLAYBACK_NONE)
+                continue;
+            PostMessages(component);
         }
 
         world->m_ReallocBuffers   = vertex_memsize > world->m_VertexMemorySize || num_indices > world->m_IndexCount;
@@ -2396,7 +2394,7 @@ namespace dmGameSystem
                 {
                     component->m_AnimationReHash |= component->m_CurrentAnimation != 0x0 && component->m_CurrentAnimationFrame != 0;
                     component->m_AnimationPlayback = dmGameSystemDDF::PLAYBACK_NONE;
-                    component->m_AnimationInterval = 1;
+                    // component->m_AnimationInterval = 1;
                     component->m_CurrentAnimation = 0x0;
                     component->m_CurrentAnimationFrame = 0;
                     dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;

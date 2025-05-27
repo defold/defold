@@ -505,6 +505,7 @@ namespace dmRender
         DM_PROFILE("MakeSortBuffer");
 
         const uint32_t required_capacity = context->m_RenderListSortIndices.Capacity();
+        dmLogWarning("-Sort capacity %u", required_capacity);
         // SetCapacity does early out if they are the same, so just call anyway.
         context->m_RenderListSortBuffer.SetCapacity(required_capacity);
         context->m_RenderListSortBuffer.SetSize(0);
@@ -952,12 +953,13 @@ namespace dmRender
             {
                 uint32_t *idx = context->m_RenderListSortBuffer.Begin() + i;
                 const RenderListEntry *last_entry = &base[*last];
-                const RenderListEntry *current_entry = &base[*idx];
-
                 // continue batch on match, or dispatch
-                if (i < count && (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder))
-                    continue;
-
+                if (i < count)
+                {
+                    const RenderListEntry *current_entry = &base[*idx];                
+                    if (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder)
+                        continue;
+                }
                 if (last_entry->m_Dispatch != RENDERLIST_INVALID_DISPATCH)
                 {
                     assert(last_entry->m_Dispatch < context->m_RenderListDispatch.Size());
@@ -969,6 +971,7 @@ namespace dmRender
                 }
 
                 last = idx;
+                // }
             }
 
         }
