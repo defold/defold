@@ -260,7 +260,8 @@
                               :to)]
               #(some-> (properties/value outline-property) to)))
           (case property
-            "type" #(node-types/->name (g/node-type* (:basis evaluation-context) node-id))
+            "type" (when-let [type-name (node-types/->name (g/node-type* (:basis evaluation-context) node-id))]
+                     (constantly type-name))
             nil)
           (let [node-type (g/node-type* (:basis evaluation-context) node-id)
                 list-kw (property->prop-kw property)]
