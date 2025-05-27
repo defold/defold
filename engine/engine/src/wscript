@@ -106,6 +106,8 @@ def build(bld):
     glfw_js = '../../../ext/lib/%s/js/library_glfw.js' % bld.env.PLATFORM
 
     web_libs = [glfw_js, 'library_sys.js', 'library_script.js', 'library_sound.js', 'library_render.js', 'library_profile.js']
+    if not waflib.Options.options.with_openal:
+        web_libs += ['library_sound.js']
 
     main_cpp = 'common/main.cpp'
 
