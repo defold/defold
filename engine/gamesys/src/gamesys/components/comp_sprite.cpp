@@ -1281,10 +1281,14 @@ namespace dmGameSystem
         AnimationData** found = sprite_world->m_AnimationDataCache.m_Cache.Get(hash);
         if (found != 0x0)
         {
-            dmDoubleLinkedList::ListNode* node = (dmDoubleLinkedList::ListNode*)(*found);
-            dmDoubleLinkedList::ListRemove(&sprite_world->m_AnimationDataCache.m_LRU, node);
-            dmDoubleLinkedList::ListAdd(&sprite_world->m_AnimationDataCache.m_LRU, node);
-            (*found)->m_LastAccessTick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick;
+            // updates only once per frame
+            if ((*found)->m_LastAccessTick != sprite_world->m_AnimationDataCache.m_CurrentEngineTick)
+            {
+                dmDoubleLinkedList::ListNode* node = (dmDoubleLinkedList::ListNode*)(*found);
+                dmDoubleLinkedList::ListRemove(&sprite_world->m_AnimationDataCache.m_LRU, node);
+                dmDoubleLinkedList::ListAdd(&sprite_world->m_AnimationDataCache.m_LRU, node);
+                (*found)->m_LastAccessTick = sprite_world->m_AnimationDataCache.m_CurrentEngineTick;
+            }
             return *found;
         }
 
