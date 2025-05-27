@@ -270,10 +270,10 @@ def apidoc_extract_task(bld, src):
                     if not comment_language:
                         print("Missing @language in %s, assuming C++" % (resource_path))
                         comment_str = comment_str + "* @language C++\n"
-                    
+
                     if namespace:
                         default_namespace = namespace
-                
+
                 if not namespace:
                     namespace = default_namespace
                     comment["namespace"] = default_namespace
@@ -621,6 +621,10 @@ def default_flags(self):
             emflags_link += ['ASYNCIFY']
             if int(opt_level) >= 3:
                 emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
+
+        if with_pthread:
+            # sound needs this to startup its thread with no deadlock
+            emflags_link += ['PTHREAD_POOL_SIZE=1']
 
         flags = []
         linkflags = []
