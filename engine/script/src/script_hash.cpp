@@ -403,6 +403,7 @@ namespace dmScript
                 if (lua_isnil(L, -1))
                 {
                     context->m_HashInstances.Erase(hash);
+                    dmHashReverseErase64(hash);
                 }
                 lua_pop(L, 2);
             }
