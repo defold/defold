@@ -54,6 +54,39 @@ local function print_tilesource_contents(tilesource)
     end
 end
 
+local function print_tilemap_contents(tilemap_resource)
+    local layers = editor.get(tilemap_resource, "layers")
+    print(("  layers: %s"):format(#layers))
+    for i = 1, #layers do
+        local layer = layers[i]
+        print(("    layer: %s"):format(editor.get(layer, "id")))
+        print("    tiles: {")
+        for x, y, tile in tilemap.tiles.iterator(editor.get(layer, "tiles")) do
+            print(("      [%s, %s] = %s"):format(x,y,tile))
+        end
+        print("    }")
+    end
+end
+
+local function print_particlefx_contents(particlefx)
+    local emitters = editor.get(particlefx, "emitters")
+    print(("  emitters: %s"):format(#emitters))
+    for i = 1, #emitters do
+        local emitter = emitters[i]
+        print(("    emitter: %s"):format(editor.get(emitter, "id")))
+        local modifiers = editor.get(emitter, "modifiers")
+        print(("    modifiers: %s"):format(#modifiers))
+        for j = 1, #modifiers do
+            print(("      modifier: %s"):format(editor.get(modifiers[j], "type")))
+        end
+    end
+    local modifiers = editor.get(particlefx, "modifiers")
+    print(("  modifiers: %s"):format(#modifiers))
+    for i = 1, #modifiers do
+        print(("    modifier: %s"):format(editor.get(modifiers[i], "type")))
+    end
+end
+
 function M.get_commands()
     return {
         editor.command({
@@ -65,7 +98,7 @@ function M.get_commands()
                 print_atlas_contents("/test.atlas")
                 print(("  can add images: %s"):format(tostring(editor.can_add("/test.atlas", "images"))))
                 print(("  can add animations: %s"):format(tostring(editor.can_add("/test.atlas", "animations"))))
-                
+
                 print("Transaction: add image and animation")
                 editor.transact({
                     editor.tx.add("/test.atlas", "images", {image = "/builtins/assets/images/logo/logo_256.png"}),
@@ -77,21 +110,21 @@ function M.get_commands()
                         }
                     })
                 })
-                
+
                 print("After transaction (add):")
                 print_atlas_contents("/test.atlas")
                 local images = editor.get("/test.atlas", "images")
                 local animations = editor.get("/test.atlas", "animations")
-                
+
                 print("Transaction: remove image")
                 editor.transact({editor.tx.remove("/test.atlas", "images", images[1])})
-                
+
                 print("After transaction (remove image):")
                 print_atlas_contents("/test.atlas")
-                
+
                 print("Transaction: clear animation images")
                 editor.transact({editor.tx.clear(animations[1], "images")})
-                
+
                 print("After transaction (clear):")
                 print_atlas_contents("/test.atlas")
 
@@ -115,7 +148,7 @@ function M.get_commands()
                 print("Tilesource initial state:")
                 local tilesource = "/test.tilesource"
                 print_tilesource_contents(tilesource)
-                
+
                 print("Transaction: add animations and collision groups")
                 editor.transact({
                     editor.tx.add(tilesource, "animations", {id = "idle"}),
@@ -147,6 +180,65 @@ function M.get_commands()
 
                 print("After transaction (clear):")
                 print_tilesource_contents(tilesource)
+
+                print("Tilemap initial state:")
+                local test_tilemap = "/test.tilemap"
+                print_tilemap_contents(test_tilemap)
+
+                print("Transaction: add 2 layers")
+                local tiles = tilemap.tiles.new()
+                for x = 1, 3 do 
+                    for y = 1, 3 do
+                        tilemap.tiles.set(tiles, x, y, math.max(x, y))
+                    end
+                end
+                editor.transact({
+                    editor.tx.add(test_tilemap, "layers", {
+                        id = "background",
+                        tiles = tiles
+                    }),
+                    editor.tx.add(test_tilemap, "layers", {
+                        id = "items",
+                        tiles = tilemap.tiles.set(tilemap.tiles.new(), 2, 2, 3)
+                    })
+                })
+
+                print("After transaction (add 2 layers):")
+                print_tilemap_contents(test_tilemap)
+
+                print("Transaction: clear tilemap")
+                editor.transact({editor.tx.clear(test_tilemap, "layers")})
+
+                print("After transaction (clear):")
+                print_tilemap_contents(test_tilemap)
+
+                print("Particlefx initial state:")
+                local pfx = "/test.particlefx"
+                print_particlefx_contents(pfx)
+
+                print("Transaction: add emitter and modifier")
+                editor.transact({
+                    editor.tx.add(pfx, "emitters", { 
+                        type = "emitter-type-circle",
+                        modifiers = {
+                            {type = "modifier-type-vortex"},
+                            {type = "modifier-type-drag"}
+                        }
+                    }),
+                    editor.tx.add(pfx, "modifiers", {})
+                })
+
+                print("After transaction (add emitter and modifier):")
+                print_particlefx_contents(pfx)
+
+                print("Transaction: clear particlefx")
+                editor.transact({
+                    editor.tx.clear(pfx, "emitters"),
+                    editor.tx.clear(pfx, "modifiers")
+                })
+
+                print("After transaction (clear):")
+                print_particlefx_contents(pfx)
             end
         })
     }

@@ -22,19 +22,27 @@
             [editor.defold-project :as project]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.runtime :as rt]
+            [editor.editor-extensions.tile-map :as tile-map]
             [editor.game-project :as game-project]
             [editor.id :as id]
             [editor.outline :as outline]
             [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.types :as types]
             [editor.util :as util]
             [editor.workspace :as workspace]
             [util.coll :as coll]
-            [util.fn :as fn])
-  (:import [org.luaj.vm2 LuaError]))
+            [util.fn :as fn]
+            [util.id-vec :as iv])
+  (:import [com.dynamo.particle.proto Particle$ModifierType]
+           [editor.editor_extensions.tile_map Tiles]
+           [editor.properties Curve CurveSpread]
+           [javax.vecmath Vector3d]
+           [org.luaj.vm2 LuaError]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (def resource-path-coercer
   (coerce/wrap-with-pred coerce/string #(and (string? %) (string/starts-with? % "/")) "is not a resource path"))
@@ -103,6 +111,71 @@
         coercer (coerce/wrap-with-pred coerce/number #(<= min % max) (str "should be between " min " and " max))]
     (double (rt/->clj rt coercer lua-value))))
 
+(defn- curve-points->lua [points]
+  (->> points
+       (iv/iv-vals)
+       (sort-by #(% 0))
+       (mapv #(array-map :x (% 0) :y (% 1) :tx (% 2) :ty (% 3)))))
+
+(defn- Curve->lua [^Curve curve]
+  {:points (curve-points->lua (.-points curve))})
+
+(defn- CurveSpread->lua [^CurveSpread curve-spread]
+  {:points (curve-points->lua (.-points curve-spread))
+   :spread (.-spread curve-spread)})
+
+(def ^:private curve-points-coercer
+  (-> (coerce/hash-map
+        :req {:x (-> coerce/number
+                     (coerce/wrap-with-pred #(<= 0.0 (double %) 1.0) "is not between 0 and 1")
+                     (coerce/wrap-transform float))
+              :y (coerce/wrap-transform coerce/number float)
+              :tx (-> coerce/number
+                      (coerce/wrap-with-pred #(<= 0.0 (double %) 1.0) "is not between 0 and 1")
+                      (coerce/wrap-transform #(Math/max (double 0.001) (double %))))
+              :ty (-> coerce/number
+                      (coerce/wrap-with-pred #(<= -1.0 (double %) 1.0) "is not between -1 and 1")
+                      (coerce/wrap-transform double))}
+        :extra-keys false)
+      (coerce/vector-of :min-count 1)
+      (coerce/wrap-with-pred
+        (fn validate-curve-points [points]
+          (and (zero? (double (:x (points 0))))
+               (apply < (mapv :x points))
+               (or (= 1 (count points))
+                   (= 1.0 (:x (peek points))))))
+        "does not increase xs monotonically from 0 to 1")
+      (coerce/wrap-transform
+        (fn transform-curve-points [points]
+          (mapv
+            (fn transform-point [{:keys [x y tx ty]}]
+              (let [tangent (doto (Vector3d. tx ty 0) (.normalize))]
+                [x y (float (.-x tangent)) (float (.-y tangent))]))
+            points)))))
+
+(def ^:private number-curve-coercer
+  (coerce/wrap-transform
+    coerce/number
+    (fn transform-number->curve [n]
+      {:points [[protobuf/float-zero (float n) protobuf/float-one protobuf/float-zero]]})))
+
+(def ^:private Curve-coercer
+  (coerce/wrap-transform
+    (coerce/one-of
+      number-curve-coercer
+      (coerce/hash-map :opt {:points curve-points-coercer}
+                       :extra-keys false))
+    #(properties/->curve (:points %))))
+
+(def ^:private CurveSpread-coercer
+  (coerce/wrap-transform
+    (coerce/one-of
+      number-curve-coercer
+      (coerce/hash-map :opt {:points curve-points-coercer
+                             :spread (coerce/wrap-transform coerce/number float)}
+                       :extra-keys false))
+    #(properties/->curve-spread (:points %) (:spread %))))
+
 (def ^:private edit-type-id->value-converter
   {g/Str {:to identity :from (coercing-converter coerce/string)}
    g/Bool {:to identity :from (coercing-converter coerce/boolean)}
@@ -115,7 +188,9 @@
    types/Color {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number coerce/number coerce/number))}
    :multi-line-text {:to identity :from (coercing-converter coerce/string)}
    :choicebox {:to identity :from choicebox-converter}
-   :slider {:to identity :from slider-converter}})
+   :slider {:to identity :from slider-converter}
+   Curve {:to Curve->lua :from (coercing-converter Curve-coercer)}
+   CurveSpread {:to CurveSpread->lua :from (coercing-converter CurveSpread-coercer)}})
 
 (defn- property->prop-kw [property]
   (if (string/starts-with? property "__")
@@ -149,6 +224,12 @@
     (comp inc key) ;; 0-indexed to 1-indexed
     #(g/node-value (val %) :id evaluation-context)
     (g/node-value node-id :tile->collision-group-node evaluation-context)))
+
+(defmethod ext-get [:editor.tile-map/LayerNode "tiles"] [node-id _ evaluation-context]
+  (tile-map/make (g/node-value node-id :cell-map evaluation-context)))
+
+(defmethod ext-get [:editor.particlefx/ModifierNode "type"] [node-id _ evaluation-context]
+  (g/node-value node-id :type evaluation-context))
 
 (defn ext-value-getter
   "Create 0-arg fn that produces node property value
@@ -224,6 +305,27 @@
                   one-indexed-tile-index->collision-group-id)]
             (g/set-property node-id :tile->collision-group-node new-tile->collision-group-node)))))))
 
+(def ^:private tiles-coercer
+  (coerce/wrap-with-pred coerce/userdata #(instance? Tiles %) "is not a tiles datatype"))
+
+(defmethod ext-setter [:editor.tile-map/LayerNode "tiles"] [node-id _ rt _]
+  (fn [lua-value]
+    (g/set-property node-id :cell-map ((rt/->clj rt tiles-coercer lua-value)))))
+
+(defmethod ext-setter [:editor.particlefx/EmitterNode "animation"] [node-id _ rt _]
+  ;; set property directly instead of going through outline so that there is no
+  ;; order dependency between setting animation and material
+  (fn set-emitter-animation [lua-value]
+    (g/set-property node-id :animation (rt/->clj rt coerce/string lua-value))))
+
+(def ^:private modifier-type-coercer
+  (apply coerce/enum (mapv first (protobuf/enum-values Particle$ModifierType))))
+
+(defmethod ext-setter [:editor.particlefx/ModifierNode "type"] [node-id _ rt _]
+  ;; hidden in the outline, but we want to set it from editor scripts
+  (fn set-modifier-type [lua-value]
+    (g/set-property node-id :type (rt/->clj rt modifier-type-coercer lua-value))))
+
 (defn ext-lua-value-setter
   "Create 1-arg fn from new lua value to transaction steps setting the property
 
@@ -245,37 +347,91 @@
 
 ;; region attach
 
-(defmulti init-attachment (fn init-attachment-dispatch-fn [node-type _attachment _project _evaluation-context]
+(defmulti init-attachment (fn init-attachment-dispatch-fn [node-type _attachment _parent-node-id _project _evaluation-context]
                             (:k node-type)))
 
-(defmethod init-attachment :default [_ attachment _ _] attachment)
+(defmethod init-attachment :default [_ attachment _ _ _] attachment)
 
 (def ^:private default-new-animation-name-lua-value (rt/->lua "New Animation"))
-(defmethod init-attachment :editor.atlas/AtlasAnimation [_ attachment _ _]
-  (cond-> attachment (not (contains? attachment "id")) (assoc "id" default-new-animation-name-lua-value)))
+(defmethod init-attachment :editor.atlas/AtlasAnimation [_ attachment _ _ _]
+  (util/provide-defaults attachment "id" default-new-animation-name-lua-value))
 
 (def ^:private default-start-tile-lua-value (rt/->lua 1))
 (def ^:private default-end-tile-lua-value (rt/->lua 1))
-(defmethod init-attachment :editor.tile-source/TileAnimationNode [_ attachment _ _]
-  (cond-> attachment
-          (not (contains? attachment "id")) (assoc "id" default-new-animation-name-lua-value)
-          (not (contains? attachment "start_tile")) (assoc "start_tile" default-start-tile-lua-value)
-          (not (contains? attachment "end_tile")) (assoc "end_tile" default-end-tile-lua-value)))
+(defmethod init-attachment :editor.tile-source/TileAnimationNode [_ attachment _ _ _]
+  (util/provide-defaults
+    attachment
+    "id" default-new-animation-name-lua-value
+    "start_tile" default-start-tile-lua-value
+    "end_tile" default-end-tile-lua-value))
 
-(defmethod init-attachment :editor.tile-source/CollisionGroupNode [_ attachment project evaluation-context]
-  (cond-> attachment
-          (not (contains? attachment "id"))
-          (assoc "id" (rt/->lua (id/gen "collision_group" (collision-groups/collision-groups (g/node-value project :collision-groups-data evaluation-context)))))))
+(defmethod init-attachment :editor.tile-source/CollisionGroupNode [_ attachment _ project evaluation-context]
+  (util/provide-defaults
+    attachment
+    "id" (rt/->lua
+           (id/gen "collision_group"
+                   (collision-groups/collision-groups
+                     (g/node-value project :collision-groups-data evaluation-context))))))
 
-(defn- init-txs [evaluation-context rt project node-type node-id attachment]
+(defmethod init-attachment :editor.tile-map/LayerNode [_ attachment tilemap-node-id _project evaluation-context]
+  (util/provide-defaults
+    attachment
+    "id" (rt/->lua (id/gen "layer" (g/node-value tilemap-node-id :layer-ids evaluation-context)))))
+
+(def ^:private default-emitter-mode (rt/->lua :play-mode-loop))
+(def ^:private default-emitter-space (rt/->lua :emission-space-world))
+(def ^:private default-emitter-type (rt/->lua :emitter-type-2dcone))
+(def ^:private default-emitter-max-particle-count (rt/->lua 128))
+(def ^:private default-emitter-tile-source (rt/->lua "/builtins/graphics/particle_blob.tilesource"))
+(def ^:private default-emitter-animation (rt/->lua "anim"))
+(def ^:private default-emitter-material (rt/->lua "/builtins/materials/particlefx.material"))
+(def ^:private default-emitter-curve-1 (rt/->lua {:points [{:x 0 :y 1 :tx 1 :ty 0}]}))
+(def ^:private default-emitter-curve-10 (rt/->lua {:points [{:x 0 :y 10 :tx 1 :ty 0}]}))
+
+(defmethod init-attachment :editor.particlefx/EmitterNode [_ attachment parent-node-id _project evaluation-context]
+  (util/provide-defaults
+    attachment
+    "id" (rt/->lua (id/gen "emitter" (g/node-value parent-node-id :ids evaluation-context)))
+    "mode" default-emitter-mode
+    "space" default-emitter-space
+    "type" default-emitter-type
+    "max_particle_count" default-emitter-max-particle-count
+    "material" default-emitter-material
+    "tile_source" default-emitter-tile-source
+    "animation" default-emitter-animation
+
+    "emitter_key_particle_red" default-emitter-curve-1
+    "emitter_key_particle_green" default-emitter-curve-1
+    "emitter_key_particle_blue" default-emitter-curve-1
+    "emitter_key_particle_alpha" default-emitter-curve-1
+
+    "emitter_key_particle_life_time" default-emitter-curve-1
+    "emitter_key_particle_size" default-emitter-curve-1
+    "emitter_key_particle_speed" default-emitter-curve-1
+    "emitter_key_spawn_rate" default-emitter-curve-10
+
+    "particle_key_red" default-emitter-curve-1
+    "particle_key_green" default-emitter-curve-1
+    "particle_key_blue" default-emitter-curve-1
+    "particle_key_alpha" default-emitter-curve-1
+
+    "particle_key_scale" default-emitter-curve-1))
+
+(def ^:private default-modifier-type (rt/->lua :modifier-type-acceleration))
+(defmethod init-attachment :editor.particlefx/ModifierNode [_ attachment _parent-node-id _project _evaluation-context]
+  (util/provide-defaults
+    attachment
+    "type" default-modifier-type))
+
+(defn- init-txs [evaluation-context rt project parent-node-id child-node-type child-node-id attachment]
   (mapcat
     (fn [[property lua-value]]
-      (if-let [setter (ext-lua-value-setter node-id property rt project evaluation-context)]
+      (if-let [setter (ext-lua-value-setter child-node-id property rt project evaluation-context)]
         (setter lua-value)
         (throw (LuaError. (format "Can't set property \"%s\" of %s"
                                   property
-                                  (name (node-id->type-keyword node-id evaluation-context)))))))
-    (init-attachment node-type attachment project evaluation-context)))
+                                  (name (node-id->type-keyword child-node-id evaluation-context)))))))
+    (init-attachment child-node-type attachment parent-node-id project evaluation-context)))
 
 (def ^:private attachment-coercer (coerce/map-of coerce/string coerce/untouched))
 (def ^:private attachments-coercer (coerce/vector-of attachment-coercer))

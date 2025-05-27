@@ -16,6 +16,7 @@
   "Extensible definitions for semantical node attachments"
   (:refer-clojure :exclude [remove])
   (:require [dynamo.graph :as g]
+            [internal.graph.types :as gt]
             [util.coll :as coll]))
 
 (defonce ^:private state-atom
@@ -60,7 +61,7 @@
         (let [child-node-id (first (g/take-node-ids (g/node-id->graph-id parent-node-id) 1))]
           (concat
             (g/add-node (g/construct node-type :_node-id child-node-id))
-            (init-fn node-type child-node-id init)
+            (init-fn parent-node-id node-type child-node-id init)
             (tx-attach-fn parent-node-id child-node-id)
             (add-impl current-state node-type child-node-id add init-fn)))
         (throw (ex-info (str (name (:k parent-node-type)) " does not define a " (name list-kw) " attachment list")
@@ -83,9 +84,12 @@
                                   initialization transaction steps
                          :add     optional, attachment tree of the created item
     init-fn            a function that initializes the newly created element
-                       node, will receive 3 args: node-type (created node type),
-                       node-id (created node id) and init (value from the
-                       attachment tree); should return transaction steps that
+                       node, will receive 4 args:
+                         parent-node-id     container node id
+                         child-node-type    created node type
+                         child-node-id      created node id
+                         init-value         init value from the attachment tree
+                       the function should return transaction steps that
                        initialize the node
 
   Example attachment tree for an atlas node:
@@ -149,3 +153,21 @@
   node-id defines a list identified by list-kw (see [[defines?]])"
   [node-id list-kw child-node-id]
   (g/expand-ec remove-tx node-id list-kw child-node-id))
+
+(defn nodes-by-type-getter
+  "Create a node list getter using a type filter over the :nodes output
+
+  Returns a function suitable for use as a :get parameter to [[register!]]"
+  [child-node-type]
+  (fn get-nodes-by-type [node evaluation-context]
+    (let [basis (:basis evaluation-context)]
+      (coll/transfer (g/explicit-arcs-by-target basis node :nodes) []
+        (map gt/source-id)
+        (filter #(= child-node-type (g/node-type* basis %)))))))
+
+(defn nodes-getter
+  "node list getter that returns :nodes output
+
+  This function is suitable for use as a :get parameter to [[register]]"
+  [node evaluation-context]
+  (mapv gt/source-id (g/explicit-arcs-by-target (:basis evaluation-context) node :nodes)))
