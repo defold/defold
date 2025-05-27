@@ -731,22 +731,15 @@
                     (g/error-fatal (format "the total height ('Tile Height' + 'Tile Margin') is greater than the 'Image' height (%d vs %d)"
                                            total-h h)))))))))
 
-(defn- get-nodes-by-type [child-node-type]
-  (fn get-children-nodes-by-type [node evaluation-context]
-    (let [basis (:basis evaluation-context)]
-      (coll/transfer (g/explicit-arcs-by-target basis node :nodes) []
-        (map gt/source-id)
-        (filter #(= child-node-type (g/node-type* basis %)))))))
-
 (attachment/register!
   TileSourceNode :animations
   :add {:node-type TileAnimationNode :tx-attach-fn attach-animation-node}
-  :get (get-nodes-by-type TileAnimationNode))
+  :get (attachment/nodes-by-type-getter TileAnimationNode))
 
 (attachment/register!
   TileSourceNode :collision-groups
   :add {:node-type CollisionGroupNode :tx-attach-fn attach-collision-group-node}
-  :get (get-nodes-by-type CollisionGroupNode))
+  :get (attachment/nodes-by-type-getter CollisionGroupNode))
 
 
 ;;--------------------------------------------------------------------

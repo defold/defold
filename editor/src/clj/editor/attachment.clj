@@ -16,6 +16,7 @@
   "Extensible definitions for semantical node attachments"
   (:refer-clojure :exclude [remove])
   (:require [dynamo.graph :as g]
+            [internal.graph.types :as gt]
             [util.coll :as coll]))
 
 (defonce ^:private state-atom
@@ -152,3 +153,21 @@
   node-id defines a list identified by list-kw (see [[defines?]])"
   [node-id list-kw child-node-id]
   (g/expand-ec remove-tx node-id list-kw child-node-id))
+
+(defn nodes-by-type-getter
+  "Create a node list getter using a type filter over the :nodes output
+
+  Returns a function suitable for use as a :get parameter to [[register!]]"
+  [child-node-type]
+  (fn get-nodes-by-type [node evaluation-context]
+    (let [basis (:basis evaluation-context)]
+      (coll/transfer (g/explicit-arcs-by-target basis node :nodes) []
+        (map gt/source-id)
+        (filter #(= child-node-type (g/node-type* basis %)))))))
+
+(defn nodes-getter
+  "node list getter that returns :nodes output
+
+  This function is suitable for use as a :get parameter to [[register]]"
+  [node evaluation-context]
+  (mapv gt/source-id (g/explicit-arcs-by-target (:basis evaluation-context) node :nodes)))

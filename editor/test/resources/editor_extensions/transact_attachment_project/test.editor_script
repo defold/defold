@@ -68,6 +68,25 @@ local function print_tilemap_contents(tilemap_resource)
     end
 end
 
+local function print_particlefx_contents(particlefx)
+    local emitters = editor.get(particlefx, "emitters")
+    print(("  emitters: %s"):format(#emitters))
+    for i = 1, #emitters do
+        local emitter = emitters[i]
+        print(("    emitter: %s"):format(editor.get(emitter, "id")))
+        local modifiers = editor.get(emitter, "modifiers")
+        print(("    modifiers: %s"):format(#modifiers))
+        for j = 1, #modifiers do
+            print(("      modifier: %s"):format(editor.get(modifiers[j], "type")))
+        end
+    end
+    local modifiers = editor.get(particlefx, "modifiers")
+    print(("  modifiers: %s"):format(#modifiers))
+    for i = 1, #modifiers do
+        print(("    modifier: %s"):format(editor.get(modifiers[i], "type")))
+    end
+end
+
 function M.get_commands()
     return {
         editor.command({
@@ -192,6 +211,34 @@ function M.get_commands()
 
                 print("After transaction (clear):")
                 print_tilemap_contents(test_tilemap)
+
+                print("Particlefx initial state:")
+                local pfx = "/test.particlefx"
+                print_particlefx_contents(pfx)
+
+                print("Transaction: add emitter and modifier")
+                editor.transact({
+                    editor.tx.add(pfx, "emitters", { 
+                        type = "emitter-type-circle",
+                        modifiers = {
+                            {type = "modifier-type-vortex"},
+                            {type = "modifier-type-drag"}
+                        }
+                    }),
+                    editor.tx.add(pfx, "modifiers", {})
+                })
+
+                print("After transaction (add emitter and modifier):")
+                print_particlefx_contents(pfx)
+
+                print("Transaction: clear particlefx")
+                editor.transact({
+                    editor.tx.clear(pfx, "emitters"),
+                    editor.tx.clear(pfx, "modifiers")
+                })
+
+                print("After transaction (clear):")
+                print_particlefx_contents(pfx)
             end
         })
     }
