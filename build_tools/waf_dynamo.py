@@ -307,7 +307,7 @@ def apidoc_extract_task(bld, src):
         for o in task.outputs:
             name = os.path.splitext(o.name)[0] # remove .apidoc
             docs = all_docs[name]
-            with open(str(o.get_bld()), 'w+') as out_f:
+            with open(str(o.get_bld()), 'w+', encoding='utf-8') as out_f:
                 out_f.write('\n'.join(docs))
 
     if not getattr(Options.options, 'skip_apidocs', False):
