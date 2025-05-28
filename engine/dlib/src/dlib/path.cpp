@@ -31,6 +31,15 @@ namespace dmPath
         return path;
     }
 
+    static const wchar_t* SkipSlashesW(const wchar_t* path)
+    {
+        while (*path && (*path == L'/' || *path == L'\\'))
+        {
+            ++path;
+        }
+        return path;
+    }
+
     void Normalize(const char* path, char* out, uint32_t out_size)
     {
         assert(out_size > 0);
@@ -60,6 +69,37 @@ namespace dmPath
         }
 
         out[dmMath::Min(i, out_size-1)] = '\0';
+    }
+
+    void NormalizeW(const wchar_t* path, wchar_t* out, uint32_t out_size)
+    {
+        assert(out_size > 0);
+
+        uint32_t i = 0;
+        while (*path && i < out_size)
+        {
+            int c = *path;
+            if (c == L'/' || c == L'\\')
+            {
+                out[i] = L'/';
+                path = SkipSlashesW(path);
+            }
+            else
+            {
+                out[i] = c;
+                ++path;
+            }
+
+            ++i;
+        }
+
+        if (i > 1 && out[i-1] == L'/')
+        {
+            // Remove trailing /
+            out[i-1] = L'\0';
+        }
+
+        out[dmMath::Min(i, out_size-1)] = L'\0';
     }
 
     void Dirname(const char* path, char* out, uint32_t out_size)
