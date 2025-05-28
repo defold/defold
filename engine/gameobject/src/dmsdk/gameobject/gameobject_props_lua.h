@@ -12,16 +12,15 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef GAMEOBJECT_PROPS_LUA_H
-#define GAMEOBJECT_PROPS_LUA_H
+#ifndef DMSDK_GAMEOBJECT_PROPS_LUA_H
+#define DMSDK_GAMEOBJECT_PROPS_LUA_H
 
 #include "gameobject_props.h"
-#include <dmsdk/gameobject/gameobject_props_lua.h>
 
+typedef struct lua_State lua_State;
 namespace dmGameObject
 {
-    PropertyResult LuaToVar(lua_State* L, int index, PropertyVar& out_var);
-    void LuaPushVar(lua_State* L, const PropertyVar& var);
+    HPropertyContainer PropertyContainerCreateFromLua(lua_State* L, int index);
 }
 
 #endif // GAMEOBJECT_PROPS_DDF_H
