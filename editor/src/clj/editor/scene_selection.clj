@@ -144,7 +144,7 @@
         resource-strings (-> string string/split-lines sort)
         resources (e/keep (partial workspace/resolve-workspace-resource workspace) resource-strings)
         z-plane-pos (math/line-plane-intersection world-pos world-dir (Point3d. 0.0 0.0 0.0) (Vector3d. 0.0 0.0 1.0))
-drop-fn (partial drop-fn selection workspace z-plane-pos)
+        drop-fn (partial drop-fn selection workspace z-plane-pos)
         added-nodes (add-dropped-resources! drop-fn resources op-seq)]
     (.consume event)
     (when (seq added-nodes)
