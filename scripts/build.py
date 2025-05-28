@@ -41,7 +41,7 @@ BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'win32', 'x86_64-win32',
                     'x86_64-ios', 'arm64-ios',
                     'armv7-android', 'arm64-android',
-                    'js-web', 'wasm-web']
+                    'js-web', 'wasm-web', 'wasm_pthread-web']
 
 sys.dont_write_bytecode = True
 try:
@@ -156,7 +156,7 @@ PACKAGES_MACOS_X86_64=[
     "spirv-tools-b21dda0e",
     "glslang-42d9adf5",
     "moltenvk-1474891",
-    "lipo-9ffdea2",
+    "lipo-4c7c275",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "glfw-3.4",
     "tint-22b958",
@@ -175,7 +175,7 @@ PACKAGES_MACOS_ARM64=[
     "spirv-tools-b21dda0e",
     "glslang-42d9adf5",
     "moltenvk-1474891",
-    "lipo-9ffdea2",
+    "lipo-4c7c275",
     "glfw-3.4",
     "tint-22b958",
     "astcenc-8b0aa01",
@@ -204,7 +204,7 @@ PACKAGES_WIN32_64=[
     "spirv-cross-9040e0d2",
     "spirv-tools-d24a39a7",
     "vulkan-v1.4.307",
-    "lipo-9ffdea2",
+    "lipo-4c7c275",
     "glfw-3.4",
     "tint-22b958",
     "astcenc-8b0aa01",
@@ -222,7 +222,7 @@ PACKAGES_LINUX_X86_64=[
     "spirv-tools-d24a39a7",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
-    "lipo-9ffdea2",
+    "lipo-4c7c275",
     "glfw-3.4",
     "tint-7bd151a780",
     "sassc-5472db213ec223a67482df2226622be372921847",
@@ -240,7 +240,7 @@ PACKAGES_LINUX_ARM64=[
     "spirv-tools-4fab7435",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
-    "lipo-abb8ab1",
+    "lipo-4c7c275",
     "glfw-3.4",
     "tint-7bd151a780",
     "astcenc-8b0aa01",
@@ -285,18 +285,19 @@ PACKAGES_EMSCRIPTEN=[
 PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
 PLATFORM_PACKAGES = {
-    'win32':          PACKAGES_WIN32,
-    'x86_64-win32':   PACKAGES_WIN32_64,
-    'x86_64-linux':   PACKAGES_LINUX_X86_64,
-    'arm64-linux':    PACKAGES_LINUX_ARM64,
-    'x86_64-macos':   PACKAGES_MACOS_X86_64,
-    'arm64-macos':    PACKAGES_MACOS_ARM64,
-    'arm64-ios':      PACKAGES_IOS_64,
-    'x86_64-ios':     PACKAGES_IOS_X86_64,
-    'armv7-android':  PACKAGES_ANDROID,
-    'arm64-android':  PACKAGES_ANDROID_64,
-    'js-web':         PACKAGES_EMSCRIPTEN,
-    'wasm-web':       PACKAGES_EMSCRIPTEN
+    'win32':            PACKAGES_WIN32,
+    'x86_64-win32':     PACKAGES_WIN32_64,
+    'x86_64-linux':     PACKAGES_LINUX_X86_64,
+    'arm64-linux':      PACKAGES_LINUX_ARM64,
+    'x86_64-macos':     PACKAGES_MACOS_X86_64,
+    'arm64-macos':      PACKAGES_MACOS_ARM64,
+    'arm64-ios':        PACKAGES_IOS_64,
+    'x86_64-ios':       PACKAGES_IOS_X86_64,
+    'armv7-android':    PACKAGES_ANDROID,
+    'arm64-android':    PACKAGES_ANDROID_64,
+    'js-web':           PACKAGES_EMSCRIPTEN,
+    'wasm-web':         PACKAGES_EMSCRIPTEN,
+    'wasm_pthread-web': PACKAGES_EMSCRIPTEN
 }
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
@@ -322,7 +323,7 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-EXTERNAL_LIBS = "box2d glfw bullet3d opus".split()
+EXTERNAL_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
 
 def get_host_platform():
     return sdk.get_host_platform()
@@ -335,10 +336,10 @@ def format_exes(name, platform):
     elif 'android' in platform:
         prefix = 'lib'
         suffix = ['.so']
-    elif 'js-web' in platform:
+    elif platform in ['js-web']:
         prefix = ''
         suffix = ['.js']
-    elif 'wasm-web' in platform:
+    elif platform in ['wasm-web', 'wasm_pthread-web']:
         prefix = ''
         suffix = ['.js', '.wasm']
     elif platform in ['arm64-nx64']:
@@ -526,7 +527,7 @@ class Configuration(object):
         return [sys.executable]
 
     def _create_common_dirs(self):
-        for p in ['ext/lib/python', 'share', 'lib/js-web/js', 'lib/wasm-web/js']:
+        for p in ['ext/lib/python', 'share', 'lib/js-web/js', 'lib/wasm-web/js', 'lib/wasm_pthread-web/js']:
             self._mkdirs(join(self.dynamo_home, p))
 
     def _mkdirs(self, path):
@@ -650,7 +651,7 @@ class Configuration(object):
         target_platform = self.target_platform
         other_platforms = set(PLATFORM_PACKAGES.keys()).difference(set(base_platforms), set([target_platform, self.host]))
 
-        if target_platform in ['js-web', 'wasm-web']:
+        if target_platform in ['js-web', 'wasm-web', 'wasm_pthread-web']:
             node_modules_dir = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR)
             for package in PACKAGES_NODE_MODULES:
                 path = join(self.defold_root, 'packages', package + '.tar.gz')
@@ -801,7 +802,7 @@ class Configuration(object):
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
-        if target_platform in ('js-web', 'wasm-web'):
+        if target_platform in ('js-web', 'wasm-web', 'wasm_pthread-web'):
             emsdk_folder = sdk.get_defold_emsdk()
             download_sdk(self,'%s/%s-%s.tar.gz' % (self.package_path, sdk.PACKAGES_EMSCRIPTEN_SDK, self.host), emsdk_folder)
 
@@ -1043,8 +1044,8 @@ class Configuration(object):
                     paths = _findjslibs(jsdir)
                     self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-            if platform in ['wasm-web']:
-                for subdir in ['lib/wasm-web/js/', 'ext/lib/wasm-web/js/']:
+            if platform in ['wasm-web', 'wasm_pthread-web']:
+                for subdir in [f'lib/{platform}/js/', f'ext/lib/{platform}/js/']:
                     jsdir = os.path.join(self.dynamo_home, subdir)
                     paths = _findjslibs(jsdir)
                     self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
@@ -1292,8 +1293,8 @@ class Configuration(object):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
         supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
-        supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'js-web']
-        supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'js-web']
+        supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'wasm_pthread-web', 'js-web']
+        supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web', 'js-web']
 
         return self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
 
@@ -1524,7 +1525,7 @@ class Configuration(object):
         # Add dmengine to 'artefacts' procedurally
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android']],
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
-                           'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web']],
+                           'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web'], ['wasm_pthread-web', 'wasm_pthread-web']],
                            'ios-bundling': [['arm64-ios', 'arm64-ios'], ['x86_64-ios', 'x86_64-ios']],
                            'osx-bundling': [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']],
                            'linux-bundling': [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']],

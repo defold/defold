@@ -251,10 +251,10 @@
                               (apply line! vertex-buffer 0 cursor-y width cursor-y colors/scene-grid-y-axis)))
                           ;; This is unfortunate but should not have any severe consequence
                           (catch BufferOverflowException _))
-                        (vtx/flip! vertex-buffer)
-                        {:vb vertex-buffer
-                         :tri-count tri-count
-                         :line-count (- (count vertex-buffer) tri-count)}))]
+                        (let [vertex-buffer (vtx/flip! vertex-buffer)]
+                          {:vb vertex-buffer
+                           :tri-count tri-count
+                           :line-count (- (count vertex-buffer) tri-count)})))]
       {pass/overlay [{:render-fn render-rulers
                       :batch-key nil
                       :user-data user-data}]})

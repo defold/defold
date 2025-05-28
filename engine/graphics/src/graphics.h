@@ -206,10 +206,10 @@ namespace dmGraphics
         , m_Width(0)
         , m_Height(0)
         , m_Depth(1)
-        , m_LayerCount(1)
         , m_OriginalWidth(0)
         , m_OriginalHeight(0)
         , m_OriginalDepth(1)
+        , m_LayerCount(1)
         , m_MipMapCount(1)
         , m_UsageHintBits(TEXTURE_USAGE_FLAG_SAMPLE)
         {}
@@ -218,10 +218,10 @@ namespace dmGraphics
         uint16_t    m_Width;
         uint16_t    m_Height;
         uint16_t    m_Depth;
-        uint16_t    m_LayerCount;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
         uint16_t    m_OriginalDepth;
+        uint8_t     m_LayerCount;
         uint8_t     m_MipMapCount;
         uint8_t     m_UsageHintBits;
     };
@@ -265,7 +265,7 @@ namespace dmGraphics
         uint16_t m_Width;
         uint16_t m_Height;
         uint16_t m_Depth;
-        uint16_t m_LayerCount; // For array texture, this is slice count
+        uint8_t  m_LayerCount; // For array texture, this is page count
         uint8_t  m_MipMap    : 7;
         uint8_t  m_SubUpdate : 1;
     };
@@ -654,7 +654,7 @@ namespace dmGraphics
 
     float            VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr);
     uint8_t*         WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type);
-    uint8_t*         WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, const WriteAttributeParams& params);
+    uint8_t*         WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, uint32_t vertex_count, const WriteAttributeParams& params);
 
     // Uniforms
     uint32_t         GetUniformCount(HProgram prog);
@@ -734,6 +734,7 @@ namespace dmGraphics
     TextureType GetTextureType(HTexture texture);
     uint8_t     GetNumTextureHandles(HTexture texture);
     uint32_t    GetTextureUsageHintFlags(HTexture texture);
+    uint8_t     GetTexturePageCount(HTexture texture);
 
     /**
      * Get status of texture.
@@ -845,6 +846,7 @@ namespace dmGraphics
         return type == TYPE_SAMPLER_2D ||
                type == TYPE_SAMPLER_2D_ARRAY ||
                type == TYPE_TEXTURE_2D ||
+               type == TYPE_TEXTURE_2D_ARRAY ||
                type == TYPE_IMAGE_2D ||
 
                type == TYPE_SAMPLER_3D ||

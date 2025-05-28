@@ -35,6 +35,7 @@ namespace dmLiveUpdate
  * @document
  * @name LiveUpdate
  * @namespace liveupdate
+ * @language Lua
  */
 
 /*# return a reference to the Manifest that is currently loaded

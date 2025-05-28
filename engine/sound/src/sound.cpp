@@ -180,6 +180,7 @@ namespace dmSound
     {
         dmhash_t m_NameHash;
         Value    m_Gain;
+        float    m_GainParameter;
         float*   m_MixBuffer[SOUND_MAX_MIX_CHANNELS];
         float    m_SumSquaredMemory[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
         float    m_PeakMemorySq[SOUND_MAX_MIX_CHANNELS * GROUP_MEMORY_BUFFER_COUNT];
@@ -216,12 +217,18 @@ namespace dmSound
         void*                   m_DecoderTempOutput;
         float*                  m_DecoderOutput[SOUND_MAX_DECODE_CHANNELS];
 
-        int16_t*                m_OutBuffers[SOUND_OUTBUFFER_COUNT];
+        void*                   m_OutBuffers[SOUND_OUTBUFFER_MAX_COUNT];
+        uint16_t                m_OutBufferCount;
         uint16_t                m_NextOutBuffer;
+        uint8_t                 m_UseFloatOutput : 1;
+        uint8_t                 m_NormalizeFloatOutput : 1;
+        uint8_t                 m_NonInterleavedOutput : 1;
+        uint8_t                 : 5;
 
         bool                    m_IsDeviceStarted;
         bool                    m_IsAudioInterrupted;
         bool                    m_HasWindowFocus;
+        bool                    m_UseLinearGain;
 
         float* GetDecoderBufferBase(uint8_t channel) const { assert(channel < SOUND_MAX_DECODE_CHANNELS); return (float*)((uintptr_t)m_DecoderOutput[channel] + SOUND_MAX_HISTORY * sizeof(float)); }
     };
@@ -258,7 +265,8 @@ namespace dmSound
         params->m_MaxInstances = 256;
         params->m_UseThread = true;
         params->m_DSPImplementation = DSPIMPL_TYPE_DEFAULT;
-    }
+        params->m_UseLinearGain = true;
+}
 
     Result RegisterDevice(struct DeviceType* device)
     {
@@ -281,6 +289,30 @@ namespace dmSound
         return RESULT_DEVICE_NOT_FOUND;
     }
 
+    static float GainToScale(float gain)
+    {
+        if (g_SoundSystem->m_UseLinearGain) {
+            return gain;
+        }
+
+        gain = dmMath::Clamp(gain, 0.0f, 1.0f);
+        // Convert "gain" to scale so progression over the range 'feels' linear
+        // (roughly 60dB(A) range assumed; rough approximation would be simply X^4 -- if this ever is too costly)
+        const float l = 0.1f;   // linear taper-off range
+        const float a = 1e-3f;
+        const float b = 6.908f;
+        float scale = a * expf(gain * b);
+        if (gain < l)
+            scale *= gain * (1.0f / l);
+        return dmMath::Min(scale, 1.0f);
+    }
+
+    Result GetScaleFromGain(float gain, float* scale)
+    {
+        *scale = GainToScale(gain);
+        return RESULT_OK;
+    }
+
     static int GetOrCreateGroup(const char* group_name)
     {
         dmhash_t group_hash = dmHashString64(group_name);
@@ -297,7 +329,8 @@ namespace dmSound
         uint32_t index = sound->m_GroupMap.Size();
         SoundGroup* group = &sound->m_Groups[index];
         group->m_NameHash = group_hash;
-        group->m_Gain.Reset(1.0f);
+        group->m_GainParameter = 1.0f;
+        group->m_Gain.Reset(GainToScale(group->m_GainParameter));
 
         for(uint32_t c=0; c<SOUND_MAX_MIX_CHANNELS; ++c)
         {
@@ -321,6 +354,7 @@ namespace dmSound
         uint32_t max_sources = params->m_MaxSources;
         uint32_t max_instances = params->m_MaxInstances;
         uint32_t sample_frame_count = params->m_FrameCount; // 0 means, use the defaults
+        bool use_linear_gain = params->m_UseLinearGain;
 
         if (config)
         {
@@ -329,13 +363,17 @@ namespace dmSound
             max_sources = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_sources", (int32_t) max_sources);
             max_instances = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_instances", (int32_t) max_instances);
             sample_frame_count = (uint32_t) dmConfigFile::GetInt(config, "sound.sample_frame_count", (int32_t) sample_frame_count);
+            use_linear_gain = dmConfigFile::GetInt(config, "sound.use_linear_gain", (int32_t) use_linear_gain) != 0;
         }
 
         HDevice device = 0;
         OpenDeviceParams device_params;
 
         // TODO: m_BufferCount configurable?
-        device_params.m_BufferCount = SOUND_OUTBUFFER_COUNT;
+        const uint16_t num_outbuffers = params->m_UseThread ? SOUND_OUTBUFFER_COUNT : SOUND_OUTBUFFER_COUNT_NO_THREADS;
+        assert(num_outbuffers <= SOUND_OUTBUFFER_MAX_COUNT);
+
+        device_params.m_BufferCount = num_outbuffers;
         device_params.m_FrameCount = sample_frame_count; // May be 0
         DeviceType* device_type;
         DeviceInfo device_info = {0};
@@ -360,6 +398,7 @@ namespace dmSound
         dmSoundCodec::NewCodecContextParams codec_params;
         codec_params.m_MaxDecoders = params->m_MaxInstances;
         sound->m_CodecContext = dmSoundCodec::New(&codec_params);
+        sound->m_UseLinearGain = use_linear_gain;
 
         // The device wanted to provide the count (e.g. Wasapi)
         if (device_info.m_FrameCount)
@@ -377,7 +416,6 @@ namespace dmSound
                 sound->m_DeviceFrameCount = GetDefaultFrameCount(device_info.m_MixRate);
             }
         }
-
 
         // note: this will be an NoOp if the build target has DM_SOUND_EXPECTED_SIMD defined (compile-time implementation selection)
         DSPImplType dsp_impl = params->m_DSPImplementation;
@@ -420,8 +458,12 @@ namespace dmSound
         }
         sound->m_DecoderTempOutput = malloc((sound->m_DeviceFrameCount * SOUND_MAX_SPEED + SOUND_MAX_HISTORY + SOUND_MAX_FUTURE) * sizeof(int16_t) * SOUND_MAX_DECODE_CHANNELS);
 
-        for (int i = 0; i < SOUND_OUTBUFFER_COUNT; ++i) {
-            sound->m_OutBuffers[i] = (int16_t*) malloc(sound->m_DeviceFrameCount * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
+        sound->m_UseFloatOutput = device_info.m_UseFloats;
+        sound->m_NormalizeFloatOutput = device_info.m_UseNormalized;
+        sound->m_NonInterleavedOutput = device_info.m_UseNonInterleaved;
+        sound->m_OutBufferCount = num_outbuffers;
+        for (int i = 0; i < num_outbuffers; ++i) {
+            sound->m_OutBuffers[i] = malloc(sound->m_DeviceFrameCount * (sound->m_UseFloatOutput ? sizeof(float) : sizeof(int16_t)) * SOUND_MAX_MIX_CHANNELS);
         }
         sound->m_NextOutBuffer = 0;
 
@@ -432,7 +474,8 @@ namespace dmSound
 
         int master_index = GetOrCreateGroup("master");
         SoundGroup* master = &sound->m_Groups[master_index];
-        master->m_Gain.Reset(master_gain);
+        master->m_GainParameter = master_gain;
+        master->m_Gain.Reset(GainToScale(master->m_GainParameter));
 
         dmAtomicStore32(&sound->m_IsRunning, 1);
         dmAtomicStore32(&sound->m_IsPaused, 0);
@@ -491,8 +534,8 @@ namespace dmSound
                 free(sound->m_DecoderOutput[i]);
             }
 
-            for (int i = 0; i < SOUND_OUTBUFFER_COUNT; ++i) {
-                free((void*) sound->m_OutBuffers[i]);
+            for (int i = 0; i < sound->m_OutBufferCount; ++i) {
+                free(sound->m_OutBuffers[i]);
             }
 
             for (uint32_t i = 0; i < MAX_GROUPS; i++) {
@@ -852,7 +895,8 @@ namespace dmSound
             }
         }
         SoundGroup* group = &sound->m_Groups[*index];
-        group->m_Gain.Set(gain, reset);
+        group->m_Gain.Set(GainToScale(gain), reset);
+        group->m_GainParameter = gain;
         return RESULT_OK;
     }
 
@@ -866,7 +910,7 @@ namespace dmSound
         }
 
         SoundGroup* group = &sound->m_Groups[*index];
-        *gain = group->m_Gain.m_Next;
+        *gain = group->m_GainParameter;
         return RESULT_OK;
     }
 
@@ -1034,7 +1078,7 @@ namespace dmSound
         {
             case PARAMETER_GAIN:
                 {
-                    sound_instance->m_Gain.Set(dmMath::Max(0.0f, value.getX()), reset);
+                    sound_instance->m_Gain.Set(GainToScale(value.getX()), reset);
                     // Trigger volume scale updates as soon as we know how many channels the instance has
                     // (we might not have that info initially)
                     sound_instance->m_ScaleDirty = 1;
@@ -1170,14 +1214,6 @@ namespace dmSound
             else {
                 assert(info->m_Channels == 2);
 
-#if defined(SOUND_USE_LEGACY_STEREO_PAN) && (SOUND_USE_LEGACY_STEREO_PAN != 0)
-                float rs, ls;
-                GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
-                instance->m_ScaleL[0].Set(ls * gain, reset);
-                instance->m_ScaleR[0].Set(0.0f, reset);
-                instance->m_ScaleL[1].Set(0.0f, reset);
-                instance->m_ScaleR[1].Set(rs * gain, reset);
-#else
                 float rs, ls;
                 GetPanScale(dmMath::Max(0.0f, instance->m_Pan.m_Current - 0.5f), &ls, &rs);
                 instance->m_ScaleL[0].Set(ls * gain, reset);
@@ -1185,44 +1221,6 @@ namespace dmSound
                 GetPanScale(dmMath::Min(instance->m_Pan.m_Current + 0.5f, 1.0f), &ls, &rs);
                 instance->m_ScaleL[1].Set(ls * gain, reset);
                 instance->m_ScaleR[1].Set(rs * gain, reset);
-#endif
-            }
-        }
-
-        // Make sure to update the mixing scale values...
-        if (instance->m_ScaleDirty != 0) {
-            instance->m_ScaleDirty = 0;
-
-            bool reset = (instance->m_ScaleInit != 0);
-            instance->m_ScaleInit = 0;
-
-            float gain = instance->m_Gain.m_Current;
-
-            if (info->m_Channels == 1) {
-                float rs, ls;
-                GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
-                instance->m_ScaleL[0].Set(ls * gain, reset);
-                instance->m_ScaleR[0].Set(rs * gain, reset);
-            }
-            else {
-                assert(info->m_Channels == 2);
-
-#if defined(SOUND_USE_LEGACY_STEREO_PAN) && (SOUND_USE_LEGACY_STEREO_PAN != 0)
-                float rs, ls;
-                GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
-                instance->m_ScaleL[0].Set(ls * gain, reset);
-                instance->m_ScaleR[0].Set(0.0f, reset);
-                instance->m_ScaleL[1].Set(0.0f, reset);
-                instance->m_ScaleR[1].Set(rs * gain, reset);
-#else
-                float rs, ls;
-                GetPanScale(dmMath::Max(0.0f, instance->m_Pan.m_Current - 0.5f), &ls, &rs);
-                instance->m_ScaleL[0].Set(ls * gain, reset);
-                instance->m_ScaleR[0].Set(rs * gain, reset);
-                GetPanScale(dmMath::Min(instance->m_Pan.m_Current + 0.5f, 1.0f), &ls, &rs);
-                instance->m_ScaleL[1].Set(ls * gain, reset);
-                instance->m_ScaleR[1].Set(rs * gain, reset);
-#endif
             }
         }
 
@@ -1312,6 +1310,10 @@ namespace dmSound
 
         // Compute how many input samples we will need to produce the requested output samples
         uint64_t delta = (uint64_t)(((float)(info.m_Rate << RESAMPLE_FRACTION_BITS) / sound->m_MixRate) * instance->m_Speed);
+        if (delta == 0) {
+            // very low speed settings can get the delta to be zero due to precision limits - we skip the mixing as resulting rates are also (alsmost) inaudibly low as a result
+            return;
+        }
         uint32_t mixed_instance_frame_count = (uint32_t)((instance->m_FrameFraction + mix_context->m_FrameCount * delta + ((1UL << RESAMPLE_FRACTION_BITS) - 1)) >> RESAMPLE_FRACTION_BITS) + SOUND_MAX_FUTURE;
 
         // Compute initial amount of samples in temp buffer once we restore per instance state prior to actual mixing
@@ -1552,15 +1554,18 @@ namespace dmSound
         DM_PROFILE(__FUNCTION__);
 
         SoundSystem* sound = g_SoundSystem;
+
+        uint32_t frame_size = 2 * (sound->m_UseFloatOutput ? sizeof(float) : sizeof(int16_t));
+
         uint32_t n = mix_context->m_FrameCount;
-        int16_t* out = sound->m_OutBuffers[sound->m_NextOutBuffer];
+        void* out = sound->m_OutBuffers[sound->m_NextOutBuffer];
         int* master_index = sound->m_GroupMap.Get(MASTER_GROUP_HASH);
         SoundGroup* master = &sound->m_Groups[*master_index];
         float* mix_buffer[2] = {master->m_MixBuffer[0], master->m_MixBuffer[1]};
 
         if (master->m_Gain.IsZero())
         {
-            memset(out, 0, n * sizeof(uint16_t) * 2);
+            memset(out, 0, n * frame_size);
             return;
         }
 
@@ -1585,7 +1590,18 @@ namespace dmSound
 
         float gain;
         float gaind = GetRampDelta(mix_context, &master->m_Gain, n, gain);
-        ApplyGainAndInterleaveToS16(out, mix_buffer, n, gain, gaind);
+        if (sound->m_UseFloatOutput == 0 && sound->m_NonInterleavedOutput == 0) {
+            ApplyGainAndInterleaveToS16((int16_t*)out, mix_buffer, n, gain, gaind);
+        }
+        else {
+            assert(sound->m_UseFloatOutput == 1 && sound->m_NonInterleavedOutput == 1);
+            if (sound->m_NormalizeFloatOutput) {
+                gain *= 1.0f / 32768.0f;
+                gaind *= 1.0f / 32768.0f;
+            }
+            float* ob[] = {(float*)out, (float*)out + n};
+            ApplyGain(ob, mix_buffer, n, gain, gaind);
+        }
     }
 
     static void StepGroupValues()
@@ -1671,7 +1687,7 @@ namespace dmSound
                 // still playing we will get the wrong result in isMusicPlaying on android if we release audio focus to soon
                 // since it detects our buffered sounds as "other application".
                 uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
-                if (free_slots == SOUND_OUTBUFFER_COUNT)
+                if (free_slots == sound->m_OutBufferCount)
                 {
                     sound->m_DeviceType->m_DeviceStop(sound->m_Device);
                     sound->m_IsDeviceStarted = false;
@@ -1723,10 +1739,10 @@ namespace dmSound
             // resulting in a huge performance hit. Also, you'll fast forward the sounds.
             {
                 DM_PROFILE("QueueBuffer");
-                sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
+                sound->m_DeviceType->m_Queue(sound->m_Device, sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
             }
 
-            sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
+            sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % sound->m_OutBufferCount;
             current_buffer++;
             free_slots--;
         }

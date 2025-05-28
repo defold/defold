@@ -92,6 +92,8 @@ namespace dmGameObject
     static bool InitCollection(Collection* collection);
     static bool FinalCollection(Collection* collection);
 
+    static dmScript::HContext g_ScriptContext;
+
     Prototype::~Prototype()
     {
         free(m_Components);
@@ -201,6 +203,7 @@ namespace dmGameObject
     void Initialize(HRegister regist, dmScript::HContext context)
     {
         InitializeScript(regist, context);
+        g_ScriptContext = context;
     }
 
     HRegister NewRegister()
@@ -1976,7 +1979,7 @@ namespace dmGameObject
         dmHashRelease64(&instance->m_CollectionPathHashState);
         if(instance->m_Generated)
         {
-            dmHashReverseErase64(instance->m_Identifier);
+            dmScript::ReleaseHash(dmScript::GetLuaState(g_ScriptContext), instance->m_Identifier);
         }
 
         if (instance->m_IdentifierIndex < collection->m_MaxInstances)

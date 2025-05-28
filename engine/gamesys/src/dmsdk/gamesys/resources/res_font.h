@@ -22,6 +22,17 @@
 
 namespace dmGameSystem
 {
+    /*# Font resource functions
+     *
+     * Font resource functions.
+     *
+     * @document
+     * @namespace dmGameSystem
+     * @name Font Resource
+     * @path engine/gamesys/src/dmsdk/gamesys/resource/res_font.h
+     * @language C++
+     */
+
     /*#
      * Handle to font resource
      * @struct
@@ -50,8 +61,10 @@ namespace dmGameSystem
      * If there's an associated image, it is of size width * height * channels.
      * @struct
      * @name FontGlyph
-     * @member m_Width [type: int16_t] The glyph image width
-     * @member m_Height [type: int16_t] The glyph image height
+     * @member m_Width [type: float] The glyph bounding width
+     * @member m_Height [type: float] The glyph bounding height
+     * @member m_ImageWidth [type: int16_t] The glyph image width
+     * @member m_ImageHeight [type: int16_t] The glyph image height
      * @member m_Channels [type: int16_t] The glyph image height
      * @member m_Advance [type: float] The advance step of the glyph (in pixels)
      * @member m_LeftBearing [type: float] The left bearing of the glyph (in pixels)
@@ -60,8 +73,10 @@ namespace dmGameSystem
      */
     struct FontGlyph
     {
-        int16_t m_Width;
-        int16_t m_Height;
+        float   m_Width;
+        float   m_Height;
+        int16_t m_ImageWidth;
+        int16_t m_ImageHeight;
         int16_t m_Channels;
         float   m_Advance;
         float   m_LeftBearing;
@@ -96,6 +111,26 @@ namespace dmGameSystem
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
     dmResource::Result ResFontGetInfo(FontResource* font, FontInfo* info);
+
+    /*#
+     * Set the font line height, by specifying the max ascent and descent
+     * @name ResFontSetLineHeight
+     * @param font [type: FontResource*] The font resource to modify
+     * @param max_ascent [type: float] The max distance above the base line of any glyph
+     * @param max_descent [type: float] The max distance below the base line of any glyph
+     * @return result [type: dmResource::Result] RESULT_OK if successful
+     */
+    dmResource::Result ResFontSetLineHeight(FontResource* font, float max_ascent, float max_descent);
+
+    /*#
+     * Get the font line height (max_ascent + max_descent)
+     * @name ResFontGetLineHeight
+     * @param font [type: FontResource*] The font resource to modify
+     * @param max_ascent [type: float*] The max distance above the base line of any glyph
+     * @param max_descent [type: float*] The max distance below the base line of any glyph
+     * @return result [type: dmResource::Result] RESULT_OK if successful
+     */
+    dmResource::Result ResFontGetLineHeight(FontResource* font, float* max_ascent, float* max_descent);
 
     /*#
      * Resets the glyph cache and sets the cell size.

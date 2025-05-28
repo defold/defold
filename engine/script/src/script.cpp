@@ -50,6 +50,7 @@ namespace dmScript
      * @document
      * @name Built-ins
      * @namespace builtins
+     * @language Lua
      */
 
     static const char INSTANCE_NAME[] = "__dm_script_instance__";
@@ -220,10 +221,6 @@ namespace dmScript
         lua_setmetatable(L, -2);     // setmetatable(weak_table, mt)
         // [-2] context_table
         // [-1] weak_table
-
-        // context_table["__weak"] = weak_table
-        lua_pushvalue(L, -1);        // duplicate weak_table for storing in context
-        lua_setfield(L, -3, "__weak");  // context_table["__weak"] = weak_table
 
         // Now store weak_table ref separately
         context->m_ContextWeakTableRef = Ref(L, LUA_REGISTRYINDEX);

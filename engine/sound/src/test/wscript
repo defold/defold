@@ -72,7 +72,10 @@ def build(bld):
             "drumloop.wav",
             "onefootstep.wav",
             "osc2_sin_440hz.wav",
-            "def2938.wav"]
+            "def2938.wav",
+            "music_adpcm.wav",
+            "mono_resample_framecount_16000_adpcm.wav",
+            "ambience_adpcm.wav"]
 
     for tone in [440, 2000]:
         for rate in [22050, 32000, 44000, 44100, 48000]:
@@ -133,7 +136,7 @@ def build(bld):
     soundlibs = ['SOUND', 'OPUS', 'decoder_wav', 'decoder_ogg', 'decoder_opus']
     exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderOpus"]
 
-    if bld.env.PLATFORM not in ['js-web', 'wasm-web', 'win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']:
+    if bld.env.PLATFORM not in ['js-web', 'wasm-web', 'wasm_pthread-web', 'win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']:
         exported_symbols.append("AudioDecoderTremolo")
         soundlibs.append('TREMOLO')
 

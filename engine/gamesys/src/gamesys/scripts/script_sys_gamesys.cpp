@@ -38,6 +38,7 @@ namespace dmGameSystem
      * @document
      * @name System
      * @namespace sys
+     * @language Lua
      */
 
     enum RequestStatus

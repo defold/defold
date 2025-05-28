@@ -27,6 +27,7 @@
  * @document
  * @name Graphics
  * @namespace dmGraphics
+ * @language C++
  */
 
 namespace dmGraphics

@@ -350,6 +350,38 @@ static inline void ApplyGainAndInterleaveToS16(int16_t* out, float* in[], uint32
     }
 }
 
+static inline void ApplyGain(float* out[], float* in[], uint32_t num, float scale, float scale_delta)
+{
+    // setup ramp
+    vec4 sc = wasm_f32x4_splat(scale);
+    vec4 scd = wasm_f32x4_splat(scale_delta);
+    sc = wasm_f32x4_splat(scale) + scd * wasm_f32x4_make(0.0f, 1.0f, 2.0f, 3.0f);
+    scd *= 4.0f;
+
+    vec4* vin_l = (vec4*)in[0];
+    vec4* vin_r = (vec4*)in[1];
+    vec4* vout_l = (vec4*)out[0];
+    vec4* vout_r = (vec4*)out[1];
+    for(; num>3; num-=4)
+    {
+        *(vout_l++) = *(vin_l++) * sc;
+        *(vout_r++) = *(vin_r++) * sc;
+        sc += scd;
+    }
+
+    float* in_l = (float*)vin_l;
+    float* in_r = (float*)vin_r;
+    float* out_l = (float*)vout_l;
+    float* out_r = (float*)vout_r;
+    scale = sc[0];
+    for(; num>0; --num)
+    {
+        *(out_l++) = *(in_l++) * scale;
+        *(out_r++) = *(in_r++) * scale;
+        scale += scale_delta;
+    }
+}
+
 static inline void GatherPowerData(float* in[], uint32_t num, float gain, float& sum_sq_left, float& sum_sq_right, float& max_sq_left, float& max_sq_right)
 {
     vec4* in_l = (vec4*)in[0];
@@ -432,7 +464,8 @@ static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
     }
     for(; num>0; --num)
     {
-        *(out++) = (float)*(in++);
+        int16_t s = *(in++);
+        *(out++) = (float)((s << 8) | (s & 0xff));
     }
 }
 
@@ -499,8 +532,10 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
     float* out_r = (float*)vout_r;
     for(; num>0; --num)
     {
-        *(out_l++) = (float)*(in++);
-        *(out_r++) = (float)*(in++);
+        int16_t sl = *(in++);
+        int16_t sr = *(in++);
+        *(out_l++) = (float)((sl << 8) | (sl & 0xff));
+        *(out_r++) = (float)((sr << 8) | (sr & 0xff));
     }
 }
 
@@ -846,6 +881,40 @@ static inline void ApplyGainAndInterleaveToS16(int16_t* out, float* in[], uint32
     }
 }
 
+static inline void ApplyGain(float* out[], float* in[], uint32_t num, float scale, float scale_delta)
+{
+    // setup ramp
+    vec4 sc = _mm_set1_ps(scale);
+    vec4 scd = _mm_set1_ps(scale_delta);
+    sc = _mm_add_ps(_mm_set1_ps(scale), _mm_mul_ps(scd, _mm_set_ps(3.0f, 2.0f, 1.0f, 0.0f)));
+    scd = _mm_mul_ps(scd, _mm_set1_ps(4.0f));
+
+    vec4* vin_l = (vec4*)in[0];
+    vec4* vin_r = (vec4*)in[1];
+    vec4* vout_l = (vec4*)out[0];
+    vec4* vout_r = (vec4*)out[1];
+    for(; num>3; num-=4)
+    {
+        *vout_l = _mm_mul_ps(*(vin_l++), sc);
+        ++vout_l;
+        *vout_r = _mm_mul_ps(*(vin_r++), sc);
+        ++vout_r;
+        sc = _mm_add_ps(sc, scd);
+    }
+
+    float* in_l = (float*)vin_l;
+    float* in_r = (float*)vin_r;
+    float* out_l = (float*)vout_l;
+    float* out_r = (float*)vout_r;
+    scale = _mm_cvtss_f32(sc);
+    for(; num>0; --num)
+    {
+        *(out_l++) = *(in_l++) * scale;
+        *(out_r++) = *(in_r++) * scale;
+        scale += scale_delta;
+    }
+}
+
 static inline void GatherPowerData(float* in[], uint32_t num, float gain, float& sum_sq_left, float& sum_sq_right, float& max_sq_left, float& max_sq_right)
 {
     vec4* in_l = (vec4*)in[0];
@@ -941,7 +1010,8 @@ static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
     in = (const int8_t*)vin;
     for(; num>0; --num)
     {
-        *(out++) = (float)*(in++);
+        int16_t s = *(in++);
+        *(out++) = (float)((s << 8) | (s & 0xff));
     }
 }
 
@@ -1030,8 +1100,10 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
     in = (const int8_t*)vin;
     for(; num>0; --num)
     {
-        *(out_l++) = (float)*(in++);
-        *(out_r++) = (float)*(in++);
+        int16_t sl = *(in++);
+        int16_t sr = *(in++);
+        *(out_l++) = (float)((sl << 8) | (sl & 0xff));
+        *(out_r++) = (float)((sr << 8) | (sr & 0xff));
     }
 }
 
@@ -1174,6 +1246,22 @@ static inline void ApplyGainAndInterleaveToS16(int16_t* out, float* in[], uint32
     }
 }
 
+static inline void ApplyGain(float* out[], float* in[], uint32_t num, float scale, float scale_delta)
+{
+    float* in_l = in[0];
+    float* in_r = in[1];
+    float* out_l = out[0];
+    float* out_r = out[1];
+    for(; num>0; --num)
+    {
+        float sl = *(in_l++);
+        float sr = *(in_r++);
+        *(out_l++) = sl * scale;
+        *(out_r++) = sr * scale;
+        scale += scale_delta;
+    }
+}
+
 static inline void GatherPowerData(float* in[], uint32_t num, float gain, float& sum_sq_left, float& sum_sq_right, float& max_sq_left, float& max_sq_right)
 {
     sum_sq_left = 0;
@@ -1204,7 +1292,8 @@ static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
 {
     for(; num>0; --num)
     {
-        *(out++) = (float)*(in++);
+        int16_t s = *(in++);
+        *(out++) = (float)((s << 8) | (s & 0xff));
     }
 }
 
@@ -1236,8 +1325,10 @@ static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t n
     float* out_r = out[1];
     for(; num>0; --num)
     {
-        *(out_l++) = (float)*(in++);
-        *(out_r++) = (float)*(in++);
+        int16_t sl = *(in++);
+        int16_t sr = *(in++);
+        *(out_l++) = (float)((sl << 8) | (sl & 0xff));
+        *(out_r++) = (float)((sr << 8) | (sr & 0xff));
     }
 }
 
@@ -1302,6 +1393,11 @@ static inline void ApplyGainAndInterleaveToS16(int16_t* out, float* in[], uint32
     SoundImpl::ApplyGainAndInterleaveToS16(out, in, num, scale, scale_delta);
 }
 
+static inline void ApplyGain(float* out[], float* in[], uint32_t num, float scale, float scale_delta)
+{
+    SoundImpl::ApplyGain(out, in, num, scale, scale_delta);
+}
+
 static inline void GatherPowerData(float* in[], uint32_t num, float gain, float& sum_sq_left, float& sum_sq_right, float& max_sq_left, float& max_sq_right)
 {
     SoundImpl::GatherPowerData(in, num, gain, sum_sq_left, sum_sq_right, max_sq_left, max_sq_right);
@@ -1347,6 +1443,7 @@ struct DSPImpl {
      uint64_t (*MixAndResampleStereoToStereo_Polyphase)(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta, float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0, float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1);
      void (*ApplyClampedGain)(float* out[], float* in[], uint32_t num, float scale, float scale_delta);
      void (*ApplyGainAndInterleaveToS16)(int16_t* out, float* in[], uint32_t num, float scale, float scale_delta);
+     void (*ApplyGain)(float* out[], float* in[], uint32_t num, float scale, float scale_delta);
      void (*GatherPowerData)(float* in[], uint32_t num, float gain, float& sum_sq_left, float& sum_sq_right, float& max_sq_left, float& max_sq_right);
      void (*ConvertFromS16)(float* out, const int16_t* in, uint32_t num);
      void (*ConvertFromS8)(float* out, const int8_t* in, uint32_t num);
@@ -1364,6 +1461,7 @@ static DSPImpl wasm_impl =
     WASM::MixAndResampleStereoToStereo_Polyphase,
     WASM::ApplyClampedGain,
     WASM::ApplyGainAndInterleaveToS16,
+    WASM::ApplyGain,
     WASM::GatherPowerData,
     WASM::ConvertFromS16,
     WASM::ConvertFromS8,
@@ -1382,6 +1480,7 @@ static DSPImpl sse_impl =
     SSE::MixAndResampleStereoToStereo_Polyphase,
     SSE::ApplyClampedGain,
     SSE::ApplyGainAndInterleaveToS16,
+    SSE::ApplyGain,
     SSE::GatherPowerData,
     SSE::ConvertFromS16,
     SSE::ConvertFromS8,
@@ -1399,6 +1498,7 @@ static DSPImpl fallback_impl =
     Fallback::MixAndResampleStereoToStereo_Polyphase,
     Fallback::ApplyClampedGain,
     Fallback::ApplyGainAndInterleaveToS16,
+    Fallback::ApplyGain,
     Fallback::GatherPowerData,
     Fallback::ConvertFromS16,
     Fallback::ConvertFromS8,
@@ -1470,6 +1570,11 @@ static inline void ApplyClampedGain(float* out[], float* in[], uint32_t num, flo
 static inline void ApplyGainAndInterleaveToS16(int16_t* out, float* in[], uint32_t num, float scale, float scale_delta)
 {
     g_DSPImpl->ApplyGainAndInterleaveToS16(out, in, num, scale, scale_delta);
+}
+
+static inline void ApplyGain(float* out[], float* in[], uint32_t num, float scale, float scale_delta)
+{
+    g_DSPImpl->ApplyGain(out, in, num, scale, scale_delta);
 }
 
 static inline void GatherPowerData(float* in[], uint32_t num, float gain, float& sum_sq_left, float& sum_sq_right, float& max_sq_left, float& max_sq_right)
