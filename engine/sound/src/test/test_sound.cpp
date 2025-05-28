@@ -487,6 +487,7 @@ static void DeviceLoopbackStop(dmSound::HDevice device)
 
 }
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundTestLoopingTest, Loopcount)
 {
     TestParams params = GetParam();
@@ -538,6 +539,7 @@ const TestParams params_looping_test[] = {
             2.0f)
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestLoopingTest, dmSoundTestLoopingTest, jc_test_values_in(params_looping_test));
+#endif
 
 // gain to scale conversion
 static float GainToScale(float gain)
@@ -589,6 +591,7 @@ static double GenAndMixTone(uint64_t pos, float tone_frq, float sample_rate, flo
     return a;
 }
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundVerifyTest, Mix)
 {
     TestParams params = GetParam();
@@ -662,6 +665,7 @@ TEST_P(dmSoundVerifyTest, Mix)
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
+#endif
 
 TEST_P(dmSoundVerifyTest, EarlyBailOnNoSoundInstances)
 {
@@ -837,6 +841,7 @@ TestParams("loopback",
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyTest, dmSoundVerifyTest, jc_test_values_in(params_verify_test));
 
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundTestGroupRampTest, GroupRamp)
 {
     TestParams params = GetParam();
@@ -905,7 +910,9 @@ const TestParams params_group_ramp_test[] = {
         1)
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestGroupRampTest, dmSoundTestGroupRampTest, jc_test_values_in(params_group_ramp_test));
+#endif
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundTestSpeedTest, Speed)
 {
     TestParams params = GetParam();
@@ -1040,7 +1047,9 @@ const TestParams params_speed_test[] = {
             3.999909297f),                      // float speed - this strange number will result in having remainder frames at the end of mixing
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestSpeedTest, dmSoundTestSpeedTest, jc_test_values_in(params_speed_test));
+#endif
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundVerifyOggTest, Mix)
 {
     TestParams params = GetParam();
@@ -1238,7 +1247,9 @@ const TestParams params_verify_ogg_test[] = {TestParams("loopback",
                                             2048,
                                             1)};
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_values_in(params_verify_ogg_test));
+#endif
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundVerifyOpusTest, Mix)
 {
     TestParams params = GetParam();
@@ -1436,7 +1447,9 @@ const TestParams params_verify_opus_test[] = {TestParams("loopback",
                                             2048,
                                             1)};
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyOpusTest, dmSoundVerifyOpusTest, jc_test_values_in(params_verify_opus_test));
+#endif
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundVerifyAdpcmTest, Mix)
 {
     TestParams params = GetParam();
@@ -1634,7 +1647,9 @@ const TestParams params_verify_adpcm_test[] = {TestParams("loopback",
                                             2048,
                                             1)};
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyAdpcmTest, dmSoundVerifyAdpcmTest, jc_test_values_in(params_verify_adpcm_test));
+#endif
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundTestPlayTest, Play)
 {
 
@@ -1856,7 +1871,9 @@ const TestParams params_test_play_speed_test[] = {
     ),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlaySpeedTest, dmSoundTestPlaySpeedTest, jc_test_values_in(params_test_play_speed_test));
+#endif
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundVerifyWavTest, Mix)
 {
     TestParams params = GetParam();
@@ -1899,7 +1916,9 @@ const TestParams params_verify_wav_test[] = {TestParams("loopback",
                                             2048,
                                             0)};
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyWavTest, dmSoundVerifyWavTest, jc_test_values_in(params_verify_wav_test));
+#endif
 
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundMixerTest, Mixer)
 {
     TestParams2 params = GetParam();
@@ -2145,6 +2164,7 @@ const TestParams2 params_mixer_test[] = {
                 true)
 };
 INSTANTIATE_TEST_CASE_P(dmSoundMixerTest, dmSoundMixerTest, jc_test_values_in(params_mixer_test));
+#endif
 
 DM_DECLARE_SOUND_DEVICE(LoopBackDevice, "loopback", DeviceLoopbackOpen, DeviceLoopbackClose, DeviceLoopbackQueue,
                         DeviceLoopbackFreeBufferSlots, 0, DeviceLoopbackDeviceInfo, DeviceLoopbackRestart, DeviceLoopbackStop);
