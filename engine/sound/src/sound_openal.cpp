@@ -42,10 +42,6 @@
 #include <AL/alc.h>
 #endif
 
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#endif
-
 #define STRINGIZE_DETAIL(x) #x
 #define STRINGIZE(x) STRINGIZE_DETAIL(x)
 #define checkForAlErrors(...)\
@@ -419,7 +415,7 @@ namespace dmSound
         return r;
     }
 
-    #ifdef __EMSCRIPTEN__
+    #if SOUND_WASM_SUPPORT_THREADS
     static Result UpdateInternal(SoundSystem* sound);
 
     static void SoundThreadEmscriptenCallback(void *ctx)
@@ -512,7 +508,7 @@ namespace dmSound
         sound->m_CondVar = 0;
         sound->m_Thread = 0;
 
-#ifdef __EMSCRIPTEN__
+#if SOUND_WASM_SUPPORT_THREADS
         if (params->m_UseThread) {
             dmLogInfo("sound updates on worker thread");
 

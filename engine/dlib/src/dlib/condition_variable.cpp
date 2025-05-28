@@ -131,12 +131,18 @@ namespace dmConditionVariable
     {
         // dmLog uses dmMessage, which in turn uses dmConditionVariable (Wait & Signal).
         // We cannot place assertions here.
+    #if !defined(DM_NO_THREAD_SUPPORT)
         pthread_cond_wait(&condition->m_NativeHandle, &mutex->m_NativeHandle);
+    #endif
     }
 
     void Signal(HConditionVariable condition)
     {
-        pthread_cond_signal(&condition->m_NativeHandle);
+        assert(condition);
+    #if !defined(DM_NO_THREAD_SUPPORT)
+        int ret = pthread_cond_signal(&condition->m_NativeHandle);
+        assert(ret == 0);
+    #endif
     }
 
     void Broadcast(HConditionVariable condition)
