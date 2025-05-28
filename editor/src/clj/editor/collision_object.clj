@@ -16,11 +16,9 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.attachment :as attachment]
             [editor.build-target :as bt]
             [editor.collision-groups :as collision-groups]
             [editor.defold-project :as project]
-            [editor.editor-extensions.node-types :as node-types]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
             [editor.gl.vertex2 :as vtx]
@@ -255,7 +253,6 @@
   (inherits Shape)
 
   (property diameter g/Num ; Always assigned in load-fn.
-            (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? diameter)))
 
   (display-order [Shape :diameter])
@@ -282,7 +279,6 @@
   (inherits Shape)
 
   (property dimensions types/Vec3 ; Always assigned in load-fn.
-            (default [0.0 0.0 0.0]) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic error (validation/prop-error-fnk :fatal
                                                       (fn [d _] (when (some #(<= % 0.0) d)
                                                                   "All dimensions must be greater than zero"))
@@ -309,10 +305,8 @@
   (inherits Shape)
 
   (property diameter g/Num ; Always assigned in load-fn.
-            (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? diameter)))
   (property height g/Num ; Always assigned in load-fn.
-            (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? height)))
 
   (display-order [Shape :diameter :height])
@@ -336,27 +330,18 @@
   [node-id]
   [:scale-x :scale-y :scale-xy])
 
-(defn- resolve-shape-node-outline-key [evaluation-context parent-node shape-node]
-  (let [type-label (:label (shape-type-ui (g/node-value shape-node :shape-type evaluation-context)))
-        taken-keys (outline/taken-node-outline-keys parent-node evaluation-context)]
-    (g/update-property shape-node :node-outline-key (fnil outline/next-node-outline-key type-label) taken-keys)))
-
 (defn attach-shape-node
-  ([parent shape-node]
-   (attach-shape-node true parent shape-node))
-  ([resolve-node-outline-key? parent shape-node]
-   (concat
-     (when resolve-node-outline-key?
-       ;; resolve the node outline key before connecting the shape node so taken
-       ;; node outline keys don't include the shape node key
-       (g/expand-ec resolve-shape-node-outline-key parent shape-node))
-     (g/connect shape-node :_node-id              parent     :nodes)
-     (g/connect shape-node :node-outline          parent     :child-outlines)
-     (g/connect shape-node :scene                 parent     :child-scenes)
-     (g/connect shape-node :shape                 parent     :shapes)
-     (g/connect parent     :id-counts             shape-node :id-counts)
-     (g/connect parent     :collision-group-color shape-node :color)
-     (g/connect parent     :project-physics-type  shape-node :project-physics-type))))
+  [resolve-node-outline-key? parent shape-node]
+  (concat
+    (g/connect shape-node :_node-id              parent     :nodes)
+    (g/connect shape-node :node-outline          parent     :child-outlines)
+    (g/connect shape-node :scene                 parent     :child-scenes)
+    (g/connect shape-node :shape                 parent     :shapes)
+    (g/connect parent     :id-counts             shape-node :id-counts)
+    (g/connect parent     :collision-group-color shape-node :color)
+    (g/connect parent     :project-physics-type  shape-node :project-physics-type)
+    (when resolve-node-outline-key?
+      (g/update-property shape-node :node-outline-key outline/next-node-outline-key (outline/taken-node-outline-keys parent)))))
 
 (defmulti decode-shape-data
   (fn [shape data] (:shape-type shape)))
@@ -667,23 +652,13 @@
                                                       :icon collision-object-icon
                                                       :children (outline/natural-sort child-outlines)
                                                       :child-reqs [{:node-type Shape
-                                                                    :tx-attach-fn attach-shape-node}]}))
+                                                                    :tx-attach-fn (partial attach-shape-node true)}]}))
 
   (output id-counts NameCounts :cached (g/fnk [shapes] (frequencies (keep :id shapes))))
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
   (output collision-group-node g/Any :cached (g/fnk [_node-id group] {:node-id _node-id :collision-group group}))
   (output collision-group-color g/Any :cached produce-collision-group-color))
-
-(attachment/register!
-  CollisionObjectNode :shapes
-  :add {SphereShape attach-shape-node
-        BoxShape attach-shape-node
-        CapsuleShape attach-shape-node}
-  :get attachment/nodes-getter)
-(node-types/register-node-type-name! SphereShape "shape-type-sphere")
-(node-types/register-node-type-name! BoxShape "shape-type-box")
-(node-types/register-node-type-name! CapsuleShape "shape-type-capsule")
 
 (defn- sanitize-collision-object [collision-object-desc]
   (strip-empty-embedded-collision-shape collision-object-desc))

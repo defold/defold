@@ -950,7 +950,7 @@
 
 (attachment/register!
   EmitterNode :modifiers
-  :add {ModifierNode attach-modifier}
+  :add {:node-type ModifierNode :tx-attach-fn attach-modifier}
   :get attachment/nodes-getter)
 
 (defn- build-pb [resource dep-resources user-data]
@@ -1088,12 +1088,12 @@
 
 (attachment/register!
   ParticleFXNode :emitters
-  :add {EmitterNode attach-emitter}
+  :add {:node-type EmitterNode :tx-attach-fn attach-emitter}
   :get (attachment/nodes-by-type-getter EmitterNode))
 
 (attachment/register!
   ParticleFXNode :modifiers
-  :add {ModifierNode attach-modifier}
+  :add {:node-type ModifierNode :tx-attach-fn attach-modifier}
   :get (attachment/nodes-by-type-getter ModifierNode))
 
 (defn- make-modifier

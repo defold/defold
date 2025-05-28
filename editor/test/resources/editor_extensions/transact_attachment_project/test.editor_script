@@ -87,26 +87,6 @@ local function print_particlefx_contents(particlefx)
     end
 end
 
-local function print_collision_object(collision)
-    local shapes = editor.get(collision, "shapes")
-    print(("  shapes: %s"):format(#shapes))
-    for i = 1, #shapes do
-        local shape = shapes[i]
-        print(("  - id: %s"):format(editor.get(shape, "id")))
-        local type = editor.get(shape, "type")
-        print(("    type: %s"):format(type))
-        if type == "shape-type-sphere" then
-            print(("    diameter: %s"):format(editor.get(shape, "diameter")))
-        elseif type == "shape-type-box" then
-            local x,y,z = table.unpack(editor.get(shape, "dimensions"))
-            print(("    dimensions: %s %s %s"):format(x, y, z))
-        elseif type == "shape-type-capsule" then
-            print(("    diameter: %s"):format(editor.get(shape, "diameter")))
-            print(("    height: %s"):format(editor.get(shape, "height")))
-        end
-    end
-end
-
 function M.get_commands()
     return {
         editor.command({
@@ -259,41 +239,6 @@ function M.get_commands()
 
                 print("After transaction (clear):")
                 print_particlefx_contents(pfx)
-
-                local collision = "/test.collisionobject"
-                
-                print("Collision object initial state:")
-                print_collision_object(collision)
-
-                print("Transaction: add 3 shapes")
-                editor.transact({
-                    editor.tx.add(collision, "shapes", {
-                        id = "box",
-                        type = "shape-type-box"
-                    }),
-                    editor.tx.add(collision, "shapes", {
-                        id = "sphere",
-                        type = "shape-type-sphere"
-                    }),
-                    editor.tx.add(collision, "shapes", {
-                        id = "capsule",
-                        type = "shape-type-capsule"
-                    })
-                })
-
-                print("After transaction (add 3 shapes):")
-                print_collision_object(collision)
-
-                print("Transaction: clear")
-                editor.transact({editor.tx.clear(collision, "shapes")})
-
-                print("After transaction (clear):")
-                print_collision_object(collision)
-
-                print("Expected errors:")
-                expect_error("missing type", editor.tx.add, collision, "shapes", {})
-                expect_error("wrong type", editor.tx.add, collision, "shapes", {type = "box"})
-                
             end
         })
     }

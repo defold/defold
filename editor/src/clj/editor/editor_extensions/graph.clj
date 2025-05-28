@@ -22,7 +22,6 @@
             [editor.defold-project :as project]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.runtime :as rt]
-            [editor.editor-extensions.node-types :as node-types]
             [editor.editor-extensions.tile-map :as tile-map]
             [editor.game-project :as game-project]
             [editor.id :as id]
@@ -259,10 +258,6 @@
                               edit-type-id->value-converter
                               :to)]
               #(some-> (properties/value outline-property) to)))
-          (case property
-            "type" (when-let [type-name (node-types/->name (g/node-type* (:basis evaluation-context) node-id))]
-                     (constantly type-name))
-            nil)
           (let [node-type (g/node-type* (:basis evaluation-context) node-id)
                 list-kw (property->prop-kw property)]
             (when (attachment/defines? node-type list-kw)
@@ -352,54 +347,36 @@
 
 ;; region attach
 
-(defn- attachment->set-tx-steps [attachment child-node-id rt project evaluation-context]
-  (coll/mapcat
-    (fn [[property lua-value]]
-      (if-let [setter (ext-lua-value-setter child-node-id property rt project evaluation-context)]
-        (setter lua-value)
-        (throw (LuaError. (format "Can't set property \"%s\" of %s"
-                                  property
-                                  (name (node-id->type-keyword child-node-id evaluation-context)))))))
-    attachment))
+(defmulti init-attachment (fn init-attachment-dispatch-fn [node-type _attachment _parent-node-id _project _evaluation-context]
+                            (:k node-type)))
 
-(defmulti init-attachment
-  (fn init-attachment-dispatch-fn [_evaluation-context _rt _project _parent-node-id child-node-type _child-node-id _attachment]
-    (:k child-node-type)))
-
-(defmethod init-attachment :default [evaluation-context rt project _ _ child-node-id attachment]
-  (attachment->set-tx-steps attachment child-node-id rt project evaluation-context))
+(defmethod init-attachment :default [_ attachment _ _ _] attachment)
 
 (def ^:private default-new-animation-name-lua-value (rt/->lua "New Animation"))
-(defmethod init-attachment :editor.atlas/AtlasAnimation [evaluation-context rt project _ _ child-node-id attachment]
-  (-> attachment
-      (util/provide-defaults
-        "id" default-new-animation-name-lua-value)
-      (attachment->set-tx-steps child-node-id rt project evaluation-context)))
+(defmethod init-attachment :editor.atlas/AtlasAnimation [_ attachment _ _ _]
+  (util/provide-defaults attachment "id" default-new-animation-name-lua-value))
 
 (def ^:private default-start-tile-lua-value (rt/->lua 1))
 (def ^:private default-end-tile-lua-value (rt/->lua 1))
-(defmethod init-attachment :editor.tile-source/TileAnimationNode [evaluation-context rt project _ _ child-node-id attachment]
-  (-> attachment
-      (util/provide-defaults
-        "id" default-new-animation-name-lua-value
-        "start_tile" default-start-tile-lua-value
-        "end_tile" default-end-tile-lua-value)
-      (attachment->set-tx-steps child-node-id rt project evaluation-context)))
+(defmethod init-attachment :editor.tile-source/TileAnimationNode [_ attachment _ _ _]
+  (util/provide-defaults
+    attachment
+    "id" default-new-animation-name-lua-value
+    "start_tile" default-start-tile-lua-value
+    "end_tile" default-end-tile-lua-value))
 
-(defmethod init-attachment :editor.tile-source/CollisionGroupNode [evaluation-context rt project _ _ child-node-id attachment]
-  (-> attachment
-      (util/provide-defaults
-        "id" (rt/->lua
-               (id/gen "collision_group"
-                       (collision-groups/collision-groups
-                         (g/node-value project :collision-groups-data evaluation-context)))))
-      (attachment->set-tx-steps child-node-id rt project evaluation-context)))
+(defmethod init-attachment :editor.tile-source/CollisionGroupNode [_ attachment _ project evaluation-context]
+  (util/provide-defaults
+    attachment
+    "id" (rt/->lua
+           (id/gen "collision_group"
+                   (collision-groups/collision-groups
+                     (g/node-value project :collision-groups-data evaluation-context))))))
 
-(defmethod init-attachment :editor.tile-map/LayerNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
-  (-> attachment
-      (util/provide-defaults
-        "id" (rt/->lua (id/gen "layer" (g/node-value parent-node-id :layer-ids evaluation-context))))
-      (attachment->set-tx-steps child-node-id rt project evaluation-context)))
+(defmethod init-attachment :editor.tile-map/LayerNode [_ attachment tilemap-node-id _project evaluation-context]
+  (util/provide-defaults
+    attachment
+    "id" (rt/->lua (id/gen "layer" (g/node-value tilemap-node-id :layer-ids evaluation-context)))))
 
 (def ^:private default-emitter-mode (rt/->lua :play-mode-loop))
 (def ^:private default-emitter-space (rt/->lua :emission-space-world))
@@ -411,103 +388,68 @@
 (def ^:private default-emitter-curve-1 (rt/->lua {:points [{:x 0 :y 1 :tx 1 :ty 0}]}))
 (def ^:private default-emitter-curve-10 (rt/->lua {:points [{:x 0 :y 10 :tx 1 :ty 0}]}))
 
-(defmethod init-attachment :editor.particlefx/EmitterNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
-  (-> attachment
-      (util/provide-defaults
-        "id" (rt/->lua (id/gen "emitter" (g/node-value parent-node-id :ids evaluation-context)))
-        "mode" default-emitter-mode
-        "space" default-emitter-space
-        "type" default-emitter-type
-        "max_particle_count" default-emitter-max-particle-count
-        "material" default-emitter-material
-        "tile_source" default-emitter-tile-source
-        "animation" default-emitter-animation
+(defmethod init-attachment :editor.particlefx/EmitterNode [_ attachment parent-node-id _project evaluation-context]
+  (util/provide-defaults
+    attachment
+    "id" (rt/->lua (id/gen "emitter" (g/node-value parent-node-id :ids evaluation-context)))
+    "mode" default-emitter-mode
+    "space" default-emitter-space
+    "type" default-emitter-type
+    "max_particle_count" default-emitter-max-particle-count
+    "material" default-emitter-material
+    "tile_source" default-emitter-tile-source
+    "animation" default-emitter-animation
 
-        "emitter_key_particle_red" default-emitter-curve-1
-        "emitter_key_particle_green" default-emitter-curve-1
-        "emitter_key_particle_blue" default-emitter-curve-1
-        "emitter_key_particle_alpha" default-emitter-curve-1
+    "emitter_key_particle_red" default-emitter-curve-1
+    "emitter_key_particle_green" default-emitter-curve-1
+    "emitter_key_particle_blue" default-emitter-curve-1
+    "emitter_key_particle_alpha" default-emitter-curve-1
 
-        "emitter_key_particle_life_time" default-emitter-curve-1
-        "emitter_key_particle_size" default-emitter-curve-1
-        "emitter_key_particle_speed" default-emitter-curve-1
-        "emitter_key_spawn_rate" default-emitter-curve-10
+    "emitter_key_particle_life_time" default-emitter-curve-1
+    "emitter_key_particle_size" default-emitter-curve-1
+    "emitter_key_particle_speed" default-emitter-curve-1
+    "emitter_key_spawn_rate" default-emitter-curve-10
 
-        "particle_key_red" default-emitter-curve-1
-        "particle_key_green" default-emitter-curve-1
-        "particle_key_blue" default-emitter-curve-1
-        "particle_key_alpha" default-emitter-curve-1
+    "particle_key_red" default-emitter-curve-1
+    "particle_key_green" default-emitter-curve-1
+    "particle_key_blue" default-emitter-curve-1
+    "particle_key_alpha" default-emitter-curve-1
 
-        "particle_key_scale" default-emitter-curve-1)
-      (attachment->set-tx-steps child-node-id rt project evaluation-context)))
+    "particle_key_scale" default-emitter-curve-1))
 
 (def ^:private default-modifier-type (rt/->lua :modifier-type-acceleration))
-(defmethod init-attachment :editor.particlefx/ModifierNode [evaluation-context rt project _ _ child-node-id attachment]
-  (-> attachment
-      (util/provide-defaults
-        "type" default-modifier-type)
-      (attachment->set-tx-steps child-node-id rt project evaluation-context)))
+(defmethod init-attachment :editor.particlefx/ModifierNode [_ attachment _parent-node-id _project _evaluation-context]
+  (util/provide-defaults
+    attachment
+    "type" default-modifier-type))
 
-(def ^:private default-sphere-diameter (rt/->lua 20.0))
-(defmethod init-attachment :editor.collision-object/SphereShape [evaluation-context rt project _ _ child-node-id attachment]
-  (concat
-    (g/set-property child-node-id :shape-type :type-sphere)
-    (-> attachment
-        (util/provide-defaults
-          "diameter" default-sphere-diameter)
-        (attachment->set-tx-steps child-node-id rt project evaluation-context))))
-
-(def ^:private default-box-dimensions (rt/->lua [20.0 20.0 20.0]))
-(defmethod init-attachment :editor.collision-object/BoxShape [evaluation-context rt project _ _ child-node-id attachment]
-  (concat
-    (g/set-property child-node-id :shape-type :type-box)
-    (-> attachment
-        (util/provide-defaults
-          "dimensions" default-box-dimensions)
-        (attachment->set-tx-steps child-node-id rt project evaluation-context))))
-
-(def ^:private default-capsule-diameter (rt/->lua 20.0))
-(def ^:private default-capsule-height (rt/->lua 40.0))
-(defmethod init-attachment :editor.collision-object/CapsuleShape [evaluation-context rt project _ _ child-node-id attachment]
-  (concat
-    (g/set-property child-node-id :shape-type :type-capsule)
-    (-> attachment
-        (util/provide-defaults
-          "diameter" default-capsule-diameter
-          "height" default-capsule-height)
-        (attachment->set-tx-steps child-node-id rt project evaluation-context))))
+(defn- init-txs [evaluation-context rt project parent-node-id child-node-type child-node-id attachment]
+  (mapcat
+    (fn [[property lua-value]]
+      (if-let [setter (ext-lua-value-setter child-node-id property rt project evaluation-context)]
+        (setter lua-value)
+        (throw (LuaError. (format "Can't set property \"%s\" of %s"
+                                  property
+                                  (name (node-id->type-keyword child-node-id evaluation-context)))))))
+    (init-attachment child-node-type attachment parent-node-id project evaluation-context)))
 
 (def ^:private attachment-coercer (coerce/map-of coerce/string coerce/untouched))
 (def ^:private attachments-coercer (coerce/vector-of attachment-coercer))
 
-(defn- extract-node-type [rt attachment possible-node-types]
-  (if-let [lua-type (attachment "type")]
-    (let [name (rt/->clj rt coerce/string lua-type)
-          node-type (node-types/->type name)]
-      (if (and node-type (contains? possible-node-types node-type))
-        node-type
-        (throw (LuaError. (str name " is not " (->> possible-node-types keys (keep node-types/->name) sort (util/join-words ", " " or ")))))))
-    (throw (LuaError. "type is required"))))
-
-(defn- parse-attachment [rt possible-node-types attachment]
-  (let [requires-explicit-type (< 1 (count possible-node-types))
-        node-type (if requires-explicit-type
-                    (extract-node-type rt attachment possible-node-types)
-                    (reduce-kv (fn [_ k _] (reduced k)) nil possible-node-types))
-        tree {:init {} :add [] :node-type node-type}
-        attachment (cond-> attachment requires-explicit-type (dissoc "type"))]
-    (reduce-kv
-      (fn [acc property lua-value]
-        (let [list-kw (property->prop-kw property)]
-          (if (attachment/defines? node-type list-kw)
-            (let [child-node-types (attachment/child-node-types node-type list-kw)]
-              (update acc :add
-                      into
-                      (map #(coll/pair list-kw (parse-attachment rt child-node-types %)))
-                      (rt/->clj rt attachments-coercer lua-value)))
-            (update acc :init assoc property lua-value))))
-      tree
-      attachment)))
+(defn- parse-attachment [rt node-type attachment]
+  (reduce-kv
+    (fn [acc property lua-value]
+      (let [list-kw (property->prop-kw property)]
+        (if (attachment/defines? node-type list-kw)
+          (let [child-node-type (attachment/child-node-type node-type list-kw)]
+            (update acc :add
+                    into
+                    (map #(coll/pair list-kw (parse-attachment rt child-node-type %)))
+                    (rt/->clj rt attachments-coercer lua-value)))
+          (update acc :init assoc property lua-value))))
+    {:init {}
+     :add []}
+    attachment))
 
 (def ^:private add-args-coercer
   (coerce/regex :node node-id-or-path-coercer
@@ -523,8 +465,8 @@
           list-kw (property->prop-kw property)
           _ (when-not (attachment/defines? node-type list-kw)
               (throw (LuaError. (format "%s does not define \"%s\"" (name (:k node-type)) property))))
-          tree [[list-kw (parse-attachment rt (attachment/child-node-types node-type list-kw) attachment)]]]
-      (-> (attachment/add basis node-id tree (partial g/expand-ec init-attachment rt project))
+          tree [[list-kw (parse-attachment rt (attachment/child-node-type node-type list-kw) attachment)]]]
+      (-> (attachment/add basis node-id tree (partial g/expand-ec init-txs rt project))
           (with-meta {:type :transaction-step})
           (rt/wrap-userdata "editor.tx.add(...)")))))
 

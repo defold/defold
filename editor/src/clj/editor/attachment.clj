@@ -20,7 +20,7 @@
             [util.coll :as coll]))
 
 (defonce ^:private state-atom
-  ;; :add -> type -> list-kw -> type -> tx-attach-fn
+  ;; :add -> type -> list-kw -> type -> {:node-type ... :tx-attach-fn ...}
   ;; :get -> type -> list-kw -> get-fn
   ;;
   ;; tx-attach-fn: fn of parent-node, child-node -> txs
@@ -34,40 +34,38 @@
     node-type    container graph node type to extend
     list-kw      name of the node component list
 
-  Kv-args (at least one is required):
-    :add    a map that defines how new items are added to the list;
-            where keys are child node types used for constructing new nodes, and
-            values are attach functions, i.e. functions of parent-node-id
-            (container) and child-node-id (item) that should return transaction
-            steps that connect the child node into the parent
-    :get    a function that defines how to read a list of children, will receive
-            2 args: parent-node-id (container) and evaluation-context; should
-            return a vector of node ids"
+  Kv-args:
+    :add    required, a map that defines how new items are added to the list;
+            with the following keys:
+              :node-type       child node type used for constructing new added
+                               items
+              :tx-attach-fn    a function of parent-node-id (container),
+                               child-node-id (element); should return
+                               transaction steps that connect the child node
+                               into the parent
+    :get    required, a function that defines how to read a list of children,
+            will receive 2 args: parent-node-id (container), evaluation-context;
+            should return a vector of node ids"
   [node-type list-kw & {:keys [add get]}]
-  {:pre [(or (ifn? get) (map? add))]}
+  {:pre [(g/node-type? (:node-type add)) (ifn? (:tx-attach-fn add)) (ifn? get)]}
   (swap! state-atom (fn [s]
-                      (cond-> s
-                              add (update :add update node-type update list-kw merge add)
-                              get (update :get update node-type assoc list-kw get))))
+                      (-> s
+                          (update :add update node-type assoc list-kw add)
+                          (update :get update node-type assoc list-kw get))))
   nil)
 
 (defn add-impl [current-state parent-node-type parent-node-id attachment-tree init-fn]
   (coll/mapcat
-    (fn [[list-kw {:keys [init add node-type] :as attachment}]]
-      (when-not node-type
-        (throw (ex-info "node type is required" {:parent-node-type parent-node-id :list-kw list-kw :attachment attachment})))
-      (if-let [node-type->tx-attach-fn (-> current-state :add (get parent-node-type) list-kw)]
-        (let [tx-attach-fn (or (node-type->tx-attach-fn node-type)
-                               (throw (ex-info (str (name (:k parent-node-type)) " does not support " (name list-kw) " attachments of type " (name (:k node-type)))
-                                               {:parent-node-type parent-node-id :list-kw list-kw :node-type node-type})))
-              child-node-id (first (g/take-node-ids (g/node-id->graph-id parent-node-id) 1))]
+    (fn [[list-kw {:keys [init add]}]]
+      (if-let [{:keys [node-type tx-attach-fn]} (-> current-state :add (get parent-node-type) list-kw)]
+        (let [child-node-id (first (g/take-node-ids (g/node-id->graph-id parent-node-id) 1))]
           (concat
             (g/add-node (g/construct node-type :_node-id child-node-id))
             (init-fn parent-node-id node-type child-node-id init)
             (tx-attach-fn parent-node-id child-node-id)
             (add-impl current-state node-type child-node-id add init-fn)))
         (throw (ex-info (str (name (:k parent-node-type)) " does not define a " (name list-kw) " attachment list")
-                        {:parent-node-type parent-node-type
+                        {:node-type parent-node-type
                          :list-kw list-kw}))))
     attachment-tree))
 
@@ -81,13 +79,10 @@
                        additions; a coll of 2-element tuples where first element
                        is a list-kw keyword, and second is a map with the
                        following keys:
-                         :init         required, data structure that will be
-                                       supplied to the init-fn to create element
-                                       initialization transaction steps
-                         :node-type    required, node type of child node
-                         :add          optional, attachment tree of the created
-                                       item
-
+                         :init    required, data structure that will be supplied
+                                  to the init-fn to create element
+                                  initialization transaction steps
+                         :add     optional, attachment tree of the created item
     init-fn            a function that initializes the newly created element
                        node, will receive 4 args:
                          parent-node-id     container node id
@@ -112,15 +107,13 @@
   [node-type list-kw]
   (-> @state-atom :add (get node-type) (contains? list-kw)))
 
-(defn child-node-types
-  "Returns defined child node-types for a parent node-type's list-kw
-
-  Returns a map from child node type to tx-attach-fn
+(defn child-node-type
+  "Returns defined child node-type for a parent node-type's list-kw
 
   Asserts that it exists. See [[defines?]]"
   [node-type list-kw]
-  {:post [(some? %)]}
-  (-> @state-atom :add (get node-type) (get list-kw)))
+  {:post (some? %)}
+  (-> @state-atom :add (get node-type) (get list-kw) :node-type))
 
 (defn getter
   "Returns a getter function for a container node-type's list-kw
