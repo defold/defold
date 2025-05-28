@@ -353,7 +353,7 @@
 ;; region attach
 
 (defn- attachment->set-tx-steps [attachment child-node-id rt project evaluation-context]
-  (mapcat
+  (coll/mapcat
     (fn [[property lua-value]]
       (if-let [setter (ext-lua-value-setter child-node-id property rt project evaluation-context)]
         (setter lua-value)
