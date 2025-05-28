@@ -102,7 +102,7 @@ namespace dmGameSystem
 
         const dmGameSystemDDF::TextureSetAnimation* m_Animations[MAX_TEXTURE_COUNT];
         const dmGameSystemDDF::SpriteGeometry*      m_Geometries[MAX_TEXTURE_COUNT];
-        bool                                        m_UsesGeometries;
+        bool                                        m_CanUseQuads;
     };
 
 #if __cplusplus >= 201103L
@@ -804,7 +804,7 @@ namespace dmGameSystem
         const Matrix4& world_matrix,
         uint32_t vertex_offset,
         uint32_t vertex_stride,
-        const AnimationData const* anim_data,
+        AnimationData* anim_data,
         dmArray<float>* scratch_uvs,
         float* scratch_uv_ptrs[MAX_TEXTURE_COUNT],
         float* scratch_pi_ptrs[MAX_TEXTURE_COUNT],
@@ -1085,9 +1085,9 @@ namespace dmGameSystem
             uses_geometries |= data->m_Geometries[i]->m_TrimMode != dmGameSystemDDF::SPRITE_TRIM_MODE_OFF;
         }
 
-        data->m_UsesGeometries = uses_geometries;
+        data->m_CanUseQuads = !uses_geometries || data->m_Geometries[0]->m_TrimMode == dmGameSystemDDF::SPRITE_TRIM_MODE_OFF;
 
-        if (!CanUseQuads(anim_data))
+        if (!data->m_CanUseQuads)
         {
             TextureSetResource* texture_set                     = GetFirstTextureSet(component);
             dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
@@ -1099,20 +1099,20 @@ namespace dmGameSystem
             dmGameSystemDDF::SpriteGeometry* geometry           = &geometries[frame_index];
             uint32_t geometry_vx_count                          = geometry->m_Vertices.m_Count / 2;
 
-            data->m_VertexCount   += geometry_vx_count; // (x,y) coordinates
-            data->m_IndicesCount  += geometry->m_Indices.m_Count;
+            data->m_VertexCount   = geometry_vx_count; // (x,y) coordinates
+            data->m_IndicesCount  = geometry->m_Indices.m_Count;
         }
         else
         {
             if (component->m_UseSlice9)
             {
-                data->m_VertexCount   += SPRITE_VERTEX_COUNT_SLICE9;
-                data->m_IndicesCount  += SPRITE_INDEX_COUNT_SLICE9;
+                data->m_VertexCount   = SPRITE_VERTEX_COUNT_SLICE9;
+                data->m_IndicesCount  = SPRITE_INDEX_COUNT_SLICE9;
             }
             else
             {
-                data->m_VertexCount   += SPRITE_VERTEX_COUNT_LEGACY;
-                data->m_IndicesCount  += SPRITE_INDEX_COUNT_LEGACY;
+                data->m_VertexCount   = SPRITE_VERTEX_COUNT_LEGACY;
+                data->m_IndicesCount  = SPRITE_INDEX_COUNT_LEGACY;
             }
         }
     }
@@ -1204,12 +1204,6 @@ namespace dmGameSystem
             scratch_uv_ptrs[0] = uvs.Begin();
             scratch_pi_ptrs[0] = &data->m_PageIndices[0];
         }
-    }
-
-    static inline bool CanUseQuads(const AnimationData* data)
-    {
-        return !data->m_UsesGeometries ||
-                data->m_Geometries[0]->m_TrimMode == dmGameSystemDDF::SPRITE_TRIM_MODE_OFF;
     }
 
     // Since each texture set may have different trimming, the geometry for each image may not map 1:1.
@@ -1396,7 +1390,7 @@ namespace dmGameSystem
             }
 
             // if textures_num == 0, then we don't have a texture set to get any vertex/uv coordinates from
-            if (textures_num != 0 && !CanUseQuads(animations))
+            if (textures_num != 0 && !animations->m_CanUseQuads)
             {
                 const dmGameSystemDDF::TextureSetAnimation* animation_ddf = animations->m_Animations[0];
 

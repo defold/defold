@@ -505,7 +505,6 @@ namespace dmRender
         DM_PROFILE("MakeSortBuffer");
 
         const uint32_t required_capacity = context->m_RenderListSortIndices.Capacity();
-        dmLogWarning("-Sort capacity %u", required_capacity);
         // SetCapacity does early out if they are the same, so just call anyway.
         context->m_RenderListSortBuffer.SetCapacity(required_capacity);
         context->m_RenderListSortBuffer.SetSize(0);
@@ -971,7 +970,6 @@ namespace dmRender
                 }
 
                 last = idx;
-                // }
             }
 
         }
