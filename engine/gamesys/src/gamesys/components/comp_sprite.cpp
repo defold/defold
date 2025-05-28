@@ -96,6 +96,8 @@ namespace dmGameSystem
         uint32_t                        m_Frames[MAX_TEXTURE_COUNT];        // The resolved frame indices
         uint32_t                        m_LastAccessTick;
         uint32_t                        m_CacheKey;
+        uint32_t                        m_VertexCount;
+        uint32_t                        m_IndicesCount;
         float                           m_PageIndices[MAX_TEXTURE_COUNT];
 
         const dmGameSystemDDF::TextureSetAnimation* m_Animations[MAX_TEXTURE_COUNT];
@@ -134,9 +136,6 @@ namespace dmGameSystem
         uint32_t                    m_MixedHash;
         uint32_t                    m_AnimationDataHash;
 
-        uint32_t                    m_AnimationID; // index into array
-        uint32_t                    m_DynamicVertexAttributeIndex;
-
         int32_t                     m_AnimationInterval;
         /// Currently playing animation
         dmhash_t                    m_CurrentAnimation;
@@ -146,6 +145,8 @@ namespace dmGameSystem
         /// Timer in local space: [0,1]
         float                       m_AnimTimer;
         float                       m_PlaybackRate;
+        uint16_t                    m_AnimationID; // index into array
+        uint16_t                    m_DynamicVertexAttributeIndex;
         uint16_t                    m_ComponentIndex;
         uint16_t                    m_Enabled : 1;
         uint16_t                    m_DoTick : 1;
@@ -291,7 +292,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static inline Vector3 GetSizeFromAnimation(const SpriteComponent* sprite, dmGameSystemDDF::TextureSet* texture_set_ddf, uint32_t anim_id)
+    static inline Vector3 GetSizeFromAnimation(const SpriteComponent* sprite, dmGameSystemDDF::TextureSet* texture_set_ddf, uint16_t anim_id)
     {
         Vector3 result;
         dmGameSystemDDF::TextureSetAnimation* animation = &texture_set_ddf->m_Animations[anim_id];
@@ -568,7 +569,7 @@ namespace dmGameSystem
         uint32_t* anim_id = texture_set ? texture_set->m_AnimationIds.Get(animation) : 0;
         if (anim_id)
         {
-            component->m_AnimationID = *anim_id;
+            component->m_AnimationID = (uint16_t)(*anim_id);
             component->m_AnimationReHash |= component->m_CurrentAnimation != animation;
             component->m_CurrentAnimation = animation;
             dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_TextureSet->m_Animations[*anim_id];
@@ -604,7 +605,6 @@ namespace dmGameSystem
             component->m_CurrentAnimation = 0x0;
             component->m_CurrentAnimationFrame = 0;
             component->m_AnimationPlayback = dmGameSystemDDF::PLAYBACK_NONE;
-            // component->m_AnimationInterval = 1;
             dmLogError("Unable to play animation '%s' from texture '%s' since it could not be found.", dmHashReverseSafe64(animation), dmHashReverseSafe64(texture_set->m_TexturePath));
         }
         return anim_id != 0;
@@ -1086,6 +1086,35 @@ namespace dmGameSystem
         }
 
         data->m_UsesGeometries = uses_geometries;
+
+        if (!CanUseQuads(anim_data))
+        {
+            TextureSetResource* texture_set                     = GetFirstTextureSet(component);
+            dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
+            dmGameSystemDDF::TextureSetAnimation* animations    = texture_set_ddf->m_Animations.m_Data;
+            dmGameSystemDDF::TextureSetAnimation* animation_ddf = &animations[component->m_AnimationID];
+            uint32_t* frame_indices                             = texture_set_ddf->m_FrameIndices.m_Data;
+            uint32_t frame_index                                = frame_indices[animation_ddf->m_Start + component->m_CurrentAnimationFrame];
+            dmGameSystemDDF::SpriteGeometry* geometries         = texture_set_ddf->m_Geometries.m_Data;
+            dmGameSystemDDF::SpriteGeometry* geometry           = &geometries[frame_index];
+            uint32_t geometry_vx_count                          = geometry->m_Vertices.m_Count / 2;
+
+            data->m_VertexCount   += geometry_vx_count; // (x,y) coordinates
+            data->m_IndicesCount  += geometry->m_Indices.m_Count;
+        }
+        else
+        {
+            if (component->m_UseSlice9)
+            {
+                data->m_VertexCount   += SPRITE_VERTEX_COUNT_SLICE9;
+                data->m_IndicesCount  += SPRITE_INDEX_COUNT_SLICE9;
+            }
+            else
+            {
+                data->m_VertexCount   += SPRITE_VERTEX_COUNT_LEGACY;
+                data->m_IndicesCount  += SPRITE_INDEX_COUNT_LEGACY;
+            }
+        }
     }
 
     static void ResolveUVDataFromQuads(const SpriteComponent* component, AnimationData* data, dmArray<float>* scratch_uvs, float* scratch_uv_ptrs[MAX_TEXTURE_COUNT], float* scratch_pi_ptrs[MAX_TEXTURE_COUNT])
@@ -1667,7 +1696,6 @@ namespace dmGameSystem
 
     static void UpdateTransforms(SpriteComponent* component, bool scale_along_z, bool sub_pixels)
     {
-        // DM_PROFILE("UpdateTransforms");
         Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(component->m_Position, component->m_Rotation, 1.0f));
         Matrix4 world = dmGameObject::GetWorldMatrix(component->m_Instance);
         Vector3 size( component->m_Size.getX() * component->m_Scale.getX(), component->m_Size.getY() * component->m_Scale.getY(), 1);
@@ -1701,8 +1729,6 @@ namespace dmGameSystem
 
     static void PostMessages(SpriteComponent* component)
     {
-        // DM_PROFILE("PostMessages");
-
         bool once = component->m_AnimationPlayback == dmGameSystemDDF::PLAYBACK_ONCE_FORWARD
                 || component->m_AnimationPlayback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD
                 || component->m_AnimationPlayback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG;
@@ -1710,7 +1736,6 @@ namespace dmGameSystem
         if (once && component->m_AnimTimer >= 1.0f)
         {
             component->m_AnimationPlayback = dmGameSystemDDF::PLAYBACK_NONE;
-            // component->m_AnimationInterval = 1;
             if (component->m_Listener.m_Fragment != 0x0)
             {
                 dmMessage::URL sender;
@@ -1748,7 +1773,6 @@ namespace dmGameSystem
 
     static void Animate(SpriteComponent* component, float dt)
     {
-        // DM_PROFILE("Animate");
         if (component->m_AnimationPlayback != dmGameSystemDDF::PLAYBACK_NONE && component->m_AddedToUpdate)
         {
             // Animate
@@ -1780,8 +1804,6 @@ namespace dmGameSystem
     static void UpdateVertexAndIndexCount(SpriteWorld* sprite_world, const SpriteComponent* component, dmRender::HRenderContext render_context, uint32_t& num_vertices,
         uint32_t& num_indices, uint32_t& vertex_memsize)
     {
-        // DM_PROFILE("UpdateVertexAndIndexCount");
-
         dmRender::HMaterial material           = GetRenderMaterial(render_context, component);
         dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
         uint32_t vertex_stride                 = dmGraphics::GetVertexDeclarationStride(vx_decl);
@@ -1810,37 +1832,9 @@ namespace dmGameSystem
         // Get the correct animation frames, and other meta data
         AnimationData* anim_data = GetOrCreateAnimationData(sprite_world, component);
 
-        if (!CanUseQuads(anim_data))
-        {
-            TextureSetResource* texture_set                     = GetFirstTextureSet(component);
-            dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
-            dmGameSystemDDF::TextureSetAnimation* animations    = texture_set_ddf->m_Animations.m_Data;
-            dmGameSystemDDF::TextureSetAnimation* animation_ddf = &animations[component->m_AnimationID];
-            uint32_t* frame_indices                             = texture_set_ddf->m_FrameIndices.m_Data;
-            uint32_t frame_index                                = frame_indices[animation_ddf->m_Start + component->m_CurrentAnimationFrame];
-            dmGameSystemDDF::SpriteGeometry* geometries         = texture_set_ddf->m_Geometries.m_Data;
-            dmGameSystemDDF::SpriteGeometry* geometry           = &geometries[frame_index];
-            uint32_t geometry_vx_count                          = geometry->m_Vertices.m_Count / 2;
-
-            num_vertices   += geometry_vx_count; // (x,y) coordinates
-            num_indices    += geometry->m_Indices.m_Count;
-            vertex_memsize += geometry_vx_count * vertex_stride;
-        }
-        else
-        {
-            if (component->m_UseSlice9)
-            {
-                num_vertices   += SPRITE_VERTEX_COUNT_SLICE9;
-                num_indices    += SPRITE_INDEX_COUNT_SLICE9;
-                vertex_memsize += SPRITE_VERTEX_COUNT_SLICE9 * vertex_stride;
-            }
-            else
-            {
-                num_vertices   += SPRITE_VERTEX_COUNT_LEGACY;
-                num_indices    += SPRITE_INDEX_COUNT_LEGACY;
-                vertex_memsize += SPRITE_VERTEX_COUNT_LEGACY * vertex_stride;
-            }
-        }
+        num_vertices += anim_data->m_VertexCount;
+        num_indices += anim_data->m_IndicesCount;
+        vertex_memsize += anim_data->m_VertexCount * vertex_stride;
     }
 
     dmGameObject::CreateResult CompSpriteAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
@@ -2394,11 +2388,10 @@ namespace dmGameSystem
                 {
                     component->m_AnimationReHash |= component->m_CurrentAnimation != 0x0 && component->m_CurrentAnimationFrame != 0;
                     component->m_AnimationPlayback = dmGameSystemDDF::PLAYBACK_NONE;
-                    // component->m_AnimationInterval = 1;
                     component->m_CurrentAnimation = 0x0;
                     component->m_CurrentAnimationFrame = 0;
                     dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
-                    if (texture_set_ddf->m_Animations.m_Count <= component->m_AnimationID)
+                    if ((uint16_t)texture_set_ddf->m_Animations.m_Count <= component->m_AnimationID)
                     {
                         component->m_AnimationID = 0;
                     }
