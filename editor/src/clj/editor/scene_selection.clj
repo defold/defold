@@ -18,6 +18,7 @@
             [editor.system :as system]
             [editor.geom :as geom]
             [editor.handler :as handler]
+            [editor.math :as math]
             [editor.scene-picking :as scene-picking]
             [editor.types :as types]
             [editor.ui :as ui]
@@ -30,7 +31,7 @@
            [com.jogamp.opengl GL2]
            [javafx.scene.input DragEvent]
            [javafx.scene Node Scene]
-           [javax.vecmath Point2i Point3d Matrix4d]))
+           [javax.vecmath Point2i Point3d Matrix4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -136,13 +137,14 @@
 (defn- handle-drag-dropped!
   [drop-fn select-fn action]
   (let [op-seq (gensym)
-        {:keys [^DragEvent event string gesture-target world-pos]} action
+        {:keys [^DragEvent event string gesture-target world-pos world-dir]} action
         _ (ui/request-focus! gesture-target)
         env (-> gesture-target (ui/node-contexts false) first :env)
         {:keys [selection workspace]} env
         resource-strings (-> string string/split-lines sort)
         resources (e/keep (partial workspace/resolve-workspace-resource workspace) resource-strings)
-        drop-fn (partial drop-fn selection workspace world-pos)
+        z-plane-pos (math/line-plane-intersection world-pos world-dir (Point3d. 0.0 0.0 0.0) (Vector3d. 0.0 0.0 1.0))
+drop-fn (partial drop-fn selection workspace z-plane-pos)
         added-nodes (add-dropped-resources! drop-fn resources op-seq)]
     (.consume event)
     (when (seq added-nodes)
