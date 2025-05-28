@@ -517,8 +517,7 @@ namespace dmSound
 
             dmMutex::Lock(sound->m_Mutex);
 
-//TODO: STACK -> 512K stack... really needed??
-            sound->m_Thread = dmThread::New(SoundThread, 0x80000, &args, "sound");
+            sound->m_Thread = dmThread::New(SoundThread, 0x20000, &args, "sound");
             dmConditionVariable::Wait(sound->m_CondVar, sound->m_Mutex);
 
             dmMutex::Unlock(sound->m_Mutex);
