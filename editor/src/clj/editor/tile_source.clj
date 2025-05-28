@@ -733,12 +733,12 @@
 
 (attachment/register!
   TileSourceNode :animations
-  :add {:node-type TileAnimationNode :tx-attach-fn attach-animation-node}
+  :add {TileAnimationNode attach-animation-node}
   :get (attachment/nodes-by-type-getter TileAnimationNode))
 
 (attachment/register!
   TileSourceNode :collision-groups
-  :add {:node-type CollisionGroupNode :tx-attach-fn attach-collision-group-node}
+  :add {CollisionGroupNode attach-collision-group-node}
   :get (attachment/nodes-by-type-getter CollisionGroupNode))
 
 
