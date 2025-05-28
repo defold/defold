@@ -445,7 +445,7 @@ namespace dmSound
             dmConditionVariable::Signal(sound->m_CondVar);
             dmMutex::Unlock(sound->m_Mutex);
 
-            emscripten_set_main_loop_arg(SoundThreadEmscriptenCallback, sound, 1000 / 8, 1);
+            emscripten_set_main_loop_arg(SoundThreadEmscriptenCallback, sound, 1000 / 16, 1);   // roughly '60fps'
 
             dmMutex::Lock(sound->m_Mutex);
             result = sound->finalizeOpenal();
