@@ -48,6 +48,13 @@ namespace dmExtension {
       return (T)ExtensionParamsGetContext((ExtensionParams*)params, name_hash);
    }
 
+   /*# get the app exit status
+   * @name GetAppExitStatus
+   * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
+   * @return status [type:AppExitStatus] engine exit status
+   */
+   dmExtension::AppExitStatus GetAppExitStatus(dmExtension::AppParams* app_params);
+
 
 } // namespace
 

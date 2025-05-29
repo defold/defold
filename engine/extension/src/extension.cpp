@@ -366,4 +366,9 @@ namespace dmExtension
         }
     }
 
+    dmExtension::AppExitStatus GetAppExitStatus(dmExtension::AppParams* app_params)
+    {
+        return (dmExtension::AppExitStatus)app_params->m_ExitStatus;
+    }
+
 }
