@@ -192,6 +192,7 @@ namespace dmSoundCodec
         // Decode to 'NIL' (unfortunately with zero cycle savings vs. a real decode)
         char buffer[4096];
         char* ptrs[1] = {buffer};
+        *skipped = 0;
         Result ret = RESULT_OK;
         while(bytes && ret == RESULT_OK)
         {
@@ -202,7 +203,7 @@ namespace dmSoundCodec
             bytes -= decoded;
         }
 
-        return ret;
+        return (ret == RESULT_END_OF_STREAM && *skipped != 0) ? RESULT_OK : ret;
     }
 
     static void TremoloCloseStream(HDecodeStream stream)
