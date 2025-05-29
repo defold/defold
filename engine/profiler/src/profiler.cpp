@@ -30,7 +30,6 @@
 
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/extension/extension.h>
-#include <dmsdk/engine/extension.h>
 
 DM_PROPERTY_GROUP(rmtp_Profiler, "Profiler", 0);
 DM_PROPERTY_U32(rmtp_CpuUsage, 0, PROFILE_PROPERTY_FRAME_RESET, "%% Cpu Usage", &rmtp_Profiler);
