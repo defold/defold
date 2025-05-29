@@ -412,10 +412,11 @@
                                                       shapes)))))))
 
 (defn convex-hull-scene
-  [_node-id convex-shape-data color]
+  [_node-id convex-shape-data color project-physics-type]
   (when (and (= (:shape-type convex-shape-data) :type-hull)
              (not-empty (:data convex-shape-data)))
     (let [points (partition 3 (:data convex-shape-data))
+          is-2d (= "2D" project-physics-type)
           [min-coords max-coords] (reduce (fn [[min-point max-point] point]
                                             [(mapv min min-point point) (mapv max max-point point)])
                                           [(repeat Double/MAX_VALUE) (repeat Double/MIN_VALUE)]
@@ -431,8 +432,10 @@
                     :tags #{:collision-shape}
                     :passes [pass/transparent pass/selection]
                     :user-data {:color color
-                                :double-sided true
-                                :geometry {:primitive-type GL2/GL_POLYGON
+                                :double-sided is-2d
+                                :geometry {:primitive-type (if is-2d
+                                                             GL2/GL_POLYGON
+                                                             GL2/GL_POINTS)
                                            :vbuf vbuf}}}
        :children [{:node-id _node-id
                    :aabb aabb
@@ -440,16 +443,18 @@
                                 :tags #{:collision-shape :outline}
                                 :passes [pass/outline]
                                 :user-data {:color color
-                                            :geometry {:primitive-type GL2/GL_LINE_LOOP
+                                            :geometry {:primitive-type (if is-2d
+                                                                         GL2/GL_LINE_LOOP
+                                                                         GL2/GL_POINTS)
                                                        :vbuf vbuf}}}}]})))
 
 (g/defnk produce-scene
-  [_node-id child-scenes convex-shape-data collision-group-color]
+  [_node-id child-scenes convex-shape-data collision-group-color project-physics-type]
   {:node-id _node-id
    :aabb geom/null-aabb
    :renderable {:passes [pass/selection]}
    :children (if convex-shape-data
-               [(convex-hull-scene _node-id convex-shape-data collision-group-color)]
+               [(convex-hull-scene _node-id convex-shape-data collision-group-color project-physics-type)]
                child-scenes)})
 
 (defn- make-embedded-collision-shape [shapes]
