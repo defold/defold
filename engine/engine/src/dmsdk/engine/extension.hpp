@@ -105,6 +105,13 @@ namespace dmEngine
      * @return context [type:dmHID::HContext] The hid context
      */
     dmHID::HContext GetHIDContext(dmExtension::AppParams* app_params);
+
+    /*# get the app exit status
+     * @name GetAppExitStatus
+     * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
+     * @return status [type:AppExitStatus] engine exit status
+     */
+    AppExitStatus GetAppExitStatus(dmExtension::AppParams* app_params);
 }
 
 #endif // #ifndef DMSDK_ENGINE_EXTENSION_HPP

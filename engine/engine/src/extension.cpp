@@ -35,4 +35,9 @@ namespace dmEngine
     {
         return (dmHID::HContext)ExtensionAppParamsGetContext(app_params, dmHashString64("hid"));
     }
+
+    AppExitStatus GetAppExitStatus(dmExtension::AppParams* app_params)
+    {
+        return app_params->m_ExitStatus;
+    }
 }

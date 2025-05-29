@@ -30,6 +30,7 @@
 
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/extension/extension.h>
+#include <dmsdk/engine/extension.hpp>
 
 DM_PROPERTY_GROUP(rmtp_Profiler, "Profiler", 0);
 DM_PROPERTY_U32(rmtp_CpuUsage, 0, PROFILE_PROPERTY_FRAME_RESET, "%% Cpu Usage", &rmtp_Profiler);
@@ -889,7 +890,7 @@ static dmExtension::Result AppFinalizeProfiler(dmExtension::AppParams* params)
 
     dmProfiler::SetEnabled(false);
 
-    if (params->m_ExitStatus != EXTENSION_APP_REBOOT)
+    if (dmEngine::GetAppExitStatus(params) == EXTENSION_APP_STATUS_EXIT)
     {
         dmProfile::Finalize();
     }

@@ -104,16 +104,16 @@ typedef enum ExtensionCallbackType
  *
  * @enum
  * @name AppExitStatus
- * @member EXTENSION_APP_DEFAULT
- * @member EXTENSION_APP_REBOOT
- * @member EXTENSION_APP_EXIT
+ * @member EXTENSION_APP_STATUS_NONE
+ * @member EXTENSION_APP_STATUS_REBOOT
+ * @member EXTENSION_APP_STATUS_EXIT
  *
  */
 typedef enum AppExitStatus
 {
-    EXTENSION_APP_DEFAULT  =  0,
-    EXTENSION_APP_REBOOT   =  1,
-    EXTENSION_APP_EXIT     = -1,
+    EXTENSION_APP_STATUS_NONE     =  0,
+    EXTENSION_APP_STATUS_REBOOT   =  1,
+    EXTENSION_APP_STATUS_EXIT     = -1,
 } AppExitStatus;
 
 typedef struct ExtensionAppParams

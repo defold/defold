@@ -115,9 +115,9 @@ namespace dmEngine
     static AppExitStatus GetAppExitStatusFromAction(int action)
     {
         switch(action) {
-        case dmEngine::RunResult::REBOOT:   return EXTENSION_APP_REBOOT;
-        case dmEngine::RunResult::EXIT:     return EXTENSION_APP_EXIT;
-        default:                            return EXTENSION_APP_DEFAULT;
+        case dmEngine::RunResult::REBOOT:   return EXTENSION_APP_STATUS_REBOOT;
+        case dmEngine::RunResult::EXIT:     return EXTENSION_APP_STATUS_EXIT;
+        default:                            return EXTENSION_APP_STATUS_NONE;
         }
     }
 
