@@ -416,7 +416,6 @@
   (when (and (= (:shape-type convex-shape-data) :type-hull)
              (not-empty (:data convex-shape-data)))
     (let [points (partition 3 (:data convex-shape-data))
-          is-2d (= "2D" project-physics-type)
           [min-coords max-coords] (reduce (fn [[min-point max-point] point]
                                             [(mapv min min-point point) (mapv max max-point point)])
                                           [(repeat Double/MAX_VALUE) (repeat Double/MIN_VALUE)]
@@ -425,28 +424,34 @@
           vbuf (vtx/flip! (reduce (fn [vb [x y z]] (scene-shapes/pos-vtx-put! vb x y z 0.0))
                                   (scene-shapes/->pos-vtx (count points) :static)
                                   points))]
-      {:node-id _node-id
-       :node-outline-key "Convex Hull"
-       :aabb aabb
-       :renderable {:render-fn render-triangles-uniform-scale
-                    :tags #{:collision-shape}
-                    :passes [pass/transparent pass/selection]
-                    :user-data {:color color
-                                :double-sided is-2d
-                                :geometry {:primitive-type (if is-2d
-                                                             GL2/GL_POLYGON
-                                                             GL2/GL_POINTS)
-                                           :vbuf vbuf}}}
-       :children [{:node-id _node-id
-                   :aabb aabb
-                   :renderable {:render-fn render-lines-uniform-scale
-                                :tags #{:collision-shape :outline}
-                                :passes [pass/outline]
-                                :user-data {:color color
-                                            :geometry {:primitive-type (if is-2d
-                                                                         GL2/GL_LINE_LOOP
-                                                                         GL2/GL_POINTS)
-                                                       :vbuf vbuf}}}}]})))
+      (if (= "2D" project-physics-type)
+        {:node-id _node-id
+         :node-outline-key "Convex Hull"
+         :aabb aabb
+         :renderable {:render-fn render-triangles-uniform-scale
+                      :tags #{:collision-shape}
+                      :passes [pass/transparent pass/selection]
+                      :user-data {:color color
+                                  :double-sided true
+                                  :geometry {:primitive-type GL2/GL_POLYGON
+                                             :vbuf vbuf}}}
+         :children [{:node-id _node-id
+                     :aabb aabb
+                     :renderable {:render-fn render-lines-uniform-scale
+                                  :tags #{:collision-shape :outline}
+                                  :passes [pass/outline]
+                                  :user-data {:color color
+                                              :geometry {:primitive-type GL2/GL_LINE_LOOP
+                                                         :vbuf vbuf}}}}]}
+        {:node-id _node-id
+         :node-outline-key "Convex Hull"
+         :aabb aabb
+         :renderable {:render-fn render-lines-uniform-scale
+                      :tags #{:collision-shape}
+                      :passes [pass/outline]
+                      :user-data {:color color
+                                  :geometry {:primitive-type GL2/GL_POINTS
+                                             :vbuf vbuf}}}}))))
 
 (g/defnk produce-scene
   [_node-id child-scenes convex-shape-data collision-group-color project-physics-type]
