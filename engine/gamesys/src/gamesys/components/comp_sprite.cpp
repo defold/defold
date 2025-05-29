@@ -1932,7 +1932,9 @@ namespace dmGameSystem
             PostMessages(component);
         }
 
-        world->m_ReallocBuffers   = vertex_memsize > world->m_VertexMemorySize || num_indices > world->m_IndexCount;
+        // In case if CompSpriteUpdate will be called several times before CompSpriteRender - assign flag with "bit or"
+        // to save flag state from previous update until ReallocBuffers will be called
+        world->m_ReallocBuffers   |= vertex_memsize > world->m_VertexMemorySize || num_indices > world->m_IndexCount;
         world->m_VertexCount      = num_vertices;
         world->m_IndexCount       = num_indices;
         world->m_VertexMemorySize = vertex_memsize;
