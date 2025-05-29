@@ -157,11 +157,10 @@ namespace dmGameSystem
         uint16_t                    m_UseSlice9 : 1;
         uint16_t                    m_AnimationReHash : 1;
         uint16_t                    m_IsPlaying : 1;
-        uint16_t                    : 7;
-        uint8_t                     m_NumTextures; // cached value from m_Resource->m_NumTextures
         // currently we don't support multiple animation cursors that's why we can use Playback from the first
         // texture set
-        dmGameSystemDDF::Playback   m_AnimationPlayback : 8;
+        dmGameSystemDDF::Playback   m_AnimationPlayback : 7;
+        uint8_t                     m_NumTextures; // cached value from m_Resource->m_NumTextures
     };
 
     struct SpriteWorld
@@ -2119,7 +2118,6 @@ namespace dmGameSystem
 
     static float GetCursor(SpriteComponent* component)
     {
-        dmLogWarning("---- %d", component->m_AnimationPlayback);
         float cursor = component->m_AnimTimer;
 
         if (component->m_AnimationPlayback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD 
