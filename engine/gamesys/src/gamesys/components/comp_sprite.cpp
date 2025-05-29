@@ -156,7 +156,8 @@ namespace dmGameSystem
         uint16_t                    m_ReHash : 1;
         uint16_t                    m_UseSlice9 : 1;
         uint16_t                    m_AnimationReHash : 1;
-        uint16_t                    : 8;
+        uint16_t                    m_IsPlaying : 1;
+        uint16_t                    : 7;
         uint8_t                     m_NumTextures; // cached value from m_Resource->m_NumTextures
         // currently we don't support multiple animation cursors that's why we can use Playback from the first
         // texture set
@@ -583,6 +584,7 @@ namespace dmGameSystem
             }
             component->m_AnimInvDuration = (float)animation->m_Fps / frame_count;
             component->m_AnimationPlayback = animation->m_Playback;
+            component->m_IsPlaying = animation->m_Playback != dmGameSystemDDF::PLAYBACK_NONE;
 
             if (component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_AUTO)
             {
@@ -603,9 +605,9 @@ namespace dmGameSystem
         {
             component->m_AnimationReHash |= component->m_CurrentAnimation != 0x0 && component->m_CurrentAnimationFrame != 0;
             // TODO: Why stop the current animation? Shouldn't it continue playing the current animation?
+            component->m_IsPlaying = 0;
             component->m_CurrentAnimation = 0x0;
             component->m_CurrentAnimationFrame = 0;
-            component->m_AnimationPlayback = dmGameSystemDDF::PLAYBACK_NONE;
             dmLogError("Unable to play animation '%s' from texture '%s' since it could not be found.", dmHashReverseSafe64(animation), dmHashReverseSafe64(texture_set->m_TexturePath));
         }
         return anim_id != 0;
@@ -1730,7 +1732,7 @@ namespace dmGameSystem
         // Stop once-animation and broadcast animation_done
         if (once && component->m_AnimTimer >= 1.0f)
         {
-            component->m_AnimationPlayback = dmGameSystemDDF::PLAYBACK_NONE;
+            component->m_IsPlaying = 0;
             if (component->m_Listener.m_Fragment != 0x0)
             {
                 dmMessage::URL sender;
@@ -1768,7 +1770,7 @@ namespace dmGameSystem
 
     static void Animate(SpriteComponent* component, float dt)
     {
-        if (component->m_AnimationPlayback != dmGameSystemDDF::PLAYBACK_NONE && component->m_AddedToUpdate)
+        if (component->m_IsPlaying && component->m_AddedToUpdate)
         {
             // Animate
             component->m_AnimTimer += dt * component->m_AnimInvDuration * component->m_PlaybackRate;
@@ -1928,7 +1930,7 @@ namespace dmGameSystem
             UpdateVertexAndIndexCount(world, component, render_context, num_vertices, num_indices, vertex_memsize);
 
             // TODO: check when we need send messages
-            if (component->m_AnimationPlayback == dmGameSystemDDF::PLAYBACK_NONE)
+            if (!component->m_IsPlaying)
                 continue;
             PostMessages(component);
         }
@@ -2117,6 +2119,7 @@ namespace dmGameSystem
 
     static float GetCursor(SpriteComponent* component)
     {
+        dmLogWarning("---- %d", component->m_AnimationPlayback);
         float cursor = component->m_AnimTimer;
 
         if (component->m_AnimationPlayback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD 
@@ -2234,7 +2237,7 @@ namespace dmGameSystem
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
         SpriteComponent* component = &sprite_world->m_Components.Get(*params.m_UserData);
-        if (component->m_AnimationPlayback != dmGameSystemDDF::PLAYBACK_NONE)
+        if (component->m_IsPlaying)
         {
             PlayAnimation(component, component->m_CurrentAnimation, component->m_AnimTimer, component->m_PlaybackRate);
         }
@@ -2391,6 +2394,7 @@ namespace dmGameSystem
                 {
                     component->m_AnimationReHash |= component->m_CurrentAnimation != 0x0 && component->m_CurrentAnimationFrame != 0;
                     component->m_AnimationPlayback = dmGameSystemDDF::PLAYBACK_NONE;
+                    component->m_IsPlaying = 0;
                     component->m_CurrentAnimation = 0x0;
                     component->m_CurrentAnimationFrame = 0;
                     dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
