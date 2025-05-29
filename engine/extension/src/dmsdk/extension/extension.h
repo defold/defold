@@ -98,11 +98,28 @@ typedef enum ExtensionCallbackType
     EXTENSION_CALLBACK_POST_RENDER,
 } ExtensionCallbackType;
 
+/*# engine exit status
+ *
+ * Engine exit status.
+ *
+ * @enum
+ * @name AppExitStatus
+ * @member EXTENSION_APP_DEFAULT
+ * @member EXTENSION_APP_REBOOT
+ * @member EXTENSION_APP_EXIT
+ *
+ */
+typedef enum AppExitStatus
+{
+    EXTENSION_APP_DEFAULT  =  0,
+    EXTENSION_APP_REBOOT   =  1,
+    EXTENSION_APP_EXIT     = -1,
+} AppExitStatus;
 
 typedef struct ExtensionAppParams
 {
-    HConfigFile m_ConfigFile; // Deprecated. Here for backwards compatibility
-
+    HConfigFile     m_ConfigFile; // Deprecated. Here for backwards compatibility
+    AppExitStatus   m_ExitStatus;
     struct ExtensionParamsImpl* m_Impl;
 } ExtensionAppParams;
 
