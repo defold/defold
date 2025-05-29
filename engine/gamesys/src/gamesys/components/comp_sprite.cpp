@@ -136,7 +136,7 @@ namespace dmGameSystem
         uint32_t                    m_MixedHash;
         uint32_t                    m_AnimationDataHash;
 
-        int32_t                     m_AnimationInterval;
+        int32_t                     m_AnimationInterval; // cached value when animation is playing
         /// Currently playing animation
         dmhash_t                    m_CurrentAnimation;
         uint32_t                    m_CurrentAnimationFrame;
@@ -572,6 +572,7 @@ namespace dmGameSystem
             component->m_AnimationID = (uint16_t)(*anim_id);
             component->m_AnimationReHash |= component->m_CurrentAnimation != animation;
             component->m_CurrentAnimation = animation;
+
             dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_TextureSet->m_Animations[*anim_id];
             uint32_t frame_count = animation->m_End - animation->m_Start;
             component->m_AnimationInterval = frame_count;
@@ -686,7 +687,7 @@ namespace dmGameSystem
         component->m_Size = Vector3(0.0f, 0.0f, 0.0f);
         component->m_AnimationID = 0;
         component->m_AnimationPlayback = dmGameSystemDDF::PLAYBACK_NONE;
-        component->m_AnimationInterval = 0;
+        component->m_AnimationInterval = 1;
 
         if (component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_MANUAL)
         {
@@ -2147,7 +2148,13 @@ namespace dmGameSystem
 
     static inline float GetAnimationFrameCount(SpriteComponent* component)
     {
-        return (float)(component->m_AnimationInterval);
+        // don't use cached m_AnimationInterval here because GetAnimationFrameCount
+        // can be called without start playing animation as a result m_AnimationInterval is not
+        // updated to actual length of animation
+        TextureSetResource* texture_set                     = GetFirstTextureSet(component);
+        dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
+        dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
+        return (float)(animation_ddf->m_End - animation_ddf->m_Start);
     }
 
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params)
