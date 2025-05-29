@@ -1305,6 +1305,27 @@ Transaction: clear particlefx
 After transaction (clear):
   emitters: 0
   modifiers: 0
+Collision object initial state:
+  shapes: 0
+Transaction: add 3 shapes
+After transaction (add 3 shapes):
+  shapes: 3
+  - id: box
+    type: shape-type-box
+    dimensions: 20 20 20
+  - id: sphere
+    type: shape-type-sphere
+    diameter: 20
+  - id: capsule
+    type: shape-type-capsule
+    diameter: 20
+    height: 40
+Transaction: clear
+After transaction (clear):
+  shapes: 0
+Expected errors:
+  missing type => type is required
+  wrong type => box is not shape-type-box, shape-type-capsule or shape-type-sphere
 ")
 
 (deftest attachment-properties-test

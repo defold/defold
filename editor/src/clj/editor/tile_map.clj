@@ -727,7 +727,7 @@
 
 (attachment/register!
   TileMapNode :layers
-  :add {:node-type LayerNode :tx-attach-fn attach-layer-node}
+  :add {LayerNode attach-layer-node}
   :get attachment/nodes-getter)
 
 ;;--------------------------------------------------------------------
