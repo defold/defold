@@ -80,7 +80,7 @@
             [internal.util :refer [first-where]]
             [service.log :as log]
             [service.smoke-log :as slog]
-            [util.coll :as coll]
+            [util.coll :as coll :refer [pair]]
             [util.eduction :as e]
             [util.http-server :as http-server]
             [util.profiler :as profiler]
@@ -363,11 +363,15 @@
 
 (defn- context-openable-resource
   ([app-view selection]
-   (or (selection->single-openable-resource selection)
-       (g/node-value app-view :active-resource)))
+   (when-let [resource (or (selection->single-resource selection)
+                           (g/node-value app-view :active-resource))]
+     (when (resource/openable-resource? resource)
+       resource)))
   ([app-view selection evaluation-context]
-   (or (selection->single-openable-resource selection)
-       (g/node-value app-view :active-resource evaluation-context))))
+   (when-let [resource (or (selection->single-resource selection)
+                           (g/node-value app-view :active-resource evaluation-context))]
+     (when (resource/openable-resource? resource)
+       resource))))
 
 (defn- context-resource
   ([app-view selection]
@@ -404,11 +408,11 @@
 
 (handler/defhandler :scene.select-scale-tool :workbench
   (run [app-view] (g/transact (g/set-property app-view :active-tool :scale)))
-  (state [app-view]  (= (g/node-value app-view :active-tool) :scale)))
+  (state [app-view] (= (g/node-value app-view :active-tool) :scale)))
 
 (handler/defhandler :scene.select-rotate-tool :workbench
   (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
-  (state [app-view]  (= (g/node-value app-view :active-tool) :rotate)))
+  (state [app-view] (= (g/node-value app-view :active-tool) :rotate)))
 
 (handler/defhandler :scene.visibility.show-settings :workbench
   (run [app-view scene-visibility]
@@ -466,7 +470,7 @@
     :tooltip "Scale tool"
     :icon "icons/45/Icons_T_04_Scale.png"
     :command :scene.select-scale-tool}
-   {:label :separator}
+   menu-items/separator
    {:id :2d-mode
     :tooltip "2d mode"
     :graphic-fn (partial icons/make-svg-icon-graphic mode-2d-svg-path)
@@ -1619,19 +1623,19 @@ If you do not specifically require different script states, consider changing th
                {:label "Upgrade File Formats..."
                 :id ::save-and-upgrade-all
                 :command :file.save-and-upgrade-all}
-               {:label :separator}
+               menu-items/separator
                {:label "Search in Files..."
                 :command :file.search}
                {:label "Recent Files"
                 :command :private/recent-files}
-               {:label :separator}
+               menu-items/separator
                {:label "Close"
                 :command :window.tab.close}
                {:label "Close All"
                 :command :window.tab.close-all}
                {:label "Close Others"
                 :command :window.tab.close-others}
-               {:label :separator}
+               menu-items/separator
                {:label "Referencing Files..."
                 :command :file.show-references}
                {:label "Dependencies..."
@@ -1643,7 +1647,7 @@ If you do not specifically require different script states, consider changing th
                menu-items/separator
                {:label "Hot Reload"
                 :command :run.hot-reload}
-               {:label :separator}
+               menu-items/separator
                {:label "Open Project..."
                 :command :file.open-project}
                {:label "Preferences..."
@@ -1658,7 +1662,7 @@ If you do not specifically require different script states, consider changing th
                {:label "Redo"
                 :icon "icons/redo.png"
                 :command :edit.redo}
-               {:label :separator}
+               menu-items/separator
                {:label "Cut"
                 :command :edit.cut}
                {:label "Copy"
@@ -1670,13 +1674,12 @@ If you do not specifically require different script states, consider changing th
                {:label "Delete"
                 :icon "icons/32/Icons_M_06_trash.png"
                 :command :edit.delete}
-               {:label :separator}
+               menu-items/separator
                {:label "Move Up"
                 :command :edit.reorder-up}
                {:label "Move Down"
                 :command :edit.reorder-down}
-               {:label :separator
-                :id ::edit-end}]}
+               (menu-items/separator-with-id ::edit-end)]}
    {:label "View"
     :id ::view
     :children [{:label "Toggle Assets Pane"
@@ -1687,7 +1690,7 @@ If you do not specifically require different script states, consider changing th
                 :command :window.toggle-bottom-pane}
                {:label "Toggle Properties Pane"
                 :command :window.toggle-right-pane}
-               {:label :separator}
+               menu-items/separator
                {:label "Show Console"
                 :command :window.show-console}
                {:label "Show Curve Editor"
@@ -1696,59 +1699,60 @@ If you do not specifically require different script states, consider changing th
                 :command :window.show-build-errors}
                {:label "Show Search Results"
                 :command :window.show-search-results}
-               {:label :separator
-                :id ::view-end}]}
+               (menu-items/separator-with-id ::view-end)]}
    {:label "Help"
     :children [{:label "Reload Stylesheet"
                 :command :dev.reload-css}
                {:label "Show Logs"
                 :command :help.open-logs}
-               {:label :separator}
+               menu-items/separator
                {:label "Create Desktop Entry"
                 :command :file.create-desktop-entry}
-               {:label :separator}
+               menu-items/separator
                {:label "Documentation"
                 :command :help.open-documentation}
                {:label "Support Forum"
                 :command :help.open-forum}
                {:label "Find Assets"
                 :command :help.open-asset-portal}
-               {:label :separator}
+               menu-items/separator
                {:label "Report Issue"
                 :command :help.report-issue}
                {:label "Report Suggestion"
                 :command :help.report-suggestion}
                {:label "Search Issues"
                 :command :help.open-issues}
-               {:label :separator}
+               menu-items/separator
                {:label "Development Fund"
                 :command :help.open-donations}
-               {:label :separator}
+               menu-items/separator
                {:label "About"
                 :command :app.about}]}])
 
 (handler/register-menu! ::tab-menu
-  [{:label "Close"
+  [menu-items/open-as
+   menu-items/separator
+   {:label "Close"
     :command :window.tab.close}
    {:label "Close Others"
     :command :window.tab.close-others}
    {:label "Close All"
     :command :window.tab.close-all}
-   {:label :separator}
+   menu-items/separator
    {:label "Move to Other Tab Pane"
     :command :window.tab.move-to-other-group}
    {:label "Swap With Other Tab Pane"
     :command :window.tab.swap-with-other-group}
    {:label "Join Tab Panes"
     :command :window.tab.join-groups}
-   {:label :separator}
+   menu-items/separator
    {:label "Copy Resource Path"
     :command :edit.copy-resource-path}
    {:label "Copy Full Path"
     :command :edit.copy-absolute-path}
    {:label "Copy Require Path"
     :command :edit.copy-require-path}
-   {:label :separator}
+   menu-items/separator
    {:label "Show in Asset Browser"
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-assets}

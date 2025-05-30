@@ -86,12 +86,8 @@
           children)))))
 
 (handler/register-menu! ::resource-menu
-  [{:label "Open"
-    :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :file.open-selected}
-   {:label "Open As"
-    :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :file.open-as}
+  [menu-items/open-selected
+   menu-items/open-as
    menu-items/separator
    {:label "Copy Resource Path"
     :command :edit.copy-resource-path}
@@ -136,7 +132,7 @@
    menu-items/separator
    {:label "Rename..."
     :command :file.rename}
-   (assoc menu-items/separator :id ::context-menu-end)])
+   (menu-items/separator-with-id ::context-menu-end)])
 
 (def fixed-resource-paths #{"/" "/game.project"})
 

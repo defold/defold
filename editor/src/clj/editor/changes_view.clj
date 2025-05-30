@@ -67,20 +67,16 @@
               (error-reporting/report-exception! error))))))))
 
 (handler/register-menu! ::changes-menu
-  [{:label "Open"
-    :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :file.open-selected}
-   {:label "Open As"
-    :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :file.open-as}
-   {:label :separator}
+  [menu-items/open-selected
+   menu-items/open-as
+   menu-items/separator
    {:label "Copy Resource Path"
     :command :edit.copy-resource-path}
    {:label "Copy Full Path"
     :command :edit.copy-absolute-path}
    {:label "Copy Require Path"
     :command :edit.copy-require-path}
-   {:label :separator}
+   menu-items/separator
    {:label "Show in Asset Browser"
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-assets}

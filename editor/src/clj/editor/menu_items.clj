@@ -12,28 +12,49 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns editor.menu-items)
+(ns editor.menu-items
+  (:require [util.fn :as fn]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(def separator
-  {:label :separator})
+;; -----------------------------------------------------------------------------
+;; Common menu definitions shared across files.
+;; Keep sorted alphabetically!
+;; -----------------------------------------------------------------------------
 
-(def show-overrides-text "Show Overrides...")
+(def open-as-text "Open As")
+(def open-as-icon "icons/32/Icons_S_14_linkarrow.png")
+(def open-as
+  {:label open-as-text
+   :icon open-as-icon
+   :command :file.open-as})
 
-(def show-overrides
-  {:label show-overrides-text
-   :command :edit.show-overrides})
+(def open-selected-text "Open")
+(def open-selected-icon "icons/32/Icons_S_14_linkarrow.png")
+(def open-selected
+  {:label open-selected-text
+   :icon open-selected-icon
+   :command :file.open-selected})
+
+(def push-down-overrides-text "Push Down Overrides")
+(def push-down-overrides
+  {:label push-down-overrides-text
+   :command :edit.push-down-overrides})
 
 (def pull-up-overrides-text "Pull Up Overrides")
-
 (def pull-up-overrides
   {:label pull-up-overrides-text
    :command :edit.pull-up-overrides})
 
-(def push-down-overrides-text "Push Down Overrides")
+(def separator {:label :separator})
+(def separator-with-id
+  (fn/memoize
+    (fn separator-with-id [id]
+      {:pre [(keyword? id)]}
+      (assoc separator :id id))))
 
-(def push-down-overrides
-  {:label push-down-overrides-text
-   :command :edit.push-down-overrides})
+(def show-overrides-text "Show Overrides...")
+(def show-overrides
+  {:label show-overrides-text
+   :command :edit.show-overrides})
