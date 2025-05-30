@@ -274,8 +274,9 @@ namespace dmSys
                 return RESULT_UNKNOWN;
             }
 
-            char* tmp_path = (char*)_alloca(size_needed);
+            char* tmp_path = (char*)_alloca(size_needed + 1);
             WideCharToMultiByte(CP_UTF8, 0, short_path, wlength, tmp_path, size_needed, NULL, NULL);
+            tmp_path[size_needed] = 0;
 
             if (dmStrlCpy(path, tmp_path, path_len) >= path_len)
                 return RESULT_INVAL;
