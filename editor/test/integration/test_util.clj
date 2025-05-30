@@ -75,7 +75,7 @@
            [java.util.zip ZipEntry ZipOutputStream]
            [javafx.event ActionEvent]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Cell ColorPicker Control Label ScrollBar Slider TextField ToggleButton]
+           [javafx.scene.control Button Cell ColorPicker Control Label ScrollBar Slider TextField ToggleButton]
            [javafx.scene.layout VBox]
            [javafx.scene.paint Color]
            [javax.imageio ImageIO]
@@ -135,6 +135,7 @@
        (filterv #(and (instance? Control %)
                       (not (or (instance? Cell %)
                                (instance? Label %)
+                               (instance? Button %)
                                (instance? ScrollBar %)))))))
 
 (defmulti set-control-value! (fn [^Control control _num-value] (class control)))

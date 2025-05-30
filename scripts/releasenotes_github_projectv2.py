@@ -305,6 +305,7 @@ def generate(version, hide_details = False):
         entry["body"] = re.sub("Fix https.*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fix .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fix #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Related to #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
 
         # Remove "user facing changes" header
         entry["body"] = re.sub("User-facing changes.", "", entry["body"], flags=re.IGNORECASE).strip()

@@ -447,73 +447,78 @@ namespace dmGraphics
     // Converting from a matrix to a smaller matrix will use the top-left portion of the source matrix.
     // Converting from a matrix to a larger matrix will write into the top-left portion of the destination matrix, and fill the remaining space with the identity matrix.
     // Converting from a matrix to a vector will truncate values from the end of the source matrix.
-    uint8_t* WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, const WriteAttributeParams& params)
+    uint8_t* WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, uint32_t vertex_count, const WriteAttributeParams& params)
     {
-        UnpackAttributeData dst_data = {};
-        UnpackAttributeData src_data = {};
-        UnpackAttributeDataState unpack_state = {};
+        UnpackAttributeData dst_data;
+        UnpackAttributeData src_data;
+        UnpackAttributeDataState unpack_state;
 
-        for (int i = 0; i < params.m_VertexAttributeInfos->m_NumInfos; ++i)
-        {
-            const VertexAttributeInfo& info = params.m_VertexAttributeInfos->m_Infos[i];
-            if (info.m_StepFunction != params.m_StepFunction)
+        for (int v = 0; v < vertex_count; ++v) {
+            memset(&dst_data, 0, sizeof(dst_data));
+            memset(&src_data, 0, sizeof(src_data));
+            memset(&unpack_state, 0, sizeof(unpack_state));
+
+            for (int i = 0; i < params.m_VertexAttributeInfos->m_NumInfos; ++i)
             {
-                continue;
-            }
-
-            dst_data.m_VectorType   = info.m_VectorType;
-            dst_data.m_DataType     = info.m_DataType;
-            dst_data.m_ElementCount = VectorTypeToElementCount(dst_data.m_VectorType);
-            dst_data.m_IsMatrix     = VectorTypeIsMatrix(dst_data.m_VectorType);
-
-            const uint32_t dst_element_byte_width = DataTypeToByteWidth(dst_data.m_DataType);
-            const size_t attribute_stride         = dst_data.m_ElementCount * dst_element_byte_width;
-
-            UnpackWriteAttributeBySemanticType(unpack_state, vertex_index, params, info, &src_data);
-
-            // If there is no data available at all, we pick one of the default float arrays
-            if (src_data.m_ValuePtr == 0)
-            {
-                SetUnpackAttributeDataDefault(info, src_data, dst_data);
-            }
-
-            if (src_data.m_VectorType == VertexAttribute::VECTOR_TYPE_SCALAR)
-            {
-                WriteScalar(write_ptr, src_data, dst_data);
-            }
-            else if (src_data.m_IsMatrix && dst_data.m_IsMatrix)
-            {
-                WriteMatrixToMatrix(write_ptr, src_data, dst_data);
-            }
-            else
-            {
-                if (src_data.m_ElementCount < dst_data.m_ElementCount && dst_data.m_ElementCount >= 4 && SemanticTypeRequiresOneAsW(info.m_SemanticType))
+                const VertexAttributeInfo& info = params.m_VertexAttributeInfos->m_Infos[i];
+                if (info.m_StepFunction != params.m_StepFunction)
                 {
-                    uint8_t v4_one_as_w_backing[sizeof(float)*4] = {};
-                    memcpy(v4_one_as_w_backing, src_data.m_ValuePtr, src_data.m_ElementCount * DataTypeToByteWidth(src_data.m_DataType));
+                    continue;
+                }
 
-                    if (src_data.m_DataType == VertexAttribute::TYPE_FLOAT)
-                    {
-                        ((float*) v4_one_as_w_backing)[3] = 1.0;
-                    }
-                    else
-                    {
-                        WriteVertexAttributeFromFloat(v4_one_as_w_backing + 3 * dst_element_byte_width, 1.0, dst_data.m_DataType);
-                    }
+                dst_data.m_VectorType   = info.m_VectorType;
+                dst_data.m_DataType     = info.m_DataType;
+                dst_data.m_ElementCount = VectorTypeToElementCount(dst_data.m_VectorType);
+                dst_data.m_IsMatrix     = VectorTypeIsMatrix(dst_data.m_VectorType);
 
-                    src_data.m_ValuePtr     = v4_one_as_w_backing;
-                    src_data.m_ElementCount = 4;
-                    WriteVector(write_ptr, src_data, dst_data);
+                const uint32_t dst_element_byte_width = DataTypeToByteWidth(dst_data.m_DataType);
+                const size_t attribute_stride         = dst_data.m_ElementCount * dst_element_byte_width;
+
+                UnpackWriteAttributeBySemanticType(unpack_state, vertex_index + v, params, info, &src_data);
+
+                // If there is no data available at all, we pick one of the default float arrays
+                if (src_data.m_ValuePtr == 0)
+                {
+                    SetUnpackAttributeDataDefault(info, src_data, dst_data);
+                }
+
+                if (src_data.m_VectorType == VertexAttribute::VECTOR_TYPE_SCALAR)
+                {
+                    WriteScalar(write_ptr, src_data, dst_data);
+                }
+                else if (src_data.m_IsMatrix && dst_data.m_IsMatrix)
+                {
+                    WriteMatrixToMatrix(write_ptr, src_data, dst_data);
                 }
                 else
                 {
-                    WriteVector(write_ptr, src_data, dst_data);
+                    if (src_data.m_ElementCount < dst_data.m_ElementCount && dst_data.m_ElementCount >= 4 && SemanticTypeRequiresOneAsW(info.m_SemanticType))
+                    {
+                        uint8_t v4_one_as_w_backing[sizeof(float)*4] = {};
+                        memcpy(v4_one_as_w_backing, src_data.m_ValuePtr, src_data.m_ElementCount * DataTypeToByteWidth(src_data.m_DataType));
+
+                        if (src_data.m_DataType == VertexAttribute::TYPE_FLOAT)
+                        {
+                            ((float*) v4_one_as_w_backing)[3] = 1.0;
+                        }
+                        else
+                        {
+                            WriteVertexAttributeFromFloat(v4_one_as_w_backing + 3 * dst_element_byte_width, 1.0, dst_data.m_DataType);
+                        }
+
+                        src_data.m_ValuePtr     = v4_one_as_w_backing;
+                        src_data.m_ElementCount = 4;
+                        WriteVector(write_ptr, src_data, dst_data);
+                    }
+                    else
+                    {
+                        WriteVector(write_ptr, src_data, dst_data);
+                    }
                 }
+
+                write_ptr += attribute_stride;
             }
-
-            write_ptr += attribute_stride;
         }
-
         return write_ptr;
     }
 }

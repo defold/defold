@@ -32,6 +32,7 @@
             [editor.graph-util :as gu]
             [editor.gui-clipping :as clipping]
             [editor.handler :as handler]
+            [editor.id :as id]
             [editor.material :as material]
             [editor.math :as math]
             [editor.menu-items :as menu-items]
@@ -470,7 +471,7 @@
           child-indices (g/node-value target :child-indices)
           next-index (next-child-index child-indices)]
       (concat
-        (g/update-property source :id outline/resolve-id taken-ids)
+        (g/update-property source :id id/resolve taken-ids)
         (g/set-property source :child-index next-index)
         (attach-gui-node node-tree target source type)))))
 
@@ -486,7 +487,7 @@
        ;; update-gui-resource-references call in the property setter does not
        ;; treat this as a rename refactoring.
        (concat
-         (g/update-property source :name outline/resolve-id taken-id-names)
+         (g/update-property source :name id/resolve taken-id-names)
          (attach-fn node-tree target source))))))
 
 ;; Schema validation is disabled because it severely affects project load times.
@@ -2539,7 +2540,7 @@
 ;; SDK api
 (defn query-and-add-resources! [resources-type-label resource-exts taken-ids project select-fn make-node-fn]
   (when-let [resources (browse (str "Select " resources-type-label) project resource-exts)]
-    (let [names (outline/resolve-ids (map resource->id resources) taken-ids)
+    (let [names (id/resolve-all (map resource->id resources) taken-ids)
           pairs (map vector resources names)
           op-seq (gensym)
           op-label (str "Add " resources-type-label)
@@ -2714,7 +2715,7 @@
       (select-fn [node]))))
 
 (defn- add-layer-handler [project {:keys [scene parent]} select-fn]
-  (let [name (outline/resolve-id "layer" (g/node-value parent :name-counts))
+  (let [name (id/gen "layer" (g/node-value parent :name-counts))
         child-indices (g/node-value parent :child-indices)
         next-index (next-child-index child-indices)]
     (g/transact
@@ -3478,8 +3479,8 @@
 (defn add-gui-node-with-props! [scene parent node-type custom-type props select-fn]
   (let [node-tree (g/node-value scene :node-tree)
         id (or (:id props)
-               (outline/resolve-id (subs (name node-type) 5)
-                                   (g/node-value node-tree :id-counts)))
+               (id/resolve (subs (name node-type) 5)
+                           (g/node-value node-tree :id-counts)))
         def-node-type (get-registered-node-type-cls node-type custom-type)
         child-indices (g/node-value parent :child-indices)
         next-index (next-child-index child-indices)
@@ -3951,8 +3952,7 @@
   [scene workspace resource]
   (let [ext (resource/type-ext resource)
         base-name (resource/base-name resource)
-        gen-name #(->> (g/node-value (g/node-value scene %) :name-counts)
-                       (outline/resolve-id base-name))]
+        gen-name #(id/gen base-name (g/node-value (g/node-value scene %) :name-counts))]
     (cond
       (= ext "particlefx")
       (add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource (gen-name :particlefx-resources-node))

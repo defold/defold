@@ -1030,12 +1030,13 @@ namespace dmGameSystem
         return (dmGameObject::HComponent)params.m_UserData;
     }
 
+    // we can use only 24 bits, take a look render_private.h -> RenderListSortValue
     inline uint32_t MakeFinalRenderOrder(uint32_t world_order, uint32_t scene_order, uint32_t sub_order)
     {
         // scene_order: 4 bits (max 15)
-        // world_order: 12 bits (max 4095)
-        // sub_order:   16 bits (max 65535)
-        return (scene_order << 28) | (world_order << 16) | sub_order;
+        // world_order: 7 bits (max 127)
+        // sub_order:   13 bits (max 8191)
+        return (scene_order << 20) | (world_order << 13) | sub_order;
     }
 
     static void SetBlendMode(dmRender::RenderObject& ro, dmGui::BlendMode blend_mode)
@@ -3158,9 +3159,9 @@ namespace dmGameSystem
 
         // TODO: it seems like this is a hidden game.project property which should be gui.world_count like it is in physics
         int32_t max_world_count = dmConfigFile::GetInt(ctx->m_Config, "gui.max_instance_count", 128);
-        if (max_world_count > 4096)
+        if (max_world_count > 128)
         {
-            dmLogError("`gui.max_instance_count` has a maximum value of 4096, but it is set to %d. Decrease the value in `game.project`", max_world_count);
+            dmLogError("`gui.max_instance_count` has a maximum value of 128, but it is set to %d. Decrease the value in `game.project`", max_world_count);
             return dmGameObject::RESULT_UNKNOWN_ERROR;
         }
         gui_context->m_Worlds.SetCapacity(max_world_count);

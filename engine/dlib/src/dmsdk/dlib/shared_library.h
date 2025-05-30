@@ -22,8 +22,8 @@
  *
  * @document
  * @name Shared Library
- * @namespace sharedlibrary
  * @path engine/dlib/src/dmsdk/dlib/shared_library.h
+ * @language C++
  */
 
 /*# storage-class attribute for shared library export/import

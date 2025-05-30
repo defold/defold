@@ -242,6 +242,7 @@ max_fixed_timesteps = 3
 [profiler]
 track_cpu = 1
 sleep_between_server_updates = 10
+enabled = 1
 
 [render]
 clear_color_red = 0.0

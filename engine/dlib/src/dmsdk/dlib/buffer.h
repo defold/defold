@@ -30,6 +30,7 @@ namespace dmBuffer
      * @name Buffer
      * @namespace dmBuffer
      * @path engine/dlib/src/dmsdk/dlib/buffer.h
+     * @language C++
      */
 
     /*# HBuffer type definition

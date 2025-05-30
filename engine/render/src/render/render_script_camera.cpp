@@ -25,6 +25,7 @@ namespace dmRender
      * @document
      * @name Camera
      * @namespace camera
+     * @language Lua
      */
 
     #define RENDER_SCRIPT_CAMERA_LIB_NAME "camera"

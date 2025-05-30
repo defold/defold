@@ -865,14 +865,18 @@ nesting:
         (or (@hash->stable-id s)
             ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
 
+(defn- expect-script-output [expected actual]
+  (let [actual (normalize-pprint-output (str actual))]
+    (let [output-matches-expectation (= expected actual)]
+      (when-not output-matches-expectation
+        (is output-matches-expectation (string/join "\n" (diff/make-diff-output-lines actual expected 3)))))))
+
 (deftest pprint-test
   (test-util/with-loaded-project "test/resources/editor_extensions/pprint-test"
     (let [out (StringBuilder.)]
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
-      (let [actual (normalize-pprint-output (str out))]
-        (is (= actual expected-pprint-output)
-            (string/join "\n" (diff/make-diff-output-lines actual expected-pprint-output 3)))))))
+      (expect-script-output expected-pprint-output out))))
 
 (def expected-http-test-output
   "GET http://localhost:23000 => error (ConnectException)
@@ -912,9 +916,7 @@ POST http://localhost:23456/echo hello world! as string => 200
         (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
         ;; See test.editor_script: the test invokes http.request with various options and prints results
         (run-edit-menu-test-command!)
-        (let [actual (normalize-pprint-output (str out))]
-          (is (= actual expected-http-test-output)
-              (string/join "\n" (diff/make-diff-output-lines actual expected-http-test-output 3))))
+        (expect-script-output expected-http-test-output out)
         (finally
           (http-server/stop! server 0))))))
 
@@ -1101,9 +1103,7 @@ GET /test/resources/test.json as json => 200
                                 :display-output! #(doto out (.append %2) (.append \newline))
                                 :web-server server)
         (run-edit-menu-test-command!)
-        (let [actual (normalize-pprint-output (.toString out))]
-          (is (= expected-http-server-test-output actual)
-              (string/join "\n" (diff/make-diff-output-lines actual expected-http-server-test-output 3))))))))
+        (expect-script-output expected-http-server-test-output out)))))
 
 (deftest property-availability-test
   (test-util/with-loaded-project "test/resources/editor_extensions/property_availability_project"
@@ -1119,11 +1119,291 @@ GET /test/resources/test.json as json => 200
                             :properties
                             vals
                             (map #(assoc % :outline outline)))))
-             (keep (fn [{:keys [outline key edit-type] :as p}]
+             (run! (fn [{:keys [outline key] :as p}]
                      (let [{:keys [node-id]} outline
                            ext-key (string/replace (name key) \- \_)]
-                       (when-not (contains? #{:editor.properties.CurveSpread :editor.properties.Curve} (:k (:type edit-type)))
-                         (is (some? (graph/ext-value-getter node-id ext-key ec)))
-                         (when-not (properties/read-only? p)
-                           (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))
-             dorun)))))
+                       (is (some? (graph/ext-value-getter node-id ext-key ec)))
+                       (when-not (properties/read-only? p)
+                         (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))))))
+
+(def ^:private expected-tilemap-test-output
+  "new => {
+}
+fill 3x3 => {
+  [1, 1] = 2
+  [2, 1] = 2
+  [3, 1] = 2
+  [1, 2] = 2
+  [2, 2] = 2
+  [3, 2] = 2
+  [1, 3] = 2
+  [2, 3] = 2
+  [3, 3] = 2
+}
+remove center => {
+  [1, 1] = 2
+  [2, 1] = 2
+  [3, 1] = 2
+  [1, 2] = 2
+  [3, 2] = 2
+  [1, 3] = 2
+  [2, 3] = 2
+  [3, 3] = 2
+}
+clear => {
+}
+set using table => {
+  [8, 8] = 1
+}
+get tile: 1
+get info:
+  h_flip: true
+  index: 1
+  v_flip: true
+  rotate_90: true
+non-existent tile: nil
+non-existent info: nil
+negative keys => {
+  [-100, -100] = 1
+  [8, 8] = 1
+}
+create a layer with tiles...
+tiles from the graph => {
+  [-100, -100] = 1
+  [8, 8] = 1
+}
+set layer tiles to new value...
+new tiles from the graph => {
+  [8, 8] = 2
+}
+")
+
+(deftest tile-map-editing-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/tilemap_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-tilemap-test-output out))))
+
+(def ^:private expected-attachment-test-output
+  "Atlas initial state:
+  images: 0
+  animations: 0
+  can add images: true
+  can add animations: true
+Transaction: add image and animation
+After transaction (add):
+  images: 1
+    image: /builtins/assets/images/logo/logo_256.png
+  animations: 1
+    animation id: logos
+    animation images: 2
+      animation image: /builtins/assets/images/logo/logo_blue_256.png
+      animation image: /builtins/assets/images/logo/logo_256.png
+Transaction: remove image
+After transaction (remove image):
+  images: 0
+  animations: 1
+    animation id: logos
+    animation images: 2
+      animation image: /builtins/assets/images/logo/logo_blue_256.png
+      animation image: /builtins/assets/images/logo/logo_256.png
+Transaction: clear animation images
+After transaction (clear):
+  images: 0
+  animations: 1
+    animation id: logos
+    animation images: 0
+Transaction: remove animation
+After transaction (remove animation):
+  images: 0
+  animations: 0
+Expected errors:
+  Wrong list name to add => AtlasNode does not define \"layers\"
+  Wrong list name to remove => AtlasNode does not define \"layers\"
+  Wrong list item to remove => /test.atlas is not in the \"images\" list of /test.atlas
+  Wrong list name to clear => AtlasNode does not define \"layers\"
+  Wrong child property name => Can't set property \"no_such_prop\" of AtlasAnimation
+  Added value is not a table => \"/foo.png\" is not a table
+  Added nested value is not a table => \"/foo.png\" is not a table
+  Added node has invalid property value => \"invalid-pivot\" is not a tuple
+  Added resource has wrong type => resource extension should be jpg or png
+Tilesource initial state:
+  animations: 0
+  collision groups: 0
+  tile collision groups: 0
+Transaction: add animations and collision groups
+After transaction (add animations and collision groups):
+  animations: 2
+    animation: idle
+    animation: walk
+  collision groups: 4
+    collision group: obstacle
+    collision group: character
+    collision group: collision_group
+    collision group: collision_group1
+  tile collision groups: 2
+    tile collision group: 1 obstacle
+    tile collision group: 3 character
+Transaction: set tile_collision_groups to its current value
+After transaction (tile_collision_groups roundtrip):
+  animations: 2
+    animation: idle
+    animation: walk
+  collision groups: 4
+    collision group: obstacle
+    collision group: character
+    collision group: collision_group
+    collision group: collision_group1
+  tile collision groups: 2
+    tile collision group: 1 obstacle
+    tile collision group: 3 character
+Expected errors
+  Using non-existent collision group => Collision group \"does-not-exist\" is not defined in the tilesource
+Transaction: clear tilesource
+After transaction (clear):
+  animations: 0
+  collision groups: 0
+  tile collision groups: 0
+Tilemap initial state:
+  layers: 0
+Transaction: add 2 layers
+After transaction (add 2 layers):
+  layers: 2
+    layer: background
+    tiles: {
+      [1, 1] = 1
+      [2, 1] = 2
+      [3, 1] = 3
+      [1, 2] = 2
+      [2, 2] = 2
+      [3, 2] = 3
+      [1, 3] = 3
+      [2, 3] = 3
+      [3, 3] = 3
+    }
+    layer: items
+    tiles: {
+      [2, 2] = 3
+    }
+Transaction: clear tilemap
+After transaction (clear):
+  layers: 0
+Particlefx initial state:
+  emitters: 0
+  modifiers: 0
+Transaction: add emitter and modifier
+After transaction (add emitter and modifier):
+  emitters: 1
+    emitter: emitter
+    modifiers: 2
+      modifier: modifier-type-vortex
+      modifier: modifier-type-drag
+  modifiers: 1
+    modifier: modifier-type-acceleration
+Transaction: clear particlefx
+After transaction (clear):
+  emitters: 0
+  modifiers: 0
+Collision object initial state:
+  shapes: 0
+Transaction: add 3 shapes
+After transaction (add 3 shapes):
+  shapes: 3
+  - id: box
+    type: shape-type-box
+    dimensions: 20 20 20
+  - id: sphere
+    type: shape-type-sphere
+    diameter: 20
+  - id: capsule
+    type: shape-type-capsule
+    diameter: 20
+    height: 40
+Transaction: clear
+After transaction (clear):
+  shapes: 0
+Expected errors:
+  missing type => type is required
+  wrong type => box is not shape-type-box, shape-type-capsule or shape-type-sphere
+")
+
+(deftest attachment-properties-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/transact_attachment_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-attachment-test-output out))))
+
+(def ^:private expected-resources-as-nodes-test-output
+  "Directory read:
+  can get path: true
+  can set path: false
+  can get children: true
+  can set children: false
+  can add children: false
+Assets path:
+  /assets
+Assets images:
+  /assets/a.png
+  /assets/b.png
+Expected errors:
+  Setting a property => /assets is not a file resource
+")
+
+(deftest resources-as-nodes-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/resources_as_nodes_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-resources-as-nodes-test-output out))))
+
+(def ^:private expected-particlefx-test-output
+  "Initial state:
+emitters: 0
+After setup:
+emitters: 1
+  type: emitter-type-circle
+  blend mode: blend-mode-add
+  spawn rate: {0, 100, 1, 0}
+  initial red: {0, 0.5, 1, 0}
+  initial green: {0, 0.8, 1, 0}
+  initial blue: {0, 1, 1, 0}
+  initial alpha: {0, 0.2, 1, 0}
+  life alpha: {0, 0, 0.1, 0.995} {0.2, 1, 1, 0} {1, 0, 1, 0}
+  modifiers: 1
+    type: modifier-type-acceleration
+    magnitude: {0, 1, 1, 0}
+    rotation: {0, 0, -180}
+Expected errors:
+  empty points => {points = {}} does not satisfy any of its requirements:
+    - {points = {}} is not a number
+    - {} needs at least 1 element
+  x outside of range => {points = {{y = 1, tx = 1, x = -1, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = -1, ty = 0}}} is not a number
+    - -1 is not between 0 and 1
+  tx outside of range => {points = {{y = 1, tx = -0.5, x = 0, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = -0.5, x = 0, ty = 0}}} is not a number
+    - -0.5 is not between 0 and 1
+  ty outside of range => {points = {{y = 1, tx = 1, x = 0, ty = 2}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = 0, ty = 2}}} is not a number
+    - 2 is not between -1 and 1
+  xs not from 0 to 1 (upper) => {points = {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0.5, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0.5, ty = 0}}} is not a number
+    - {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0.5, ty = 0}} does not increase xs monotonically from 0 to 1
+  xs not from 0 to 1 (lower) => {points = {{y = 1, tx = 1, x = 0.5, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = 0.5, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}}} is not a number
+    - {{y = 1, tx = 1, x = 0.5, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}} does not increase xs monotonically from 0 to 1
+  xs not from 0 to 1 (duplicates) => {points = {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}}} is not a number
+    - {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}} does not increase xs monotonically from 0 to 1
+After clear:
+emitters: 0
+")
+
+(deftest particlefx-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/particlefx_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-particlefx-test-output out))))

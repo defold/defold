@@ -41,6 +41,7 @@
             [editor.future :as future]
             [editor.os :as os]
             [editor.ui :as ui]
+            [editor.util :as util]
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [clojure.lang MultiFn]
@@ -342,20 +343,6 @@
     (delete [_ component opts]
       (fx.lifecycle/delete lifecycle (:child component) opts))))
 
-(defmacro provide-single-default [m k v]
-  `(let [m# ~m
-         k# ~k]
-     (if (contains? m# k#)
-       m#
-       (assoc m# k# ~v))))
-
-(defmacro provide-defaults
-  "Like assoc, but does nothing if key is already in this map. Evaluates values
-  only when key is not present"
-  [m & kvs]
-  `(-> ~m
-       ~@(map #(cons `provide-single-default %) (partition 2 kvs))))
-
 (defn mount-renderer-and-await-result!
   "Mounts `renderer` and blocks current thread until `state-atom`'s value
   receives a `::result` key"
@@ -453,7 +440,7 @@
                         :else
                         {:fx/type ext-value
                          :value owner}))
-        (provide-defaults
+        (util/provide-defaults
           :resizable false
           :style :decorated
           :modality (if (nil? owner) :application-modal :window-modal)))))
@@ -490,7 +477,7 @@
   (-> props
       (assoc :fx/type fx.label/lifecycle)
       (dissoc :variant)
-      (provide-defaults :wrap-text true)
+      (util/provide-defaults :wrap-text true)
       (add-style-classes (case variant
                            :label "label"
                            :header "header"))))
@@ -718,11 +705,11 @@
       (dissoc :type)
       (assoc :fx/type fx.svg-path/lifecycle
              :content (icon-svg-path-data type))
-      (provide-defaults :fill (case type
-                                :icon/circle-check "#65c647"
-                                (:icon/triangle-error :icon/triangle-sad) "#e32f44"
-                                :icon/triangle-warning "#e6b711"
-                                "#9fb0be"))))
+      (util/provide-defaults :fill (case type
+                                     :icon/circle-check "#65c647"
+                                     (:icon/triangle-error :icon/triangle-sad) "#e32f44"
+                                     :icon/triangle-warning "#e6b711"
+                                     "#9fb0be"))))
 
 (defn icon-graphic
   "Returns a `:region` in the shape of the specified icon `:type` uniformly
@@ -855,7 +842,7 @@
   (-> props
       (assoc :fx/type fx.label/lifecycle)
       (prepend-style-classes "label" "ext-label")
-      (provide-defaults
+      (util/provide-defaults
         :alignment :top-left
         :min-width :use-pref-size
         :min-height :use-pref-size
@@ -882,7 +869,7 @@
   (-> props
       (assoc :fx/type fx.check-box/lifecycle)
       (prepend-style-classes "check-box" "ext-check-box")
-      (provide-defaults
+      (util/provide-defaults
         :mnemonic-parsing false
         :min-width :use-pref-size
         :min-height :use-pref-size
@@ -1093,7 +1080,7 @@
                     (assoc :fx/type fx.scroll-pane/lifecycle)
                     (dissoc :content)
                     (prepend-style-classes "ext-scroll-pane")
-                    (provide-defaults :fit-to-width true))}})
+                    (util/provide-defaults :fit-to-width true))}})
 
 (defmacro defc
   "Define a composed component
@@ -1141,7 +1128,7 @@
   (-> props
       (assoc :fx/type fx.label/lifecycle)
       (prepend-style-classes "label")
-      (provide-defaults
+      (util/provide-defaults
         :max-width Double/MAX_VALUE
         :max-height Double/MAX_VALUE
         :wrap-text true)

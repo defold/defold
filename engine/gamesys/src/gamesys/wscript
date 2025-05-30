@@ -97,7 +97,7 @@ def build(bld):
     apidoc_extract_task(bld, ['scripts/script_buffer.cpp',
         'scripts/script_camera.cpp',
         'scripts/script_collection_factory.cpp',
-        'scripts/script_collectionproxy.h',
+        'scripts/script_collectionproxy.cpp',
         'scripts/script_physics.cpp',
         'scripts/script_factory.cpp',
         'scripts/script_label.cpp',
@@ -113,9 +113,7 @@ def build(bld):
         'scripts/script_sys_gamesys.cpp',
         'scripts/script_http.cpp',
         'scripts/box2d/script_box2d.cpp',
-        'scripts/box2d/script_box2d_body.cpp',
-        'components/comp_sound.cpp',
-        'components/comp_collection_proxy.cpp'] + proto_files)
+        'scripts/box2d/script_box2d_body.cpp'] + proto_files)
 
     if not waflib.Options.options.skip_build_tests:
         bld.add_group()

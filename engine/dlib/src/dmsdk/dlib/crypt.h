@@ -25,6 +25,7 @@
  * @document
  * @name Crypt
  * @namespace dmCrypt
+ * @language C++
  */
 
 namespace dmCrypt
