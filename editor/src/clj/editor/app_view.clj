@@ -820,7 +820,10 @@
               ;; running to keep engine process
               ;; from halting because stdout/err is
               ;; not consumed.
-              (reboot-engine! selected-target web-server debug?))
+              (reboot-engine! selected-target web-server debug?)
+              (console/start-one-line-log-pump!
+                (:log-stream selected-target)
+                (fn [_] (on-service-url-found prefs selected-target))))
             (launch-new-engine!))))
       (catch Exception e
         (log/warn :exception e)
