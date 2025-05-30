@@ -275,6 +275,49 @@
     (is (returns-input? (repeatedly 1 rand)))
     (is (returns-input? (JustA. 1)))))
 
+(deftest lazy?-test
+  (is (false? (coll/lazy? nil)))
+  (is (false? (coll/lazy? "")))
+  (is (false? (coll/lazy? [])))
+  (is (false? (coll/lazy? (vector-of :long))))
+  (is (false? (coll/lazy? '())))
+  (is (false? (coll/lazy? {})))
+  (is (false? (coll/lazy? #{})))
+  (is (false? (coll/lazy? (sorted-map))))
+  (is (false? (coll/lazy? (sorted-set))))
+  (is (false? (coll/lazy? (double-array 0))))
+  (is (false? (coll/lazy? (object-array 0))))
+  (is (false? (coll/lazy? (range 1))))
+  (is (true? (coll/lazy? (repeat 1))))
+  (is (true? (coll/lazy? (repeatedly 1 rand))))
+  (is (true? (coll/lazy? (cycle [1]))))
+  (is (true? (coll/lazy? (map identity [1]))))
+  (is (true? (coll/lazy? (eduction (map identity) [1])))))
+
+(deftest eager-seq?-test
+  (is (true? (coll/eager-seq? nil)))
+  (is (true? (coll/eager-seq? "")))
+  (is (true? (coll/eager-seq? [])))
+  (is (true? (coll/eager-seq? (vector-of :long))))
+  (is (true? (coll/eager-seq? '())))
+  (is (true? (coll/eager-seq? {})))
+  (is (true? (coll/eager-seq? #{})))
+  (is (true? (coll/eager-seq? (sorted-map))))
+  (is (true? (coll/eager-seq? (sorted-set))))
+  (is (true? (coll/eager-seq? (double-array 0))))
+  (is (true? (coll/eager-seq? (object-array 0))))
+  (is (true? (coll/eager-seq? (range 1))))
+  (is (false? (coll/eager-seq? (repeat 1))))
+  (is (false? (coll/eager-seq? (repeatedly 1 rand))))
+  (is (false? (coll/eager-seq? (cycle [1]))))
+  (is (false? (coll/eager-seq? (map identity [1]))))
+  (is (false? (coll/eager-seq? (eduction (map identity) [1]))))
+  (is (false? (coll/eager-seq? (map identity [1]))))
+  (is (false? (coll/eager-seq? (eduction (map identity) [1]))))
+  (is (false? (coll/eager-seq? 0)))
+  (is (false? (coll/eager-seq? (Object.))))
+  (is (false? (coll/eager-seq? (Object.)))))
+
 (deftest pair-map-by-test
   (testing "Works as a transducer with key-fn"
     (let [result (into (sorted-map)
@@ -1384,6 +1427,46 @@
       #(= % 100) (range 1000) true
       #(= % 100) (range 50) nil
       #(= % 100) [] nil)))
+
+(deftest any?-test
+  (testing "any? behavior"
+    (are [pred coll ret] (= ret (boolean (some pred coll)) (coll/any? pred coll))
+      even? nil false
+      even? [] false
+      even? [1 3 5] false
+      even? [1 2 3 5] true
+      odd? [2 4 6] false
+      odd? [2 4 5 6] true)))
+
+(deftest not-any?-test
+  (testing "not-any? behavior"
+    (are [pred coll ret] (= ret (not-any? pred coll) (coll/not-any? pred coll))
+      even? nil true
+      even? [] true
+      even? [1 3 5] true
+      even? [1 2 3 5] false
+      odd? [2 4 6] true
+      odd? [2 4 5 6] false)))
+
+(deftest every?-test
+  (testing "every? behavior"
+    (are [pred coll ret] (= ret (every? pred coll) (coll/every? pred coll))
+      odd? nil true
+      odd? [] true
+      odd? [1 3 5] true
+      odd? [1 2 3 5] false
+      even? [2 4 6] true
+      even? [2 4 5 6] false)))
+
+(deftest not-every?-test
+  (testing "not-every? behavior"
+    (are [pred coll ret] (= ret (not-every? pred coll) (coll/not-every? pred coll))
+      odd? nil false
+      odd? [] false
+      odd? [1 3 5] false
+      odd? [1 2 3 5] true
+      even? [2 4 6] false
+      even? [2 4 5 6] true)))
 
 (deftest join-to-string-test
   (is (= "" (coll/join-to-string ", " [])))
