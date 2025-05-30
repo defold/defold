@@ -34,10 +34,6 @@ namespace dmCrash
 
     static void WriteMiniDump( const char* path, EXCEPTION_POINTERS* pep )
     {
-        fflush(stdout);
-        bool is_debug_mode = dLib::IsDebugMode();
-        dLib::SetDebugMode(true);
-
         HANDLE hFile = CreateFileA( path, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 
         if( ( hFile != NULL ) && ( hFile != INVALID_HANDLE_VALUE ) )
@@ -67,7 +63,6 @@ namespace dmCrash
         {
             dmLogError("CreateFile for MiniDump failed: %s. Error: %u \n", path, GetLastError() );
         }
-        dLib::SetDebugMode(is_debug_mode);
     }
 
     void EnableHandler(bool enable)
@@ -171,6 +166,27 @@ namespace dmCrash
                 symboladdress = symbol->Address;
             }
 
+            uint32_t module_index = 0xFFFFFFFF;
+            HMODULE module;
+            if (::GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCSTR)address, &module))
+            {
+                char module_name[dmCrash::AppState::MODULE_NAME_SIZE];
+                if (::GetModuleFileNameA(module, module_name, sizeof(module_name)))
+                {
+                    for (uint32_t m = 0; m < g_AppState.m_ModuleCount; ++m)
+                    {
+                        if (strncmp(g_AppState.m_ModuleName[m], module_name, dmCrash::AppState::MODULE_NAME_SIZE) == 0)
+                        {
+                            module_index = m;
+
+                            dmLogWarning("Module: %u '%s'", module_index, module_name);
+                            break;
+                        }
+                    }
+                }
+            }
+            g_AppState.m_PtrModuleIndex[i] = module_index;
+
             const char* filename = "<unknown>";
             int line_number = 0;
             if (::SymGetLineFromAddr64(process, address, &displacement, &line))
@@ -207,11 +223,41 @@ namespace dmCrash
         GenerateCallstack(0);
     }
 
+    static void CheckConsoleNeeded(bool is_debug_mode)
+    {
+        if (IsDebuggerPresent())
+            return;
+
+        static bool console_allocated = false;
+        if (!is_debug_mode && !console_allocated)
+        {
+            bool allocated = AttachConsole(ATTACH_PARENT_PROCESS);
+            if (!allocated)
+            {
+                allocated = AllocConsole();
+            }
+
+            if (allocated)
+            {
+                freopen_s((FILE**)stdout, "CONOUT$", "w", stdout);
+                freopen_s((FILE**)stderr, "CONOUT$", "w", stderr);
+            }
+            console_allocated = true; // We only want to try this once
+        }
+    }
+
     LONG WINAPI ExceptionHandler(EXCEPTION_POINTERS *ptr)
     {
         g_AppState.m_Signum = 0xDEAD;
-        GenerateCallstack(ptr);
+
+        fflush(stdout);
+        bool is_debug_mode = dLib::IsDebugMode();
+        dLib::SetDebugMode(true);
+
         WriteMiniDump(g_MiniDumpPath, ptr);
+        GenerateCallstack(ptr);
+
+        dLib::SetDebugMode(is_debug_mode);
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
@@ -227,7 +273,16 @@ namespace dmCrash
         // Unless this is done first thing in the signal handler we'll
         // be stuck in a signal-handler loop forever.
         signal(signum, 0);
+
+        fflush(stdout);
+        bool is_debug_mode = dLib::IsDebugMode();
+        dLib::SetDebugMode(true);
+
+        CheckConsoleNeeded(is_debug_mode);
+        dmLogError("No exception pointers. Cannot write mini dump.\n");
         GenerateCallstack(0);
+
+        dLib::SetDebugMode(is_debug_mode);
     }
 
     static void InstallOnSignal(int signum)
