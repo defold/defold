@@ -34,6 +34,7 @@
             [editor.handler :as handler]
             [editor.material :as material]
             [editor.math :as math]
+            [editor.menu-items :as menu-items]
             [editor.outline :as outline]
             [editor.particlefx :as particlefx]
             [editor.pose :as pose]
@@ -4079,7 +4080,7 @@
                     :user-data l}))))))
 
 (handler/register-menu! ::toolbar :visibility-settings
-  [{:label :separator}
+  [menu-items/separator
    {:icon layout-icon
     :command :scene.set-gui-layout
     :label "Test"}])

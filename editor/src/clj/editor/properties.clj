@@ -27,10 +27,10 @@
             [editor.types :as t]
             [editor.util :as eutil]
             [editor.workspace :as workspace]
-            [internal.graph.types :as gt]
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
+            [util.eduction :as e]
             [util.fn :as fn]
             [util.id-vec :as iv]
             [util.murmur :as murmur]
@@ -971,125 +971,205 @@
       value)))
 
 (defn transferred-properties
-  "Returns a map of overridden property values by prop-kw for the specified
-  source-node-id. The list can optionally be constrained to include specific
-  properties by supplying a seq of property keywords for the property-labels
-  argument. If :all is supplied in place of a seq, all overridden properties
-  are included in the returned map. Returns nil in case there are no properties
+  "Returns information about properties that can be transferred from the
+  specified source-node-id, intended for use with the transfer-overrides-plan
+  function. The list can optionally be constrained to only include specific
+  properties by supplying a seq of property keywords for the source-prop-kws
+  argument. If :all is supplied in place of a seq, all overridden properties are
+  included in the returned map. Returns nil in case there are no properties
   matching the criteria."
-  ([source-node-id property-labels]
+  [source-node-id source-prop-kws evaluation-context]
+  (let [source-prop-infos-by-prop-kw
+        (cond-> (:properties (g/node-value source-node-id :_properties evaluation-context))
+                (not= :all source-prop-kws)
+                (select-keys source-prop-kws))]
+    (coll/not-empty
+      (coll/transfer source-prop-infos-by-prop-kw {}
+        (filter (fn [[_prop-kw prop-info]]
+                  ;; Note that properties that have validation errors may be
+                  ;; included in the transfer.
+                  (and (contains? prop-info :original-value)
+                       (:visible prop-info true)
+                       (not (:read-only? prop-info)))))))))
+
+(defn- transfer-overrides-plan
+  "Returns a transfer-overrides-plan for transferring the transferred-properties
+  obtained from a source-node-id to the specified target-node-ids. The
+  transferred-properties should be obtained by supplying the source-node-id to
+  the transferred-properties function."
+  [transferred-properties target-node-ids evaluation-context]
+  {:pre [(or (nil? transferred-properties)
+             (map? transferred-properties))]}
+  (when (and (coll/not-empty transferred-properties)
+             (coll/not-empty target-node-ids))
+    (let [basis (:basis evaluation-context)
+
+          target-node-id+target-prop-infos-by-prop-kw
+          (mapv (fn [target-node-id]
+                  (pair target-node-id
+                        (:properties (g/node-value target-node-id :_properties evaluation-context))))
+                target-node-ids)]
+
+      (coll/transfer transferred-properties []
+        (map (fn [[source-prop-kw source-prop-info]]
+               (let [property-transfer-targets
+                     (coll/transfer target-node-id+target-prop-infos-by-prop-kw []
+                       (map (fn [[target-node-id target-prop-infos-by-prop-kw]]
+                              (if-let [target-prop-info (target-prop-infos-by-prop-kw source-prop-kw)]
+
+                                ;; The property exists in the target.
+                                (let [target-node-id (:node-id target-prop-info)
+                                      target-prop-kw (get target-prop-info :prop-kw source-prop-kw)
+                                      target-owner-resource (resource-node/owner-resource basis target-node-id)]
+                                  (if (and (resource/file-resource? target-owner-resource)
+                                           (resource/editable? target-owner-resource))
+
+                                    ;; The property can be transferred to the target.
+                                    (let [target-set-fn (-> target-prop-info :edit-type :set-fn)]
+                                      (cond-> {:target-status :ok
+                                               :target-owner-resource target-owner-resource
+                                               :target-node-id target-node-id
+                                               :target-prop-kw target-prop-kw}
+
+                                              target-set-fn
+                                              (assoc :target-set-fn target-set-fn
+                                                     :target-value (:value target-prop-info))))
+
+                                    ;; The resource owning the target node is not editable.
+                                    {:target-status :owner-resource-not-editable
+                                     :target-owner-resource target-owner-resource
+                                     :target-node-id target-node-id
+                                     :target-prop-kw source-prop-kw}))
+
+                                ;; The property does not exist in the target.
+                                (let [target-owner-resource (resource-node/owner-resource basis target-node-id)]
+                                  {:target-status :property-not-found
+                                   :target-owner-resource target-owner-resource
+                                   :target-node-id target-node-id
+                                   :target-prop-kw source-prop-kw})))))]
+
+                 {:source-node-id (:node-id source-prop-info)
+                  :source-prop-kw (get source-prop-info :prop-kw source-prop-kw)
+                  :source-prop-label (or (:label source-prop-info) (keyword->name source-prop-kw))
+                  :source-clear-fn (or (-> source-prop-info :edit-type :clear-fn) g/clear-property)
+                  :source-value (:value source-prop-info)
+                  :targets property-transfer-targets})))))))
+
+(defn decorate-transfer-overrides-plan
+  "Decorates the supplied transfer-overrides-plan with debug info. Useful during
+  development."
+  ([transfer-overrides-plan]
    (g/with-auto-evaluation-context evaluation-context
-     (transferred-properties source-node-id property-labels evaluation-context)))
-  ([source-node-id property-labels evaluation-context]
-   (coll/not-empty
-     (cond
-       (= :all property-labels)
-       (g/overridden-properties source-node-id evaluation-context)
+     (decorate-transfer-overrides-plan transfer-overrides-plan evaluation-context)))
+  ([transfer-overrides-plan {:keys [basis] :as evaluation-context}]
+   {:pre [(vector? transfer-overrides-plan)
+          (every? map? transfer-overrides-plan)]}
+   (coll/transfer transfer-overrides-plan (coll/empty-with-meta transfer-overrides-plan)
+     (map (fn [{:keys [source-node-id] :as property-transfer}]
+            {:pre [(g/node-id? source-node-id)]}
+            (as-> property-transfer property-transfer
+                  (merge {:source-node-type-kw (g/node-type-kw basis source-node-id)
+                          :source-node-path (gu/node-debug-label-path source-node-id evaluation-context)}
+                         property-transfer)
+                  (update property-transfer :targets
+                          (fn [property-transfer-targets]
+                            (coll/transfer property-transfer-targets (coll/empty-with-meta property-transfer-targets)
+                              (map (fn [{:keys [target-node-id] :as property-transfer-target}]
+                                     {:pre [(g/node-id? target-node-id)]}
+                                     (merge {:target-node-type-kw (g/node-type-kw basis target-node-id)
+                                             :target-node-path (gu/node-debug-label-path target-node-id evaluation-context)}
+                                            property-transfer-target))))))))))))
 
-       (coll/empty? property-labels)
-       nil
-
-       :else
-       (select-keys (g/overridden-properties source-node-id evaluation-context)
-                    property-labels)))))
-
-(defn transfer-overrides-plan
-  "Returns a transfer-overrides-plan for transferring properties from
-  the supplied source-node-id to the specified target-node-ids. The
-  transferred-properties should be supplied as a map of property-labels to
-  values. Returns nil if no properties are supplied or the target cannot accept
-  the transfer. Otherwise, returns a map suitable for use with functions that
-  accept a transfer-overrides-plan."
-  ([source-node-id target-node-ids transferred-properties]
-   (transfer-overrides-plan (g/now) source-node-id target-node-ids transferred-properties))
-  ([basis source-node-id target-node-ids transferred-properties]
-   {:pre [(g/node-id? source-node-id)
-          (or (nil? transferred-properties)
-              (and (map? transferred-properties)
-                   (every? keyword? (keys transferred-properties))))]}
-   (when-not (coll/empty? transferred-properties)
-     (when-some [target-resources+node-ids
-                 (coll/not-empty
-                   (coll/transfer target-node-ids []
-                     (keep (fn [target-node-id]
-                             (let [target-owner-resource (resource-node/owner-resource basis target-node-id)]
-                               (when (and (resource/file-resource? target-owner-resource)
-                                          (resource/editable? target-owner-resource))
-                                 (pair target-owner-resource target-node-id)))))))]
-       {:source-node-id source-node-id
-        :target-resources+node-ids target-resources+node-ids
-        :transferred-properties transferred-properties}))))
+(defn can-transfer-overrides?
+  "Returns whether the supplied transfer-overrides-plan can be executed.
+  Suitable for use with user-interface elements such as menu items."
+  [transfer-overrides-plan]
+  (->> transfer-overrides-plan
+       (e/mapcat :targets)
+       (coll/every? #(= :ok (:target-status %)))))
 
 (defn transfer-overrides-description
   "Given a transfer-overrides-plan, return a user-friendly textual description
   of its effects if executed. The resulting string is suitable for use with
   user-interface elements such as menu items or tooltips."
-  (^String [transfer-overrides-plan]
-   (g/with-auto-evaluation-context evaluation-context
-     (transfer-overrides-description transfer-overrides-plan evaluation-context)))
-  (^String [transfer-overrides-plan evaluation-context]
-   {:pre [(map? transfer-overrides-plan)]}
-   (let [{:keys [source-node-id target-resources+node-ids transferred-properties]} transfer-overrides-plan
-         target-node-count (count target-resources+node-ids)
-         transferred-property-count (count transferred-properties)
+  ^String [transfer-overrides-plan evaluation-context]
+  (let [transferred-property-count (count transfer-overrides-plan)
 
-         overrides-qualifier
-         (or (when (= 1 transferred-property-count)
-               (let [property-keyword (ffirst transferred-properties)
-                     declared-properties (g/maybe-node-value source-node-id :_declared-properties)
-                     properties (:properties declared-properties)]
-                 (or (-> properties
-                         (get property-keyword)
-                         (:label))
-                     (-> property-keyword
-                         (keyword->name)
-                         (str " Override")))))
-             (text-util/amount-text transferred-property-count "Override"))
+        overrides-qualifier
+        (or (when (= 1 transferred-property-count)
+              (let [property-transfer (first transfer-overrides-plan)
+                    property-label (:source-prop-label property-transfer)]
+                (str property-label " Override")))
+            (text-util/amount-text transferred-property-count "Override"))
 
-         [target-nodes-qualifier target-resources-qualifier]
-         (if (= 1 target-node-count)
-           (let [[target-owner-resource target-node-id] (first target-resources+node-ids)
-                 node-qualifier-label (gu/node-qualifier-label target-node-id evaluation-context)]
-             (pair (if node-qualifier-label
-                     (str \' node-qualifier-label \')
-                     "Object")
-                   (str \' (resource/proj-path target-owner-resource) \')))
-           (let [target-owner-proj-paths
-                 (coll/transfer target-resources+node-ids #{}
-                   (map key)
-                   (map resource/proj-path))
+        target-nodes-qualifier
+        (let [target-node-ids (coll/transfer transfer-overrides-plan #{}
+                                (mapcat :targets)
+                                (map :target-node-id))
+              target-node-count (count target-node-ids)]
+          (if (= 1 target-node-count)
+            (let [target-node-id (first target-node-ids)
+                  node-qualifier-label (gu/node-qualifier-label target-node-id evaluation-context)]
+              (if node-qualifier-label
+                (str \' node-qualifier-label \')
+                "Instance"))
+            (text-util/amount-text target-node-count "Instance")))
 
-                 target-proj-path-count (count target-owner-proj-paths)]
-             (pair (text-util/amount-text target-node-count "Object")
-                   (if (= 1 target-proj-path-count)
-                     (str \' (first target-owner-proj-paths) \')
-                     (text-util/amount-text target-proj-path-count "Resource")))))]
+        target-resources-qualifier
+        (let [target-proj-paths (coll/transfer transfer-overrides-plan #{}
+                                  (mapcat :targets)
+                                  (map :target-owner-resource)
+                                  (map resource/proj-path))
+              target-proj-path-count (count target-proj-paths)]
+          (if (= 1 target-proj-path-count)
+            (str "in '" (first target-proj-paths) \')
+            (str "across " (text-util/amount-text target-proj-path-count "Resource"))))]
 
-     (-> (format "Transfer %s to %s in %s"
-                 overrides-qualifier
-                 target-nodes-qualifier
-                 target-resources-qualifier)
-         (string/replace "_" "__")))))
+    (-> (format "Transfer %s to %s %s"
+                overrides-qualifier
+                target-nodes-qualifier
+                target-resources-qualifier)
+        (string/replace "_" "__"))))
+
+(defn- set-property-tx-data
+  [property-transfer-target new-value evaluation-context]
+  (let [target-node-id (:target-node-id property-transfer-target)]
+    (if-let [set-fn (:target-set-fn property-transfer-target)]
+      (let [old-value (:target-value property-transfer-target)]
+        (set-fn evaluation-context target-node-id old-value new-value))
+      (let [target-prop-kw (:target-prop-kw property-transfer-target)]
+        (g/set-property target-node-id target-prop-kw new-value)))))
+
+(defn- clear-property-tx-data
+  [property-transfer]
+  (let [{:keys [source-node-id source-prop-kw]} property-transfer
+        clear-fn (get property-transfer :source-clear-fn g/clear-property)]
+    (clear-fn source-node-id source-prop-kw)))
+
+(defn- property-transfer-tx-data
+  [property-transfer evaluation-context]
+  (let [source-value (:source-value property-transfer)]
+    (e/concat
+      (clear-property-tx-data property-transfer)
+      (e/mapcat #(set-property-tx-data % source-value evaluation-context)
+                (:targets property-transfer)))))
 
 (defn transfer-overrides-tx-data
   "Given a transfer-overrides-plan, return a sequence of transaction steps that
   will transfer the overridden properties to the target nodes, or nil if there
   is nothing to transfer."
-  [transfer-overrides-plan]
-  (when-some [{:keys [source-node-id target-resources+node-ids transferred-properties]} transfer-overrides-plan]
-    (let [transferred-property-kvs (coll/mapcat identity transferred-properties)]
-      (-> []
-          (into (mapcat #(apply g/set-property (val %) transferred-property-kvs))
-                target-resources+node-ids)
-          (into (map #(g/clear-property source-node-id (key %)))
-                transferred-properties)))))
+  [transfer-overrides-plan evaluation-context]
+  (coll/not-empty
+    (coll/transfer transfer-overrides-plan []
+      (mapcat #(property-transfer-tx-data % evaluation-context)))))
 
 (defn transfer-overrides!
   "Given a transfer-overrides-plan, execute a transaction that will transfer the
   overridden properties to the target nodes. Does nothing if the plan is empty."
   [transfer-overrides-plan]
-  (let [tx-data (transfer-overrides-tx-data transfer-overrides-plan)]
-    (when (coll/not-empty tx-data)
+  (when (coll/not-empty transfer-overrides-plan)
+    (when-let [tx-data (g/with-auto-evaluation-context evaluation-context
+                         (transfer-overrides-tx-data transfer-overrides-plan evaluation-context))]
       (g/transact tx-data)
       nil)))
 
@@ -1097,12 +1177,12 @@
   "Returns a series of transfer-overrides-plans for transferring overridden
   properties from the specified source-node-id to each of its override-originals
   in succession, starting from its immediate override-original and proceeding
-  towards the override-root. You can specify a sequence of property-labels to
+  towards the override-root. You can specify a sequence of source-prop-kws to
   consider for transfer or supply :all to include all overridden properties.
-  Returns nil if no properties match the criteria. Otherwise, returns a sequence
-  of maps suitable for use with functions that take a transfer-overrides-plan."
-  [source-node-id property-labels evaluation-context]
-  (when-let [transferred-properties (transferred-properties source-node-id property-labels evaluation-context)]
+  Returns nil if no properties match the criteria. Otherwise, returns
+  a transfer-overrides-plan."
+  [source-node-id source-prop-kws evaluation-context]
+  (when-let [transferred-properties (transferred-properties source-node-id source-prop-kws evaluation-context)]
     (let [basis (:basis evaluation-context)
 
           original-node-ids
@@ -1113,30 +1193,21 @@
         (coll/transfer
           original-node-ids []
           (take-while some?)
-          (keep (fn [original-node-id]
-                  (transfer-overrides-plan basis source-node-id [original-node-id] transferred-properties))))))))
+          (map (fn [original-node-id]
+                 (transfer-overrides-plan transferred-properties [original-node-id] evaluation-context))))))))
 
 (defn push-down-overrides-plan-alternatives
   "Returns a series of transfer-overrides-plans for transferring overridden
   properties from the specified source-node-id to each node overriding it. You
-  can specify a sequence of property-labels to consider for transfer or supply
+  can specify a sequence of source-prop-kws to consider for transfer or supply
   :all to include all overridden properties. Returns nil if no properties match
   the criteria. Otherwise, returns a sequence of maps suitable for use with
   functions that take a transfer-overrides-plan."
-  [source-node-id property-labels {:keys [basis] :as evaluation-context}]
+  [source-node-id source-prop-kws {:keys [basis] :as evaluation-context}]
   ;; Currently, we only support pushing down overrides one level. It is unclear
   ;; how it would work over several levels given that the number of override
   ;; nodes may vary between the individual override-chains.
   (when-let [override-node-ids (coll/not-empty (g/overrides basis source-node-id))]
-    (when-let [transferred-properties (transferred-properties source-node-id property-labels evaluation-context)]
-      (when-let [transfer-overrides-plan (transfer-overrides-plan basis source-node-id override-node-ids transferred-properties)]
+    (when-let [transferred-properties (transferred-properties source-node-id source-prop-kws evaluation-context)]
+      (let [transfer-overrides-plan (transfer-overrides-plan transferred-properties override-node-ids evaluation-context)]
         [transfer-overrides-plan]))))
-
-;; TODO: Implement a multimethod that takes a source-node-id and a seq of
-;; property-labels (or :all), and returns tx-data that transfers the overrides.
-;; The default implementation should evaluate :_properties, and use the set-fn
-;; and clear-fn associated with each virtual property. We may need to split it
-;; into multiple steps. Collect [set-fn, clear-fn, node-id, prop-kw, value]
-;; where we have an :original-value. Resolving node-id might be an issue when
-;; there are override nodes involved. Maybe we can evaluate :_properties on the
-;; target-node-id and match the property keys?

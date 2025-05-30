@@ -603,30 +603,30 @@
 
                       transfer-overrides-context-menu-items
                       (when (and source-node-id overridden-property-labels)
-                        (let [[pull-up-overrides-plan-alternatives push-down-overrides-plan-alternatives]
-                              (g/with-auto-evaluation-context evaluation-context
-                                (pair (properties/pull-up-overrides-plan-alternatives source-node-id overridden-property-labels evaluation-context)
-                                      (properties/push-down-overrides-plan-alternatives source-node-id overridden-property-labels evaluation-context)))
-
-                              transfer-overrides-plan-menu-item
-                              (fn transfer-overrides-plan-menu-item [transfer-overrides-plan]
+                        (let [transfer-overrides-plan-menu-item
+                              (fn transfer-overrides-plan-menu-item [transfer-overrides-plan evaluation-context]
                                 {:fx/type fx.menu-item/lifecycle
-                                 :text (properties/transfer-overrides-description transfer-overrides-plan)
+                                 :text (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
                                  :on-action {:event-type :on-transfer-overrides
-                                             :transfer-overrides-plan transfer-overrides-plan}})]
+                                             :transfer-overrides-plan transfer-overrides-plan}})
+
+                              [pull-up-overrides-menu-items push-down-overrides-menu-items]
+                              (g/with-auto-evaluation-context evaluation-context
+                                (pair (mapv #(transfer-overrides-plan-menu-item % evaluation-context)
+                                            (properties/pull-up-overrides-plan-alternatives source-node-id overridden-property-labels evaluation-context))
+                                      (mapv #(transfer-overrides-plan-menu-item % evaluation-context)
+                                            (properties/push-down-overrides-plan-alternatives source-node-id overridden-property-labels evaluation-context))))]
                           (cond-> []
 
-                                  pull-up-overrides-plan-alternatives
+                                  (coll/not-empty pull-up-overrides-menu-items)
                                   (conj {:fx/type fx.menu/lifecycle
                                          :text menu-items/pull-up-overrides-text
-                                         :items (mapv transfer-overrides-plan-menu-item
-                                                      pull-up-overrides-plan-alternatives)})
+                                         :items pull-up-overrides-menu-items})
 
-                                  push-down-overrides-plan-alternatives
+                                  (coll/not-empty push-down-overrides-menu-items)
                                   (conj {:fx/type fx.menu/lifecycle
                                          :text menu-items/push-down-overrides-text
-                                         :items (mapv transfer-overrides-plan-menu-item
-                                                      push-down-overrides-plan-alternatives)}))))
+                                         :items push-down-overrides-menu-items}))))
 
                       context-menu
                       (when (coll/not-empty transfer-overrides-context-menu-items)

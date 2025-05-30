@@ -2135,14 +2135,21 @@ If you do not specifically require different script states, consider changing th
       (open-resource app-view prefs workspace project resource))))
 
 (handler/defhandler :file.open-as :global
-  (active? [selection] (selection->single-openable-resource selection))
-  (enabled? [selection user-data] (resource/exists? (selection->single-openable-resource selection)))
+  (active? [app-view selection evaluation-context] (context-openable-resource app-view selection evaluation-context))
+  (enabled? [app-view selection evaluation-context] (resource/exists? (context-openable-resource app-view selection evaluation-context)))
   (run [selection app-view prefs workspace project user-data]
-       (let [resource (selection->single-openable-resource selection)]
+       (let [resource (context-openable-resource app-view selection)]
          (open-resource app-view prefs workspace project resource user-data)))
-  (options [prefs workspace selection user-data]
+  (options [app-view prefs workspace selection user-data]
            (when-not user-data
-             (let [resource (selection->single-openable-resource selection)
+             (let [[resource active-view-type-id]
+                   (g/with-auto-evaluation-context evaluation-context
+                     (if-let [selected-resource (selection->single-resource selection)]
+                       (pair selected-resource nil)
+                       (let [active-resource (g/node-value app-view :active-resource evaluation-context)
+                             active-view-type-id (:id (:view-type (g/node-value app-view :active-view-info evaluation-context)))]
+                         (pair active-resource active-view-type-id))))
+
                    resource-type (resource/resource-type resource)
                    is-custom-code-editor-configured (some? (custom-code-editor-executable-path-preference prefs))
 
@@ -2169,7 +2176,10 @@ If you do not specifically require different script states, consider changing th
                                                   :use-custom-editor false})]
                                    [(view-type->option view-type)])))
                        (map view-type->option))
-                     (:view-types resource-type))))))
+                     (cond->> (:view-types resource-type)
+
+                              active-view-type-id
+                              (e/filter #(not= active-view-type-id (:id %)))))))))
 
 (handler/defhandler :private/recent-files :global
   (enabled? [prefs workspace evaluation-context]
@@ -2181,14 +2191,14 @@ If you do not specifically require different script states, consider changing th
             :command :file.reopen-recent}]
           (cond-> (recent-files/exist? prefs workspace evaluation-context)
                   (->
-                    (conj {:label :separator})
+                    (conj menu-items/separator)
                     (into
                       (map (fn [[resource view-type :as resource+view-type]]
                              {:label (string/replace (str (resource/proj-path resource) " • " (:label view-type) " view") #"_" "__")
                               :command :private/open-selected-recent-file
                               :user-data resource+view-type}))
                       (recent-files/some-recent prefs workspace evaluation-context))
-                    (conj {:label :separator})))
+                    (conj menu-items/separator)))
           (conj {:label "More..."
                  :command :file.open-recent})))))
 
@@ -2426,6 +2436,11 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :edit.pull-up-overrides :global
   (enabled? [selection user-data evaluation-context]
+    (if user-data
+      (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
+      (if-let [node-id (handler/selection->node-id selection)]
+        (not (coll/empty? (g/overridden-properties node-id evaluation-context)))
+        false))
     (or (some? user-data)
         (if-let [node-id (handler/selection->node-id selection)]
           (not (coll/empty? (g/overridden-properties node-id evaluation-context)))
@@ -2435,7 +2450,7 @@ If you do not specifically require different script states, consider changing th
       (when-let [node-id (handler/selection->node-id selection)]
         (g/with-auto-evaluation-context evaluation-context
           (mapv (fn [transfer-overrides-plan]
-                  {:label (properties/transfer-overrides-description transfer-overrides-plan)
+                  {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
                    :command :edit.pull-up-overrides
                    :user-data {:transfer-overrides-plan transfer-overrides-plan}})
                 (properties/pull-up-overrides-plan-alternatives node-id :all evaluation-context))))))
@@ -2444,18 +2459,19 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :edit.push-down-overrides :global
   (enabled? [selection user-data evaluation-context]
-    (or (some? user-data)
-        (if-let [node-id (handler/selection->node-id selection)]
-          (let [basis (:basis evaluation-context)]
-            (and (not (coll/empty? (g/overrides basis node-id)))
-                 (not (coll/empty? (g/overridden-properties node-id evaluation-context)))))
-          false)))
+    (if user-data
+      (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
+      (if-let [node-id (handler/selection->node-id selection)]
+        (let [basis (:basis evaluation-context)]
+          (and (not (coll/empty? (g/overrides basis node-id)))
+               (not (coll/empty? (g/overridden-properties node-id evaluation-context)))))
+        false)))
   (options [selection user-data]
     (when (nil? user-data)
       (when-let [node-id (handler/selection->node-id selection)]
         (g/with-auto-evaluation-context evaluation-context
           (mapv (fn [transfer-overrides-plan]
-                  {:label (properties/transfer-overrides-description transfer-overrides-plan)
+                  {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
                    :command :edit.push-down-overrides
                    :user-data {:transfer-overrides-plan transfer-overrides-plan}})
                 (properties/push-down-overrides-plan-alternatives node-id :all evaluation-context))))))
