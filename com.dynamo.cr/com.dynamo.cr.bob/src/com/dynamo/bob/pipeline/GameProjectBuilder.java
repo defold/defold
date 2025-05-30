@@ -81,8 +81,6 @@ public class GameProjectBuilder extends Builder {
             {"input", "gamepads", "/builtins/input/default.gamepadsc"},
             {"display", "display_profiles", "/builtins/render/default.display_profilesc"}};
 
-    static final String[] UNSUPPORTED_ARCHIVE_EXT = new String[] {".vp", ".fp" };
-
     static String[] gameProjectDependencies;
 
     private static final Logger logger = Logger.getLogger(GameProjectBuilder.class.getName());
@@ -343,20 +341,6 @@ public class GameProjectBuilder extends Builder {
         properties.putStringValue("project", "title_as_file_name", fileNameTitle);
     }
 
-    private boolean isUnsupportedArchiveFileType(String path) {
-        String ext = ResourceUtil.getExt(path);
-        for (String unsupportedExt : UNSUPPORTED_ARCHIVE_EXT) {
-            if (ext.equals(unsupportedExt)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private void excludeUnsupportedArchiveFileTypes(Set<IResource> resources) {
-        resources.removeIf(resource -> isCompCounterStorage(resource.getAbsPath()) || isUnsupportedArchiveFileType(resource.getAbsPath()));
-    }
-
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         FileInputStream archiveIndexInputStream = null;
@@ -388,8 +372,6 @@ public class GameProjectBuilder extends Builder {
                 for (IResource resource : task.getOutputs()) {
                     resources.remove(resource);
                 }
-
-                excludeUnsupportedArchiveFileTypes(resources);
 
                 TimeProfiler.start("Create excluded resources");
                 logger.info("Creation of the excluded resources list.");
