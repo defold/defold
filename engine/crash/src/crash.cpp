@@ -287,6 +287,20 @@ namespace dmCrash
         return 0;
     }
 
+    uint32_t GetBacktraceModuleIndex(HDump dump, uint32_t index)
+    {
+        AppState* state = Check(dump);
+        if (state != NULL)
+        {
+            if (index < dmMath::Min(AppState::PTRS_MAX, state->m_PtrCount))
+            {
+                return state->m_PtrModuleIndex[index];
+            }
+        }
+
+        return 0;
+    }
+
     const char *GetModuleName(HDump dump, uint32_t index)
     {
         if (index < AppState::MODULES_MAX)
@@ -311,6 +325,20 @@ namespace dmCrash
             if (state != NULL)
             {
                 return state->m_ModuleAddr[index];
+            }
+        }
+
+        return 0;
+    }
+
+    uint32_t GetModuleSize(HDump dump, uint32_t index)
+    {
+        if (index < AppState::MODULES_MAX)
+        {
+            AppState* state = Check(dump);
+            if (state != NULL)
+            {
+                return state->m_ModuleSize[index];
             }
         }
 

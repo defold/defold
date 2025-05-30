@@ -87,6 +87,7 @@ namespace dmCrash
 
                 line[addr_break] = 0;
                 state->m_ModuleAddr[count] = (void*)strtoull(line, 0, 16);
+                state->m_ModuleSize[count] = 0;
                 dmStrlCpy(state->m_ModuleName[count], &line[name_start], AppState::MODULE_NAME_SIZE);
                 ++count;
             }
@@ -94,4 +95,5 @@ namespace dmCrash
 
         fclose(fp);
     }
+    state->m_ModuleCount = count;
 }

@@ -35,7 +35,7 @@ namespace dmCrash
 
     struct AppState
     {
-        static const uint32_t VERSION          = 2;
+        static const uint32_t VERSION          = 3;
         static const uint32_t MODULES_MAX      = 128;
         static const uint32_t MODULE_NAME_SIZE = 64;
         static const uint32_t PTRS_MAX         = 64;
@@ -58,13 +58,17 @@ namespace dmCrash
         char m_Territory[8];
         char m_AndroidBuildFingerprint[128];
 
-        char m_UserData[USERDATA_SLOTS][USERDATA_SIZE];
-        char m_ModuleName[MODULES_MAX][MODULE_NAME_SIZE];
-        void* m_ModuleAddr[MODULES_MAX];
-        uint32_t m_Signum;
-        uint32_t m_PtrCount;
-        void* m_Ptr[PTRS_MAX];
-        char m_Extra[EXTRA_MAX];
+        uint32_t            m_Signum;
+
+        char                m_UserData[USERDATA_SLOTS][USERDATA_SIZE];
+        uint32_t            m_ModuleCount;
+        char                m_ModuleName[MODULES_MAX][MODULE_NAME_SIZE];
+        void*               m_ModuleAddr[MODULES_MAX];
+        uint32_t            m_ModuleSize[MODULES_MAX];
+        uint32_t            m_PtrCount;
+        void*               m_Ptr[PTRS_MAX];
+        uint8_t             m_PtrModuleIndex[PTRS_MAX]; // Index into the list of modules
+        char                m_Extra[EXTRA_MAX];
 
         AppState()
         {
