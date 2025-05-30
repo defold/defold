@@ -233,7 +233,7 @@
       ;; Resource settings are also stored in separate ResourceSettingNodes, and this is the canonical place to look
       ;; for the settings current value. The corresponding setting in raw-settings may be stale and is only used to track
       ;; whether the value is/was set or cleared.
-      (g/set-property self :raw-settings raw-settings :meta-info meta-info)
+      (g/set-properties self :raw-settings raw-settings :meta-info meta-info)
       (for [resource-setting-path resource-setting-paths]
         (let [resource (settings-core/get-setting-or-default meta-settings settings resource-setting-path)]
           (g/make-nodes graph-id [resource-setting-node [ResourceSettingNode :path resource-setting-path :resource-connections (resource-setting-connections resource-setting-path)]]

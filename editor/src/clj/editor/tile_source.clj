@@ -957,7 +957,7 @@
       (g/connect project :build-settings self :build-settings)
       (g/connect project :collision-groups-data self :collision-groups-data)
       (g/connect project :texture-profiles self :texture-profiles)
-      (g/set-property self
+      (g/set-properties self
         :original-convex-hulls (make-convex-hulls tile-set)
         :tile->collision-group-node (make-tile->collision-group-node-map tile-set collision-group-nodes-tx-data))
       (gu/set-properties-from-pb-map self Tile$TileSet tile-set

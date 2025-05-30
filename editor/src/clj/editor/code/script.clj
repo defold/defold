@@ -273,7 +273,7 @@
 (def ^:private xform-to-name-info-pairs (map (juxt :name #(dissoc % :name))))
 
 (defn- edit-script-property [node-id type resource-kind value]
-  (g/set-property node-id :type type :resource-kind resource-kind :value value))
+  (g/set-properties node-id :type type :resource-kind resource-kind :value value))
 
 (defn- create-script-property [script-node-id name type resource-kind value]
   (g/make-nodes (g/node-id->graph-id script-node-id) [node-id [ScriptPropertyNode :name name]]

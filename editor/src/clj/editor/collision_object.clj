@@ -324,7 +324,7 @@
         old-height (g/node-value node-id :height evaluation-context)
         new-diameter (properties/scale-by-absolute-value-and-round old-diameter (.getX delta))
         new-height (properties/scale-by-absolute-value-and-round old-height (.getY delta))]
-    (g/set-property node-id :diameter new-diameter :height new-height)))
+    (g/set-properties node-id :diameter new-diameter :height new-height)))
 
 (defmethod scene-tools/manip-scale-manips ::CapsuleShape
   [node-id]

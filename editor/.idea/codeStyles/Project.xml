@@ -20,7 +20,10 @@
           <entry key="dynamo.graph/make-nodes" value="-1" />
           <entry key="dynamo.graph/override" value="-1" />
           <entry key="dynamo.graph/precluding-errors" value="-1" />
+          <entry key="dynamo.graph/set-properties" value="-1" />
+          <entry key="dynamo.graph/set-properties!" value="-1" />
           <entry key="dynamo.graph/set-property" value="-1" />
+          <entry key="dynamo.graph/set-property!" value="-1" />
           <entry key="dynamo.graph/transact" value="-1" />
           <entry key="dynamo.graph/tx-cached-value!" value="-1" />
           <entry key="dynamo.graph/with-auto-evaluation-context" value="-1" />

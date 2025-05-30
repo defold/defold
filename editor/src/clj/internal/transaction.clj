@@ -24,7 +24,8 @@
             [util.coll :as coll :refer [pair]]
             [util.debug-util :as du]
             [util.eduction :as e])
-  (:import [internal.graph.types Arc]))
+  (:import [internal.graph.types Arc]
+           [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
 
@@ -39,7 +40,7 @@
 ;; ---------------------------------------------------------------------------
 (def ^:dynamic *tx-debug* nil)
 
-(def ^:private ^java.util.concurrent.atomic.AtomicInteger next-txid (java.util.concurrent.atomic.AtomicInteger. 1))
+(def ^:private ^AtomicInteger next-txid (AtomicInteger. 1))
 (defn- new-txid [] (.getAndIncrement next-txid))
 
 (defmacro txerrstr [ctx & rest]
@@ -87,26 +88,36 @@
     :from-id->to-id from-id->to-id}])
 
 (defn update-property
-  "*transaction step* - Expects a node, a property label, and a
-  function f (with optional args) to be performed on the current value
-  of the property."
-  [node-id pr f args]
+  "*transaction step* - Expects a node-id, a property-label, and an update-fn
+  (with optional args) to be performed on the current value of the property."
+  [node-id property-label update-fn args opts]
+  {:pre [(gt/node-id? node-id)
+         (keyword? property-label)
+         (ifn? update-fn)
+         (coll/eager-seq? args)
+         (or (nil? opts) (map? opts))]}
   [{:type :update-property
     :node-id node-id
-    :property pr
-    :fn f
-    :args args}])
+    :property property-label
+    :fn update-fn
+    :args args
+    :opts opts}])
+
+(def inject-evaluation-context-opts
+  {:inject-evaluation-context true})
 
 (defn update-property-ec
   "Same as update-property, but injects the in-transaction evaluation-context
   as the first argument to the update-fn."
-  [node-id pr f args]
-  [{:type :update-property
-    :node-id node-id
-    :property pr
-    :fn f
-    :args args
-    :inject-evaluation-context true}])
+  [node-id property-label update-fn args]
+  (update-property node-id property-label update-fn args inject-evaluation-context-opts))
+
+(defn set-property-update-fn [_old-value new-value] new-value)
+
+(defn set-property
+  "*transaction step* - Sets a property value on a node."
+  [node-id property-label new-value opts]
+  (update-property node-id property-label set-property-update-fn [new-value] opts))
 
 (defn clear-property
   [node-id pr]
@@ -122,19 +133,14 @@
     :args args}])
 
 (defn callback
-  [f args]
+  [callback-fn args opts]
+  {:pre [(ifn? callback-fn)
+         (coll/eager-seq? args)
+         (or (nil? opts) (map? opts))]}
   [{:type :callback
-    :fn f
-    :args args}])
-
-(defn callback-ec
-  "Same as callback, but injects the in-transaction evaluation-context as the
-  first argument to the callback-fn."
-  [f args]
-  [{:type :callback
-    :fn f
+    :fn callback-fn
     :args args
-    :inject-evaluation-context true}])
+    :opts opts}])
 
 (defn connect
   "*transaction step* - Creates a transaction step connecting a source node and label  and a target node and label. It returns a value suitable for consumption by [[perform]]."
@@ -679,7 +685,7 @@
   [{:keys [node]}]
   (gt/node-id node))
 
-(defmethod perform :update-property [ctx {:keys [node-id property fn args inject-evaluation-context] :as tx-step}]
+(defmethod perform :update-property [ctx {:keys [node-id property fn args opts] :as tx-step}]
   (let [basis (:basis ctx)]
     (when (and *tx-debug* (nil? node-id)) (println "NIL NODE ID: update-property " tx-step))
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
@@ -687,7 +693,7 @@
             ;; The context is intentionally bare, i.e. only :basis, for this reason
             evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context (:tx-data-context ctx)})
             old-value (in/node-property-value node property evaluation-context)
-            new-value (if inject-evaluation-context
+            new-value (if (:inject-evaluation-context opts)
                         (apply fn evaluation-context old-value args)
                         (apply fn old-value args))
             override-node? (some? (gt/original node))
@@ -722,8 +728,8 @@
   [{:keys [node-id property]}]
   [node-id property])
 
-(defmethod perform :callback [ctx {:keys [fn args inject-evaluation-context]}]
-  (if inject-evaluation-context
+(defmethod perform :callback [ctx {:keys [fn args opts]}]
+  (if (:inject-evaluation-context opts)
     (let [basis (:basis ctx)
           tx-data-context (:tx-data-context ctx)
           evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})]
