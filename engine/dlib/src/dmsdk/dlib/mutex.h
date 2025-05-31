@@ -123,7 +123,7 @@ namespace dmMutex
      *
      * @macro
      * @name DM_MUTEX_OPTIONAL_SCOPED_LOCK
-     * @param mutex [type:dmMutex::HMutex] Mutex handle to lock.
+     * @param mutex [type:dmMutex::HMutex] Mutex handle to lock, or null.
      *
      */
     struct OptionalScopedMutexLock
