@@ -64,25 +64,6 @@
   -fx-min-width: 200px;
 }
 
-.clear-button {
-  -fx-background-radius: 0;
-  -fx-border-radius: 0;
-  -fx-background-color: -df-component-dark;
-  -fx-padding: 0;
-  -fx-min-width: 27px;
-  -fx-max-width: 27px;
-  -fx-min-height: 27px;
-  -fx-max-height: 27px;
-  -fx-border-width: 0;
-  -fx-text-fill: -df-text;
-  &:hover {
-      -fx-background-color: -df-component-lighter !important;
-  }
-  &:armed {
-      -fx-background-color: -df-component-light !important;
-  }
-}
-
 .toggle-button, .embedded-properties-button {
   -fx-background-radius: 4px;
   -fx-border-radius: 4px;

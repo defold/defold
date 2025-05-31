@@ -36,9 +36,9 @@
             [util.profiler :as profiler])
   (:import [editor.properties Curve CurveSpread]
            [java.util Collection]
-           [javafx.geometry Insets Point2D]
+           [javafx.geometry Insets Point2D VPos]
            [javafx.scene Node Parent]
-           [javafx.scene.control Button CheckBox ColorPicker Control Label Slider TextArea TextField TextInputControl ToggleButton Tooltip]
+           [javafx.scene.control Button CheckBox ColorPicker Control Label MenuButton Slider TextArea TextField TextInputControl ToggleButton Tooltip]
            [javafx.scene.input MouseDragEvent MouseEvent]
            [javafx.scene.layout AnchorPane ColumnConstraints GridPane HBox Pane Priority Region StackPane VBox]
            [javafx.scene.paint Color]
@@ -927,10 +927,23 @@
   (run [user-data]
     (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 
-(handler/register-menu! ::properties-menu
+(handler/defhandler :private/clear-override :property
+  (label [property user-data]
+    (when (nil? user-data)
+      (str "Clear " (properties/label property) " Override")))
+  (active? [property user-data]
+    (not (coll/empty? (:original-values property))))
+  (run [property property-control]
+    (properties/clear-override! property)
+    (ui/clear-auto-commit! property-control)))
+
+(handler/register-menu! ::property-menu
   [menu-items/show-overrides
    menu-items/pull-up-overrides
-   menu-items/push-down-overrides])
+   menu-items/push-down-overrides
+   {:label "Clear Override"
+    :icon "icons/32/Icons_S_02_Reset.png"
+    :command :private/clear-override}])
 
 (defrecord SelectionProvider [original-node-ids]
   handler/SelectionProvider
@@ -942,70 +955,50 @@
   (let [property-fn #(property-keyword->property property-keyword)
         [^Node control update-ctrl-fn drag-update-fn] (make-property-control edit-type context property-fn)
 
-        ^Label label (doto (Label.)
-                       (ui/add-style! "property-label")
-                       (ui/register-context-menu ::properties-menu true)
-                       (GridPane/setFillWidth true)
-                       (.setMinWidth Label/USE_PREF_SIZE)
-                       (.setMinHeight 28.0)
-                       (.setTooltip (doto (Tooltip.)
-                                      (.setHideDelay Duration/ZERO)
-                                      (.setShowDuration (Duration/seconds 30)))))
+        ^MenuButton label
+        (doto (MenuButton.)
+          (ui/add-style! "property-label")
+          (ui/register-button-menu ::property-menu)
+          (.setPrefWidth Region/USE_COMPUTED_SIZE)
+          (.setMinWidth Region/USE_PREF_SIZE)
+          (.setTooltip (doto (Tooltip.)
+                         (.setHideDelay Duration/ZERO)
+                         (.setShowDuration (Duration/seconds 30)))))
 
-        reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))
-                    (.setFocusTraversable false)
-                    (ui/add-styles! ["clear-button" "button-small"])
-                    (ui/on-action! (fn [_]
-                                     (properties/clear-override! (property-fn))
-                                     (ui/clear-auto-commit! control)
-                                     (.requestFocus label))))
+        update-label!
+        (fn update-label! [label-text tooltip-text]
+          (.setText label label-text)
+          (doto (.getTooltip label)
+            (.setText (cond->> (format "Available as `%s` in editor scripts"
+                                       (string/replace (name property-keyword) \- \_))
+                               tooltip-text
+                               (str tooltip-text "\n\n")))))
 
-        label-box (let [box (GridPane.)]
-                    (doto (.getColumnConstraints box)
-                      (.add (doto (ColumnConstraints.)
-                              (.setHgrow Priority/ALWAYS)))
-                      (.add (doto (ColumnConstraints.)
-                              (.setHgrow Priority/NEVER))))
-                    box)
+        update-ui-fn
+        (fn update-ui-fn [property selection-provider]
+          ;; TODO: Do we need to supply the selection-provider here, or do we inherit it?
+          (let [is-overridden (properties/overridden? property)
+                label-context (assoc context :property property :property-control control)]
+            (ui/context! label :property label-context selection-provider)
+            (ui/set-style! label "overridden" is-overridden)
+            (ui/set-style! control "overridden" is-overridden)
+            (update-label! (properties/label property)
+                           (properties/tooltip property))
+            (update-ctrl-fn (properties/values property)
+                            (properties/validation-message property)
+                            (properties/read-only? property))))
 
-        update-label-box (fn [label-text tooltip-text is-overridden]
-                           (.setText label label-text)
-                           (doto (.getTooltip label)
-                             (.setText (cond->> (format "Available as `%s` in editor scripts"
-                                                        (string/replace (name property-keyword) \- \_))
-                                                tooltip-text
-                                                (str tooltip-text "\n\n"))))
-                           (if is-overridden
-                             (do
-                               (ui/children! label-box [label reset-btn])
-                               (GridPane/setConstraints label 0 0)
-                               (GridPane/setConstraints reset-btn 1 0))
-                             (do
-                               (ui/children! label-box [label])
-                               (GridPane/setConstraints label 0 0))))
+        control
+        (cond-> control
+                drag-update-fn
+                (make-control-draggable (partial handle-control-drag-event! property-fn drag-update-fn update-ctrl-fn)))]
 
-        update-ui-fn (fn [property selection-provider]
-                       ;; TODO: Do we need to supply the selection-provider here, or do we inherit it?
-                       (ui/context! label :property (assoc context :property property) selection-provider)
-                       (let [is-overridden (properties/overridden? property)
-                             f (if is-overridden ui/add-style! ui/remove-style!)]
-                         (doseq [c [label control]]
-                           (f c "overridden"))
-                         (update-label-box (properties/label property)
-                                           (properties/tooltip property)
-                                           is-overridden)
-                         (update-ctrl-fn (properties/values property)
-                                         (properties/validation-message property)
-                                         (properties/read-only? property))))
-        control (cond-> control
-                        drag-update-fn
-                        (make-control-draggable (partial handle-control-drag-event! property-fn drag-update-fn update-ctrl-fn)))]
-
-    (GridPane/setConstraints label-box 0 row)
+    (GridPane/setConstraints label 0 row)
     (GridPane/setConstraints control 1 row)
-    (GridPane/setFillWidth label-box true)
+    (GridPane/setFillWidth label true)
     (GridPane/setFillWidth control true)
-    [label-box control update-ui-fn]))
+    (GridPane/setValignment label VPos/TOP)
+    [label control update-ui-fn]))
 
 (defn- make-property-grid [context properties property-keyword->property]
   (let [grid (doto (GridPane.)

@@ -3,8 +3,55 @@
 }
 
 .property-label {
-    -fx-padding: 4 10 6 5;
-    -fx-font-weight: normal;
+    -fx-background-color: transparent;
+    -fx-background-radius: 2px;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-min-height: 27px;
+    -fx-pref-height: 27px;
+
+    > .label {
+        -fx-padding: 0 5px;
+        -fx-text-fill: -df-text;
+    }
+
+    > .arrow-button {
+        -fx-padding: 0 5px 0 0;
+        visibility: hidden;
+
+        > .arrow {
+            -fx-background-color: -df-text;
+        }
+    }
+
+    &.overridden {
+        > .label {
+            -fx-text-fill: -df-defold-blue-lighter;
+        }
+
+        > .arrow-button {
+            > .arrow {
+                -fx-background-color: -df-defold-blue-lighter;
+            }
+        }
+    }
+
+    &:hover, &:showing {
+        -fx-background-color: transparent;
+
+        > .label {
+            -fx-text-fill: -df-text;
+        }
+
+        > .arrow-button {
+            visibility: visible;
+        }
+    }
+
+    &:showing {
+        -fx-background-color: -df-component-dark;
+        -fx-background-radius: 2px 2px 0 0;
+    }
 }
 
 .property-component {
