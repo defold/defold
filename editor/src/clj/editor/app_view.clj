@@ -2417,6 +2417,9 @@ If you do not specifically require different script states, consider changing th
       (search-results-view/show-override-inspector! search-results-view node-id properties))))
 
 (defn- select-possibly-overridable-resource-node [selection project evaluation-context]
+  ;; TODO: This will return the outline-selected resource-node when used from an
+  ;; editor tab context. Shouldn't we use the resource-node associated with the
+  ;; editor tab in that scenario?
   (or (handler/selection->node-id selection)
       (when-let [resource (handler/adapt-single selection resource/Resource)]
         (when (resource/overridable? resource)

@@ -52,6 +52,13 @@
   }
 }
 
+.button-icon {
+  @extend .button;
+  -fx-padding: 0;
+  -fx-min-width: 0;
+  -fx-min-height: 0;
+}
+
 .button-small {
   @extend .button;
   -fx-padding: 2px 17px;

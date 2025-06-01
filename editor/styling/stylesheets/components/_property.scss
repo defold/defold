@@ -45,6 +45,10 @@
 
         > .arrow-button {
             visibility: visible;
+
+            > .arrow {
+                -fx-background-color: -df-text;
+            }
         }
     }
 
