@@ -112,12 +112,12 @@ namespace dmEngine
 
     dmEngineService::HEngineService g_EngineService = 0;
 
-    static AppExitStatus GetAppExitStatusFromAction(int action)
+    static ExtensionAppExitCode GetAppExitStatusFromAction(int action)
     {
         switch(action) {
-        case dmEngine::RunResult::REBOOT:   return EXTENSION_APP_STATUS_REBOOT;
-        case dmEngine::RunResult::EXIT:     return EXTENSION_APP_STATUS_EXIT;
-        default:                            return EXTENSION_APP_STATUS_NONE;
+        case dmEngine::RunResult::REBOOT:   return EXTENSION_APP_EXIT_CODE_REBOOT;
+        case dmEngine::RunResult::EXIT:     return EXTENSION_APP_EXIT_CODE_EXIT;
+        default:                            return EXTENSION_APP_EXIT_CODE_NONE;
         }
     }
 

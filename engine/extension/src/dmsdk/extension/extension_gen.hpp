@@ -91,19 +91,19 @@ namespace dmExtension
         CALLBACK_POST_RENDER,
     };
 
-    /*# engine exit status
-     * Engine exit status.
+    /*# engine exit code
+     * Engine exit code.
      * @enum
-     * @name AppExitStatus
+     * @name AppExitCode
      * @language C++
-     * @member  EXTENSION_APP_STATUS_NONE
-     * @member  EXTENSION_APP_STATUS_REBOOT
-     * @member  EXTENSION_APP_STATUS_EXIT
+     * @member  EXTENSION_APP_EXIT_CODE_NONE
+     * @member  EXTENSION_APP_EXIT_CODE_REBOOT
+     * @member  EXTENSION_APP_EXIT_CODE_EXIT
      */
-    enum AppExitStatus {
-        EXTENSION_APP_STATUS_NONE = 0,
-        EXTENSION_APP_STATUS_REBOOT = 1,
-        EXTENSION_APP_STATUS_EXIT = -1,
+    enum AppExitCode {
+        APP_EXIT_CODE_NONE = 0,
+        APP_EXIT_CODE_REBOOT = 1,
+        APP_EXIT_CODE_EXIT = -1,
     };
 
     /*#
@@ -201,6 +201,15 @@ namespace dmExtension
      * @return context [type:void*] The context, if it exists
      */
     void * AppParamsGetContext(AppParams * params, dmhash_t name_hash);
+
+    /*# get the app exit code
+     * get the app exit code
+     * @name AppParamsGetAppExitCode
+     * @language C++
+     * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
+     * @return code [type:ExtensionAppExitCode] engine exit code
+     */
+    AppExitCode AppParamsGetAppExitCode(AppParams * app_params);
 
     /*# 
      * Sets a context using a specified name
@@ -333,14 +342,14 @@ namespace dmExtension
  * @member  EXTENSION_CALLBACK_POST_RENDER
  */
 
-/*# engine exit status
- * Engine exit status.
+/*# engine exit code
+ * Engine exit code.
  * @enum
- * @name AppExitStatus
+ * @name ExtensionAppExitCode
  * @language C
- * @member  EXTENSION_APP_STATUS_NONE
- * @member  EXTENSION_APP_STATUS_REBOOT
- * @member  EXTENSION_APP_STATUS_EXIT
+ * @member  EXTENSION_APP_EXIT_CODE_NONE
+ * @member  EXTENSION_APP_EXIT_CODE_REBOOT
+ * @member  EXTENSION_APP_EXIT_CODE_EXIT
  */
 
 /*# 
@@ -409,6 +418,14 @@ namespace dmExtension
  * @param params [type:ExtensionAppParams] the params
  * @param name_hash [type:dmhash_t] the context name hash
  * @return context [type:void*] The context, if it exists
+ */
+
+/*# get the app exit code
+ * get the app exit code
+ * @name ExtensionAppParamsGetAppExitCode
+ * @language C
+ * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
+ * @return code [type:ExtensionAppExitCode] engine exit code
  */
 
 /*# 

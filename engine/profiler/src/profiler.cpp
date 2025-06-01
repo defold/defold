@@ -889,7 +889,7 @@ static dmExtension::Result AppFinalizeProfiler(dmExtension::AppParams* params)
 
     dmProfiler::SetEnabled(false);
 
-    if (dmExtension::GetAppExitStatus(params) == EXTENSION_APP_STATUS_EXIT)
+    if (dmExtension::AppParamsGetAppExitCode(params) == dmExtension::APP_EXIT_CODE_EXIT)
     {
         dmProfile::Finalize();
     }

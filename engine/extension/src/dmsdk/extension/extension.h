@@ -98,28 +98,28 @@ typedef enum ExtensionCallbackType
     EXTENSION_CALLBACK_POST_RENDER,
 } ExtensionCallbackType;
 
-/*# engine exit status
+/*# engine exit code
  *
- * Engine exit status.
+ * Engine exit code.
  *
  * @enum
- * @name AppExitStatus
- * @member EXTENSION_APP_STATUS_NONE
- * @member EXTENSION_APP_STATUS_REBOOT
- * @member EXTENSION_APP_STATUS_EXIT
+ * @name ExtensionAppExitCode
+ * @member EXTENSION_APP_EXIT_CODE_NONE
+ * @member EXTENSION_APP_EXIT_CODE_REBOOT
+ * @member EXTENSION_APP_EXIT_CODE_EXIT
  *
  */
-typedef enum AppExitStatus
+typedef enum ExtensionAppExitCode
 {
-    EXTENSION_APP_STATUS_NONE     =  0,
-    EXTENSION_APP_STATUS_REBOOT   =  1,
-    EXTENSION_APP_STATUS_EXIT     = -1,
-} AppExitStatus;
+    EXTENSION_APP_EXIT_CODE_NONE     =  0,
+    EXTENSION_APP_EXIT_CODE_REBOOT   =  1,
+    EXTENSION_APP_EXIT_CODE_EXIT     = -1,
+} ExtensionAppExitCode;
 
 typedef struct ExtensionAppParams
 {
-    HConfigFile     m_ConfigFile; // Deprecated. Here for backwards compatibility
-    AppExitStatus   m_ExitStatus;
+    HConfigFile                 m_ConfigFile; // Deprecated. Here for backwards compatibility
+    ExtensionAppExitCode        m_ExitStatus;
     struct ExtensionParamsImpl* m_Impl;
 } ExtensionAppParams;
 
@@ -204,6 +204,13 @@ void* ExtensionAppParamsGetContextByName(ExtensionAppParams* params, const char*
  * @return context [type:void*] The context, if it exists
  */
 void* ExtensionAppParamsGetContext(ExtensionAppParams* params, dmhash_t name_hash);
+
+/*# get the app exit code
+* @name ExtensionAppParamsGetAppExitCode
+* @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
+* @return code [type:ExtensionAppExitCode] engine exit code
+*/
+ExtensionAppExitCode ExtensionAppParamsGetAppExitCode(ExtensionAppParams* app_params);
 
 /*#
  * Sets a context using a specified name
