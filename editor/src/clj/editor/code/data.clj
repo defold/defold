@@ -2612,7 +2612,7 @@
     (when (< clicked-row (count lines))
       clicked-row)))
 
-(defn mouse-pressed [lines cursor-ranges regions ^LayoutInfo layout ^LayoutInfo minimap-layout button click-count x y alt-key? shift-key? shortcut-key?]
+(defn mouse-pressed [lines cursor-ranges regions ^LayoutInfo layout ^LayoutInfo minimap-layout button click-count x y alt-key? shift-key? shortcut-key? show-context-menu]
   (case button
     :primary
     (cond
@@ -2693,7 +2693,10 @@
     (cond
       (in-gutter? layout x)
       (when-let [clicked-row (y->existing-row layout lines y)]
-        (edit-breakpoint lines regions clicked-row)))
+        (edit-breakpoint lines regions clicked-row))
+      
+      :else
+      (show-context-menu))
     :back
     nil
     :forward

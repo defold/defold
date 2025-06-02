@@ -2499,25 +2499,38 @@
       (.setCursor node javafx.scene.Cursor/DISAPPEAR)
       (.setCursor node cursor))))
 
+(handler/register-menu! ::context-menu :editor.app-view/edit-end
+  [{:command :edit.cut :label "Cut"}
+   {:command :edit.copy :label "Copy"}
+   {:command :edit.paste :label "Paste"}
+   {:command :code.select-all :label "Select All"}
+   {:label :separator}])
+
 (defn handle-mouse-pressed! [view-node ^MouseEvent event]
-  (.consume event)
-  (.requestFocus ^Node (.getTarget event))
-  (refresh-mouse-cursor! view-node event)
-  (hide-hover! view-node)
-  (hide-suggestions! view-node)
-  (set-properties! view-node (if (< 1 (.getClickCount event)) :selection :navigation)
-                   (data/mouse-pressed (get-property view-node :lines)
-                                       (get-property view-node :cursor-ranges)
-                                       (get-property view-node :regions)
-                                       (get-property view-node :layout)
-                                       (get-property view-node :minimap-layout)
-                                       (mouse-button event)
-                                       (.getClickCount event)
-                                       (.getX event)
-                                       (.getY event)
-                                       (.isAltDown event)
-                                       (.isShiftDown event)
-                                       (.isShortcutDown event))))
+  (let [^Node target (.getTarget event)
+        scene ^Scene (.getScene target)
+        mouse-button (mouse-button event)
+        show-context-menu #(let [context-menu (ui/init-context-menu! :editor.app-view/edit-end scene)]
+                             (.show context-menu target (.getScreenX event) (.getScreenY event)))]
+    (.consume event)
+    (.requestFocus target)
+    (refresh-mouse-cursor! view-node event)
+    (hide-hover! view-node)
+    (hide-suggestions! view-node)
+    (set-properties! view-node (if (< 1 (.getClickCount event)) :selection :navigation)
+                     (data/mouse-pressed (get-property view-node :lines)
+                                         (get-property view-node :cursor-ranges)
+                                         (get-property view-node :regions)
+                                         (get-property view-node :layout)
+                                         (get-property view-node :minimap-layout)
+                                         mouse-button
+                                         (.getClickCount event)
+                                         (.getX event)
+                                         (.getY event)
+                                         (.isAltDown event)
+                                         (.isShiftDown event)
+                                         (.isShortcutDown event)
+                                         show-context-menu))))
 
 (defn- on-hover-response [view-node request-cursor hover-lsp-regions]
   (ui/run-later
