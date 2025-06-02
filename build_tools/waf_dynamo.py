@@ -1026,10 +1026,10 @@ def export_symbols(self):
         return
 
     exported_symbols = self.path.find_or_declare('__exported_symbols_%d.cpp' % self.idx)
-
-    task = self.create_task('create_export_symbols')
-    task.exported_symbols = self.exported_symbols
-    task.set_outputs([exported_symbols])
+    if not exported_symbols.exists():
+        task = self.create_task('create_export_symbols')
+        task.exported_symbols = self.exported_symbols
+        task.set_outputs([exported_symbols])
 
     # Add exported symbols as a dependancy to this task
     if type(self.source) == str:

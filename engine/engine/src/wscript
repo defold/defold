@@ -38,8 +38,7 @@ def build(bld):
                     embed_source='../content/materials/debug.spc ../content/builtins/connect/game.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
                     source='engine.cpp engine_main.cpp engine_loop.cpp extension.cpp physics_debug_render.cpp ../proto/engine/engine_ddf.proto ' + platform_main_cpp,
                     install_path = platform_lib_install_path,
-                    use = 'engine_service')
-
+                    use = 'engine_service engine_builtins')
     bld.add_group()
 
     bld.stlib(features = 'cxx ddf',
@@ -50,7 +49,7 @@ def build(bld):
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                     source='engine.cpp engine_main.cpp engine_loop.cpp extension.cpp ../proto/engine/engine_ddf.proto ' + platform_main_cpp,
                     install_path = platform_lib_install_path,
-                    use = 'engine_service_null')
+                    use = 'engine_service_null engine_builtins')
 
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
     bld.install_files('${PREFIX}/share/proto/engine', '../proto/engine/engine_ddf.proto')
@@ -107,7 +106,7 @@ def build(bld):
 
     web_libs = [glfw_js, 'library_sys.js', 'library_script.js', 'library_sound.js', 'library_render.js', 'library_profile.js']
 
-    main_cpp = 'common/main.cpp'
+    main_cpp = ['common/main.cpp']
 
     bld.add_group()
 
@@ -124,7 +123,7 @@ def build(bld):
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'engine_rs PROFILEREXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine engine_service'.split() + graphics_lib + sound_lib + profile_lib + platform_lib + additional_libs,
+        use = 'engine_rs PROFILEREXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine engine_service engine_builtins'.split() + graphics_lib + sound_lib + profile_lib + platform_lib + additional_libs,
         web_libs = web_libs,
         exported_symbols = exported_symbols + resource_type_symbols + ['ResourceProviderHttp'] + component_type_symbols,
         includes = '../build ../proto . ..',
@@ -134,7 +133,7 @@ def build(bld):
         protoc_includes = '../proto',
         target = 'dmengine',
         bundleid = 'com.defold.engine',
-        source = main_cpp.split(),
+        source = main_cpp,
         proguard = ['../content/builtins/manifests/android/dmengine.pro'],
         install_path = platform_bin_install_path,
         jars = android_jar_paths)
@@ -152,7 +151,7 @@ def build(bld):
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'PROFILE_NULL PROFILEREXT_NULL GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine_release engine_service_null'.split() + graphics_lib + sound_lib + platform_lib + additional_libs,
+        use = 'PROFILE_NULL PROFILEREXT_NULL GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine_release engine_service_null engine_builtins'.split() + graphics_lib + sound_lib + platform_lib + additional_libs,
         web_libs = web_libs,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
         includes = '../build ../proto . ..',
@@ -161,7 +160,7 @@ def build(bld):
         proto_gen_py = True,
         protoc_includes = '../proto',
         target = 'dmengine_release',
-        source = main_cpp.split(),
+        source = main_cpp,
         install_path = platform_bin_install_path,
         jars   = android_jar_paths)
 
@@ -184,7 +183,7 @@ def build(bld):
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE PLATFORM_NULL RIG GUI CRASH DLIB SOUND_NULL engine engine_service'.split() + graphics_lib.split() + profile_lib + additional_libs,
+        use = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE PLATFORM_NULL RIG GUI CRASH DLIB SOUND_NULL engine engine_service engine_builtins'.split() + graphics_lib.split() + profile_lib + additional_libs,
         exported_symbols = ['ProfilerExt', 'LiveUpdateExt', 'ScriptTypesExt', 'GraphicsAdapterNull'] + resource_type_symbols + component_type_symbols,
         web_libs = web_libs,
         includes = '../build ../proto . ..',
@@ -192,7 +191,7 @@ def build(bld):
         protoc_includes = '../proto',
         target = 'dmengine_headless',
         install_path = platform_bin_install_path,
-        source = main_cpp.split())
+        source = main_cpp)
 
     if 'win32' in bld.env.PLATFORM:
         obj.source.append('engine.rc')

@@ -47,6 +47,7 @@ def build(bld):
        source_root='default/content',
        content_root='../content',
        resource_name='builtins',
+       name='engine_builtins',
        source = bld.path.ant_glob([
            'builtins/input/**/*',
            'builtins/render/**/*',
