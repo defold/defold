@@ -690,6 +690,8 @@
 (defn- build-in-progress? []
   @build-in-progress-atom)
 
+(def ^:private engine-just-rebooted(atom false))
+
 (defn- async-reload-on-app-focus? [prefs]
   (prefs/get prefs [:workflow :load-external-changes-on-app-focus]))
 
@@ -749,6 +751,10 @@
         (swap! initial-output str line "\n")
         (when-let [target-info (engine/parse-launched-target-info @initial-output)]
           (targets/update-launched-target! launched-target target-info on-service-url-found)))
+      (when @engine-just-rebooted
+        (reset! engine-just-rebooted false)
+        (doseq [l-target (targets/all-launched-targets)]
+          (on-service-url-found l-target)))
       (when (console/current-stream? (:log-stream launched-target))
         (console/append-console-line! line)))))
 
@@ -757,6 +763,7 @@
     (report-build-launch-progress! (format "Rebooting %s..." (targets/target-message-label target)))
     (engine/reboot! target (local-url target web-server) debug?)
     (report-build-launch-progress! (format "Rebooted %s" (targets/target-message-label target)))
+    (reset! engine-just-rebooted true)
     target
     (catch Exception e
       (report-build-launch-progress! "Reboot failed")
@@ -820,10 +827,7 @@
               ;; running to keep engine process
               ;; from halting because stdout/err is
               ;; not consumed.
-              (reboot-engine! selected-target web-server debug?)
-              (console/start-one-line-log-pump!
-                (:log-stream selected-target)
-                (fn [_] (on-service-url-found prefs selected-target))))
+              (reboot-engine! selected-target web-server debug?))
             (launch-new-engine!))))
       (catch Exception e
         (log/warn :exception e)

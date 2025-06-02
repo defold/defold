@@ -129,22 +129,6 @@
                        nil))))
     (.start)))
 
-;; Start a background thread that waits for a single line from the log-stream,
-;; calls sink-fn with it, and then stops.
-(defn start-one-line-log-pump!
-  "Reads a single line from log-stream in a background thread and calls sink-fn with it.
-   Does NOT close the stream."
-  [log-stream sink-fn]
-  (doto (Thread.
-          (fn []
-            (try
-              (let [reader (BufferedReader. (io/reader log-stream :encoding "UTF-8"))]
-                (when-let [line (.readLine ^BufferedReader reader)]
-                  (sink-fn line)))
-              (catch IOException _ nil)
-              (catch InterruptedException _ nil))))
-    (.start)))
-
 (defn make-remote-log-sink [log-stream]
   (fn [line]
     (when (= @console-stream log-stream)
