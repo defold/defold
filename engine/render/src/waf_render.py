@@ -20,11 +20,21 @@ from waf_content import proto_compile_task
 def configure(conf):
     pass
 
-waflib.Task.task_factory('material', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.MaterialBuilder ${SRC} ${TGT} ${SHADER_NAME} ${CONTENT_ROOT}',
+material_task_class = waflib.Task.task_factory('material', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.MaterialBuilder ${SRC} ${TGT} ${SHADER_NAME} ${CONTENT_ROOT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
                       shell=False)
+
+
+# Override the runnable_status method to skip task execution
+def material_runnable_status(self):
+    # Example: skip if output file already exists
+    if self.outputs[0].exists():
+        return waflib.Task.SKIP_ME
+    return super(material_task_class, self).runnable_status()
+
+material_task_class.runnable_status = material_runnable_status
 
 waflib.Task.task_factory('material_shaderbuilder', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${FP} ${VP} ${TGT} ${PLATFORM} ${CONTENT_ROOT}',
                       color='PINK',
