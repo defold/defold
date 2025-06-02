@@ -318,7 +318,7 @@
 
 (defn render-points [^GL2 gl render-args renderables _num-renderables]
   (let [{:keys [selected user-data world-transform]} (first renderables)
-        {:keys [color geometry point-size]} user-data
+        {:keys [color geometry ^double point-size]} user-data
         {:keys [primitive-type vbuf]} geometry
         color (float-array (or (colors/selection-color selected)
                                (colors/alpha color 1.0)))
