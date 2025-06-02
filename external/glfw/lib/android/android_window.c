@@ -178,6 +178,8 @@ int _glfwPlatformOpenWindow( int width__, int height__,
         update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
         computeIconifiedState();
     }
+    
+    _glfwTerminateJoysticks();
 
     return GL_TRUE;
 }
