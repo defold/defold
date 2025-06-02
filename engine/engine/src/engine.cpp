@@ -112,6 +112,15 @@ namespace dmEngine
 
     dmEngineService::HEngineService g_EngineService = 0;
 
+    static ExtensionAppExitCode GetAppExitStatusFromAction(int action)
+    {
+        switch(action) {
+        case dmEngine::RunResult::REBOOT:   return EXTENSION_APP_EXIT_CODE_REBOOT;
+        case dmEngine::RunResult::EXIT:     return EXTENSION_APP_EXIT_CODE_EXIT;
+        default:                            return EXTENSION_APP_EXIT_CODE_NONE;
+        }
+    }
+
     struct ScopedExtensionAppParams
     {
         ExtensionAppParams m_AppParams;
@@ -119,6 +128,7 @@ namespace dmEngine
         {
             ExtensionAppParamsInitialize(&m_AppParams);
             m_AppParams.m_ConfigFile = engine->m_Config;
+            m_AppParams.m_ExitStatus = GetAppExitStatusFromAction(engine->m_RunResult.m_Action);
             ExtensionAppParamsSetContext(&m_AppParams, "config", engine->m_Config);
             dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
             ExtensionAppParamsSetContext(&m_AppParams, "webserver", webserver);
@@ -1733,6 +1743,13 @@ bail:
         return memcount;
     }
 
+    static void Exit(HEngine engine, int32_t code)
+    {
+        engine->m_Alive = false;
+        engine->m_RunResult.m_ExitCode = code;
+        engine->m_RunResult.m_Action = dmEngine::RunResult::EXIT;
+    }
+
     static void StepFrame(HEngine engine, float dt)
     {
         uint64_t frame_start = dmTime::GetMonotonicTime();
@@ -1857,7 +1874,7 @@ bail:
 
                 if (esc_pressed || !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_OPENED))
                 {
-                    engine->m_Alive = false;
+                    Exit(engine, 0);
                     return;
                 }
 
@@ -2095,13 +2112,6 @@ bail:
     {
         HEngine engine = (HEngine)context;
         return engine->m_Alive;
-    }
-
-    static void Exit(HEngine engine, int32_t code)
-    {
-        engine->m_Alive = false;
-        engine->m_RunResult.m_ExitCode = code;
-        engine->m_RunResult.m_Action = dmEngine::RunResult::EXIT;
     }
 
     static void Reboot(HEngine engine, dmSystemDDF::Reboot* reboot)
@@ -2429,7 +2439,6 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
 void dmEngineDestroy(dmEngine::HEngine engine)
 {
     engine->m_RunResult.Free();
-
     Delete(engine);
 }
 

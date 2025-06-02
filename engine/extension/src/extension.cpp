@@ -171,6 +171,11 @@ void* ExtensionAppParamsGetContextByName(ExtensionAppParams* params, const char*
     return GetContext(&params->m_Impl->m_Contexts, dmHashString64(name));
 }
 
+ExtensionAppExitCode ExtensionAppParamsGetAppExitCode(ExtensionAppParams* app_params)
+{
+    return app_params->m_ExitStatus;
+}
+
 int ExtensionParamsSetContext(ExtensionParams* params, const char* name, void* context)
 {
     return SetContext(&params->m_Impl->m_Contexts, name, context);
@@ -364,6 +369,11 @@ namespace dmExtension
             }
             ed = dmExtension::GetNextExtension(ed);
         }
+    }
+
+    AppExitCode AppParamsGetAppExitCode(AppParams * app_params)
+    {
+        return (AppExitCode)ExtensionAppParamsGetAppExitCode(app_params);
     }
 
 }
