@@ -816,7 +816,12 @@ namespace dmEngineService
                 case '\n': SendText(request, "\\n"); break;
                 case '\r': SendText(request, "\\r"); break;
                 case '\t': SendText(request, "\\t"); break;
-                default: SendText(request, (char[2]){*p, 0});
+                default:
+                {
+                    char buf[2] = {*p, 0};
+                    SendText(request, buf);
+                    break;
+                }
             }
         }
         SendText(request, "\"");
