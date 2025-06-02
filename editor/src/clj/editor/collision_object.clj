@@ -145,6 +145,8 @@
 
 (def ^:private render-triangles-uniform-scale (wrap-uniform-scale scene-shapes/render-triangles))
 
+(def ^:private render-points-uniform-scale (wrap-uniform-scale scene-shapes/render-points))
+
 (g/defnk produce-sphere-shape-scene
   [_node-id transform diameter color node-outline-key project-physics-type]
   (let [radius (* 0.5 diameter)
@@ -441,7 +443,7 @@
                                   points))]
       (if (= "2D" project-physics-type)
         {:node-id _node-id
-         :node-outline-key "Convex Hull"
+         :node-outline-key "2D Convex Hull"
          :aabb aabb
          :renderable {:render-fn render-triangles-uniform-scale
                       :tags #{:collision-shape}
@@ -459,12 +461,13 @@
                                               :geometry {:primitive-type GL2/GL_LINE_LOOP
                                                          :vbuf vbuf}}}}]}
         {:node-id _node-id
-         :node-outline-key "Convex Hull"
+         :node-outline-key "3D Convex Hull"
          :aabb aabb
-         :renderable {:render-fn render-lines-uniform-scale
-                      :tags #{:collision-shape}
+         :renderable {:render-fn render-points-uniform-scale
+                      :tags #{:collision-shape :outline}
                       :passes [pass/outline]
                       :user-data {:color color
+                                  :point-size 3.0
                                   :geometry {:primitive-type GL2/GL_POINTS
                                              :vbuf vbuf}}}}))))
 
