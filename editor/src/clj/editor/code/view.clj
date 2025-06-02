@@ -2509,7 +2509,6 @@
 (defn handle-mouse-pressed! [view-node ^MouseEvent event]
   (let [^Node target (.getTarget event)
         scene ^Scene (.getScene target)
-        mouse-button (mouse-button event)
         show-context-menu #(let [context-menu (ui/init-context-menu! :editor.app-view/edit-end scene)]
                              (.show context-menu target (.getScreenX event) (.getScreenY event)))]
     (.consume event)
@@ -2523,7 +2522,7 @@
                                          (get-property view-node :regions)
                                          (get-property view-node :layout)
                                          (get-property view-node :minimap-layout)
-                                         mouse-button
+                                         (mouse-button event)
                                          (.getClickCount event)
                                          (.getX event)
                                          (.getY event)
