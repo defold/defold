@@ -2697,7 +2697,7 @@
 
       (not (some-> (.minimap layout) (rect-contains? x y)))
       (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))]
-        ;; Move cursor when we are ourside of the current selection.
+        ;; Move cursor when we are outside of the current selection.
         (when-not (some #(cursor-range-contains? % mouse-cursor) cursor-ranges)
           {:cursor-ranges [(Cursor->CursorRange mouse-cursor)]})))
 
