@@ -182,7 +182,6 @@ namespace dmScript
         bool supported = false;
         switch(header.m_Version)
         {
-        case 0:
         case 1:
         case 2:
         case 3:
