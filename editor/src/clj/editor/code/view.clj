@@ -2509,8 +2509,8 @@
 (defn handle-mouse-pressed! [view-node ^MouseEvent event]
   (let [^Node target (.getTarget event)
         scene ^Scene (.getScene target)
-        show-context-menu #(let [context-menu (ui/init-context-menu! :editor.app-view/edit-end scene)]
-                             (.show context-menu target (.getScreenX event) (.getScreenY event)))]
+        button (mouse-button event)
+        layout ^LayoutInfo (get-property view-node :layout)]
     (.consume event)
     (.requestFocus target)
     (refresh-mouse-cursor! view-node event)
@@ -2520,16 +2520,20 @@
                      (data/mouse-pressed (get-property view-node :lines)
                                          (get-property view-node :cursor-ranges)
                                          (get-property view-node :regions)
-                                         (get-property view-node :layout)
+                                         layout
                                          (get-property view-node :minimap-layout)
-                                         (mouse-button event)
+                                         button
                                          (.getClickCount event)
                                          (.getX event)
                                          (.getY event)
                                          (.isAltDown event)
                                          (.isShiftDown event)
-                                         (.isShortcutDown event)
-                                         show-context-menu))))
+                                         (.isShortcutDown event)))
+
+    (when (and (= button :secondary)
+               (not (data/in-gutter? layout (.getX event))))
+      (let [context-menu (ui/init-context-menu! :editor.app-view/edit-end scene)]
+        (.show context-menu target (.getScreenX event) (.getScreenY event))))))
 
 (defn- on-hover-response [view-node request-cursor hover-lsp-regions]
   (ui/run-later
