@@ -17,6 +17,7 @@
 #include <string.h>
 #include <float.h>
 #include <algorithm>
+#include <limits>
 
 #include <dlib/array.h>
 #include <dlib/hash.h>
