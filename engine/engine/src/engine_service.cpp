@@ -829,7 +829,7 @@ namespace dmEngineService
 
     static float JsonSafeFloat(float f)
     {
-        return isfinite(f) ? f : 0.0f;
+        return isfinite(f) ? f : std::numeric_limits<float>::max();
     }
 
     static void OutputJsonProperty(dmGameObject::SceneNodeProperty* property, dmWebServer::Request* request, int indent)
