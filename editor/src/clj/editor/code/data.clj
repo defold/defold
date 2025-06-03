@@ -2603,7 +2603,7 @@
                                   :from-doc-x (x->doc-x layout x)
                                   :from-doc-y (y->doc-y layout y))}))
 
-(defn- in-gutter? [^LayoutInfo layout x]
+(defn in-gutter? [^LayoutInfo layout x]
   (and (< ^double x (.x ^Rect (.canvas layout)))
        (> ^double x (+ (.x ^Rect (.line-numbers layout)) (.w ^Rect (.line-numbers layout))))))
 
@@ -2612,7 +2612,7 @@
     (when (< clicked-row (count lines))
       clicked-row)))
 
-(defn mouse-pressed [lines cursor-ranges regions ^LayoutInfo layout ^LayoutInfo minimap-layout button click-count x y alt-key? shift-key? shortcut-key? show-context-menu]
+(defn mouse-pressed [lines cursor-ranges regions ^LayoutInfo layout ^LayoutInfo minimap-layout button click-count x y alt-key? shift-key? shortcut-key?]
   (case button
     :primary
     (cond
@@ -2693,10 +2693,8 @@
     (cond
       (in-gutter? layout x)
       (when-let [clicked-row (y->existing-row layout lines y)]
-        (edit-breakpoint lines regions clicked-row))
-      
-      :else
-      (show-context-menu))
+        (edit-breakpoint lines regions clicked-row)))
+
     :back
     nil
     :forward
