@@ -999,7 +999,7 @@ namespace dmLiveUpdate
 
         DM_PROFILE("LiveUpdate");
         if (g_LiveUpdate.m_JobThread)
-            dmJobThread::Update(g_LiveUpdate.m_JobThread); // Flushes finished async jobs', and calls any Lua callbacks
+            dmJobThread::Update(g_LiveUpdate.m_JobThread, 0); // Flushes finished async jobs', and calls any Lua callbacks
         return dmExtension::RESULT_OK;
     }
 };

@@ -65,9 +65,9 @@ namespace dmRender
         , m_CacheCellCount(0)
         , m_CacheCellPadding(0)
         , m_LayerMask(FACE)
+        , m_Padding(0)
         , m_IsMonospaced(0)
         , m_IsCacheSizeDirty(0)
-        , m_Padding(0)
         {
         }
 
@@ -102,7 +102,6 @@ namespace dmRender
         float                   m_MaxAscent;
         float                   m_MaxDescent;
         float                   m_SdfSpread;
-        float                   m_SdfOffset;
         float                   m_SdfOutline;
         float                   m_SdfShadow;
         float                   m_Alpha;
@@ -131,9 +130,11 @@ namespace dmRender
         uint8_t                 m_CacheChannels;        // Number of channels
         uint8_t                 m_CacheCellPadding;
         uint8_t                 m_LayerMask;
+        uint8_t                 m_Padding;              // The padding of the cell
         uint8_t                 m_IsMonospaced:1;
         uint8_t                 m_IsCacheSizeDirty:1;   // if the glyph cell size has changed, or if the layout needs to be recalculated
-        uint8_t                 m_Padding:6;            // The padding of the cell
+        uint8_t                 m_DynamicCacheSize:1;
+        uint8_t                 m_IsCacheSizeTooSmall:1;
     };
 
     ///////////////////////////////////////////////////////////////////////////////
