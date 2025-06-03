@@ -2694,7 +2694,6 @@
       (in-gutter? layout x)
       (when-let [clicked-row (y->existing-row layout lines y)]
         (edit-breakpoint lines regions clicked-row)))
-
     :back
     nil
     :forward
