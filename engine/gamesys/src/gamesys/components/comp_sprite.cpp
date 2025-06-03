@@ -2384,6 +2384,10 @@ namespace dmGameSystem
                     {
                         // Since the size is baked into the matrix, we divide by it here
                         Vector3 size( component->m_Size.getX() * component->m_Scale.getX(), component->m_Size.getY() * component->m_Scale.getY(), 1);
+                        const float epsilon = 1e-6f;
+                        if (fabsf(size.getX()) < epsilon) size.setX(1.0f);
+                        if (fabsf(size.getY()) < epsilon) size.setY(1.0f);
+                        if (fabsf(size.getZ()) < epsilon) size.setZ(1.0f);
                         value = Vector4(dmVMath::DivPerElem(transform.GetScale(), size));
                     }
                     break;
