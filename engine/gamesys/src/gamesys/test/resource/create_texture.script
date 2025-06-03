@@ -69,9 +69,10 @@ local tparams_2d_array = {
     format         = graphics.TEXTURE_FORMAT_RGB
 }
 
-local tparams_2d_array_missed_param = {
+local tparams_2d_array_zero_page_count = {
     width          = 128,
     height         = 128,
+    page_count     = 0,
     type           = graphics.TEXTURE_TYPE_2D_ARRAY,
     format         = graphics.TEXTURE_FORMAT_RGB
 }
@@ -358,7 +359,7 @@ local function test_2d_array_texture()
     resource.release(t_id)
 
     assert_error(function()
-        resource.create_texture("/test_invalid_tex_array.texturec", tparams_2d_array_missed_param)
+        resource.create_texture("/test_invalid_tex_array.texturec", tparams_2d_array_zero_page_count)
     end)
 end
 
@@ -375,10 +376,10 @@ function update(self)
         test_compressed_fail,
         test_get_texture_info,
         test_invalid,
+        test_3d_textures,
+        test_2d_array_texture,
         test_async_simple,
         test_async_basis,
-        test_3d_textures,
-        test_2d_array_texture
     }
 
     if tests[self.update_counter] ~= nil then
