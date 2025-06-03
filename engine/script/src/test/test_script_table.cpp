@@ -121,16 +121,13 @@ TEST_F(LuaTableTest, AttemptReadUnsupportedVersion)
     lua_pop(L, 1);
 }
 
-TEST_F(LuaTableTest, VerifyCosTableOriginal)
+TEST_F(LuaTableTest, DeprecatedVersion0)
 {
     int result = lua_cpcall(L, ReadCosTableDataOriginal, 0x0);
-    ASSERT_EQ(0, result);
-}
+    ASSERT_EQ(LUA_ERRRUN, result);
 
-TEST_F(LuaTableTest, VerifySinTableOriginal)
-{
-    int result = lua_cpcall(L, ReadSinTableDataOriginal, 0x0);
-    ASSERT_EQ(0, result);
+    result = lua_cpcall(L, ReadSinTableDataOriginal, 0x0);
+    ASSERT_EQ(LUA_ERRRUN, result);
 }
 
 
