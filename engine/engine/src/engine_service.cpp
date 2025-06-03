@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <limits>
 #include <dlib/webserver.h>
 #include <dlib/message.h>
 #include <dlib/dstrings.h>
