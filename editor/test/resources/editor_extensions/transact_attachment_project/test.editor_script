@@ -107,6 +107,15 @@ local function print_collision_object(collision)
     end
 end
 
+local function print_gui(gui)
+    local layers = editor.get(gui, "layers")
+    print(("  layers: %s"):format(#layers))
+    for i = 1, #layers do
+        local layer = layers[i]
+        print(("    layer: %s"):format(editor.get(layer, "name")))
+    end
+end
+
 function M.get_commands()
     return {
         editor.command({
@@ -293,7 +302,42 @@ function M.get_commands()
                 print("Expected errors:")
                 expect_error("missing type", editor.tx.add, collision, "shapes", {})
                 expect_error("wrong type", editor.tx.add, collision, "shapes", {type = "box"})
-                
+
+                local gui = "/test.gui"
+                print("GUI initial state:")
+                print_gui(gui)
+
+                print("Transaction: edit GUI")
+                editor.transact({
+                    editor.tx.add(gui, "layers", {name = "bg"}),
+                    editor.tx.add(gui, "layers", {name = "fg"})
+                })
+
+                print("After transaction (edit):")
+                print_gui(gui)
+
+                print(("can reorder layers: %s"):format(tostring(editor.can_reorder(gui, "layers"))))
+                local bg_layer, fg_layer = table.unpack(editor.get(gui, "layers"))
+                print("Transaction: reorder")
+                editor.transact({
+                    editor.tx.reorder(gui, "layers", {fg_layer, bg_layer})
+                })
+                print("After transaction (reorder):")
+                print_gui(gui)
+                print("Expected reorder errors:")
+                expect_error("undefined property", editor.tx.reorder, gui, "not-a-property", {})
+                expect_error("reorder not defined", editor.tx.reorder, collision, "shapes", {})
+                expect_error("duplicates", editor.tx.reorder, gui, "layers", {fg_layer, fg_layer, bg_layer})
+                expect_error("missing children", editor.tx.reorder, gui, "layers", {fg_layer})
+                expect_error("wrong child nodes", editor.tx.reorder, gui, "layers", {fg_layer, gui})
+
+                print("Transaction: clear GUI")
+                editor.transact({
+                    editor.tx.clear(gui, "layers")
+                })
+
+                print("After transaction (clear):")
+                print_gui(gui)
             end
         })
     }
