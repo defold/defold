@@ -2499,12 +2499,12 @@
       (.setCursor node javafx.scene.Cursor/DISAPPEAR)
       (.setCursor node cursor))))
 
-(handler/register-menu! ::context-menu :editor.app-view/edit-end
+(handler/register-menu! ::code-context-menu
   [{:command :edit.cut :label "Cut"}
    {:command :edit.copy :label "Copy"}
    {:command :edit.paste :label "Paste"}
    {:command :code.select-all :label "Select All"}
-   {:label :separator}])
+   {:label :separator :id :editor.app-view/edit-end}])
 
 (defn handle-mouse-pressed! [view-node ^MouseEvent event]
   (let [^Node target (.getTarget event)
@@ -2532,7 +2532,7 @@
 
     (when (and (= button :secondary)
                (not (data/in-gutter? layout (.getX event))))
-      (let [context-menu (ui/init-context-menu! :editor.app-view/edit-end scene)]
+      (let [context-menu (ui/init-context-menu! ::code-context-menu scene)]
         (.show context-menu target (.getScreenX event) (.getScreenY event))))))
 
 (defn- on-hover-response [view-node request-cursor hover-lsp-regions]
