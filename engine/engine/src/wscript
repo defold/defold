@@ -133,7 +133,7 @@ def build(bld):
         protoc_includes = '../proto',
         target = 'dmengine',
         bundleid = 'com.defold.engine',
-        source = main_cpp,
+        source = main_cpp.copy(),
         proguard = ['../content/builtins/manifests/android/dmengine.pro'],
         install_path = platform_bin_install_path,
         jars = android_jar_paths)
@@ -160,7 +160,7 @@ def build(bld):
         proto_gen_py = True,
         protoc_includes = '../proto',
         target = 'dmengine_release',
-        source = main_cpp,
+        source = main_cpp.copy(),
         install_path = platform_bin_install_path,
         jars   = android_jar_paths)
 
@@ -191,7 +191,8 @@ def build(bld):
         protoc_includes = '../proto',
         target = 'dmengine_headless',
         install_path = platform_bin_install_path,
-        source = main_cpp)
+        source = main_cpp.copy()
+    )
 
     if 'win32' in bld.env.PLATFORM:
         obj.source.append('engine.rc')

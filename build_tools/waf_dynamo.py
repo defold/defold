@@ -1031,7 +1031,7 @@ def export_symbols(self):
         task.exported_symbols = self.exported_symbols
         task.set_outputs([exported_symbols])
 
-    # Add exported symbols as a dependancy to this task
+    # Add exported symbols as a dependency to this task
     if type(self.source) == str:
         sources = []
         for x in self.source.split(' '):
