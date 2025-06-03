@@ -2381,16 +2381,13 @@ namespace dmGameSystem
                     type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4;
                     break;
                 case 2:
-                    {
-                        // Since the size is baked into the matrix, we divide by it here
-                        Vector3 size( component->m_Size.getX() * component->m_Scale.getX(), component->m_Size.getY() * component->m_Scale.getY(), 1);
-                        const float epsilon = 1e-6f;
-                        if (fabsf(size.getX()) < epsilon) size.setX(1.0f);
-                        if (fabsf(size.getY()) < epsilon) size.setY(1.0f);
-                        if (fabsf(size.getZ()) < epsilon) size.setZ(1.0f);
-                        value = Vector4(dmVMath::DivPerElem(transform.GetScale(), size));
-                    }
+                {
+                    Matrix4 parent_world = dmGameObject::GetWorldMatrix(component->m_Instance);
+                    Vector3 parent_scale = dmTransform::ToTransform(parent_world).GetScale();
+                    Vector3 world_scale = dmVMath::MulPerElem(parent_scale, component->m_Scale);
+                    value = Vector4(world_scale);
                     break;
+                }
                 case 3:
                     // the size is baked into this matrix as the scale
                     value = Vector4(transform.GetScale());
