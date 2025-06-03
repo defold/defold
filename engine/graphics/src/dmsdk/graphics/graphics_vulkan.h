@@ -103,6 +103,8 @@ namespace dmGraphics
      */
     VkRenderPass VulkanGetRenderPass(HContext context);
 
+    VkCommandBuffer VulkanGetCurrentFrameCommandBuffer(HContext context);
+
     // bool VulkanCreateDescriptorPool(VkDevice vk_device, uint16_t max_descriptors, VkDescriptorPool* vk_descriptor_pool_out);
 }
 
