@@ -52,9 +52,8 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
 
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
-        FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
-        ProtoUtil.merge(task.firstInput(), fontDescbuilder);
-        FontDesc fontDesc = fontDescbuilder.build();
+        FontDesc.Builder builder = getSrcBuilder(task.firstInput());
+        FontDesc fontDesc = builder.build();
 
         BuilderUtil.checkResource(this.project, task.firstInput(), "material", fontDesc.getMaterial());
 

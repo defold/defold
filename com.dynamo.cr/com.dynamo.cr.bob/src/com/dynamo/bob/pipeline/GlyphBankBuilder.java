@@ -61,9 +61,8 @@ public class GlyphBankBuilder extends ProtoBuilder<FontDesc.Builder> {
 
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
-    	FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
-        ProtoUtil.merge(task.firstInput(), fontDescbuilder);
-        FontDesc fontDesc = fontDescbuilder.build();
+    	FontDesc.Builder builder = getSrcBuilder(task.firstInput());
+        FontDesc fontDesc = builder.build();
 
         final IResource inputFontFile = BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
         BufferedInputStream fontStream = new BufferedInputStream(new ByteArrayInputStream(inputFontFile.getContent()));
