@@ -14,7 +14,7 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <limits>
+#include <float.h>
 #include <dlib/webserver.h>
 #include <dlib/message.h>
 #include <dlib/dstrings.h>
@@ -830,7 +830,7 @@ namespace dmEngineService
 
     static float JsonSafeFloat(float f)
     {
-        return isfinite(f) ? f : std::numeric_limits<float>::max();
+        return isfinite(f) ? f : FLT_MAX;
     }
 
     static void OutputJsonProperty(dmGameObject::SceneNodeProperty* property, dmWebServer::Request* request, int indent)
