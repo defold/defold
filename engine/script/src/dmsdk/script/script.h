@@ -460,6 +460,50 @@ namespace dmScript
     const char* GetStringFromHashOrString(lua_State* L, int index, char* buffer, uint32_t bufferlength);
 
     /*#
+     * Check if the value at #index is a URL
+     * @name IsURL
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return result [type:bool] true if the value at #index is a URL
+     */
+    bool IsURL(lua_State *L, int index);
+
+    /*#
+     * get the value at index as a dmMessage::URL*
+     * @name ToURL
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return hash [type:dmhash_t*] pointer to URL or 0 if it's not a URL
+     */
+    dmMessage::URL* ToURL(lua_State *L, int index);
+
+    /*#
+     * Push a URL value onto the supplied lua state, will increase the stack by 1.
+     * @name PushURL
+     * @param L [type:lua_State*] Lua state
+     * @param url [type:dmMessage::URL&] URL reference to push
+     */
+    void PushURL(lua_State* L, const dmMessage::URL& url);
+
+    /*#
+     * Check if the value in the supplied index on the lua stack is a dmMessage::URL and returns it if so.
+     * @name CheckURL
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return url [type:dmMessage::URL*] The pointer to the value
+     */
+    dmMessage::URL* CheckURL(lua_State* L, int index);
+
+    /*#
+     * Get the current game object URL
+     * @name CheckURL
+     * @param L [type:lua_State*] Lua state
+     * @param out_url [type:dmMessage::URL*] where to store the result
+     * @return result [type:bool] true if successful
+     */
+    bool CheckURL(lua_State* L, dmMessage::URL* out_url);
+
+    /*#
      * Push DDF message to Lua stack
      * @name PushDDF
      * @param L [type: lua_State*] the Lua state
@@ -639,15 +683,6 @@ namespace dmScript
      * Lua stack on exit
      */
     void UnrefInInstance(lua_State* L, int ref);
-
-    /*#
-     * Get the current game object URL
-     * @name CheckURL
-     * @param L [type:lua_State*] Lua state
-     * @param out_url [type:dmMessage::URL*] where to store the result
-     * @return result [type:bool] true if successful
-     */
-    bool CheckURL(lua_State* L, dmMessage::URL* out_url);
 
     /*#
      * Resolves the value in the supplied index on the lua stack to a URL. It long jumps (calls luaL_error) on failure.
