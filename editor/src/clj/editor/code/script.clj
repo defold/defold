@@ -33,12 +33,81 @@
 
 (g/deftype Modules [String])
 
+
+;; Lua block open/close keywords for indentation
+(def lua-open-keywords #{"do" "then" "function" "else" "repeat"})
+(def lua-close-keywords #{"end" "until"})
+
+;; This function replicates the behavior of the regex:
+;;   ^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b)[^\"'])*)|(\{\s*))$
+;;
+;; It performs the following checks:
+;; - Skips full-line comments (equivalent to ^([^-]|-(?!-))* for avoiding -- comments)
+;; - Ignores anything inside string literals (quoted "..." or '...')
+;; - Skips trailing inline comments (-- outside of string)
+;; - After cleaning, checks for:
+;;     * Ending with `{` (equivalent to (\{\s*)$)
+;;     * Presence of open block keywords (else, function, then, do, repeat)
+;;       not followed by closing keywords (end, until)
+(defn lua-opens-block? [^String line]
+  (let [len (.length line)]
+    (if (or (zero? len)
+            (.startsWith (clojure.string/triml line) "--"))
+      false
+      (loop [i 0
+             token (StringBuilder.)
+             in-quote nil
+             escaped false
+             skip-rest false
+             last-non-space nil
+             tokens #{}]
+        (if (>= i len)
+          (let [tokens (if (pos? (.length token)) (conj tokens (.toString token)) tokens)]
+            (or (= last-non-space \{)
+                (and (some lua-open-keywords tokens)
+                     (not (some lua-close-keywords tokens)))))
+          (let [ch (.charAt line (long i))]
+            (cond
+              skip-rest
+              (recur (inc i) token in-quote false true last-non-space tokens)
+
+              in-quote
+              (cond
+                escaped (recur (inc i) token in-quote false skip-rest last-non-space tokens)
+                (= ch \\) (recur (inc i) token in-quote true skip-rest last-non-space tokens)
+                (= ch in-quote) (recur (inc i) token nil false skip-rest last-non-space tokens)
+                :else (recur (inc i) token in-quote false skip-rest last-non-space tokens))
+
+              ;; Inline comment
+              (and (= ch \-) (< (inc i) len) (= (.charAt line (inc i)) \-))
+              (recur len token in-quote false true last-non-space tokens)
+
+              ;; Start of quote
+              (or (= ch \") (= ch \'))
+              (recur (inc i) token ch false skip-rest last-non-space tokens)
+
+              ;; Word character
+              (or (Character/isLetter ch) (Character/isDigit ch) (= ch \_))
+              (do (.append token ch)
+                  (recur (inc i) token in-quote false skip-rest ch tokens))
+
+              ;; Non-word character
+              :else
+              (let [tokens (if (pos? (.length token))
+                             (let [tok (.toString token)]
+                               (.setLength token 0)
+                               (conj tokens tok))
+                             tokens)]
+                (recur (inc i) token in-quote false skip-rest
+                        (if (Character/isWhitespace ch) last-non-space ch)
+                        tokens)))))))))
+
 (def lua-grammar
   {:name "Lua"
    :scope-name "source.lua"
    ;; indent patterns shamelessly stolen from textmate:
    ;; https://github.com/textmate/lua.tmbundle/blob/master/Preferences/Indent.tmPreferences
-   :indent {:begin #"^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b)[^\"'])*)|(\{\s*))$"
+   :indent {:begin lua-opens-block?
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
    :line-comment "--"
    :auto-insert {:characters {\" \"

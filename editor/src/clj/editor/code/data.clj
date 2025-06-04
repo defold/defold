@@ -1911,7 +1911,11 @@
               (assoc :regions regions')))))
 
 (defn- begins-indentation? [grammar ^String line]
-  (and (some? line) (some? (some-> grammar :indent :begin (re-find line)))))
+  (when (some? line)
+    (let [begin? (:begin (:indent grammar))]
+      (cond
+        (fn? begin?) (begin? line)
+        :else (re-find begin? line)))))
 
 (defn- ends-indentation? [grammar ^String line]
   (and (some? line) (some? (some-> grammar :indent :end (re-find line)))))
