@@ -753,9 +753,9 @@
           (let [result-target (targets/update-launched-target! launched-target target-info)]
             (reset! updated-target result-target)))
         (when (not @version-line)
-          (when-let [engine-version-line (engine/parse-engine-version-line @initial-output)]
+          (when-let [engine-version-line (engine/parse-engine-version-line line)]
             (reset! version-line engine-version-line))))
-      (when (and @updated-target line (= @version-line line))
+      (when (and @updated-target (= @version-line line))
         (on-service-url-found @updated-target))
       (when (console/current-stream? (:log-stream launched-target))
         (console/append-console-line! line)))))
