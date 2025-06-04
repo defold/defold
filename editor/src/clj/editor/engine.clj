@@ -175,11 +175,9 @@
               :address loopback-address}))))
 
 ;; Parse a line from engine output to extract engine version info.
-(defn parse-engine-version-line [output]
-  (some (fn [line]
-          (when-let [[_ version sha] (re-find #"INFO:ENGINE: Defold Engine ([^\s]+) \(([^)]+)\)" line)]
-            line))
-        (split-lines output)))
+(defn parse-engine-version-line [line]
+  (when (re-find #"INFO:ENGINE: Defold Engine ([^\s]+) \(([^)]+)\)" line)
+    line))
 
 (defn- dmengine-filename
   ^String [^String platform]
