@@ -584,7 +584,7 @@ namespace dmScript
 
     bool IsURL(lua_State *L, int index)
     {
-        return (dmMessage::URL*)dmScript::ToUserType(L, index, SCRIPT_URL_TYPE_HASH);
+        return dmScript::GetUserType(L, index) == SCRIPT_URL_TYPE_HASH;
     }
 
     dmMessage::URL* ToURL(lua_State* L, int index)
