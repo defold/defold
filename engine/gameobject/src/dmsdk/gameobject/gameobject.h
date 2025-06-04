@@ -533,8 +533,8 @@ namespace dmGameObject
      * Note: in native extensions, the register can be retrieved during init using dmEngine::GetGameObjectRegister(dmExtension::AppParams *params)
      * @name GetCollectionByHash
      * @param regist [type: dmGameObject::HRegister] Register
-     * @param socket_name [type: dmhash_t] Socket name
-     * @return collection [type: dmGameObject::HCollection] The collection the specified instance belongs to
+     * @param socket_name [type: dmhash_t] The socket name
+     * @return collection [type: dmGameObject::HCollection] The collection if successful. 0 otherwise.
      */
     HCollection GetCollectionByHash(HRegister regist, dmhash_t socket_name);
 
