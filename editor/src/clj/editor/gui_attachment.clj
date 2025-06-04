@@ -23,6 +23,9 @@
 (defn scene-node->layers-node [basis scene-node]
   (gt/source-id ((g/explicit-arcs-by-target basis scene-node :layers-node) 0)))
 
+(defn scene-node->materials-node [basis scene-node]
+  (gt/source-id ((g/explicit-arcs-by-target basis scene-node :materials-node) 0)))
+
 (defn next-child-index [parent-node evaluation-context]
   (->> (g/node-value parent-node :child-indices evaluation-context)
        (e/map second)

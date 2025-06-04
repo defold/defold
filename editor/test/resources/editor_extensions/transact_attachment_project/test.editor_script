@@ -114,6 +114,13 @@ local function print_gui(gui)
         local layer = layers[i]
         print(("    layer: %s"):format(editor.get(layer, "name")))
     end
+    local materials = editor.get(gui, "materials")
+    print(("  materials: %s"):format(#materials))
+    for i = 1, #materials do
+        local material = materials[i]
+        local material_res = editor.get(material, "material")
+        print(("    material: %s%s"):format(editor.get(material, "name"), material_res and " " .. material_res or ""))
+    end
 end
 
 function M.get_commands()
@@ -310,7 +317,11 @@ function M.get_commands()
                 print("Transaction: edit GUI")
                 editor.transact({
                     editor.tx.add(gui, "layers", {name = "bg"}),
-                    editor.tx.add(gui, "layers", {name = "fg"})
+                    editor.tx.add(gui, "layers", {name = "fg"}),
+                    editor.tx.add(gui, "materials", {}),
+                    editor.tx.add(gui, "materials", {material = "/test.material"}),
+                    editor.tx.add(gui, "materials", {material = "/test.material"}),
+                    editor.tx.add(gui, "materials", {}),
                 })
 
                 print("After transaction (edit):")
@@ -333,7 +344,8 @@ function M.get_commands()
 
                 print("Transaction: clear GUI")
                 editor.transact({
-                    editor.tx.clear(gui, "layers")
+                    editor.tx.clear(gui, "layers"),
+                    editor.tx.clear(gui, "materials"),
                 })
 
                 print("After transaction (clear):")

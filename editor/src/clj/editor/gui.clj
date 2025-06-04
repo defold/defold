@@ -2604,22 +2604,17 @@
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-(defn- attach-material
-  ([self materials-node material]
-   (attach-material self materials-node material false))
-  ([self materials-node material internal?]
-   (concat
-     (g/connect material :_node-id self :nodes)
-     (g/connect material :material-shaders self :material-shaders)
-     (when (not internal?)
-       (concat
-         (g/connect material :material-infos self :material-infos)
-         (g/connect material :dep-build-targets self :dep-build-targets)
-         (g/connect material :pb-msg self :material-msgs)
-         (g/connect material :build-errors materials-node :build-errors)
-         (g/connect material :node-outline materials-node :child-outlines)
-         (g/connect material :name materials-node :names)
-         (g/connect materials-node :name-counts material :name-counts))))))
+(defn- attach-material [self materials-node material]
+  (concat
+    (g/connect material :_node-id materials-node :nodes)
+    (g/connect material :material-shaders self :material-shaders)
+    (g/connect material :material-infos self :material-infos)
+    (g/connect material :dep-build-targets self :dep-build-targets)
+    (g/connect material :pb-msg self :material-msgs)
+    (g/connect material :build-errors materials-node :build-errors)
+    (g/connect material :node-outline materials-node :child-outlines)
+    (g/connect material :name materials-node :names)
+    (g/connect materials-node :name-counts material :name-counts)))
 
 (defn add-material [scene materials-node resource name]
   (g/make-nodes (g/node-id->graph-id scene) [node [MaterialNode :name name :material resource]]
@@ -2631,6 +2626,7 @@
     (partial add-material scene parent)))
 
 (g/defnode MaterialsNode
+  (inherits core/Scope)
   (inherits outline/OutlineNode)
   (input names g/Str :array)
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
@@ -3847,6 +3843,17 @@
   :add {LayerNode (partial g/expand-ec attach-gui-scene-layer)}
   :get gui-scene-layers-getter
   :reorder reorder-gui-scene-layers)
+
+(defn- attach-gui-scene-material [{:keys [basis]} scene-node material-node]
+  (attach-material scene-node (gui-attachment/scene-node->materials-node basis scene-node) material-node))
+
+(defn- gui-scene-materials-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (attachment/nodes-getter (gui-attachment/scene-node->materials-node basis scene-node) evaluation-context))
+
+(attachment/register!
+  GuiSceneNode :materials
+  :add {MaterialNode (partial g/expand-ec attach-gui-scene-material)}
+  :get gui-scene-materials-getter)
 
 (def default-pb-read-node-color (protobuf/default Gui$NodeDesc :color))
 (def default-pb-read-node-alpha (protobuf/default Gui$NodeDesc :alpha))

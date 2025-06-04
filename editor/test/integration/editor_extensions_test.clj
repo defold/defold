@@ -1328,17 +1328,28 @@ Expected errors:
   wrong type => box is not shape-type-box, shape-type-capsule or shape-type-sphere
 GUI initial state:
   layers: 0
+  materials: 0
 Transaction: edit GUI
 After transaction (edit):
   layers: 2
     layer: bg
     layer: fg
+  materials: 4
+    material: material
+    material: test /test.material
+    material: test1 /test.material
+    material: material1
 can reorder layers: true
 Transaction: reorder
 After transaction (reorder):
   layers: 2
     layer: fg
     layer: bg
+  materials: 4
+    material: material
+    material: test /test.material
+    material: test1 /test.material
+    material: material1
 Expected reorder errors:
   undefined property => GuiSceneNode does not define \"not-a-property\"
   reorder not defined => CollisionObjectNode does not support \"shapes\" reordering
@@ -1348,6 +1359,7 @@ Expected reorder errors:
 Transaction: clear GUI
 After transaction (clear):
   layers: 0
+  materials: 0
 ")
 
 (deftest attachment-properties-test
