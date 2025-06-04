@@ -1329,6 +1329,7 @@ Expected errors:
 GUI initial state:
   layers: 0
   materials: 0
+  particlefxs: 0
 Transaction: edit GUI
 After transaction (edit):
   layers: 2
@@ -1339,6 +1340,10 @@ After transaction (edit):
     material: test /test.material
     material: test1 /test.material
     material: material1
+  particlefxs: 3
+    particlefx: particlefx
+    particlefx: test /test.particlefx
+    particlefx: particlefx1
 can reorder layers: true
 Transaction: reorder
 After transaction (reorder):
@@ -1350,6 +1355,10 @@ After transaction (reorder):
     material: test /test.material
     material: test1 /test.material
     material: material1
+  particlefxs: 3
+    particlefx: particlefx
+    particlefx: test /test.particlefx
+    particlefx: particlefx1
 Expected reorder errors:
   undefined property => GuiSceneNode does not define \"not-a-property\"
   reorder not defined => CollisionObjectNode does not support \"shapes\" reordering
@@ -1360,6 +1369,7 @@ Transaction: clear GUI
 After transaction (clear):
   layers: 0
   materials: 0
+  particlefxs: 0
 ")
 
 (deftest attachment-properties-test
