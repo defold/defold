@@ -1670,6 +1670,7 @@ def extract_symbols(self):
 
     archive = link_output.change_ext('.dSYM.zip')
     ziptask = self.create_task('DSYMZIP')
+    ziptask.always_run = True
     ziptask.set_inputs(dsymtask.outputs[0])
     ziptask.set_outputs(archive)
 

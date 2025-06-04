@@ -36,11 +36,22 @@ def material_runnable_status(self):
 
 material_task_class.runnable_status = material_runnable_status
 
-waflib.Task.task_factory('material_shaderbuilder', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${FP} ${VP} ${TGT} ${PLATFORM} ${CONTENT_ROOT}',
+
+material_shader_builder_class = waflib.Task.task_factory('material_shaderbuilder', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${FP} ${VP} ${TGT} ${PLATFORM} ${CONTENT_ROOT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
                       shell=False)
+
+
+def material_shader_builder_runnable_status(self):
+    # Example: skip if output file already exists
+    if self.outputs[0].exists():
+        return waflib.Task.SKIP_ME
+    return super(material_shader_builder_class, self).runnable_status()
+
+material_shader_builder_class.runnable_status = material_shader_builder_runnable_status
+
 
 @extension('.material')
 def material_file(self, node):
