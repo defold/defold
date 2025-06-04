@@ -35,7 +35,7 @@ namespace dmBuffer
  * @name GameSystem Gui
  * @namespace dmGameSystem
  * @path engine/gamesys/src/dmsdk/gamesys/gui.h
- * @language Lua
+ * @language C++
  */
 
 namespace dmGameSystem
