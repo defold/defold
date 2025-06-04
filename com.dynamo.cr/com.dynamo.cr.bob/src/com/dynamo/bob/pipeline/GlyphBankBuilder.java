@@ -22,25 +22,27 @@ import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.IOException;
 
-import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.ProtoBuilder;
+import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.font.Fontc.FontResourceResolver;
+import com.dynamo.render.proto.Font.GlyphBank;
 import com.dynamo.render.proto.Font.FontDesc;
 
+@ProtoParams(srcClass = FontDesc.class, messageClass = GlyphBank.class)
 @BuilderParams(name = "Glyph Bank", inExts = ".glyph_bank", outExt = ".glyph_bankc", isCacheble = true)
-public class GlyphBankBuilder extends Builder {
+public class GlyphBankBuilder extends ProtoBuilder<FontDesc.Builder> {
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
 
-    	FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
-        ProtoUtil.merge(input, fontDescbuilder);
-        FontDesc fontDesc = fontDescbuilder.build();
+    	FontDesc.Builder builder = getSrcBuilder(input);
+        FontDesc fontDesc = builder.build();
 
         File file = new File(fontDesc.getFont());
         String fileNameWithExtension = file.getName();

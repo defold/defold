@@ -16,9 +16,10 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 
-import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.ProtoBuilder;
+import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.fs.IResource;
@@ -26,14 +27,14 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
 
+@ProtoParams(srcClass = FontDesc.class, messageClass = FontDesc.class)
 @BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc")
-public class FontBuilder extends Builder  {
+public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
-        ProtoUtil.merge(input, fontDescbuilder);
-        FontDesc fontDesc = fontDescbuilder.build();
+        FontDesc.Builder builder = getSrcBuilder(input);
+        FontDesc fontDesc = builder.build();
 
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
