@@ -641,6 +641,15 @@ namespace dmScript
     void UnrefInInstance(lua_State* L, int ref);
 
     /*#
+     * Get the current game object URL
+     * @name CheckURL
+     * @param L [type:lua_State*] Lua state
+     * @param out_url [type:dmMessage::URL*] where to store the result
+     * @return result [type:bool] true if successful
+     */
+    bool CheckURL(lua_State* L, dmMessage::URL* out_url);
+
+    /*#
      * Resolves the value in the supplied index on the lua stack to a URL. It long jumps (calls luaL_error) on failure.
      * It also gets the current (caller) url if the a pointer is passed to `out_default_url`
      * @name ResolveURL
