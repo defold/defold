@@ -580,8 +580,7 @@ def default_flags(self):
         # -lsupc++
         self.env.append_value('LINKFLAGS', [
                 '-isysroot=%s' % sysroot,
-                '-static-libstdc++',
-                '-Wl,--build-id=uuid'] + getAndroidLinkFlags(target_arch))
+                '-static-libstdc++'] + getAndroidLinkFlags(target_arch))
     elif TargetOS.WEB == target_os:
 
         emflags_compile = ['DISABLE_EXCEPTION_CATCHING=1']
