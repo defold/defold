@@ -87,7 +87,9 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(namespaces/import-vars [util.debug-util stack-trace])
+(namespaces/import-vars
+  [util.debug-util stack-trace]
+  [integration.test-util outline-node-id outline-node-info])
 
 (defn javafx-tree [obj]
   (jfx/info-tree obj))
@@ -153,37 +155,10 @@
              (coll/not-empty override-node-ids)
              (assoc :override-node-ids override-node-ids)))))
 
-(defn node-outline [node-id & outline-labels]
-  {:pre [(not (g/error? node-outline))
-         (every? string? outline-labels)]}
-  (reduce (fn [node-outline outline-label]
-            (or (some (fn [child-outline]
-                        (when (= outline-label (:label child-outline))
-                          child-outline))
-                      (:children node-outline))
-                (let [candidates (into (sorted-set)
-                                       (map :label)
-                                       (:children node-outline))]
-                  (throw (ex-info (format "node-outline for %s '%s' has no child-outline '%s'. Candidates: %s"
-                                          (symbol (g/node-type-kw node-id))
-                                          (:label node-outline)
-                                          outline-label
-                                          (string/join ", " (map #(str \' % \') candidates)))
-                                  {:start-node-type-kw (g/node-type-kw node-id)
-                                   :outline-labels (vec outline-labels)
-                                   :failed-outline-label outline-label
-                                   :failed-outline-label-candidates candidates
-                                   :failed-node-outline node-outline})))))
-          (g/node-value node-id :node-outline)
-          outline-labels))
-
-(defn outline-node-id [node-id & outline-labels]
-  (:node-id (apply node-outline node-id outline-labels)))
-
 (defn outline-labels [node-id & outline-labels]
   (into (sorted-set)
         (map :label)
-        (:children (apply node-outline node-id outline-labels))))
+        (:children (apply outline-node-info node-id outline-labels))))
 
 (defn- throw-invalid-component-resource-node-id-exception [basis node-id]
   (throw (ex-info "The specified node cannot be resolved to a component ResourceNode."

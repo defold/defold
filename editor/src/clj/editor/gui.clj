@@ -369,7 +369,7 @@
 
 (def pb-field-index->pb-field (protobuf/fields-by-indices Gui$NodeDesc))
 
-(def ^:private pb-field-index->prop-key
+(def pb-field-index->prop-key
   (persistent!
     (reduce-kv (fn [pb-field-index->prop-key pb-field-index pb-field]
                  (if-some [[prop-key] (pb-field-to-node-property-conversions pb-field)]
@@ -378,7 +378,7 @@
                (transient pb-field-index->pb-field)
                pb-field-index->pb-field)))
 
-(def ^:private prop-key->pb-field-index
+(def prop-key->pb-field-index
   (persistent!
     (reduce-kv (fn [prop-key->pb-field-index pb-field-index prop-key]
                  (assoc! prop-key->pb-field-index prop-key pb-field-index))

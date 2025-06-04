@@ -68,6 +68,7 @@
            [editor.properties Curve CurveSpread]
            [java.awt.image BufferedImage]
            [java.io ByteArrayOutputStream File FileInputStream FilenameFilter]
+           [java.lang AutoCloseable]
            [java.net URI URL]
            [java.nio.file Files]
            [java.util UUID]
@@ -153,6 +154,27 @@
 
 (defmethod set-control-value! ToggleButton [^ToggleButton toggle-button _num-value]
   (.fire toggle-button))
+
+(defonce temp-directory-path
+  (memoize
+    (fn temp-directory-path []
+      (let [temp-file (fs/create-temp-file!)
+            parent-directory-path (.getCanonicalPath (.getParentFile temp-file))]
+        (fs/delete! temp-file {:fail :silently})
+        parent-directory-path))))
+
+(defn make-directory-deleter
+  "Returns an AutoCloseable that deletes the directory at the specified
+  path when closed. Suitable for use with the (with-open) macro. The
+  directory path must be a temp directory."
+  ^AutoCloseable [directory-path]
+  (let [directory (io/file directory-path)]
+    (assert (string/starts-with? (.getCanonicalPath directory)
+                                 (temp-directory-path))
+            (str "directory-path `" (.getCanonicalPath directory) "` is not a temp directory"))
+    (reify AutoCloseable
+      (close [_]
+        (fs/delete-directory! directory {:fail :silently})))))
 
 (defn make-dir! ^File [^File dir]
   (fs/create-directory! dir))
@@ -622,6 +644,22 @@
                  ~'app-view (setup-app-view! ~'project)]
              ~@forms))))))
 
+(defmacro with-temp-project-content
+  [save-values-by-proj-path & body]
+  `(let [save-values-by-proj-path# ~save-values-by-proj-path
+         ~'project-path (make-temp-project-copy! "test/resources/empty_project")]
+     (with-open [project-directory-deleter# (make-directory-deleter ~'project-path)]
+       (test-support/with-clean-system {:cache-size ~system-cache-size
+                                        :cache-retain? project/cache-retain?}
+         (let [~'workspace (setup-workspace! ~'world ~'project-path)]
+           (doseq [[proj-path# save-value#] save-values-by-proj-path#]
+             (write-file-resource! ~'workspace proj-path# save-value#))
+           (workspace/resource-sync! ~'workspace)
+           (fetch-libraries! ~'workspace)
+           (let [~'project (setup-project! ~'workspace)
+                 ~'app-view (setup-app-view! ~'project)]
+             ~@body))))))
+
 (defmacro with-ui-run-later-rebound
   [& forms]
   `(let [laters# (atom [])]
@@ -747,6 +785,41 @@
          (vector? outline-path)
          (every? nat-int? outline-path)]}
   (->OutlineItemIterator root-node-id outline-path))
+
+(defn outline-node-info
+  "Given a node-id, evaluate its :node-outline output and locate the child
+  element addressed by the supplied path of outline-label strings. Return the
+  :node-outline info at the resulting path. Throws an exception if the path does
+  not lead up to a valid node."
+  [node-id & outline-labels]
+  {:pre [(every? string? outline-labels)]}
+  (reduce (fn [node-outline outline-label]
+            (or (some (fn [child-outline]
+                        (when (= outline-label (:label child-outline))
+                          child-outline))
+                      (:children node-outline))
+                (let [candidates (into (sorted-set)
+                                       (map :label)
+                                       (:children node-outline))]
+                  (throw (ex-info (format "node-outline for %s '%s' has no child-outline '%s'. Candidates: %s"
+                                          (symbol (g/node-type-kw node-id))
+                                          (:label node-outline)
+                                          outline-label
+                                          (string/join ", " (map #(str \' % \') candidates)))
+                                  {:start-node-type-kw (g/node-type-kw node-id)
+                                   :outline-labels (vec outline-labels)
+                                   :failed-outline-label outline-label
+                                   :failed-outline-label-candidates candidates
+                                   :failed-node-outline node-outline})))))
+          (g/valid-node-value node-id :node-outline)
+          outline-labels))
+
+(defn outline-node-id
+  "Given a node-id, evaluate its :node-outline output and locate the child
+  element addressed by the supplied path of outline-label strings. Return its
+  node-id. Throws an exception if the path does not lead up to a valid node."
+  [node-id & outline-labels]
+  (:node-id (apply outline-node-info node-id outline-labels)))
 
 (defn outline-copy
   "Return a serialized a data representation of the specified parts of the
@@ -905,34 +978,13 @@
          (finally
            (prop! ~node-id# ~property# old-value#))))))
 
-(def temp-directory-path
-  (memoize
-    (fn temp-directory-path []
-      (let [temp-file (fs/create-temp-file!)
-            parent-directory-path (.getCanonicalPath (.getParentFile temp-file))]
-        (fs/delete! temp-file {:fail :silently})
-        parent-directory-path))))
-
-(defn make-directory-deleter
-  "Returns an AutoCloseable that deletes the directory at the specified
-  path when closed. Suitable for use with the (with-open) macro. The
-  directory path must be a temp directory."
-  ^java.lang.AutoCloseable [directory-path]
-  (let [directory (io/file directory-path)]
-    (assert (string/starts-with? (.getCanonicalPath directory)
-                                 (temp-directory-path))
-            (str "directory-path `" (.getCanonicalPath directory) "` is not a temp directory"))
-    (reify java.lang.AutoCloseable
-      (close [_]
-        (fs/delete-directory! directory {:fail :silently})))))
-
 (defn make-graph-reverter
   "Returns an AutoCloseable that reverts the specified graph to
   the state it was at construction time when its close method
   is invoked. Suitable for use with the (with-open) macro."
-  ^java.lang.AutoCloseable [graph-id]
+  ^AutoCloseable [graph-id]
   (let [initial-undo-stack-count (g/undo-stack-count graph-id)]
-    (reify java.lang.AutoCloseable
+    (reify AutoCloseable
       (close [_]
         (loop [undo-stack-count (g/undo-stack-count graph-id)]
           (when (< initial-undo-stack-count undo-stack-count)
@@ -1228,7 +1280,7 @@
     build-result))
 
 (defn build!
-  ^java.lang.AutoCloseable [resource-node]
+  ^AutoCloseable [resource-node]
   (let [resource (resource-node/resource resource-node)
         workspace (resource/workspace resource)
         build-directory (workspace/build-path workspace)]
