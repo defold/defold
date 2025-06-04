@@ -1,7 +1,7 @@
 script: ""
 fonts {
-  name: "system_font"
-  font: "/builtins/fonts/system_font.font"
+  name: "default_font"
+  font: "/builtins/fonts/default.font"
 }
 background_color {
   x: 0.0
@@ -137,7 +137,7 @@ nodes {
   type: TYPE_TEXT
   blend_mode: BLEND_MODE_ALPHA
   text: "Sample"
-  font: "system_font"
+  font: "default_font"
   id: "template/text"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE
@@ -255,7 +255,7 @@ nodes {
   type: TYPE_TEXT
   blend_mode: BLEND_MODE_ALPHA
   text: "Default layout"
-  font: "system_font"
+  font: "default_font"
   id: "text"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE
@@ -320,7 +320,7 @@ layouts {
     type: TYPE_TEXT
     blend_mode: BLEND_MODE_ALPHA
     text: "Portrait"
-    font: "system_font"
+    font: "default_font"
     id: "text"
     xanchor: XANCHOR_NONE
     yanchor: YANCHOR_NONE
@@ -387,7 +387,7 @@ layouts {
     type: TYPE_TEXT
     blend_mode: BLEND_MODE_ALPHA
     text: "Sample"
-    font: "system_font"
+    font: "default_font"
     id: "template/text"
     xanchor: XANCHOR_NONE
     yanchor: YANCHOR_NONE
@@ -451,7 +451,7 @@ layouts {
     type: TYPE_TEXT
     blend_mode: BLEND_MODE_ALPHA
     text: "Landscape"
-    font: "system_font"
+    font: "default_font"
     id: "text"
     xanchor: XANCHOR_NONE
     yanchor: YANCHOR_NONE

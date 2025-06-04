@@ -31,7 +31,7 @@ To move an object along its rotated axis, select Local Space from the Edit menu.
 
 To avoid breaking changes in [Library dependencies](https://www.defold.com/manuals/libraries/#_library_url) it is recommended to always depend on a versioned release instead of the latest code from the master branch.
 You can open the [Web Profiler](https://www.defold.com/manuals/profiling/#_the_web_profiler) from the Open Web Profiler menu option in the Debug menu.
-Did you know? You can tweak your game [without stopping it](https://www.defold.com/manuals/hot-reload/) — even on device!
+Did you know? You can tweak your game [without stopping it](https://www.defold.com/manuals/hot-reload/) — on any device!
 
 # Inspirational quotes
 

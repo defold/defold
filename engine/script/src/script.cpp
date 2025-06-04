@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,22 +26,20 @@
 #include "script_vmath.h"
 #include "script_sys.h"
 #include "script_module.h"
-#include "script_image.h"
+#include "script_graphics.h"
 #include "script_json.h"
-#include "script_http.h"
 #include "script_zlib.h"
 #include "script_html5.h"
 #include "script_luasocket.h"
 #include "script_bitop.h"
 #include "script_timer.h"
-#include "script_extensions.h"
 
 extern "C"
 {
 #include <lua/lualib.h>
 }
 
-DM_PROPERTY_GROUP(rmtp_Script, "");
+DM_PROPERTY_GROUP(rmtp_Script, "", 0);
 
 namespace dmScript
 {
@@ -52,6 +50,7 @@ namespace dmScript
      * @document
      * @name Built-ins
      * @namespace builtins
+     * @language Lua
      */
 
     static const char INSTANCE_NAME[] = "__dm_script_instance__";
@@ -73,18 +72,19 @@ namespace dmScript
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
 
-    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_extensions)
+    HContext NewContext(const ContextParams& params)
     {
         Context* context = new Context();
         context->m_Modules.SetCapacity(127, 256);
         context->m_PathToModule.SetCapacity(127, 256);
         context->m_HashInstances.SetCapacity(443, 256);
         context->m_ScriptExtensions.SetCapacity(8);
-        context->m_ConfigFile = config_file;
-        context->m_ResourceFactory = factory;
+        context->m_ConfigFile = params.m_ConfigFile;
+        context->m_ResourceFactory = params.m_Factory;
+        context->m_GraphicsContext = params.m_GraphicsContext;
         context->m_LuaState = lua_open();
         context->m_ContextTableRef = LUA_NOREF;
-        context->m_EnableExtensions = enable_extensions;
+        context->m_ContextWeakTableRef = LUA_NOREF;
         return context;
     }
 
@@ -168,12 +168,12 @@ namespace dmScript
         InitializeVmath(L);
         InitializeSys(L);
         InitializeModule(L);
-        InitializeImage(L);
         InitializeJson(L);
         InitializeZlib(L);
         InitializeHtml5(L);
         InitializeLuasocket(L);
         InitializeBitop(L);
+        InitializeGraphics(L, context->m_GraphicsContext);
 
         lua_register(L, "print", LuaPrint);
         lua_register(L, "pprint", LuaPPrint);
@@ -204,15 +204,31 @@ namespace dmScript
         lua_pushlightuserdata(L, (void*)L);
         lua_setglobal(L, SCRIPT_MAIN_THREAD);
 
+        // Create main context table
         lua_newtable(L);
+        // [-1] context_table
+        // Create weak subtable
+        lua_newtable(L);
+        // [-2] context_table
+        // [-1] weak_table
+        lua_newtable(L);
+        // [-3] context_table
+        // [-2] weak_table
+        // [-1] mt
+        lua_pushliteral(L, "__mode");
+        lua_pushliteral(L, "v");
+        lua_settable(L, -3);         // mt.__mode = "v"
+        lua_setmetatable(L, -2);     // setmetatable(weak_table, mt)
+        // [-2] context_table
+        // [-1] weak_table
+
+        // Now store weak_table ref separately
+        context->m_ContextWeakTableRef = Ref(L, LUA_REGISTRYINDEX);
+
+        // Finally store context_table
         context->m_ContextTableRef = Ref(L, LUA_REGISTRYINDEX);
 
-        InitializeHttp(context);
         InitializeTimer(context);
-        if (context->m_EnableExtensions)
-        {
-            InitializeExtensions(context);
-        }
 
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
         {
@@ -261,6 +277,9 @@ namespace dmScript
         lua_pop(L, 1);
 
         Unref(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+        Unref(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
+        context->m_ContextTableRef = LUA_NOREF;
+        context->m_ContextWeakTableRef = LUA_NOREF;
     }
 
     lua_State* GetLuaState(HContext context)
@@ -362,11 +381,12 @@ namespace dmScript
 
     dmConfigFile::HConfig GetConfigFile(HContext context)
     {
-        if (context != 0x0)
-        {
-            return context->m_ConfigFile;
-        }
-        return 0x0;
+        return context ? context->m_ConfigFile : 0;
+    }
+
+    dmResource::HFactory GetResourceFactory(HContext context)
+    {
+        return context ? context->m_ResourceFactory : 0;
     }
 
     int LuaPrint(lua_State* L)
@@ -700,6 +720,23 @@ namespace dmScript
 
         return type_hash;
     }
+
+
+    uint32_t RegisterUserTypeLocal(lua_State* L, const char* name, const luaL_reg meta[])
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        luaL_newmetatable(L, name);
+        uint32_t type_hash = SetUserType(L, -1, name);
+
+        luaL_register (L, 0, meta);
+        lua_pushvalue(L, -1);
+        lua_setfield(L, -1, "__index");
+        lua_pop(L, 1);
+
+        return type_hash;
+    }
+
 
     uint32_t RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]) {
         DM_LUA_STACK_CHECK(L, 0);
@@ -1402,7 +1439,7 @@ namespace dmScript
             dmLogError("%s\n%s", lua_tostring(L, -2), lua_tostring(L, -1));
             lua_getfield(L, LUA_GLOBALSINDEX, "debug");
             if (lua_istable(L, -1)) {
-                lua_pushstring(L, SCRIPT_ERROR_HANDLER_VAR);
+                lua_pushliteral(L, SCRIPT_ERROR_HANDLER_VAR);
                 lua_rawget(L, -2);
                 if (lua_isfunction(L, -1)) {
                     lua_pushlstring(L, "lua", 3); // 1st arg: source = 'lua'
@@ -1509,26 +1546,26 @@ namespace dmScript
         int        m_Self;
     };
 
-    // static void printStack(lua_State* L)
-    // {
-    //     int top = lua_gettop(L);
-    //     int bottom = 1;
-    //     lua_getglobal(L, "tostring");
-    //     for(int i = top; i >= bottom; i--)
-    //     {
-    //         lua_pushvalue(L, -1);
-    //         lua_pushvalue(L, i);
-    //         lua_pcall(L, 1, 1, 0);
-    //         const char *str = lua_tostring(L, -1);
-    //         if (str) {
-    //             printf("%2d: %s\n", i, str);
-    //         }else{
-    //             printf("%2d: %s\n", i, luaL_typename(L, i));
-    //         }
-    //         lua_pop(L, 1);
-    //     }
-    //     lua_pop(L, 1);
-    // }
+    void PrintStack(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        int bottom = 1;
+        lua_getglobal(L, "tostring");
+        for(int i = top; i >= bottom; i--)
+        {
+            lua_pushvalue(L, -1);
+            lua_pushvalue(L, i);
+            lua_pcall(L, 1, 1, 0);
+            const char *str = lua_tostring(L, -1);
+            if (str) {
+                dmLogInfo("%2d: %s\n", i, str);
+            }else{
+                dmLogInfo("%2d: %s\n", i, luaL_typename(L, i));
+            }
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
+    }
 
     LuaCallbackInfo* CreateCallback(lua_State* L, int callback_stack_index)
     {

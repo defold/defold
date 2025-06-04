@@ -1,0 +1,34 @@
+name: "bones"
+scale_along_z: 0
+embedded_instances {
+  id: "go"
+  data: "components {\n"
+  "  id: \"bones\"\n"
+  "  component: \"/bones/bones.script\"\n"
+  "}\n"
+  "embedded_components {\n"
+  "  id: \"rivemodel\"\n"
+  "  type: \"rivemodel\"\n"
+  "  data: \"scene: \\\"/bones/marty.rivescene\\\"\\n"
+  "default_animation: \\\"Animation1\\\"\\n"
+  "material: \\\"/defold-rive/assets/rivemodel.material\\\"\\n"
+  "create_go_bones: true\\n"
+  "artboard: \\\"New Artboard\\\"\\n"
+  "\"\n"
+  "}\n"
+  "embedded_components {\n"
+  "  id: \"bonefactory\"\n"
+  "  type: \"factory\"\n"
+  "  data: \"prototype: \\\"/bones/bone.go\\\"\\n"
+  "\"\n"
+  "}\n"
+  ""
+  position {
+    x: 486.0
+    y: 271.726
+  }
+  scale3 {
+    x: 0.5
+    y: 0.5
+  }
+}

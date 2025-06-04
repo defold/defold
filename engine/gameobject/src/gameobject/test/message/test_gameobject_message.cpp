@@ -1,18 +1,17 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 #include <assert.h>
@@ -29,6 +28,8 @@
 
 #include "../../../proto/gameobject/gameobject_ddf.h"
 
+#include <dmsdk/resource/resource.h>
+
 void DispatchCallback(dmMessage::Message *message, void* user_ptr);
 
 class MessageTest : public jc_test_base_class
@@ -42,7 +43,8 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/message");
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        dmScript::ContextParams script_context_params = {};
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
@@ -69,7 +71,7 @@ protected:
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         // MessageTargetComponent
-        dmResource::ResourceType resource_type;
+        HResourceType resource_type;
         e = dmResource::GetTypeFromExtension(m_Factory, "mt", &resource_type);
         ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType mt_type;
@@ -101,8 +103,8 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
     }
 
-    static dmResource::Result ResMessageTargetCreate(const dmResource::ResourceCreateParams& params);
-    static dmResource::Result ResMessageTargetDestroy(const dmResource::ResourceDestroyParams& params);
+    static dmResource::Result ResMessageTargetCreate(const dmResource::ResourceCreateParams* params);
+    static dmResource::Result ResMessageTargetDestroy(const dmResource::ResourceDestroyParams* params);
     static dmGameObject::CreateResult CompMessageTargetNewWorld(const dmGameObject::ComponentNewWorldParams& params);
     static dmGameObject::CreateResult CompMessageTargetDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
     static dmGameObject::CreateResult CompMessageTargetCreate(const dmGameObject::ComponentCreateParams& params);
@@ -128,13 +130,13 @@ const static dmhash_t POST_NAMED_ID = dmHashString64("post_named");
 const static dmhash_t POST_DDF_ID = TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_NameHash;
 const static dmhash_t POST_NAMED_TO_INST_ID = dmHashString64("post_named_to_instance");
 
-dmResource::Result MessageTest::ResMessageTargetCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result MessageTest::ResMessageTargetCreate(const dmResource::ResourceCreateParams* params)
 {
     TestGameObjectDDF::MessageTarget* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::MessageTarget>(params.m_Buffer, params.m_BufferSize, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::MessageTarget>(params->m_Buffer, params->m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        params.m_Resource->m_Resource = (void*) obj;
+        ResourceDescriptorSetResource(params->m_Resource, obj);
         return dmResource::RESULT_OK;
     }
     else
@@ -143,9 +145,9 @@ dmResource::Result MessageTest::ResMessageTargetCreate(const dmResource::Resourc
     }
 }
 
-dmResource::Result MessageTest::ResMessageTargetDestroy(const dmResource::ResourceDestroyParams& params)
+dmResource::Result MessageTest::ResMessageTargetDestroy(const dmResource::ResourceDestroyParams* params)
 {
-    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
+    dmDDF::FreeMessage((void*) ResourceDescriptorGetResource(params->m_Resource));
     return dmResource::RESULT_OK;
 }
 
@@ -370,94 +372,6 @@ TEST_F(MessageTest, TestInputFocus)
     dmGameObject::Delete(m_Collection, go, false);
 }
 
-struct GameObjectTransformContext
-{
-    dmVMath::Point3 m_Position;
-    dmVMath::Quat m_Rotation;
-    float m_Scale;
-    dmVMath::Point3 m_WorldPosition;
-    dmVMath::Quat m_WorldRotation;
-    float m_WorldScale;
-};
-
-void DispatchGameObjectTransformCallback(dmMessage::Message *message, void* user_ptr)
-{
-    if (message->m_Id == dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_NameHash)
-    {
-        dmGameObjectDDF::TransformResponse* ddf = (dmGameObjectDDF::TransformResponse*)message->m_Data;
-        GameObjectTransformContext* context = (GameObjectTransformContext*)user_ptr;
-        context->m_Position = ddf->m_Position;
-        context->m_Rotation = ddf->m_Rotation;
-        context->m_Scale = ddf->m_Scale;
-        context->m_WorldPosition = ddf->m_WorldPosition;
-        context->m_WorldRotation = ddf->m_WorldRotation;
-        context->m_WorldScale = ddf->m_WorldScale;
-    }
-}
-
-TEST_F(MessageTest, TestGameObjectTransform)
-{
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_no_onmessage.goc");
-    ASSERT_NE((void*) 0, (void*) go);
-    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, "/test_no_onmessage.goc");
-    ASSERT_NE((void*) 0, (void*) parent);
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_instance"));
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, parent, "parent_test_instance"));
-
-    dmGameObject::SetParent(go, parent);
-
-    float sq_2_half = sqrtf(2.0f) * 0.5f;
-    dmGameObject::SetPosition(parent, dmVMath::Point3(1.0f, 0.0f, 0.0f));
-    dmGameObject::SetRotation(parent, dmVMath::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
-    dmGameObject::SetScale(parent, 2.0f);
-
-    dmGameObject::SetPosition(go, dmVMath::Point3(1.0f, 0.0f, 0.0f));
-    dmGameObject::SetRotation(go, dmVMath::Quat(sq_2_half, 0.0f, 0.0f, sq_2_half));
-    dmGameObject::SetScale(go, 2.0f);
-
-    dmhash_t message_id = dmGameObjectDDF::RequestTransform::m_DDFDescriptor->m_NameHash;
-    dmMessage::HSocket socket;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("test_socket", &socket));
-    dmMessage::URL sender;
-    sender.m_Socket = socket;
-    sender.m_Path = 0;
-    sender.m_Fragment = 0;
-    dmMessage::URL receiver;
-    receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
-    receiver.m_Path = dmGameObject::GetIdentifier(go);
-    receiver.m_Fragment = 0;
-    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::RequestTransform::m_DDFDescriptor, 0x0, 0, 0));
-
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-
-    GameObjectTransformContext context;
-    memset(&context, 0, sizeof(GameObjectTransformContext));
-
-    ASSERT_EQ(1u, dmMessage::Dispatch(socket, DispatchGameObjectTransformCallback, &context));
-
-    dmVMath::Point3 position = dmGameObject::GetPosition(go);
-    dmVMath::Quat rotation = dmGameObject::GetRotation(go);
-    float scale = dmGameObject::GetUniformScale(go);
-    dmVMath::Point3 world_position = dmGameObject::GetWorldPosition(go);
-    dmVMath::Quat world_rotation = dmGameObject::GetWorldRotation(go);
-    float world_scale = dmGameObject::GetWorldUniformScale(go);
-
-    ASSERT_EQ(position.getX(), context.m_Position.getX());
-    ASSERT_EQ(rotation.getX(), context.m_Rotation.getX());
-    ASSERT_EQ(scale, context.m_Scale);
-    ASSERT_EQ(world_position.getX(), context.m_WorldPosition.getX());
-    ASSERT_EQ(world_rotation.getX(), context.m_WorldRotation.getX());
-    ASSERT_EQ(world_scale, context.m_WorldScale);
-    ASSERT_NE(context.m_Position.getX(), context.m_WorldPosition.getX());
-    ASSERT_NE(context.m_Rotation.getX(), context.m_WorldRotation.getX());
-    ASSERT_NE(context.m_Scale, context.m_WorldScale);
-
-    dmMessage::DeleteSocket(socket);
-
-    dmGameObject::Delete(m_Collection, go, false);
-    dmGameObject::Delete(m_Collection, parent, false);
-}
-
 TEST_F(MessageTest, TestSetParent)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/test_no_onmessage.goc");
@@ -631,14 +545,4 @@ TEST_F(MessageTest, MessagePostDispatch)
     dmLogInfo("<- Expected error end");
 
     ASSERT_EQ(42u, g_PostDistpatchCalled);
-}
-
-
-
-int main(int argc, char **argv)
-{
-    dmDDF::RegisterAllTypes();
-    jc_test_init(&argc, argv);
-    int ret = jc_test_run_all();
-    return ret;
 }

@@ -1,0 +1,20 @@
+local M = {}
+
+function M.get_commands()
+    return {
+        {
+            label = "Test editor.execute()",
+            locations = {"Edit"},
+            run = function ()
+                print(pcall(editor.execute, "git", "bleh", { reload_resources = false, err = "discard" }))
+                local log = editor.execute("git", "log", "--oneline", "--max-count=10", {reload_resources = false, out = "capture"})
+                for line in log:gmatch("[^\r\n]+") do
+                    local sha = line:match("^(%S+)")
+                    print(sha)
+                end
+            end
+        }
+    }
+end
+
+return M

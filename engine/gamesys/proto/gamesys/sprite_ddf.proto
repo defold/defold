@@ -3,9 +3,16 @@ package dmGameSystemDDF;
 
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
+import "graphics/graphics_ddf.proto";
 
 option java_package = "com.dynamo.gamesys.proto";
 option java_outer_classname = "Sprite";
+
+message SpriteTexture
+{
+    required string sampler     = 1;
+    required string texture     = 2 [(resource)=true];
+}
 
 message SpriteDesc
 {
@@ -24,7 +31,7 @@ message SpriteDesc
         SIZE_MODE_AUTO      = 1 [(displayName) = "Auto"];
     }
 
-    required string tile_set            = 1 [(resource)=true];
+    optional string tile_set            = 1 [(resource)=true];  // Deprecated
     required string default_animation   = 2;
     optional string material            = 3 [(resource)=true, default="/builtins/materials/sprite.material"];
     optional BlendMode blend_mode       = 4 [default = BLEND_MODE_ALPHA];
@@ -33,6 +40,10 @@ message SpriteDesc
     optional SizeMode size_mode         = 7 [default = SIZE_MODE_AUTO];
     optional float offset               = 8 [default = 0.0];
     optional float playback_rate        = 9 [default = 1.0];
+
+    repeated dmGraphics.VertexAttribute attributes = 10;
+
+    repeated SpriteTexture textures     = 11;
 }
 
 /*# Sprite API documentation
@@ -40,6 +51,7 @@ message SpriteDesc
  * @document
  * @name Sprite
  * @namespace sprite
+ * @language Lua
  */
 
 /*# play a sprite animation

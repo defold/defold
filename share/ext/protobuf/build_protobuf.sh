@@ -1,102 +1,192 @@
 #!/usr/bin/env bash
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
 
-
 readonly PRODUCT=protobuf
 readonly VERSION=3.20.1
-readonly BASE_URL=https://github.com/protocolbuffers/protobuf/archive
 readonly FILE_URL=protobuf-${VERSION}.tar.gz
-
-readonly CONFIGURE_ARGS="--with-protoc=../cross_tmp/src/protoc CPPFLAGS=-DGOOGLE_PROTOBUF_NO_RTTI --disable-shared"
-
-#test the compiler
-if [ "$(uname -o)" == "Msys" ]; then
-	WINDEFINES=$(echo | g++ -E -dM - | grep WIN32)
-	if [ -z "$WINDEFINES" ]; then
-		echo "Compiler doesn't support WIN32 defines!"
-		echo G++=$(which g++)
-		echo $(g++ --version)
-		exit 1
-	fi
-fi
+readonly PLATFORM=$1
 
 . ../common.sh
 
-# The package is ancient
-# A fairly small package of ~1.5MB, so it's stored locally
-function download() {
-    mkdir -p ../download
-    cp ./${FILE_URL} ../download/
-}
+readonly SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-download
+cmi_setup_cc ${HOST_PLATFORM}
 
-function cmi_configure() {
-    case $1 in
-        armv7-android)
-        export LDFLAGS="$LDFLAGS -llog"
-        ;;
-
-        arm64-android)
-        export LDFLAGS="$LDFLAGS -llog"
-        ;;
-        *)
-    esac
-
-	./autogen.sh
-    echo CONFIGURE_ARGS=$CONFIGURE_ARGS $2
-    ${CONFIGURE_WRAPPER} ./configure $CONFIGURE_ARGS $2 \
-        --disable-shared \
-        --prefix=${PREFIX} \
-        --bindir=${PREFIX}/bin/$1 \
-        --libdir=${PREFIX}/lib/$1 \
-        --with-http=off \
-        --with-html=off \
-        --with-ftp=off \
-        --with-x=no
-}
-
-#
-# Build protoc locally first,
-# in order to make the cross platform configuration work
-#
-rm -rf cross_tmp
-mkdir cross_tmp
-pushd cross_tmp >/dev/null
-tar xfz ../../download/$FILE_URL --strip-components=1
-
-# We need to apply patches for this cross_tmp build as well
-# [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch -p1 < ../patch_$VERSION
-
-echo **********************
-echo CREATING HOST TOOLS
-echo **********************
-
+echo off
 set -e
-./autogen.sh
-./configure
-make -j8
-set +e
-popd >/dev/null
 
-echo **********************
-echo CREATING LIBRARY
-echo **********************
+export TMP_HOST=tmp_host
+export TMP_TARGET=tmp_target
 
-cmi $1
+if [ "${PLATFORM}" == "arm64-macos" ]; then
+    MACOS_ARCHS=arm64
+fi
+if [ "${PLATFORM}" == "x86_64-macos" ]; then
+    MACOS_ARCHS=x86_64
+fi
 
-rm -rf cross_tmp
-rm *.o
+
+echo "**************************************************"
+echo "BUILD HOST TOOLS"
+echo "**************************************************"
+
+export SOURCE_HOST=${SCRIPTDIR}/${TMP_HOST}/${PACKAGEDIR}
+export INSTALL_HOST=${SCRIPTDIR}/install
+
+mkdir -p ${INSTALL_HOST}
+echo "Unpack to ${TMP_HOST}"
+
+mkdir -p ${TMP_HOST}
+tar xf ${FILE_URL} --directory ${TMP_HOST} --strip-components=1
+
+echo "SOURCE_HOST:" ${SOURCE_HOST}
+pushd ${SOURCE_HOST}
+
+mkdir -p _build
+pushd _build
+
+    cmake -G "Unix Makefiles" \
+        -DCMAKE_INSTALL_PREFIX=${INSTALL_HOST} \
+        -DCMAKE_OSX_ARCHITECTURES=${MACOS_ARCHS} \
+        -DCMAKE_C_COMPILER=${CC} \
+        -DCMAKE_CXX_COMPILER=${CXX} \
+        -DCMAKE_C_FLAGS="${FLAGS} ${CFLAGS}" \
+        -DCMAKE_CXX_FLAGS="${FLAGS} ${CXXFLAGS}" \
+        -Dprotobuf_BUILD_EXAMPLES=OFF \
+        -Dprotobuf_BUILD_TESTS=OFF \
+        -Dprotobuf_BUILD_CONFORMANCE=OFF \
+        -Dprotobuf_BUILD_LIBPROTOC=OFF \
+        -DBUILD_SHARED_LIBS=OFF \
+        -Dprotobuf_DISABLE_RTTI=OFF \
+        ../cmake
+    cmake --build . --config Release
+
+# _build
+popd
+
+# host
+popd
+
+echo "**************************************************"
+echo "BUILD TARGET LIB for ${PLATFORM}"
+echo "**************************************************"
+
+unset CFLAGS
+unset CXXFLAGS
+
+cmi_setup_cc ${PLATFORM}
+
+export SOURCE_TARGET=${SCRIPTDIR}/${TMP_TARGET}/${PACKAGEDIR}
+export INSTALL_TARGET=${SCRIPTDIR}/install
+
+mkdir -p ${INSTALL_TARGET}/${PLATFORM}
+
+echo "Unpack to ${TMP_TARGET}"
+
+mkdir -p ${TMP_TARGET}
+tar xf ${FILE_URL} --directory ${TMP_TARGET} --strip-components=1
+
+echo "SOURCE_TARGET:" ${SOURCE_TARGET}
+pushd ${SOURCE_TARGET}
+
+# To not have cmake cached compile flags/settings
+# if [ -e ./_build ]; then
+#     rm -rf ./_build
+#     echo "Removed old dir"
+# fi
+
+mkdir -p _build
+pushd _build
+
+    export FLAGS="-fPIC"
+
+    cmake -G "Unix Makefiles" \
+        -DCMAKE_INSTALL_PREFIX=${INSTALL_TARGET} \
+        -DCMAKE_INSTALL_LIBDIR="${INSTALL_TARGET}/${PLATFORM}" \
+        -DCMAKE_OSX_ARCHITECTURES=${MACOS_ARCHS} \
+        -DCMAKE_C_COMPILER=${CC} \
+        -DCMAKE_CXX_COMPILER=${CXX} \
+        -DCMAKE_C_COMPILER_WORKS=1 \
+        -DCMAKE_CXX_COMPILER_WORKS=1 \
+        -DCMAKE_C_FLAGS="${FLAGS} ${CFLAGS}" \
+        -DCMAKE_CXX_FLAGS="${FLAGS} ${CXXFLAGS}" \
+        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE} \
+        -Dprotobuf_BUILD_PROTOC_BINARIES=OFF \
+        -Dprotobuf_BUILD_EXAMPLES=OFF \
+        -Dprotobuf_BUILD_TESTS=OFF \
+        -Dprotobuf_BUILD_CONFORMANCE=OFF \
+        -Dprotobuf_BUILD_LIBPROTOC=OFF \
+        -Dprotobuf_BUILD_SHARED_LIBS=OFF \
+        -Dprotobuf_DISABLE_RTTI=OFF \
+        -DWITH_PROTOC=${SOURCE_HOST}/_build/Release/protoc \
+        ../cmake
+
+    cmake --build . --config Release --target libprotobuf -- -j8
+
+
+# _build
+popd
+
+# target
+popd
+
+
+echo "**************************************************"
+echo "Package protobuf for ${PLATFORM}"
+echo "**************************************************"
+
+PACKAGE_NAME=${PRODUCT}-${VERSION}-${PLATFORM}.tar.gz
+
+case ${PLATFORM} in
+    x86_64-macos|arm64-macos|x86_64-linux|arm64-linux|x86_64-win32)
+        IS_DESKTOP=1
+        ;;
+esac
+
+case ${PLATFORM} in
+    x86_64-win32)
+        SUFFIX=.exe
+        ;;
+
+    x86_64-macos|arm64-macos|x86_64-linux|arm64-linux)
+        echo "Stripping executable"
+        strip "${SOURCE_HOST}/_build/protoc"
+        ;;
+esac
+
+mkdir -p package
+pushd package
+
+    mkdir -p lib/${PLATFORM}
+    mkdir -p bin/${PLATFORM}
+
+    cp -v "${SOURCE_TARGET}/_build/libprotobuf.a" lib/${PLATFORM}/
+    if [ "${IS_DESKTOP}" != "" ]; then
+        cp -v "${SOURCE_HOST}/_build/protoc${SUFFIX}" bin/${PLATFORM}/
+    fi
+
+    echo "Packaging '${PACKAGE_NAME}'..."
+    tar cfvz ${PACKAGE_NAME} lib bin
+
+    rm -rf lib bin
+
+# package
+popd
+
+echo "Wrote ./package/${PACKAGE_NAME}"
+
+rm -rf ${TMP_HOST}
+rm -rf ${TMP_TARGET}

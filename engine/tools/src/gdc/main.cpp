@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,15 +20,19 @@
 #include <string.h>
 #include <signal.h>
 
+#include <dlib/platform.h>
+
+#include <graphics/graphics.h>
+
 #include <dlib/log.h>
 #include <dlib/math.h>
-#include <dlib/platform.h>
 #include <dlib/time.h>
 #include <ddf/ddf.h>
 
-#include <graphics/graphics.h>
 #include <hid/hid.h>
 #include <input/input_ddf.h>
+
+extern "C" void dmExportedSymbols();
 
 enum State
 {
@@ -77,6 +81,7 @@ static void sig_handler(int _)
 
 int main(int argc, char *argv[])
 {
+    dmExportedSymbols();
 
     int result = 0;
     dmHID::HGamepad gamepad = dmHID::INVALID_GAMEPAD_HANDLE;
@@ -93,11 +98,33 @@ int main(int argc, char *argv[])
     if (argc > 1)
         filename = argv[1];
 
+    dmGraphics::InstallAdapter();
+
+    dmPlatform::WindowParams window_params = {};
+    window_params.m_Width = 32;
+    window_params.m_Height = 32;
+    window_params.m_Title = "gdc";
+    window_params.m_PrintDeviceInfo = false;
+    window_params.m_OpenGLVersionHint = 33;
+    if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGLES)
+    {
+        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGLES;
+    }
+    else
+    {
+        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+    }
+    window_params.m_ContextAlphabits = 8;
+
+    dmPlatform::HWindow window = dmPlatform::NewWindow();
+    dmPlatform::OpenWindow(window, window_params);
+    dmPlatform::ShowWindow(window);
+
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
-    graphics_context_params.m_VerifyGraphicsCalls = false;
-    dmGraphics::Initialize();
+    graphics_context_params.m_Window                  = window;
+
     dmGraphics::HContext graphics_context = dmGraphics::NewContext(graphics_context_params);
     if (graphics_context == 0x0)
     {
@@ -105,18 +132,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    dmGraphics::WindowParams window_params;
-    memset(&window_params, 0, sizeof(window_params));
-    window_params.m_Width = 32;
-    window_params.m_Height = 32;
-    window_params.m_Samples = 0;
-    window_params.m_Title = "gdc";
-    window_params.m_Fullscreen = 0;
-    window_params.m_PrintDeviceInfo = false;
-    window_params.m_HighDPI = 0;
-    (void)dmGraphics::OpenWindow(graphics_context, &window_params);
-
     g_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+    dmHID::SetWindow(g_HidContext, window);
     dmHID::Init(g_HidContext);
 
 retry:
@@ -146,8 +163,8 @@ retry:
     {
         for (uint32_t i = 0; i < gamepad_count; ++i)
         {
-            char device_name[128];
-            dmHID::GetGamepadDeviceName(g_HidContext, gamepads[i], device_name, sizeof(device_name));
+            char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+            dmHID::GetGamepadDeviceName(g_HidContext, gamepads[i], device_name);
             printf("%d: %s\n", i+1, device_name);
         }
         printf("\n* Which gamepad do you want to calibrate? [1-%d] ", gamepad_count);
@@ -169,8 +186,8 @@ retry:
         gamepad = gamepads[0];
     }
 
-    char device_name[128];
-    dmHID::GetGamepadDeviceName(g_HidContext, gamepad, device_name, sizeof(device_name));
+    char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+    dmHID::GetGamepadDeviceName(g_HidContext, gamepad, device_name);
 
     printf("\n%s will be added to %s\n\n", device_name, filename);
 

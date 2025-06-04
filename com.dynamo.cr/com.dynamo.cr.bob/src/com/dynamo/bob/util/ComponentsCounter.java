@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -30,7 +30,6 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
@@ -82,12 +81,12 @@ public class ComponentsCounter {
                 componentName = componentName.substring(1);
             }
             Integer currentValue = components.getOrDefault(componentName, 0);
-            if (count == DYNAMIC_VALUE) {
-                components.put(componentName, DYNAMIC_VALUE);
-            } 
-            else if (currentValue != DYNAMIC_VALUE) {
-                components.put(componentName, currentValue + count);
+            Integer value = currentValue + count;
+            // We can't multiply or sum DYNAMIC_VALUE, just set it
+            if (count.equals(DYNAMIC_VALUE) || currentValue.equals(DYNAMIC_VALUE)) {
+                value = DYNAMIC_VALUE;
             }
+            components.put(componentName, value);
         }
 
         public void add(String componentName) {
@@ -104,7 +103,15 @@ public class ComponentsCounter {
         public void add(Storage storage, Integer count) {
             Map<String, Integer> comps = storage.get();
             for (Map.Entry<String,Integer> entry : comps.entrySet()) {
-                add(entry.getKey(), count == DYNAMIC_VALUE ? DYNAMIC_VALUE : entry.getValue() * count);
+                Integer value = entry.getValue();
+                // We can't multiply or sum DYNAMIC_VALUE, just set it
+                if (count.equals(DYNAMIC_VALUE) || value.equals(DYNAMIC_VALUE)) {
+                    value = DYNAMIC_VALUE;
+                }
+                else {
+                    value *= count;
+                }
+                add(entry.getKey(), value);
             }
         }
 
@@ -142,28 +149,38 @@ public class ComponentsCounter {
         return new Storage();
     }
 
-    private static Boolean isFactoryType(String type) {
+    private static Boolean isFactoryType(String type, boolean compiled) {
         if (type.charAt(0) == '.') {
             type = type.substring(1);
+        }
+        if (compiled)
+        {
+            type = type.substring(0, type.length() - 1);
         }
         return type.equals("factory") || type.equals("collectionfactory");
     }
 
-    private static Boolean isCompCounterStorage(String path) {
+    public static Boolean isCompCounterStorage(String path) {
         return path.endsWith(EXT_GO) || path.endsWith(EXT_COL);
     }
 
     private static Map.Entry<String, Boolean> getCounterNameAndPrototypeInfo(String type, IResource resource) throws IOException, CompileExceptionError {
+        if (type.equals("factory") || type.equals("collectionfactory")) {
+            return getCounterNameAndPrototypeInfo(type, resource, resource.getContent());
+        }
+        return null;
+    }
+    private static Map.Entry<String, Boolean> getCounterNameAndPrototypeInfo(String type, IResource resource, byte[] resourceContent) throws IOException, CompileExceptionError {
         if (type.equals("factory")) {
             FactoryDesc.Builder factoryDesc = FactoryDesc.newBuilder();
-            ProtoUtil.merge(resource, factoryDesc);
+            ProtoUtil.merge(resource, resourceContent, factoryDesc);
             Boolean isDynamic = factoryDesc.getDynamicPrototype();
             String counterName = BuilderUtil.replaceExt(factoryDesc.getPrototype(), ".go", EXT_GO);
             Map.Entry<String,Boolean> entry = new AbstractMap.SimpleEntry<String, Boolean>(counterName, isDynamic);
             return entry;
         } else if (type.equals("collectionfactory")) {
             CollectionFactoryDesc.Builder factoryDesc = CollectionFactoryDesc.newBuilder();
-            ProtoUtil.merge(resource, factoryDesc);
+            ProtoUtil.merge(resource, resourceContent, factoryDesc);
             Boolean isDynamic = factoryDesc.getDynamicPrototype();
             String counterName = BuilderUtil.replaceExt(factoryDesc.getPrototype(), ".collection", EXT_COL);
             Map.Entry<String,Boolean> entry = new AbstractMap.SimpleEntry<String, Boolean>(counterName, isDynamic);
@@ -172,10 +189,12 @@ public class ComponentsCounter {
         return null;
     }
 
-    public static Boolean ifStaticFactoryAddProtoAsInput(EmbeddedComponentDesc ec, IResource genResource,
-        TaskBuilder taskBuilder, IResource input) throws IOException, CompileExceptionError {
-        
-        Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(ec.getType(), genResource);
+    public static Boolean ifStaticFactoryAddProtoAsInput(EmbeddedComponentDesc ec,
+                                                         IResource genResource,
+                                                         byte[] genResourceContent,
+                                                         TaskBuilder taskBuilder,
+                                                         IResource input) throws IOException, CompileExceptionError {
+        Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(ec.getType(), genResource, genResourceContent);
         if (info != null) {
             Boolean isStatic = !info.getValue();
             if (isStatic) {
@@ -191,7 +210,7 @@ public class ComponentsCounter {
         
         String comp = cd.getComponent();
         String type = FilenameUtils.getExtension(comp);
-        if (ComponentsCounter.isFactoryType(type)) {
+        if (ComponentsCounter.isFactoryType(type, false)) {
             IResource genResource = project.getResource(comp);
             Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(type, genResource);
             if (info != null) {
@@ -205,7 +224,7 @@ public class ComponentsCounter {
         return null;
     }
 
-    public static Set<IResource> getCounterInputs(Task<?> task) {
+    public static Set<IResource> getCounterInputs(Task task) {
         List<IResource> inputs = task.getInputs();
         Set<IResource> counterInputs = new HashSet<IResource>();
         for (IResource res : inputs) {
@@ -219,7 +238,13 @@ public class ComponentsCounter {
     public static void sumInputs(Storage targetStorage, List<IResource> inputs, Integer count) throws IOException, CompileExceptionError  {
         for (IResource res :  inputs) {
             if (isCompCounterStorage(res.getPath())) {
-                targetStorage.add(Storage.load(res), count);
+                Storage inputStorage = Storage.load(res);
+                if (inputStorage.isDynamic()) {
+                    targetStorage.makeDynamic();
+                }
+                else {
+                    targetStorage.add(inputStorage, count);
+                }
             }
         }
     }
@@ -228,7 +253,13 @@ public class ComponentsCounter {
         Map<IResource, Integer> compCounterInputsCount) throws IOException, CompileExceptionError  {
         for (IResource res :  inputs) {
             if (isCompCounterStorage(res.getPath())) {
-                targetStorage.add(Storage.load(res), compCounterInputsCount.get(res));
+                Storage inputStorage = Storage.load(res);
+                if (inputStorage.isDynamic()) {
+                    targetStorage.makeDynamic();
+                }
+                else {
+                    targetStorage.add(inputStorage, compCounterInputsCount.getOrDefault(res, 0));
+                }
             }
         }
     }
@@ -247,19 +278,18 @@ public class ComponentsCounter {
         return replaceExt(path);
     }
 
-    public static void countComponentsInEmbededObjects(Project project, IResource res, Storage compStorage) throws IOException, CompileExceptionError {
+    public static void countComponentsInEmbededObjects(Project project, IResource input, byte[] inputContent, Storage compStorage) throws IOException, CompileExceptionError {
         PrototypeDesc.Builder prot = PrototypeDesc.newBuilder();
-        ProtoUtil.merge(res, prot);
+        ProtoUtil.merge(input, inputContent, prot);
 
         for (EmbeddedComponentDesc cd : prot.getEmbeddedComponentsList()) {
             String type = cd.getType();
             compStorage.add(type);
-            if (isFactoryType(type)) {
+            if (isFactoryType(type, false)) {
                 byte[] data = cd.getData().getBytes();
                 long hash = MurmurHash.hash64(data, data.length);
                 IResource genResource = project.getGeneratedResource(hash, type);
-                genResource.setContent(data);
-                Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(type, genResource);
+                Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(type, genResource, data);
                 if (info != null && info.getValue()) {
                     compStorage.makeDynamic();
                     return;
@@ -270,7 +300,7 @@ public class ComponentsCounter {
             String comp = cd.getComponent();
             String type = FilenameUtils.getExtension(comp);
             compStorage.add(type);
-            if (isFactoryType(type)) {
+            if (isFactoryType(type, false)) {
                 IResource genResource = project.getResource(comp);
                 Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(type, genResource);
                 if (info != null && info.getValue()) {
@@ -281,6 +311,11 @@ public class ComponentsCounter {
         }
     }
 
+    // Temporary workaround for max_instances counter (GOs) to make sure componens with bones work fine
+    private static boolean hasBones(String name) {
+        return name.equals("modelc") || name.equals("spinemodelc") || name.equals("rivemodelc");
+    }
+
     public static void copyDataToBuilder(Storage storage, Project project, CollectionDesc.Builder builder) {
         //Do not copy values for collections with dynamic factories
         if (storage.isDynamic()) {
@@ -288,36 +323,32 @@ public class ComponentsCounter {
         }
         Map<String, Integer> components = storage.get();
         HashMap<String, Integer> mergedComponents = new HashMap<>();
+        boolean hasDynamicValue = false;
         for (Map.Entry<String, Integer> entry : components.entrySet()) {
             // different input component names may have the same output name
-            // for example wav ans sound both are soundc
+            // for example wav and sound both are soundc
             String name = project.replaceExt("." + entry.getKey()).substring(1);
+            Integer value = entry.getValue();
             if (mergedComponents.containsKey(name)) {
                 Integer mergedValue = mergedComponents.get(name);
-                Integer value = entry.getValue();
-                if (mergedValue == DYNAMIC_VALUE || value == DYNAMIC_VALUE) {
+                if (mergedValue.equals(DYNAMIC_VALUE) || value.equals(DYNAMIC_VALUE)) {
                     mergedComponents.put(name, DYNAMIC_VALUE);
                 } else {
                     mergedComponents.put(name, mergedValue + value);
                 }
             } else {
-                mergedComponents.put(name, entry.getValue());
+                mergedComponents.put(name, value);
             }
+            hasDynamicValue |= isFactoryType(name, true);
+            hasDynamicValue |= hasBones(name);
+        }
+        if (hasDynamicValue) {
+            mergedComponents.put("goc", DYNAMIC_VALUE);
         }
         for (Map.Entry<String, Integer> entry : mergedComponents.entrySet()) {
             ComponenTypeDesc.Builder componentTypeDesc = ComponenTypeDesc.newBuilder();
             componentTypeDesc.setNameHash(MurmurHash.hash64(entry.getKey())).setMaxCount(entry.getValue());
             builder.addComponentTypes(componentTypeDesc);
-        }
-    }
-
-    public static void excludeCounterPaths(HashSet<String> paths) {
-        Iterator<String> iterator = paths.iterator();
-        while (iterator.hasNext()) {
-            String path = iterator.next();
-            if (isCompCounterStorage(path)) {
-                iterator.remove();
-            }
         }
     }
 }

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,7 +22,6 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.HashSet;
 
 import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.commons.io.FileUtils;
@@ -36,6 +35,7 @@ import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.bundle.MacOSBundler;
@@ -81,18 +81,23 @@ public class MacOSBundlerTest {
     }
 
     void build() throws IOException, CompileExceptionError, MultipleCompileException {
-        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        project.setPublisher(new NullPublisher(new PublisherSettings()));
+        try {
+            Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+            project.setPublisher(new NullPublisher(new PublisherSettings()));
 
-        ClassLoaderScanner scanner = new ClassLoaderScanner();
-        project.scan(scanner, "com.dynamo.bob");
-        project.scan(scanner, "com.dynamo.bob.pipeline");
+            ClassLoaderScanner scanner = new ClassLoaderScanner();
+            project.scan(scanner, "com.dynamo.bob");
+            project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        project.setOption("platform", Platform.X86_64MacOS.getPair());
-        project.setOption("archive", "true");
-        project.setOption("bundle-output", outputDir);
-        project.findSources(contentRoot, new HashSet<String>());
-        project.build(new NullProgress(), "clean", "build", "bundle");
+            project.setOption("platform", Platform.X86_64MacOS.getPair());
+            project.setOption("architectures", Platform.X86_64MacOS.getPair());
+            project.setOption("archive", "true");
+            project.setOption("bundle-output", outputDir);
+            project.build(new NullProgress(), "clean", "build", "bundle");
+        } catch (Exception e) {
+            System.err.printf("Failed to build: %s\n", e.getMessage());
+            throw e;
+        }
     }
 
     @Test
@@ -122,7 +127,7 @@ public class MacOSBundlerTest {
 
     private String createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
-        file.deleteOnExit();
+        FileUtil.deleteOnExit(file);
         FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
         return file.getAbsolutePath();
     }

@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,38 +24,33 @@
 (deftest animation-set-test
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/model/treasure_chest.animationset")
-          {:keys [animations bone-list]} (g/node-value node-id :animation-set)]
-      (is (= 3 (count bone-list)))
+          {:keys [animations]} (g/node-value node-id :animation-set)]
+
       (is (= 3 (count animations)))
       (is (= #{(murmur/hash64 "treasure_chest")
                (murmur/hash64 "treasure_chest_sub_animation/treasure_chest_anim_out")
                (murmur/hash64 "treasure_chest_sub_sub_animation/treasure_chest_anim_out")}
-             (set (map :id animations)))) 
-      (let [animation (first animations)
-            bone-count (count bone-list)]
-        (testing "All bones are animated"
-          (is (<= bone-count (count (:tracks animation)))))
+             (set (map :id animations))))
+      (let [animation (first animations)]
         (testing "No events present"
           (is (= 0 (count (:event-tracks animation)))))
 
         ; Tracks contain keyframes for position, rotation and scale channels.
         ; Several tracks can target the same bone, but there should not be
         ; multiple tracks that target the same channel for a bone.
-        (doseq [[bone-index data-by-channel] (->> (:tracks animation)
-                                                  (group-by :bone-index)
+        (doseq [[bone-id data-by-channel] (->> (:tracks animation)
+                                                  (group-by :bone-id)
                                                   (sort-by key)
-                                                  (map (fn [[bone-index bone-tracks]]
-                                                         [bone-index (->> bone-tracks
-                                                                          (map #(dissoc % :bone-index))
+                                                  (map (fn [[bone-id bone-tracks]]
+                                                         [bone-id (->> bone-tracks
+                                                                          (map #(dissoc % :bone-id))
                                                                           (map remove-empty-channels)
                                                                           (apply merge-with (constantly ::conflicting-data)))])))]
-          (testing "Bone exists in skeleton"
-            (is (< bone-index bone-count)))
 
           (testing "Channels are not animated by multiple tracks"
             (doseq [[channel data] data-by-channel]
               (is (not= ::conflicting-data data)
-                  (str "Found multiple tracks targetting " channel " for bone " bone-index))))
+                  (str "Found multiple tracks targeting " channel " for bone " bone-id))))
 
           (testing "Channel data matches expected strides"
             (are [stride channel]

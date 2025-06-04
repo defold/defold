@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -32,56 +32,56 @@ namespace dmGameSystem
             dmDDF::FreeMessage(resource->m_MeshSet);
     }
 
-    dmResource::Result ResMeshSetPreload(const dmResource::ResourcePreloadParams& params)
+    dmResource::Result ResMeshSetPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmRigDDF::MeshSet* MeshSet;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmRigDDF_MeshSet_DESCRIPTOR, (void**) &MeshSet);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmRigDDF_MeshSet_DESCRIPTOR, (void**) &MeshSet);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        *params.m_PreloadData = MeshSet;
+        *params->m_PreloadData = MeshSet;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResMeshSetCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResMeshSetCreate(const dmResource::ResourceCreateParams* params)
     {
         MeshSetResource* ss_resource = new MeshSetResource();
-        ss_resource->m_MeshSet = (dmRigDDF::MeshSet*) params.m_PreloadData;
-        dmResource::Result r = AcquireResources(params.m_Factory, ss_resource, params.m_Filename);
+        ss_resource->m_MeshSet = (dmRigDDF::MeshSet*) params->m_PreloadData;
+        dmResource::Result r = AcquireResources(params->m_Factory, ss_resource, params->m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            params.m_Resource->m_Resource = (void*) ss_resource;
+            dmResource::SetResource(params->m_Resource, ss_resource);
         }
         else
         {
-            ReleaseResources(params.m_Factory, ss_resource);
+            ReleaseResources(params->m_Factory, ss_resource);
             delete ss_resource;
         }
         return r;
     }
 
-    dmResource::Result ResMeshSetDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResMeshSetDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        MeshSetResource* ss_resource = (MeshSetResource*)params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, ss_resource);
+        MeshSetResource* ss_resource = (MeshSetResource*)dmResource::GetResource(params->m_Resource);
+        ReleaseResources(params->m_Factory, ss_resource);
         delete ss_resource;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResMeshSetRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResMeshSetRecreate(const dmResource::ResourceRecreateParams* params)
     {
         dmRigDDF::MeshSet* spine_scene;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmRigDDF_MeshSet_DESCRIPTOR, (void**) &spine_scene);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmRigDDF_MeshSet_DESCRIPTOR, (void**) &spine_scene);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        MeshSetResource* ss_resource = (MeshSetResource*)params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, ss_resource);
+        MeshSetResource* ss_resource = (MeshSetResource*)dmResource::GetResource(params->m_Resource);
+        ReleaseResources(params->m_Factory, ss_resource);
         ss_resource->m_MeshSet = spine_scene;
-        return AcquireResources(params.m_Factory, ss_resource, params.m_Filename);
+        return AcquireResources(params->m_Factory, ss_resource, params->m_Filename);
     }
 }

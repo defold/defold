@@ -3,10 +3,9 @@ import os
 
 def build(bld):
     test = bld.program(features='cxx test',
-                       use='DLIB PROFILE_NULL launcherutil',
+                       use='DLIB PROFILE_NULL PLATFORM_NULL launcherutil',
                        includes = ['.'],
                        target='test_launcher',
                        source='test_launcher.cpp')
 
     test.install_path = None
-    

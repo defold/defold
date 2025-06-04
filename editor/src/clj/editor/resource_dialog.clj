@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,20 +14,18 @@
 
 (ns editor.resource-dialog
   (:require [cljfx.fx.h-box :as fx.h-box]
-            [cljfx.fx.text :as fx.text]
-            [cljfx.fx.text-flow :as fx.text-flow]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
-            [editor.fuzzy-text :as fuzzy-text]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.ui :as ui]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.workspace :as workspace]
-            [internal.graph.types :as gt]))
+            [internal.graph.types :as gt]
+            [util.fn :as fn]))
 
 (def ^:private fuzzy-resource-filter-fn (partial fuzzy-choices/filter-options resource/proj-path resource/proj-path))
 
@@ -93,31 +91,6 @@
 
         (resource-node-ids->project-resources basis resource-nodes-that-depend-on-us)))))
 
-(defn- make-text-run [text style-class]
-  (cond-> {:fx/type fx.text/lifecycle
-           :text text}
-          style-class
-          (assoc :style-class style-class)))
-
-(defn- matched-text-runs [text matching-indices]
-  (let [/ (or (some-> text (string/last-index-of \/) inc) 0)]
-    (into []
-          (mapcat (fn [[matched? start end]]
-                    (cond
-                      matched?
-                      [(make-text-run (subs text start end) "matched")]
-
-                      (< start / end)
-                      [(make-text-run (subs text start /) "diminished")
-                       (make-text-run (subs text / end) nil)]
-
-                      (<= start end /)
-                      [(make-text-run (subs text start end) "diminished")]
-
-                      :else
-                      [(make-text-run (subs text start end) nil)])))
-          (fuzzy-text/runs (count text) matching-indices))))
-
 (defn matched-list-item-view [{:keys [icon text matching-indices children]}]
   {:fx/type fx.h-box/lifecycle
    :style-class "content"
@@ -126,18 +99,18 @@
    :children (cond-> [{:fx/type ui/image-icon
                        :path icon
                        :size 16.0}
-                      {:fx/type fx.text-flow/lifecycle
-                       :children (matched-text-runs text matching-indices)}]
+                      (fuzzy-choices/make-matched-text-flow-cljfx text matching-indices)]
                      children
                      (into children))})
 
 (defn make [workspace project options]
   (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
-        accepted-ext (if (seq exts) (set exts) (constantly true))
-        accept-fn    (or (:accept-fn options) (constantly true))
+        accepted-ext (if (seq exts) (set exts) fn/constantly-true)
+        accept-fn    (or (:accept-fn options) fn/constantly-true)
         items        (into []
                            (filter #(and (= :file (resource/source-type %))
                                          (accepted-ext (resource/type-ext %))
+                                         (resource/loaded? %)
                                          (not (resource/internal? %))
                                          (accept-fn %)))
                            (g/node-value workspace :resource-list))

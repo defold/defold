@@ -3,6 +3,7 @@
 /tmp
 /lib/*/*texc_shared*
 /lib/*/*modelc_shared*
+/lib/*/*shaderc_shared*
 /lib/*/*OpenAL32*
 /lib/*/*wrap_oal*
 /lib/*/*PVRTexLib*
@@ -14,13 +15,15 @@
 /lib/luajit-share.zip
 /lib/dlib.jar
 /lib/modelimporter.jar
+/lib/shaderc.jar
 /lib/texturecompiler.jar
 /libexec/*/*.js
 /libexec/*/*.swf
 /libexec/*/*dmengine*
 /libexec/*/*luajit*
-/libexec/*/glslc*
+/libexec/*/glslang*
 /libexec/*/spirv-cross*
+/libexec/*/tint*
 /libexec/*/spirv-opt*
 /libexec/*/luac-32*
 /share/luajit

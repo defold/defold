@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,7 +16,8 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.gviz :as gviz]
-            [editor.ui :as ui])
+            [editor.ui :as ui]
+            [util.fn :as fn])
   (:import [javafx.application Platform]
            [javafx.scene Parent]
            [javafx.scene.control Button ScrollPane]
@@ -26,8 +27,8 @@
 (set! *warn-on-reflection* true)
 
 (defonce ^:private ^:dynamic *root-id* nil)
-(defonce ^:private ^:dynamic *input-fn* (constantly false))
-(defonce ^:private ^:dynamic *output-fn* (constantly false))
+(defonce ^:private ^:dynamic *input-fn* fn/constantly-false)
+(defonce ^:private ^:dynamic *output-fn* fn/constantly-false)
 
 (defn- update-graph-view [^Parent root]
   (when-let [dot-image (-> (gviz/subgraph->dot (g/now) :root-id *root-id* :input-fn *input-fn* :output-fn *output-fn*)

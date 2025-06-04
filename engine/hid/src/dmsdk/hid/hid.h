@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,6 +25,7 @@
  * @name Hid
  * @namespace dmHid
  * @path engine/hid/src/dmsdk/hid/hid.h
+ * @language C++
  */
 
 namespace dmHID
@@ -276,40 +277,40 @@ namespace dmHID
     */
     enum Key
     {
-        KEY_SPACE = HID_KEY_SPACE,
-        KEY_EXCLAIM = HID_KEY_EXCLAIM,
-        KEY_QUOTEDBL = HID_KEY_QUOTEDBL,
-        KEY_HASH = HID_KEY_HASH,
-        KEY_DOLLAR = HID_KEY_DOLLAR,
+        KEY_SPACE     = HID_KEY_SPACE,
+        KEY_EXCLAIM   = HID_KEY_EXCLAIM,
+        KEY_QUOTEDBL  = HID_KEY_QUOTEDBL,
+        KEY_HASH      = HID_KEY_HASH,
+        KEY_DOLLAR    = HID_KEY_DOLLAR,
         KEY_AMPERSAND = HID_KEY_AMPERSAND,
-        KEY_QUOTE = HID_KEY_QUOTE,
-        KEY_LPAREN = HID_KEY_LPAREN,
-        KEY_RPAREN = HID_KEY_RPAREN,
-        KEY_ASTERISK = HID_KEY_ASTERISK,
-        KEY_PLUS = HID_KEY_PLUS,
-        KEY_COMMA = HID_KEY_COMMA,
-        KEY_MINUS = HID_KEY_MINUS,
-        KEY_PERIOD = HID_KEY_PERIOD,
-        KEY_SLASH = HID_KEY_SLASH,
+        KEY_QUOTE     = HID_KEY_QUOTE,
+        KEY_LPAREN    = HID_KEY_LPAREN,
+        KEY_RPAREN    = HID_KEY_RPAREN,
+        KEY_ASTERISK  = HID_KEY_ASTERISK,
+        KEY_PLUS      = HID_KEY_PLUS,
+        KEY_COMMA     = HID_KEY_COMMA,
+        KEY_MINUS     = HID_KEY_MINUS,
+        KEY_PERIOD    = HID_KEY_PERIOD,
+        KEY_SLASH     = HID_KEY_SLASH,
 
-        KEY_0 = HID_KEY_0,
-        KEY_1 = HID_KEY_1,
-        KEY_2 = HID_KEY_2,
-        KEY_3 = HID_KEY_3,
-        KEY_4 = HID_KEY_4,
-        KEY_5 = HID_KEY_5,
-        KEY_6 = HID_KEY_6,
-        KEY_7 = HID_KEY_7,
-        KEY_8 = HID_KEY_8,
-        KEY_9 = HID_KEY_9,
+        KEY_0         = HID_KEY_0,
+        KEY_1         = HID_KEY_1,
+        KEY_2         = HID_KEY_2,
+        KEY_3         = HID_KEY_3,
+        KEY_4         = HID_KEY_4,
+        KEY_5         = HID_KEY_5,
+        KEY_6         = HID_KEY_6,
+        KEY_7         = HID_KEY_7,
+        KEY_8         = HID_KEY_8,
+        KEY_9         = HID_KEY_9,
 
-        KEY_COLON = HID_KEY_COLON,
+        KEY_COLON     = HID_KEY_COLON,
         KEY_SEMICOLON = HID_KEY_SEMICOLON,
-        KEY_LESS = HID_KEY_LESS,
-        KEY_EQUALS = HID_KEY_EQUALS,
-        KEY_GREATER = HID_KEY_GREATER,
-        KEY_QUESTION = HID_KEY_QUESTION,
-        KEY_AT = HID_KEY_AT,
+        KEY_LESS      = HID_KEY_LESS,
+        KEY_EQUALS    = HID_KEY_EQUALS,
+        KEY_GREATER   = HID_KEY_GREATER,
+        KEY_QUESTION  = HID_KEY_QUESTION,
+        KEY_AT        = HID_KEY_AT,
 
         KEY_A = HID_KEY_A,
         KEY_B = HID_KEY_B,
@@ -338,79 +339,79 @@ namespace dmHID
         KEY_Y = HID_KEY_Y,
         KEY_Z = HID_KEY_Z,
 
-        KEY_LBRACKET = HID_KEY_LBRACKET,
-        KEY_BACKSLASH = HID_KEY_BACKSLASH,
-        KEY_RBRACKET = HID_KEY_RBRACKET,
-        KEY_CARET = HID_KEY_CARET,
+        KEY_LBRACKET   = HID_KEY_LBRACKET,
+        KEY_BACKSLASH  = HID_KEY_BACKSLASH,
+        KEY_RBRACKET   = HID_KEY_RBRACKET,
+        KEY_CARET      = HID_KEY_CARET,
         KEY_UNDERSCORE = HID_KEY_UNDERSCORE,
-        KEY_BACKQUOTE = HID_KEY_BACKQUOTE,
+        KEY_BACKQUOTE  = HID_KEY_BACKQUOTE,
 
-        KEY_LBRACE = HID_KEY_LBRACE,
-        KEY_PIPE = HID_KEY_PIPE,
-        KEY_RBRACE = HID_KEY_RBRACE,
-        KEY_TILDE = HID_KEY_TILDE,
+        KEY_LBRACE     = HID_KEY_LBRACE,
+        KEY_PIPE       = HID_KEY_PIPE,
+        KEY_RBRACE     = HID_KEY_RBRACE,
+        KEY_TILDE      = HID_KEY_TILDE,
         // End of ASCII mapped keysyms
 
         // Special keys
-        KEY_ESC = HID_KEY_ESC,
-        KEY_F1 = HID_KEY_F1,
-        KEY_F2 = HID_KEY_F2,
-        KEY_F3 = HID_KEY_F3,
-        KEY_F4 = HID_KEY_F4,
-        KEY_F5 = HID_KEY_F5,
-        KEY_F6 = HID_KEY_F6,
-        KEY_F7 = HID_KEY_F7,
-        KEY_F8 = HID_KEY_F8,
-        KEY_F9 = HID_KEY_F9,
-        KEY_F10 = HID_KEY_F10,
-        KEY_F11 = HID_KEY_F11,
-        KEY_F12 = HID_KEY_F12,
-        KEY_UP = HID_KEY_UP,
-        KEY_DOWN = HID_KEY_DOWN,
-        KEY_LEFT = HID_KEY_LEFT,
-        KEY_RIGHT = HID_KEY_RIGHT,
-        KEY_LSHIFT = HID_KEY_LSHIFT,
-        KEY_RSHIFT = HID_KEY_RSHIFT,
-        KEY_LCTRL = HID_KEY_LCTRL,
-        KEY_RCTRL = HID_KEY_RCTRL,
-        KEY_LALT = HID_KEY_LALT,
-        KEY_RALT = HID_KEY_RALT,
-        KEY_TAB = HID_KEY_TAB,
-        KEY_ENTER = HID_KEY_ENTER,
-        KEY_BACKSPACE = HID_KEY_BACKSPACE,
-        KEY_INSERT = HID_KEY_INSERT,
-        KEY_DEL = HID_KEY_DEL,
-        KEY_PAGEUP = HID_KEY_PAGEUP,
-        KEY_PAGEDOWN = HID_KEY_PAGEDOWN,
-        KEY_HOME = HID_KEY_HOME,
-        KEY_END = HID_KEY_END,
-        KEY_KP_0 = HID_KEY_KP_0,
-        KEY_KP_1 = HID_KEY_KP_1,
-        KEY_KP_2 = HID_KEY_KP_2,
-        KEY_KP_3 = HID_KEY_KP_3,
-        KEY_KP_4 = HID_KEY_KP_4,
-        KEY_KP_5 = HID_KEY_KP_5,
-        KEY_KP_6 = HID_KEY_KP_6,
-        KEY_KP_7 = HID_KEY_KP_7,
-        KEY_KP_8 = HID_KEY_KP_8,
-        KEY_KP_9 = HID_KEY_KP_9,
-        KEY_KP_DIVIDE = HID_KEY_KP_DIVIDE,
+        KEY_ESC         = HID_KEY_ESC,
+        KEY_F1          = HID_KEY_F1,
+        KEY_F2          = HID_KEY_F2,
+        KEY_F3          = HID_KEY_F3,
+        KEY_F4          = HID_KEY_F4,
+        KEY_F5          = HID_KEY_F5,
+        KEY_F6          = HID_KEY_F6,
+        KEY_F7          = HID_KEY_F7,
+        KEY_F8          = HID_KEY_F8,
+        KEY_F9          = HID_KEY_F9,
+        KEY_F10         = HID_KEY_F10,
+        KEY_F11         = HID_KEY_F11,
+        KEY_F12         = HID_KEY_F12,
+        KEY_UP          = HID_KEY_UP,
+        KEY_DOWN        = HID_KEY_DOWN,
+        KEY_LEFT        = HID_KEY_LEFT,
+        KEY_RIGHT       = HID_KEY_RIGHT,
+        KEY_LSHIFT      = HID_KEY_LSHIFT,
+        KEY_RSHIFT      = HID_KEY_RSHIFT,
+        KEY_LCTRL       = HID_KEY_LCTRL,
+        KEY_RCTRL       = HID_KEY_RCTRL,
+        KEY_LALT        = HID_KEY_LALT,
+        KEY_RALT        = HID_KEY_RALT,
+        KEY_TAB         = HID_KEY_TAB,
+        KEY_ENTER       = HID_KEY_ENTER,
+        KEY_BACKSPACE   = HID_KEY_BACKSPACE,
+        KEY_INSERT      = HID_KEY_INSERT,
+        KEY_DEL         = HID_KEY_DEL,
+        KEY_PAGEUP      = HID_KEY_PAGEUP,
+        KEY_PAGEDOWN    = HID_KEY_PAGEDOWN,
+        KEY_HOME        = HID_KEY_HOME,
+        KEY_END         = HID_KEY_END,
+        KEY_KP_0        = HID_KEY_KP_0,
+        KEY_KP_1        = HID_KEY_KP_1,
+        KEY_KP_2        = HID_KEY_KP_2,
+        KEY_KP_3        = HID_KEY_KP_3,
+        KEY_KP_4        = HID_KEY_KP_4,
+        KEY_KP_5        = HID_KEY_KP_5,
+        KEY_KP_6        = HID_KEY_KP_6,
+        KEY_KP_7        = HID_KEY_KP_7,
+        KEY_KP_8        = HID_KEY_KP_8,
+        KEY_KP_9        = HID_KEY_KP_9,
+        KEY_KP_DIVIDE   = HID_KEY_KP_DIVIDE,
         KEY_KP_MULTIPLY = HID_KEY_KP_MULTIPLY,
         KEY_KP_SUBTRACT = HID_KEY_KP_SUBTRACT,
-        KEY_KP_ADD = HID_KEY_KP_ADD,
-        KEY_KP_DECIMAL = HID_KEY_KP_DECIMAL,
-        KEY_KP_EQUAL = HID_KEY_KP_EQUAL,
-        KEY_KP_ENTER = HID_KEY_KP_ENTER,
+        KEY_KP_ADD      = HID_KEY_KP_ADD,
+        KEY_KP_DECIMAL  = HID_KEY_KP_DECIMAL,
+        KEY_KP_EQUAL    = HID_KEY_KP_EQUAL,
+        KEY_KP_ENTER    = HID_KEY_KP_ENTER,
         KEY_KP_NUM_LOCK = HID_KEY_KP_NUM_LOCK,
-        KEY_CAPS_LOCK = HID_KEY_CAPS_LOCK,
+        KEY_CAPS_LOCK   = HID_KEY_CAPS_LOCK,
         KEY_SCROLL_LOCK = HID_KEY_SCROLL_LOCK,
-        KEY_PAUSE = HID_KEY_PAUSE,
-        KEY_LSUPER = HID_KEY_LSUPER,
-        KEY_RSUPER = HID_KEY_RSUPER,
-        KEY_MENU = HID_KEY_MENU,
-        KEY_BACK = HID_KEY_BACK,
+        KEY_PAUSE       = HID_KEY_PAUSE,
+        KEY_LSUPER      = HID_KEY_LSUPER,
+        KEY_RSUPER      = HID_KEY_RSUPER,
+        KEY_MENU        = HID_KEY_MENU,
+        KEY_BACK        = HID_KEY_BACK,
 
-        MAX_KEY_COUNT = HID_KEY_BACK + 1
+        MAX_KEY_COUNT   = KEY_BACK + 1,
     };
 
     /*# mouse button enumeration
@@ -431,19 +432,18 @@ namespace dmHID
      */
     enum MouseButton
     {
-        MOUSE_BUTTON_LEFT = HID_MOUSE_BUTTON_LEFT,
-        MOUSE_BUTTON_MIDDLE = HID_MOUSE_BUTTON_MIDDLE,
-        MOUSE_BUTTON_RIGHT = HID_MOUSE_BUTTON_RIGHT,
-        MOUSE_BUTTON_1 = HID_MOUSE_BUTTON_1,
-        MOUSE_BUTTON_2 = HID_MOUSE_BUTTON_2,
-        MOUSE_BUTTON_3 = HID_MOUSE_BUTTON_3,
-        MOUSE_BUTTON_4 = HID_MOUSE_BUTTON_4,
-        MOUSE_BUTTON_5 = HID_MOUSE_BUTTON_5,
-        MOUSE_BUTTON_6 = HID_MOUSE_BUTTON_6,
-        MOUSE_BUTTON_7 = HID_MOUSE_BUTTON_7,
-        MOUSE_BUTTON_8 = HID_MOUSE_BUTTON_8,
-
-        MAX_MOUSE_BUTTON_COUNT = HID_MOUSE_BUTTON_8 + 1
+        MOUSE_BUTTON_LEFT      = HID_MOUSE_BUTTON_LEFT,
+        MOUSE_BUTTON_MIDDLE    = HID_MOUSE_BUTTON_MIDDLE,
+        MOUSE_BUTTON_RIGHT     = HID_MOUSE_BUTTON_RIGHT,
+        MOUSE_BUTTON_1         = HID_MOUSE_BUTTON_1,
+        MOUSE_BUTTON_2         = HID_MOUSE_BUTTON_2,
+        MOUSE_BUTTON_3         = HID_MOUSE_BUTTON_3,
+        MOUSE_BUTTON_4         = HID_MOUSE_BUTTON_4,
+        MOUSE_BUTTON_5         = HID_MOUSE_BUTTON_5,
+        MOUSE_BUTTON_6         = HID_MOUSE_BUTTON_6,
+        MOUSE_BUTTON_7         = HID_MOUSE_BUTTON_7,
+        MOUSE_BUTTON_8         = HID_MOUSE_BUTTON_8,
+        MAX_MOUSE_BUTTON_COUNT = MOUSE_BUTTON_8 + 1
     };
 
     /*# Contains the current state of a keyboard
@@ -463,8 +463,9 @@ namespace dmHID
      */
     struct MousePacket
     {
-        int32_t m_PositionX, m_PositionY;
-        int32_t m_Wheel;
+        int32_t  m_PositionX;
+        int32_t  m_PositionY;
+        int32_t  m_Wheel;
         uint32_t m_Buttons[MAX_MOUSE_BUTTON_COUNT / 32 + 1];
     };
 
@@ -478,8 +479,9 @@ namespace dmHID
         float m_Axis[MAX_GAMEPAD_AXIS_COUNT];
         uint32_t m_Buttons[MAX_GAMEPAD_BUTTON_COUNT / 32 + 1];
         uint8_t m_Hat[MAX_GAMEPAD_HAT_COUNT];
-        bool m_GamepadDisconnected;
-        bool m_GamepadConnected;
+        uint8_t m_GamepadDisconnected:1;
+        uint8_t m_GamepadConnected:1;
+        uint8_t :6;
     };
 
     /*#
@@ -556,6 +558,15 @@ namespace dmHID
      * @return gamepad [type: dmHID::HGamepad] Handle to gamepad. dmHID::INVALID_GAMEPAD_HANDLE if not available
      */
     HGamepad GetGamepad(HContext context, uint8_t index);
+
+    /*# gets a gamepad device handle
+     *
+     * @name GetGamePad
+     * @param gamepad [type: dmHID::HGamepad] Handle to gamepad
+     * @param out [type: void**] Platform specific user id data
+     * @return result [type: boolean] true if gamepad has a user id data assigned to it
+     */
+    bool GetGamepadUserId(HContext context, HGamepad gamepad, uint32_t* out);
 
     /*# Adds a touch event touch.
      * @name AddTouch
@@ -641,32 +652,33 @@ namespace dmHID
      */
     void AddKeyboardChar(HContext context, int chr);
 
-    /**
+    /*#
      * Obtain a gamepad packet reflecting the current input state of the gamepad in a  HID context.
-     *
-     * @param gamepad gamepad handle
-     * @param out_packet Gamepad packet out argument
-     * @return True if the packet was successfully updated.
+     * @name GetGamepadPacket
+     * @param gamepad [type: dmHID::HGamepad] gamepad handle
+     * @param out_packet [type: dmHID::GamepadPacket] Gamepad packet out argument
+     * @return success [type: bool] True if the packet was successfully updated.
      */
     bool GetGamepadPacket(HGamepad gamepad, GamepadPacket* out_packet);
 
-    /**
+    /*#
      * Convenience function to retrieve the state of a gamepad button from a gamepad packet.
-     * @param packet Gamepad packet
-     * @param button The requested button
-     * @return True if the button is currently pressed down.
+     * @name GetGamepadButton
+     * @param packet [type: dmHID::GamepadPacket] Gamepad packet
+     * @param button [type: uint32_t] The requested button
+     * @return success [type: bool] True if the button is currently pressed down.
      */
     bool GetGamepadButton(GamepadPacket* packet, uint32_t button);
 
-    /**
+    /*#
      * Convenience function to retrieve the state of a gamepad hat from a gamepad packet.
-     * @param packet Gamepad packet
-     * @param hat The requested hat index
-     * @param out_hat_value Hat value out argument
-     * @return True if the hat has data.
+     * @name GetGamepadHat
+     * @param packet [type: dmHID::GamepadPacket] Gamepad packet
+     * @param hat [type: uint32_t] The requested hat index
+     * @param out_hat_value [type: uint8_t] Hat value out argument
+     * @return success [type: bool] True if the hat has data.
      */
     bool GetGamepadHat(GamepadPacket* packet, uint32_t hat, uint8_t* out_hat_value);
-
 }
 
 #endif // DMSDK_HID_H

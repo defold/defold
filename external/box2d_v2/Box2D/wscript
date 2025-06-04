@@ -1,0 +1,94 @@
+#! /usr/bin/env python
+
+import os, sys, re, run, shutil
+from waflib import Build
+
+VERSION = '2.2.1'
+APPNAME = 'box2d_defold'
+
+def configure(conf):
+    pass
+
+def build(bld):
+    box2d = bld.stlib(features = 'cxx',
+                      includes = '..',
+                      source = bld.path.ant_glob('**/*.cpp'),
+                      target = 'box2d_defold')
+
+    name = "%s-%s" % (APPNAME, VERSION)
+    packagedir = '.'
+
+    if bld.env.PLATFORM in ('win32', 'x86_64-win32'):
+        bld.env.STLIB_ST         = 'lib%s.lib'
+        bld.env.cstlib_PATTERN   = 'lib%s.lib'
+        bld.env.cxxstlib_PATTERN = 'lib%s.lib'
+
+    bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'box2d_defold')
+    bld.install_files('${PREFIX}/%s/include/box2d_defold/Box2D' % (name),
+                        bld.path.ant_glob('**/*.h'),
+                        relative_base=bld.path.find_dir('.'),
+                        relative_trick=True)
+
+    if isinstance(bld, Build.InstallContext):
+
+        bld.add_group() # make sure the previous install step is done before we create the archive
+
+        output_dir = '%s/%s' % (bld.env.PREFIX, name)
+
+        try:
+            # Delete the old build result first (this is a bit smelly)
+            shutil.rmtree(output_dir)
+        except Exception as e:
+            pass
+
+        target_tar = '%s-%s.tar.gz' % (name, bld.env.PLATFORM)
+
+        pkg = bld(rule=create_package,
+                  cwd=output_dir,
+                  target=target_tar,
+                  always=True)
+
+        target_tar = '%s-common.tar.gz' % name
+
+        pkg = bld(rule=create_package,
+                  cwd=output_dir,
+                  target=target_tar,
+                  always=True)
+
+
+## NOTE!
+## This seems a bit hacky, and it sure is. We leave a folder behind in the packages folder now,
+## so when using this to build external libraries, make sure to NOT commit that folder. We can
+## potentially solve it by running some sort of cleanup task after the other package tasks perhaps.
+## I tried with bld.add_groups() after the package tasks, but it was not working.
+def create_package(self):
+    target = self.outputs[0].abspath()
+    name = self.outputs[0].name
+
+    dirs = []
+    dirs_search = ['lib', 'sdk', 'share']
+
+    # Create the common package with includes
+    if target.find("-common") > 0:
+        dirs_search = ['include']
+
+    print("SELF.CWD", self.cwd)
+    for x in dirs_search:
+        try_path = os.path.join(self.cwd, x)
+        if os.path.exists(try_path):
+            dirs.append(x)
+
+    args = ['tar', 'zcvf', os.path.normpath(target)] + dirs
+
+    run.command(args, cwd=self.cwd)
+    print("Wrote", target)
+
+    # copy to the defold package path
+    source = target
+    target = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'packages', name))
+    shutil.copy2(source, target)
+    print("Installed to", target)
+
+def package(package):
+    pass
+

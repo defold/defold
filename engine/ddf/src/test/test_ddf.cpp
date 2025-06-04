@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -132,7 +132,7 @@ TEST(Simple, LoadWithTemplateFunction)
     }
 }
 
-#if !(defined(__APPLE__) && (defined(__arm__) || defined(__arm64__)))
+#if !defined(DM_PLATFORM_IOS)
 // TODO: Disabled on iOS
 // We have add functionality to located tmp-dir on iOS. See issue #624
 TEST(Simple, LoadFromFile)
@@ -869,7 +869,7 @@ TEST(OneOfTests, Save)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     ASSERT_EQ(message->m_OneOfField.m_IntVal, saved_message->m_OneOfField.m_IntVal);
-    ASSERT_EQ(message->m_OneOfField.m_BoolVal, saved_message->m_OneOfField.m_BoolVal);
+    ASSERT_EQ((int)message->m_OneOfField.m_BoolVal, (int)saved_message->m_OneOfField.m_BoolVal);
     ASSERT_STREQ(message->m_OneOfFieldString.m_StringVal, saved_message->m_OneOfFieldString.m_StringVal);
 
     dmDDF::FreeMessage(message);

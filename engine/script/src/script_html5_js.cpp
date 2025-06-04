@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -37,6 +37,7 @@ namespace dmScript
      * @document
      * @name HTML5
      * @namespace html5
+     * @language Lua
      */
 
     static dmScript::LuaCallbackInfo* g_InteractionCallback = 0x0;
@@ -105,9 +106,7 @@ namespace dmScript
             }
             _dmScript_Html5ReportOperationSuccess(isSuccess);
             jsResult += "";
-            var lengthBytes = lengthBytesUTF8(jsResult) + 1;
-            var stringOnWasmHeap = _malloc(lengthBytes);
-            stringToUTF8(jsResult, stringOnWasmHeap, lengthBytes);
+            var stringOnWasmHeap = stringToNewUTF8(jsResult);
             return stringOnWasmHeap;
         }, code);
         if (!isOperationSuccessful)
@@ -129,7 +128,7 @@ namespace dmScript
      * or start playing sounds the first time the callback is invoked.
      *
      * @name html5.set_interaction_listener
-     * @param callback [type:function(self] The interaction callback. Pass an empty function or nil if you no longer wish to receive callbacks.
+     * @param callback [type:function(self)|nil] The interaction callback. Pass an empty function or `nil` if you no longer wish to receive callbacks.
      *
      * `self`
      * : [type:object] The calling script

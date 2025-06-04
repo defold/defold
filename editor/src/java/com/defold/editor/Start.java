@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,6 +15,7 @@
 package com.defold.editor;
 
 import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.rolling.RollingFileAppender;
 import ch.qos.logback.core.rolling.TimeBasedRollingPolicy;
 import ch.qos.logback.core.util.FileSize;
@@ -29,13 +30,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 
-import java.awt.image.BufferedImage;
+import java.awt.Desktop;
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 
 public class Start extends Application {
 
@@ -53,25 +54,15 @@ public class Start extends Application {
                 Thread.sleep(200);
                 ResourceUnpacker.unpackResources();
 
-                // Init the GLProfile singleton on the UI thread.
-                CountDownLatch latch = new CountDownLatch(1);
-
-                Platform.runLater(() -> {
-                    try {
-                        ClassLoader classLoader = ClassLoader.getSystemClassLoader();
-                        Class<?> glprofile = classLoader.loadClass("com.jogamp.opengl.GLProfile");
-                        Method init = glprofile.getMethod("initSingleton");
-                        init.invoke(null);
-                    } catch (Throwable t) {
-                        t.printStackTrace();
-                        logger.error("failed to initialize GLProfile singleton", t);
-                    } finally {
-                        latch.countDown();
-                    }
-                });
-
-                // Wait for the UI thread task to complete before proceeding.
-                latch.await();
+                try {
+                    ClassLoader classLoader = ClassLoader.getSystemClassLoader();
+                    Class<?> glprofile = classLoader.loadClass("com.jogamp.opengl.GLProfile");
+                    Method init = glprofile.getMethod("initSingleton");
+                    init.invoke(null);
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                    logger.error("failed to initialize GLProfile singleton", t);
+                }
 
                 // Boot the editor.
                 final EditorApplication app = new EditorApplication(Thread.currentThread().getContextClassLoader());
@@ -125,23 +116,80 @@ public class Start extends Application {
         }
     }
 
+    /**
+     * The editor loads its namespaces in parallel. Since these namespaces import classes,
+     * we also load some classes in parallel. Unfortunately, loading any JavaFX class that
+     * invokes `new EventType()` in its static initializer is not thread-safe because it
+     * uses non-thread-safe WeakHashMap to register it during instantiation (see
+     * <a href="https://github.com/openjdk/jfx/blob/163bf6d42fde7de0454695311746964ff6bc1f49/modules/javafx.base/src/main/java/javafx/event/EventType.java#L182">register()</a>)
+     * Sequentially preloading these classes fixes a ConcurrentModificationException
+     * originally reported in <a href="https://github.com/defold/defold/issues/10245">#10245</a>
+     */
+    private void sequentiallyPreloadNonThreadSafeJavafxClasses() throws ClassNotFoundException {
+        // The list was compiled using this GitHub search:
+        // https://github.com/search?q=repo%3Aopenjdk%2Fjfx+%22new+EventType%22&type=code&p=3
+
+        // The issue is reported to JavaFX with an internal ID 9078156
+        // (should be publicly visible as https://bugs.openjdk.org/browse/JDK-9078156
+        // once screened)
+        String[] nonThreadSafeJavaFXClasses = {
+                "com.sun.javafx.event.RedirectedEvent",
+                "javafx.concurrent.WorkerStateEvent",
+                "javafx.css.TransitionEvent",
+                "javafx.event.ActionEvent",
+                "javafx.event.EventType",
+                "javafx.scene.control.CheckBoxTreeItem",
+                "javafx.scene.control.ChoiceBox",
+                "javafx.scene.control.ComboBoxBase",
+                "javafx.scene.control.DialogEvent",
+                "javafx.scene.control.ListView",
+                "javafx.scene.control.Menu",
+                "javafx.scene.control.MenuButton",
+                "javafx.scene.control.MenuItem",
+                "javafx.scene.control.ScrollToEvent",
+                "javafx.scene.control.SortEvent",
+                "javafx.scene.control.Tab",
+                "javafx.scene.control.TableColumn",
+                "javafx.scene.control.TreeItem",
+                "javafx.scene.control.TreeTableColumn",
+                "javafx.scene.control.TreeTableView",
+                "javafx.scene.control.TreeView",
+                "javafx.scene.input.ContextMenuEvent",
+                "javafx.scene.input.DragEvent",
+                "javafx.scene.input.GestureEvent",
+                "javafx.scene.input.InputMethodEvent",
+                "javafx.scene.input.KeyEvent",
+                "javafx.scene.input.MouseDragEvent",
+                "javafx.scene.input.MouseEvent",
+                "javafx.scene.input.RotateEvent",
+                "javafx.scene.input.ScrollEvent",
+                "javafx.scene.input.SwipeEvent",
+                "javafx.scene.input.TouchEvent",
+                "javafx.scene.input.ZoomEvent",
+                "javafx.scene.media.MediaErrorEvent",
+                "javafx.scene.transform.TransformChangedEvent",
+                "javafx.scene.web.WebErrorEvent",
+                "javafx.scene.web.WebEvent",
+                "javafx.stage.WindowEvent",
+        };
+        for (var className : nonThreadSafeJavaFXClasses) {
+            Class.forName(className);
+        }
+    }
+
     @Override
     public void start(Stage primaryStage) throws Exception {
         try {
-            /*
-              Note
-              Don't remove
+            if (Desktop.getDesktop().isSupported(Desktop.Action.APP_ABOUT)) {
+                Desktop.getDesktop().setAboutHandler(null);
+            }
+        } catch (final UnsupportedOperationException e) {
+            logger.error("The os does not support: 'desktop.setAboutHandler'", e);
+        } catch (final SecurityException e) {
+            logger.error("There was a security exception for: 'desktop.setAboutHandler'", e);
+        }
 
-              Background
-              Before the mysterious line below Command-H on OSX would open a generic Java about dialog instead of hiding the application.
-              The hypothosis is that awt must be initialized before JavaFX and in particular on the main thread as we're pooling stuff using
-              a threadpool.
-              Something even more mysterious is that if the construction of the buffered image is moved to "static void main(.." we get a null pointer in
-              clojure.java.io/resource..
-            */
-
-            new BufferedImage(1, 1, BufferedImage.TYPE_3BYTE_BGR);
-
+        try {
             // Clean up old packages as they consume a lot of hard drive space.
             // NOTE! This is a temp hack to give some hard drive space back to users.
             // The proper fix would be an upgrade feature where users can upgrade and downgrade as desired.
@@ -151,6 +199,7 @@ public class Start extends Application {
             splash.shownProperty().addListener((observable, oldValue, newValue) -> {
                 if (newValue) {
                     try {
+                        sequentiallyPreloadNonThreadSafeJavafxClasses();
                         kickLoading(splash);
                     } catch (Throwable t) {
                         t.printStackTrace();
@@ -176,24 +225,24 @@ public class Start extends Application {
         System.exit(0);
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         initializeLogging();
         Start.launch(args);
     }
 
-    private static void initializeLogging() {
+    private static void initializeLogging() throws IOException {
         Path logDirectory = Editor.getLogDirectory();
         ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
         SLF4JBridgeHandler.removeHandlersForRootLogger();
         SLF4JBridgeHandler.install();
 
-        RollingFileAppender appender = new RollingFileAppender();
+        RollingFileAppender<ILoggingEvent> appender = new RollingFileAppender<>();
         appender.setName("FILE");
         appender.setAppend(true);
         appender.setPrudent(true);
         appender.setContext(root.getLoggerContext());
 
-        TimeBasedRollingPolicy rollingPolicy = new TimeBasedRollingPolicy();
+        TimeBasedRollingPolicy<Object> rollingPolicy = new TimeBasedRollingPolicy<>();
         rollingPolicy.setMaxHistory(30);
         rollingPolicy.setFileNamePattern(logDirectory.resolve("editor2.%d{yyyy-MM-dd}.log").toString());
         rollingPolicy.setTotalSizeCap(FileSize.valueOf("1GB"));

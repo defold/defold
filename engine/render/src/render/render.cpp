@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -31,7 +31,7 @@
 #include "debug_renderer.h"
 #include "font_renderer.h"
 
-DM_PROPERTY_GROUP(rmtp_Render, "Renderer");
+DM_PROPERTY_GROUP(rmtp_Render, "Renderer", 0);
 
 namespace dmRender
 {
@@ -76,13 +76,11 @@ namespace dmRender
     RenderContextParams::RenderContextParams()
     : m_ScriptContext(0x0)
     , m_SystemFontMap(0)
-    , m_VertexShaderDesc(0x0)
-    , m_FragmentShaderDesc(0x0)
+    , m_ShaderProgramDesc(0x0)
     , m_MaxRenderTypes(0)
     , m_MaxInstances(0)
     , m_MaxRenderTargets(0)
-    , m_VertexShaderDescSize(0)
-    , m_FragmentShaderDescSize(0)
+    , m_ShaderProgramDescSize(0)
     , m_MaxCharacters(0)
     , m_CommandBufferSize(1024)
     , m_MaxDebugVertexCount(0)
@@ -109,6 +107,7 @@ namespace dmRender
         context->m_SystemFontMap = params.m_SystemFontMap;
 
         context->m_Material = 0;
+        context->m_CurrentRenderCamera = 0;
 
         context->m_View = Matrix4::identity();
         context->m_Projection = Matrix4::identity();
@@ -116,23 +115,38 @@ namespace dmRender
 
         context->m_ScriptContext = params.m_ScriptContext;
         InitializeRenderScriptContext(context->m_RenderScriptContext, graphics_context, params.m_ScriptContext, params.m_CommandBufferSize);
+        InitializeRenderScriptCameraContext(context, params.m_ScriptContext);
         context->m_ScriptWorld = dmScript::NewScriptWorld(context->m_ScriptContext);
+        context->m_CallbackInfo = 0x0;
 
         context->m_DebugRenderer.m_RenderContext = 0;
-        if (params.m_VertexShaderDesc != 0 && params.m_VertexShaderDescSize != 0 &&
-            params.m_FragmentShaderDesc != 0 && params.m_FragmentShaderDescSize != 0) {
-            InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_VertexShaderDesc, params.m_VertexShaderDescSize, params.m_FragmentShaderDesc, params.m_FragmentShaderDescSize);
+        if (params.m_ShaderProgramDesc != 0 && params.m_ShaderProgramDescSize != 0) {
+            InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_ShaderProgramDesc, params.m_ShaderProgramDescSize);
         }
 
-        memset(context->m_Textures, 0, sizeof(dmGraphics::HTexture) * RenderObject::MAX_TEXTURE_COUNT);
-
-        InitializeTextContext(context, params.m_MaxCharacters);
+        InitializeTextContext(context, params.m_MaxCharacters, params.m_MaxBatches);
 
         context->m_OutOfResources = 0;
 
         context->m_StencilBufferCleared = 0;
 
+        context->m_MultiBufferingRequired = 0;
+
+        context->m_IsRenderPaused = 0;
+
+        // TODO: This should be a "context property" or something similar.
+        dmGraphics::AdapterFamily installed_adapter_family = dmGraphics::GetInstalledAdapterFamily();
+        if (installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VULKAN ||
+            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_WEBGPU ||
+            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_DIRECTX ||
+            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VENDOR)
+        {
+            context->m_MultiBufferingRequired = 1;
+        }
+
         context->m_RenderListDispatch.SetCapacity(255);
+
+        SetupContextEventCallback(context, &OnContextEvent);
 
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
@@ -143,7 +157,13 @@ namespace dmRender
     {
         if (render_context == 0x0) return RESULT_INVALID_CONTEXT;
 
+        if (render_context->m_CallbackInfo != 0x0)
+        {
+            dmScript::DestroyCallback(render_context->m_CallbackInfo);
+            render_context->m_CallbackInfo = 0x0;
+        }
         FinalizeRenderScriptContext(render_context->m_RenderScriptContext, script_context);
+        FinalizeRenderScriptCameraContext(render_context);
         dmScript::DeleteScriptWorld(render_context->m_ScriptWorld);
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
@@ -153,7 +173,8 @@ namespace dmRender
         return RESULT_OK;
     }
 
-    dmScript::HContext GetScriptContext(HRenderContext render_context) {
+    dmScript::HContext GetScriptContext(HRenderContext render_context)
+    {
         return render_context->m_ScriptContext;
     }
 
@@ -260,7 +281,6 @@ namespace dmRender
         // Unflushed leftovers are assumed to be the debug rendering
         // and we give them render orders statically here
         FlushTexts(render_context, RENDER_ORDER_AFTER_WORLD, 0xffffff, true);
-
     }
 
     void SetSystemFontMap(HRenderContext render_context, HFontMap font_map)
@@ -276,6 +296,27 @@ namespace dmRender
     const Matrix4& GetViewProjectionMatrix(HRenderContext render_context)
     {
         return render_context->m_ViewProj;
+    }
+
+    const Matrix4& GetViewMatrix(HRenderContext render_context)
+    {
+        return render_context->m_View;
+    }
+
+    HMaterial GetContextMaterial(HRenderContext render_context)
+    {
+        return render_context->m_Material;
+    }
+
+    dmVMath::Matrix4 GetNormalMatrix(HRenderContext render_context, const dmVMath::Matrix4& world_matrix)
+    {
+        // normalT = transp(inv(view * world))
+        Matrix4 normalT = render_context->m_View * world_matrix;
+        // The world transform might include non-uniform scaling, which breaks the orthogonality of the combined model-view transform
+        // It is always affine however
+        normalT = affineInverse(normalT);
+        normalT = transpose(normalT);
+        return normalT;
     }
 
     void SetViewMatrix(HRenderContext render_context, const Matrix4& view)
@@ -667,7 +708,139 @@ namespace dmRender
         }
     }
 
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const dmVMath::Matrix4* frustum_matrix)
+    void SetTextureBindingByHash(dmRender::HRenderContext render_context, dmhash_t sampler_hash, dmGraphics::HTexture texture)
+    {
+        uint32_t num_bindings = render_context->m_TextureBindTable.Size();
+        int32_t first_free_index = -1;
+
+        // First pass
+        // Check if the the sampler is already bound to this texture, if so we reuse or unbind the current binding
+        for (int i = 0; i < num_bindings; ++i)
+        {
+            if (render_context->m_TextureBindTable[i].m_Samplerhash == sampler_hash)
+            {
+                if (texture == 0)
+                {
+                    render_context->m_TextureBindTable[i].m_Samplerhash = 0;
+                }
+                render_context->m_TextureBindTable[i].m_Texture = texture;
+                return;
+            }
+            // Store the free index for later
+            else if (render_context->m_TextureBindTable[i].m_Texture == 0 && first_free_index == -1)
+            {
+                first_free_index = i;
+            }
+        }
+
+        // If we are unassigning the sampler, but it wasn't found we can exit here.
+        if (texture == 0)
+        {
+            return;
+        }
+
+        // Take the first free index we found
+        if (first_free_index != -1)
+        {
+            render_context->m_TextureBindTable[first_free_index].m_Texture     = texture;
+            render_context->m_TextureBindTable[first_free_index].m_Samplerhash = sampler_hash;
+            return;
+        }
+
+        // Otherwise, we add a new binding to the end of the list
+        if (render_context->m_TextureBindTable.Full())
+        {
+            render_context->m_TextureBindTable.OffsetCapacity(4);
+        }
+
+        TextureBinding new_binding;
+        new_binding.m_Samplerhash = sampler_hash;
+        new_binding.m_Texture     = texture;
+        render_context->m_TextureBindTable.Push(new_binding);
+    }
+
+    void SetTextureBindingByUnit(HRenderContext render_context, uint32_t unit, dmGraphics::HTexture texture)
+    {
+        if (unit >= render_context->m_TextureBindTable.Size())
+        {
+            render_context->m_TextureBindTable.SetCapacity(unit + 1);
+
+            // Make sure new data area is zeroed out
+            uint32_t fill_index_start = render_context->m_TextureBindTable.Size();
+            uint32_t fill_size = render_context->m_TextureBindTable.Remaining() * sizeof(TextureBinding);
+
+            render_context->m_TextureBindTable.SetSize(render_context->m_TextureBindTable.Capacity());
+            memset(&render_context->m_TextureBindTable[fill_index_start], 0, fill_size);
+        }
+
+        render_context->m_TextureBindTable[unit].m_Texture     = texture;
+        render_context->m_TextureBindTable[unit].m_Samplerhash = 0;
+    }
+
+    static void TrimTextureBindingTable(HRenderContext render_context)
+    {
+        uint32_t num_bindings    = render_context->m_TextureBindTable.Size();
+        uint32_t last_zero_index = -1;
+
+        for (uint32_t i = 0; i < num_bindings; ++i)
+        {
+            if (render_context->m_TextureBindTable[i].m_Texture == 0)
+            {
+                if (last_zero_index == -1)
+                {
+                    last_zero_index = i;
+                }
+            }
+            else
+            {
+                last_zero_index = -1;
+            }
+        }
+
+        // Trim the iteration space
+        if (last_zero_index != -1)
+        {
+            render_context->m_TextureBindTable.SetSize(last_zero_index);
+        }
+    }
+
+    static void GetRenderContextTextures(HRenderContext render_context, const dmArray<Sampler>& samplers, dmGraphics::HTexture* textures)
+    {
+        uint32_t num_bindings = render_context->m_TextureBindTable.Size();
+        for (uint32_t i = 0; i < num_bindings; ++i)
+        {
+            uint32_t sampler_index       = i;
+            dmGraphics::HTexture texture = textures[i];
+
+            // If a texture has been bound by a sampler hash, the material must have a valid sampler for it
+            if (render_context->m_TextureBindTable[i].m_Samplerhash)
+            {
+                int32_t hash_sampler_index = GetProgramSamplerIndex(samplers, render_context->m_TextureBindTable[i].m_Samplerhash);
+                if (hash_sampler_index >= 0)
+                {
+                    sampler_index = hash_sampler_index;
+                    texture       = render_context->m_TextureBindTable[i].m_Texture;
+                }
+                // The sampler doesn't exist, so we ignore it.
+                else continue;
+            }
+            else if (texture == 0)
+            {
+                texture = render_context->m_TextureBindTable[i].m_Texture;
+            }
+
+            if (sampler_index >= 0 && sampler_index < RenderObject::MAX_TEXTURE_COUNT)
+            {
+                textures[sampler_index] = texture;
+            }
+            else
+            {
+                dmLogOnceWarning("Unable to bind texture to unit %d, max %d texture units are supported.", i, RenderObject::MAX_TEXTURE_COUNT);
+            }
+        }
+    }
+
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options)
     {
         DM_PROFILE("DrawRenderList");
 
@@ -676,13 +849,45 @@ namespace dmRender
         // The sort order is also one below the Texts flush which is only also debug stuff.
         FlushDebug(context, 0xfffffe);
 
+        FrustumPlanes frustum_num_planes       = dmRender::FRUSTUM_PLANES_SIDES;
+        const dmVMath::Matrix4* frustum_matrix = 0;
+
+        if (frustum_options)
+        {
+            frustum_num_planes = frustum_options->m_NumPlanes;
+            frustum_matrix     = &frustum_options->m_Matrix;
+        }
+
+        if (context->m_CurrentRenderCamera != 0)
+        {
+            RenderCamera* camera = context->m_RenderCameras.Get(context->m_CurrentRenderCamera);
+            if (camera)
+            {
+                // In case the camera has changed since last update
+                if (camera->m_Dirty)
+                {
+                    UpdateRenderCamera(context, context->m_CurrentRenderCamera, &camera->m_LastPosition, &camera->m_LastRotation);
+                }
+
+                context->m_View       = camera->m_View;
+                context->m_Projection = camera->m_Projection;
+                context->m_ViewProj   = camera->m_ViewProjection;
+
+                if (context->m_CurrentRenderCameraUseFrustum)
+                {
+                    frustum_matrix = &camera->m_ViewProjection;
+                }
+            }
+        }
+
         // Cleared once per frame
         if (context->m_RenderListRanges.Empty())
         {
             SortRenderList(context);
         }
 
-        dmhash_t frustum_hash = frustum_matrix ? dmHashBuffer64((const void*)frustum_matrix, 16*sizeof(float)) : 0;
+        dmhash_t frustum_hash = frustum_matrix ? dmHashBuffer64((const void*) frustum_matrix, 16*sizeof(float)) : 0;
+
         if (context->m_FrustumHash != frustum_hash)
         {
             // We use this to avoid calling the culling functions more than once in a row
@@ -691,7 +896,7 @@ namespace dmRender
             if (frustum_matrix)
             {
                 dmIntersection::Frustum frustum;
-                dmIntersection::CreateFrustumFromMatrix(*frustum_matrix, true, frustum);
+                dmIntersection::CreateFrustumFromMatrix(*frustum_matrix, true, (int) frustum_num_planes, frustum);
                 FrustumCulling(context, frustum);
             }
             else
@@ -789,6 +994,69 @@ namespace dmRender
         return Draw(context, predicate, constant_buffer);
     }
 
+    void DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer)
+    {
+        HComputeProgram compute_program = render_context->m_ComputeProgram;
+
+        if (compute_program == 0)
+        {
+            return;
+        }
+
+        dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
+        dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT] = {};
+
+        dmGraphics::EnableProgram(context, compute_program->m_Program);
+        GetRenderContextTextures(render_context, compute_program->m_Samplers, render_context_textures);
+
+        uint8_t next_texture_unit = 0;
+        for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if (render_context_textures[i])
+            {
+                dmGraphics::HTexture texture = render_context_textures[i];
+
+                uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
+                for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
+                {
+                    dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
+
+                    HSampler sampler = GetProgramSampler(compute_program->m_Samplers, next_texture_unit);
+                    ApplyProgramSampler(render_context, sampler, next_texture_unit, texture);
+
+                    next_texture_unit++;
+                }
+            }
+        }
+
+        ApplyComputeProgramConstants(render_context, compute_program);
+
+        if (constant_buffer)
+        {
+            ApplyNamedConstantBuffer(render_context, compute_program, constant_buffer);
+        }
+
+        dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
+
+        next_texture_unit = 0;
+        for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if (render_context_textures[i])
+            {
+                dmGraphics::HTexture texture = render_context_textures[i];
+                uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
+                for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
+                {
+                    dmGraphics::DisableTexture(context, next_texture_unit, texture);
+                    next_texture_unit++;
+                }
+            }
+        }
+
+        dmGraphics::DisableProgram(context);
+        TrimTextureBindingTable(render_context);
+    }
+
     // NOTE: Currently only used externally in 1 test (fontview.cpp)
     // TODO: Replace that occurrance with DrawRenderList
     Result Draw(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
@@ -796,14 +1064,16 @@ namespace dmRender
         if (render_context == 0x0)
             return RESULT_INVALID_CONTEXT;
 
-
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
+        dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT] = {};
 
-        HMaterial material = render_context->m_Material;
+        HMaterial material         = render_context->m_Material;
         HMaterial context_material = render_context->m_Material;
+
         if(context_material)
         {
             dmGraphics::EnableProgram(context, GetMaterialProgram(context_material));
+            GetRenderContextTextures(render_context, context_material->m_Samplers, render_context_textures);
         }
 
         dmGraphics::PipelineState ps_orig = dmGraphics::GetPipelineState(context);
@@ -829,6 +1099,11 @@ namespace dmRender
                 {
                     material = ro->m_Material;
                     dmGraphics::EnableProgram(context, GetMaterialProgram(material));
+
+                    // Reset the override texture binding array. The new material may have a different
+                    // resource layout than the current material.
+                    memset(render_context_textures, 0, sizeof(render_context_textures));
+                    GetRenderContextTextures(render_context, material->m_Samplers, render_context_textures);
                 }
             }
 
@@ -846,41 +1121,63 @@ namespace dmRender
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
-                if (render_context->m_Textures[i])
+                if (render_context_textures[i])
                 {
-                    texture = render_context->m_Textures[i];
+                    texture = render_context_textures[i];
                 }
 
                 if (texture)
                 {
-                    for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
+                    uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
+                    for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                     {
-                        // TODO paged-atlas: We can remove the HSampler concept now I think, unless we want to do validation in a debug runtime?
-                        HSampler sampler = GetMaterialSampler(material, next_texture_unit);
-
+                        HSampler sampler = GetProgramSampler(material->m_Samplers, next_texture_unit);
                         dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
-                        ApplyMaterialSampler(render_context, material, sampler, next_texture_unit, texture);
+                        ApplyProgramSampler(render_context, sampler, next_texture_unit, texture);
 
                         next_texture_unit++;
                     }
                 }
             }
 
-            dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer, GetMaterialProgram(material));
+            dmGraphics::HProgram material_program = GetMaterialProgram(material);
+
+            for (int i = 0; i < RenderObject::MAX_VERTEX_BUFFER_COUNT; ++i)
+            {
+                if (ro->m_VertexBuffers[i])
+                {
+                    dmGraphics::EnableVertexBuffer(context, ro->m_VertexBuffers[i], i);
+                }
+                if (ro->m_VertexDeclarations[i])
+                {
+                    dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclarations[i], i, ro->m_VertexBufferOffsets[i], material_program);
+                }
+            }
 
             if (ro->m_IndexBuffer)
-                dmGraphics::DrawElements(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer);
+                dmGraphics::DrawElements(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer, ro->m_InstanceCount);
             else
-                dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount);
+                dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_InstanceCount);
 
-            dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
+            for (int i = 0; i < RenderObject::MAX_VERTEX_BUFFER_COUNT; ++i)
+            {
+                if (ro->m_VertexBuffers[i])
+                {
+                    dmGraphics::DisableVertexBuffer(context, ro->m_VertexBuffers[i]);
+                }
+
+                if (ro->m_VertexDeclarations[i])
+                {
+                    dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclarations[i]);
+                }
+            }
 
             next_texture_unit = 0;
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
-                if (render_context->m_Textures[i])
-                    texture = render_context->m_Textures[i];
+                if (render_context_textures[i])
+                    texture = render_context_textures[i];
                 if (texture)
                 {
                     for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
@@ -894,15 +1191,17 @@ namespace dmRender
 
         ResetRenderStateIfChanged(context, ps_orig, dmGraphics::GetPipelineState(context));
 
+        TrimTextureBindingTable(render_context);
+
         return RESULT_OK;
     }
 
-    Result DrawDebug3d(HRenderContext context, const dmVMath::Matrix4* frustum_matrix)
+    Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options)
     {
         if (!context->m_DebugRenderer.m_RenderContext) {
             return RESULT_INVALID_CONTEXT;
         }
-        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_matrix);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_options);
     }
 
     Result DrawDebug2d(HRenderContext context) // Deprecated
@@ -933,5 +1232,49 @@ namespace dmRender
         predicate->m_Tags[predicate->m_TagCount++] = tag;
         std::sort(predicate->m_Tags, predicate->m_Tags+predicate->m_TagCount);
         return RESULT_OK;
+    }
+
+    void SetupContextEventCallback(void* context, ContextEventCallback callback)
+    {
+        PlatformSetupContextEventCallback(context, callback);
+    }
+
+    void OnContextEvent(void* context, RenderContextEvent event_type)
+    {
+        RenderContext* render_context = (RenderContext*)context;
+        if (event_type == dmRender::CONTEXT_LOST)
+        {
+            SetRenderPause(render_context, 1u);
+            dmGraphics::InvalidateGraphicsHandles(render_context->m_GraphicsContext);
+        }
+        if (render_context->m_CallbackInfo != 0x0)
+        {
+            dmScript::LuaCallbackInfo* cbk = render_context->m_CallbackInfo;
+            if (!dmScript::IsCallbackValid(cbk))
+            {
+                return;
+            }
+            lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+            DM_LUA_STACK_CHECK(L, 0);
+
+            if (!dmScript::SetupCallback(cbk))
+            {
+                return;
+            }
+            lua_pushinteger(L, event_type);
+            int ret = dmScript::PCall(L, 2, 0);
+            (void)ret;
+            dmScript::TeardownCallback(cbk);
+        }
+    }
+
+    void SetRenderPause(HRenderContext context, uint8_t is_paused)
+    {
+        context->m_IsRenderPaused = is_paused;
+    }
+
+    bool IsRenderPaused(HRenderContext context)
+    {
+        return context->m_IsRenderPaused;
     }
 }

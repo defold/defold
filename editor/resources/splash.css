@@ -1,75 +1,85 @@
 @font-face {
-  src: url("OpenSans-Regular.ttf"); }
-
+  src: url("OpenSans-Regular.ttf");
+}
 @font-face {
-  src: url("SourceSansPro-Regular.ttf"); }
-
+  src: url("SourceSansPro-Regular.ttf");
+}
 @font-face {
-  src: url("SourceSansPro-Semibold.ttf"); }
-
+  src: url("SourceSansPro-Semibold.ttf");
+}
 @font-face {
-  src: url("SourceSansPro-Italic.ttf"); }
-
+  src: url("SourceSansPro-Italic.ttf");
+}
 @font-face {
-  src: url("SourceSansPro-Light.ttf"); }
-
+  src: url("SourceSansPro-Light.ttf");
+}
 @font-face {
-  src: url("DejaVuSansMono.ttf"); }
-
+  src: url("DejaVuSansMono.ttf");
+}
 .root {
   -fx-font-size: 13px;
-  -fx-font-family: "Source Sans Pro"; }
+  -fx-font-family: "Source Sans Pro";
+}
 
 Text.strong {
-  -fx-font-family: "Source Sans Pro Semibold"; }
+  -fx-font-family: "Source Sans Pro Semibold";
+}
 
 Text.emphasis {
-  -fx-font-family: "Source Sans Pro Italic"; }
+  -fx-font-family: "Source Sans Pro Italic";
+}
 
 Label.strong {
-  -fx-font-family: "Source Sans Pro Semibold"; }
+  -fx-font-family: "Source Sans Pro Semibold";
+}
 
 Label.emphasis {
-  -fx-font-family: "Source Sans Pro Italic"; }
+  -fx-font-family: "Source Sans Pro Italic";
+}
 
 #build-errors-container .tree-cell {
   -fx-font-family: "Dejavu Sans Mono";
-  -fx-font-size: 90%; }
+  -fx-font-size: 90%;
+}
 
 .cljfx-form-title {
   -fx-font-family: "Source Sans Pro Light";
   -fx-font-size: 200%;
-  -fx-font-smoothing-type: lcd; }
+  -fx-font-smoothing-type: lcd;
+}
 
 #welcome-dialog .df-header {
   -fx-font-family: "Source Sans Pro Light";
   -fx-font-size: 150%;
-  -fx-font-smoothing-type: lcd; }
+  -fx-font-smoothing-type: lcd;
+}
 
 #welcome-dialog #left-pane .pane-button {
   -fx-font-family: "Source Sans Pro Semibold";
-  -fx-font-size: 110%; }
+  -fx-font-size: 110%;
+}
 
 #welcome-dialog #progress-overlay #progress-header {
   -fx-font-family: "Source Sans Pro Light";
   -fx-font-size: 150%;
-  -fx-font-smoothing-type: lcd; }
+  -fx-font-smoothing-type: lcd;
+}
 
 * {
-  -df-background-darker: derive(#212428, -10%);
-  -df-background-dark: derive(#212428, -5%);
+  -df-background-darker: derive(#212428, -40%);
   -df-background: #212428;
-  -df-background-light: derive(#212428, 10%);
-  -df-background-lighter: derive(#212428, 20%);
-  -df-component-darker: derive(#464c55, -20%);
-  -df-component-dark: derive(#464c55, -10%);
-  -df-component: #464c55;
-  -df-component-light: derive(#464c55, 10%);
-  -df-component-lighter: derive(#464c55, 20%);
-  -df-text-darker: derive(#b4bac1, -20%);
-  -df-text-dark: derive(#b4bac1, -40%);
-  -df-text: #b4bac1;
-  -df-text-selected: derive(#b4bac1, 20%);
+  -df-background-light: #2c2e33;
+  -df-background-lighter: #3B3F43;
+  -df-background-input: #292a2f;
+  -df-component-darker: #212428;
+  -df-component-dark: #393c41;
+  -df-component-light: #45474B;
+  -df-component-lighter: #52575c;
+  -df-component-icon: #8f9296;
+  -df-text-dark: #848484;
+  -df-text: #a2b0be;
+  -df-text-light: #f0f2f6;
+  -df-text-selected: #f0f2f6;
   -df-defold-red-dark: derive(#e32f44, -10%);
   -df-defold-red: #e32f44;
   -df-defold-red-light: derive(#e32f44, 10%);
@@ -116,105 +126,126 @@ Label.emphasis {
   -df-script-file: -df-defold-yellow;
   -df-script-file-active: -df-defold-yellow-lighter;
   -df-property-file: -df-defold-green;
-  -df-property-file-active: -df-defold-green-light; }
+  -df-property-file-active: -df-defold-green-light;
+}
 
 /* See modena.css for progress bar styling */
 .progress-bar {
   -fx-background-radius: 0;
-  -fx-border-radius: 0; }
-  .progress-bar .track {
-    -fx-background-radius: 0;
-    -fx-border-radius: 0;
-    -fx-border-width: 1;
-    -fx-border-color: -df-background-lighter;
-    -fx-background-insets: 0; }
-  .progress-bar .bar {
-    -fx-background-radius: 0;
-    -fx-border-radius: 0;
-    -fx-min-height: 10;
-    -fx-padding: 8 0; }
+  -fx-border-radius: 0;
+}
+.progress-bar .track {
+  -fx-background-radius: 0;
+  -fx-border-radius: 0;
+  -fx-border-width: 1;
+  -fx-border-color: -df-background-lighter;
+  -fx-background-insets: 0;
+}
+.progress-bar .bar {
+  -fx-background-radius: 0;
+  -fx-border-radius: 0;
+  -fx-min-height: 10;
+  -fx-padding: 8 0;
+}
 
 .small-progress-bar .bar {
   -fx-background-color: -df-defold-blue-lighter;
   -fx-background-insets: 0;
   -fx-background-radius: 0;
-  -fx-padding: 1em; }
-
+  -fx-padding: 1em;
+}
 .small-progress-bar .track {
   -fx-background-color: -df-background;
   -fx-background-insets: 0;
-  -fx-background-radius: 0; }
+  -fx-background-radius: 0;
+}
 
 .really-small-progress-bar {
   -fx-background-radius: 0;
-  -fx-min-width: 140px; }
-  .really-small-progress-bar .bar {
-    -fx-background-color: -df-defold-blue-lighter;
-    -fx-background-insets: 0;
-    -fx-background-radius: 4;
-    -fx-pref-height: 5px;
-    -fx-padding: 0em; }
-  .really-small-progress-bar .track {
-    -fx-background-color: -df-background-lighter;
-    -fx-background-insets: 0;
-    -fx-border-width: 0;
-    -fx-background-radius: 4; }
+  -fx-min-width: 140px;
+}
+.really-small-progress-bar .bar {
+  -fx-background-color: -df-defold-blue-lighter;
+  -fx-background-insets: 0;
+  -fx-background-radius: 4;
+  -fx-pref-height: 5px;
+  -fx-padding: 0em;
+}
+.really-small-progress-bar .track {
+  -fx-background-color: -df-background-lighter;
+  -fx-background-insets: 0;
+  -fx-border-width: 0;
+  -fx-background-radius: 4;
+}
 
 .progress-indicator {
-  -fx-progress-color: -df-component; }
+  -fx-progress-color: -df-component-lighter;
+}
 
 @font-face {
-  font-family: 'Source Sans Pro';
-  src: url("SourceSansPro-Regular.ttf"); }
-
+  font-family: "Source Sans Pro";
+  src: url("SourceSansPro-Regular.ttf");
+}
 .root {
   -fx-background-color: transparent !important;
-  -fx-text-fill: -df-text; }
+  -fx-text-fill: -df-text;
+}
 
 #launch-error {
-  -fx-text-fill: -df-defold-red; }
+  -fx-text-fill: -df-defold-red;
+}
 
 #game * {
   -fx-text-fill: white;
-  -fx-font-size: 90%; }
+  -fx-font-size: 90%;
+}
 
 #footer * {
   -fx-text-fill: -df-text-dark;
-  -fx-font-size: 90%; }
+  -fx-font-size: 90%;
+}
 
 #sponsors {
-  -fx-padding: 0 0 16px 0; }
+  -fx-padding: 0 0 16px 0;
+}
 
 #sponsor-icons {
   -fx-opacity: 0.7;
   -fx-padding: 0 0 33px 0;
-  -fx-spacing: 33px; }
+  -fx-spacing: 33px;
+}
 
 #startup-tip > .text {
   -fx-fill: -df-text-dark;
-  -fx-padding: 0; }
+  -fx-padding: 0;
+}
 
 #startup-tip > .hyperlink {
   -fx-text-fill: -df-defold-blue-light;
   -fx-border-width: 0;
-  -fx-padding: 0; }
+  -fx-padding: 0;
+}
 
 #startup-tip > .hyperlink:hover {
-  -fx-text-fill: -df-defold-blue-lighter; }
+  -fx-text-fill: -df-defold-blue-lighter;
+}
 
 .button {
   -fx-background-radius: 5;
   -fx-border-radius: 4;
   -fx-padding: 6px 17px;
   -fx-min-width: 100px;
-  -fx-background-color: -df-background-lighter;
+  -fx-background-color: -df-component-dark;
   -fx-background-insets: 0;
-  -fx-border-color: -df-background-dark;
+  -fx-border-color: -df-component-darker;
   -fx-border-width: 1;
-  -fx-text-fill: -df-text; }
+  -fx-text-fill: -df-text;
+}
 
 .button:hover {
-  -fx-background-color: -df-component-darker; }
+  -fx-background-color: -df-component-lighter;
+}
 
 .button:armed {
-  -fx-background-color: -df-background-lighter; }
+  -fx-background-color: -df-component-light;
+}

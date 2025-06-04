@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -30,10 +30,7 @@
 
 #include <input/input_ddf.h>
 
-// TODO: Move to the build system and default to Have=1
-#if defined(__NX__) || defined(__SCE__)
-    #define DM_HAVE_KEYBOARD_SUPPORT 0
-#else
+#if !defined(DM_HAVE_KEYBOARD_SUPPORT)
     #define DM_HAVE_KEYBOARD_SUPPORT 1
 #endif
 
@@ -51,17 +48,22 @@ protected:
         m_Context = dmInput::NewContext(params);
         dmInputDDF::GamepadMaps* gamepad_maps;
 
-        dmDDF::Result result = dmDDF::LoadMessageFromFile(DM_HOSTFS "build/src/test/test.gamepadsc", dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps);
+        char buffer[128];
+        #define HOSTPATH(_PATH) dmTestUtil::MakeHostPath(buffer, sizeof(buffer), _PATH)
+
+        dmDDF::Result result = dmDDF::LoadMessageFromFile(HOSTPATH("build/src/test/test.gamepadsc"), dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps);
 
         (void)result;
         assert(dmDDF::RESULT_OK == result);
         dmInput::RegisterGamepads(m_Context, gamepad_maps);
         dmDDF::FreeMessage(gamepad_maps);
-        dmDDF::LoadMessageFromFile(DM_HOSTFS "build/src/test/test.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TestDDF);
-        dmDDF::LoadMessageFromFile(DM_HOSTFS "build/src/test/test2.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_Test2DDF);
-        dmDDF::LoadMessageFromFile(DM_HOSTFS "build/src/test/combinations.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_ComboDDF);
-        dmDDF::LoadMessageFromFile(DM_HOSTFS "build/src/test/test_text.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TextDDF);
+        dmDDF::LoadMessageFromFile(HOSTPATH("build/src/test/test.input_bindingc"), dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TestDDF);
+        dmDDF::LoadMessageFromFile(HOSTPATH("build/src/test/test2.input_bindingc"), dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_Test2DDF);
+        dmDDF::LoadMessageFromFile(HOSTPATH("build/src/test/combinations.input_bindingc"), dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_ComboDDF);
+        dmDDF::LoadMessageFromFile(HOSTPATH("build/src/test/test_text.input_bindingc"), dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TextDDF);
         m_DT = 1.0f / 60.0f;
+
+        #undef HOSTPATH
     }
 
     virtual void TearDown()
@@ -137,7 +139,7 @@ TEST_F(InputTest, Text) {
     dmInput::DeleteBinding(binding);
 }
 
-#if DM_HAVE_KEYBOARD_SUPPORT
+#if defined(DM_HAVE_KEYBOARD_SUPPORT) && DM_HAVE_KEYBOARD_SUPPORT
 TEST_F(InputTest, Keyboard)
 {
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);

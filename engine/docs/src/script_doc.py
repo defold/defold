@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -172,49 +172,44 @@ def _strip_paragraph(text):
     return text.replace('<p>', '').replace('</p>', '')
 
 def _markdownify(t):
+    md.reset()
     t = md.convert(t)
     return _strip_paragraph(t)
 
-def _parse_comment(text):
-    text = _strip_comment_stars(text)
-    # The regexp means match all strings that:
-    # * begins with line start, possible whitespace and an @
-    # * followed by non-white-space (the tag)
-    # * followed by possible spaces
-    # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
-    lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', text, re.MULTILINE)
 
-    name_found = False
-    document_comment = False
-    element_type = script_doc_ddf_pb2.FUNCTION
-    for (tag, value) in lst:
-        tag = tag.strip()
-        value = value.strip()
-        if tag == 'name':
-            name_found = True
-        elif tag == 'variable':
-            element_type = script_doc_ddf_pb2.VARIABLE
-        elif tag == 'message':
-            element_type = script_doc_ddf_pb2.MESSAGE
-        elif tag == 'property':
-            element_type = script_doc_ddf_pb2.PROPERTY
-        elif tag == 'struct':
-            element_type = script_doc_ddf_pb2.STRUCT
-        elif tag == 'class':
-            element_type = script_doc_ddf_pb2.CLASS
-        elif tag == 'macro':
-            element_type = script_doc_ddf_pb2.MACRO
-        elif tag == 'enum':
-            element_type = script_doc_ddf_pb2.ENUM
-        elif tag == 'typedef':
-            element_type = script_doc_ddf_pb2.TYPEDEF
-        elif tag == 'document':
-            document_comment = True
+def tags_to_proto_type(tags):
+    # we sometimes annotate with "@type typedef" or "@type class" instead
+    # of "@typedef" and "@class"
+    if 'type' in tags:
+        value = tags["type"]
+        if tags.get(value) is None:
+            tags[value] = ""
 
-    if not name_found:
-        logging.warn('Missing tag @name in "%s"' % text)
-        return None
+    if   'variable' in tags: return script_doc_ddf_pb2.VARIABLE
+    elif 'message' in tags: return script_doc_ddf_pb2.MESSAGE
+    elif 'property' in tags: return script_doc_ddf_pb2.PROPERTY
+    elif 'struct' in tags: return script_doc_ddf_pb2.STRUCT
+    elif 'class' in tags: return script_doc_ddf_pb2.CLASS
+    elif 'macro' in tags: return script_doc_ddf_pb2.MACRO
+    elif 'enum' in tags: return script_doc_ddf_pb2.ENUM
+    elif 'typedef' in tags: return script_doc_ddf_pb2.TYPEDEF
+    elif 'constant' in tags: return script_doc_ddf_pb2.CONSTANT
+    return script_doc_ddf_pb2.FUNCTION
 
+
+def proto_to_type(p):
+    if p == script_doc_ddf_pb2.VARIABLE: return "variable"
+    elif p == script_doc_ddf_pb2.MESSAGE: return 'message'
+    elif p == script_doc_ddf_pb2.PROPERTY: return 'property'
+    elif p == script_doc_ddf_pb2.STRUCT: return 'struct'
+    elif p == script_doc_ddf_pb2.CLASS: return 'class'
+    elif p == script_doc_ddf_pb2.MACRO: return 'macro'
+    elif p == script_doc_ddf_pb2.ENUM: return 'enum'
+    elif p == script_doc_ddf_pb2.TYPEDEF: return 'typedef'
+    elif p == script_doc_ddf_pb2.CONSTANT: return 'constant'
+    return "function"
+
+def _parse_description(text):
     desc_start = min(len(text), text.find('\n'))
     brief = text[0:desc_start]
     desc_end = min(len(text), text.find('\n@'))
@@ -225,94 +220,129 @@ def _parse_comment(text):
             brief = brief[:50] + '...'
     elif not description and brief:
         description = brief
+    return description, brief
+
+def _parse_path(path):
+    file = ""
+    if path:
+        index = path.find('dmsdk')
+        if index != -1:
+            file = path[index:]
+    return path, file
+
+def _create_doc_info(tags):
+    info = script_doc_ddf_pb2.Info()
+    info.path, info.file = _parse_path(tags["path"])
+    if tags["path"] == "":
+        logging.warning('Missing tag @path for @name %s' % tags["name"])
+    if 'namespace' in tags:
+        info.namespace = tags["namespace"]
+    return info
+
+def _create_doc_element(tags):
+    element = script_doc_ddf_pb2.Element()
+    element.type = tags_to_proto_type(tags)
+
+    for value in tags["return"]:
+        """ Some of the possible variations:
+        @return name
+        @return [type:type]
+        @return [type:type] doc
+        @return name [type:type] doc
+        """
+        tmp = value.split(' ', 1)
+        if len(tmp) < 2:
+            tmp = [tmp[0], '']
+        if '[type:' in tmp[0]:
+            tmp = ['', value]
+        ret = element.returnvalues.add()
+        ret.name = tmp[0]
+        types, ret.doc = extract_type_from_docstr(tmp[1])
+        if isinstance(types, str):
+            types = [types]
+        ret.types.extend(types)
+
+    for value in tags["param"]:
+        tmp = value.split(' ', 1)
+        if len(tmp) < 2:
+            tmp = [tmp[0], '']
+        parameter = element.parameters.add()
+        parameter.is_optional, parameter.name = is_optional(tmp[0])
+        types, parameter.doc = extract_type_from_docstr(tmp[1])
+        if isinstance(types, str):
+            types = [types]
+        parameter.types.extend(types)
+
+    for value in tags["tparam"]:
+        tmp = value.split(' ', 1)
+        if len(tmp) < 2:
+            tmp = [tmp[0], '']
+        tparam = element.tparams.add()
+        tparam.name = tmp[0]
+        tparam.type, tparam.doc = extract_type_from_docstr(tmp[1])
+
+    for value in tags["member"]:
+        tmp = value.split(' ', 1)
+        if len(tmp) < 2:
+            tmp = [tmp[0], '']
+        member = element.members.add()
+        member.name = tmp[0]
+        member.type, member.doc = extract_type_from_docstr(tmp[1])
+
+    if 'examples' in tags:
+        element.examples = "".join(tags["examples"])
+
+    if 'replaces' in tags:
+        element.replaces = tags["replaces"]
+
+    return element
+
+def _parse_comment(text):
+    text = _strip_comment_stars(text)
+    # The regexp means match all strings that:
+    # * begins with line start, possible whitespace and an @
+    # * followed by non-white-space (the tag)
+    # * followed by possible spaces
+    # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
+    lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', text, re.MULTILINE)
+    tags = {
+        "path": "",
+        "language": "",
+        "param": [],
+        "tparam": [],
+        "note": [],
+        "return": [],
+        "member": [],
+        "examples": [],
+    }
+    for tag,value in lst:
+        tag = tag.strip()
+        value = value.strip()
+        v = tags.get(tag)
+        if type(v) is list:
+            v.append(value)
+        else:
+            tags[tag] = value
+
+    # @struct somename
+    if "struct" in tags and "name" not in tags:
+        logging.warning('Missing tag @name, using value %s from @struct' % tags["struct"])
+        tags["name"] = tags["struct"]
+
+    if "name" not in tags:
+        logging.warning('Missing tag @name in "%s"' % text)
+        return None
 
     element = None
-
-    if document_comment:
-        element = script_doc_ddf_pb2.Info()
-        element.brief = _markdownify(brief)
-        element.description = _markdownify(description)
-        element.file = ''
-        element.path = ''
+    if "document" in tags:
+        element = _create_doc_info(tags)
     else:
-        element = script_doc_ddf_pb2.Element()
-        element.type = element_type
-        element.brief = _markdownify(brief)
-        element.description = _markdownify(description)
+        element = _create_doc_element(tags)
 
-    namespace_found = False
-    for (tag, value) in lst:
-        value = value.strip()
-        md.reset()
-        if tag == 'name':
-            element.name = value
-        elif tag == 'note':
-            element.notes.append(value)
-        elif tag == 'return':
-            """ Some of the possible variations:
-            @return name
-            @return [type:type]
-            @return [type:type] doc
-            @return name [type:type] doc
-            """
-            tmp = value.split(' ', 1)
-            if len(tmp) < 2:
-                tmp = [tmp[0], '']
-            if '[type:' in tmp[0]:
-                tmp = ['', value]
-            ret = element.returnvalues.add()
-            ret.name = tmp[0]
-            types, ret.doc = extract_type_from_docstr(tmp[1])
-            if isinstance(types, str):
-                types = [types]
-            ret.types.extend(types)
-            ret.doc = _markdownify(ret.doc)
-        elif tag == 'param':
-            tmp = value.split(' ', 1)
-            if len(tmp) < 2:
-                tmp = [tmp[0], '']
-            param = element.parameters.add()
-            param.name = tmp[0]
-            types, param.doc = extract_type_from_docstr(tmp[1])
-            if isinstance(types, str):
-                types = [types]
-            param.types.extend(types)
-            param.doc = _markdownify(param.doc)
-
-        elif tag == 'member':
-            tmp = value.split(' ', 1)
-            if len(tmp) < 2:
-                tmp = [tmp[0], '']
-            mem = element.members.add()
-            mem.name = tmp[0]
-            mem.type, mem.doc = extract_type_from_docstr(tmp[1])
-            mem.doc = _markdownify(mem.doc)
-        elif tag == 'tparam':
-            tmp = value.split(' ', 1)
-            if len(tmp) < 2:
-                tmp = [tmp[0], '']
-            mem = element.tparams.add()
-            mem.name = tmp[0]
-            mem.type, mem.doc = extract_type_from_docstr(tmp[1])
-            mem.doc = _markdownify(mem.doc)
-
-        elif tag == 'examples':
-            element.examples = _markdownify(value)
-        elif tag == 'path':
-            element.path = value
-            index = value.find('dmsdk')
-            if index != -1:
-                element.file = value[index:]
-        elif tag == 'replaces':
-            element.replaces = _markdownify(value)
-        elif tag == 'namespace' and document_comment:
-            # only care for @namespace in @document comments.
-            element.namespace = value
-            namespace_found = True
-
-    if document_comment and not namespace_found:
-        logging.warn('Missing tag @namespace in "%s"' % str)
-        return None
+    element.description, element.brief = _parse_description(text)
+    element.name = tags["name"]
+    element.language = tags["language"]
+    element.notes.extend(tags["note"])
 
     return element
 
@@ -336,139 +366,6 @@ def is_optional(str):
 
     return False, str
 
-def _parse_comment_yaml(str):
-    str = _strip_comment_stars(str)
-    # The regexp means match all strings that:
-    # * begins with line start, possible whitespace and an @
-    # * followed by non-white-space (the tag)
-    # * followed by possible spaces
-    # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
-    lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', str, re.MULTILINE)
-
-    name_found = False
-    element_type = "function"
-    for (tag, value) in lst:
-        tag = tag.strip()
-        value = value.strip()
-        if tag == 'name':
-            name_found = True
-        elif tag == 'variable':
-            element_type = "variable"
-        elif tag == 'message':
-            element_type = "message"
-        elif tag == 'property':
-            element_type = "property"
-        elif tag == 'struct':
-            element_type = "struct"
-        elif tag == 'class':
-            element_type = "class"
-        elif tag == 'macro':
-            element_type = "macro"
-        elif tag == 'enum':
-            element_type = "enum"
-        elif tag == 'typedef':
-            element_type = "typedef"
-        elif tag == 'document':
-            element_type = "document"
-
-    if not name_found:
-        logging.warn('Missing tag @name in "%s"' % str)
-        return None
-
-    desc_start = min(len(str), str.find('\n'))
-    brief = str[0:desc_start]
-    desc_end = min(len(str), str.find('\n@'))
-    description = str[desc_start:desc_end].strip()
-
-    element = {}
-    element["type"] = element_type
-    element["brief"] = brief
-    element["description"] = description
-    element["returns"] = []
-    element["members"] = []
-    element["tparams"] = []
-    element["params"] = []
-    element["notes"] = []
-
-    namespace_found = False
-    for (tag, value) in lst:
-        value = value.strip()
-        if tag == 'name':
-            element["name"] = value
-
-        elif tag == 'note':
-            element["notes"].append(value)
-
-        elif tag == 'return':
-            tmp = value.split(' ', 1)
-            if len(tmp) < 2:
-                tmp = [tmp[0], '']
-            ret = {}
-            ret["name"] = tmp[0]
-            ret["type"], ret["doc"] = extract_type_from_docstr(tmp[1])
-            element["returns"].append(ret)
-
-        elif tag == 'param':
-            tmp = value.split(' ', 1)
-            if len(tmp) < 2:
-                tmp = [tmp[0], '']
-            param = {}
-            param["optional"], param["name"] = is_optional(tmp[0])
-            # param["name"] = tmp[0]
-            param["type"], param["doc"] = extract_type_from_docstr(tmp[1])
-            element["params"].append(param)
-
-        elif tag == 'member':
-            tmp = value.split(' ', 1)
-            if len(tmp) < 2:
-                tmp = [tmp[0], '']
-            mem = {}
-            mem["name"] = tmp[0]
-            mem["type"], mem["doc"] = extract_type_from_docstr(tmp[1])
-            element["members"].append(mem)
-
-        elif tag == 'tparam':
-            tmp = value.split(' ', 1)
-            if len(tmp) < 2:
-                tmp = [tmp[0], '']
-            mem = {}
-            mem["name"] = tmp[0]
-            mem["type"], mem["doc"] = extract_type_from_docstr(tmp[1])
-            element["tparams"].append(mem)
-
-        elif tag == 'examples':
-            element["examples"] = value
-
-        elif tag == 'replaces':
-            element["replaces"] = value
-
-        elif tag == 'namespace' and element_type == 'document':
-            # only care for @namespace in @document comments.
-            element["namespace"] = value
-            namespace_found = True
-
-    if element_type == 'document' and not namespace_found:
-        logging.warn('Missing tag @namespace in "%s"' % str)
-        return None
-
-    return element
-
-def parse_document_yaml(doc_str):
-    lst = re.findall('/\*#(.*?)\*/', doc_str, re.DOTALL)
-    info = {}
-    element_list = []
-    for comment_str in lst:
-        element = _parse_comment_yaml(comment_str)
-        if element == None:
-            continue
-
-        if element["type"] == 'document':
-            info = element
-        else:
-            element_list.append(element)
-
-    return info, element_list
-
 
 def parse_document(doc_str):
     doc = script_doc_ddf_pb2.Document()
@@ -479,7 +376,7 @@ def parse_document(doc_str):
         element = _parse_comment(comment_str)
         if type(element) is script_doc_ddf_pb2.Element:
             element_list.append(element)
-        if type(element) is script_doc_ddf_pb2.Info:
+        elif type(element) is script_doc_ddf_pb2.Info:
             doc_info = element
 
     if doc_info:
@@ -488,44 +385,13 @@ def parse_document(doc_str):
     for i, e in enumerate(element_list):
         doc.elements.add().MergeFrom(e)
 
+    if doc.info.language == "":
+        if doc.info.namespace.startswith("dm"):
+            doc.info.language = "C++"
+        else:
+            doc.info.language = "Lua"
+
     return doc
-
-# add a ref doc group to each document
-# this can be used to build a menu with the ref docs grouped in a certain way
-def add_group_to_doc_dict(doc_dict):
-    info = doc_dict.get("info")
-    if info:
-        namespace = info.get("namespace")
-        refdocgroups = [
-            {
-                "group": "SYSTEM",
-                "namespaces": ["crash", "gui", "go", "profiler", "render", "resource", "sys", "window", "engine", "physics"]
-            },
-            {
-                "group": "COMPONENTS",
-                "namespaces": ["camera", "collectionproxy", "collectionfactory", "collisionobject", "factory", "label", "model", "particlefx", "sound", "spine", "sprite", "tilemap"]
-            },
-            {
-                "group": "SCRIPT",
-                "namespaces": ["buffer", "builtins", "html5", "http", "image", "json", "msg", "timer", "vmath", "zlib"]
-            },
-            {
-                "group": "LUA STANDARD LIBS",
-                "namespaces": ["base", "bit", "coroutine", "debug", "io", "socket", "math", "os", "package", "string", "table"]
-            },
-        ]
-
-        # Should we get this from the actual @document segment instead, instead of trying to do it dynamically?
-
-        path = info.get('path', '')
-        if 'engine' in path:
-            info["group"] = "DEFOLD SDK"
-            return
-
-        for refdocgroup in refdocgroups:
-            if namespace in refdocgroup.get("namespaces"):
-                info["group"] = refdocgroup.get("group")
-                return
 
 def message_to_dict(message):
     ret = {}
@@ -547,36 +413,59 @@ def message_to_dict(message):
             ret[field.name] = str(value)
     return ret
 
-def doc_to_ydict(info, elements):
+def message_to_json_dict(message):
+    d = message_to_dict(message)
+    for e in d["elements"]:
+        e["description"] = _markdownify(e["description"])
+        e["brief"] = _markdownify(e["brief"])
+        e["examples"] = _markdownify(e["examples"])
+        e["replaces"] = _markdownify(e["replaces"])
+        for p in e["parameters"]:
+            p["doc"] = _markdownify(p["doc"])
+        for r in e["returnvalues"]:
+            r["doc"] = _markdownify(r["doc"])
+    return d
+
+def to_list(p):
+    if len(p) == 1: return p[0]
+    l = []
+    for v in p:
+        l.append(v)
+    return l
+
+def message_to_yaml_dict(message):
+    info = message.info
+    elements = message.elements
+
     api = []
 
-    module_name = info["namespace"]
+    module_name = info.namespace
     module = {
         'name': module_name,
         'type': "table",
-        'desc': info["description"],
+        'desc': info.description,
         'members': []
     }
 
     for element in elements:
         # name
-        elem_name = element["name"]
+        elem_name = element.name
         part_of_ns = elem_name.startswith(module_name)
         if part_of_ns:
             elem_name = elem_name[len(module_name)+1:]
 
         # type
-        elem_type = element["type"]
+        elem_type = proto_to_type(element.type)
         if elem_type == "variable":
             elem_type = "number"
 
         # desc
-        elem_desc = element["description"]
+        elem_desc = element.description
         if len(elem_desc) == 0:
-            elem_desc = element["brief"]
+            elem_desc = element.brief
 
         # notes
-        elem_notes = element["notes"]
+        elem_notes = to_list(element.notes)
 
         entry = {
             'name': elem_name,
@@ -590,13 +479,13 @@ def doc_to_ydict(info, elements):
 
             # parameters for functions
             elem_params = []
-            for param in element["params"]:
+            for param in element.parameters:
                 func_param = {
-                        'name': param["name"],
-                        'desc': param["doc"],
-                        'type': param["type"]
+                        'name': param.name,
+                        'desc': param.doc,
+                        'type': to_list(param.types)
                     }
-                if param["optional"]:
+                if param.is_optional:
                     func_param["optional"] = True
 
                 elem_params.append(func_param)
@@ -605,10 +494,10 @@ def doc_to_ydict(info, elements):
 
             # function returns
             elem_returns = []
-            for ret in element["returns"]:
+            for ret in element.returnvalues:
                 elem_returns.append({
-                        'desc': ret["doc"],
-                        'type': ret["type"]
+                        'desc': ret.doc,
+                        'type': to_list(ret.types)
                     })
             if len(elem_returns) > 0:
                 entry["returns"] = elem_returns
@@ -634,27 +523,25 @@ if __name__ == '__main__':
 
     doc_str = ''
     for name in args[:-1]:
-        f = open(name, 'r')
-        doc_str += f.read()
-        f.close()
+        with open(name, 'r') as f:
+            doc_str += f.read()
 
-    doc = parse_document(doc_str)
-    if doc:
-        output_file = args[-1]
-        f = open(output_file, "w")
-        if options.type == 'protobuf':
-            f.write(str(doc))
-        elif options.type == 'json':
-            doc_dict = message_to_dict(doc)
-            add_group_to_doc_dict(doc_dict)
-            json.dump(doc_dict, f, indent = 2)
-        elif options.type == 'script_api':
-            info, elements = parse_document_yaml(doc_str)
-            doc_dict = doc_to_ydict(info, elements)
-            yaml.dump(doc_dict, f, default_flow_style = False)
-        else:
-            print ('Unknown type: %s' % options.type)
-            sys.exit(5)
-        f.close()
+    output_file = args[-1]
+    f = open(output_file, "w")
+    if options.type == 'protobuf':
+        doc_msg = parse_document(doc_str)
+        f.write(str(doc_msg))
+    elif options.type == 'json':
+        doc_msg = parse_document(doc_str)
+        doc_dict = message_to_json_dict(doc_msg)
+        json.dump(doc_dict, f, indent = 2)
+    elif options.type == 'script_api':
+        doc_msg = parse_document(doc_str)
+        doc_dict = message_to_yaml_dict(doc_msg)
+        yaml.dump(doc_dict, f, default_flow_style = False)
+    else:
+        print ('Unknown type: %s' % options.type)
+        sys.exit(5)
+    f.close()
 
 

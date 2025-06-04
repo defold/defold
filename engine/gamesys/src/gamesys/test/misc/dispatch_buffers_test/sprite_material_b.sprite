@@ -1,0 +1,10 @@
+tile_set: "/tile/valid.tileset"
+default_animation: "anim"
+material: "/misc/dispatch_buffers_test/material_b.material"
+size {
+  x: 16.0
+  y: 16.0
+  z: 0.0
+  w: 0.0
+}
+size_mode: SIZE_MODE_MANUAL

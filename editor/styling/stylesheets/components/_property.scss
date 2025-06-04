@@ -12,9 +12,30 @@
     -fx-padding: 0;
     .label {
         -fx-padding: 0 4px 0 4px;
-        -fx-text-fill: -df-text;
+        -fx-text-fill: -df-text-dark;
         -fx-alignment: center;
     }
+    .text-field {
+        -fx-alignment: center-right;
+    }
+}
+
+.property-component-matrix {
+    -fx-spacing: 0;
+    -fx-padding: 0;
+    -fx-hgap: 0;
+    -fx-vgap: 7;
+
+    .label {
+        -fx-padding: 0 4px 0 8px;
+        -fx-text-fill: -df-text-dark;
+        -fx-alignment: center;
+
+        &.leftmost {
+            -fx-padding: 0 4px 0 4px;
+        }
+    }
+
     .text-field {
         -fx-alignment: center-right;
     }

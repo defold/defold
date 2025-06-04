@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -227,7 +227,7 @@ namespace dmConnectionPool
     static void PurgeExpired(HPool pool) {
         uint32_t n = pool->m_Connections.Size();
 
-        uint64_t now = dmTime::GetTime();
+        uint64_t now = dmTime::GetMonotonicTime();
         for (uint32_t i = 0; i < n; ++i) {
             Connection* c = &pool->m_Connections[i];
             if (c->m_State == STATE_CONNECTED && now >= c->m_Expires) {
@@ -304,7 +304,7 @@ namespace dmConnectionPool
     static Result Connect(HPool pool, const char* host, dmSocket::Address address, uint16_t port, bool ssl, int timeout,
                                     dmSocket::Socket* socket, dmSSLSocket::Socket* sslsocket, dmSocket::Result* sr)
     {
-        uint64_t connectstart = dmTime::GetTime();
+        uint64_t connectstart = dmTime::GetMonotonicTime();
 
         Result r = ConnectSocket(pool, address, port, timeout, socket, sr);
         if( r != RESULT_OK )
@@ -313,7 +313,7 @@ namespace dmConnectionPool
             return r;
         }
 
-        uint64_t handshakestart = dmTime::GetTime();
+        uint64_t handshakestart = dmTime::GetMonotonicTime();
         if( timeout > 0 && (handshakestart - connectstart) > (uint64_t)timeout )
         {
             dmSocket::Delete(*socket);
@@ -350,11 +350,11 @@ namespace dmConnectionPool
         // that the caller can try to connect first to ipv4 and then to ipv6 if ipv4 failed.
         dmSocket::Address address;
 
-        uint64_t dial_started = dmTime::GetTime();
+        uint64_t dial_started = dmTime::GetMonotonicTime();
         bool gethost_did_succeed = dmSocket::GetHostByNameT(host, &address, timeout, cancelflag, ipv4, ipv6) == dmSocket::RESULT_OK;
         if (timeout > 0)
         {
-            timeout = timeout - (int)(dmTime::GetTime() - dial_started);
+            timeout = timeout - (int)(dmTime::GetMonotonicTime() - dial_started);
             if (timeout <= 0)
             {
                 return RESULT_SOCKET_ERROR;
@@ -399,7 +399,7 @@ namespace dmConnectionPool
                 c->m_ID = conn_id;
                 c->m_ReuseCount = 0;
                 c->m_State = STATE_INUSE;
-                c->m_Expires = pool->m_MaxKeepAlive * 1000000U + dmTime::GetTime();
+                c->m_Expires = pool->m_MaxKeepAlive * 1000000U + dmTime::GetMonotonicTime();
                 c->m_Address = address;
                 c->m_Port = port;
                 c->m_WasShutdown = 0;
@@ -415,7 +415,7 @@ namespace dmConnectionPool
     Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, int timeout, int* cancelflag, HConnection* connection, dmSocket::Result* sock_res)
     {
         // try connecting to the host using ipv4 first
-        uint64_t dial_started = dmTime::GetTime();
+        uint64_t dial_started = dmTime::GetMonotonicTime();
         Result r = DoDial(pool, host, port, ssl, timeout, cancelflag, connection, sock_res, 1, 0);
         // Only if handshake failed NOT because of timeout
         if (r == RESULT_OK || r == RESULT_SHUT_DOWN || r == RESULT_OUT_OF_RESOURCES ||
@@ -426,7 +426,7 @@ namespace dmConnectionPool
         // ipv4 connection failed - reduce timeout (if needed) and try using ipv6 instead
         if (timeout > 0)
         {
-            timeout = timeout - (int)(dmTime::GetTime() - dial_started);
+            timeout = timeout - (int)(dmTime::GetMonotonicTime() - dial_started);
             if (timeout <= 0)
             {
                 return RESULT_SOCKET_ERROR;

@@ -1,0 +1,4 @@
+images {
+  image: "/images/button_cloudy.png"
+}
+extrude_borders: 2

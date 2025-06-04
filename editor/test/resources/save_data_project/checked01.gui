@@ -1,0 +1,1535 @@
+script: "/checked.gui_script"
+fonts {
+  name: "first_font"
+  font: "/checked.font"
+}
+fonts {
+  name: "second_font"
+  font: "/checked.font"
+}
+textures {
+  name: "first_texture"
+  texture: "/checked.atlas"
+}
+nodes {
+  type: TYPE_BOX
+  texture: "first_texture/diamond"
+  id: "parent"
+  layer: "first_layer"
+  inherit_alpha: true
+  size_mode: SIZE_MODE_AUTO
+  visible: false
+  material: "first_material"
+}
+nodes {
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  scale {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+  size {
+    x: 150.0
+    y: 150.0
+    z: 0.1
+  }
+  color {
+    x: 0.949
+    y: 0.949
+    z: 0.949
+  }
+  type: TYPE_BOX
+  blend_mode: BLEND_MODE_MULT
+  texture: "first_texture/white"
+  id: "box01"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_N
+  adjust_mode: ADJUST_MODE_STRETCH
+  parent: "parent"
+  layer: "first_layer"
+  inherit_alpha: true
+  slice9 {
+    x: 32.0
+    y: 32.0
+    z: 32.0
+    w: 32.0
+  }
+  clipping_mode: CLIPPING_MODE_STENCIL
+  clipping_visible: false
+  clipping_inverted: true
+  alpha: 0.9
+  enabled: false
+  visible: false
+  material: "first_material"
+}
+nodes {
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  scale {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+  color {
+    x: 0.949
+    y: 0.949
+    z: 0.949
+  }
+  type: TYPE_BOX
+  blend_mode: BLEND_MODE_MULT
+  texture: "first_texture/white"
+  id: "box02"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_N
+  adjust_mode: ADJUST_MODE_STRETCH
+  parent: "parent"
+  layer: "first_layer"
+  inherit_alpha: true
+  slice9 {
+    x: 32.0
+    y: 32.0
+    z: 32.0
+    w: 32.0
+  }
+  clipping_mode: CLIPPING_MODE_STENCIL
+  clipping_visible: false
+  clipping_inverted: true
+  alpha: 0.9
+  size_mode: SIZE_MODE_AUTO
+  enabled: false
+  visible: false
+  material: "first_material"
+}
+nodes {
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  scale {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+  size {
+    x: 150.0
+    y: 150.0
+    z: 0.1
+  }
+  color {
+    x: 0.949
+    y: 0.949
+    z: 0.949
+  }
+  type: TYPE_PIE
+  blend_mode: BLEND_MODE_MULT
+  texture: "first_texture/white"
+  id: "pie01"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_N
+  adjust_mode: ADJUST_MODE_STRETCH
+  parent: "parent"
+  layer: "first_layer"
+  inherit_alpha: true
+  outerBounds: PIEBOUNDS_RECTANGLE
+  innerRadius: 32.0
+  perimeterVertices: 36
+  pieFillAngle: 270.0
+  clipping_mode: CLIPPING_MODE_STENCIL
+  clipping_visible: false
+  clipping_inverted: true
+  alpha: 0.9
+  enabled: false
+  visible: false
+  material: "first_material"
+}
+nodes {
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  scale {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+  color {
+    x: 0.949
+    y: 0.949
+    z: 0.949
+  }
+  type: TYPE_PIE
+  blend_mode: BLEND_MODE_MULT
+  texture: "first_texture/white"
+  id: "pie02"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_N
+  adjust_mode: ADJUST_MODE_STRETCH
+  parent: "parent"
+  layer: "first_layer"
+  inherit_alpha: true
+  outerBounds: PIEBOUNDS_RECTANGLE
+  innerRadius: 32.0
+  perimeterVertices: 36
+  pieFillAngle: 270.0
+  clipping_mode: CLIPPING_MODE_STENCIL
+  clipping_visible: false
+  clipping_inverted: true
+  alpha: 0.9
+  size_mode: SIZE_MODE_AUTO
+  enabled: false
+  visible: false
+  material: "first_material"
+}
+nodes {
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  scale {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+  size {
+    x: 150.0
+    y: 150.0
+    z: 0.1
+  }
+  color {
+    x: 0.949
+    y: 0.949
+    z: 0.949
+  }
+  type: TYPE_TEXT
+  blend_mode: BLEND_MODE_MULT
+  text: "line one\n"
+  "line two"
+  font: "first_font"
+  id: "text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_N
+  outline {
+    x: 0.949
+    y: 0.949
+    z: 0.949
+  }
+  shadow {
+    x: 0.949
+    y: 0.949
+    z: 0.949
+  }
+  adjust_mode: ADJUST_MODE_STRETCH
+  line_break: true
+  parent: "parent"
+  layer: "first_layer"
+  inherit_alpha: true
+  alpha: 0.9
+  outline_alpha: 0.9
+  shadow_alpha: 0.9
+  text_leading: 1.1
+  text_tracking: 0.1
+  enabled: false
+  visible: false
+  material: "first_material"
+}
+nodes {
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  scale {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+  color {
+    x: 0.949
+    y: 0.949
+    z: 0.949
+  }
+  type: TYPE_PARTICLEFX
+  id: "particlefx"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  adjust_mode: ADJUST_MODE_ZOOM
+  parent: "parent"
+  layer: "first_layer"
+  inherit_alpha: true
+  alpha: 0.9
+  size_mode: SIZE_MODE_AUTO
+  particlefx: "first_particlefx"
+  enabled: false
+  visible: false
+  material: "first_material"
+}
+nodes {
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  scale {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+  color {
+    x: 0.949
+    y: 0.949
+    z: 0.949
+  }
+  type: TYPE_CUSTOM
+  blend_mode: BLEND_MODE_ADD
+  id: "spine"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_N
+  adjust_mode: ADJUST_MODE_ZOOM
+  parent: "parent"
+  layer: "first_layer"
+  inherit_alpha: true
+  clipping_mode: CLIPPING_MODE_STENCIL
+  clipping_visible: false
+  clipping_inverted: true
+  alpha: 0.9
+  size_mode: SIZE_MODE_AUTO
+  spine_scene: "first_spinescene"
+  spine_default_animation: "first_animation"
+  spine_skin: "first_skin"
+  custom_type: 405028931
+  enabled: false
+  visible: false
+  material: "first_material"
+}
+nodes {
+  position {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  rotation {
+    x: 0.1
+    y: 0.2
+    z: 0.3
+  }
+  scale {
+    x: 1.1
+    y: 1.2
+    z: 1.3
+  }
+  type: TYPE_TEMPLATE
+  id: "template"
+  parent: "parent"
+  layer: "first_layer"
+  inherit_alpha: true
+  alpha: 0.9
+  template: "/checked02.gui"
+  enabled: false
+}
+nodes {
+  type: TYPE_BOX
+  id: "template/parent"
+  parent: "template"
+  template_node_child: true
+}
+nodes {
+  position {
+    x: 0.11
+    y: 0.21
+    z: 0.31
+  }
+  rotation {
+    x: 0.11
+    y: 0.21
+    z: 0.31
+  }
+  scale {
+    x: 1.11
+    y: 1.21
+    z: 1.31
+  }
+  color {
+    x: 0.902
+    y: 0.902
+    z: 0.902
+  }
+  type: TYPE_BOX
+  blend_mode: BLEND_MODE_SCREEN
+  texture: "first_texture/diamond"
+  id: "template/box01"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_S
+  adjust_mode: ADJUST_MODE_ZOOM
+  parent: "template/parent"
+  layer: "second_layer"
+  alpha: 0.91
+  overridden_fields: 1
+  overridden_fields: 2
+  overridden_fields: 3
+  overridden_fields: 5
+  overridden_fields: 7
+  overridden_fields: 9
+  overridden_fields: 12
+  overridden_fields: 13
+  overridden_fields: 14
+  overridden_fields: 17
+  overridden_fields: 20
+  overridden_fields: 21
+  overridden_fields: 27
+  overridden_fields: 28
+  overridden_fields: 29
+  overridden_fields: 30
+  overridden_fields: 38
+  overridden_fields: 45
+  overridden_fields: 46
+  overridden_fields: 47
+  template_node_child: true
+  size_mode: SIZE_MODE_AUTO
+  material: "second_material"
+}
+nodes {
+  size {
+    x: 151.0
+    y: 151.0
+    z: 0.11
+  }
+  type: TYPE_BOX
+  id: "template/box02"
+  parent: "template/parent"
+  slice9 {
+    x: 16.0
+    y: 16.0
+    z: 16.0
+    w: 16.0
+  }
+  overridden_fields: 4
+  overridden_fields: 22
+  overridden_fields: 38
+  template_node_child: true
+}
+nodes {
+  position {
+    x: 0.11
+    y: 0.21
+    z: 0.31
+  }
+  rotation {
+    x: 0.11
+    y: 0.21
+    z: 0.31
+  }
+  scale {
+    x: 1.11
+    y: 1.21
+    z: 1.31
+  }
+  color {
+    x: 0.902
+    y: 0.902
+    z: 0.902
+  }
+  type: TYPE_PIE
+  blend_mode: BLEND_MODE_SCREEN
+  texture: "first_texture/diamond"
+  id: "template/pie01"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_S
+  adjust_mode: ADJUST_MODE_ZOOM
+  parent: "template/parent"
+  layer: "second_layer"
+  innerRadius: 31.0
+  perimeterVertices: 35
+  pieFillAngle: 271.0
+  alpha: 0.91
+  overridden_fields: 1
+  overridden_fields: 2
+  overridden_fields: 3
+  overridden_fields: 5
+  overridden_fields: 7
+  overridden_fields: 9
+  overridden_fields: 12
+  overridden_fields: 13
+  overridden_fields: 14
+  overridden_fields: 17
+  overridden_fields: 20
+  overridden_fields: 21
+  overridden_fields: 23
+  overridden_fields: 24
+  overridden_fields: 25
+  overridden_fields: 26
+  overridden_fields: 27
+  overridden_fields: 28
+  overridden_fields: 29
+  overridden_fields: 30
+  overridden_fields: 38
+  overridden_fields: 45
+  overridden_fields: 46
+  overridden_fields: 47
+  template_node_child: true
+  size_mode: SIZE_MODE_AUTO
+  material: "second_material"
+}
+nodes {
+  size {
+    x: 151.0
+    y: 151.0
+    z: 0.11
+  }
+  type: TYPE_PIE
+  id: "template/pie02"
+  parent: "template/parent"
+  overridden_fields: 4
+  overridden_fields: 38
+  template_node_child: true
+}
+nodes {
+  position {
+    x: 0.11
+    y: 0.21
+    z: 0.31
+  }
+  rotation {
+    x: 0.11
+    y: 0.21
+    z: 0.31
+  }
+  scale {
+    x: 1.11
+    y: 1.21
+    z: 1.31
+  }
+  size {
+    x: 151.0
+    y: 151.0
+    z: 0.11
+  }
+  color {
+    x: 0.902
+    y: 0.902
+    z: 0.902
+  }
+  type: TYPE_TEXT
+  blend_mode: BLEND_MODE_SCREEN
+  text: "line one\n"
+  "line two\n"
+  "line three"
+  font: "second_font"
+  id: "template/text"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_S
+  outline {
+    x: 0.902
+    y: 0.902
+    z: 0.902
+  }
+  shadow {
+    x: 0.902
+    y: 0.902
+    z: 0.902
+  }
+  adjust_mode: ADJUST_MODE_ZOOM
+  parent: "template/parent"
+  layer: "second_layer"
+  alpha: 0.91
+  outline_alpha: 0.91
+  shadow_alpha: 0.91
+  overridden_fields: 1
+  overridden_fields: 2
+  overridden_fields: 3
+  overridden_fields: 4
+  overridden_fields: 5
+  overridden_fields: 7
+  overridden_fields: 8
+  overridden_fields: 10
+  overridden_fields: 12
+  overridden_fields: 13
+  overridden_fields: 14
+  overridden_fields: 15
+  overridden_fields: 16
+  overridden_fields: 17
+  overridden_fields: 18
+  overridden_fields: 20
+  overridden_fields: 21
+  overridden_fields: 30
+  overridden_fields: 31
+  overridden_fields: 32
+  overridden_fields: 36
+  overridden_fields: 37
+  overridden_fields: 45
+  overridden_fields: 46
+  overridden_fields: 47
+  template_node_child: true
+  text_leading: 1.11
+  text_tracking: 0.11
+  material: "second_material"
+}
+nodes {
+  position {
+    x: 0.11
+    y: 0.21
+    z: 0.31
+  }
+  rotation {
+    x: 0.11
+    y: 0.21
+    z: 0.31
+  }
+  scale {
+    x: 1.11
+    y: 1.21
+    z: 1.31
+  }
+  color {
+    x: 0.902
+    y: 0.902
+    z: 0.902
+  }
+  type: TYPE_PARTICLEFX
+  id: "template/particlefx"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
+  adjust_mode: ADJUST_MODE_STRETCH
+  parent: "template/parent"
+  layer: "second_layer"
+  alpha: 0.91
+  overridden_fields: 1
+  overridden_fields: 2
+  overridden_fields: 3
+  overridden_fields: 5
+  overridden_fields: 12
+  overridden_fields: 13
+  overridden_fields: 17
+  overridden_fields: 20
+  overridden_fields: 21
+  overridden_fields: 30
+  overridden_fields: 43
+  overridden_fields: 45
+  overridden_fields: 46
+  overridden_fields: 47
+  template_node_child: true
+  particlefx: "second_particlefx"
+  material: "second_material"
+}
+nodes {
+  position {
+    x: 0.11
+    y: 0.21
+    z: 0.31
+  }
+  rotation {
+    x: 0.11
+    y: 0.21
+    z: 0.31
+  }
+  scale {
+    x: 1.11
+    y: 1.21
+    z: 1.31
+  }
+  color {
+    x: 0.902
+    y: 0.902
+    z: 0.902
+  }
+  type: TYPE_CUSTOM
+  blend_mode: BLEND_MODE_SCREEN
+  id: "template/spine"
+  xanchor: XANCHOR_RIGHT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_S
+  adjust_mode: ADJUST_MODE_STRETCH
+  parent: "template/parent"
+  layer: "second_layer"
+  alpha: 0.91
+  overridden_fields: 1
+  overridden_fields: 2
+  overridden_fields: 3
+  overridden_fields: 5
+  overridden_fields: 7
+  overridden_fields: 12
+  overridden_fields: 13
+  overridden_fields: 14
+  overridden_fields: 17
+  overridden_fields: 20
+  overridden_fields: 21
+  overridden_fields: 27
+  overridden_fields: 28
+  overridden_fields: 29
+  overridden_fields: 30
+  overridden_fields: 39
+  overridden_fields: 40
+  overridden_fields: 41
+  overridden_fields: 45
+  overridden_fields: 46
+  overridden_fields: 47
+  template_node_child: true
+  spine_scene: "second_spinescene"
+  spine_default_animation: "second_animation"
+  spine_skin: "second_skin"
+  custom_type: 405028931
+  material: "second_material"
+}
+nodes {
+  position {
+    x: 0.11
+    y: 0.21
+    z: 0.31
+  }
+  rotation {
+    x: 0.11
+    y: 0.21
+    z: 0.31
+  }
+  scale {
+    x: 1.11
+    y: 1.21
+    z: 1.31
+  }
+  type: TYPE_TEMPLATE
+  id: "template/template"
+  parent: "template/parent"
+  layer: "second_layer"
+  alpha: 0.91
+  overridden_fields: 1
+  overridden_fields: 2
+  overridden_fields: 3
+  overridden_fields: 20
+  overridden_fields: 21
+  overridden_fields: 30
+  overridden_fields: 45
+  template_node_child: true
+}
+layers {
+  name: "first_layer"
+}
+layers {
+  name: "second_layer"
+}
+material: "/checked.material"
+layouts {
+  name: "Landscape"
+  nodes {
+    position {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    rotation {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    scale {
+      x: 1.11
+      y: 1.21
+      z: 1.31
+    }
+    color {
+      x: 0.902
+      y: 0.902
+      z: 0.902
+    }
+    type: TYPE_BOX
+    blend_mode: BLEND_MODE_SCREEN
+    texture: "first_texture/diamond"
+    id: "box01"
+    xanchor: XANCHOR_RIGHT
+    yanchor: YANCHOR_BOTTOM
+    pivot: PIVOT_S
+    adjust_mode: ADJUST_MODE_ZOOM
+    parent: "parent"
+    layer: "second_layer"
+    alpha: 0.91
+    overridden_fields: 1
+    overridden_fields: 2
+    overridden_fields: 3
+    overridden_fields: 5
+    overridden_fields: 7
+    overridden_fields: 9
+    overridden_fields: 12
+    overridden_fields: 13
+    overridden_fields: 14
+    overridden_fields: 17
+    overridden_fields: 20
+    overridden_fields: 21
+    overridden_fields: 27
+    overridden_fields: 28
+    overridden_fields: 29
+    overridden_fields: 30
+    overridden_fields: 38
+    overridden_fields: 45
+    overridden_fields: 46
+    overridden_fields: 47
+    size_mode: SIZE_MODE_AUTO
+    material: "second_material"
+  }
+  nodes {
+    size {
+      x: 151.0
+      y: 151.0
+      z: 0.11
+    }
+    type: TYPE_BOX
+    id: "box02"
+    parent: "parent"
+    slice9 {
+      x: 16.0
+      y: 16.0
+      z: 16.0
+      w: 16.0
+    }
+    overridden_fields: 4
+    overridden_fields: 22
+    overridden_fields: 38
+  }
+  nodes {
+    position {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    rotation {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    scale {
+      x: 1.11
+      y: 1.21
+      z: 1.31
+    }
+    color {
+      x: 0.902
+      y: 0.902
+      z: 0.902
+    }
+    type: TYPE_PIE
+    blend_mode: BLEND_MODE_SCREEN
+    texture: "first_texture/diamond"
+    id: "pie01"
+    xanchor: XANCHOR_RIGHT
+    yanchor: YANCHOR_BOTTOM
+    pivot: PIVOT_S
+    adjust_mode: ADJUST_MODE_ZOOM
+    parent: "parent"
+    layer: "second_layer"
+    innerRadius: 31.0
+    perimeterVertices: 35
+    pieFillAngle: 271.0
+    alpha: 0.91
+    overridden_fields: 1
+    overridden_fields: 2
+    overridden_fields: 3
+    overridden_fields: 5
+    overridden_fields: 7
+    overridden_fields: 9
+    overridden_fields: 12
+    overridden_fields: 13
+    overridden_fields: 14
+    overridden_fields: 17
+    overridden_fields: 20
+    overridden_fields: 21
+    overridden_fields: 23
+    overridden_fields: 24
+    overridden_fields: 25
+    overridden_fields: 26
+    overridden_fields: 27
+    overridden_fields: 28
+    overridden_fields: 29
+    overridden_fields: 30
+    overridden_fields: 38
+    overridden_fields: 45
+    overridden_fields: 46
+    overridden_fields: 47
+    size_mode: SIZE_MODE_AUTO
+    material: "second_material"
+  }
+  nodes {
+    size {
+      x: 150.0
+      y: 150.0
+      z: 0.1
+    }
+    type: TYPE_PIE
+    id: "pie02"
+    parent: "parent"
+    overridden_fields: 4
+    overridden_fields: 38
+  }
+  nodes {
+    position {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    rotation {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    scale {
+      x: 1.11
+      y: 1.21
+      z: 1.31
+    }
+    size {
+      x: 151.0
+      y: 151.0
+      z: 0.11
+    }
+    color {
+      x: 0.902
+      y: 0.902
+      z: 0.902
+    }
+    type: TYPE_TEXT
+    blend_mode: BLEND_MODE_SCREEN
+    text: "line one\n"
+  "line two\n"
+  "line three"
+    font: "second_font"
+    id: "text"
+    xanchor: XANCHOR_RIGHT
+    yanchor: YANCHOR_BOTTOM
+    pivot: PIVOT_S
+    outline {
+      x: 0.902
+      y: 0.902
+      z: 0.902
+    }
+    shadow {
+      x: 0.902
+      y: 0.902
+      z: 0.902
+    }
+    adjust_mode: ADJUST_MODE_ZOOM
+    parent: "parent"
+    layer: "second_layer"
+    alpha: 0.91
+    outline_alpha: 0.91
+    shadow_alpha: 0.91
+    overridden_fields: 1
+    overridden_fields: 2
+    overridden_fields: 3
+    overridden_fields: 4
+    overridden_fields: 5
+    overridden_fields: 7
+    overridden_fields: 8
+    overridden_fields: 10
+    overridden_fields: 12
+    overridden_fields: 13
+    overridden_fields: 14
+    overridden_fields: 15
+    overridden_fields: 16
+    overridden_fields: 17
+    overridden_fields: 18
+    overridden_fields: 20
+    overridden_fields: 21
+    overridden_fields: 30
+    overridden_fields: 31
+    overridden_fields: 32
+    overridden_fields: 36
+    overridden_fields: 37
+    overridden_fields: 45
+    overridden_fields: 46
+    overridden_fields: 47
+    text_leading: 1.11
+    text_tracking: 0.11
+    material: "second_material"
+  }
+  nodes {
+    position {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    rotation {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    scale {
+      x: 1.11
+      y: 1.21
+      z: 1.31
+    }
+    color {
+      x: 0.902
+      y: 0.902
+      z: 0.902
+    }
+    type: TYPE_PARTICLEFX
+    id: "particlefx"
+    xanchor: XANCHOR_RIGHT
+    yanchor: YANCHOR_BOTTOM
+    adjust_mode: ADJUST_MODE_STRETCH
+    parent: "parent"
+    layer: "second_layer"
+    alpha: 0.91
+    overridden_fields: 1
+    overridden_fields: 2
+    overridden_fields: 3
+    overridden_fields: 5
+    overridden_fields: 12
+    overridden_fields: 13
+    overridden_fields: 17
+    overridden_fields: 20
+    overridden_fields: 21
+    overridden_fields: 30
+    overridden_fields: 43
+    overridden_fields: 45
+    overridden_fields: 46
+    overridden_fields: 47
+    particlefx: "second_particlefx"
+    material: "second_material"
+  }
+  nodes {
+    position {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    rotation {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    scale {
+      x: 1.11
+      y: 1.21
+      z: 1.31
+    }
+    color {
+      x: 0.902
+      y: 0.902
+      z: 0.902
+    }
+    type: TYPE_CUSTOM
+    blend_mode: BLEND_MODE_SCREEN
+    id: "spine"
+    xanchor: XANCHOR_RIGHT
+    yanchor: YANCHOR_BOTTOM
+    pivot: PIVOT_S
+    adjust_mode: ADJUST_MODE_STRETCH
+    parent: "parent"
+    layer: "second_layer"
+    alpha: 0.91
+    overridden_fields: 1
+    overridden_fields: 2
+    overridden_fields: 3
+    overridden_fields: 5
+    overridden_fields: 7
+    overridden_fields: 12
+    overridden_fields: 13
+    overridden_fields: 14
+    overridden_fields: 17
+    overridden_fields: 20
+    overridden_fields: 21
+    overridden_fields: 27
+    overridden_fields: 28
+    overridden_fields: 29
+    overridden_fields: 30
+    overridden_fields: 39
+    overridden_fields: 40
+    overridden_fields: 41
+    overridden_fields: 45
+    overridden_fields: 46
+    overridden_fields: 47
+    spine_scene: "second_spinescene"
+    spine_default_animation: "second_animation"
+    spine_skin: "second_skin"
+    custom_type: 405028931
+    material: "second_material"
+  }
+  nodes {
+    position {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    rotation {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    scale {
+      x: 1.11
+      y: 1.21
+      z: 1.31
+    }
+    type: TYPE_TEMPLATE
+    id: "template"
+    parent: "parent"
+    layer: "second_layer"
+    alpha: 0.91
+    overridden_fields: 1
+    overridden_fields: 2
+    overridden_fields: 3
+    overridden_fields: 20
+    overridden_fields: 21
+    overridden_fields: 30
+    overridden_fields: 45
+  }
+  nodes {
+    position {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    rotation {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    scale {
+      x: 1.11
+      y: 1.21
+      z: 1.31
+    }
+    color {
+      x: 0.902
+      y: 0.902
+      z: 0.902
+    }
+    type: TYPE_BOX
+    blend_mode: BLEND_MODE_SCREEN
+    texture: "first_texture/diamond"
+    id: "template/box01"
+    xanchor: XANCHOR_RIGHT
+    yanchor: YANCHOR_BOTTOM
+    pivot: PIVOT_S
+    adjust_mode: ADJUST_MODE_ZOOM
+    parent: "template/parent"
+    layer: "second_layer"
+    alpha: 0.91
+    overridden_fields: 1
+    overridden_fields: 2
+    overridden_fields: 3
+    overridden_fields: 5
+    overridden_fields: 7
+    overridden_fields: 9
+    overridden_fields: 12
+    overridden_fields: 13
+    overridden_fields: 14
+    overridden_fields: 17
+    overridden_fields: 20
+    overridden_fields: 21
+    overridden_fields: 27
+    overridden_fields: 28
+    overridden_fields: 29
+    overridden_fields: 30
+    overridden_fields: 38
+    overridden_fields: 45
+    overridden_fields: 46
+    overridden_fields: 47
+    template_node_child: true
+    size_mode: SIZE_MODE_AUTO
+    material: "second_material"
+  }
+  nodes {
+    size {
+      x: 151.0
+      y: 151.0
+      z: 0.11
+    }
+    type: TYPE_BOX
+    id: "template/box02"
+    parent: "template/parent"
+    slice9 {
+      x: 16.0
+      y: 16.0
+      z: 16.0
+      w: 16.0
+    }
+    overridden_fields: 4
+    overridden_fields: 22
+    overridden_fields: 38
+    template_node_child: true
+  }
+  nodes {
+    position {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    rotation {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    scale {
+      x: 1.11
+      y: 1.21
+      z: 1.31
+    }
+    color {
+      x: 0.902
+      y: 0.902
+      z: 0.902
+    }
+    type: TYPE_PIE
+    blend_mode: BLEND_MODE_SCREEN
+    texture: "first_texture/diamond"
+    id: "template/pie01"
+    xanchor: XANCHOR_RIGHT
+    yanchor: YANCHOR_BOTTOM
+    pivot: PIVOT_S
+    adjust_mode: ADJUST_MODE_ZOOM
+    parent: "template/parent"
+    layer: "second_layer"
+    innerRadius: 31.0
+    perimeterVertices: 35
+    pieFillAngle: 271.0
+    alpha: 0.91
+    overridden_fields: 1
+    overridden_fields: 2
+    overridden_fields: 3
+    overridden_fields: 5
+    overridden_fields: 7
+    overridden_fields: 9
+    overridden_fields: 12
+    overridden_fields: 13
+    overridden_fields: 14
+    overridden_fields: 17
+    overridden_fields: 20
+    overridden_fields: 21
+    overridden_fields: 23
+    overridden_fields: 24
+    overridden_fields: 25
+    overridden_fields: 26
+    overridden_fields: 27
+    overridden_fields: 28
+    overridden_fields: 29
+    overridden_fields: 30
+    overridden_fields: 38
+    overridden_fields: 45
+    overridden_fields: 46
+    overridden_fields: 47
+    template_node_child: true
+    size_mode: SIZE_MODE_AUTO
+    material: "second_material"
+  }
+  nodes {
+    size {
+      x: 151.0
+      y: 151.0
+      z: 0.11
+    }
+    type: TYPE_PIE
+    id: "template/pie02"
+    parent: "template/parent"
+    overridden_fields: 4
+    overridden_fields: 38
+    template_node_child: true
+  }
+  nodes {
+    position {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    rotation {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    scale {
+      x: 1.11
+      y: 1.21
+      z: 1.31
+    }
+    size {
+      x: 151.0
+      y: 151.0
+      z: 0.11
+    }
+    color {
+      x: 0.902
+      y: 0.902
+      z: 0.902
+    }
+    type: TYPE_TEXT
+    blend_mode: BLEND_MODE_SCREEN
+    text: "line one\n"
+  "line two\n"
+  "line three"
+    font: "second_font"
+    id: "template/text"
+    xanchor: XANCHOR_RIGHT
+    yanchor: YANCHOR_BOTTOM
+    pivot: PIVOT_S
+    outline {
+      x: 0.902
+      y: 0.902
+      z: 0.902
+    }
+    shadow {
+      x: 0.902
+      y: 0.902
+      z: 0.902
+    }
+    adjust_mode: ADJUST_MODE_ZOOM
+    parent: "template/parent"
+    layer: "second_layer"
+    alpha: 0.91
+    outline_alpha: 0.91
+    shadow_alpha: 0.91
+    overridden_fields: 1
+    overridden_fields: 2
+    overridden_fields: 3
+    overridden_fields: 4
+    overridden_fields: 5
+    overridden_fields: 7
+    overridden_fields: 8
+    overridden_fields: 10
+    overridden_fields: 12
+    overridden_fields: 13
+    overridden_fields: 14
+    overridden_fields: 15
+    overridden_fields: 16
+    overridden_fields: 17
+    overridden_fields: 18
+    overridden_fields: 20
+    overridden_fields: 21
+    overridden_fields: 30
+    overridden_fields: 31
+    overridden_fields: 32
+    overridden_fields: 36
+    overridden_fields: 37
+    overridden_fields: 45
+    overridden_fields: 46
+    overridden_fields: 47
+    template_node_child: true
+    text_leading: 1.11
+    text_tracking: 0.11
+    material: "second_material"
+  }
+  nodes {
+    position {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    rotation {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    scale {
+      x: 1.11
+      y: 1.21
+      z: 1.31
+    }
+    color {
+      x: 0.902
+      y: 0.902
+      z: 0.902
+    }
+    type: TYPE_PARTICLEFX
+    id: "template/particlefx"
+    xanchor: XANCHOR_RIGHT
+    yanchor: YANCHOR_BOTTOM
+    adjust_mode: ADJUST_MODE_STRETCH
+    parent: "template/parent"
+    layer: "second_layer"
+    alpha: 0.91
+    overridden_fields: 1
+    overridden_fields: 2
+    overridden_fields: 3
+    overridden_fields: 5
+    overridden_fields: 12
+    overridden_fields: 13
+    overridden_fields: 17
+    overridden_fields: 20
+    overridden_fields: 21
+    overridden_fields: 30
+    overridden_fields: 43
+    overridden_fields: 45
+    overridden_fields: 46
+    overridden_fields: 47
+    template_node_child: true
+    particlefx: "second_particlefx"
+    material: "second_material"
+  }
+  nodes {
+    position {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    rotation {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    scale {
+      x: 1.11
+      y: 1.21
+      z: 1.31
+    }
+    color {
+      x: 0.902
+      y: 0.902
+      z: 0.902
+    }
+    type: TYPE_CUSTOM
+    blend_mode: BLEND_MODE_SCREEN
+    id: "template/spine"
+    xanchor: XANCHOR_RIGHT
+    yanchor: YANCHOR_BOTTOM
+    pivot: PIVOT_S
+    adjust_mode: ADJUST_MODE_STRETCH
+    parent: "template/parent"
+    layer: "second_layer"
+    alpha: 0.91
+    overridden_fields: 1
+    overridden_fields: 2
+    overridden_fields: 3
+    overridden_fields: 5
+    overridden_fields: 7
+    overridden_fields: 12
+    overridden_fields: 13
+    overridden_fields: 14
+    overridden_fields: 17
+    overridden_fields: 20
+    overridden_fields: 21
+    overridden_fields: 27
+    overridden_fields: 28
+    overridden_fields: 29
+    overridden_fields: 30
+    overridden_fields: 39
+    overridden_fields: 40
+    overridden_fields: 41
+    overridden_fields: 45
+    overridden_fields: 46
+    overridden_fields: 47
+    template_node_child: true
+    spine_scene: "second_spinescene"
+    spine_default_animation: "second_animation"
+    spine_skin: "second_skin"
+    custom_type: 405028931
+    material: "second_material"
+  }
+  nodes {
+    position {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    rotation {
+      x: 0.11
+      y: 0.21
+      z: 0.31
+    }
+    scale {
+      x: 1.11
+      y: 1.21
+      z: 1.31
+    }
+    type: TYPE_TEMPLATE
+    id: "template/template"
+    parent: "template/parent"
+    layer: "second_layer"
+    alpha: 0.91
+    overridden_fields: 1
+    overridden_fields: 2
+    overridden_fields: 3
+    overridden_fields: 20
+    overridden_fields: 21
+    overridden_fields: 30
+    overridden_fields: 45
+    template_node_child: true
+  }
+}
+layouts {
+  name: "Special Landscape"
+  nodes {
+    type: TYPE_TEXT
+    text: "overridden by layout not in template scene"
+    id: "template/text"
+    parent: "template/parent"
+    overridden_fields: 8
+    template_node_child: true
+  }
+}
+adjust_reference: ADJUST_REFERENCE_PARENT
+max_nodes: 256
+particlefxs {
+  name: "first_particlefx"
+  particlefx: "/checked.particlefx"
+}
+particlefxs {
+  name: "second_particlefx"
+  particlefx: "/checked.particlefx"
+}
+resources {
+  name: "first_spinescene"
+  path: "/checked.spinescene"
+}
+resources {
+  name: "second_spinescene"
+  path: "/checked.spinescene"
+}
+materials {
+  name: "first_material"
+  material: "/checked.material"
+}
+materials {
+  name: "second_material"
+  material: "/checked.material"
+}
+max_dynamic_textures: 32

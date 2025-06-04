@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,7 +19,6 @@
 #include <resource/resource.h>
 #include <gameobject/gameobject_ddf.h>
 #include <gamesys/gamesys_ddf.h>
-
 
 namespace dmGameSystem
 {
@@ -134,10 +133,10 @@ namespace dmGameSystem
         return r;
     }
 
-    dmResource::Result ResCollectionFactoryPreload(const dmResource::ResourcePreloadParams& params)
+    dmResource::Result ResCollectionFactoryPreload(const dmResource::ResourcePreloadParams* params)
     {
         CollectionFactoryResource* factory_res = 0;
-        dmResource::Result r = LoadResourceFromMemory(params.m_Factory, (const uint8_t*)params.m_Buffer, params.m_BufferSize, &factory_res);
+        dmResource::Result r = LoadResourceFromMemory(params->m_Factory, (const uint8_t*)params->m_Buffer, params->m_BufferSize, &factory_res);
 
         if (r != dmResource::RESULT_OK)
         {
@@ -145,7 +144,7 @@ namespace dmGameSystem
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        if((!factory_res->m_LoadDynamically) && (params.m_HintInfo))
+        if((!factory_res->m_LoadDynamically) && (params->m_HintInfo))
         {
             dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) factory_res->m_CollectionDesc;
             for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
@@ -153,27 +152,27 @@ namespace dmGameSystem
                 const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
                 if (instance_desc.m_Prototype == 0x0)
                     continue;
-                dmResource::PreloadHint(params.m_HintInfo, instance_desc.m_Prototype);
+                dmResource::PreloadHint(params->m_HintInfo, instance_desc.m_Prototype);
             }
         }
 
-        *params.m_PreloadData = factory_res;
+        *params->m_PreloadData = factory_res;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResCollectionFactoryCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResCollectionFactoryCreate(const dmResource::ResourceCreateParams* params)
     {
-        CollectionFactoryResource* factory_res = (CollectionFactoryResource*)params.m_PreloadData;
-        dmResource::Result res = AcquireResources(params.m_Factory, factory_res);
+        CollectionFactoryResource* factory_res = (CollectionFactoryResource*)params->m_PreloadData;
+        dmResource::Result res = AcquireResources(params->m_Factory, factory_res);
         if(res == dmResource::RESULT_OK)
         {
-            params.m_Resource->m_Resource = (void*) factory_res;
-            params.m_Resource->m_ResourceSize = sizeof(CollectionFactoryResource) + (factory_res->m_CollectionResources.Size()*sizeof(void*)) + params.m_BufferSize;
+            dmResource::SetResource(params->m_Resource, factory_res);
+            dmResource::SetResourceSize(params->m_Resource, sizeof(CollectionFactoryResource) + (factory_res->m_CollectionResources.Size()*sizeof(void*)) + params->m_BufferSize);
         }
         else
         {
-            ReleaseResources(params.m_Factory, factory_res);
-            ReleaseCollectionDesc(params.m_Factory, factory_res);
+            ReleaseResources(params->m_Factory, factory_res);
+            ReleaseCollectionDesc(params->m_Factory, factory_res);
             delete factory_res;
         }
         return res;
@@ -186,34 +185,34 @@ namespace dmGameSystem
         delete resource;
     }
 
-    dmResource::Result ResCollectionFactoryDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResCollectionFactoryDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        CollectionFactoryResource* factory_res = (CollectionFactoryResource*) params.m_Resource->m_Resource;
-        ResCollectionFactoryDestroyResource(params.m_Factory, factory_res);
+        CollectionFactoryResource* factory_res = (CollectionFactoryResource*) dmResource::GetResource(params->m_Resource);
+        ResCollectionFactoryDestroyResource(params->m_Factory, factory_res);
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResCollectionFactoryRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResCollectionFactoryRecreate(const dmResource::ResourceRecreateParams* params)
     {
         CollectionFactoryResource* tmp_factory_res = 0;
-        dmResource::Result r = LoadResourceFromMemory(params.m_Factory, (const uint8_t*)params.m_Buffer, params.m_BufferSize, &tmp_factory_res);
+        dmResource::Result r = LoadResourceFromMemory(params->m_Factory, (const uint8_t*)params->m_Buffer, params->m_BufferSize, &tmp_factory_res);
 
         if (r == dmResource::RESULT_OK)
         {
-            r = AcquireResources(params.m_Factory, tmp_factory_res);
+            r = AcquireResources(params->m_Factory, tmp_factory_res);
         }
         if (r == dmResource::RESULT_OK)
         {
-            CollectionFactoryResource* factory_res = (CollectionFactoryResource*) params.m_Resource->m_Resource;
-            ReleaseResources(params.m_Factory, factory_res);
-            ReleaseCollectionDesc(params.m_Factory, factory_res);
+            CollectionFactoryResource* factory_res = (CollectionFactoryResource*) dmResource::GetResource(params->m_Resource);
+            ReleaseResources(params->m_Factory, factory_res);
+            ReleaseCollectionDesc(params->m_Factory, factory_res);
             *factory_res = *tmp_factory_res;
             delete tmp_factory_res;
-            params.m_Resource->m_ResourceSize = sizeof(CollectionFactoryResource) + (factory_res->m_CollectionResources.Size()*sizeof(void*)) + params.m_BufferSize;
+            dmResource::SetResourceSize(params->m_Resource, sizeof(CollectionFactoryResource) + (factory_res->m_CollectionResources.Size()*sizeof(void*)) + params->m_BufferSize);
         }
         else
         {
-            ResCollectionFactoryDestroyResource(params.m_Factory, tmp_factory_res);
+            ResCollectionFactoryDestroyResource(params->m_Factory, tmp_factory_res);
         }
         return r;
     }

@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,14 +25,17 @@
 
 (def android #{:armv7-android :arm64-android})
 
-(def linux #{:x86_64-linux})
+(def web #{:js-web :wasm-web :wasm_pthread-web})
+
+(def linux #{:x86_64-linux :arm64-linux})
 
 (def vulkan
-  #{:x86_64-osx
-    :x86_64-linux
+  #{:x86_64-linux :arm64-linux
     :x86-win32 :x86_64-win32
     :armv7-android :arm64-android
     :arm64-ios})
+
+(def vulkan-osx #{:x86_64-osx :arm64-osx})
 
 (def all-platforms
   #{;; ios
@@ -40,13 +43,13 @@
     ;; android
     :armv7-android :arm64-android
     ;; osx
-    :x86_64-osx
+    :x86_64-osx :arm64-osx
     ;; linux
-    :x86_64-linux
+    :x86_64-linux :arm64-linux
     ;; windows
     :x86-win32 :x86_64-win32
     ;; web
-    :js-web :wasm-web})
+    :js-web :wasm-web :wasm_pthread-web})
 
 (def custom-lib-names
   {:x86-win32 {"vpx" "vpx"
@@ -313,6 +316,24 @@
       (generic-contains-toggles all-platforms :excludeSymbols ["DefaultSoundDevice" "AudioDecoderWav" "AudioDecoderStbVorbis" "AudioDecoderTremolo"])
       (libs-toggles all-platforms ["sound_null"]))))
 
+(def sound-decoder-wav-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["decoder_wav"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["AudioDecoderWav" "ResourceTypeWav"]))))
+
+(def sound-decoder-ogg-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["decoder_ogg"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["AudioDecoderStbVorbis" "AudioDecoderTremolo" "ResourceTypeOgg"]))))
+
+(def sound-decoder-opus-setting
+  (make-check-box-setting
+    (concat
+      (libs-toggles all-platforms ["decoder_opus" "opus"])
+      (generic-contains-toggles all-platforms :symbols ["AudioDecoderOpus" "ResourceTypeOpus"]))))
+
 (def input-setting
   (make-check-box-setting
     (concat
@@ -324,6 +345,11 @@
     (concat
       (exclude-libs-toggles all-platforms ["liveupdate"])
       (libs-toggles all-platforms ["liveupdate_null"]))))
+
+(def types-setting
+  (make-check-box-setting
+    (concat
+      (generic-contains-toggles all-platforms :excludeSymbols ["ScriptTypesExt"]))))
 
 (def basis-transcoder-setting
   (make-check-box-setting
@@ -338,19 +364,40 @@
 
 (def physics-setting
   (make-choice-setting
-    :none (concat (libs-toggles all-platforms ["physics_null"]) (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision" "Box2D"]))
-    :2d   (concat (libs-toggles all-platforms ["physics_2d"])   (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision"]))
-    :3d   (concat (libs-toggles all-platforms ["physics_3d"])   (exclude-libs-toggles all-platforms ["physics" "Box2D"]))
+    :none (concat (libs-toggles all-platforms ["physics_null"]) (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision" "box2d" "box2d_defold" "script_box2d" "script_box2d_defold"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
+    :2d   (concat (libs-toggles all-platforms ["physics_2d_defold"])   (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision"]))
+    :3d   (concat (libs-toggles all-platforms ["physics_3d"])   (exclude-libs-toggles all-platforms ["physics" "box2d" "box2d_defold" "script_box2d" "script_box2d_defold"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
     :both))
+
+(def physics-2d-setting
+  (make-choice-setting
+    :box2d (concat (libs-toggles all-platforms ["physics_2d" "box2d" "script_box2d"]) (exclude-libs-toggles all-platforms ["physics" "box2d_defold" "script_box2d_defold"]))
+    :box2d-defold))
+
+(def image-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["image"])
+      (libs-toggles all-platforms ["image_null"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["ScriptImageExt"]))))
+
+(def rig-setting
+  (make-choice-setting
+    :none (concat (libs-toggles all-platforms ["gamesys_rig_null" "gamesys_model_null" "rig_null"]) (exclude-libs-toggles all-platforms ["gamesys_model" "gamesys_rig" "rig"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptModelExt"]))
+    :rig   (concat (libs-toggles all-platforms ["gamesys_model_null"])   (exclude-libs-toggles all-platforms ["gamesys_model"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptModelExt"]))
+    :model))
+
 
 (def vulkan-toggles
   (concat
-    (libs-toggles [:x86_64-osx :arm64-ios] ["graphics_vulkan" "MoltenVK"])
+    (exclude-libs-toggles [:x86-win32 :x86_64-win32] ["platform"])
+    (libs-toggles [:x86-win32 :x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
+    (libs-toggles [:arm64-ios] ["graphics_vulkan" "MoltenVK"])
     (libs-toggles android ["graphics_vulkan"])
     (libs-toggles windows ["graphics_vulkan" "vulkan"])
     (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
-    (generic-contains-toggles [:x86_64-osx] :frameworks ["Metal" "IOSurface" "QuartzCore"])
-    (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "QuartzCore"])
+    (generic-contains-toggles linux :dynamicLibs ["vulkan"])
+    (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "IOSurface" "QuartzCore"])
     (generic-contains-toggles vulkan :symbols ["GraphicsAdapterVulkan"])))
 
 (def graphics-setting
@@ -358,9 +405,41 @@
     :vulkan (concat
               vulkan-toggles
               (exclude-libs-toggles vulkan ["graphics"])
-              (generic-contains-toggles vulkan :excludeSymbols ["GraphicsAdapterOpenGL"]))
+              (generic-contains-toggles (disj vulkan :arm64-linux) :excludeSymbols ["GraphicsAdapterOpenGL"])
+              [(contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGLES")])
     :both vulkan-toggles
     :open-gl))
+
+(def open-gl-osx-toggles
+  (concat
+    (libs-toggles vulkan-osx ["graphics" "platform"])
+    (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterOpenGL"])
+    (generic-contains-toggles vulkan-osx :frameworks ["OpenGL"])))
+
+(def graphics-setting-osx
+  (make-choice-setting
+    :open-gl (concat
+               open-gl-osx-toggles
+               (exclude-libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+               (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterVulkan"]))
+    :both open-gl-osx-toggles
+    :vulkan))
+
+(def webgpu-toggles
+  (concat
+    (libs-toggles web ["graphics_webgpu"])
+    (generic-contains-toggles web :symbols ["GraphicsAdapterWebGPU"])
+    (generic-contains-toggles web :emscriptenLinkFlags ["USE_WEBGPU=1" "GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0"])
+    (generic-contains-toggles [:wasm-web :wasm_pthread-web] :emscriptenLinkFlags ["ASYNCIFY=1" "ASYNCIFY_IGNORE_INDIRECT=1" "ASYNCIFY_ADD=[\"main\",\"dmEngineCreate(*)\",\"requestDeviceCallback(*)\",\"WebGPUCreateSwapchain(*)\",\"instanceRequestAdapterCallback(*)\"]"])))
+
+(def graphics-web-setting
+  (make-choice-setting
+    :web-gpu (concat
+               webgpu-toggles
+              (exclude-libs-toggles web ["graphics"])
+              (generic-contains-toggles web :excludeSymbols ["GraphicsAdapterOpenGL"]))
+    :both webgpu-toggles
+    :web-gl))
 
 (def ^:private app-manifest-key-order-pattern
   (let [platform-pattern [[:context [;; defines
@@ -390,15 +469,18 @@
                   [:armv7-android platform-pattern]
                   [:arm64-android platform-pattern]
                   ;; osx
+                  [:arm64-osx platform-pattern]
                   [:x86_64-osx platform-pattern]
                   ;; linux
                   [:x86_64-linux platform-pattern]
+                  [:arm64-linux platform-pattern]
                   ;; windows
                   [:x86-win32 platform-pattern]
                   [:x86_64-win32 platform-pattern]
                   ;; web
                   [:js-web platform-pattern]
-                  [:wasm-web platform-pattern]]]]))
+                  [:wasm-web platform-pattern]
+                  [:wasm_pthread-web platform-pattern]]]]))
 
 (g/defnode AppManifestNode
   (inherits r/CodeEditorResourceNode)
@@ -429,6 +511,21 @@
                                                         [:none "None"]]}))
             (value (setting-property-getter physics-setting))
             (set (setting-property-setter physics-setting)))
+  (property physics-2d g/Any
+            (dynamic tooltip (g/constantly "Box2D version 3 or legacy Defold version"))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:box2d "Box2D Version 3"]
+                                                        [:box2d-defold "Box2D (Legacy Defold version)"]]}))
+            (value (setting-property-getter physics-2d-setting))
+            (set (setting-property-setter physics-2d-setting)))
+  (property Rig+Model g/Any
+            (dynamic tooltip (g/constantly "Rig, Model or none"))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:model "Rig & Model"]
+                                                        [:rig "Rig only"]
+                                                        [:none "None"]]}))
+            (value (setting-property-getter rig-setting))
+            (set (setting-property-setter rig-setting)))
   (property exclude-record g/Any
             (dynamic tooltip (g/constantly "Remove the video recording capabilities (desktop platforms)"))
             (dynamic edit-type (g/constantly {:type g/Bool}))
@@ -443,6 +540,18 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter sound-setting))
             (set (setting-property-setter sound-setting)))
+  (property exclude-sound-decoder-wav g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter sound-decoder-wav-setting))
+            (set (setting-property-setter sound-decoder-wav-setting)))
+  (property exclude-sound-decoder-ogg g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter sound-decoder-ogg-setting))
+            (set (setting-property-setter sound-decoder-ogg-setting)))
+  (property include-sound-decoder-opus g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter sound-decoder-opus-setting))
+            (set (setting-property-setter sound-decoder-opus-setting)))
   (property exclude-input g/Any
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter input-setting))
@@ -451,6 +560,14 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter liveupdate-setting))
             (set (setting-property-setter liveupdate-setting)))
+  (property exclude-image g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter image-setting))
+            (set (setting-property-setter image-setting)))
+  (property exclude-types g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter types-setting))
+            (set (setting-property-setter types-setting)))
   (property exclude-basis-transcoder g/Any
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter basis-transcoder-setting))
@@ -461,13 +578,29 @@
             (value (setting-property-getter use-android-support-lib-setting))
             (set (setting-property-setter use-android-support-lib-setting)))
   (property graphics g/Any
-            (dynamic tooltip (g/constantly "Vulkan support is in BETA (desktop and mobile platforms)"))
+            (dynamic tooltip (g/constantly "Vulkan supports desktop and mobile platforms only"))
             (dynamic edit-type (g/constantly {:type :choicebox
                                               :options [[:open-gl "OpenGL"]
                                                         [:vulkan "Vulkan"]
                                                         [:both "OpenGL & Vulkan"]]}))
             (value (setting-property-getter graphics-setting))
-            (set (setting-property-setter graphics-setting))))
+            (set (setting-property-setter graphics-setting)))
+  (property graphics-osx g/Any
+            (dynamic tooltip (g/constantly "Vulkan is the default renderer for OSX"))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:vulkan "Vulkan"]
+                                                        [:open-gl "OpenGL"]
+                                                        [:both "OpenGL & Vulkan"]]}))
+            (value (setting-property-getter graphics-setting-osx))
+            (set (setting-property-setter graphics-setting-osx)))
+  (property graphics-web g/Any
+            (dynamic tooltip (g/constantly "WebGPU support is in BETA (web platforms)"))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:web-gl "WebGL"]
+                                                        [:web-gpu "WebGPU"]
+                                                        [:both "WebGL & WebGPU"]]}))
+            (value (setting-property-getter graphics-web-setting))
+            (set (setting-property-setter graphics-web-setting))))
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type
@@ -477,4 +610,6 @@
     :label "App Manifest"
     :icon "icons/32/Icons_05-Project-info.png"
     :node-type AppManifestNode
-    :view-types [:code :default]))
+    :view-types [:code :default]
+    :view-opts {:code {:use-custom-editor false}}
+    :lazy-loaded true))

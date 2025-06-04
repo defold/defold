@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,13 +22,15 @@ import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
+import java.nio.ByteBuffer;
 
 import com.dynamo.liveupdate.proto.Manifest.ManifestData;
 import com.dynamo.liveupdate.proto.Manifest.ManifestFile;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntry;
 
 public class ArchiveReader {
-    public static final int VERSION = 4;
+    public static final int VERSION = 5;
     public static final int HASH_BUFFER_BYTESIZE = 64; // 512 bits
 
     private ArrayList<ArchiveEntry> entries = null;
@@ -52,16 +54,16 @@ public class ArchiveReader {
     }
 
     public void read() throws IOException {
-    	this.archiveIndexFile = new RandomAccessFile(this.archiveIndexFilepath, "r");
+        this.archiveIndexFile = new RandomAccessFile(this.archiveIndexFilepath, "r");
         this.archiveDataFile = new RandomAccessFile(this.archiveDataFilepath, "r");
-        
+
         this.archiveIndexFile.seek(0);
         this.archiveDataFile.seek(0);
-        
+
         if (this.manifestFilepath != null) {
-	        InputStream manifestInputStream = new FileInputStream(this.manifestFilepath);
-	        this.manifestFile = ManifestFile.parseFrom(manifestInputStream);
-	        manifestInputStream.close();
+            InputStream manifestInputStream = new FileInputStream(this.manifestFilepath);
+            this.manifestFile = ManifestFile.parseFrom(manifestInputStream);
+            manifestInputStream.close();
         }
 
         // Version
@@ -71,20 +73,6 @@ public class ArchiveReader {
         } else {
             throw new IOException("Unsupported archive index version: " + indexVersion);
         }
-    }
-    
-    private boolean matchHash(byte[] a, byte[] b, int hlen) {
-    	if (a.length < hlen || b.length < hlen) {
-    		return false;
-    	}
-    	
-    	for (int i = 0; i < hlen; ++i) {
-    		if (a[i] != b[i]) {
-    			return false;
-    		}
-    	}
-    	
-    	return true;
     }
 
     private void readArchiveData() throws IOException {
@@ -102,8 +90,12 @@ public class ArchiveReader {
         // Once the hashes are read, the rest of the entries are read.
 
         ManifestData manifestData = null;
+        HashMap<ByteBuffer, ResourceEntry> hashToResourceLookup = new HashMap<ByteBuffer, ResourceEntry>();
         if (this.manifestFile != null) {    // some tests do not initialize this.manifestFile
             manifestData = ManifestData.parseFrom(this.manifestFile.getData());
+            for (ResourceEntry resource : manifestData.getResourcesList()) {
+                hashToResourceLookup.put(ByteBuffer.wrap(resource.getHash().getData().toByteArray(), 0, hashLength), resource);
+            }
         }
 
         // Read entry hashes
@@ -111,19 +103,14 @@ public class ArchiveReader {
         for (int i = 0; i < entryCount; ++i) {
             archiveIndexFile.seek(hashOffset + i * HASH_BUFFER_BYTESIZE);
             ArchiveEntry e = new ArchiveEntry("");
-            e.setHash(new byte[HASH_BUFFER_BYTESIZE]);
-            archiveIndexFile.read(e.getHash(), 0, hashLength);
-
-            if (this.manifestFile != null) {
-                for (ResourceEntry resource : manifestData.getResourcesList()) {
-	            	if (matchHash(e.getHash(), resource.getHash().getData().toByteArray(), this.hashLength)) {
-	            		e.setFilename(resource.getUrl());
-	            		e.setRelativeFilename(resource.getUrl());
-                        break;
-	            	}
-	            }
+            byte[] hash = new byte[HASH_BUFFER_BYTESIZE];
+            archiveIndexFile.read(hash, 0, hashLength);
+            e.setHash(hash);
+            ResourceEntry resource = hashToResourceLookup.get(ByteBuffer.wrap(hash, 0, hashLength));
+            if (resource != null) {
+                e.setFilename(resource.getUrl());
+                e.setRelativeFilename(resource.getUrl());
             }
-            
             entries.add(e);
         }
 

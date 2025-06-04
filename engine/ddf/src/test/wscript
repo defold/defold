@@ -33,7 +33,7 @@ def build(bld):
 
     bld(features = 'cxx cprogram ddf test',
         source = 'test_ddf.cpp test_ddf_proto.proto test_ddf_import.proto',
-        use = 'TESTMAIN PROTOBUF DLIB PROFILE_NULL PTHREAD PLATFORM_SOCKET ddf',
+        use = 'TESTMAIN PROTOBUF DLIB PROFILE_NULL PTHREAD SOCKET ddf',
         web_libs = ['library_sys.js'],
         ddf_namespace = 'DUMMY',
         proto_gen_cc = True,

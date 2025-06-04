@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,16 +22,17 @@
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.icons :as icons]
-            [editor.progress :as progress]
+            [editor.keymap :as keymap]
             [editor.math :as math]
-            [editor.util :as eutil]
+            [editor.os :as os]
+            [editor.progress :as progress]
             [internal.util :as util]
             [service.log :as log]
             [service.smoke-log :as slog]
             [util.profiler :as profiler])
   (:import [com.defold.control ListCell]
            [com.defold.control LongField]
-           [com.defold.control TreeCell]
+           [com.defold.control DefoldStringConverter TreeCell]
            [com.sun.javafx.application PlatformImpl]
            [com.sun.javafx.event DirectEvent]
            [java.awt Desktop Desktop$Action]
@@ -41,6 +42,7 @@
            [javafx.animation AnimationTimer KeyFrame KeyValue Timeline]
            [javafx.application Platform]
            [javafx.beans InvalidationListener]
+           [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.collections FXCollections ListChangeListener ObservableList]
            [javafx.css Styleable]
@@ -48,16 +50,17 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Orientation Point2D]
            [javafx.scene Group Node Parent Scene]
-           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TableView TabPane TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane HBox Pane]
            [javafx.scene.shape SVGPath]
-           [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
-           [javafx.stage Stage Modality PopupWindow StageStyle Window]
-           [javafx.util Callback Duration StringConverter]))
+           [javafx.stage Modality PopupWindow Stage StageStyle Window]
+           [javafx.util Callback Duration]))
 
 (set! *warn-on-reflection* true)
+
+(def ^:private ^:dynamic *programmatic-selection* nil)
 
 ;; Next line of code makes sure JavaFX is initialized, which is required during
 ;; compilation even when we are not actually running the editor. To properly
@@ -80,18 +83,44 @@
 (defn node? [value]
   (instance? Node value))
 
+(defn- set-application-focus-state [old-state focused window t]
+  ;; How we expect the focus to be changed over time (this works on e.g. macOS):
+  ;; [user opens dialog...]
+  ;; 1. main window: focus loss
+  ;; 2. dialog window: focus gain
+  ;; [...user interacts with dialog, then closes it...]
+  ;; 3. dialog window: focus loss
+  ;; 4. main window: focus gain
+  ;; How the focus actually works on Linux:
+  ;; [user opens dialog...]
+  ;; 1. dialog window: focus gain
+  ;; 2. main window: focus loss
+  ;; [...user interacts with dialog, then closes it...]
+  ;; 3. main window: focus gain
+  ;; When the dialog is open for longer than `application-unfocused-threshold-ms`,
+  ;; this Linux behavior causes resource sync to trigger after closing the dialog,
+  ;; which may lead to subtle bugs if the normal use of the dialog also triggers
+  ;; the resource sync. To fix the issue on Linux, we skip focus changes that
+  ;; report focus loss while another window is currently focused
+  (if (and (:focused old-state)
+           (not focused)
+           (not= (:window old-state) window))
+    old-state
+    {:focused focused :window window :t t}))
+
 (def focus-change-listener
   (reify ChangeListener
-    (changed [_ _ _ focused?]
-      (reset! focus-state {:focused? focused?
-                           :t (System/currentTimeMillis)}))))
+    (changed [_ observable-value _ focused]
+      (let [window (.getBean ^ReadOnlyProperty observable-value)
+            t (System/currentTimeMillis)]
+        (swap! focus-state set-application-focus-state focused window t)))))
 
 (defn add-application-focused-callback! [key application-focused! & args]
   (add-watch focus-state key
              (fn [_key _ref old new]
                (when (and old
-                          (not (:focused? old))
-                          (:focused? new))
+                          (not (:focused old))
+                          (:focused new))
                  (let [unfocused-ms (- (:t new) (:t old))]
                    (when (< application-unfocused-threshold-ms unfocused-ms)
                      (apply application-focused! args))))))
@@ -107,6 +136,9 @@
 
 (defprotocol HasAction
   (on-action! [this fn]))
+
+(defprotocol Cancellable
+  (on-cancel! [this cancel-fn]))
 
 (defprotocol HasValue
   (value [this])
@@ -142,12 +174,6 @@
 
 (defn- main-menu-id ^MenuBar []
   (:menu-id (user-data (main-root) ::menubar)))
-
-(defn node-with-id ^Node [id nodes]
-  (some (fn [^Node node]
-          (when (= id (.getId node))
-            node))
-        nodes))
 
 (defn closest-node-where
   ^Node [pred ^Node leaf-node]
@@ -188,7 +214,7 @@
     ;; provides the .app icon when bundling and child windows are rendered
     ;; as miniatures when minimized, so there is no need to assign an icon
     ;; to each window on macOS unless we want the icon in the title bar.
-    (when-not (eutil/is-mac-os?)
+    (when-not (os/is-mac-os?)
       (.. stage getIcons (add application-icon-image)))
     stage))
 
@@ -570,16 +596,47 @@
 
 (defn auto-commit! [^Node node commit-fn]
   (on-focus! node (fn [got-focus] (if got-focus
-                                    (user-data! node ::auto-commit? false)
-                                    (when (user-data node ::auto-commit?)
+                                    (user-data! node ::auto-commit false)
+                                    (when (user-data node ::auto-commit)
                                       (commit-fn nil)))))
-  (on-edit! node (fn [_old new]
-                   (if (user-data node ::suppress-auto-commit?)
-                     (user-data! node ::suppress-auto-commit? false)
-                     (user-data! node ::auto-commit? true)))))
+  (on-edit! node (fn [_old _new]
+                   (user-data! node ::auto-commit true))))
 
-(defn suppress-auto-commit! [^Node node]
-  (user-data! node ::suppress-auto-commit? true))
+(defn clear-auto-commit! [^Node node]
+  ;; Clear the auto-commit flag. You should call this whenever data has been
+  ;; synced with the graph while the field still has focus. This ensures the
+  ;; unedited value will not be committed to the graph unnecessarily after the
+  ;; user moves focus to another control. Further edits will re-apply the
+  ;; auto-commit flag, but if they leave without editing, we won't commit.
+  (when (user-data node ::auto-commit)
+    (user-data! node ::auto-commit false)))
+
+(defn increase-on-edit-event-suppress-count! [editable]
+  (when-some [suppress-count (user-data editable ::on-edit-event-suppress-count)]
+    (user-data! editable ::on-edit-event-suppress-count (inc (long suppress-count)))))
+
+(defn decrease-on-edit-event-suppress-count! [editable]
+  (when-some [suppress-count (user-data editable ::on-edit-event-suppress-count)]
+    (let [suppress-count (long suppress-count)]
+      (assert (pos? suppress-count))
+      (user-data! editable ::on-edit-event-suppress-count (dec suppress-count)))))
+
+(defmacro with-on-edit-event-suppressed! [editable & body]
+  `(let [editable# ~editable]
+     (increase-on-edit-event-suppress-count! editable#)
+     (try
+       ~@body
+       (finally
+         (decrease-on-edit-event-suppress-count! editable#)))))
+
+(defn- add-on-edit-event-fn! [editable observed-property listen-fn]
+  (when (nil? (user-data editable ::on-edit-event-suppress-count))
+    (user-data! editable ::on-edit-event-suppress-count 0))
+  (observe observed-property
+           (fn [_this old new]
+             (let [^long suppress-count (or (user-data editable ::on-edit-event-suppress-count) 0)]
+               (when (zero? suppress-count)
+                 (listen-fn old new))))))
 
 (defn- apply-default-css! [^Parent root]
   (.. root getStylesheets (add (str (io/resource "editor.css"))))
@@ -673,7 +730,7 @@
 (extend-type LongField
   HasValue
   (value [this] (Integer/parseInt (.getText this)))
-  (value! [this val] (.setText this (str val))))
+  (value! [this val] (text! this (str val))))
 
 (extend-type TextInputControl
   HasValue
@@ -682,28 +739,29 @@
   Text
   (text [this] (.getText this))
   (text! [this val]
-    (doto this
-      (.setText val)
-      (.end))
-    (when (.isFocused this)
-      (.selectAll this)))
+    (with-on-edit-event-suppressed! this
+      (doto this
+        (.setText val)
+        (.end))
+      (when (.isFocused this)
+        (.selectAll this))))
   Editable
   (editable [this] (.isEditable this))
   (editable! [this val] (.setEditable this val))
-  (on-edit! [this f] (observe (.textProperty this) (fn [this old new] (f old new)))))
+  (on-edit! [this f] (add-on-edit-event-fn! this (.textProperty this) f)))
 
 (extend-type ChoiceBox
   HasAction
   (on-action! [this fn] (.setOnAction this (event-handler e (fn e))))
   HasValue
   (value [this] (.getValue this))
-  (value! [this val] (.setValue this val)))
+  (value! [this val] (with-on-edit-event-suppressed! this (.setValue this val))))
 
 (extend-type ComboBoxBase
   Editable
   (editable [this] (not (.isDisabled this)))
   (editable! [this val] (.setDisable this (not val)))
-  (on-edit! [this f] (observe (.valueProperty this) (fn [this old new] (f old new)))))
+  (on-edit! [this f] (add-on-edit-event-fn! this (.valueProperty this) f)))
 
 (defn allow-user-input! [^ComboBoxBase cb e]
   (.setEditable cb e))
@@ -711,20 +769,54 @@
 (extend-type CheckBox
   HasValue
   (value [this] (.isSelected this))
-  (value! [this val] (.setSelected this val))
+  (value! [this val] (with-on-edit-event-suppressed! this (.setSelected this val)))
   Editable
   (editable [this] (not (.isDisabled this)))
   (editable! [this val] (.setDisable this (not val)))
-  (on-edit! [this f] (observe (.selectedProperty this) (fn [this old new] (f old new)))))
+  (on-edit! [this f] (add-on-edit-event-fn! this (.selectedProperty this) f)))
 
 (extend-type ColorPicker
   HasValue
   (value [this] (.getValue this))
-  (value! [this val] (.setValue this val)))
+  (value! [this val] (with-on-edit-event-suppressed! this (.setValue this val))))
+
+(declare bind-key!)
 
 (extend-type TextField
   HasAction
-  (on-action! [this fn] (.setOnAction this (event-handler e (fn e)))))
+  (on-action! [node update-fn]
+    (.setOnAction node (event-handler e
+                         (clear-auto-commit! node)
+                         (let [length (.getLength (.getSelection node))]
+                           (update-fn e)
+                           (if (zero? length)
+                             (.selectAll node)
+                             (.deselect node))))))
+  Cancellable
+  (on-cancel! [node cancel-fn]
+    (bind-key! node "Esc" (fn []
+                            (cancel-fn node)
+                            (clear-auto-commit! node)
+                            (when-let [parent (.getParent node)]
+                              (.requestFocus parent))))))
+
+(extend-type TextArea
+  HasAction
+  (on-action! [node update-fn]
+    (bind-key! node "Shortcut+Enter" (fn []
+                                       (clear-auto-commit! node)
+                                       (let [length (.getLength (.getSelection node))]
+                                         (update-fn node)
+                                         (if (zero? length)
+                                           (.selectAll node)
+                                           (.deselect node))))))
+  Cancellable
+  (on-cancel! [node cancel-fn]
+    (bind-key! node "Esc" (fn []
+                            (cancel-fn node)
+                            (clear-auto-commit! node)
+                            (when-let [parent (.getParent node)]
+                              (.requestFocus parent))))))
 
 (extend-type Labeled
   Text
@@ -1075,27 +1167,27 @@
   [^TextInputControl control]
   (not (string/blank? (.getSelectedText control))))
 
-(handler/defhandler :cut :text-input-control
+(handler/defhandler :edit.cut :text-input-control
   (enabled? [^TextInputControl control] (and (editable control) (has-selection? control)))
   (run [^TextInputControl control] (.cut control)))
 
-(handler/defhandler :copy :text-input-control
+(handler/defhandler :edit.copy :text-input-control
   (enabled? [^TextInputControl control] (has-selection? control))
   (run [^TextInputControl control] (.copy control)))
 
-(handler/defhandler :paste :text-input-control
+(handler/defhandler :edit.paste :text-input-control
   (enabled? [^TextInputControl control] (and (editable control) (.. Clipboard getSystemClipboard hasString)))
   (run [^TextInputControl control] (.paste control)))
 
-(handler/defhandler :delete :text-input-control
+(handler/defhandler :edit.delete :text-input-control
   (enabled? [^TextInputControl control] (editable control))
   (run [^TextInputControl control] (.deleteNextChar control)))
 
-(handler/defhandler :undo :text-input-control
+(handler/defhandler :edit.undo :text-input-control
   (enabled? [^TextInputControl control] (.isUndoable control))
   (run [^TextInputControl control] (.undo control)))
 
-(handler/defhandler :redo :text-input-control
+(handler/defhandler :edit.redo :text-input-control
   (enabled? [^TextInputControl control] (.isRedoable control))
   (run [^TextInputControl control] (.redo control)))
 
@@ -1169,7 +1261,7 @@
       (execute-handler-ctx handler-ctx))))
 
 (defn- select-items [items options command-contexts]
-  (execute-command command-contexts :select-items {:items items :options options}))
+  (execute-command command-contexts :private/select-items {:items items :options options}))
 
 (defn image-icon
   "Cljfx image view with image loaded from classpath or workspace
@@ -1194,29 +1286,45 @@
    (invoke-handler command-contexts command nil))
   ([command-contexts command user-data]
    (if-let [handler-ctx (handler/active command command-contexts user-data)]
-     (if-let [options (and (nil? user-data) (handler/options handler-ctx))]
-       (when-let [user-data (some-> (select-items options {:title (handler/label handler-ctx)
-                                                           :filter-on :label
-                                                           :cell-fn (fn [item]
-                                                                      {:text (:label item)
-                                                                       :graphic {:fx/type image-icon
-                                                                                 :path (:icon item)
-                                                                                 :size 16.0}})}
-                                                  command-contexts)
+     (if-let [options (and (nil? user-data) (handler/option-items handler-ctx))]
+       (when-let [user-data (some-> (select-items
+                                      options
+                                      {:title (handler/label handler-ctx)
+                                       :filter-on :label
+                                       :cell-fn (fn [{:keys [label icon]}]
+                                                  (cond-> {:text label}
+                                                          icon
+                                                          (assoc :graphic {:fx/type image-icon
+                                                                           :path icon
+                                                                           :size 16.0})))}
+                                      command-contexts)
                                     first
                                     :user-data)]
          (execute-command command-contexts command user-data))
        (execute-command command-contexts command user-data))
      ::not-active)))
 
+(defn execute-accelerator-commands [commands]
+  ;; It is imperative that the handler is invoked using run-later as
+  ;; this avoids a JVM crash on some macOS versions. Prior to macOS
+  ;; Sierra, the order in which native menu events are delivered
+  ;; triggered a segfault in the native menu implementation when the
+  ;; stage is changed during the event dispatch. This happens for
+  ;; example when we have a shortcut triggering the opening of a
+  ;; dialog.
+  (run-later (let [command-contexts (contexts (main-scene))]
+               (reduce
+                 (fn [acc command]
+                   (let [ret (invoke-handler command-contexts command)]
+                     (case ret
+                       (::not-active ::not-enabled) acc
+                       (reduced ret))))
+                 nil
+                 commands))))
+
 (defn- make-desc [control menu-id]
   {:control control
    :menu-id menu-id})
-
-(defn- wrap-menu-image [node]
-  (doto (Pane.)
-    (children! [node])
-    (add-style! "menu-image-wrapper")))
 
 (defn- make-submenu [id label icon ^Collection style-classes menu-items on-open]
   (when (seq menu-items)
@@ -1225,7 +1333,7 @@
       (when on-open
         (.setOnShowing menu (event-handler e (on-open))))
       (when icon
-        (.setGraphic menu (wrap-menu-image (icons/get-image-view icon 16))))
+        (.setGraphic menu (icons/get-image-view icon 16)))
       (when style-classes
         (assert (set? style-classes))
         (doto (.getStyleClass menu)
@@ -1246,28 +1354,27 @@
         (finally
           (set! suppress? false))))))
 
-(defn- make-menu-command [^Scene scene id label icon ^Collection style-classes acc user-data command enabled? check]
-  (let [key-combo (and acc (KeyCombination/keyCombination acc))
-        ^MenuItem menu-item (if check
+(defn- make-menu-command [^Scene scene id label icon ^Collection style-classes key-combo user-data command enabled? check]
+  (let [^MenuItem menu-item (if check
                               (CheckMenuItem. label)
                               (MenuItem. label))]
-    ;; Currently not allowed due to a problem on macOS. See below.
-    ;; Still a problem in JavaFX 12.
-    (assert (not (and check key-combo)) "Keyboard shortcuts currently cannot be assigned to check menu items.")
-
     (user-data! menu-item ::menu-item-id id)
     (when command
-      (.setId menu-item (name command)))
-    (when (and (some? key-combo) (nil? user-data))
+      (user-data! menu-item ::command command))
+    (when (and (some? key-combo)
+               ;; Currently not allowed due to a problem on macOS. See below.
+               ;; Still a problem in JavaFX 23.
+               (not check)
+               (nil? user-data))
       (.setAccelerator menu-item key-combo))
     (when icon
-      (.setGraphic menu-item (wrap-menu-image (icons/get-image-view icon 16))))
+      (.setGraphic menu-item (icons/get-image-view icon 16)))
     (when style-classes
       (assert (set? style-classes))
       (doto (.getStyleClass menu-item)
         (.addAll style-classes)))
     (.setDisable menu-item (not enabled?))
-    (if (eutil/is-mac-os?)
+    (if (os/is-mac-os?)
       ;; On macOS, there is no way to prevent a shortcut handled by a
       ;; scene accelerator from also triggering a MenuItem with the
       ;; same accelerator. To avoid invoking the command twice, we use
@@ -1277,7 +1384,8 @@
       ;; Note this doesn't seem to work for CheckMenuItems as the
       ;; CheckMenuItemAdapter in GlobalMenuAdapter.java does
       ;; getOnMenuValidation() on this instead of the target
-      ;; menuItem. In effect we never get a MENU_VALIDATION_EVENT.
+      ;; menuItem. In effect, we never get a MENU_VALIDATION_EVENT.
+      ;; See https://github.com/openjdk/jfx/blob/master/modules/javafx.controls/src/main/java/com/sun/javafx/scene/control/GlobalMenuAdapter.java
       (let [handler (->MenuEventHandler scene command user-data false)]
         (.setOnMenuValidation menu-item handler)
         (.setOnAction menu-item handler))
@@ -1287,7 +1395,7 @@
 
 (declare make-menu-items)
 
-(defn- make-menu-item [^Scene scene item command-contexts command->shortcut evaluation-context]
+(defn- make-menu-item [^Scene scene item command-contexts keymap evaluation-context]
   (let [id (:id item)
         icon (:icon item)
         style-classes (:style item)
@@ -1298,7 +1406,7 @@
                     item-label
                     icon
                     style-classes
-                    (make-menu-items scene children command-contexts command->shortcut evaluation-context)
+                    (make-menu-items scene children command-contexts keymap evaluation-context)
                     on-open)
       (if (= item-label :separator)
         (SeparatorMenuItem.)
@@ -1308,21 +1416,21 @@
           (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
             (let [label (or (handler/label handler-ctx) item-label) ; Note that this is *not* updated on every menu refresh. Can't do "Show X" <-> "Hide X".
                   enabled? (handler/enabled? handler-ctx evaluation-context)
-                  acc (command->shortcut command)]
+                  key-combo (first (keymap/shortcuts keymap command))]
               (if-let [options (handler/options handler-ctx)]
-                (if (and acc (not (:expand? item)))
-                  (make-menu-command scene id label icon style-classes acc user-data command enabled? check)
+                (if (and key-combo (not (:expand item)))
+                  (make-menu-command scene id label icon style-classes key-combo user-data command enabled? check)
                   (make-submenu id
                                 label
                                 icon
                                 style-classes
-                                (make-menu-items scene options command-contexts command->shortcut evaluation-context)
+                                (make-menu-items scene options command-contexts keymap evaluation-context)
                                 on-open))
-                (make-menu-command scene id label icon style-classes acc user-data command enabled? check)))))))))
+                (make-menu-command scene id label icon style-classes key-combo user-data command enabled? check)))))))))
 
-(defn- make-menu-items [^Scene scene menu command-contexts command->shortcut evaluation-context]
+(defn- make-menu-items [^Scene scene menu command-contexts keymap evaluation-context]
   (into []
-        (keep #(make-menu-item scene % command-contexts command->shortcut evaluation-context))
+        (keep #(make-menu-item scene % command-contexts keymap evaluation-context))
         menu))
 
 (defn- make-context-menu ^ContextMenu [menu-items]
@@ -1340,21 +1448,25 @@
   (defn set-show-relative-to-window! [context-menu x]
     (.invoke method context-menu (into-array Object [(boolean x)]))))
 
+(defn init-context-menu! ^ContextMenu [menu-location ^Scene scene]
+  (let [menu-items (g/with-auto-or-fake-evaluation-context evaluation-context
+                     (make-menu-items scene (handler/realize-menu menu-location) (contexts scene false) (or (user-data scene :keymap) keymap/empty) evaluation-context))
+        cm (make-context-menu menu-items)]
+    (doto (.getItems cm)
+      (refresh-separator-visibility)
+      (refresh-menu-item-styles))
+    ;; Required for autohide to work when the event originates from the anchor/source node
+    ;; See RT-15160 and Control.java
+    (set-show-relative-to-window! cm true)
+    cm))
+
 (defn- show-context-menu! [menu-location ^ContextMenuEvent event]
   (when-not (.isConsumed event)
     (.consume event)
     (let [node ^Node (.getTarget event)
           scene ^Scene (.getScene node)
-          menu-items (g/with-auto-or-fake-evaluation-context evaluation-context
-                       (make-menu-items scene (handler/realize-menu menu-location) (contexts scene false) (or (user-data scene :command->shortcut) {}) evaluation-context))
-          cm (make-context-menu menu-items)]
-      (doto (.getItems cm)
-        (refresh-separator-visibility)
-        (refresh-menu-item-styles))
-      ;; Required for autohide to work when the event originates from the anchor/source node
-      ;; See RT-15160 and Control.java
-      (set-show-relative-to-window! cm true)
-      (.show cm node (.getScreenX event) (.getScreenY event)))))
+          context-menu (init-context-menu! menu-location scene)]
+      (.show context-menu node (.getScreenX event) (.getScreenY event)))))
 
 (defn register-context-menu
   "Register a context menu listener on a control for the menu location
@@ -1532,21 +1644,23 @@
         (when-not (neg? index)
           (.set parent-children index new))))))
 
-(defn- refresh-menubar? [menu-bar menu visible-command-contexts]
+(defn- refresh-menubar? [menu-bar menu visible-command-contexts keymap]
   (or (not= menu (user-data menu-bar ::menu))
-      (not= visible-command-contexts (user-data menu-bar ::visible-command-contexts))))
+      (not= visible-command-contexts (user-data menu-bar ::visible-command-contexts))
+      (not= keymap (user-data menu-bar ::keymap))))
 
-(defn- refresh-menubar! [^MenuBar menu-bar menu visible-command-contexts command->shortcut evaluation-context]
+(defn- refresh-menubar! [^MenuBar menu-bar menu visible-command-contexts keymap evaluation-context]
   (.clear (.getMenus menu-bar))
   ;; TODO: We must ensure that top-level element are of type Menu and note MenuItem here, i.e. top-level items with ":children"
   (.addAll (.getMenus menu-bar)
            ^Collection (make-menu-items (.getScene menu-bar)
                                         menu
                                         visible-command-contexts
-                                        command->shortcut
+                                        keymap
                                         evaluation-context))
   (user-data! menu-bar ::menu menu)
   (user-data! menu-bar ::visible-command-contexts visible-command-contexts)
+  (user-data! menu-bar ::keymap keymap)
   (clear-invalidated-menubar-items!))
 
 (defn- refresh-menubar-items?
@@ -1571,8 +1685,15 @@
                   [id menu-data-entry])))
         (tree-seq :children :children {:children menu-data})))
 
+(defn- menu-data-without-icons [menu-data]
+  (util/deep-keep-kv
+    (fn [key value]
+      (when (not= :icon key)
+        value))
+    menu-data))
+
 (defn- refresh-menubar-items!
-  [^MenuBar menu-bar menu-data visible-command-contexts command->shortcut evaluation-context]
+  [^MenuBar menu-bar menu-data visible-command-contexts keymap evaluation-context]
   (let [id->menu-item (menu->id-map menu-bar)
         id->menu-data (menu-data->id-map menu-data)]
     (doseq [id @invalid-menubar-items]
@@ -1582,7 +1703,7 @@
           (let [new-menu-item (make-menu-item (.getScene menu-bar)
                                               menu-item-data
                                               visible-command-contexts
-                                              command->shortcut
+                                              keymap
                                               evaluation-context)]
             (replace-menu! menu-bar menu-item new-menu-item)))))
     (clear-invalidated-menubar-items!)))
@@ -1631,7 +1752,7 @@
 
     CheckMenuItem
     (let [^CheckMenuItem check-menu-item menu-item
-          command (keyword (.getId check-menu-item))
+          command (user-data check-menu-item ::command)
           user-data (user-data check-menu-item ::menu-user-data)
           handler-ctx (handler/active command command-contexts user-data evaluation-context)]
       (doto check-menu-item
@@ -1639,7 +1760,7 @@
         (.setSelected (boolean (handler/state handler-ctx)))))
 
     MenuItem
-    (let [handler-ctx (handler/active (keyword (.getId menu-item))
+    (let [handler-ctx (handler/active (user-data menu-item ::command)
                                       command-contexts
                                       (user-data menu-item ::menu-user-data)
                                       evaluation-context)
@@ -1661,7 +1782,7 @@
     ;; The system menu bar on osx seems to handle consecutive
     ;; separators and using .setVisible to hide a SeparatorMenuItem
     ;; makes the entire containing submenu appear empty.
-    (when-not (and (eutil/is-mac-os?)
+    (when-not (and (os/is-mac-os?)
                    (.isUseSystemMenuBar menubar))
       (refresh-separator-visibility (.getItems m)))
     (refresh-menu-item-styles (.getItems m)))
@@ -1706,18 +1827,17 @@
                                                  (let [hbox (doto (HBox.)
                                                               (add-style! "cell"))
                                                        cb (doto (ChoiceBox.)
-                                                            (.setConverter (proxy [StringConverter] []
-                                                                             (fromString [str] (some #{str} (map :label opts)))
-                                                                             (toString [v] (:label v)))))]
+                                                            (.setConverter (DefoldStringConverter. :label #(some #{%} (map :label opts)))))]
                                                    (.setAll (.getItems cb) ^Collection opts)
                                                    (observe (.valueProperty cb) (fn [this old new]
-                                                                                  (when new
+                                                                                  (when (and new (not *programmatic-selection*))
                                                                                     (let [command-contexts (contexts scene)]
                                                                                       (execute-command command-contexts (:command new) (:user-data new))))))
                                                    (.add (.getChildren hbox) (icons/get-image-view (:icon menu-item) 16))
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
-                                                 (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
+                                                 (let [button (doto (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
+                                                                (tooltip! (:tooltip menu-item)))
                                                        graphic-fn (:graphic-fn menu-item)
                                                        icon (:icon menu-item)]
                                                    (cond
@@ -1735,23 +1855,21 @@
                                                                           (execute-command (contexts scene) command user-data))))
                                                    button)))]
                           (when command
-                            (.setId child (name command)))
+                            (user-data! child ::command command))
                           (user-data! child ::menu-user-data user-data)
                           child)))
-           children (if (instance? Separator (last children))
-                      (butlast children)
-                      children)]
+           children (cond-> children
+                      (instance? Separator (last children)) butlast
+                      (instance? Separator (first children)) rest)]
        (doseq [child children]
          (.add (.getChildren control) child))))))
 
 (defn- refresh-toolbar-state [^Pane toolbar command-contexts evaluation-context]
   (let [nodes (.getChildren toolbar)]
     (doseq [^Node n nodes
-            :let [user-data (user-data n ::menu-user-data)
-                  handler-ctx (handler/active (keyword (.getId n))
-                                              command-contexts
-                                              user-data
-                                              evaluation-context)]]
+            :let [command (user-data n ::command)
+                  user-data (user-data n ::menu-user-data)
+                  handler-ctx (handler/active command command-contexts user-data evaluation-context)]]
       (disable! n (not (handler/enabled? handler-ctx evaluation-context)))
       (when (instance? ToggleButton n)
         (if (handler/state handler-ctx)
@@ -1770,7 +1888,8 @@
             (let [selection-model (.getSelectionModel cb)
                   item (.getSelectedItem selection-model)]
               (when (not= item state)
-                (.select selection-model state)))))))))
+                (binding [*programmatic-selection* true]
+                  (.select selection-model state))))))))))
 
 (defn- window-parents [^Window window]
   (when-let [parent (condp instance? window
@@ -1797,19 +1916,21 @@
   (contexts scene))
 
 (defn- refresh-menus!
-  [^Scene scene command->shortcut evaluation-context]
+  [^Scene scene keymap evaluation-context]
   (let [visible-command-contexts (visible-command-contexts scene)
         current-command-contexts (current-command-contexts scene)
         root (.getRoot scene)]
     (when-let [md (user-data root ::menubar)]
       (let [^MenuBar menu-bar (:control md)
-            menu (handler/realize-menu (:menu-id md))]
+            menu (cond-> (handler/realize-menu (:menu-id md))
+                         (os/is-mac-os?)
+                         (menu-data-without-icons))]
         (cond
-          (refresh-menubar? menu-bar menu visible-command-contexts)
-          (refresh-menubar! menu-bar menu visible-command-contexts command->shortcut evaluation-context)
+          (refresh-menubar? menu-bar menu visible-command-contexts keymap)
+          (refresh-menubar! menu-bar menu visible-command-contexts keymap evaluation-context)
 
           (refresh-menubar-items?)
-          (refresh-menubar-items! menu-bar menu visible-command-contexts command->shortcut evaluation-context))
+          (refresh-menubar-items! menu-bar menu visible-command-contexts keymap evaluation-context))
 
         (refresh-menubar-state menu-bar current-command-contexts evaluation-context)))))
 
@@ -1817,16 +1938,28 @@
   [^Scene scene evaluation-context]
   (let [visible-command-contexts (visible-command-contexts scene)
         current-command-contexts (current-command-contexts scene)
-        root (.getRoot scene)]
+        root (.getRoot scene)
+        app-view (-> current-command-contexts first :env :app-view)
+        active-tab (g/maybe-node-value app-view :active-tab evaluation-context)]
     (doseq [td (vals (user-data root ::toolbars))]
-      (refresh-toolbar td visible-command-contexts evaluation-context)
-      (refresh-toolbar-state (:control td) current-command-contexts evaluation-context))))
+      (let [control (:control td)]
+        (when active-tab
+          (visible! control (nodes-along-path? control (.getContent ^Tab active-tab) root)))
+        (refresh-toolbar td visible-command-contexts evaluation-context)
+        (refresh-toolbar-state (:control td) current-command-contexts evaluation-context)))))
+
+(defn- refresh-accelerators! [scene keymap]
+  (when-not (identical? keymap (user-data scene ::accelerators))
+    (user-data! scene ::accelerators keymap)
+    (keymap/install! keymap scene execute-accelerator-commands)))
 
 (defn refresh
   [^Scene scene]
   (g/with-auto-or-fake-evaluation-context evaluation-context
-    (refresh-menus! scene (or (user-data scene :command->shortcut) {}) evaluation-context)
-    (refresh-toolbars! scene evaluation-context)))
+    (let [keymap (or (user-data scene :keymap) keymap/empty)]
+      (refresh-accelerators! scene keymap)
+      (refresh-menus! scene keymap evaluation-context)
+      (refresh-toolbars! scene evaluation-context))))
 
 (defn render-progress-bar! [progress ^ProgressBar bar]
   (let [frac (progress/fraction progress)]
@@ -1850,24 +1983,6 @@
        ~@body
        (finally
          ((second ~bindings) progress/done)))))
-
-(defn make-run-later-render-progress [render-progress!]
-  (let [render-inflight (ref false)
-        last-progress (ref nil)]
-    (progress/throttle-render-progress
-      (fn [progress]
-        (let [schedule (ref false)]
-          (dosync
-            (ref-set schedule (not @render-inflight))
-            (ref-set render-inflight true)
-            (ref-set last-progress progress))
-          (when @schedule
-            (run-later
-              (let [progress-snapshot (ref nil)]
-                (dosync
-                  (ref-set progress-snapshot @last-progress)
-                  (ref-set render-inflight false))
-                (render-progress! @progress-snapshot)))))))))
 
 (defn- set-scene-disable! [^Scene scene disable?]
   (when-some [root (.getRoot scene)]
@@ -1912,19 +2027,6 @@
   [f]
   (reify EventHandler
     (handle [this event] (f event))))
-
-(defmacro defcommand
-  "Create a command with the given category and id. Binds
-the resulting command to the named variable.
-
-Label should be a human-readable string. It will appear
-directly in the UI (unless there is a translation for it.)
-
-If you use the same category-id and command-id more than once,
-this will create independent entities that refer to the same underlying
-command."
-  [name category-id command-id label]
-  `(def ^:command ~name [~label ~category-id ~command-id]))
 
 (defprotocol Future
   (cancel [this])
@@ -2037,7 +2139,7 @@ command."
 
 (defn- show-dialog-stage [^Stage stage show-fn]
   (.setOnShown stage (event-handler _ (slog/smoke-log "show-dialog")))
-  (if (and (eutil/is-mac-os?)
+  (if (and (os/is-mac-os?)
            (= (.getOwner stage) (main-stage)))
     (let [scene (.getScene stage)
           root-pane ^Pane (.getRoot scene)
@@ -2107,13 +2209,6 @@ command."
   ^Tab [^TabPane tab-pane]
   (.. tab-pane getSelectionModel getSelectedItem))
 
-(defn select-tab!
-  [^TabPane tab-pane tab-id]
-  (when-some [tab (->> (.getTabs tab-pane)
-                       (filter (fn [^Tab tab] (= tab-id (.getId tab))))
-                       first)]
-    (.. tab-pane getSelectionModel (select tab))))
-
 (defn inside-hidden-tab? [^Node node]
   (let [tab-content-area (closest-node-with-style "tab-content-area" node)]
     (and (some? tab-content-area)
@@ -2139,7 +2234,9 @@ command."
     (do
       (.start (Thread. #(.browse desktop (as-url url))))
       true)
-    false))
+    (do
+      (log/warn :message (str "Cannot open browser." (when (os/is-linux?) " Installing gvfs may fix this.")))
+      false)))
 
 (defn open-file
   ([^File file]
@@ -2155,7 +2252,9 @@ command."
                                 (on-error-fn (.getMessage e))
                                 (throw e)))))))
        true)
-     false)))
+     (do
+       (log/warn :message "Cannot open file handler")
+       false))))
 
 (defn- make-path-data
   ^String [^double col ^double row outlines]

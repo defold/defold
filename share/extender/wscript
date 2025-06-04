@@ -54,10 +54,9 @@ def build(bld):
     private_platforms = ('nx64', 'ps4')
 
     source = ['build_input.yml']
-    for platform in private_platforms:
-        private_source = 'build_%s.yml' % platform
-        if os.path.exists(private_source):
-            source += [private_source]
+    private_source = 'build_vendor.yml'
+    if os.path.exists(private_source):
+        source += [private_source]
 
     bld(features = 'merge_yaml',
         yaml_source = source,
@@ -69,10 +68,9 @@ def build(bld):
         source = ['variants/%s_input.appmanifest' % variant]
         source_target = 'variants/%s.appmanifest' % variant
 
-        for platform in private_platforms:
-            private_source = 'variants/%s_%s.appmanifest' % (variant, platform)
-            if os.path.exists(private_source):
-                source += [private_source]
+        private_source = 'variants/%s_vendor.appmanifest' % variant
+        if os.path.exists(private_source):
+            source += [private_source]
 
         bld(features = 'merge_yaml',
             yaml_source = source,

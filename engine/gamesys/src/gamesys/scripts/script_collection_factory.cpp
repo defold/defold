@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,6 +20,8 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <gameobject/gameobject_props_lua.h>
+
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/gamesys/script.h>
 #include <dmsdk/gameobject/script.h>
@@ -48,6 +50,7 @@ namespace dmGameSystem
      * @document
      * @name Collection factory
      * @namespace collectionfactory
+     * @language Lua
      */
 
     static int HashTableIndex(lua_State* L)
@@ -156,7 +159,7 @@ namespace dmGameSystem
      *
      * @name collectionfactory.load
      * @param [url] [type:string|hash|url] the collection factory component to load
-     * @param [complete_function] [type:function(self, url, result))] function to call when resources are loaded.
+     * @param [complete_function] [type:function(self, url, result)] function to call when resources are loaded.
      *
      * `self`
      * : [type:object] The current object.
@@ -240,7 +243,7 @@ namespace dmGameSystem
      * @param [position] [type:vector3] position to assign to the newly spawned collection
      * @param [rotation] [type:quaternion] rotation to assign to the newly spawned collection
      * @param [properties] [type:table] table of script properties to propagate to any new game object instances
-     * @param [scale] [type:number] uniform scaling to apply to the newly spawned collection (must be greater than 0).
+     * @param [scale] [type:number|vector3] uniform scaling to apply to the newly spawned collection (must be greater than 0).
      * @return ids [type:table] a table mapping the id:s from the collection to the new instance id:s
      * @examples
      *
@@ -312,10 +315,6 @@ namespace dmGameSystem
             rotation = dmGameObject::GetWorldRotation(sender_instance);
         }
 
-        const uint32_t buffer_size = 4096;
-        uint8_t DM_ALIGNED(16) buffer[buffer_size];
-        uint32_t buffer_pos = 0;
-
         dmGameObject::InstancePropertyBuffers prop_bufs;
         prop_bufs.SetCapacity(8, 32);
 
@@ -330,19 +329,9 @@ namespace dmGameSystem
                 while (lua_next(L, -2))
                 {
                     dmhash_t instance_id = dmScript::CheckHash(L, -2);
-                    uint32_t left = buffer_size - buffer_pos;
+                    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
 
-                    uint32_t size = dmScript::CheckTable(L, (char*)(buffer + buffer_pos), left, -1);
-                    if (size > left)
-                        return luaL_error(L, "the properties supplied to collectionfactory.create are too many.");
-
-                    dmGameObject::InstancePropertyBuffer buf;
-                    buf.property_buffer = buffer + buffer_pos;
-                    buf.property_buffer_size = size;
-                    buffer_pos = DM_ALIGN(buffer_pos + size, 16);
-                    assert((buffer_pos&15)==0); // Making sure the start of the buffer is always aligned
-
-                    prop_bufs.Put(instance_id, buf);
+                    prop_bufs.Put(instance_id, properties);
                     lua_pop(L, 1);
                 }
                 lua_pop(L, 1);
@@ -400,6 +389,13 @@ namespace dmGameSystem
             lua_newtable(L);
         }
 
+        // Free the property containers
+        dmGameObject::InstancePropertyBuffers::Iterator iter(prop_bufs);
+        while (iter.Next())
+        {
+            dmGameObject::PropertyContainerDestroy(iter.GetValue());
+        }
+
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
@@ -411,7 +407,7 @@ namespace dmGameSystem
      *
      * @name collectionfactory.set_prototype
      * @param [url] [type:string|hash|url] the collection factory component
-     * @param [prototype] [type:string|nil] the path to the new prototype, or nil
+     * @param [prototype] [type:string|nil] the path to the new prototype, or `nil`
      *
      * @note
      *   - Requires the factory to have the "Dynamic Prototype" set
@@ -465,7 +461,7 @@ namespace dmGameSystem
 
             // check that the path is a .collectionc
             const char* ext = dmResource::GetExtFromPath(path);
-            if (strcmp(ext, ".collectionc") != 0)
+            if (!ext || strcmp(ext, ".collectionc") != 0)
             {
                 return luaL_error(L, "Trying to set '%s' as prototype to '%s:%s#%s'. Only .collectionc resources are allowed",
                                         path,

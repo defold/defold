@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -489,8 +489,7 @@
                 [1 :proto-msg 0 :proto-msg]
                 [1 :resource 0 :source-resource]
                 [1 :resource-property-build-targets 0 :resource-property-build-targets]
-                [1 :scene 0 :scene]
-                [1 :undecorated-save-data 0 :source-save-data]]
+                [1 :scene 0 :scene]]
                (sort arcs)))))))
 
 (deftest drag-drop-between-referenced-collections
@@ -726,7 +725,7 @@
   (test-util/handler-run command [{:name :workbench :env {:selection selection :app-view app-view}}] user-data))
 
 (defn- add-collision-shape [app-view collision-object shape-type]
-  (handler-run :add app-view [collision-object] {:shape-type shape-type}))
+  (handler-run :edit.add-embedded-component app-view [collision-object] {:shape-type shape-type}))
 
 (deftest dnd-collision-shape
   (test-util/with-loaded-project
@@ -796,13 +795,13 @@
           children-fn (fn [] (mapv :label (:children (test-util/outline pfx []))))]
       (is (= ["emitter" "Acceleration"] (children-fn)))
       ;; Add emitter through command
-      (handler-run :add app-view [pfx] {:emitter-type :emitter-type-circle})
+      (handler-run :edit.add-embedded-component app-view [pfx] {:emitter-type :emitter-type-circle})
       (is (= ["emitter" "emitter1" "Acceleration"] (children-fn)))
       ;; Copy-paste 'emitter'
       (copy-paste! project app-view pfx [0])
       (is (= ["emitter" "emitter1" "emitter2" "Acceleration"] (children-fn)))
       ;; Add modifier through command
-      (handler-run :add-secondary app-view [pfx] {:modifier-type :modifier-type-acceleration})
+      (handler-run :edit.add-secondary-embedded-component app-view [pfx] {:modifier-type :modifier-type-acceleration})
       (is (= ["emitter" "emitter1" "emitter2" "Acceleration" "Acceleration"] (children-fn)))
       ;; Copy-paste 'Acceleration'
       (copy-paste! project app-view pfx [3])
@@ -815,8 +814,8 @@
                         (let [parent (:node-id (outline root path))
                               env {:app-view app-view :project project :selection [parent] :workspace workspace}]
                           (test-util/handler-run command [{:env env :name :workbench}] user-data)))
-          add-game-object-to-collection! (partial run-handler! :add nil)
-          add-child-game-object! (partial run-handler! :add-secondary nil)
+          add-game-object-to-collection! (partial run-handler! :edit.add-embedded-component nil)
+          add-child-game-object! (partial run-handler! :edit.add-secondary-embedded-component nil)
           sub-props-collection (test-util/resource-node project "/collection/sub_props.collection")
           props-collection (test-util/resource-node project "/collection/props.collection")]
       ;; Original tree
@@ -892,30 +891,6 @@
       (add-child-game-object! root [0 0 1])
       (is (= 2 (child-count root [0 0 1])))
       (is (= 4 (count (keys (g/node-value props-collection :go-inst-ids))))))))
-
-(deftest resolve-id-test
-  (testing "Single ids"
-    (are [expected-id candidate-id taken-ids]
-      (do (is (= expected-id (outline/resolve-id candidate-id taken-ids)))
-          (is (= [expected-id] (outline/resolve-ids [candidate-id] taken-ids))))
-
-      "sprite" "sprite" #{""}
-      "sprite2" "sprite2" #{"sprite"}
-      "sprite1" "sprite" #{"sprite"}
-      "sprite2" "sprite" #{"sprite" "sprite1"}
-      "sprite2" "sprite1" #{"sprite" "sprite1"}
-      "sprite1" "sprite" #{"sprite" "sprite2"}
-      "sprite" "sprite1" #{"sprite1" "sprite2"}))
-
-  (testing "Multiple ids"
-    (is (= ["sprite" "sprite1" "sprite2"]
-           (outline/resolve-ids ["sprite" "sprite" "sprite"] #{})))
-
-    (is (= ["sprite3" "sprite4" "sprite5"]
-           (outline/resolve-ids ["sprite" "sprite" "sprite"] #{"sprite" "sprite1" "sprite2"})))
-
-    (is (= ["sprite3" "sprite4" "sprite5"]
-           (outline/resolve-ids ["sprite1" "sprite2" "sprite3"] #{"sprite" "sprite1" "sprite2"})))))
 
 (deftest gen-node-outline-keys-test
   (is (= [] (outline/gen-node-outline-keys nil)))

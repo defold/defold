@@ -14,7 +14,7 @@ def build(bld):
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     if 'android' in bld.env['PLATFORM']:
-        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME]
+        classpath = [bld.env.ANDROID_JAR]
         classpath = os.pathsep.join(classpath)
 
         bld(features='javac seq',
@@ -22,7 +22,7 @@ def build(bld):
             outdir='java',
             source_root='java')
 
-        bld.env['JAVACFLAGS'] = '-g -source 1.7 -target 1.7'.split()
+        bld.env['JAVACFLAGS'] = '-g -source 1.8 -target 1.8'.split()
 
         bld(features='jar seq',
             basedir='java',

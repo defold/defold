@@ -1,5 +1,5 @@
 
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -37,7 +37,8 @@ namespace dmGameSystem
         }
 
         dmArray<dmhash_t>                   m_HullCollisionGroups;
-        dmHashTable<dmhash_t, uint32_t>     m_AnimationIds;
+        dmHashTable64<uint32_t>             m_AnimationIds; // Animation id to animation index
+        dmHashTable64<uint32_t>             m_FrameIds;     // Animation id to frame index
         TextureResource*                    m_Texture;
         dmhash_t                            m_TexturePath;
         dmGameSystemDDF::TextureSet*        m_TextureSet;

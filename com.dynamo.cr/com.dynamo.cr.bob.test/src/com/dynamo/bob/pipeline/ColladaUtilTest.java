@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -42,10 +42,7 @@ import org.junit.Test;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 
-import com.dynamo.proto.DdfMath.Point3;
-import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
-import com.dynamo.proto.DdfMath.Transform;
 import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.RigAnimation;
 
@@ -136,7 +133,7 @@ public class ColladaUtilTest {
      */
     private void assertBone(Rig.Bone bone, Vector3d expectedPosition, Quat4d expectedRotation) {
         assertV(expectedPosition, MathUtil.ddfToVecmath(bone.getLocal().getTranslation()));
-        assertV(expectedRotation, MathUtil.ddfToVecmath(bone.getLocal().getRotation()));
+        assertV(expectedRotation, MathUtil.ddfToVecmath(bone.getLocal().getRotation(), "bone %s".formatted(bone.getName())));
     }
 
     /*
@@ -412,8 +409,8 @@ public class ColladaUtilTest {
     @Test
     public void testSkeleton() throws Exception {
 
-        String[] boneIds   = {"Bone", "Bone_001", "Bone_002", "Bone_003", "Bone_004"};
-        String[] parentIds =  {null, "Bone", "Bone", "Bone", "Bone"};
+        String[] boneIds   = {"root", "Bone_001", "Bone_002", "Bone_003", "Bone_004"};
+        String[] parentIds =  {null, "root", "root", "root", "root"};
 
         Rig.Skeleton.Builder skeleton = Rig.Skeleton.newBuilder();
         ColladaUtil.loadSkeleton(load("bone_influences.dae"), skeleton, new ArrayList<String>());
@@ -478,11 +475,12 @@ public class ColladaUtilTest {
          *  - Positions and scale don't change
          *  - Rotation is only increased on X-axis
          */
+        long boneId = skeletonBuilder.getBones(0).getId();
         int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
             Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
-            assertEquals(0, track.getBoneIndex());
+            assertEquals(boneId, track.getBoneId());
 
             /*
              *  The collada file does not animate either position or scale for the bones,
@@ -536,29 +534,31 @@ public class ColladaUtilTest {
         float sampleRate = animSetBuilder.getAnimations(0).getSampleRate();
         int keyframeCount = (int)Math.ceil(duration*sampleRate);
 
+        long boneId0 = skeletonBuilder.getBones(0).getId();
+        long boneId1 = skeletonBuilder.getBones(1).getId();
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
             Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
-            int boneIndex = track.getBoneIndex();
+            long boneId = track.getBoneId();
 
             // There should be no position or scale animation.
             assertAnimationSamePosScale(track);
 
             if (track.getRotationsCount() > 0) {
-                if (boneIndex == 0) {
+                if (boneId == boneId0) {
                     // Verify animations on root bone
                     assertAnimationRotation(track, 0, rotIdentity);
                     assertAnimationRotation(track, keyframeCount/2, rotIdentity);
                     assertAnimationRotation(track, keyframeCount, rot90ZAxis);
 
-                } else if (boneIndex == 1) {
+                } else if (boneId == boneId1) {
                     // Verify animation on secondary bone
                     assertAnimationRotation(track, 0, rotIdentity);
                     assertAnimationRotation(track, keyframeCount/2, rot90ZAxis);
                     assertAnimationRotation(track, keyframeCount, rotIdentity);
 
                 } else {
-                    fail("Animations on invalid bone index: " + boneIndex);
+                    fail("Animations on invalid bone index: " + boneId);
                 }
             }
         }
@@ -601,18 +601,20 @@ public class ColladaUtilTest {
         float sampleRate = animSetBuilder.getAnimations(0).getSampleRate();
         int keyframeCount = (int)Math.ceil(duration*sampleRate);
 
+        long boneId0 = skeletonBuilder.getBones(0).getId();
+        long boneId1 = skeletonBuilder.getBones(1).getId();
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
             Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
-            int boneIndex = track.getBoneIndex();
+            long boneId = track.getBoneId();
 
-            if (boneIndex == 0 && track.getRotationsCount() > 0) {
+            if (boneId == boneId0 && track.getRotationsCount() > 0) {
                 // Verify animations on root bone
                 assertAnimationRotation(track, 0, rotIdentity);
                 assertAnimationRotation(track, keyframeCount/2, rotIdentity);
                 assertAnimationRotation(track, keyframeCount, rot90ZAxis);
 
-            } else if (boneIndex == 1 && track.getPositionsCount() > 0) {
+            } else if (boneId == boneId1 && track.getPositionsCount() > 0) {
                 // Verify animation on secondary bone
                 assertAnimationPosition(track, 0, new Vector3d(0.0, 1.0, 1.0));
                 assertAnimationPosition(track, keyframeCount/2, new Vector3d(0.0, 1.0, 0.0));
@@ -668,11 +670,12 @@ public class ColladaUtilTest {
          *  - Positions and scale don't change
          *  - Rotation is only decreased on X-axis
          */
+        long boneId = skeletonBuilder.getBones(0).getId();
         int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
             Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
-            assertEquals(0, track.getBoneIndex());
+            assertEquals(boneId, track.getBoneId());
 
             /*
              *  The collada file does not animate either position or scale for the bones,
@@ -718,11 +721,15 @@ public class ColladaUtilTest {
         /*
          *  We go through all tracks and verify they behave as expected.
          */
+
+        long boneId0 = skeletonBuilder.getBones(0).getId();
+        long boneId1 = skeletonBuilder.getBones(1).getId();
+        long boneId2 = skeletonBuilder.getBones(2).getId();
         int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
             Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
-            int boneIndex = track.getBoneIndex();
+            long boneId = track.getBoneId();
 
             /*
              *  The collada file does not animate either position or scale for the bones,
@@ -731,7 +738,7 @@ public class ColladaUtilTest {
              */
             assertAnimationSamePosScale(track);
 
-            if (boneIndex == 0) {
+            if (boneId == boneId0) {
                 // Bone 0 doesn't have any "real" rotation animation.
                 Quat4d rotKey = new Quat4d(-0.495852, 0.499983, 0.499983, 0.504148);
                 int rotationKeys = track.getRotationsCount() / 4;
@@ -739,18 +746,18 @@ public class ColladaUtilTest {
                     assertAnimationRotation(track, i, rotKey);
                 }
 
-            } else if (boneIndex == 1) {
+            } else if (boneId == boneId1) {
                 if (track.getRotationsCount() > 0) {
                     assertAnimationRotationChanges(track, 0.0f, 0.0f, 1.0f);
                 }
-            } else if (boneIndex == 2) {
+            } else if (boneId == boneId2) {
                 if (track.getRotationsCount() > 0) {
                     assertAnimationRotationChanges(track, 1.0f, 0.0f, 0.0f);
                 }
 
             } else {
                 // There should only be animation on the bones specified above.
-                fail("Animation on invalid bone index: " + boneIndex);
+                fail("Animation on invalid bone index: " + boneId);
             }
         }
     }
@@ -772,11 +779,13 @@ public class ColladaUtilTest {
         /*
          *  We go through all tracks and verify they behave as expected.
          */
+
+        long boneId1 = skeletonBuilder.getBones(1).getId();
         int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
             Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
-            int boneIndex = track.getBoneIndex();
+            long boneId = track.getBoneId();
 
             /*
              *  The collada file does not animate either position or scale for the bones,
@@ -785,37 +794,14 @@ public class ColladaUtilTest {
              */
             assertAnimationSamePosScale(track);
 
-            if (boneIndex == 1) {
+            if (boneId == boneId1) {
                 if (track.getRotationsCount() > 0) {
                     assertAnimationRotationChanges(track, 0.0f, 0.0f, 1.0f);
                 }
             } else {
                 // There should only be animation on the bones specified above.
-                fail("Animation on invalid bone index: " + boneIndex);
+                fail("Animation on invalid bone index: " + boneId);
             }
-        }
-    }
-
-    /*
-     * Test that MeshSets and AnimationSets can have bones specified in different order.
-     */
-    @Test
-    public void testBoneList() throws Exception {
-        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
-        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
-        ColladaUtil.loadMesh(load("bonelist_mesh_test.dae"), meshSetBuilder);
-        ColladaUtil.loadAnimations(load("bonelist_anim_test.dae"), animSetBuilder, "", new ArrayList<String>());
-
-        int meshBoneListCount = meshSetBuilder.getBoneListCount();
-        int animBoneListCount = animSetBuilder.getBoneListCount();
-
-        assertEquals(3, meshBoneListCount);
-        assertEquals(3, animBoneListCount);
-
-        for (int i = 0; i < meshBoneListCount; i++) {
-            Long meshBone = meshSetBuilder.getBoneList(i);
-            Long animBone = animSetBuilder.getBoneList(i);
-            assertEquals(meshBone, animBone);
         }
     }
 
@@ -836,12 +822,13 @@ public class ColladaUtilTest {
          *  - Positions will decrease on Z axis
          *  - Rotation don't change, is static the inverse of bind pose.
          */
+        long boneId1 = skeletonBuilder.getBones(1).getId();
         int trackCount = animation.getTracksCount();
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
             Rig.AnimationTrack track = animation.getTracks(trackIndex);
 
-            if (track.getBoneIndex() == 1) {
+            if (track.getBoneId() == boneId1) {
 
                 if (track.getRotationsCount() > 0) {
                     Quat4d rotIdentity = new Quat4d(0.0, 0.0, 0.0, 1.0);

@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,6 +15,8 @@
 (ns editor.shared-editor-settings
   (:require [cljfx.fx.v-box :as fx.v-box]
             [clojure.java.io :as io]
+            [dynamo.graph :as g]
+            [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.fxui :as fxui]
             [editor.settings :as settings]
@@ -33,7 +35,8 @@
 
 (def ^:private setting-paths
   {:cache-capacity ["performance" "cache_capacity"]
-   :non-editable-directories ["performance" "non_editable_directories"]})
+   :non-editable-directories ["performance" "non_editable_directories"]
+   :build-server ["extensions" "build_server"]})
 
 (def ^:private meta-info
   (settings-core/finalize-meta-info
@@ -47,11 +50,25 @@
                  :label "Non-editable Directories"
                  :help "Project directories whose contents can't be edited. Use for externally generated content to conserve memory and project load time."
                  :element {:type :directory
-                           :in-project true}}]
+                           :in-project true}}
+                {:path (:build-server setting-paths)
+                 :type :string
+                 :label "Build Server"
+                 :help "Build server URL used for building native extensions"}]
      :group-order ["Shared Settings"]
      :default-category "performance"
      :categories {"performance" {:help "Editor performance tweaks for your project. Some settings may require restarting the editor to take effect."
-                                 :group "Shared Settings"}}}))
+                                 :group "Shared Settings"}
+                  "extensions" {:help "Common settings for native extensions"
+                                :group "Shared Settings"}}}))
+
+(defn shared-editor-settings-file
+  ^File [project-directory]
+  (io/file project-directory project-shared-editor-settings-filename))
+
+(defn get-setting [project setting-path evaluation-context]
+  (when-let [settings-node (project/get-resource-node project project-shared-editor-settings-proj-path evaluation-context)]
+    (get (g/node-value settings-node :settings-map evaluation-context) setting-path)))
 
 (defn- map->settings [map]
   (let [meta-settings (:settings meta-info)]
@@ -84,10 +101,10 @@
          :icon :icon/triangle-error
          :always-on-top true
          :header {:fx/type fx.v-box/lifecycle
-                  :children [{:fx/type fxui/label
+                  :children [{:fx/type fxui/legacy-label
                               :variant :header
                               :text header-message}
-                             {:fx/type fxui/label
+                             {:fx/type fxui/legacy-label
                               :text sub-header-message}]}
          :content (str file-info-message "\n\n" exception-message)}))))
 
@@ -113,7 +130,7 @@
 (defn- load-project-config [project-directory config-type parse-config-fn]
   {:pre [(keyword? config-type)
          (ifn? parse-config-fn)]}
-  (let [shared-editor-settings-file (io/file project-directory project-shared-editor-settings-filename)]
+  (let [shared-editor-settings-file (shared-editor-settings-file project-directory)]
     (when (.isFile shared-editor-settings-file)
       (log/info :message (str "Loading " (name config-type) " from Shared Editor Settings file."))
       (when-some [config (not-empty (load-config shared-editor-settings-file parse-config-fn))]
@@ -155,9 +172,8 @@
       default-workspace-config))
 
 ;; Used by tests.
-(defn write-config! [project-directory config-map]
+(defn map->save-data-content
+  ^String [config-map]
   (let [meta-settings (:settings meta-info)
-        settings (map->settings config-map)
-        settings-string (settings-core/settings->str settings meta-settings :multi-line-list)
-        shared-editor-settings-file (io/file project-directory project-shared-editor-settings-filename)]
-    (spit shared-editor-settings-file settings-string)))
+        settings (map->settings config-map)]
+    (settings-core/settings->str settings meta-settings :multi-line-list)))

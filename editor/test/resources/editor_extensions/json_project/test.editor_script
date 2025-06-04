@@ -1,0 +1,68 @@
+local M = {}
+
+local function stringify(x)
+    if type(x) == "string" then
+        return string.format("%q", x)
+    elseif type(x) == "function" then
+        return "function() end"
+    elseif type(x) == "table" then
+        local entries = {}
+        local n = #x
+        for i = 1, n do
+            entries[#entries+1] = stringify(x[i])
+        end
+        for k, v in pairs(x) do
+            if type(k) == "number" and k >= 1 and k <= n then
+                -- do nothing: we have already written the array part!
+            elseif type(k) == "string" and k:match("^[%a_][%w_]*$") ~= nil then
+                entries[#entries+1] = tostring(k) .. " = " .. stringify(v)
+            else
+                entries[#entries+1] = "[" .. stringify(k) .. "]" .. " = " .. stringify(v)
+            end 
+        end
+        return "{" .. table.concat(entries, ", ") .. "}"
+    else
+        return tostring(x)
+    end
+end
+
+local function encode(value)
+    local success, ret = pcall(json.encode, value)
+    print(("json.encode(%s) => %s"):format(stringify(value), success and ret or "error"))
+end
+
+local function decode(str, opts)
+    local success, ret = pcall(json.decode, str, opts or {})
+    print(("json.decode('%s'%s) => %s"):format(str, opts and ", " .. stringify(opts) or "", success and stringify(ret) or "error"))
+end
+
+function M.get_commands()
+    return {{
+        label = "Test",
+        locations = {"Edit"},
+        run = function()
+            print("Testing encoding...")
+            encode(1)
+            encode("foo")
+            encode(nil)
+            encode(true)
+            encode({num = 1})
+            encode({bools = {true, false, true}})
+            encode({empty_table_as_object = {}})
+            encode({[{"object"}] = {}})
+            encode({fn = function() end})
+
+            print("Testing decoding...")
+            decode("1")
+            decode("{\"a\":1}")
+            decode("{\"null_is_omitted\": null}")
+            decode("[false, true, null, 4, \"string\"]")
+            decode("{\"a\": [{\"b\": 4},42]}")
+            decode("true false \"string\" [] {}", {all=true})
+            decode("fals")
+            decode("true {", {all=true})
+        end
+    }}
+end
+
+return M

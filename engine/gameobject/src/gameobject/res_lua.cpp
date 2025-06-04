@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,7 +15,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 
-#include <dmsdk/resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
 #include "res_lua.h"
 #include "gameobject_script.h"
 
@@ -106,64 +106,64 @@ namespace dmGameObject
     }
 
 
-    static dmResource::Result ResLuaCreate(const dmResource::ResourceCreateParams& params)
+    static dmResource::Result ResLuaCreate(const dmResource::ResourceCreateParams* params)
     {
         dmLuaDDF::LuaModule* lua_module = 0;
-        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params.m_Buffer, params.m_BufferSize, &lua_module);
+        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params->m_Buffer, params->m_BufferSize, &lua_module);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
         PatchLuaBytecode(&lua_module->m_Source);
 
         LuaScript* lua_script = new LuaScript(lua_module);
-        params.m_Resource->m_Resource = lua_script;
-        params.m_Resource->m_ResourceSize = sizeof(LuaScript) + params.m_BufferSize - lua_script->m_LuaModule->m_Source.m_Script.m_Count;
+        ResourceDescriptorSetResource(params->m_Resource, lua_script);
+        ResourceDescriptorSetResourceSize(params->m_Resource, sizeof(LuaScript) + params->m_BufferSize - lua_script->m_LuaModule->m_Source.m_Script.m_Count);
         return dmResource::RESULT_OK;
     }
 
-    static dmResource::Result ResLuaDestroy(const dmResource::ResourceDestroyParams& params)
+    static dmResource::Result ResLuaDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        LuaScript* script = (LuaScript*) params.m_Resource->m_Resource;
+        LuaScript* script = (LuaScript*) ResourceDescriptorGetResource(params->m_Resource);
         dmDDF::FreeMessage(script->m_LuaModule);
         delete script;
         return dmResource::RESULT_OK;
     }
 
-    static dmResource::Result ResLuaRecreate(const dmResource::ResourceRecreateParams& params)
+    static dmResource::Result ResLuaRecreate(const dmResource::ResourceRecreateParams* params)
     {
         dmLuaDDF::LuaModule* lua_module = 0;
-        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params.m_Buffer, params.m_BufferSize, &lua_module);
+        dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params->m_Buffer, params->m_BufferSize, &lua_module);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
         PatchLuaBytecode(&lua_module->m_Source);
 
-        ModuleContext* module_context = (ModuleContext*) params.m_Context;
+        ModuleContext* module_context = (ModuleContext*) params->m_Context;
         uint32_t context_count = module_context->m_ScriptContexts.Size();
         for (uint32_t i = 0; i < context_count; ++i) {
             dmScript::HContext script_context = module_context->m_ScriptContexts[i];
-            dmScript::ReloadModule(script_context, &lua_module->m_Source, params.m_Resource->m_NameHash);
+            dmScript::ReloadModule(script_context, &lua_module->m_Source, ResourceDescriptorGetNameHash(params->m_Resource));
         }
-        LuaScript* lua_script = (LuaScript*) params.m_Resource->m_Resource;
-        params.m_Resource->m_ResourceSize = sizeof(LuaScript) + params.m_BufferSize - lua_script->m_LuaModule->m_Source.m_Script.m_Count;
+        LuaScript* lua_script = (LuaScript*) ResourceDescriptorGetResource(params->m_Resource);
+        ResourceDescriptorSetResourceSize(params->m_Resource, sizeof(LuaScript) + params->m_BufferSize - lua_script->m_LuaModule->m_Source.m_Script.m_Count);
         dmDDF::FreeMessage(lua_script->m_LuaModule);
         lua_script->m_LuaModule = lua_module;
         return dmResource::RESULT_OK;
     }
 
-    static dmResource::Result RegisterResourceTypeLua(dmResource::ResourceTypeRegisterContext& ctx)
+    static ResourceResult RegisterResourceTypeLua(HResourceTypeContext ctx, HResourceType type)
     {
-        // The engine.cpp creates the contexts for our built in types.
-        void** context = ctx.m_Contexts->Get(ctx.m_NameHash);
+        // The engine.cpp creates the contexts for some of our our built in types (i.e. same context for some types)
+        void* context = ResourceTypeContextGetContextByHash(ctx, ResourceTypeGetNameHash(type));
         assert(context);
-        return dmResource::RegisterType(ctx.m_Factory,
-                                           ctx.m_Name,
-                                           *context,
-                                           0,
-                                           ResLuaCreate,
-                                           0,
-                                           ResLuaDestroy,
-                                           ResLuaRecreate);
+        return (ResourceResult)dmResource::SetupType(ctx,
+                                                    type,
+                                                    context,
+                                                    0,
+                                                    ResLuaCreate,
+                                                    0,
+                                                    ResLuaDestroy,
+                                                    ResLuaRecreate);
     }
 }
 

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -168,19 +168,14 @@ namespace dmGameObject
         }
     }
 
-    HPropertyContainer CreatePropertyContainerFromLua(void* component_context, uint8_t* buffer, uint32_t buffer_size)
+    HPropertyContainer PropertyContainerCreateFromLua(lua_State* L, int index)
     {
-        lua_State* L = dmScript::GetLuaState((dmScript::HContext)component_context);
         DM_LUA_STACK_CHECK(L, 0);
 
-        PropertyContainerParameters params;
-        if (buffer_size == 0)
-        {
-            HPropertyContainerBuilder builder = CreatePropertyContainerBuilder(params);
-            return builder == 0x0 ? 0x0 : CreatePropertyContainer(builder);
-        }
+        PropertyContainerBuilderParams params;
 
-        dmScript::PushTable(L, (const char*)buffer, buffer_size);
+        luaL_checktype(L, index, LUA_TTABLE);
+        lua_pushvalue(L, index);
 
         lua_pushnil(L);
         while (lua_next(L, -2) != 0)
@@ -221,7 +216,7 @@ namespace dmGameObject
             lua_pop(L, 1);
         }
 
-        HPropertyContainerBuilder builder = CreatePropertyContainerBuilder(params);
+        HPropertyContainerBuilder builder = PropertyContainerCreateBuilder(params);
         lua_pushnil(L);
         while (lua_next(L, -2) != 0)
         {
@@ -232,28 +227,25 @@ namespace dmGameObject
                 switch(GetPropertyType(L, -1, &userdata))
                 {
                     case PROPERTY_TYPE_NUMBER:
-                        {
-                            float number = lua_tonumber(L, -1);
-                            PushFloatType(builder, id, PROPERTY_TYPE_NUMBER, &number);
-                        }
+                        PropertyContainerPushFloat(builder, id, lua_tonumber(L, -1));
                         break;
                     case PROPERTY_TYPE_HASH:
-                        PushHash(builder, id, dmScript::CheckHash(L, -1));
+                        PropertyContainerPushHash(builder, id, dmScript::CheckHash(L, -1));
                         break;
                     case PROPERTY_TYPE_URL:
-                        PushURL(builder, id, (const char*)dmScript::CheckURL(L, -1));
+                        PropertyContainerPushURL(builder, id, (const char*)dmScript::CheckURL(L, -1));
                         break;
                     case PROPERTY_TYPE_VECTOR3:
-                        PushFloatType(builder, id, PROPERTY_TYPE_VECTOR3, (const float*)dmScript::CheckVector3(L, -1));
+                        PropertyContainerPushVector3(builder, id, (const float*)dmScript::CheckVector3(L, -1));
                         break;
                     case PROPERTY_TYPE_VECTOR4:
-                        PushFloatType(builder, id, PROPERTY_TYPE_VECTOR4, (const float*)dmScript::CheckVector4(L, -1));
+                        PropertyContainerPushVector4(builder, id, (const float*)dmScript::CheckVector4(L, -1));
                         break;
                     case PROPERTY_TYPE_QUAT:
-                        PushFloatType(builder, id, PROPERTY_TYPE_QUAT, (const float*)dmScript::CheckQuat(L, -1));
+                        PropertyContainerPushQuat(builder, id, (const float*)dmScript::CheckQuat(L, -1));
                         break;
                     case PROPERTY_TYPE_BOOLEAN:
-                        PushBool(builder, id, lua_toboolean(L, -1) != 0);
+                        PropertyContainerPushBool(builder, id, lua_toboolean(L, -1) != 0);
                         break;
                     case PROPERTY_TYPE_MATRIX4:
                         // Not supported
@@ -266,7 +258,7 @@ namespace dmGameObject
         }
 
         lua_pop(L, 1);
-        return CreatePropertyContainer(builder);
+        return PropertyContainerCreate(builder);
     }
 
 }

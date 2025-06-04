@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,8 +25,8 @@
             [editor.math :as math]
             [editor.prefs :as prefs]
             [editor.scene-picking :as scene-picking])
-  (:import [java.lang Runnable Math]
-           [com.jogamp.opengl GL GL2]
+  (:import [com.jogamp.opengl GL GL2]
+           [java.lang Math Runnable]
            [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point3d Quat4d Tuple3d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -78,7 +78,7 @@
 
 ; Rendering
 
-(defn- scale-factor [camera viewport ^Tuple3d reference-point]
+(defn scale-factor [camera viewport ^Tuple3d reference-point]
   (let [offset-point (doto (Point3d.) (.add reference-point (c/camera-right-vector camera)))
         screen-point-a (c/camera-project camera viewport reference-point)
         screen-point-b (c/camera-project camera viewport offset-point)]
@@ -108,7 +108,8 @@
     :scale-xy [0.0 0.0 1.0]
     :scale-xz [0.0 1.0 0.0]
     :scale-yz [1.0 0.0 0.0]
-    :scale-uniform [0.0 0.0 1.0]))
+    :scale-uniform [0.0 0.0 1.0]
+    :move-pivot [0.0 0.0 1.0]))
 
 (defn- manip->normal
   ^Vector3d [manip ^Quat4d rotation]
@@ -126,7 +127,7 @@
         (:move-xy :move-xz :move-yz :scale-xy :scale-xz :scale-yz) (> (Math/abs (.z dir)) 0.06)
         true))))
 
-(defn- get-manip-rotation
+(defn get-manip-rotation
   ^Quat4d [manip-space manip-world-rotation]
   (case manip-space
     :local manip-world-rotation
@@ -161,10 +162,10 @@
 (defn- vtx-apply [f vs & args]
   (map (fn [[mode vs]] [mode (map (fn [v] (apply map f v args)) vs)]) vs))
 
-(defn- vtx-scale [s vs]
+(defn vtx-scale [s vs]
   (vtx-apply * vs s))
 
-(defn- vtx-add [p vs]
+(defn vtx-add [p vs]
   (vtx-apply + vs p))
 
 (defn- vtx-rot [^AxisAngle4d r vs]
@@ -182,7 +183,7 @@
                                       [0.0 (Math/cos angle) (Math/sin angle)]) (range (inc sub-divs))))]
     [[GL/GL_TRIANGLES (mapcat (fn [p] (mapcat #(conj % p) circle)) [tip origin])]]))
 
-(defn- gen-point []
+(defn gen-point []
   [[GL/GL_POINTS [[0.0 0.0 0.0]]]])
 
 (defn- gen-line []
@@ -210,7 +211,7 @@
       (vtx-rot (AxisAngle4d. (Vector3d. 0 1 0) (* 0.5 Math/PI)) mirror-sides)
       (vtx-rot (AxisAngle4d. (Vector3d. 1 0 0) (* 0.5 Math/PI)) mirror-sides))))
 
-(defn- gen-circle [segs]
+(defn gen-circle [segs]
   [[GL/GL_LINES (reduce concat (partition 2 1 (map #(let [angle (* 2.0 Math/PI (/ (double %) segs))]
                                                      [(Math/cos angle) (Math/sin angle) 0.0]) (range (inc segs)))))]])
 
@@ -336,7 +337,7 @@
      :scale-x scale :scale-y scale :scale-z scale
      :scale-uniform scale-uniform}))
 
-(defn- gen-manip-renderable [id manip manip-space manip-world-rotation ^Matrix4d manip-world-transform ^AxisAngle4d rotation vertices color ^Matrix4d inv-view]
+(defn gen-manip-renderable [id manip manip-space manip-world-rotation ^Matrix4d manip-world-transform ^AxisAngle4d rotation vertices color ^Matrix4d inv-view]
   (let [vertices-by-mode (reduce (fn [m [mode vs]] (merge-with concat m {mode vs})) {} vertices)
         vertex-buffers (mapv (fn [[mode vs]]
                                (let [count (count vs)]
@@ -378,7 +379,7 @@
 (defn supported-manip-spaces [active-tool]
   (get-in transform-tools [active-tool :manip-spaces]))
 
-(defn- manip-world-transform [reference-renderable manip-space ^double scale-factor]
+(defn manip-world-transform [reference-renderable manip-space ^double scale-factor]
   (let [world-translation ^Vector3d (:world-translation reference-renderable)
         world-rotation ^Matrix3d (case manip-space
                                    :local (doto (Matrix3d.) (.set ^Quat4d (:world-rotation reference-renderable)))
@@ -456,22 +457,27 @@
           (manip-rotate evaluation-context node-id local-rotation))))
     (:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz)
     (fn [start-pos pos]
-      (let [start-delta (doto (Vector3d.) (.sub start-pos manip-pos))
+      (let [world-transform (:world-transform (peek original-values))
+            start-delta (doto (Vector3d.) (.sub start-pos manip-pos))
             delta (doto (Vector3d.) (.sub pos manip-pos))
-            div-fn (fn [v ^Double sv] (if (> (Math/abs sv) math/epsilon) (/ v sv) 1.0))
-            scale-factor (Vector3d.
-                           (case manip
-                             (:scale-x :scale-xy :scale-xz)
-                             (div-fn (.x delta) (.x start-delta))
-                             1.0)
-                           (case manip
-                             (:scale-y :scale-xy :scale-yz)
-                             (div-fn (.y delta) (.y start-delta))
-                             1.0)
-                           (case manip
-                             (:scale-z :scale-xz :scale-yz)
-                             (div-fn (.y delta) (.y start-delta))
-                             1.0))]
+            axis-scale (fn [^Vector3d local]
+                         (.transform ^Matrix4d world-transform local)
+                         (.normalize local)
+                         (let [start-len (.dot start-delta local)
+                               curr-len (.dot delta local)]
+                           (if (> (Math/abs start-len) 1e-12)
+                             (/ curr-len start-len)
+                             1.0)))
+            sx (case manip
+                 (:scale-x :scale-xy :scale-xz) (axis-scale (Vector3d. 1.0 0.0 0.0))
+                 1.0)
+            sy (case manip
+                 (:scale-y :scale-xy :scale-yz) (axis-scale (Vector3d. 0.0 1.0 0.0))
+                 1.0)
+            sz (case manip
+                 (:scale-z :scale-xz :scale-yz) (axis-scale (Vector3d. 0.0 0.0 1.0))
+                 1.0)
+            scale-factor (Vector3d. sx sy sz)]
         (for [{:keys [node-id]} original-values]
           (manip-scale evaluation-context node-id scale-factor))))
     :scale-uniform
@@ -498,12 +504,14 @@
 (defn handle-input [self action selection-data]
   (case (:type action)
     :mouse-pressed (if-let [manip (first (get selection-data self))]
-                     (let [evaluation-context   (g/make-evaluation-context)
-                           active-tool          (g/node-value self :active-tool evaluation-context)
-                           tool                 (get transform-tools active-tool)
-                           filter-fn            (:filter-fn tool)
+                     (let [evaluation-context (g/make-evaluation-context)
+                           active-tool (g/node-value self :active-tool evaluation-context)
+                           tool (get transform-tools active-tool)
+                           filter-fn (:filter-fn tool)
                            selected-renderables (filter #(filter-fn (:node-id %)) (g/node-value self :selected-renderables evaluation-context))
-                           original-values      (mapv original-values selected-renderables)]
+                           original-values (->> selected-renderables
+                                                scene-picking/top-nodes
+                                                (mapv original-values))]
                        (when (not (empty? original-values))
                          (g/transact
                             (concat
@@ -550,11 +558,11 @@
     action))
 
 (defn move-whole-pixels? [prefs]
-  (prefs/get-prefs prefs "scene-move-whole-pixels?" true))
+  (prefs/get prefs [:scene :move-whole-pixels]))
 
-(defn set-move-whole-pixels! [prefs enabled?]
-  (assert (or (true? enabled?) (false? enabled?)))
-  (prefs/set-prefs prefs "scene-move-whole-pixels?" enabled?))
+(defn set-move-whole-pixels! [prefs enabled]
+  {:pre [(boolean? enabled)]}
+  (prefs/set! prefs [:scene :move-whole-pixels] enabled))
 
 (defn move-snap-fn [prefs]
   (if (move-whole-pixels? prefs)

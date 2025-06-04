@@ -1,12 +1,21 @@
 # App manifest generated Fri Sep 02 2022 16:19:20 GMT+0200 (Central European Summer Time)
 # Settings: Vulkan
 platforms:
-    x86_64-osx:
+    arm64-osx:
         context:
-            excludeLibs: ["graphics"]
+            excludeLibs: ["graphics", "platform"]
             excludeSymbols: ["GraphicsAdapterOpenGL"]
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["graphics_vulkan","MoltenVK"]
+            libs: ["graphics_vulkan", "platform_vulkan", "MoltenVK"]
+            frameworks: ["Metal","IOSurface","QuartzCore"]
+            linkFlags: []
+
+    x86_64-osx:
+        context:
+            excludeLibs: ["graphics", "platform"]
+            excludeSymbols: ["GraphicsAdapterOpenGL"]
+            symbols: ["GraphicsAdapterVulkan"]
+            libs: ["graphics_vulkan", "platform_vulkan", "MoltenVK"]
             frameworks: ["Metal","IOSurface","QuartzCore"]
             linkFlags: []
 
@@ -15,7 +24,17 @@ platforms:
             excludeLibs: ["graphics"]
             excludeSymbols: ["GraphicsAdapterOpenGL"]
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["graphics_vulkan","X11-xcb"]
+            libs: ["platform_vulkan", "graphics_vulkan","X11-xcb"]
+            dynamicLibs: ["vulkan"]
+            linkFlags: []
+
+    arm64-linux:
+        context:
+            excludeLibs: ["graphics", "graphics_opengles"]
+            excludeSymbols: ["GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES"]
+            symbols: ["GraphicsAdapterVulkan"]
+            libs: ["platform_vulkan", "graphics_vulkan","X11-xcb"]
+            dynamicLibs: ["vulkan"]
             linkFlags: []
 
     js-web:
@@ -36,20 +55,29 @@ platforms:
             libs: []
             linkFlags: []
 
+    wasm_pthread-web:
+        context:
+            excludeLibs: []
+            excludeJsLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            linkFlags: []
+
     x86-win32:
         context:
-            excludeLibs: ["libgraphics"]
+            excludeLibs: ["libgraphics", "libplatform"]
             excludeSymbols: ["GraphicsAdapterOpenGL"]
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["libgraphics_vulkan.lib","vulkan-1.lib"]
+            libs: ["libgraphics_vulkan.lib", "libplatform_vulkan.lib", "vulkan-1.lib"]
             linkFlags: []
 
     x86_64-win32:
         context:
-            excludeLibs: ["libgraphics"]
+            excludeLibs: ["libgraphics", "libplatform"]
             excludeSymbols: ["GraphicsAdapterOpenGL"]
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["libgraphics_vulkan.lib","vulkan-1.lib"]
+            libs: ["libgraphics_vulkan.lib", "libplatform_vulkan.lib", "vulkan-1.lib"]
             linkFlags: []
 
     armv7-android:
@@ -87,7 +115,7 @@ platforms:
             excludeSymbols: ["GraphicsAdapterOpenGL"]
             symbols: ["GraphicsAdapterVulkan"]
             libs: ["graphics_vulkan","MoltenVK"]
-            frameworks: ["Metal","QuartzCore"]
+            frameworks: ["Metal","IOSurface","QuartzCore"]
             linkFlags: []
 
     x86_64-ios:

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -39,13 +39,15 @@
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/mesh_ddf.h>
 #include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/gamesys/resources/res_material.h>
+#include <dmsdk/resource/resource.h>
 
 #include "../resources/res_mesh.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_Mesh, 0, FrameReset, "# components", &rmtp_Components);
-DM_PROPERTY_U32(rmtp_MeshVertexCount, 0, FrameReset, "# vertices", &rmtp_Mesh);
-DM_PROPERTY_U32(rmtp_MeshVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Mesh);
+DM_PROPERTY_U32(rmtp_Mesh, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_MeshVertexCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Mesh);
+DM_PROPERTY_U32(rmtp_MeshVertexSize, 0, PROFILE_PROPERTY_FRAME_RESET, "size of vertices in bytes", &rmtp_Mesh);
 
 namespace dmGameSystem
 {
@@ -62,7 +64,7 @@ namespace dmGameSystem
         MeshResource*                   m_Resource;
         dmGameSystem::BufferResource*   m_BufferResource;
         TextureResource*                m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmRender::HMaterial             m_Material;
+        MaterialResource*               m_Material;
 
         // If the buffer resource property has changed (ie not same buffer resource as
         // used by the mesh resource), we need to create a specific vertex declaration
@@ -215,7 +217,7 @@ namespace dmGameSystem
 
     static const uint64_t AABB_HASH = dmHashString64("AABB");
 
-    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
+    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
 
     dmGameObject::CreateResult CompMeshNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -232,6 +234,8 @@ namespace dmGameSystem
 
         world->m_WorldVertexData = 0x0;
         world->m_WorldVertexDataSize = 0;
+
+        world->m_GraphicsContext = dmRender::GetGraphicsContext(context->m_RenderContext);
 
         *params.m_World = world;
 
@@ -270,18 +274,44 @@ namespace dmGameSystem
         return component->m_BufferResource ? component->m_BufferResource : resource->m_BufferResource;
     }
 
-    static inline dmRender::HMaterial GetMaterial(const MeshComponent* component, const MeshResource* resource) {
+    static inline MaterialResource* GetMaterialResource(const MeshComponent* component, const MeshResource* resource) {
         return component->m_Material ? component->m_Material : resource->m_Material;
     }
 
-    static inline TextureResource* GetTextureResource(const MeshComponent* component, const MeshResource* resource, uint32_t index) {
-        assert(index < MAX_TEXTURE_COUNT);
-        return component->m_Textures[index] ? component->m_Textures[index] : resource->m_Textures[index];
+    static inline dmRender::HMaterial GetMaterial(const MeshComponent* component, const MeshResource* resource) {
+        return GetMaterialResource(component, resource)->m_Material;
     }
 
-    static inline dmGraphics::HTexture GetTexture(const MeshComponent* component, const MeshResource* resource, uint32_t index)
+    static TextureResource* GetTextureResource(const MeshComponent* component, uint32_t texture_unit)
     {
-        TextureResource* texture_res = GetTextureResource(component, resource, index);
+        assert(texture_unit < MAX_TEXTURE_COUNT);
+        TextureResource* texture;
+        // Overridden textures
+        texture = component->m_Textures[texture_unit];
+        if (texture)
+            return texture;
+        // Overridden material
+        MaterialResource* material = component->m_Material;
+        if (material)
+            texture = material->m_Textures[texture_unit];
+        if (texture)
+            return texture;
+        // resource textures
+        texture = component->m_Resource->m_Textures[texture_unit];
+        if (texture)
+            return texture;
+        // resource material
+        material = component->m_Resource->m_Material;
+        if (material)
+            texture = material->m_Textures[texture_unit];
+        if (texture)
+            return texture;
+        return 0;
+    }
+
+    static inline dmGraphics::HTexture GetTexture(const MeshComponent* component, uint32_t index)
+    {
+        TextureResource* texture_res = GetTextureResource(component, index);
         return texture_res ? texture_res->m_Texture : 0;
     }
 
@@ -303,7 +333,7 @@ namespace dmGameSystem
         // We have to hash individually since we don't know which textures are set as properties
         for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
         {
-            dmGraphics::HTexture texture = GetTexture(component, resource, i);
+            dmGraphics::HTexture texture = GetTexture(component, i);
             dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
         }
 
@@ -368,6 +398,12 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    void* CompMeshGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        MeshWorld* world = (MeshWorld*)params.m_World;
+        return (void*)world->m_Components.Get(params.m_UserData);
+    }
+
     dmGameObject::CreateResult CompMeshDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         MeshWorld* world = (MeshWorld*)params.m_World;
@@ -375,20 +411,24 @@ namespace dmGameSystem
         uint32_t index = (uint32_t)*params.m_UserData;
         MeshComponent* component = world->m_Components.Get(index);
         dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
-        if (component->m_Material) {
-            dmResource::Release(factory, component->m_Material);
-        }
-        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
-            if (component->m_Textures[i]) {
-                dmResource::Release(factory, component->m_Textures[i]);
-            }
-        }
 
         dmGameSystem::BufferResource* br = GetVerticesBuffer(component, component->m_Resource);
 
         if (dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL) {
             DecRefVertexBuffer(world, br->m_NameHash);
         }
+
+        if (component->m_Material)
+        {
+            dmResource::Release(factory, component->m_Material);
+        }
+
+        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
+            if (component->m_Textures[i]) {
+                dmResource::Release(factory, component->m_Textures[i]);
+            }
+        }
+
         if (component->m_BufferResource) {
             dmResource::Release(factory, component->m_BufferResource);
         }
@@ -514,7 +554,7 @@ namespace dmGameSystem
         {
             if (textures_component[i])
             {
-                ro.m_Textures[i] = textures_component[i]->m_Texture;
+                ro.m_Textures[i] = textures_component[i]->m_Texture;;
             }
             else if (textures_resource[i])
             {
@@ -803,7 +843,7 @@ namespace dmGameSystem
             dmVMath::Vector3 boundsMin(((float*)data)[0], ((float*)data)[1], ((float*)data)[2] );
             dmVMath::Vector3 boundsMax(((float*)data)[3], ((float*)data)[4], ((float*)data)[5] );
 
-            bool intersect      = dmIntersection::TestFrustumOBB(frustum, component_p->m_World, boundsMin, boundsMax, false);
+            bool intersect      = dmIntersection::TestFrustumOBB(frustum, component_p->m_World, boundsMin, boundsMax);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
     }
@@ -868,12 +908,11 @@ namespace dmGameSystem
             write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
             write_ptr->m_UserData = (uintptr_t) &component;
             write_ptr->m_BatchKey = component.m_MixedHash;
-            write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(component.m_Resource->m_Material);
+            write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetMaterial(&component, component.m_Resource));
             write_ptr->m_Dispatch = dispatch;
             write_ptr->m_MinorOrder = 0;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
-
         }
 
         dmRender::RenderListSubmit(render_context, render_list, write_ptr);
@@ -913,7 +952,7 @@ namespace dmGameSystem
             if (params.m_Message->m_Id == dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
-                dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material, ddf->m_NameHash,
+                dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_Resource->m_Material->m_Material, ddf->m_NameHash,
                         dmGameObject::PropertyVar(ddf->m_Value), ddf->m_Index, CompMeshSetConstantCallback, component);
                 if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
                 {
@@ -956,14 +995,14 @@ namespace dmGameSystem
         }
         else if (params.m_PropertyId == PROP_MATERIAL)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(component, component->m_Resource), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialResource(component, component->m_Resource), out_value);
         }
 
         for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
         {
             if (params.m_PropertyId == PROP_TEXTURE[i])
             {
-                return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureResource(component, component->m_Resource, i), out_value);
+                return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureResource(component, i), out_value);
             }
         }
 
@@ -1051,11 +1090,13 @@ namespace dmGameSystem
         return res;
     }
 
-    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
+    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
     {
-        MeshWorld* world = (MeshWorld*) params.m_UserData;
+        MeshWorld* world = (MeshWorld*) params->m_UserData;
         const dmArray<MeshComponent*>& components = world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
+
+        const void* resource = dmResource::GetResource(params->m_Resource);
         for (uint32_t i = 0; i < n; ++i)
         {
             MeshComponent* component = components[i];
@@ -1063,9 +1104,9 @@ namespace dmGameSystem
             {
                 const dmRender::HMaterial material = GetMaterial(component, component->m_Resource);
                 const dmGameSystem::BufferResource* buffer_resource = GetVerticesBuffer(component, component->m_Resource);
-                if (component->m_Resource == params.m_Resource->m_Resource ||
-                   material == params.m_Resource->m_Resource ||
-                   buffer_resource == params.m_Resource->m_Resource)
+                if (component->m_Resource == resource ||
+                   material == resource ||
+                   buffer_resource == resource)
                 {
                     component->m_ReHash = 1;
                     continue;
@@ -1073,9 +1114,8 @@ namespace dmGameSystem
 
                 for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
                 {
-                    dmGraphics::HTexture texture = GetTexture(component, component->m_Resource, i);
-
-                    if (texture == (uintptr_t) params.m_Resource->m_Resource)
+                    dmGraphics::HTexture texture = GetTexture(component, i);
+                    if (texture == (uintptr_t) resource)
                     {
                         component->m_ReHash = 1;
                         break;
@@ -1137,6 +1177,7 @@ namespace dmGameSystem
         ComponentTypeSetOnMessageFn(type, CompMeshOnMessage);
         ComponentTypeSetGetPropertyFn(type, CompMeshGetProperty);
         ComponentTypeSetSetPropertyFn(type, CompMeshSetProperty);
+        ComponentTypeSetGetFn(type, CompMeshGetComponent);
 
         ComponentTypeSetPropertyIteratorFn(type, CompMeshIterProperties);
 

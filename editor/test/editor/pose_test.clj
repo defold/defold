@@ -1,3 +1,17 @@
+;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;;
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;;
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns editor.pose-test
   (:require [clojure.test :refer :all]
             [editor.math :as math]
@@ -14,6 +28,58 @@
 (defn- round-euler-rotation [pose]
   (round-numbers
     (math/clj-quat->euler (:rotation pose))))
+
+(deftest euler-rotation-test
+  (is (thrown? Throwable (pose/euler-rotation 1.0 2.0 nil)))
+  (is (identical? pose/default-rotation (pose/euler-rotation 0.0 0.0 0.0)))
+  (is (identical? pose/default-rotation (pose/euler-rotation 0 0 0)))
+  (is (= [0.5 0.5 -0.5 0.5] (round-numbers (pose/euler-rotation 90.0 90.0 0.0))))
+  (is (= [0.0 0.707 0.0 0.707] (round-numbers (pose/euler-rotation 0.0 90.0 0.0))))
+  (is (= [0.0 0.707 0.0 0.707] (round-numbers (pose/euler-rotation 0 90 0)))))
+
+(deftest euler-seq-rotation-test
+  (is (thrown? Throwable (pose/seq-euler-rotation [1.0 2.0])))
+  (is (identical? pose/default-rotation (pose/seq-euler-rotation nil)))
+  (is (identical? pose/default-rotation (pose/seq-euler-rotation [0.0 0.0 0.0])))
+  (is (identical? pose/default-rotation (pose/seq-euler-rotation [0 0 0])))
+  (is (= [0.5 0.5 -0.5 0.5] (round-numbers (pose/seq-euler-rotation [90.0 90.0 0.0]))))
+  (is (= [0.0 0.707 0.0 0.707] (round-numbers (pose/seq-euler-rotation [0.0 90.0 0.0]))))
+  (is (= [0.0 0.707 0.0 0.707] (round-numbers (pose/seq-euler-rotation [0.0 90.0 0.0 0.0]))))
+  (is (= [0.0 0.707 0.0 0.707] (round-numbers (pose/seq-euler-rotation [0.0 90.0 0.0 1.0]))))
+  (is (= [0.0 0.707 0.0 0.707] (round-numbers (pose/seq-euler-rotation (take 10 (interpose 90.0 (repeat 0.0))))))))
+
+(deftest seq-translation-test
+  (is (thrown? Throwable (pose/seq-translation [1.0 2.0])))
+  (is (identical? pose/default-translation (pose/seq-translation nil)))
+  (is (identical? pose/default-translation (pose/seq-translation [0.0 0.0 0.0])))
+  (is (identical? pose/default-translation (pose/seq-translation [0 0 0])))
+  (is (= [1.0 2.0 3.0] (pose/seq-translation [1 2 3])))
+  (is (= [1.5 2.5 3.5] (pose/seq-translation [1.5 2.5 3.5])))
+  (is (= [1.0 2.0 3.0] (pose/seq-translation [1.0 2.0 3.0 0.0])))
+  (is (= [1.0 2.0 3.0] (pose/seq-translation [1.0 2.0 3.0 1.0])))
+  (is (= [0.5 1.5 2.5] (round-numbers (pose/seq-translation (map #(+ (double %) 0.5) (take 10 (iterate inc 0.0))))))))
+
+(deftest seq-rotation-test
+  (is (thrown? Throwable (pose/seq-rotation [1.0 2.0 3.0])))
+  (is (identical? pose/default-rotation (pose/seq-rotation nil)))
+  (is (identical? pose/default-rotation (pose/seq-rotation [0.0 0.0 0.0 1.0])))
+  (is (identical? pose/default-rotation (pose/seq-rotation [0 0 0 1])))
+  (is (= [1.0 2.0 3.0 4.0] (pose/seq-rotation [1 2 3 4])))
+  (is (= [1.5 2.5 3.5 4.5] (pose/seq-rotation [1.5 2.5 3.5 4.5])))
+  (is (= [1.0 2.0 3.0 4.0] (pose/seq-rotation [1.0 2.0 3.0 4.0 0.0])))
+  (is (= [1.0 2.0 3.0 4.0] (pose/seq-rotation [1.0 2.0 3.0 4.0 1.0])))
+  (is (= [0.5 1.5 2.5 3.5] (round-numbers (pose/seq-rotation (map #(+ (double %) 0.5) (take 10 (iterate inc 0.0))))))))
+
+(deftest seq-scale-test
+  (is (thrown? Throwable (pose/seq-scale [1.0 2.0])))
+  (is (identical? pose/default-scale (pose/seq-scale nil)))
+  (is (identical? pose/default-scale (pose/seq-scale [1.0 1.0 1.0])))
+  (is (identical? pose/default-scale (pose/seq-scale [1 1 1])))
+  (is (= [1.0 2.0 3.0] (pose/seq-scale [1 2 3])))
+  (is (= [1.5 2.5 3.5] (pose/seq-scale [1.5 2.5 3.5])))
+  (is (= [1.0 2.0 3.0] (pose/seq-scale [1.0 2.0 3.0 0.0])))
+  (is (= [1.0 2.0 3.0] (pose/seq-scale [1.0 2.0 3.0 1.0])))
+  (is (= [0.5 1.5 2.5] (round-numbers (pose/seq-scale (map #(+ (double %) 0.5) (take 10 (iterate inc 0.0))))))))
 
 (deftest pose?-test
   (is (false? (pose/pose? nil)))
@@ -198,29 +264,23 @@
     (is (= (pose/euler-rotation 90.0 0.0 0.0) (:rotation pose)))
     (is (= [2.0 4.0 8.0] (:scale pose)))))
 
-(deftest to-map-test
-  (is (thrown? Throwable (pose/to-mat4 {:translation "Not a pose"})))
-  (is (= {:t [0.0 0.0 0.0]
-          :r [0.0 0.0 0.0 1.0]
-          :s [1.0 1.0 1.0]}
-         (pose/to-map pose/default :t :r :s)))
-  (is (= {:position [1.0 0.0 0.0]
-          :rotation [0.0 0.707 0.707 0.0]
-          :scale3 [2.0 1.0 1.0]}
-         (pose/to-map (pose/make [1.0 0.0 0.0]
-                                 [0.0 0.707 0.707 0.0]
-                                 [2.0 1.0 1.0])
-                      :position
-                      :rotation
-                      :scale3))))
-
-(deftest to-mat4-test
-  (is (thrown? Throwable (pose/to-mat4 {:translation "Not a pose"})))
+(deftest matrix-test
+  (is (thrown? Throwable (pose/matrix {:translation "Not a pose"})))
   (is (= (doto (Matrix4d.) (.setIdentity))
-         (pose/to-mat4 pose/default)))
+         (pose/matrix pose/default)))
   (is (= (math/clj->mat4 [1.0 2.0 3.0]
                          [0.0 0.707 0.707 0.0]
                          [2.0 1.0 1.0])
-         (pose/to-mat4 (pose/make [1.0 2.0 3.0]
-                                  [0.0 0.707 0.707 0.0]
-                                  [2.0 1.0 1.0])))))
+         (pose/matrix (pose/make [1.0 2.0 3.0]
+                                 [0.0 0.707 0.707 0.0]
+                                 [2.0 1.0 1.0])))))
+
+(deftest accessors-test
+  (is (= [1.0 2.0 3.0] (pose/translation-v3 (pose/translation-pose 1.0 2.0 3.0))))
+  (is (= [1.0 2.0 3.0 0.0] (pose/translation-v4 (pose/translation-pose 1.0 2.0 3.0) 0.0)))
+  (is (= [1.0 2.0 3.0 1.0] (pose/translation-v4 (pose/translation-pose 1.0 2.0 3.0) 1.0)))
+  (is (= [1.0 2.0 3.0 4.0] (pose/rotation-q4 (pose/rotation-pose 1.0 2.0 3.0 4.0))))
+  (is (= [0.0 180.0 90.0] (pose/euler-rotation-v3 (pose/euler-rotation-pose 0.0 180.0 90.0))))
+  (is (= [0.0 180.0 90.0 0.0] (pose/euler-rotation-v4 (pose/euler-rotation-pose 0.0 180.0 90.0))))
+  (is (= [1.0 2.0 3.0] (pose/scale-v3 (pose/scale-pose 1.0 2.0 3.0))))
+  (is (= [1.0 2.0 3.0 1.0] (pose/scale-v4 (pose/scale-pose 1.0 2.0 3.0)))))

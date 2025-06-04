@@ -1,46 +1,32 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.code.script
-  (:require [clojure.string :as string]
-            [dynamo.graph :as g]
-            [editor.build-target :as bt]
-            [editor.code-completion :as code-completion]
+  (:require [dynamo.graph :as g]
             [editor.code.data :as data]
-            [editor.code.preprocessors :as preprocessors]
             [editor.code.resource :as r]
+            [editor.code.script-compilation :as script-compilation]
             [editor.code.script-intelligence :as script-intelligence]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
-            [editor.image :as image]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
             [editor.lua-parser :as lua-parser]
-            [editor.luajit :as luajit]
             [editor.properties :as properties]
-            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.types :as t]
-            [editor.util :as eutil]
-            [editor.validation :as validation]
-            [editor.workspace :as workspace]
-            [internal.util :as util]
-            [schema.core :as s]
-            [service.log :as log]
-            [util.coll :refer [pair]])
-  (:import [com.dynamo.lua.proto Lua$LuaModule]
-           [com.google.protobuf ByteString]))
+            [editor.types :as types]
+            [schema.core :as s]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -55,6 +41,30 @@
    :indent {:begin #"^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b)[^\"'])*)|(\{\s*))$"
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
    :line-comment "--"
+   :auto-insert {:characters {\" \"
+                              \' \'
+                              \[ \]
+                              \( \)
+                              \{ \}}
+                 :close-characters #{\" \' \] \) \}}
+                 :exclude-scopes #{"punctuation.definition.string.quoted.begin.lua"
+                                   "punctuation.definition.string.begin.lua"
+                                   "string.quoted.other.multiline.lua"
+                                   "string.quoted.double.lua"
+                                   "string.quoted.single.lua"
+                                   "constant.character.escape.lua"}
+                 :open-scopes {\' "punctuation.definition.string.quoted.begin.lua"
+                               \" "punctuation.definition.string.quoted.begin.lua"
+                               \[ "punctuation.definition.string.begin.lua"}
+                 :close-scopes {\' "punctuation.definition.string.quoted.end.lua"
+                                \" "punctuation.definition.string.quoted.end.lua"
+                                \] "punctuation.definition.string.end.lua"}}
+   :commit-characters {:method #{"("}
+                       :function #{"("}
+                       :field #{"."}
+                       :module #{"."}}
+   :completion-trigger-characters #{"."}
+   :ignored-completion-trigger-characters #{"{" ","}
    :patterns [{:captures {1 {:name "keyword.control.lua"}
                           2 {:name "entity.name.function.scope.lua"}
                           3 {:name "entity.name.function.lua"}
@@ -66,16 +76,16 @@
               {:match #"(?<![\d.])\s0x[a-fA-F\d]+|\b\d+(\.\d+)?([eE]-?\d+)?|\.\d+([eE]-?\d+)?"
                :name "constant.numeric.lua"}
               {:begin #"'"
-               :begin-captures {0 {:name "punctuation.definition.string.begin.lua"}}
+               :begin-captures {0 {:name "punctuation.definition.string.quoted.begin.lua"}}
                :end #"'"
-               :end-captures {0 {:name "punctuation.definition.string.end.lua"}}
+               :end-captures {0 {:name "punctuation.definition.string.quoted.end.lua"}}
                :name "string.quoted.single.lua"
                :patterns [{:match #"\\."
                            :name "constant.character.escape.lua"}]}
               {:begin #"\""
-               :begin-captures {0 {:name "punctuation.definition.string.begin.lua"}}
+               :begin-captures {0 {:name "punctuation.definition.string.quoted.begin.lua"}}
                :end #"\""
-               :end-captures {0 {:name "punctuation.definition.string.end.lua"}}
+               :end-captures {0 {:name "punctuation.definition.string.quoted.end.lua"}}
                :name "string.quoted.double.lua"
                :patterns [{:match #"\\."
                            :name "constant.character.escape.lua"}]}
@@ -110,32 +120,6 @@
 
 (def lua-code-opts {:code {:grammar lua-grammar}})
 
-(defn script-property-type->property-type
-  "Controls how script property values are represented in the graph and edited."
-  [script-property-type]
-  (case script-property-type
-    :script-property-type-number   g/Num
-    :script-property-type-hash     g/Str
-    :script-property-type-url      g/Str
-    :script-property-type-vector3  t/Vec3
-    :script-property-type-vector4  t/Vec4
-    :script-property-type-quat     t/Vec3
-    :script-property-type-boolean  g/Bool
-    :script-property-type-resource resource/Resource))
-
-(defn script-property-type->go-prop-type
-  "Controls how script property values are represented in the file formats."
-  [script-property-type]
-  (case script-property-type
-    :script-property-type-number   :property-type-number
-    :script-property-type-hash     :property-type-hash
-    :script-property-type-url      :property-type-url
-    :script-property-type-vector3  :property-type-vector3
-    :script-property-type-vector4  :property-type-vector4
-    :script-property-type-quat     :property-type-quat
-    :script-property-type-boolean  :property-type-boolean
-    :script-property-type-resource :property-type-hash))
-
 (g/deftype ScriptPropertyType
   (s/enum :script-property-type-number
           :script-property-type-hash
@@ -147,33 +131,25 @@
           :script-property-type-resource))
 
 (def script-defs [{:ext "script"
-                   :language "lua"
                    :label "Script"
                    :icon "icons/32/Icons_12-Script-type.png"
-                   :view-types [:code :default]
-                   :view-opts lua-code-opts
+                   :icon-class :script
                    :tags #{:component :debuggable :non-embeddable :overridable-properties}
                    :tag-opts {:component {:transform-properties #{}}}}
                   {:ext "render_script"
-                   :language "lua"
                    :label "Render Script"
                    :icon "icons/32/Icons_12-Script-type.png"
-                   :view-types [:code :default]
-                   :view-opts lua-code-opts
+                   :icon-class :script
                    :tags #{:debuggable}}
                   {:ext "gui_script"
-                   :language "lua"
                    :label "Gui Script"
                    :icon "icons/32/Icons_12-Script-type.png"
-                   :view-types [:code :default]
-                   :view-opts lua-code-opts
+                   :icon-class :script
                    :tags #{:debuggable}}
                   {:ext "lua"
-                   :language "lua"
                    :label "Lua Module"
                    :icon "icons/32/Icons_11-Script-general.png"
-                   :view-types [:code :default]
-                   :view-opts lua-code-opts
+                   :icon-class :script
                    :tags #{:debuggable}}])
 
 (def ^:private status-errors
@@ -184,54 +160,15 @@
 (defn- prop->key [p]
   (-> p :name properties/user-name->key))
 
-(def resource-kind->ext
-  "Declares which file extensions are valid for different kinds of resource
-  properties. This affects the Property Editor, but is also used for validation."
-  {"atlas"       ["atlas" "tilesource"]
-   "font"        "font"
-   "material"    "material"
-   "buffer"      "buffer"
-   "texture"     (conj image/exts "cubemap")
-   "tile_source" "tilesource"})
-
-(def ^:private valid-resource-kind? (partial contains? resource-kind->ext))
-
-(defn- script-property-edit-type [prop-type resource-kind]
-  (if (= resource/Resource prop-type)
-    {:type prop-type :ext (resource-kind->ext resource-kind)}
-    {:type prop-type}))
-
-(defn- resource-assignment-error [node-id prop-kw prop-name resource expected-ext]
-  (when (some? resource)
-    (let [resource-ext (resource/ext resource)
-          ext-match? (if (coll? expected-ext)
-                       (some? (some (partial = resource-ext) expected-ext))
-                       (= expected-ext resource-ext))]
-      (cond
-        (not ext-match?)
-        (g/->error node-id prop-kw :fatal resource
-                   (format "%s '%s' is not of type %s"
-                           (validation/format-name prop-name)
-                           (resource/proj-path resource)
-                           (validation/format-ext expected-ext)))
-
-        (not (resource/exists? resource))
-        (g/->error node-id prop-kw :fatal resource
-                   (format "%s '%s' could not be found"
-                           (validation/format-name prop-name)
-                           (resource/proj-path resource)))))))
-
-(defn- validate-value-against-edit-type [node-id prop-kw prop-name value edit-type]
-  (when (= resource/Resource (:type edit-type))
-    (resource-assignment-error node-id prop-kw prop-name value (:ext edit-type))))
-
 (g/defnk produce-script-property-entries [_this _node-id deleted? name resource-kind type value]
   (when-not deleted?
-    (let [prop-kw (properties/user-name->key name)
-          prop-type (script-property-type->property-type type)
-          edit-type (script-property-edit-type prop-type resource-kind)
-          error (validate-value-against-edit-type _node-id :value name value edit-type)
-          go-prop-type (script-property-type->go-prop-type type)
+    (let [project (project/get-project _node-id)
+          workspace (project/workspace project)
+          prop-kw (properties/user-name->key name)
+          prop-type (script-compilation/script-property-type->property-type type)
+          edit-type (script-compilation/script-property-edit-type workspace prop-type resource-kind type)
+          error (script-compilation/validate-value-against-edit-type _node-id :value name value edit-type)
+          go-prop-type (script-compilation/script-property-type->go-prop-type type)
           overridden? (g/node-property-overridden? _this :value)
           read-only? (not (g/node-override? _this))
           visible? (not deleted?)]
@@ -257,7 +194,7 @@
 
 (g/deftype NameNodeIDMap {s/Str s/Int})
 
-(g/deftype ResourceKind (apply s/enum (keys resource-kind->ext)))
+(g/deftype ResourceKind (apply s/enum (keys script-compilation/resource-kind->workspace->extensions)))
 
 (g/deftype ScriptPropertyEntries
   {s/Keyword {:node-id s/Int
@@ -396,200 +333,34 @@
               (update :properties into (map (partial lift-error _node-id)) script-property-entries)
               (update :display-order into (map prop->key) script-properties))))
 
-(defn- go-property-declaration-cursor-ranges
-  "Find the CursorRanges that encompass each `go.property('name', ...)`
-  declaration among the specified lines. These will be replaced with whitespace
-  before the script is compiled for the engine."
-  [lines]
-  (loop [cursor-ranges (transient [])
-         tokens (lua-parser/tokens (data/lines-reader lines))
-         paren-count 0
-         consumed []]
-    (if-some [[text :as token] (first tokens)]
-      (case (count consumed)
-        0 (recur cursor-ranges (next tokens) 0 (case text "go" (conj consumed token) []))
-        1 (recur cursor-ranges (next tokens) 0 (case text "." (conj consumed token) []))
-        2 (recur cursor-ranges (next tokens) 0 (case text "property" (conj consumed token) []))
-        3 (case text
-            "(" (recur cursor-ranges (next tokens) (inc paren-count) consumed)
-            ")" (let [paren-count (dec paren-count)]
-                  (assert (not (neg? paren-count)))
-                  (if (pos? paren-count)
-                    (recur cursor-ranges (next tokens) paren-count consumed)
-                    (let [next-tokens (next tokens)
-                          [next-text :as next-token] (first next-tokens)
-                          [_ start-row start-col] (first consumed)
-                          [end-text end-row end-col] (if (= ";" next-text) next-token token)
-                          end-col (+ ^long end-col (count end-text))
-                          start-cursor (data/->Cursor start-row start-col)
-                          end-cursor (data/->Cursor end-row end-col)
-                          cursor-range (data/->CursorRange start-cursor end-cursor)]
-                      (recur (conj! cursor-ranges cursor-range)
-                             next-tokens
-                             0
-                             []))))
-            (recur cursor-ranges (next tokens) paren-count consumed)))
-      (persistent! cursor-ranges))))
-
-(defn- line->whitespace [line]
-  (string/join (repeat (count line) \space)))
-
-(defn- cursor-range->whitespace-lines [lines cursor-range]
-  (let [{:keys [first-line middle-lines last-line]} (data/cursor-range-subsequence lines cursor-range)]
-    (cond-> (into [(line->whitespace first-line)]
-                  (map line->whitespace)
-                  middle-lines)
-            (some? last-line) (conj (line->whitespace last-line)))))
-
-(defn- strip-go-property-declarations [lines]
-  (data/splice-lines lines (map (juxt identity (partial cursor-range->whitespace-lines lines))
-                                (go-property-declaration-cursor-ranges lines))))
-
-(defn- script->bytecode [lines proj-path arch]
-  (try
-    (luajit/bytecode (data/lines-reader lines) proj-path arch)
-    (catch Exception e
-      (let [{:keys [filename line message]} (ex-data e)]
-        (g/map->error
-          {:_label :modified-lines
-           :message (.getMessage e)
-           :severity :fatal
-           :user-data (assoc (r/make-code-error-user-data filename line)
-                        :message message)})))))
-
-(defn- build-script [resource dep-resources user-data]
-  ;; We always compile the full source code in order to find syntax errors.
-  ;; We then strip go.property() declarations and recompile if needed.
-  (let [lines (:lines user-data)
-        proj-path (:proj-path user-data)
-        bytecode-or-error (script->bytecode lines proj-path :32-bit)]
-    (g/precluding-errors
-      [bytecode-or-error]
-      (let [go-props (properties/build-go-props dep-resources (:go-props user-data))
-            modules (:modules user-data)
-            cleaned-lines (strip-go-property-declarations lines)]
-        {:resource resource
-         :content (protobuf/map->bytes
-                    Lua$LuaModule
-                    {:source {:script (ByteString/copyFromUtf8
-                                        (slurp (data/lines-reader cleaned-lines)))
-                              :filename (str "@" (luajit/luajit-path-to-chunk-name (resource/proj-path (:resource resource))))}
-                     :modules modules
-                     :resources (mapv lua/lua-module->build-path modules)
-                     :properties (properties/go-props->decls go-props true)
-                     :property-resources (into (sorted-set)
-                                               (keep properties/try-get-go-prop-proj-path)
-                                               go-props)})}))))
-
-(defn- lua-info->modules [lua-info]
-  (into []
-        (comp (map second)
-              (remove lua/preinstalled-modules))
-        (:requires lua-info)))
-
-(defn- lua-info->script-properties [lua-info]
-  (into []
-        (comp (filter #(= :ok (:status %)))
-              (util/distinct-by :name))
-        (:script-properties lua-info)))
-
-(def ^:const file-line-pattern #"(?<=^|\s|[<\"'`])(\/[^\s>\"'`:]+)(?::?)(\d+)?")
-
-(defn- try-parse-file-line [^String message]
-  (when-some [[_ proj-path line-number-string] (re-find file-line-pattern message)]
-    (let [line-number (some-> line-number-string Long/parseLong)]
-      (pair proj-path line-number))))
-
-(g/defnk produce-build-targets [_node-id resource lines lua-preprocessors script-properties module-build-targets original-resource-property-build-targets]
-  (if-some [errors
-            (not-empty
-              (keep (fn [{:keys [name resource-kind type value]}]
-                      (let [prop-type (script-property-type->property-type type)
-                            edit-type (script-property-edit-type prop-type resource-kind)]
-                        (validate-value-against-edit-type _node-id :lines name value edit-type)))
-                    script-properties))]
-    (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
-    (let [preprocessed-lines
-          (try
-            (preprocessors/preprocess-lua-lines lua-preprocessors lines resource :debug)
-            (catch Exception exception
-              exception))]
-      (if-some [exception-message (ex-message preprocessed-lines)]
-        (let [exception preprocessed-lines
-              build-error-message (str "Lua preprocessing failed.\n" exception-message)
-              log-error-message (format "Lua preprocessing failed for file '%s'." (resource/proj-path resource))]
-          (log/error :message log-error-message :exception exception)
-          (if-some [[proj-path line-number] (try-parse-file-line exception-message)]
-            (let [project (project/get-project _node-id)
-                  exception-resource (workspace/resolve-resource resource proj-path)
-                  exception-node-id (project/get-resource-node project exception-resource)
-                  error-node-id (or exception-node-id _node-id)
-                  error-resource (if (nil? exception-node-id) resource exception-resource)
-                  error-user-data (r/make-code-error-user-data proj-path line-number)]
-              (g/->error error-node-id :modified-lines :fatal error-resource build-error-message error-user-data))
-            (g/->error _node-id :modified-lines :fatal resource build-error-message)))
-        (let [workspace (resource/workspace resource)
-
-              preprocessed-lua-info
-              (with-open [reader (data/lines-reader preprocessed-lines)]
-                (lua-parser/lua-info workspace valid-resource-kind? reader))
-
-              preprocessed-script-properties (lua-info->script-properties preprocessed-lua-info)
-              preprocessed-modules (lua-info->modules preprocessed-lua-info)
-              proj-path->module-build-target (bt/make-proj-path->build-target module-build-targets)
-              module->build-target (comp proj-path->module-build-target lua/lua-module->path)
-              missing-modules (filterv (complement module->build-target) preprocessed-modules)]
-          (if (pos? (count missing-modules))
-            (g/->error _node-id :build-targets :fatal resource
-                       (str "Can't find required modules: " (eutil/join-words ", " " and " missing-modules)))
-            (let [preprocessed-module-build-targets (map module->build-target preprocessed-modules)
-
-                  preprocessed-go-props-with-source-resources
-                  (map (fn [{:keys [name type value]}]
-                         (let [go-prop-type (script-property-type->go-prop-type type)
-                               go-prop-value (properties/clj-value->go-prop-value go-prop-type value)]
-                           {:id name
-                            :type go-prop-type
-                            :value go-prop-value
-                            :clj-value value}))
-                       preprocessed-script-properties)
-
-                  proj-path->resource-property-build-target
-                  (bt/make-proj-path->build-target original-resource-property-build-targets)
-
-                  [preprocessed-go-props preprocessed-go-prop-dep-build-targets]
-                  (properties/build-target-go-props proj-path->resource-property-build-target preprocessed-go-props-with-source-resources)]
-              ;; NOTE: The :user-data must not contain any overridden data. If it does,
-              ;; the build targets won't be fused and the script will be recompiled
-              ;; for every instance of the script component. The :go-props here describe
-              ;; the original property values from the script, never overridden values.
-              [(bt/with-content-hash
-                 {:node-id _node-id
-                  :resource (workspace/make-build-resource resource)
-                  :build-fn build-script
-                  :user-data {:lines preprocessed-lines
-                              :go-props preprocessed-go-props
-                              :modules preprocessed-modules
-                              :proj-path (resource/proj-path resource)}
-                  :deps (into preprocessed-go-prop-dep-build-targets
-                              preprocessed-module-build-targets)})])))))))
+(g/defnk produce-build-targets [_node-id resource lines lua-preprocessors script-properties original-resource-property-build-targets]
+  (script-compilation/build-targets
+    _node-id
+    resource
+    lines
+    lua-preprocessors
+    script-properties
+    original-resource-property-build-targets
+    (partial project/get-resource-node (project/get-project _node-id))))
 
 (g/defnk produce-completions [completion-info module-completion-infos script-intelligence-completions]
-  (code-completion/combine-completions completion-info module-completion-infos script-intelligence-completions))
+  (lua/combine-completions completion-info module-completion-infos script-intelligence-completions))
 
 (g/defnk produce-breakpoints [resource regions]
   (into []
         (comp (filter data/breakpoint-region?)
               (map (fn [region]
-                     {:resource resource
-                      :row (data/breakpoint-row region)})))
+                     (let [condition (:condition region)]
+                       (cond-> {:resource resource
+                                :row (data/breakpoint-row region)}
+                               condition
+                               (assoc :condition condition))))))
         regions))
 
 (g/defnode ScriptNode
   (inherits r/CodeEditorResourceNode)
 
   (input lua-preprocessors g/Any)
-  (input module-build-targets g/Any :array)
   (input module-completion-infos g/Any :array :substitute gu/array-subst-remove-errors)
   (input script-intelligence-completions script-intelligence/ScriptCompletions)
   (input script-property-name+node-ids NameNodeIDPair :array)
@@ -602,18 +373,21 @@
   (property completion-info g/Any (default {}) (dynamic visible (g/constantly false)))
 
   ;; Overrides modified-lines property in CodeEditorResourceNode.
-  (property modified-lines r/Lines
+  (property modified-lines types/Lines
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   (lsp/notify-lines-modified! (lsp/get-node-lsp (:basis evaluation-context) self) self new-value evaluation-context)
                    (let [resource (g/node-value self :resource evaluation-context)
+                         basis (:basis evaluation-context)
+                         source-value (g/node-value self :source-value evaluation-context)
+                         lsp (lsp/get-node-lsp basis self)
                          workspace (resource/workspace resource)
                          lua-info (with-open [reader (data/lines-reader new-value)]
-                                    (lua-parser/lua-info workspace valid-resource-kind? reader))
+                                    (lua-parser/lua-info workspace script-compilation/valid-resource-kind? reader))
                          own-module (lua/path->lua-module (resource/proj-path resource))
                          completion-info (assoc lua-info :module own-module)
-                         modules (lua-info->modules lua-info)
-                         script-properties (lua-info->script-properties lua-info)]
+                         modules (script-compilation/lua-info->modules lua-info)
+                         script-properties (script-compilation/lua-info->script-properties lua-info)]
+                     (lsp/notify-lines-modified! lsp resource source-value new-value)
                      (concat
                        (g/set-property self :completion-info completion-info)
                        (g/set-property self :modules modules)
@@ -626,14 +400,12 @@
                    (let [basis (:basis evaluation-context)
                          project (project/get-project basis self)]
                      (concat
-                       (g/disconnect-sources basis self :module-build-targets)
                        (g/disconnect-sources basis self :module-completion-infos)
                        (for [module new-value]
                          (let [path (lua/lua-module->path module)]
                            (:tx-data (project/connect-resource-node
                                        evaluation-context project path self
-                                       [[:build-targets :module-build-targets]
-                                        [:completion-info :module-completion-infos]])))))))))
+                                       [[:completion-info :module-completion-infos]])))))))))
 
   (property script-properties g/Any
             (default [])
@@ -675,6 +447,10 @@
   (for [def script-defs
         :let [args (assoc def
                      :node-type ScriptNode
-                     :eager-loading? true
-                     :additional-load-fn additional-load-fn)]]
+                     :built-pb-class script-compilation/built-pb-class
+                     :language "lua"
+                     :lazy-loaded false
+                     :additional-load-fn additional-load-fn
+                     :view-types [:code :default]
+                     :view-opts lua-code-opts)]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))

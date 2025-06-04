@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipFile;
 
@@ -46,7 +47,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.contrib.java.lang.system.*;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ClassLoaderScanner;
@@ -55,10 +55,25 @@ import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.test.util.MockFileSystem;
 
 public class ProjectTest {
+
+    private class MockProject extends Project {
+        public HashMap<String,String> env;
+
+        public MockProject(IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
+            super(fileSystem, sourceRootDirectory, buildDirectory);
+            env = new HashMap<>();
+        }
+
+        @Override
+        public String getSystemEnv(String name) {
+            return env.get(name);
+        }
+    }
 
     private final static int SERVER_PORT = 8081;
     private final static String EMAIL = "unittest@defold.com";
@@ -68,7 +83,7 @@ public class ProjectTest {
     private final static String BASIC_AUTH_ENV_TOKEN_RESOLVED = "user:resolved";
 
     private MockFileSystem fileSystem;
-    private Project project;
+    private MockProject project;
     private Server httpServer;
     private ArrayList<URL> libraryUrls = new ArrayList<URL>();
 
@@ -76,9 +91,6 @@ public class ProjectTest {
 
     @Rule
     public TestLibrariesRule testLibs = new TestLibrariesRule();
-
-    @Rule
-    public final EnvironmentVariables environmentVariables = new EnvironmentVariables();
 
     private void initHttpServer(String serverLocation) throws IOException {
         System.out.printf("initHttpServer start");
@@ -111,10 +123,9 @@ public class ProjectTest {
         libraryUrls.add(new URL("http://" + BASIC_AUTH + "@localhost:8081/test_lib5.zip"));
         libraryUrls.add(new URL("http://" + BASIC_AUTH_ENV_TOKEN + "@localhost:8081/test_lib6.zip"));
 
-        environmentVariables.set("TOKEN", "resolved");
-
         fileSystem = new MockFileSystem();
-        project = new Project(fileSystem, Files.createTempDirectory("defold_").toString(), "build/default");
+        project = new MockProject(fileSystem, Files.createTempDirectory("defold_").toString(), "build/default");
+        project.env.put("TOKEN", "resolved");
         project.setOption("email", EMAIL);
         project.setOption("auth", AUTH);
         project.scan(new ClassLoaderScanner(), "com.dynamo.bob.test");
@@ -206,7 +217,7 @@ public class ProjectTest {
         System.out.printf("testMountPointFindSources start");
         project.resolveLibUrls(new NullProgress());
         project.mount(new ClassLoaderResourceScanner());
-        project.findSources(".", null);
+        project.setInputs(Arrays.asList("test_lib2/file2.in", "test_lib1/file1.in", "test_lib6/file6.in", "test_lib5/file5.in"));
         List<TaskResult> results = build("build");
         assertFalse(results.isEmpty());
         for (TaskResult result : results) {

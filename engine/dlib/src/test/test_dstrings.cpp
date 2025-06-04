@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -179,16 +179,30 @@ TEST(dmStrings, dmStrError)
     char buf[128];
     // Test with a ENOENT errno code
     dmStrError(buf, sizeof(buf), ENOENT);
+#if defined(DM_NO_ERRNO)
+    char tmpbuf[32];
+    dmSnPrintf(tmpbuf, sizeof(tmpbuf), "Unknown error %d", ENOENT);
+    ASSERT_STREQ(tmpbuf, buf);
+#else
     ASSERT_STREQ("No such file or directory", buf);
+#endif
 
     // Pass in a small buffer
     dmStrError(buf, 4, ENOENT);
+
+#if defined(DM_NO_ERRNO)
+    ASSERT_STREQ("Unk", buf);
+#else
     ASSERT_STREQ("No ", buf);
+#endif
 
     // Pass invalid errno
     dmStrError(buf, sizeof(buf), -1);
+#if defined(__EMSCRIPTEN__)
+    ASSERT_STREQ("No error information", buf);
+#else
     ASSERT_STREQ("Unknown error -1", buf);
-
+#endif
     // Nothing set in buffer
     memset(buf, 1, sizeof(buf));
     dmStrError(buf, 0, 0);

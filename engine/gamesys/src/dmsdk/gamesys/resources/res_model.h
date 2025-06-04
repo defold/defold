@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,20 +21,41 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
 #include <dmsdk/render/render.h>
-#include <dmsdk/gamesys/resources/res_rig_scene.h>
-#include <dmsdk/gamesys/resources/res_texture.h>
-#include <gamesys/model_ddf.h>
+
+namespace dmRigDDF
+{
+    struct RigScene;
+    struct Mesh;
+    struct Model;
+}
+
+namespace dmModelDDF
+{
+    struct Model;
+}
 
 namespace dmGameSystem
 {
+    struct MaterialResource;
+    struct RigSceneResource;
+    struct TextureResource;
+    struct RenderTargetResource;
+
+    enum RigModelVertexFormat
+    {
+        RIG_MODEL_VERTEX_FORMAT_STATIC,
+        RIG_MODEL_VERTEX_FORMAT_SKINNED,
+    };
+
     struct ModelResourceBuffers
     {
         dmGraphics::HVertexBuffer   m_VertexBuffer;
         dmGraphics::HIndexBuffer    m_IndexBuffer;
         uint32_t                    m_VertexCount;
         uint32_t                    m_IndexCount;
-        uint32_t                    m_MaterialIndex; // Index into ModelResource::m_Materials
         dmGraphics::Type            m_IndexBufferElementType;
+        RigModelVertexFormat        m_RigModelVertexFormat;
+        uint8_t                     m_LastUsedFrame; // Used for statistics
     };
 
     struct MeshInfo
@@ -44,15 +65,31 @@ namespace dmGameSystem
         dmRigDDF::Mesh*         m_Mesh;
     };
 
+    struct MaterialTextureInfo
+    {
+        dmhash_t                m_SamplerNameHash;
+        TextureResource*        m_Texture;
+        RenderTargetResource*   m_RenderTarget;
+    };
+
+    struct MaterialInfo
+    {
+        const char*                  m_Name;
+        MaterialResource*            m_Material;
+        dmGraphics::VertexAttribute* m_Attributes;
+        uint32_t                     m_AttributeCount;
+        MaterialTextureInfo*         m_Textures;
+        uint32_t                     m_TexturesCount;
+    };
+
     struct ModelResource
     {
-        dmModelDDF::Model*              m_Model;
-        uint32_t                        m_ModelsCount;
-        RigSceneResource*               m_RigScene;
-        dmArray<MeshInfo>               m_Meshes;
-        dmArray<dmRender::HMaterial>    m_Materials;    // List matches the list of material names in the dmRigDDF::Model
-        TextureResource*                m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmhash_t                        m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmModelDDF::Model*       m_Model;
+        uint32_t                 m_ModelsCount;
+        RigSceneResource*        m_RigScene;
+
+        dmArray<MeshInfo>        m_Meshes;
+        dmArray<MaterialInfo>    m_Materials;    // List matches the list of material names in the dmRigDDF::Model
     };
 }
 

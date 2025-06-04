@@ -1,31 +1,31 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.ui.fuzzy-choices
-  (:require [clojure.core.reducers :as r]
+  (:require [cljfx.fx.text :as fx.text]
+            [cljfx.fx.text-flow :as fx.text-flow]
+            [clojure.core.reducers :as r]
             [editor.fuzzy-text :as fuzzy-text]
             [editor.util :as util])
-  (:import (javafx.scene.text Text TextFlow)))
+  (:import [javafx.scene.text Text TextFlow]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (defn- option->fuzzy-matched-option [option->text pattern option]
   (when-some [[score matching-indices] (fuzzy-text/match-path pattern (option->text option))]
-    (with-meta option
-               {:score score
-                :matching-indices matching-indices})))
+    (vary-meta option assoc :score score :matching-indices matching-indices)))
 
 (defn- option-order [option->text a b]
   (let [a-meta (meta a)
@@ -89,3 +89,36 @@
 
 (defn matching-indices [fuzzy-matched-option]
   (:matching-indices (meta fuzzy-matched-option)))
+
+(defn- make-text-run-cljfx [text style-class]
+  (cond-> {:fx/type fx.text/lifecycle
+           :text text}
+          style-class
+          (assoc :style-class style-class)))
+
+(defn- matched-text-runs-cljfx [^String text matching-indices]
+  (let [/ (inc (.lastIndexOf text "/"))]
+    (into []
+          (mapcat (fn [[matched? start end]]
+                    (cond
+                      matched?
+                      [(make-text-run-cljfx (subs text start end) "matched")]
+
+                      (< start / end)
+                      [(make-text-run-cljfx (subs text start /) "diminished")
+                       (make-text-run-cljfx (subs text / end) nil)]
+
+                      (<= start end /)
+                      [(make-text-run-cljfx (subs text start end) "diminished")]
+
+                      :else
+                      [(make-text-run-cljfx (subs text start end) nil)])))
+          (fuzzy-text/runs (.length text) matching-indices))))
+
+(defn make-matched-text-flow-cljfx [text matching-indices & {:keys [deprecated]
+                                                             :or {deprecated false}}]
+  (cond->
+    {:fx/type fx.text-flow/lifecycle
+     :children (matched-text-runs-cljfx text matching-indices)}
+    deprecated
+    (assoc :style-class "deprecated")))

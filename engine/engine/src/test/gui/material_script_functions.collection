@@ -1,0 +1,5 @@
+name: "material_script_functions"
+instances {
+  id: "material_script_functions"
+  prototype: "/gui/material_script_functions.go"
+}

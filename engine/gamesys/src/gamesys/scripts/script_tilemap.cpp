@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -43,6 +43,7 @@ namespace dmGameSystem
      * @document
      * @name Tilemap
      * @namespace tilemap
+     * @language Lua
      */
 
     /*# [type:hash] tile source
@@ -111,7 +112,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
         dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
@@ -124,7 +125,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -155,7 +156,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
 
         dmGameSystemDDF::ResetConstantTileMap msg;
@@ -165,7 +166,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -202,7 +203,7 @@ namespace dmGameSystem
      * @param x [type:number] x-coordinate of the tile
      * @param y [type:number] y-coordinate of the tile
      * @param tile [type:number] index of new tile to set. 0 resets the cell
-     * @param [transform-bitmask] [type:number] optional flip and/or rotation should be applied to the tile
+     * @param [transform_bitmask] [type:number] optional flip and/or rotation should be applied to the tile
      * @examples
      *
      * ```lua
@@ -223,10 +224,9 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        uintptr_t user_data;
+        TileGridComponent* component;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, &receiver, 0);
-        TileGridComponent* component = (TileGridComponent*) user_data;
+        dmGameObject::GetComponentFromLua(L, 1, collection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, &receiver, 0);
 
         dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
 
@@ -298,7 +298,7 @@ namespace dmGameSystem
                 bitmask |= FLIP_VERTICAL;
             }
         }
-        
+
         SetTileGridTile(component, layer_index, cell_x, cell_y, tile, bitmask);
 
         dmMessage::URL sender;
@@ -334,36 +334,15 @@ namespace dmGameSystem
         return 1;
     }
 
-    /*# get a tile from a tile map
-     * Get the tile set at the specified position in the tilemap.
-     * The position is identified by the tile index starting at origin
-     * with index 1, 1. (see [ref:tilemap.set_tile()])
-     * Which tile map and layer to query is identified by the URL and the
-     * layer name parameters.
-     *
-     * @name tilemap.get_tile
-     * @param url [type:string|hash|url] the tile map
-     * @param layer [type:string|hash] name of the layer for the tile
-     * @param x [type:number] x-coordinate of the tile
-     * @param y [type:number] y-coordinate of the tile
-     * @return tile [type:number] index of the tile
-     * @examples
-     *
-     * ```lua
-     * -- get the tile under the player.
-     * local tileno = tilemap.get_tile("/level#tilemap", "foreground", self.player_x, self.player_y)
-     * ```
-     */
-    static int TileMap_GetTile(lua_State* L)
+    static int TileMap_Get(lua_State* L, bool is_full_info)
     {
         int top = lua_gettop(L);
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        uintptr_t user_data;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, 0, 0);
-        TileGridComponent* component = (TileGridComponent*) user_data;
+        TileGridComponent* component;
+        dmGameObject::GetComponentFromLua(L, 1, collection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, 0, 0);
 
         dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
         uint32_t layer_index = GetLayerIndex(component, layer_id);
@@ -394,7 +373,159 @@ namespace dmGameSystem
 
         uint16_t cell = GetTileGridTile(component, layer_index, cell_x, cell_y);
 
-        lua_pushinteger(L,  cell);
+        if (is_full_info)
+        {
+            lua_newtable(L);
+
+            lua_pushliteral(L, "index");
+            lua_pushinteger(L, cell);
+            lua_rawset(L, -3);
+
+            uint8_t transform_flags = GetTileTransformMask(component, layer_index, cell_x, cell_y);
+
+            lua_pushliteral(L, "h_flip");
+            lua_pushboolean(L, transform_flags & FLIP_HORIZONTAL);
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "v_flip");
+            lua_pushboolean(L, transform_flags & FLIP_VERTICAL);
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "rotate_90");
+            lua_pushboolean(L, transform_flags & ROTATE_90);
+            lua_rawset(L, -3);
+        }
+        else
+        {
+            lua_pushinteger(L,  cell);
+        }
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# get a tile from a tile map
+     * Get the tile set at the specified position in the tilemap.
+     * The position is identified by the tile index starting at origin
+     * with index 1, 1. (see [ref:tilemap.set_tile()])
+     * Which tile map and layer to query is identified by the URL and the
+     * layer name parameters.
+     *
+     * @name tilemap.get_tile
+     * @param url [type:string|hash|url] the tile map
+     * @param layer [type:string|hash] name of the layer for the tile
+     * @param x [type:number] x-coordinate of the tile
+     * @param y [type:number] y-coordinate of the tile
+     * @return tile [type:number] index of the tile
+     * @examples
+     *
+     * ```lua
+     * -- get the tile under the player.
+     * local tileno = tilemap.get_tile("/level#tilemap", "foreground", self.player_x, self.player_y)
+     * ```
+     */
+    static int TileMap_GetTile(lua_State* L)
+    {
+        return TileMap_Get(L, false);
+    }
+
+    /*# get full information for a tile from a tile map
+     * Get the tile information at the specified position in the tilemap.
+     * The position is identified by the tile index starting at origin
+     * with index 1, 1. (see [ref:tilemap.set_tile()])
+     * Which tile map and layer to query is identified by the URL and the
+     * layer name parameters.
+     *
+     * @name tilemap.get_tile_info
+     * @param url [type:string|hash|url] the tile map
+     * @param layer [type:string|hash] name of the layer for the tile
+     * @param x [type:number] x-coordinate of the tile
+     * @param y [type:number] y-coordinate of the tile
+     * @return tile_info [type:table] index of the tile
+     * @examples
+     *
+     * ```lua
+     * -- get the tile under the player.
+     * local tile_info = tilemap.get_tile_info("/level#tilemap", "foreground", self.player_x, self.player_y)
+     * pprint(tile_info)
+     * -- {
+     * --    index = 0,
+     * --    h_flip = false,
+     * --    v_flip = true,
+     * --    rotate_90 = false
+     * -- }
+     * ```
+     */
+    static int TileMap_GetTileInfo(lua_State* L)
+    {
+        return TileMap_Get(L, true);
+    }
+
+    /*# get all the tiles from a layer in a tilemap
+     * Retrieves all the tiles for the specified layer in the tilemap.
+     * It returns a table of rows where the keys are the
+     * tile positions (see [ref:tilemap.get_bounds()]).
+     * You can iterate it using `tiles[row_index][column_index]`.
+     *
+     * @name tilemap.get_tiles
+     * @param url [type:string|hash|url] the tilemap
+     * @param layer [type:string|hash] the name of the layer for the tiles
+     * @return tiles [type:table] a table of rows representing the layer
+     * @examples
+     *
+     * ```lua
+     * local left, bottom, columns_count, rows_count = tilemap.get_bounds("#tilemap")
+     * local tiles = tilemap.get_tiles("#tilemap", "layer")
+     * local tile, count = 0, 0
+     * for row_index = bottom, bottom + rows_count - 1 do
+     *     for column_index = left, left + columns_count - 1 do
+     *         tile = tiles[row_index][column_index]
+     *         count = count + 1
+     *     end
+     * end
+     * ```
+     */
+    static int TileMap_GetTiles(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        TileGridComponent* component;
+        dmGameObject::GetComponentFromLua(L, 1, collection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, 0, 0);
+
+        dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
+        uint32_t layer_index = GetLayerIndex(component, layer_id);
+        if (layer_index == ~0u)
+        {
+            dmLogError("Could not find layer '%s'.", dmHashReverseSafe64(layer_id));
+            lua_pushnil(L);
+            assert(top + 1 == lua_gettop(L));
+            return 1;
+        }
+
+        int min_x, min_y, grid_w, grid_h;
+        GetTileGridBounds(component, &min_x, &min_y, &grid_w, &grid_h);
+
+        int32_t cell_x, cell_y;
+        GetTileGridCellCoord(component, min_x, min_y, cell_x, cell_y);
+
+        lua_newtable(L);
+        for (int iy = 0; iy < grid_h; iy++)
+        {
+            lua_pushinteger(L, min_y + iy + 1);
+            lua_newtable(L);
+            for (int ix = 0; ix < grid_w; ix++)
+            {
+                uint16_t cell = GetTileGridTile(component, layer_index, cell_x + ix, cell_y + iy);
+                lua_pushinteger(L, min_x + ix + 1);
+                lua_pushinteger(L, cell);
+                lua_settable(L, -3);
+            }
+
+            lua_settable(L, -3);
+        }
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
@@ -427,9 +558,8 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        uintptr_t user_data;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, 0, 0);
-        TileGridComponent* component = (TileGridComponent*) user_data;
+        TileGridComponent* component;
+        dmGameObject::GetComponentFromLua(L, 1, collection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, 0, 0);
 
         int x, y, w, h;
         GetTileGridBounds(component, &x, &y, &w, &h);
@@ -464,10 +594,9 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        uintptr_t user_data;
+        TileGridComponent* component;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, &receiver, 0);
-        TileGridComponent* component = (TileGridComponent*) user_data;
+        dmGameObject::GetComponentFromLua(L, 1, collection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, &receiver, 0);
 
         dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
         uint32_t layer_index = GetLayerIndex(component, layer_id);
@@ -511,6 +640,8 @@ namespace dmGameSystem
         {"reset_constant",  TileMap_ResetConstant},
         {"set_tile",        TileMap_SetTile},
         {"get_tile",        TileMap_GetTile},
+        {"get_tiles",       TileMap_GetTiles},
+        {"get_tile_info",   TileMap_GetTileInfo},
         {"get_bounds",      TileMap_GetBounds},
         {"set_visible",     TileMap_SetVisible},
         {0, 0}
@@ -566,7 +697,7 @@ namespace dmGameSystem
          * |val| bitmask|  basic 3bits | corresponding   |
          * |   |        |  transforms  | transformations |
          * |----------------------------------------------
-         * | 0 | (000)  |         R_0  | R_180 + H + V   |  
+         * | 0 | (000)  |         R_0  | R_180 + H + V   |
          * | 1 | (001)  |     H + R_0  | R_180 + V       |
          * | 2 | (010)  |     V + R_0  | R_180 + H       |
          * | 3 | (011)  | V + H + R_0  | R_180           |
@@ -575,7 +706,7 @@ namespace dmGameSystem
          * | 6 | (110)  |     V + R_90 | R_270 + H       |
          * | 7 | (111)  | V + H + R_90 | R_270           |
          * -----------------------------------------------
-         * 
+         *
          * Since we want to use arithmetic sum in Lua API (and avoid using of bit module)
          * and also want to avoid extra arithmetic operations in the engine (because we are doing them on Lua side anyways)
          * we can use mirrored values from basic transforms

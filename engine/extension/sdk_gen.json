@@ -1,0 +1,75 @@
+{
+	"basepath": "src",
+	
+	"includes": [
+		"src",
+		"${DYNAMO_HOME}/sdk/include"
+	],
+
+	"files": [
+		{"file": "src/dmsdk/extension/extension.h", "languages": {
+			"cpp": {
+				"namespace": "dmExtension",
+				"ignore": [
+					"ExtensionRegister",
+					"FExtensionAppInitialize",
+					"FExtensionAppFinalize",
+					"FExtensionInitialize",
+					"FExtensionFinalize",
+					"FExtensionUpdate",
+					"FExtensionOnEvent",
+					"luaL_openlib"
+				],
+				"rename": {
+					"ExtensionResult": "Result",
+					"dmExtension": "",
+					"EXTENSION_RESULT_": "RESULT_",
+					"EXTENSION_EVENT_": "EVENT_",
+					"EXTENSION_CALLBACK_": "CALLBACK_",
+					"EXTENSION_APP_EXIT_": "APP_EXIT_",
+					"ExtensionAppParams": "AppParams",
+					"ExtensionParams": "Params",
+					"ExtensionEvent": "Event",
+					"ExtensionCallbackType": "CallbackType",
+					"ExtensionAppExitCode": "AppExitCode",
+					"ExtensionEventID": "EventID",
+					"FExtensionCallback": "FCallback",
+					"ExtensionRegister": "Register",
+					"ExtensionUnregister": "Unregister"
+				}
+			},
+			"csharp": {
+				"namespace": "Extension",
+				"class": "Extension",
+				"dllimport": "extension",
+				"using": [
+					"dmSDK.Dlib",
+					"dmSDK.Lua"
+				],
+				"ignore": [
+					"ExtensionRegisteriOSUIApplicationDelegate",
+					"ExtensionUnregisteriOSUIApplicationDelegate",
+					"ExtensionRegisterCallback",
+					"luaL_openlib"
+				],
+				"rename": {
+					"ExtensionAppParams": "AppParams",
+					"ExtensionParams": "Params",
+					"ExtensionEvent": "Event",
+					"ExtensionRegister": "Register",
+					"FExtensionAppInitialize": "IntPtr",
+					"FExtensionAppFinalize": "IntPtr",
+					"FExtensionInitialize": "IntPtr",
+					"FExtensionFinalize": "IntPtr",
+					"FExtensionUpdate": "IntPtr",
+					"FExtensionOnEvent": "IntPtr",
+					"FExtensionCallback": "IntPtr",
+					"HConfigFile": "ConfigFile.Config*",
+					"HResourceFactory": "IntPtr",
+					"lua_State": "Lua.Lua.State",
+					"enum EventID": "//enum EventID"
+				}
+			}
+		}}
+	]
+}

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,12 +27,16 @@ namespace dmSound
 
     struct SoundData
     {
+        FSoundDataGetData   m_GetData;
+        void*               m_GetDataCtx;
+
         char* m_Buffer;
         uint32_t m_BufferSize;
 
         // make sure it's the same size for both 32/64 bit. Makes it easier for tests
         #if defined(DM_PLATFORM_32BIT)
-        uint64_t _pad;
+        uint64_t _pad1;
+        uint64_t _pad2;
         #endif
     };
 
@@ -64,7 +68,7 @@ namespace dmSound
     Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name)
     {
         HSoundData sd = new SoundData();
-        sd->m_Buffer = 0x0;
+        memset(sd, 0, sizeof(*sd));
         Result result = SetSoundData(sd, sound_buffer, sound_buffer_size);
         if (result == RESULT_OK)
             *sound_data = sd;
@@ -73,13 +77,31 @@ namespace dmSound
         return result;
     }
 
+    Result NewSoundDataStreaming(FSoundDataGetData cbk, void* cbk_ctx, SoundDataType type, HSoundData* sound_data, dmhash_t name)
+    {
+        HSoundData sd = new SoundData();
+        memset(sd, 0, sizeof(*sd));
+        sd->m_GetData = cbk;
+        sd->m_GetDataCtx = cbk_ctx;
+        *sound_data = sd;
+        return RESULT_OK;
+    }
+
     Result SetSoundData(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size)
     {
+        assert(sound_data->m_GetData == 0);
         if (sound_data->m_Buffer != 0x0)
             delete [] sound_data->m_Buffer;
         sound_data->m_Buffer = new char[sound_buffer_size];
         sound_data->m_BufferSize = sound_buffer_size;
         memcpy(sound_data->m_Buffer, sound_buffer, sound_buffer_size);
+        return RESULT_OK;
+    }
+
+    Result SetSoundDataCallback(HSoundData sound_data, FSoundDataGetData cbk, void* cbk_ctx)
+    {
+        sound_data->m_GetData = cbk;
+        sound_data->m_GetDataCtx = cbk_ctx;
         return RESULT_OK;
     }
 

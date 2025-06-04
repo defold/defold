@@ -31,15 +31,16 @@ def configure(conf):
     conf.env['STLIB_DLIB'] = 'dlib'
     conf.env['STLIB_DLIB_NOASAN'] = ['dlib_noasan']
     conf.env['STLIB_BASIS_ENCODER'] = 'basis_encoder'
+    conf.env['STLIB_BASIS_ENCODER_NOASAN'] = 'basis_encoder_noasan'
     conf.env['STLIB_BASIS_TRANSCODER'] = 'basis_transcoder'
+    conf.env['STLIB_ASTCENC'] = 'astcenc'
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="TEXC"')
 
 def build(bld):
     global test_context
 
-    is_desktop = bld.env['PLATFORM'] in ('x86_64-macos', 'x86_64-linux', 'x86_64-win32')
-    if not is_desktop:
+    if not bld.env.IS_TARGET_DESKTOP:
         return
 
     bld.recurse('src')

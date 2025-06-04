@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,15 +15,7 @@
 package com.dynamo.upnp;
 
 import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.Inet4Address;
-import java.net.InetAddress;
-import java.net.MulticastSocket;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.net.SocketTimeoutException;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,7 +38,7 @@ public class SSDP implements ISSDP {
             if (!addresses.isEmpty()) {
                 mcastSocket = new MulticastSocket(SSDP_MCAST_PORT);
                 mcastSocket.setNetworkInterface(networkInterface);
-                mcastSocket.joinGroup(SSDP_MCAST_ADDR);
+                mcastSocket.joinGroup(new InetSocketAddress(SSDP_MCAST_ADDR, 0), null);
                 mcastSocket.setSoTimeout(1);
                 mcastSocket.setTimeToLive(SSDP_MCAST_TTL);
                 sockets = new ArrayList<DatagramSocket>();

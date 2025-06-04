@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,13 +16,10 @@ package com.dynamo.bob.bundle;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
@@ -32,10 +29,9 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.Exec;
-import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.FileUtil;
 
-@BundlerParams(platforms = {Platform.X86_64MacOS})
+@BundlerParams(platforms = {"x86_64-macos", "arm64-macos"})
 public class MacOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(MacOSBundler.class.getName());
     public static final String ICON_NAME = "icon.icns";
@@ -112,14 +108,7 @@ public class MacOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        List<File> bundleExes = ExtenderUtil.getNativeExtensionEngineBinaries(project, platform);
-        if (bundleExes == null) {
-            bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
-        }
-        if (bundleExes.size() > 1) {
-            throw new IOException("Invalid number of binaries for macOS when bundling: " + bundleExes.size());
-        }
-        File bundleExe = bundleExes.get(0);
+        List<File> binaries = IOSBundler.getBinariesFromArchitectures(project, architectures, variant);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -129,7 +118,7 @@ public class MacOSBundler implements IBundler {
         resourcesDir.mkdirs();
         macosDir.mkdirs();
 
-        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant);
+        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant, this);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -143,7 +132,7 @@ public class MacOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        if (BundleHelper.isArchiveExcluded(project)) {
+        if (BundleHelper.isArchiveIncluded(project)) {
             // Copy archive and game.projectc
             for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
                 FileUtils.copyFile(new File(buildDir, name), new File(resourcesDir, name));
@@ -152,44 +141,51 @@ public class MacOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        helper.copyOrWriteManifestFile(platform, appDir);
+        helper.copyOrWriteManifestFile(architectures.get(0), appDir);
 
         BundleHelper.throwIfCanceled(canceled);
 
         // Copy icon
         copyIcon(projectProperties, new File(project.getRootDirectory()), resourcesDir);
 
+        // Create fat/universal binary
+        File exe = File.createTempFile("dmengine", "");
+        FileUtil.deleteOnExit(exe);
+
+        BundleHelper.throwIfCanceled(canceled);
+
+        // Run lipo on supplied architecture binaries.
+        IOSBundler.lipoBinaries(exe, binaries);
+
+        BundleHelper.throwIfCanceled(canceled);
+
+        if( strip_executable ) {
+            IOSBundler.stripExecutable(platform, exe);
+        }
+
         // Copy Executable
-        File exeOut = new File(macosDir, exeName);
-        FileUtils.copyFile(bundleExe, exeOut);
-        exeOut.setExecutable(true);
+        File destExecutable = new File(macosDir, exeName);
+        FileUtils.copyFile(exe, destExecutable);
+        destExecutable.setExecutable(true);
+        logger.info("Bundle binary: " + IOSBundler.getFileDescription(destExecutable));
 
         // Copy debug symbols
-        String zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair());
-        File buildSymbols = new File(zipDir, "dmengine.dSYM");
-        if (buildSymbols.exists()) {
-            String symbolsDir = String.format("%s.dSYM", title);
-
-            File bundleSymbols = new File(bundleDir, symbolsDir);
-            FileUtils.copyDirectory(buildSymbols, bundleSymbols);
-            // Also rename the executable
-            File bundleExeOld = new File(bundleSymbols, FilenameUtils.concat("Contents", FilenameUtils.concat("Resources", FilenameUtils.concat("DWARF", "dmengine"))));
-            File symbolExe = new File(bundleExeOld.getParent(), exeOut.getName());
-            bundleExeOld.renameTo(symbolExe);
+        // Create list of dSYM binaries
+        File extenderBuildDir = new File(project.getRootDirectory(), "build");
+        List<File> symbolDirectories = IOSBundler.getSymbolDirsFromArchitectures(extenderBuildDir, architectures);
+        if (symbolDirectories.size() > 0)
+        {
+            File bundleSymbolsDir = new File(bundleDir, String.format("%s.dSYM", title));
+            IOSBundler.generateSymbols(bundleSymbolsDir, exeName, symbolDirectories);
         }
 
         BundleHelper.throwIfCanceled(canceled);
-        // Strip executable
-        if( strip_executable )
-        {
-            // Currently, we don't have a "strip_darwin.exe" for win32/linux, so we have to pass on those platforms
-            if (Platform.getHostPlatform() == Platform.X86_64MacOS) {
-                Result stripResult = Exec.execResult(Bob.getExe(platform, "strip_ios"), exeOut.getPath()); // Using the same executable
-                if (stripResult.ret != 0) {
-                    logger.severe("Error executing strip command:\n" + new String(stripResult.stdOutErr));
-                }
-            }
-        }
-    }
 
+        // Copy PrivacyManifest.xcprivacy
+        // According to https://developer.apple.com/documentation/bundleresources/privacy_manifest_files/adding_a_privacy_manifest_to_your_app_or_third-party_sdk#4336738
+        // the PrivacyInfo.xcprivacy  on macos should be in `Resources` folder
+        BundleHelper.copyPrivacyManifest(project, platform, resourcesDir);
+
+        BundleHelper.moveBundleIfNeed(project, bundleDir);
+    }
 }

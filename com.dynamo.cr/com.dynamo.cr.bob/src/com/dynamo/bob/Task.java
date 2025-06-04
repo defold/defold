@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,45 +19,40 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.HashSet;
 import java.util.Comparator;
 
+import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.fs.IResource;
 
 /**
  * Task abstraction. Contains the instance data for a {@link Builder}
  * @author Christian Murray
- *
- * @param <T> currently not used. The idea is to pass data directly. TODO: Remove?
  */
-public class Task<T> {
+public class Task {
     private String name;
-    private List<IResource> inputs = new ArrayList<IResource>();
-    private List<IResource> outputs = new ArrayList<IResource>();
-    private List<String> extraCacheKeys = new ArrayList<String>();
-    private Task<?> productOf;
+    private final List<IResource> inputs = new ArrayList<IResource>();
+    private final List<IResource> outputs = new ArrayList<IResource>();
+    private final List<String> extraCacheKeys = new ArrayList<String>();
+    private Task productOf;
 
-    public T data;
-    private Builder<T> builder;
-    private byte[] signature;
-    private boolean cacheable = true;
+    private final HashSet<IResource> inputLookup = new HashSet<IResource>();
+
+    private final Builder builder;
 
     /**
      * Task builder for create a {@link Task}.
      * @note Not to be confused with {@link Builder}
-     *
-     * @param <T> currently not used. The idea is to pass data directly. TODO: Remove?
      */
     public static class TaskBuilder<T> {
-        Task<T> task;
+        Task task;
 
-        public TaskBuilder(Builder<T> builder) {
-            task = new Task<T>(builder);
+        public TaskBuilder(Builder builder) {
+            task = new Task(builder);
         }
 
-        public Task<T> build() {
+        public Task build() {
             return task;
         }
 
@@ -66,13 +61,8 @@ public class Task<T> {
             return this;
         }
 
-        public TaskBuilder<T> disableCache() {
-            task.cacheable = false;
-            return this;
-        }
-
         public TaskBuilder<T> addInput(IResource input) {
-            if (!task.inputs.contains(input)){
+            if (task.inputLookup.add(input)) {
                 task.inputs.add(input);
             }
             return this;
@@ -86,31 +76,31 @@ public class Task<T> {
             return this;
         }
 
+        public TaskBuilder addInputsFromOutputs(Task outputsTask) {
+            task.inputs.addAll(outputsTask.getOutputs());
+            return this;
+        }
+
         public TaskBuilder<T> addExtraCacheKey(String key) {
             task.extraCacheKeys.add(key);
             return this;
         }
 
-        public TaskBuilder<T> setData(T data) {
-            task.data = data;
-            return this;
+        public IResource firstInput() {
+            return task.inputs.get(0);
         }
     }
 
-    public Task(Builder<T> builder) {
+    public Task(Builder builder) {
         this.builder = builder;
     }
 
-    public Builder<T> getBuilder() {
+    public Builder getBuilder() {
         return builder;
     }
 
-    public static <T> TaskBuilder<T> newBuilder(Builder<T> builder) {
-        return new TaskBuilder<T>(builder);
-    }
-
-    public T getData() {
-        return data;
+    public static TaskBuilder newBuilder(Builder builder) {
+        return new TaskBuilder(builder);
     }
 
     public String getName() {
@@ -134,6 +124,12 @@ public class Task<T> {
         return inputs.size() > i ? inputs.get(i) : null;
     }
 
+    public IResource firstInput() {
+        return inputs.get(0);
+    }
+
+    public IResource lastInput() { return inputs.get(inputs.size() - 1); }
+
     public List<IResource> getOutputs() {
         return Collections.unmodifiableList(outputs);
     }
@@ -147,7 +143,7 @@ public class Task<T> {
     }
 
     public boolean isCacheable() {
-        return cacheable;
+        return builder.params != null ? builder.params.isCacheble() : false;
     }
 
     /**
@@ -155,12 +151,12 @@ public class Task<T> {
      * A copy of the list of resources will be used and the copy will be sorted
      * before added to the digest. This guarantees that we get the same digest
      * each time given the same set of resources.
-     * @param, digest The digest to update with the resources
+     * @param digest The digest to update with the resources
      * @param resources A list of resources to add
      */
     private void updateDigestWithResources(MessageDigest digest, List<IResource> resources) throws IOException {
         List<IResource> sortedResources = new ArrayList<IResource>(resources);
-        Collections.sort(sortedResources, new Comparator<IResource>() {
+        sortedResources.sort(new Comparator<IResource>() {
             @Override
             public int compare(IResource r1, IResource r2) {
                 return r1.getAbsPath().compareTo(r2.getAbsPath());
@@ -173,11 +169,11 @@ public class Task<T> {
 
     /**
      * Update a message digest with a list of extra cache parameters.
-     * @param, digest The digest to update with the resources
+     * @param digest The digest to update with the resources
      * @param keys A list of keys to add
      */
-    private void updateDigestWithExtraCacheKeys(MessageDigest digest, List<String> keys) throws IOException {
-        if (keys.size() == 0)
+    private void updateDigestWithExtraCacheKeys(MessageDigest digest, List<String> keys) {
+        if (keys.isEmpty())
         {
             return;
         }
@@ -206,15 +202,14 @@ public class Task<T> {
 
     public byte[] calculateSignature() throws IOException {
         MessageDigest digest = calculateSignatureDigest();
-        signature = digest.digest();
-        return signature;
+        return digest.digest();
     }
 
-    public void setProductOf(Task<?> task) {
+    public void setProductOf(Task task) {
         this.productOf = task;
     }
 
-    public Task<?> getProductOf() {
+    public Task getProductOf() {
         return productOf;
     }
 

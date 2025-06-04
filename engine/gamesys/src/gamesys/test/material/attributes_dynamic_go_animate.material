@@ -1,0 +1,53 @@
+name: "attributes_dynamic_go_animate"
+vertex_program: "/material/attributes_custom_color.vp"
+fragment_program: "/fragment_program/valid.fp"
+
+attributes {
+  name: "position"
+  semantic_type: SEMANTIC_TYPE_POSITION
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  data_type: TYPE_FLOAT
+  element_count: 2
+  double_values {
+    v: 1.0
+    v: 2.0
+    v: 3.0
+    v: 4.0
+  }
+}
+
+attributes {
+  name: "normal"
+  data_type: TYPE_BYTE
+  element_count: 4
+  long_values {
+  	v: 64
+  	v: 32
+  	v: 16
+  	v: 8
+  }
+}
+
+attributes {
+  name: "texcoord0"
+  data_type: TYPE_SHORT
+  semantic_type: SEMANTIC_TYPE_TEXCOORD
+  element_count: 2
+  long_values {
+  	v: -16000
+  	v: 16000
+  }
+}
+
+attributes {
+  name: "custom_color"
+  data_type: TYPE_FLOAT
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 4
+  double_values {
+    v: 0.1
+    v: 0.1
+    v: 0.1
+    v: 0.1
+  }
+}

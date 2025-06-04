@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -33,6 +33,7 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
     private String fileName;
     private String hexDigest;
     private byte[] hash = null;
+    private byte[] header = new byte[0];
 
     public ArchiveEntry(String fileName) throws IOException {
         this.fileName = fileName;
@@ -81,6 +82,14 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         this(root, fileName, false, false, false);
     }
 
+    public void setHeader(byte[] header) {
+        this.header = header;
+    }
+
+    public byte[] getHeader() {
+        return header;
+    }
+
     public int getSize() {
         return size;
     }
@@ -121,6 +130,10 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         this.resourceOffset = resourceOffset;
     }
 
+    public String getName() {
+        return FilenameUtils.getName(fileName);
+    }
+
     public String getFilename() {
         return fileName;
     }
@@ -143,6 +156,10 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
 
     public boolean isEncrypted() {
         return (flags & FLAG_ENCRYPTED) != 0;
+    }
+
+    public boolean isExcluded() {
+        return (flags & FLAG_LIVEUPDATE) != 0;
     }
 
     public int getFlags() {
@@ -193,5 +210,10 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         }
 
         return this.compare(this.hash, other.hash);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getName() + " " + this.fileName + ":" + this.hexDigest;
     }
 }

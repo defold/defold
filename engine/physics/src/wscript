@@ -1,14 +1,31 @@
+import os, sys
 from waf_dynamo import dmsdk_add_files
 
 def options(opt):
     pass
 
 def configure(conf):
-    conf.recurse('box2d')
     conf.recurse('physics')
 
+def dmsdk_add_header_files(bld, target, source):
+    d = bld.path.find_dir(source)
+    if d is None:
+        print("Could not find source file/dir '%s' from dir '%s'" % (source,bld.path.abspath()))
+        sys.exit(1)
+    bld_sdk_files = d.abspath()
+    bld_path = bld.path.abspath()
+    for root, dirs, files in os.walk(bld_sdk_files):
+        for f in files:
+            if f.endswith('.DS_Store'):
+                continue
+            f = os.path.relpath(os.path.join(root, f), bld_path)
+            if not (f.endswith('.h') or f.endswith('.hpp')):
+                continue
+            sdk_dir = os.path.dirname(os.path.relpath(f, source))
+            bld.install_files(os.path.join(target, sdk_dir), f)
+
+
 def build(bld):
-    bld.recurse('box2d')
     bld.recurse('physics')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')

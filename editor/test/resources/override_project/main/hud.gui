@@ -173,7 +173,7 @@ nodes {
   type: TYPE_TEXT
   blend_mode: BLEND_MODE_ALPHA
   text: "Sample HUD"
-  font: "system_font"
+  font: "default_font"
   id: "template/template/text"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE
@@ -292,7 +292,7 @@ nodes {
   type: TYPE_TEXT
   blend_mode: BLEND_MODE_ALPHA
   text: "Default layout"
-  font: "system_font"
+  font: "default_font"
   id: "template/text"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE

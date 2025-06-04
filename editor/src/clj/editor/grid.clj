@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -48,10 +48,10 @@
 (defn render-grid-axis
   [^GL2 gl ^DoubleBuffer vx uidx start stop size vidx min max]
   (doseq [u (range start stop size)]
-      (.put vx uidx ^double u)
-      (.put vx vidx ^double min)
+      (.put vx ^int uidx ^double u)
+      (.put vx ^int vidx ^double min)
       (gl/gl-vertex-3dv gl vx)
-      (.put vx vidx ^double max)
+      (.put vx ^int vidx ^double max)
       (gl/gl-vertex-3dv gl vx)))
 
 (defn render-grid
@@ -65,7 +65,7 @@
         v-min (nth min-values v-axis)
         v-max (nth max-values v-axis)
         vertex ^DoubleBuffer (scene-cache/request-object! ::grid-vertex :grid-vertex {} nil)]
-    (.put vertex fixed-axis 0.0)
+    (.put vertex ^int fixed-axis 0.0)
     (render-grid-axis gl vertex u-axis u-min u-max size v-axis v-min v-max)
     (render-grid-axis gl vertex v-axis v-min v-max size u-axis u-min u-max)))
 

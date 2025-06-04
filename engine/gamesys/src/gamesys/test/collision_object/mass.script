@@ -1,0 +1,53 @@
+-- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+-- Scenario: Update mass and then Get it to make sure values are equal.
+
+tests_done = false -- flag end of test to C level
+
+-- helper functions to verify test data.
+-- throws a Lua error if the assert(s) fails.
+local function assert_near(a, b)
+	local eps = 0.001
+	local diff = math.abs(a - b)
+	if not (diff < eps) then
+		local err_msg = "assert_near failed, a: " .. tostring(a) .. ", b: " .. tostring(b) .. " diff == " .. tostring(diff) .. " >= " .. tostring(eps)
+		error(debug.traceback(err_msg))
+	end
+end
+
+function init(self)
+	self.frame = 0
+end
+
+function update(self)
+	self.frame = self.frame + 1
+	if self.frame == 2 then
+		local expected_mass = 1 -- initial mass specified in collision object component
+		local mass = go.get("#mass_object", "mass")
+		assert_near(expected_mass, mass)
+
+		expected_mass = 10
+		physics.update_mass("#mass_object", expected_mass)
+		mass = go.get("#mass_object", "mass")
+		assert_near(expected_mass, mass)
+
+		expected_mass = 99
+		physics.update_mass("#mass_object", expected_mass)
+		mass = go.get("#mass_object", "mass")
+		assert_near(expected_mass, mass)
+
+		tests_done = true
+	end
+end

@@ -11,4 +11,49 @@
             }
         }
     }
+
+    .overlay-action-pane {
+        -fx-background-color: transparent;
+
+        .action-button {
+            -fx-max-width: 24px;
+            -fx-min-width: 24px;
+            -fx-background-radius: 0;
+            -fx-border-radius: 0;
+            -fx-background-color: transparent;
+            -fx-border-color: transparent;
+            visibility: hidden;
+
+            &:hover {
+                visibility: visible;
+
+                .image-view {
+                    -fx-effect: innershadow(gaussian, -df-text-selected, 20, 1.0, 0, 0);
+                }
+            }
+
+            &.active {
+                visibility: visible;
+
+                .image-view {
+                    -fx-effect: innershadow(gaussian, -df-defold-blue-light, 20, 1.0, 0, 0);
+                }
+            }
+        }
+
+        &:hover .action-button {
+            visibility: visible;
+        }
+    }
+}
+@mixin script-property-text-field-icon-template($icon) {
+  -fx-background-image: url('icons/32/Icons_#{$icon}.png');
+  -fx-background-repeat: no-repeat;
+  -fx-background-size: 16px;
+  -fx-background-position: right 6px center;
+}
+.script-property-text-field-icon {
+    &-number { @include script-property-text-field-icon-template("55-123") }
+    &-hash { @include script-property-text-field-icon-template("54-Hash") }
+    &-url { @include script-property-text-field-icon-template("53-Url") }
 }

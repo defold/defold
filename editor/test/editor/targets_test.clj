@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,7 +16,7 @@
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
             [editor.targets :as targets]
-            [integration.test-util :as test-util])
+            [util.fn :as fn])
   (:import (com.dynamo.upnp DeviceInfo SSDP)
            (java.io IOException)
            (java.net SocketTimeoutException URL)))
@@ -95,9 +95,9 @@
 (defn- make-context
   []
   {:targets-atom (atom #{local-target})
-   :log-fn (test-util/make-call-logger)
+   :log-fn (fn/make-call-logger)
    :fetch-url-fn fetch-url
-   :on-targets-changed-fn (test-util/make-call-logger)})
+   :on-targets-changed-fn (fn/make-call-logger)})
 
 (defn- make-device-info
   [hostname id]
@@ -116,7 +116,7 @@
   [targets]
   (->> targets (map :address) sort vec))
 
-(def ^:private call-count (comp count test-util/call-logger-calls))
+(def ^:private call-count (comp count fn/call-logger-calls))
 
 (deftest update-targets-with-new-devices
   (let [{:keys [targets-atom

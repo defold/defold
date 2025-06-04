@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,7 +24,7 @@ namespace dmHID
     typedef void (*GamepadDriverDestroyCb)(HContext context, GamepadDriver* driver);
     typedef void (*GamepadDriverUpdateCb)(HContext context, GamepadDriver* driver, Gamepad* gamepad);
     typedef void (*GamepadDriverDetectDevicesCb)(HContext context, GamepadDriver* driver);
-    typedef void (*GamepadDriverGetGamepadDeviceNameCb)(HContext context, GamepadDriver*, Gamepad* gamepad, char* buffer, uint32_t buffer_length);
+    typedef void (*GamepadDriverGetGamepadDeviceNameCb)(HContext context, GamepadDriver*, Gamepad* gamepad, char name[MAX_GAMEPAD_NAME_LENGTH]);
 
     struct GamepadDriver
     {
@@ -37,7 +37,6 @@ namespace dmHID
 
     Gamepad*       CreateGamepad(HContext context, GamepadDriver* driver);
     void           ReleaseGamepad(HContext context, Gamepad* gamepad);
-    GamepadDriver* CreateGamepadDriverDInput(HContext context);
     GamepadDriver* CreateGamepadDriverGLFW(HContext context);
     void           SetGamepadConnectionStatus(HContext context, Gamepad* gamepad, bool connection_status);
 }

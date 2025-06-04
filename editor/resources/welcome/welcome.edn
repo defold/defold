@@ -24,20 +24,12 @@
                              :zip-url "https://github.com/defold/template-desktop/archive/master.zip"
                              :skip-root? true}
 
-                            {:name "Web Monetized game"
-                             :description "This template contains everything you need to start building a game for HTML5 with Web Monetization enabled."
-                             :image "web-monetization.svg"
-                             :duration "Short"
-                             :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/template-webmonetization/archive/master.zip"
-                             :skip-root? true}
-
-                            {:name "GameDistribution game"
-                             :description "This template contains everything you need to start building a game for with distribution and monetization using the GameDistribution SDK."
-                             :image "gamedistribution.svg"
-                             :duration "Short"
-                             :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/template-gamedistribution/archive/main.zip"
+                            {:name "Poki HTML5 game"
+                             :description "This template includes the Poki SDK, designed for both desktop and mobile web games. It also provides a quick export option to the Poki for Developers platform."
+                             :image "poki.svg"
+                             :duration "Medium"
+                             :user-level "Advanced"
+                             :zip-url "https://github.com/defold/template-html5-poki/archive/master.zip"
                              :skip-root? true}
 
                             {:name "Native Extension"
@@ -62,6 +54,14 @@
                              :duration "Medium"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/template-platformer/archive/main.zip"
+                             :skip-root? true}
+
+                             {:name "Rive project"
+                             :description "This template uses the rive extension to get you started."
+                             :image "rive.svg"
+                             :duration "Medium"
+                             :user-level "Advanced"
+                             :zip-url "https://github.com/defold/template-rive/archive/master.zip"
                              :skip-root? true}]}
 
                {:label "From Tutorial"
@@ -131,6 +131,38 @@
                              :zip-url "https://github.com/defold/sample-pixel-line-platformer/archive/refs/heads/main.zip"
                              :skip-root? true}
 
+                            {:name "Main menu animation"
+                             :description "In this sample, we demonstrate effects to present a main menu."
+                             :image "screen_menu_animation.png"
+                             :duration "Medium"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/sample-main-menu-animation/archive/refs/heads/master.zip"
+                             :skip-root? true}
+
+                            {:name "Parallax"
+                             :description "In this sample, we demonstrate how to use a parallax effect to simulate depth in the game world."
+                             :image "screen_parallax.png"
+                             :duration "Medium"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/sample-parallax/archive/refs/heads/master.zip"
+                             :skip-root? true}
+
+                            {:name "HUD"
+                             :description "In this sample, we demonstrate effects for score counting."
+                             :image "screen_hud.png"
+                             :duration "Medium"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/sample-hud/archive/refs/heads/master.zip"
+                             :skip-root? true}
+
+                            {:name "Level complete"
+                             :description "In this sample, we demonstrate effects to show the score counting that could occur when a level has been completed."
+                             :image "screen_lvlcomplete.png"
+                             :duration "Medium"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/sample-levelcomplete/archive/refs/heads/master.zip"
+                             :skip-root? true}
+
                             {:name "RPG map sample"
                              :description "This sample shows how you can create a large RPG map that scrolls one screen at a time as the hero progresses."
                              :image "rpg-map.png"
@@ -139,10 +171,34 @@
                              :zip-url "https://github.com/defold/sample-rpgmap/archive/master.zip"
                              :skip-root? true}
 
-                             {:name "Shadertoy sample"
+                            {:name "Shadertoy sample"
                              :description "This sample contains a GLSL shader that was taken from Shadertoy and converted to Defold. It showcases how to work with materials and shaders in Defold."
                              :image "shadertoy.png"
                              :duration "Short"
                              :user-level "Advanced"
                              :zip-url "https://github.com/defold/sample-shadertoy/archive/master.zip"
+                             :skip-root? true}
+
+                            {:name "3d treasure scene"
+                             :description "This sample shows a stylized 3d scene with animation."
+                             :image "treasurescene.png"
+                             :duration "Short"
+                             :user-level "Advanced"
+                             :zip-url "https://github.com/FlexYourBrain/Basic3d_TreasureScene/archive/master.zip"
+                             :skip-root? true}
+
+                            {:name "Perspective Parallax"
+                             :description "This sample shows a perspective camera parallax effect"
+                             :image "perspectiveparallax.png"
+                             :duration "Short"
+                             :user-level "Advanced"
+                             :zip-url "https://github.com/FlexYourBrain/sample-perspective_parallax/archive/master.zip"
+                             :skip-root? true}
+
+                            {:name "Lightning VFX"
+                             :description "Sample shows a lightning effect in a 2d scrolling shooter and how the mesh component is setup to be manipulated during gameplay."
+                             :image "sample_lightningvfx.png"
+                             :duration "Long"
+                             :user-level "Advanced"
+                             :zip-url "https://github.com/FlexYourBrain/sample_LightningVFX/archive/master.zip"
                              :skip-root? true}]}]}}

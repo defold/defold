@@ -1,0 +1,152 @@
+name: "sprite"
+tags: "tile"
+vertex_program: "/vertex_program/valid.vp"
+fragment_program: "/material/material_constant_mixed.fp"
+vertex_space: VERTEX_SPACE_WORLD
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+fragment_constants {
+  name: "constant_v4"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+}
+fragment_constants {
+  name: "constant_v4_array"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+  value {
+    x: 5.0
+    y: 6.0
+    z: 7.0
+    w: 8.0
+  }
+  value {
+    x: 9.0
+    y: 10.0
+    z: 11.0
+    w: 12.0
+  }
+  value {
+    x: 13.0
+    y: 14.0
+    z: 15.0
+    w: 16.0
+  }
+  value {
+    x: 17.0
+    y: 18.0
+    z: 19.0
+    w: 20.0
+  }
+  value {
+    x: 21.0
+    y: 22.0
+    z: 23.0
+    w: 24.0
+  }
+  value {
+    x: 25.0
+    y: 26.0
+    z: 27.0
+    w: 28.0
+  }
+  value {
+    x: 29.0
+    y: 30.0
+    z: 31.0
+    w: 32.0
+  }
+}
+fragment_constants {
+  name: "constant_m4"
+  type: CONSTANT_TYPE_USER_MATRIX4
+  value {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+  value {
+    x: 5.0
+    y: 6.0
+    z: 7.0
+    w: 8.0
+  }
+  value {
+    x: 9.0
+    y: 10.0
+    z: 11.0
+    w: 12.0
+  }
+  value {
+    x: 13.0
+    y: 14.0
+    z: 15.0
+    w: 16.0
+  }
+}
+fragment_constants {
+  name: "constant_m4_array"
+  type: CONSTANT_TYPE_USER_MATRIX4
+  value {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+  value {
+    x: 5.0
+    y: 6.0
+    z: 7.0
+    w: 8.0
+  }
+  value {
+    x: 9.0
+    y: 10.0
+    z: 11.0
+    w: 12.0
+  }
+  value {
+    x: 13.0
+    y: 14.0
+    z: 15.0
+    w: 16.0
+  }
+  value {
+    x: 17.0
+    y: 18.0
+    z: 19.0
+    w: 20.0
+  }
+  value {
+    x: 21.0
+    y: 22.0
+    z: 23.0
+    w: 24.0
+  }
+  value {
+    x: 25.0
+    y: 26.0
+    z: 27.0
+    w: 28.0
+  }
+  value {
+    x: 29.0
+    y: 30.0
+    z: 31.0
+    w: 32.0
+  }
+}
+max_page_count: 0

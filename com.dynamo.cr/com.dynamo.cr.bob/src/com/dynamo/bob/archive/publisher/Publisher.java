@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,12 +14,12 @@
 
 package com.dynamo.bob.archive.publisher;
 
+import java.io.IOException;
 import java.io.File;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.io.FileInputStream;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.CompileExceptionError;
@@ -28,7 +28,7 @@ import com.dynamo.bob.fs.IResource;
 public abstract class Publisher {
 
     private final PublisherSettings settings;
-    private final Map<File, ArchiveEntry> entries = new HashMap<File, ArchiveEntry>();
+    protected final Map<String, ArchiveEntry> entries = new ConcurrentHashMap<>();
     protected String platform = "";
 
     public Publisher(PublisherSettings settings) {
@@ -43,15 +43,19 @@ public abstract class Publisher {
         return this.settings.getManifestPrivateKey();
     }
 
+    public IResource getPublisherSettingsResorce() { return this.settings.getResource(); }
+
     public String getSupportedVersions() {
         return this.settings.getSupportedVersions();
     }
+
+    public boolean shouldBeMovedIntoBundleFolder() { return this.settings.getSaveZipInBundleFolder(); }
 
     protected final PublisherSettings getPublisherSettings() {
         return this.settings;
     }
 
-    public final Map<File, ArchiveEntry> getEntries() {
+    public final Map<String, ArchiveEntry> getEntries() {
         return this.entries;
     }
     
@@ -63,19 +67,44 @@ public abstract class Publisher {
         this.platform = platform;
     }
 
-    public abstract void Publish() throws CompileExceptionError;
+    /**
+     * Call this function before publishing any archive entries. Use
+     * this function to make the necessary preparations before accepting
+     * entries.
+     */
+    public abstract void start() throws CompileExceptionError;
 
-    public List<IResource> getOutputs(IResource input) {
-        List<IResource> outputs = new ArrayList<IResource>();
-        return outputs;
-    }
+    /**
+     * Call this function when the publisher should not accept any more
+     * entries. Use this function to release any resources needed while
+     * publishing.
+     */
+    public abstract void stop() throws CompileExceptionError;
 
-    public List<InputStream> getOutputResults() {
-        List<InputStream> outputs = new ArrayList<InputStream>();
-        return outputs;
-    }
+    /**
+     * Publish an entry using this publisher. Make sure to have called
+     * start() before calling this function. Also make sure to not call
+     * this function after a call to stop().
+     * @param archiveEntry The entry to publish
+     * @param data The data for the entry
+     */
+    public abstract void publish(ArchiveEntry archiveEntry, InputStream data) throws CompileExceptionError;
 
-    public final void AddEntry(File fhandle, ArchiveEntry archiveEntry) {
-        this.entries.put(fhandle, archiveEntry);
+    /**
+     * Publish an entry using this publisher. Make sure to have called
+     * start() before calling this function. Also make sure to not call
+     * this function after a call to stop().
+     * @param archiveEntry The entry to publish
+     * @param data The data for the entry
+     */
+    public abstract void publish(ArchiveEntry archiveEntry, byte[] data) throws CompileExceptionError;
+
+    public void publish(ArchiveEntry archiveEntry, File data) throws CompileExceptionError {
+        try {
+            publish(archiveEntry, new FileInputStream(data));
+        }
+        catch (IOException e) {
+            throw new CompileExceptionError(e);
+        }
     }
 }

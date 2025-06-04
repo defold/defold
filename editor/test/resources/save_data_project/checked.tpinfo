@@ -1,0 +1,54 @@
+pages {
+  name: "texturepacker/editor/resources/icons/32/icon-tpinfo.png"
+  size {
+    width: 128.0
+    height: 128.0
+  }
+  sprites {
+    name: "sprite"
+    trimmed: true
+    rotated: true
+    is_solid: true
+    untrimmed_size {
+      width: 128.0
+      height: 128.0
+    }
+    corner_offset {
+      x: 13.0
+      y: 25.0
+    }
+    source_rect {
+      x: 13.0
+      y: 25.0
+      width: 34.0
+      height: 54.0
+    }
+    frame_rect {
+      x: 1.0
+      y: 1.0
+      width: 34.0
+      height: 54.0
+    }
+    vertices {
+      x: 41.0
+      y: 79.0
+    }
+    vertices {
+      x: 13.0
+      y: 51.0
+    }
+    vertices {
+      x: 47.0
+      y: 25.0
+    }
+    pivot {
+      x: 32
+      y: 32
+    }
+    indices: 0
+    indices: 1
+    indices: 2
+  }
+}
+version: "1.0"
+description: "Exported using TexturePacker"

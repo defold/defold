@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,6 +25,7 @@ namespace dmMutex
      * @name Mutex
      * @namespace dmMutex
      * @path engine/dlib/src/dmsdk/dlib/mutex.h
+     * @language C++
      */
 
     /*# HMutex type definition
@@ -113,6 +114,32 @@ namespace dmMutex
     #define SCOPED_LOCK_PASTE(x, y) x ## y
     #define SCOPED_LOCK_PASTE2(x, y) SCOPED_LOCK_PASTE(x, y)
     #define DM_MUTEX_SCOPED_LOCK(mutex) dmMutex::ScopedLock SCOPED_LOCK_PASTE2(lock, __LINE__)(mutex);
+
+
+    /*# macro for scope lifetime optional mutex locking
+     *
+     * If mutex is not null, Will lock the mutex and automatically unlock it at the end of the scope.
+     * Since using threads is optional, we want to make it easy to switch on/off the mutex behavior
+     *
+     * @macro
+     * @name DM_MUTEX_OPTIONAL_SCOPED_LOCK
+     * @param mutex [type:dmMutex::HMutex] Mutex handle to lock, or null.
+     *
+     */
+    struct OptionalScopedMutexLock
+    {
+        OptionalScopedMutexLock(dmMutex::HMutex mutex) : m_Mutex(mutex) {
+            if (m_Mutex)
+                dmMutex::Lock(m_Mutex);
+        }
+        ~OptionalScopedMutexLock() {
+            if (m_Mutex)
+                dmMutex::Unlock(m_Mutex);
+        }
+
+        dmMutex::HMutex m_Mutex;
+    };
+    #define DM_MUTEX_OPTIONAL_SCOPED_LOCK(mutex) dmMutex::OptionalScopedMutexLock SCOPED_LOCK_PASTE2(lock, __LINE__)(mutex);
 
 }  // namespace dmMutex
 

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,8 +19,7 @@
 #include <render/render.h>
 #include <render/font_renderer.h>
 #include <script/script.h>
-#include <dmsdk/gameobject/script.h>
-
+#include <dmsdk/gamesys/script.h>
 
 #include "script_label.h"
 #include "../components/comp_label.h"
@@ -36,6 +35,7 @@ namespace dmGameSystem
  * @document
  * @name Label
  * @namespace label
+ * @language Lua
  */
 
 /*# [type:vector4] label color
@@ -183,6 +183,76 @@ namespace dmGameSystem
  * ```
  */
 
+/*# [type:number] label leading
+ *
+ * The leading of the label. This value is used to scale the line spacing of text.
+ * The type of the property is number.
+ *
+ * @name leading
+ * @property
+ *
+ * @examples
+ *
+ * How to query a label's leading:
+ *
+ * ```lua
+ * function init(self)
+ *  -- get leading from component "label"
+ *  local leading = go.get("#label", "leading")
+ *  -- do something useful
+ *  leading = leading * 1.2
+ *  go.set("#label", "leading", leading)
+ * end
+ * ```
+ */
+
+/*# [type:number] label tracking
+ *
+ * The tracking of the label.
+ * This value is used to adjust the vertical spacing of characters in the text.
+ * The type of the property is number.
+ *
+ * @name tracking
+ * @property
+ *
+ * @examples
+ *
+ * How to query a label's tracking:
+ *
+ * ```lua
+ * function init(self)
+ *  -- get tracking from component "label"
+ *  local tracking = go.get("#label", "tracking")
+ *  -- do something useful
+ *  tracking = tracking * 1.2
+ *  go.set("#label", "tracking", tracking)
+ * end
+ * ```
+ */
+
+/*# [type:bool] label line break
+ *
+ * The line break of the label.
+ * This value is used to adjust the vertical spacing of characters in the text.
+ * The type of the property is boolean.
+ *
+ * @name line_break
+ * @property
+ *
+ * @examples
+ *
+ * How to query a label's line break:
+ *
+ * ```lua
+ * function init(self)
+ *  -- get line_break from component "label"
+ *  local line_break = go.get("#label", "line_break")
+ *  -- do something useful
+ *  go.set("#label", "line_break", false)
+ * end
+ * ```
+ */
+
 // As seen in gamesys_private.h (which makes it a _lot_ harder to search for)
 static const char* LABEL_EXT = "labelc";
 
@@ -195,7 +265,7 @@ static const char* LABEL_EXT = "labelc";
  *
  * @name label.set_text
  * @param url [type:string|hash|url] the label that should have a constant set
- * @param text [type:string] the text
+ * @param text [type:string|number] the text
  * @examples
  *
  * ```lua
@@ -208,7 +278,7 @@ static int SetText(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    dmGameObject::HInstance instance = CheckGoInstance(L);
+    (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
     size_t text_len = 0;
     const char* text = luaL_checklstring(L, 2, &text_len);
@@ -233,7 +303,7 @@ static int SetText(lua_State* L)
     dmScript::GetURL(L, &sender);
     dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-    if (dmMessage::RESULT_OK != dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetText::m_DDFDescriptor, data, data_size, 0) )
+    if (dmMessage::RESULT_OK != dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetText::m_DDFDescriptor, data, data_size, 0) )
     {
         return DM_LUA_ERROR("Failed to send label string as message!");
     }
@@ -254,7 +324,8 @@ static int GetTextMetrics(lua_State* L)
     dmScript::ResolveURL(L, 1, &receiver, &sender);
 
     dmGameSystem::LabelComponent* component = 0;
-    dmGameObject::GetComponentFromLua(L, 1, LABEL_EXT, 0, (void**)&component, 0);
+    dmScript::GetComponentFromLua(L, 1, LABEL_EXT, 0, (dmGameObject::HComponent*)&component, 0);
+
     assert(component != 0);
 
     dmRender::TextMetrics metrics;
@@ -305,7 +376,7 @@ static int GetText(lua_State* L)
     dmScript::ResolveURL(L, 1, &receiver, &sender);
 
     dmGameSystem::LabelComponent* component = 0;
-    dmGameObject::GetComponentFromLua(L, 1, LABEL_EXT, 0, (void**)&component, 0);
+    dmScript::GetComponentFromLua(L, 1, LABEL_EXT, 0, (dmGameObject::HComponent*)&component, 0);
 
     const char* value = dmGameSystem::CompLabelGetText(component);
     lua_pushstring(L, value);

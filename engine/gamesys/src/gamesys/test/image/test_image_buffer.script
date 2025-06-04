@@ -1,0 +1,95 @@
+-- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+local function verify_image(img, w, h)
+    assert(img.width == w)
+    assert(img.height == h)
+    assert(img.buffer ~= nil)
+
+    local tparams = {
+        width  = img.width,
+        height = img.height,
+        type   = graphics.TEXTURE_TYPE_2D,
+        format = graphics.TEXTURE_FORMAT_RGBA,
+    }
+
+    local my_texture_id = resource.create_texture("/my_custom_texture.texturec", tparams, img.buffer)
+    resource.release(my_texture_id)
+end
+
+local function verify_image_flipped(img, img_non_flipped, w, h, num_components)
+    local img_stream = buffer.get_stream(img.buffer, "data")
+    local img_non_flipped_stream = buffer.get_stream(img_non_flipped.buffer, "data")
+
+    for y=0, h-1 do
+        for x=0, w-1 do
+            local px_start_0 = y * w * num_components + x * num_components + 1
+            local px_start_1 = (h - y - 1) * w * num_components + x * num_components + 1
+            for i=0,num_components-1 do
+                assert(img_stream[px_start_0 + i] == img_non_flipped_stream[px_start_1 + i])
+            end
+        end
+    end
+end
+
+local function img_to_component_count(img)
+    local tbl = {
+        rgb = 3,
+        rgba = 4,
+        l = 1,
+        la = 2}
+    return tbl[img.type]
+end
+
+local function load_and_verify_image(path, w, h, flip_vertically)
+
+    if flip_vertically then
+        print("Testing (inverted): " .. path)
+    else
+        print("Testing: " .. path)
+    end
+
+    local file = io.open(path, "rb")
+    assert(file ~= nil)
+    local buf = file:read("*all")
+    file:close()
+
+    local img = image.load_buffer(buf, { flip_vertically = flip_vertically })
+    verify_image(img, w, h)
+
+    if flip_vertically then
+        img_non_flipped = image.load_buffer(buf)
+        verify_image_flipped(img, img_non_flipped, w, h, img_to_component_count(img))
+    end
+end
+
+g_host_fs = ""
+
+function set_host_fs(host_fs)
+    if host_fs then
+        g_host_fs = host_fs
+    end
+end
+
+function update(self)
+    load_and_verify_image(g_host_fs .. "src/gamesys/test/image/color_check_2x2.png.raw", 2, 2)
+    load_and_verify_image(g_host_fs .. "src/gamesys/test/image/color_check_2x2.jpg.raw", 2, 2)
+    load_and_verify_image(g_host_fs .. "src/gamesys/test/image/color_check_2x2_16.png.raw", 2, 2)
+    load_and_verify_image(g_host_fs .. "src/gamesys/test/image/color_check_2x2_indexed.png.raw", 2, 2)
+
+    load_and_verify_image(g_host_fs .. "src/gamesys/test/image/color_check_2x2.png.raw", 2, 2, true)
+    load_and_verify_image(g_host_fs .. "src/gamesys/test/image/color_check_2x2.jpg.raw", 2, 2, true)
+    load_and_verify_image(g_host_fs .. "src/gamesys/test/image/color_check_2x2_16.png.raw", 2, 2, true)
+    load_and_verify_image(g_host_fs .. "src/gamesys/test/image/color_check_2x2_indexed.png.raw", 2, 2, true)
+end

@@ -1,51 +1,66 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.fxui
-  (:refer-clojure :exclude [partial])
   (:require [cljfx.api :as fx]
             [cljfx.coerce :as fx.coerce]
             [cljfx.component :as fx.component]
             [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.button :as fx.button]
+            [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.grid-pane :as fx.grid-pane]
+            [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
-            [cljfx.fx.popup :as fx.popup]
+            [cljfx.fx.password-field :as fx.password-field]
+            [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.svg-path :as fx.svg-path]
             [cljfx.fx.text-area :as fx.text-area]
             [cljfx.fx.text-field :as fx.text-field]
+            [cljfx.fx.tooltip :as fx.tooltip]
+            [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
+            [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.error-reporting :as error-reporting]
+            [editor.future :as future]
+            [editor.os :as os]
             [editor.ui :as ui]
-            [editor.util :as eutil])
-  (:import [clojure.lang Fn IFn IHashEq MultiFn]
+            [editor.util :as util]
+            [util.coll :as coll]
+            [util.fn :as fn])
+  (:import [clojure.lang MultiFn]
            [com.defold.control ListCell]
            [java.util Collection]
+           [javafx.animation Animation SequentialTransition TranslateTransition]
            [javafx.application Platform]
+           [javafx.beans Observable]
+           [javafx.beans.binding Bindings]
+           [javafx.beans.property ReadOnlyProperty]
+           [javafx.beans.value ChangeListener]
            [javafx.collections ObservableList]
            [javafx.event Event]
            [javafx.scene Node]
-           [javafx.beans.property ReadOnlyProperty]
-           [javafx.beans.value ChangeListener]
-           [javafx.scene.control TextInputControl ListView ScrollPane]
-           [javafx.stage Popup Window]
-           [javafx.util Callback]))
+           [javafx.scene.control ListView ScrollPane TextInputControl]
+           [javafx.scene.control.skin ScrollPaneSkin]
+           [javafx.scene.input KeyCode KeyEvent]
+           [javafx.scene.layout Region]
+           [javafx.stage PopupWindow Window]
+           [javafx.util Callback Duration]))
 
 (set! *warn-on-reflection* true)
 
@@ -180,6 +195,43 @@
             {})
    :desc scroll-pane-desc})
 
+(def child-instance-meta
+  {`fx.component/instance #(-> % :child fx.component/instance)})
+
+(def ext-memo
+  "Extension lifecycle similar to react's useMemo hook
+
+  The result of invoking :fn with :args will be memoized in the cljfx tree and
+  supplied as a value at :key to the child :desc
+
+  Expected props (all required):
+    :fn      function that will be invoked to produce a memoized value
+    :args    a vector of args to the function
+    :key     a key that will be used to assoc memoized value into a child desc
+    :desc    description of the underlying component"
+  (reify fx.lifecycle/Lifecycle
+    (create [_ {:keys [fn args key desc]} opts]
+      (let [value (apply fn args)]
+        (with-meta {:fn fn
+                    :args args
+                    :value value
+                    :child (fx.lifecycle/create fx.lifecycle/dynamic (assoc desc key value) opts)}
+                   child-instance-meta)))
+    (advance [_ component {:keys [fn args key desc]} opts]
+      (if (and (= (:fn component) fn)
+               (= (:args component) args))
+        (update component :child #(fx.lifecycle/advance
+                                    fx.lifecycle/dynamic
+                                    %
+                                    (assoc desc key (:value component))
+                                    opts))
+        (let [value (apply fn args)]
+          (-> component
+              (assoc :fn fn :args args :value value)
+              (update :child #(fx.lifecycle/advance fx.lifecycle/dynamic % (assoc desc key value) opts))))))
+    (delete [_ component opts]
+      (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
+
 (defn make-event-filter-prop
   "Creates a prop-config that will add event filter for specified `event-type`
 
@@ -278,7 +330,7 @@
       (with-meta
         {:desc desc
          :child (fx.lifecycle/create lifecycle desc opts)}
-        {`fx.component/instance #(-> % :child fx.component/instance)}))
+        child-instance-meta))
     (advance [_ component desc opts]
       (if (= desc (:desc component))
         component
@@ -287,20 +339,6 @@
             (update :child #(fx.lifecycle/advance lifecycle % desc opts)))))
     (delete [_ component opts]
       (fx.lifecycle/delete lifecycle (:child component) opts))))
-
-(defmacro provide-single-default [m k v]
-  `(let [m# ~m
-         k# ~k]
-     (if (contains? m# k#)
-       m#
-       (assoc m# k# ~v))))
-
-(defmacro provide-defaults
-  "Like assoc, but does nothing if key is already in this map. Evaluates values
-  only when key is not present"
-  [m & kvs]
-  `(-> ~m
-       ~@(map #(cons `provide-single-default %) (partition 2 kvs))))
 
 (defn mount-renderer-and-await-result!
   "Mounts `renderer` and blocks current thread until `state-atom`'s value
@@ -311,6 +349,7 @@
     (future
       (error-reporting/catch-all!
         (let [result @result-promise]
+          (fx/unmount-renderer state-atom renderer)
           (fx/on-fx-thread
             (Platform/exitNestedEventLoop event-loop-key result)))))
     (add-watch state-atom event-loop-key
@@ -327,28 +366,51 @@
 
 (defn show-dialog-and-await-result!
   "Creates a dialog, shows it and block current thread until dialog has a result
-  (which is checked by presence of a `:result` key in state map)
+  (which is checked by the presence of a ::result key in the state map)
 
-  Options:
-  - `:initial-state` (optional, default `{}`) - map containing initial state of
-    a dialog, should not contain `::result` key to be shown
-  - `:event-handler` (required) - 2-argument event handler, receives current
-    state as first argument and event map as second, returns new state. Once
-    state of a dialog has `::result` key in it, dialog interaction is considered
-    complete and dialog will close
-  - `:description` (required) - fx description used for this dialog, gets merged
-    into current state map, meaning that state map contents, including
-    eventually a `::result` key, will also be present in description props. You
-    can use `editor.fxui/dialog-showing?` and pass it resulting props to check
-    if dialog stage's `:showing` property should be set to true"
-  [& {:keys [initial-state event-handler description]
-      :or {initial-state {}}}]
+  Kv-args:
+    :event-handler    required, 2-argument event handler, receives current state
+                      as a first argument and event map as second, returns new
+                      state. Once state of a dialog has ::result key in it, the
+                      dialog interaction is considered complete and dialog will
+                      close
+    :description      required, fx description used for this dialog, gets merged
+                      into current state map, meaning that state map contents,
+                      including eventually a ::result key, will also be present
+                      in description props. Use `editor.fxui/dialog-showing?`
+                      and pass it resulting props to check if dialog stage's
+                      :showing property should be set to true
+    :initial-state    optional, defaults to {}, map containing initial state of
+                      a dialog, should not contain ::result key to be shown
+    :error-handler    optional, 1-arg Throwable handler, by default it shows an
+                      error dialog and reports the exception to sentry"
+  [& {:keys [initial-state event-handler description error-handler]
+      :or {initial-state {}
+           error-handler error-reporting/report-exception!}}]
   (let [state-atom (atom initial-state)
         renderer (fx/create-renderer
-                   :error-handler error-reporting/report-exception!
+                   :error-handler error-handler
                    :opts {:fx.opt/map-event-handler #(swap! state-atom event-handler %)}
                    :middleware (fx/wrap-map-desc merge description))]
     (mount-renderer-and-await-result! state-atom renderer)))
+
+(defn show-stateless-dialog-and-await-result!
+  [desc-fn]
+  (let [event-loop-key (Object.)
+        result-promise (promise)
+        result-fn (fn deliver-result! [x] (deliver result-promise x))
+        desc (desc-fn result-fn)
+        component (fx/create-component desc)]
+    (future/io
+      (error-reporting/catch-all!
+        (let [result @result-promise]
+          (fx/run-later
+            (error-reporting/catch-all!
+              (try
+                (fx/delete-component component)
+                (finally
+                  (Platform/exitNestedEventLoop event-loop-key result))))))))
+    (Platform/enterNestedEventLoop event-loop-key)))
 
 (defn stage
   "Generic `:stage` that mirrors behavior of `editor.ui/make-stage`"
@@ -356,7 +418,7 @@
   (assoc props
     :fx/type fx.stage/lifecycle
     :on-focused-changed ui/focus-change-listener
-    :icons (if (eutil/is-mac-os?) [] [ui/application-icon-image])))
+    :icons (if (os/is-mac-os?) [] [ui/application-icon-image])))
 
 (defn dialog-stage
   "Generic dialog `:stage` that mirrors behavior of `editor.ui/make-dialog-stage`"
@@ -375,7 +437,7 @@
                         :else
                         {:fx/type ext-value
                          :value owner}))
-        (provide-defaults
+        (util/provide-defaults
           :resizable false
           :style :decorated
           :modality (if (nil? owner) :application-modal :window-modal)))))
@@ -388,8 +450,20 @@
                                                         :else style-class)]
                                  (into existing-classes classes)))))
 
-(defn label
+(defn prepend-style-classes [props & classes]
+  (update
+    props
+    :style-class
+    (fn [style-class]
+      (cond
+        (nil? style-class) (vec classes)
+        (string? style-class) (persistent! (conj! (reduce conj! (transient []) classes) style-class))
+        :else (persistent! (reduce conj! (reduce conj! (transient []) classes) style-class))))))
+
+(defn ^:deprecated legacy-label
   "Generic `:label` with sensible defaults (`:wrap-text` is true)
+
+  Deprecated: use [[label]] or [[paragraph]]
 
   Additional keys:
   - `:variant` (optional, default `:label`) - a styling variant, either `:label`
@@ -400,7 +474,7 @@
   (-> props
       (assoc :fx/type fx.label/lifecycle)
       (dissoc :variant)
-      (provide-defaults :wrap-text true)
+      (util/provide-defaults :wrap-text true)
       (add-style-classes (case variant
                            :label "label"
                            :header "header"))))
@@ -447,7 +521,7 @@
                                   cat)
                                 children)))))
 
-(defn text-field
+(defn ^:deprecated legacy-text-field
   "Generic `:text-field`
 
   Additional keys:
@@ -463,7 +537,7 @@
                                         :default "text-field-default"
                                         :error "text-field-error"))))
 
-(defn text-area
+(defn ^:deprecated legacy-text-area
   "Generic `:text-area`
 
   Additional keys:
@@ -480,38 +554,43 @@
                                        :error "text-area-error"
                                        :borderless "text-area-borderless"))))
 
-(def ^:private ext-with-popup-on-props
+(def ^:private ext-with-popup-window-on-props
   (fx/make-ext-with-props
     {:on (fx.prop/make
            (fx.mutator/adder-remover
-             (fn [^Popup popup [^Node on anchor-x anchor-y]]
-               (.show popup on (double anchor-x) (double anchor-y)))
-             (fn [^Popup popup _]
+             (fn [^PopupWindow popup [^Node on anchor-x anchor-y on-window]]
+               (condp instance? on
+                 Node (if on-window
+                        (.show popup (.getWindow (.getScene ^Node on)) (double anchor-x) (double anchor-y))
+                        (.show popup ^Node on (double anchor-x) (double anchor-y)))
+                 Window (.show popup ^Window on (double anchor-x) (double anchor-y))))
+             (fn [^PopupWindow popup _]
                (.hide popup)))
-           (tuple-lifecycle fx.lifecycle/dynamic fx.lifecycle/scalar fx.lifecycle/scalar))}))
+           (tuple-lifecycle fx.lifecycle/dynamic fx.lifecycle/scalar fx.lifecycle/scalar fx.lifecycle/scalar))}))
 
-(defn with-popup
-  "Helper popup lifecycle that adds a managed popup to :desc node
+(defn with-popup-window
+  "Helper lifecycle that adds a managed popup window to the wrapped node
 
   Supported props:
-    :desc        node desc that will show a popup
-    :showing     whether the popup is showing
-    :anchor-x    screen anchor x
-    :anchor-y    screen anchor y
-    ...the rest of :popup props"
-  [{:keys [desc showing anchor-x anchor-y]
-    :or {anchor-x 0.0
-         anchor-y 0.0}
-    :as props}]
+    :desc    required node or window desc that will show a popup
+    :popup   optional popup window desc, with these additional props:
+               :showing      whether the popup is showing, default false
+               :anchor-x     screen anchor x, default 0
+               :anchor-y     screen anchor y, default 0
+               :on-window    force the popup owner to be a window when the desc
+                             is node, default false; this is useful when you
+                             want to auto-hide it even when clicking on the desc
+                             node"
+  [{:keys [desc popup]}]
   {:fx/type fx/ext-let-refs
    :refs {::on desc}
    :desc {:fx/type fx/ext-let-refs
-          :refs {::popup {:fx/type ext-with-popup-on-props
-                          :props (when showing
-                                   {:on [{:fx/type fx/ext-get-ref :ref ::on} anchor-x anchor-y]})
-                          :desc (-> props
-                                    (dissoc :desc :showing :anchor-x :anchor-y)
-                                    (assoc :fx/type fx.popup/lifecycle))}}
+          :refs (when-let [{:keys [showing anchor-x anchor-y on-window]
+                            :or {anchor-x 0.0 anchor-y 0.0 on-window false}} popup]
+                  {::popup {:fx/type ext-with-popup-window-on-props
+                            :props (when showing
+                                     {:on [{:fx/type fx/ext-get-ref :ref ::on} anchor-x anchor-y on-window]})
+                            :desc (dissoc popup :showing :anchor-x :anchor-y :on-window)}})
           :desc {:fx/type fx/ext-get-ref :ref ::on}}})
 
 (defn icon
@@ -574,7 +653,7 @@
                         :icon/plus-sign "M30,3H5C3.9,3,3,3.9,3,5v25c0,1.1,0.9,2,2,2h25c1.1,0,2-0.9,2-2V5C32,3.9,31.1,3,30,3zM31,30c0,0.6-0.4,1-1,1H5c-0.6,0-1-0.4-1-1V5c0-0.6,0.4-1,1-1h25c0.6,0,1,0.4,1,1V30zM25,17.5c0,0.3-0.2,0.5-0.5,0.5H18v6.5c0,0.3-0.2,0.5-0.5,0.5S17,24.8,17,24.5V18h-6.5c-0.3,0-0.5-0.2-0.5-0.5s0.2-0.5,0.5-0.5H17v-6.5c0-0.3,0.2-0.5,0.5-0.5s0.5,0.2,0.5,0.5V17h6.5C24.8,17,25,17.2,25,17.5z"
                         :icon/rar "M32,9.2c0-0.6-0.2-1.2-0.7-1.6l-5.9-5.9C25,1.2,24.4,1,23.8,1L4.3,1C3.6,1,3,1.6,3,2.3l0,30.4C3,33.4,3.6,34,4.3,34h26.4c0.7,0,1.3-0.6,1.3-1.3L32,9.2zM30.7,33H4.3C4.1,33,4,32.9,4,32.7L4,2.3C4,2.1,4.1,2,4.3,2l19.5,0c0.3,0,0.7,0.1,0.9,0.4l5.9,5.9C30.8,8.5,31,8.9,31,9.2l0,23.5C31,32.9,30.9,33,30.7,33zM29.5,9.5c0,0.3-0.2,0.5-0.5,0.5l-4.9,0C23.5,10,23,9.5,23,8.9L23,4c0-0.3,0.2-0.5,0.5-0.5S24,3.7,24,4l0,4.9C24,9,24,9,24.1,9L29,9C29.3,9,29.5,9.2,29.5,9.5zM18,13.5c0,0.3-0.2,0.5-0.5,0.5S17,13.8,17,13.5s0.2-0.5,0.5-0.5S18,13.2,18,13.5zM18,11.5c0,0.3-0.2,0.5-0.5,0.5S17,11.8,17,11.5s0.2-0.5,0.5-0.5S18,11.2,18,11.5zM18,9.5c0,0.3-0.2,0.5-0.5,0.5S17,9.8,17,9.5C17,9.2,17.2,9,17.5,9S18,9.2,18,9.5zM18,7.5c0,0.3-0.2,0.5-0.5,0.5S17,7.8,17,7.5S17.2,7,17.5,7S18,7.2,18,7.5zM18,5.5c0,0.3-0.2,0.5-0.5,0.5S17,5.8,17,5.5C17,5.2,17.2,5,17.5,5S18,5.2,18,5.5zM17,3.5C17,3.2,17.2,3,17.5,3S18,3.2,18,3.5s-0.2,0.5-0.5,0.5S17,3.8,17,3.5zM15.9,12.6c0-0.3,0.2-0.5,0.5-0.5s0.5,0.2,0.5,0.5s-0.2,0.5-0.5,0.5S15.9,12.9,15.9,12.6zM15.9,10.6c0-0.3,0.2-0.5,0.5-0.5s0.5,0.2,0.5,0.5s-0.2,0.5-0.5,0.5S15.9,10.9,15.9,10.6zM15.9,8.6c0-0.3,0.2-0.5,0.5-0.5S17,8.2,17,8.6c0,0.3-0.2,0.5-0.5,0.5S15.9,8.9,15.9,8.6zM15.9,6.6c0-0.3,0.2-0.5,0.5-0.5S17,6.2,17,6.6s-0.2,0.5-0.5,0.5S15.9,6.9,15.9,6.6zM15.9,4.6c0-0.3,0.2-0.5,0.5-0.5S17,4.2,17,4.6c0,0.3-0.2,0.5-0.5,0.5S15.9,4.9,15.9,4.6zM18,15.5v2.9c0,0.3-0.2,0.5-0.5,0.5h-0.9c-0.3,0-0.5-0.2-0.5-0.5v-2.9c0-0.3,0.2-0.5,0.5-0.5h0.9C17.8,15,18,15.2,18,15.5zM10,27.5c0,0.3-0.2,0.5-0.5,0.5S9,27.8,9,27.5C9,27.2,9.2,27,9.5,27S10,27.2,10,27.5zM15,24.5c0-0.8-0.7-1.5-1.5-1.5h-2c-0.3,0-0.5,0.2-0.5,0.5v4c0,0.3,0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5V26h0.7l1.3,1.8c0.1,0.1,0.2,0.2,0.4,0.2c0.1,0,0.2,0,0.3-0.1c0.2-0.2,0.3-0.5,0.1-0.7l-1-1.3C14.6,25.7,15,25.2,15,24.5zM13.5,25H12v-1h1.5c0.3,0,0.5,0.2,0.5,0.5S13.8,25,13.5,25zM25,24.5c0-0.8-0.7-1.5-1.5-1.5h-2c-0.3,0-0.5,0.2-0.5,0.5v4c0,0.3,0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5V26h0.7l1.3,1.8c0.1,0.1,0.2,0.2,0.4,0.2c0.1,0,0.2,0,0.3-0.1c0.2-0.2,0.3-0.5,0.1-0.7l-1-1.3C24.6,25.7,25,25.2,25,24.5zM23.5,25H22v-1h1.5c0.3,0,0.5,0.2,0.5,0.5S23.8,25,23.5,25zM18,23c-1.1,0-2,0.9-2,2v2.5c0,0.3,0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5V26h2v1.5c0,0.3,0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5V25C20,23.9,19.1,23,18,23zM17,25c0-0.6,0.4-1,1-1s1,0.4,1,1H17z"
                         :icon/rar-hover "M32,27.5c0,0.3-0.2,0.5-0.5,0.5S31,27.8,31,27.5l0-18.3c0-0.3-0.1-0.7-0.4-0.9l-5.9-5.9C24.5,2.1,24.1,2,23.8,2L4.3,2C4.1,2,4,2.1,4,2.3l0,30.4C4,32.9,4.1,33,4.3,33h19.2c0.3,0,0.5,0.2,0.5,0.5c0,0.3-0.2,0.5-0.5,0.5H4.3C3.6,34,3,33.4,3,32.7L3,2.3C3,1.6,3.6,1,4.3,1l19.5,0c0.6,0,1.2,0.2,1.6,0.7l5.9,5.9C31.7,8,32,8.6,32,9.2L32,27.5zM24.1,10l4.9,0c0.3,0,0.5-0.2,0.5-0.5C29.5,9.2,29.3,9,29,9l-4.9,0C24,9,24,9,24,8.9L24,4c0-0.3-0.2-0.5-0.5-0.5S23,3.7,23,4l0,4.9C23,9.5,23.5,10,24.1,10zM17.5,13c-0.3,0-0.5,0.2-0.5,0.5s0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5S17.8,13,17.5,13zM17.5,11c-0.3,0-0.5,0.2-0.5,0.5s0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5S17.8,11,17.5,11zM17.5,9C17.2,9,17,9.2,17,9.5c0,0.3,0.2,0.5,0.5,0.5S18,9.8,18,9.5C18,9.2,17.8,9,17.5,9zM17.5,7C17.2,7,17,7.2,17,7.5s0.2,0.5,0.5,0.5S18,7.8,18,7.5S17.8,7,17.5,7zM17.5,5C17.2,5,17,5.2,17,5.5c0,0.3,0.2,0.5,0.5,0.5S18,5.8,18,5.5C18,5.2,17.8,5,17.5,5zM17.5,3C17.2,3,17,3.2,17,3.5s0.2,0.5,0.5,0.5S18,3.8,18,3.5S17.8,3,17.5,3zM16.5,13.1c0.3,0,0.5-0.2,0.5-0.5S16.8,12,16.5,12s-0.5,0.2-0.5,0.5S16.2,13.1,16.5,13.1zM16.5,11.1c0.3,0,0.5-0.2,0.5-0.5S16.8,10,16.5,10s-0.5,0.2-0.5,0.5S16.2,11.1,16.5,11.1zM16.5,9.1c0.3,0,0.5-0.2,0.5-0.5C17,8.2,16.8,8,16.5,8s-0.5,0.2-0.5,0.5C15.9,8.9,16.2,9.1,16.5,9.1zM16.5,7.1c0.3,0,0.5-0.2,0.5-0.5S16.8,6,16.5,6s-0.5,0.2-0.5,0.5S16.2,7.1,16.5,7.1zM16.5,4c-0.3,0-0.5,0.2-0.5,0.5c0,0.3,0.2,0.5,0.5,0.5S17,4.9,17,4.6C17,4.2,16.8,4,16.5,4zM17.5,15h-0.9c-0.3,0-0.5,0.2-0.5,0.5v2.9c0,0.3,0.2,0.5,0.5,0.5h0.9c0.3,0,0.5-0.2,0.5-0.5v-2.9C18,15.2,17.8,15,17.5,15zM9,27.5C9,27.8,9.2,28,9.5,28s0.5-0.2,0.5-0.5c0-0.3-0.2-0.5-0.5-0.5S9,27.2,9,27.5zM13.9,25.9l1,1.3c0.2,0.2,0.1,0.5-0.1,0.7C14.7,28,14.6,28,14.5,28c-0.2,0-0.3-0.1-0.4-0.2L12.7,26H12v1.5c0,0.3-0.2,0.5-0.5,0.5S11,27.8,11,27.5v-4c0-0.3,0.2-0.5,0.5-0.5h2c0.8,0,1.5,0.7,1.5,1.5C15,25.2,14.6,25.7,13.9,25.9zM14,24.5c0-0.3-0.2-0.5-0.5-0.5H12v1h1.5C13.8,25,14,24.8,14,24.5zM21.5,23h2c0.8,0,1.5,0.7,1.5,1.5c0,0.7-0.4,1.2-1.1,1.4l1,1.3c0.2,0.2,0.1,0.5-0.1,0.7C24.7,28,24.6,28,24.5,28c-0.2,0-0.3-0.1-0.4-0.2L22.7,26H22v1.5c0,0.3-0.2,0.5-0.5,0.5S21,27.8,21,27.5v-4C21,23.2,21.2,23,21.5,23zM23.5,24H22v1h1.5c0.3,0,0.5-0.2,0.5-0.5S23.8,24,23.5,24zM19,27.5V26h-2v1.5c0,0.3-0.2,0.5-0.5,0.5S16,27.8,16,27.5V25c0-1.1,0.9-2,2-2s2,0.9,2,2v2.5c0,0.3-0.2,0.5-0.5,0.5S19,27.8,19,27.5zM19,25c0-0.6-0.4-1-1-1s-1,0.4-1,1H19zM30.7,29.6L28,32.3v-6.8c0-0.3-0.2-0.5-0.5-0.5S27,25.2,27,25.5v6.8l-2.7-2.7c-0.2-0.2-0.5-0.2-0.7,0s-0.2,0.5,0,0.7l3.5,3.5c0,0,0.1,0.1,0.2,0.1c0.1,0,0.1,0,0.2,0s0.1,0,0.2,0c0.1,0,0.1-0.1,0.2-0.1l3.5-3.5c0.2-0.2,0.2-0.5,0-0.7S30.9,29.4,30.7,29.6z"
-                        :icon/triangle-error "M33.6,27.4L20.1,3.9c-0.6-1-1.6-1.5-2.6-1.5s-2,0.5-2.6,1.5L1.4,27.4C0.2,29.4,1.7,32,4.1,32h26.8C33.3,32,34.8,29.4,33.6,27.4zM32.7,30c-0.4,0.7-1.1,1.1-1.8,1.1H4.1c-0.8,0-1.4-0.4-1.8-1.1c-0.4-0.7-0.4-1.4,0-2.1L15.8,4.4c0.4-0.6,1-1,1.7-1s1.3,0.4,1.7,1l13.5,23.4C33.1,28.5,33.1,29.3,32.7,30zM18.1,25.5c0,0.4-0.3,0.7-0.7,0.7s-0.7-0.3-0.7-0.7c0-0.4,0.3-0.7,0.7-0.7S18.1,25.1,18.1,25.5zM17,22.6v-9.1c0-0.3,0.2-0.5,0.5-0.5s0.5,0.2,0.5,0.5v9.1c0,0.3-0.2,0.5-0.5,0.5S17,22.9,17,22.6z"
+                        (:icon/triangle-error :icon/triangle-warning) "M33.6,27.4L20.1,3.9c-0.6-1-1.6-1.5-2.6-1.5s-2,0.5-2.6,1.5L1.4,27.4C0.2,29.4,1.7,32,4.1,32h26.8C33.3,32,34.8,29.4,33.6,27.4zM32.7,30c-0.4,0.7-1.1,1.1-1.8,1.1H4.1c-0.8,0-1.4-0.4-1.8-1.1c-0.4-0.7-0.4-1.4,0-2.1L15.8,4.4c0.4-0.6,1-1,1.7-1s1.3,0.4,1.7,1l13.5,23.4C33.1,28.5,33.1,29.3,32.7,30zM18.1,25.5c0,0.4-0.3,0.7-0.7,0.7s-0.7-0.3-0.7-0.7c0-0.4,0.3-0.7,0.7-0.7S18.1,25.1,18.1,25.5zM17,22.6v-9.1c0-0.3,0.2-0.5,0.5-0.5s0.5,0.2,0.5,0.5v9.1c0,0.3-0.2,0.5-0.5,0.5S17,22.9,17,22.6z"
                         :icon/triangle-sad "M33.6,27.4L20.1,3.9c-0.6-1-1.6-1.5-2.6-1.5s-2,0.5-2.6,1.5L1.4,27.4C0.2,29.4,1.7,32,4.1,32h26.8C33.3,32,34.8,29.4,33.6,27.4zM32.7,30c-0.4,0.7-1.1,1.1-1.8,1.1H4.1c-0.8,0-1.4-0.4-1.8-1.1c-0.4-0.7-0.4-1.4,0-2.1L15.8,4.4c0.4-0.6,1-1,1.7-1s1.3,0.4,1.7,1l13.5,23.4C33.1,28.5,33.1,29.3,32.7,30zM24,19.6c-0.2,0.8-1.1,1.4-2,1.4s-1.7-0.6-2-1.4c-0.1-0.3,0.1-0.5,0.3-0.6c0.3-0.1,0.5,0.1,0.6,0.3c0.1,0.4,0.5,0.6,1,0.6s0.9-0.3,1-0.6c0.1-0.3,0.4-0.4,0.6-0.3C23.9,19.1,24.1,19.4,24,19.6zM15,19.6c-0.2,0.8-1.1,1.4-2,1.4s-1.7-0.6-2-1.4c-0.1-0.3,0.1-0.5,0.3-0.6c0.3-0.1,0.5,0.1,0.6,0.3c0.1,0.4,0.5,0.6,1,0.6s0.9-0.3,1-0.6c0.1-0.3,0.4-0.4,0.6-0.3C14.9,19.1,15.1,19.4,15,19.6zM20,25.3c0.1,0.3,0,0.5-0.3,0.6c-0.1,0-0.1,0-0.2,0c-0.2,0-0.4-0.1-0.5-0.3c-0.1-0.3-0.7-0.7-1.5-0.7s-1.4,0.4-1.5,0.7c-0.1,0.3-0.4,0.4-0.6,0.3c-0.3-0.1-0.4-0.4-0.3-0.6c0.3-0.8,1.3-1.3,2.5-1.3S19.7,24.5,20,25.3z"
                         :icon/server "M33.5,16.5c0-0.1-0.1-0.2-0.2-0.3c-0.1-0.1-0.3-0.1-0.4,0c-2.6,0.7-5.1-0.1-7-2c-0.2-0.2-0.5-0.2-0.7,0c-1.9,1.9-4.4,2.7-7,2c-0.1,0-0.3,0-0.4,0c-0.1,0.1-0.2,0.2-0.2,0.3c-0.3,1.3-0.5,2.5-0.5,3.8c0,6,3.4,11.2,8.3,12.7c0,0,0.1,0,0.1,0s0.1,0,0.1,0c4.9-1.5,8.3-6.7,8.3-12.7C34,19,33.8,17.7,33.5,16.5zM25.5,32c-4.4-1.4-7.5-6.2-7.5-11.7c0-1,0.1-2.1,0.3-3.1c2.6,0.5,5.1-0.2,7.1-2c2,1.8,4.5,2.6,7.1,2c0.2,1,0.3,2.1,0.3,3.1C33,25.8,29.9,30.5,25.5,32zM30.1,20.4c0.2,0.2,0.2,0.5,0,0.7l-5.5,5.5c-0.1,0.1-0.2,0.1-0.4,0.1s-0.3,0-0.4-0.1l-2.8-2.8c-0.2-0.2-0.2-0.5,0-0.7s0.5-0.2,0.7,0l2.4,2.4l5.1-5.1C29.6,20.2,29.9,20.2,30.1,20.4zM5.5,5C4.7,5,4,5.7,4,6.5S4.7,8,5.5,8S7,7.3,7,6.5S6.3,5,5.5,5zM5.5,7C5.2,7,5,6.8,5,6.5S5.2,6,5.5,6S6,6.2,6,6.5S5.8,7,5.5,7zM9.5,5C8.7,5,8,5.7,8,6.5S8.7,8,9.5,8S11,7.3,11,6.5S10.3,5,9.5,5zM9.5,7C9.2,7,9,6.8,9,6.5S9.2,6,9.5,6S10,6.2,10,6.5S9.8,7,9.5,7zM24.5,5h-5C18.7,5,18,5.7,18,6.5S18.7,8,19.5,8h5C25.3,8,26,7.3,26,6.5S25.3,5,24.5,5zM24.5,7h-5C19.2,7,19,6.8,19,6.5S19.2,6,19.5,6h5C24.8,6,25,6.2,25,6.5S24.8,7,24.5,7zM4,16.5C4,17.3,4.7,18,5.5,18S7,17.3,7,16.5S6.3,15,5.5,15S4,15.7,4,16.5zM6,16.5C6,16.8,5.8,17,5.5,17S5,16.8,5,16.5S5.2,16,5.5,16S6,16.2,6,16.5zM8,16.5C8,17.3,8.7,18,9.5,18s1.5-0.7,1.5-1.5S10.3,15,9.5,15S8,15.7,8,16.5zM10,16.5c0,0.3-0.2,0.5-0.5,0.5S9,16.8,9,16.5S9.2,16,9.5,16S10,16.2,10,16.5zM18.5,31H3c-0.6,0-1-0.4-1-1v-7c0-0.6,0.4-1,1-1h11.5H15c0.3,0,0.5-0.2,0.5-0.5S15.3,21,15,21h-0.5H3c-0.6,0-1-0.4-1-1v-7c0-0.6,0.4-1,1-1h24c0.6,0,1,0.4,1,1v0.5c0,0.3,0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5V13c0-0.6-0.3-1.1-0.7-1.5c0.4-0.4,0.7-0.9,0.7-1.5V3c0-1.1-0.9-2-2-2H3C1.9,1,1,1.9,1,3v7c0,0.6,0.3,1.1,0.7,1.5C1.3,11.9,1,12.4,1,13v7c0,0.6,0.3,1.1,0.7,1.5C1.3,21.9,1,22.4,1,23v7c0,1.1,0.9,2,2,2h1c0,0.6,0.4,1,1,1h3c0.6,0,1-0.4,1-1h9.5c0.3,0,0.5-0.2,0.5-0.5S18.8,31,18.5,31zM2,10V3c0-0.6,0.4-1,1-1h24c0.6,0,1,0.4,1,1v7c0,0.6-0.4,1-1,1H3C2.4,11,2,10.6,2,10zM4,26.5C4,27.3,4.7,28,5.5,28S7,27.3,7,26.5S6.3,25,5.5,25S4,25.7,4,26.5zM6,26.5C6,26.8,5.8,27,5.5,27S5,26.8,5,26.5S5.2,26,5.5,26S6,26.2,6,26.5zM8,26.5C8,27.3,8.7,28,9.5,28s1.5-0.7,1.5-1.5S10.3,25,9.5,25S8,25.7,8,26.5zM10,26.5c0,0.3-0.2,0.5-0.5,0.5S9,26.8,9,26.5S9.2,26,9.5,26S10,26.2,10,26.5z"
                         :icon/share "M30,25c-1.8,0-3.3,0.9-4.2,2.3l-15.1-7.6c0.2-0.6,0.3-1.1,0.3-1.8s-0.1-1.2-0.3-1.8l15.1-7.6c0.9,1.4,2.4,2.3,4.2,2.3c2.8,0,5-2.2,5-5s-2.2-5-5-5s-5,2.2-5,5c0,0.6,0.1,1.2,0.3,1.8l-15.1,7.6C9.3,13.9,7.8,13,6,13c-2.8,0-5,2.2-5,5s2.2,5,5,5c1.8,0,3.3-0.9,4.2-2.3l15.1,7.6C25.1,28.8,25,29.4,25,30c0,2.8,2.2,5,5,5s5-2.2,5-5S32.8,25,30,25zM30,2c2.2,0,4,1.8,4,4s-1.8,4-4,4c-1.5,0-2.9-0.9-3.5-2.2c0,0,0,0,0,0c0,0,0,0,0-0.1C26.2,7.2,26,6.6,26,6C26,3.8,27.8,2,30,2zM6,22c-2.2,0-4-1.8-4-4s1.8-4,4-4c1.5,0,2.9,0.9,3.5,2.2c0,0,0,0,0,0c0,0,0,0,0,0C9.8,16.8,10,17.4,10,18c0,0.6-0.2,1.2-0.4,1.7c0,0,0,0,0,0.1c0,0,0,0,0,0C8.9,21.1,7.5,22,6,22zM30,34c-2.2,0-4-1.8-4-4c0-0.6,0.2-1.2,0.4-1.7c0,0,0,0,0,0c0,0,0,0,0,0c0.7-1.3,2-2.2,3.5-2.2c2.2,0,4,1.8,4,4S32.2,34,30,34z"
@@ -587,70 +666,427 @@
                         :icon/zip "M32,9.2c0-0.6-0.2-1.2-0.7-1.6l-5.9-5.9C25,1.2,24.4,1,23.8,1L4.3,1C3.6,1,3,1.6,3,2.3l0,30.4C3,33.4,3.6,34,4.3,34l26.4,0c0.7,0,1.3-0.6,1.3-1.3L32,9.2zM30.7,33L4.3,33C4.1,33,4,32.9,4,32.7L4,2.3C4,2.1,4.1,2,4.3,2l19.5,0c0.3,0,0.7,0.1,0.9,0.4l5.9,5.9C30.8,8.5,31,8.9,31,9.2l0,23.5C31,32.9,30.9,33,30.7,33zM29.5,9.5c0,0.3-0.2,0.5-0.5,0.5l-4.9,0C23.5,10,23,9.5,23,8.9L23,4c0-0.3,0.2-0.5,0.5-0.5S24,3.7,24,4l0,4.9C24,9,24,9,24.1,9L29,9C29.3,9,29.5,9.2,29.5,9.5zM18,13.5c0,0.3-0.2,0.5-0.5,0.5S17,13.8,17,13.5s0.2-0.5,0.5-0.5S18,13.2,18,13.5zM18,11.5c0,0.3-0.2,0.5-0.5,0.5S17,11.8,17,11.5s0.2-0.5,0.5-0.5S18,11.2,18,11.5zM18,9.5c0,0.3-0.2,0.5-0.5,0.5S17,9.8,17,9.5C17,9.2,17.2,9,17.5,9S18,9.2,18,9.5zM18,7.5c0,0.3-0.2,0.5-0.5,0.5S17,7.8,17,7.5S17.2,7,17.5,7S18,7.2,18,7.5zM18,5.5c0,0.3-0.2,0.5-0.5,0.5S17,5.8,17,5.5C17,5.2,17.2,5,17.5,5S18,5.2,18,5.5zM18,3.5c0,0.3-0.2,0.5-0.5,0.5S17,3.8,17,3.5S17.2,3,17.5,3S18,3.2,18,3.5zM15.9,12.6c0-0.3,0.2-0.5,0.5-0.5s0.5,0.2,0.5,0.5s-0.2,0.5-0.5,0.5S15.9,12.9,15.9,12.6zM15.9,10.6c0-0.3,0.2-0.5,0.5-0.5s0.5,0.2,0.5,0.5s-0.2,0.5-0.5,0.5S15.9,10.9,15.9,10.6zM15.9,8.6c0-0.3,0.2-0.5,0.5-0.5S17,8.2,17,8.6c0,0.3-0.2,0.5-0.5,0.5S15.9,8.9,15.9,8.6zM15.9,6.6c0-0.3,0.2-0.5,0.5-0.5S17,6.2,17,6.6s-0.2,0.5-0.5,0.5S15.9,6.9,15.9,6.6zM15.9,4.6c0-0.3,0.2-0.5,0.5-0.5S17,4.2,17,4.6c0,0.3-0.2,0.5-0.5,0.5S15.9,4.9,15.9,4.6zM16,27.5c0,0.3-0.2,0.5-0.5,0.5h-3c-0.2,0-0.4-0.1-0.4-0.3s-0.1-0.4,0-0.5l2.4-3.2h-2c-0.3,0-0.5-0.2-0.5-0.5s0.2-0.5,0.5-0.5h3c0.2,0,0.4,0.1,0.4,0.3s0.1,0.4,0,0.5L13.5,27h2C15.8,27,16,27.2,16,27.5zM18,23.5v4c0,0.3-0.2,0.5-0.5,0.5S17,27.8,17,27.5v-4c0-0.3,0.2-0.5,0.5-0.5S18,23.2,18,23.5zM21.5,23h-2c-0.3,0-0.5,0.2-0.5,0.5v4c0,0.3,0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5V26h1.5c0.8,0,1.5-0.7,1.5-1.5S22.3,23,21.5,23zM21.5,25H20v-1h1.5c0.3,0,0.5,0.2,0.5,0.5S21.8,25,21.5,25zM11,27.5c0,0.3-0.2,0.5-0.5,0.5S10,27.8,10,27.5c0-0.3,0.2-0.5,0.5-0.5S11,27.2,11,27.5zM18,15.5v2.9c0,0.3-0.2,0.5-0.5,0.5h-0.9c-0.3,0-0.5-0.2-0.5-0.5v-2.9c0-0.3,0.2-0.5,0.5-0.5h0.9C17.8,15,18,15.2,18,15.5z"
                         :icon/zip-hover "M31.4,29.6c0.2,0.2,0.2,0.5,0,0.7l-3.5,3.5c0,0-0.1,0.1-0.2,0.1c-0.1,0-0.1,0-0.2,0s-0.1,0-0.2,0c-0.1,0-0.1-0.1-0.2-0.1l-3.5-3.5c-0.2-0.2-0.2-0.5,0-0.7s0.5-0.2,0.7,0l2.7,2.7v-6.8c0-0.3,0.2-0.5,0.5-0.5s0.5,0.2,0.5,0.5v6.8l2.7-2.7C30.9,29.4,31.2,29.4,31.4,29.6zM32,9.2c0-0.6-0.2-1.2-0.7-1.6l-5.9-5.9C25,1.2,24.4,1,23.8,1L4.3,1C3.6,1,3,1.6,3,2.3l0,30.4C3,33.4,3.6,34,4.3,34h19.2c0.3,0,0.5-0.2,0.5-0.5c0-0.3-0.2-0.5-0.5-0.5H4.3C4.1,33,4,32.9,4,32.7L4,2.3C4,2.1,4.1,2,4.3,2l19.5,0c0.3,0,0.7,0.1,0.9,0.4l5.9,5.9C30.8,8.5,31,8.9,31,9.2l0,18.3c0,0.3,0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5L32,9.2zM29,10c0.3,0,0.5-0.2,0.5-0.5C29.5,9.2,29.3,9,29,9l-4.9,0C24,9,24,9,24,8.9L24,4c0-0.3-0.2-0.5-0.5-0.5S23,3.7,23,4l0,4.9c0,0.6,0.5,1.1,1.1,1.1L29,10zM17.5,13c-0.3,0-0.5,0.2-0.5,0.5s0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5S17.8,13,17.5,13zM17.5,11c-0.3,0-0.5,0.2-0.5,0.5s0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5S17.8,11,17.5,11zM17.5,9C17.2,9,17,9.2,17,9.5c0,0.3,0.2,0.5,0.5,0.5S18,9.8,18,9.5C18,9.2,17.8,9,17.5,9zM17.5,7C17.2,7,17,7.2,17,7.5s0.2,0.5,0.5,0.5S18,7.8,18,7.5S17.8,7,17.5,7zM17.5,5C17.2,5,17,5.2,17,5.5c0,0.3,0.2,0.5,0.5,0.5S18,5.8,18,5.5C18,5.2,17.8,5,17.5,5zM17.5,3C17.2,3,17,3.2,17,3.5s0.2,0.5,0.5,0.5S18,3.8,18,3.5S17.8,3,17.5,3zM16.5,13.1c0.3,0,0.5-0.2,0.5-0.5S16.8,12,16.5,12s-0.5,0.2-0.5,0.5S16.2,13.1,16.5,13.1zM16.5,11.1c0.3,0,0.5-0.2,0.5-0.5S16.8,10,16.5,10s-0.5,0.2-0.5,0.5S16.2,11.1,16.5,11.1zM16.5,9.1c0.3,0,0.5-0.2,0.5-0.5C17,8.2,16.8,8,16.5,8s-0.5,0.2-0.5,0.5C15.9,8.9,16.2,9.1,16.5,9.1zM16.5,7.1c0.3,0,0.5-0.2,0.5-0.5S16.8,6,16.5,6s-0.5,0.2-0.5,0.5S16.2,7.1,16.5,7.1zM16.5,5.1c0.3,0,0.5-0.2,0.5-0.5C17,4.2,16.8,4,16.5,4s-0.5,0.2-0.5,0.5C15.9,4.9,16.2,5.1,16.5,5.1zM12.1,27.7c0.1,0.2,0.3,0.3,0.4,0.3h3c0.3,0,0.5-0.2,0.5-0.5S15.8,27,15.5,27h-2l2.4-3.2c0.1-0.2,0.1-0.4,0-0.5S15.7,23,15.5,23h-3c-0.3,0-0.5,0.2-0.5,0.5s0.2,0.5,0.5,0.5h2l-2.4,3.2C12,27.4,12,27.6,12.1,27.7zM17,23.5v4c0,0.3,0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5v-4c0-0.3-0.2-0.5-0.5-0.5S17,23.2,17,23.5zM21.5,23c0.8,0,1.5,0.7,1.5,1.5S22.3,26,21.5,26H20v1.5c0,0.3-0.2,0.5-0.5,0.5S19,27.8,19,27.5v-4c0-0.3,0.2-0.5,0.5-0.5H21.5zM21.5,24H20v1h1.5c0.3,0,0.5-0.2,0.5-0.5S21.8,24,21.5,24zM10,27.5c0,0.3,0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5c0-0.3-0.2-0.5-0.5-0.5S10,27.2,10,27.5zM18,15.5c0-0.3-0.2-0.5-0.5-0.5h-0.9c-0.3,0-0.5,0.2-0.5,0.5v2.9c0,0.3,0.2,0.5,0.5,0.5h0.9c0.3,0,0.5-0.2,0.5-0.5V15.5z"))
       (dissoc :type)
-      (provide-defaults :fill (case type
-                                :icon/circle-check "#65c647"
-                                (:icon/triangle-error :icon/triangle-sad) "#e32f44"
-                                "#9fb0be"))))
+      (util/provide-defaults :fill (case type
+                                     :icon/circle-check "#65c647"
+                                     (:icon/triangle-error :icon/triangle-sad) "#e32f44"
+                                     :icon/triangle-warning "#e6b711"
+                                     "#9fb0be"))))
 
-(deftype PartialFn [pfn fn args]
-  Fn
-  IFn
-  (invoke [_]
-    (pfn))
-  (invoke [_ a]
-    (pfn a))
-  (invoke [_ a b]
-    (pfn a b))
-  (invoke [_ a b c]
-    (pfn a b c))
-  (invoke [_ a b c d]
-    (pfn a b c d))
-  (invoke [_ a b c d e]
-    (pfn a b c d e))
-  (invoke [_ a b c d e f]
-    (pfn a b c d e f))
-  (invoke [_ a b c d e f g]
-    (pfn a b c d e f g))
-  (invoke [_ a b c d e f g h]
-    (pfn a b c d e f g h))
-  (invoke [_ a b c d e f g h i]
-    (pfn a b c d e f g h i))
-  (invoke [_ a b c d e f g h i j]
-    (pfn a b c d e f g h i j))
-  (invoke [_ a b c d e f g h i j k]
-    (pfn a b c d e f g h i j k))
-  (invoke [_ a b c d e f g h i j k l]
-    (pfn a b c d e f g h i j k l))
-  (invoke [_ a b c d e f g h i j k l m]
-    (pfn a b c d e f g h i j k l m))
-  (invoke [_ a b c d e f g h i j k l m n]
-    (pfn a b c d e f g h i j k l m n))
-  (invoke [_ a b c d e f g h i j k l m n o]
-    (pfn a b c d e f g h i j k l m n o))
-  (invoke [_ a b c d e f g h i j k l m n o p]
-    (pfn a b c d e f g h i j k l m n o p))
-  (invoke [_ a b c d e f g h i j k l m n o p q]
-    (pfn a b c d e f g h i j k l m n o p q))
-  (invoke [_ a b c d e f g h i j k l m n o p q r]
-    (pfn a b c d e f g h i j k l m n o p q r))
-  (invoke [_ a b c d e f g h i j k l m n o p q r s]
-    (pfn a b c d e f g h i j k l m n o p q r s))
-  (invoke [_ a b c d e f g h i j k l m n o p q r s t]
-    (pfn a b c d e f g h i j k l m n o p q r s t))
-  (invoke [_ a b c d e f g h i j k l m n o p q r s t rest]
-    (apply pfn a b c d e f g h i j k l m n o p q r s t rest))
-  (applyTo [_ arglist]
-    (apply pfn arglist))
-  IHashEq
-  (hasheq [_]
-    (hash [fn args]))
-  Object
-  (equals [_ obj]
-    (if (instance? PartialFn obj)
-      (let [^PartialFn that obj]
-        (and (= fn (.-fn that))
-             (= args (.-args that))))
-      false)))
+(def ^:private ^{:arglists '([props])} resolve-grid-spacing
+  (let [spacing->style-class (coll/pair-map-by identity #(str "ext-grid-spacing-" (name %)) (:spacing ui-docs/enums))]
+    (fn resolve-grid-spacing [props]
+      (let [spacing (get props :spacing ::not-found)]
+        (if (identical? spacing ::not-found)
+          props
+          (if-let [style-class (spacing->style-class spacing)]
+            (-> props
+                (dissoc :spacing)
+                (add-style-classes style-class))
+            (if (number? spacing)
+              (-> props
+                  (dissoc :spacing)
+                  (assoc :hgap spacing :vgap spacing))
+              (throw (AssertionError. (str "Invalid spacing: " spacing))))))))))
 
-(defn partial [f & args]
-  (PartialFn. (apply clojure.core/partial f args) f args))
+(def ^:private ^{:arglists '([props])} resolve-spacing
+  (let [spacing->style-class (coll/pair-map-by identity #(str "ext-spacing-" (name %)) (:spacing ui-docs/enums))]
+    (fn resolve-spacing [props]
+      (let [spacing (get props :spacing ::not-found)]
+        (if (identical? spacing ::not-found)
+          props
+          (if-let [style-class (spacing->style-class spacing)]
+            (-> props
+                (dissoc :spacing)
+                (add-style-classes style-class))
+            (if (number? spacing)
+              props
+              (throw (AssertionError. (str "Invalid spacing: " spacing))))))))))
+
+(def ^:private ^{:arglists '([props])} resolve-padding
+  (let [padding->style-class (coll/pair-map-by identity #(str "ext-padding-" (name %)) (:padding ui-docs/enums))]
+    (fn resolve-padding [props]
+      (let [padding (get props :padding ::not-found)]
+        (if (identical? padding ::not-found)
+          props
+          (if-let [style-class (padding->style-class padding)]
+            (-> props (dissoc :padding) (add-style-classes style-class))
+            (if (number? padding)
+              props
+              (throw (AssertionError. (str "Invalid padding: " padding))))))))))
+
+(defn- resolve-alignment [props]
+  (let [alignment (get props :alignment ::not-found)]
+    (if (identical? alignment ::not-found)
+      props
+      (case alignment
+        (:top-left :top-center :top-right :center-left :center :center-right :bottom-left :bottom-center :bottom-right) props
+        :top (assoc props :alignment :top-center)
+        :left (assoc props :alignment :center-left)
+        :right (assoc props :alignment :center-right)
+        :bottom (assoc props :alignment :bottom-center)))))
+
+(defn grid
+  "Grid pane
+
+  Supports all :grid-pane props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :padding      either :none, :small, :medium, :large or number
+    :spacing      either :none, :small, :medium, :large or number"
+  [props]
+  (-> props
+      (assoc :fx/type fx.grid-pane/lifecycle)
+      resolve-grid-spacing
+      resolve-padding
+      resolve-alignment))
+
+(defn horizontal
+  "Horizontal Box
+
+  Supports all :h-box props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :padding      either :none, :small, :medium, :large or number
+    :spacing      either :none, :small, :medium, :large or number"
+  [props]
+  (-> props
+      (assoc :fx/type fx.h-box/lifecycle)
+      resolve-spacing
+      resolve-padding
+      resolve-alignment))
+
+(defn vertical
+  "Vertical Box
+
+  Supports all :v-box props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :padding      either :none, :small, :medium, :large or number
+    :spacing      either :none, :small, :medium, :large or number"
+  [props]
+  (-> props
+      (assoc :fx/type fx.v-box/lifecycle)
+      resolve-spacing
+      resolve-padding
+      resolve-alignment))
+
+(def ^:private ^{:arglists '([props])} resolve-label-color
+  (let [color->style-class (fn/make-case-fn (coll/pair-map-by identity #(str "ext-label-color-" (name %)) (:color ui-docs/enums)))]
+    (fn resolve-label-color [props]
+      (let [color (get props :color ::not-found)]
+        (if (identical? color ::not-found)
+          props
+          (-> props (dissoc :color) (add-style-classes (color->style-class color))))))))
+
+(defn- resolve-tooltip [{:keys [tooltip] :as props}]
+  (if (string? tooltip)
+    (assoc props :tooltip {:fx/type fx.tooltip/lifecycle
+                           :wrap-text true
+                           :max-width 600
+                           :text tooltip
+                           :hide-delay [200 :ms]
+                           :show-delay [200 :ms]
+                           :show-duration [30 :s]})
+    props))
+
+(defn label
+  "Unresizable label, intended to be used as a form input label
+
+  Supports all :label props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :color        either :text, :hint, :override, :warning or :error
+    :tooltip      additionally supports string values"
+  [props]
+  (-> props
+      (assoc :fx/type fx.label/lifecycle)
+      (prepend-style-classes "label" "ext-label")
+      (util/provide-defaults
+        :alignment :top-left
+        :min-width :use-pref-size
+        :min-height :use-pref-size
+        :max-width Double/MAX_VALUE
+        :max-height Double/MAX_VALUE)
+      resolve-alignment
+      resolve-label-color
+      resolve-tooltip))
+
+(defn- resolve-input-color [props]
+  (let [color (:color props ::not-found)]
+    (case color
+      ::not-found props
+      (:warning :error) (-> props (dissoc :color) (update :pseudo-classes (fnil conj #{}) color)))))
+
+(defn check-box
+  "Check box
+
+  Supports all :check-box props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :tooltip      additionally supports string values
+    :color        either :warning or :error"
+  [props]
+  (-> props
+      (assoc :fx/type fx.check-box/lifecycle)
+      (prepend-style-classes "check-box" "ext-check-box")
+      (util/provide-defaults
+        :mnemonic-parsing false
+        :min-width :use-pref-size
+        :min-height :use-pref-size
+        :max-width Double/MAX_VALUE
+        :max-height Double/MAX_VALUE)
+      resolve-alignment
+      resolve-input-color
+      resolve-tooltip))
+
+(defn text-field
+  "Text field
+
+  Supports all :text-field props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :tooltip      additionally supports string values
+    :color        either :warning or :error"
+  [props]
+  (-> props
+      (assoc :fx/type fx.text-field/lifecycle)
+      (prepend-style-classes "text-input" "text-field" "ext-text-field")
+      resolve-alignment
+      resolve-input-color
+      resolve-tooltip))
+
+(defn password-field
+  "Password field
+
+  Supports all :password-field props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :tooltip      additionally supports string values
+    :color        either :warning or :error"
+  [props]
+  (-> props
+      (assoc :fx/type fx.password-field/lifecycle)
+      (prepend-style-classes "text-input" "text-field" "ext-text-field" "password-field")
+      resolve-alignment
+      resolve-input-color
+      resolve-tooltip))
+
+(defn text-area
+  [props]
+  (-> props
+      (assoc :fx/type fx.text-area/lifecycle)
+      (prepend-style-classes "text-input" "text-area" "ext-text-area")
+      resolve-input-color
+      resolve-tooltip))
+
+(defn- handle-value-field-key-pressed [edit text swap-state on-value-changed to-value commit-on-enter ^KeyEvent e]
+  (condp = (.getCode e)
+    KeyCode/ENTER
+    (when (and (or commit-on-enter (.isShortcutDown e))
+               (not= edit text))
+      (.consume e)
+      (if-some [value (to-value edit)]
+        (do (swap-state #(-> % (assoc :value value) (dissoc :edit)))
+            (when on-value-changed (on-value-changed value)))
+        (.play
+          (SequentialTransition.
+            (.getSource e)
+            (into-array Animation [(doto (TranslateTransition. (Duration. 30.0)) (.setByX 4.0))
+                                   (doto (TranslateTransition. (Duration. 30.0)) (.setByX -8.0))
+                                   (doto (TranslateTransition. (Duration. 30.0)) (.setByX 7.0))
+                                   (doto (TranslateTransition. (Duration. 30.0)) (.setByX -4.0))
+                                   (doto (TranslateTransition. (Duration. 30.0)) (.setByX 1.0))])))))
+
+    KeyCode/ESCAPE
+    (when-not (= edit text)
+      (.consume e)
+      (swap-state dissoc :edit))
+
+    nil))
+
+(defn- handle-value-field-focused-changed [edit text swap-state on-value-changed to-value focused]
+  (when (and (not focused) (not= edit text))
+    (if-some [value (to-value edit)]
+      (do (swap-state #(-> % (assoc :value value) (dissoc :edit)))
+          (when on-value-changed (on-value-changed value)))
+      (swap-state dissoc :edit))))
+
+(def ^:private ext-with-value-field-text-props
+  (fx/make-ext-with-props
+    {:text (fx.prop/make
+             (fx.mutator/setter
+               (fn [^TextInputControl text-input text]
+                 (when-not (= text (.getText text-input))
+                   (.setText text-input text)
+                   (.selectAll text-input))))
+             fx.lifecycle/scalar)}))
+
+(defn- value-field-impl-final-step [{:keys [state swap-state text on-value-changed to-value component commit-on-enter]
+                                     :or {to-value identity}
+                                     :as props}]
+  (let [edit (:edit state text)]
+    {:fx/type ext-with-value-field-text-props
+     :props {:text edit}
+     :desc (-> props
+               (assoc :fx/type component
+                      :on-text-changed (fn/partial swap-state assoc :edit)
+                      :on-key-pressed (fn/partial handle-value-field-key-pressed edit text swap-state on-value-changed to-value commit-on-enter)
+                      :on-focused-changed (fn/partial handle-value-field-focused-changed edit text swap-state on-value-changed to-value))
+               (dissoc :state :swap-state :on-value-changed :to-value :text :component :commit-on-enter))}))
+
+(defn- stringify-value [f v]
+  (if (identical? v ::not-found)
+    ""
+    (str (f v))))
+
+(defn- value-field-impl-stringify-step [props]
+  {:fx/type ext-memo
+   :fn stringify-value
+   :args [(:to-string props str) (-> props :state :value)]
+   :key :text
+   :desc (-> props
+             (assoc :fx/type value-field-impl-final-step)
+             (dissoc :to-string :value))})
+
+(defn- make-value-field [component commit-on-enter props]
+  {:fx/type fx/ext-state
+   :initial-state {:value (:value props ::not-found)}
+   :desc (assoc props :fx/type value-field-impl-stringify-step
+                      :component component
+                      :commit-on-enter commit-on-enter)})
+
+(defn value-field
+  "Text field with value commit/reset semantics
+
+  Supports all :text-field props, plus:
+    :value               the edited value
+    :on-value-changed    value change callback
+    :to-string           value->string converter, default str
+    :to-value            string->value converter, default identity, returning
+                         nil implies value could not be converted"
+  [props]
+  (make-value-field text-field true props))
+
+
+(defn password-value-field
+  "Password field with value commit/reset semantics
+
+  Supports all :password-field props, plus:
+    :value               the edited value
+    :on-value-changed    value change callback
+    :to-string           value->string converter, default str
+    :to-value            string->value converter, default identity, returning
+                         nil implies value could not be converted"
+  [props]
+  (make-value-field password-field true props))
+
+(defn value-area
+  "Text area with value commit/reset semantics
+
+  Supports all :text-area props, plus:
+    :value               the edited value
+    :on-value-changed    value change callback
+    :to-string           value->string converter, default str
+    :to-value            string->value converter, default identity, returning
+                         nil implies value could not be converted"
+  [props]
+  (make-value-field text-area false props))
+
+(def ^:private ext-with-expanded-scroll-pane-content-props
+  (fx/make-ext-with-props
+    {:content (fx.prop/make
+                (fx.mutator/adder-remover
+                  (fn add-scroll-pane-content [^ScrollPane scroll-pane ^Region content]
+                    (let [^Region scroll-bar (.lookup scroll-pane ".ext-scroll-pane>.scroll-bar:horizontal")]
+                      (.setContent scroll-pane content)
+                      (.bind (.minHeightProperty content)
+                             (Bindings/createDoubleBinding
+                               (fn []
+                                 (cond-> (.getHeight scroll-pane)
+                                         (.isVisible scroll-bar)
+                                         (- (.getHeight scroll-bar))))
+                               (into-array
+                                 Observable
+                                 [(.heightProperty scroll-pane)
+                                  (.visibleProperty scroll-bar)
+                                  (.heightProperty scroll-bar)])))))
+                  (fn remove-scroll-pane-content [_ ^Region content]
+                    (.unbind (.minHeightProperty content))))
+                fx.lifecycle/dynamic)}))
+
+(def ^:private ext-with-scroll-pane-skin-props
+  (fx/make-ext-with-props
+    {:skin (fx.prop/make
+             (fx.mutator/adder-remover
+               (fn add-skin [^ScrollPane instance flag]
+                 {:pre [(true? flag)]}
+                 (.setSkin instance (ScrollPaneSkin. instance)))
+               (fn remove-skin [_ _]
+                 (throw (AssertionError. "Can't remove skin!"))))
+             fx.lifecycle/scalar)}))
+
+(defn scroll
+  "Scroll pane that automatically makes its content to fill the whole viewport
+
+  Supports all :scroll-pane props"
+  [props]
+  ;; We need to set ScrollPane skin, so it creates ScrollBars, so we can grow
+  ;; the content to fill the ScrollPane
+  {:fx/type ext-with-expanded-scroll-pane-content-props
+   :props (if-let [content (:content props)]
+            {:content content}
+            {})
+   :desc {:fx/type ext-with-scroll-pane-skin-props
+          :props {:skin true}
+          :desc (-> props
+                    (assoc :fx/type fx.scroll-pane/lifecycle)
+                    (dissoc :content)
+                    (prepend-style-classes "ext-scroll-pane")
+                    (util/provide-defaults :fit-to-width true))}})
+
+(defmacro defc
+  "Define a composed component
+
+  Requires attr-map with :compose vector that contains a flat list of extension
+  lifecycles that requires :desc, and passes extra props to the desc — but
+  without the :desc specified. The resulting component is a composition of such
+  lifecycles
+
+  Example:
+    (fxui/defc stateful-text-field
+      {:compose [{:fx/type fx/ext-state
+                  :initial-state \"\"}]}
+      [{:keys [state swap-state]}]
+      {:fx/type fxui/text-field
+       :text state
+       :on-text-changed #(swap-state (constantly %)})"
+  [name attr-map & fn-tail]
+  (let [{:keys [compose]} attr-map]
+    (assert (vector? compose) "defc requires the attr-map to define a :compose key")
+    `(do
+       ~@(let [n (count compose)]
+           (loop [i (dec n)
+                  acc-name (if (zero? n) name (symbol (str name "$phase-" n)))
+                  acc [`(defn ~acc-name ~@fn-tail)]]
+             (if (neg? i)
+               acc
+               (let [def-name (if (zero? i) name (symbol (str name "$phase-" i)))]
+                 (recur
+                   (dec i)
+                   def-name
+                   (let [ext (compose i)]
+                     (conj acc
+                           `(defn ~def-name [~'props]
+                              ~(assoc ext :desc `(assoc ~'props :fx/type ~acc-name)))))))))))))
+
+(defn paragraph
+  "Resizable label with word-wrapping
+
+  Supports all :label props, plus:
+    :alignment    additionally supports :top, :left, :right and :bottom
+    :color        either :text, :hint, :override, :warning or :error
+    :tooltip      additionally supports string values"
+  [props]
+  (-> props
+      (assoc :fx/type fx.label/lifecycle)
+      (prepend-style-classes "label")
+      (util/provide-defaults
+        :max-width Double/MAX_VALUE
+        :max-height Double/MAX_VALUE
+        :wrap-text true)
+      resolve-alignment
+      resolve-label-color
+      resolve-tooltip))

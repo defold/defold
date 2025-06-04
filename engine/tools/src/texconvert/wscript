@@ -1,17 +1,11 @@
 #! /usr/bin/env python
 import os
-import waflib.Options
 
 def configure(conf):
     pass
 
 def build(bld):
-    # if not desktop
-    if not bld.env.PLATFORM in ('x86_64-win32', 'x86_64-macos', 'x86_64-linux'):
-        return
-
-    b = bld.program(features         = 'c cprogram cxx',
-                    use              = 'DLIB TEXC PROFILE_NULL BASIS_ENCODER',
-                    source           = 'main.cpp',
-                    target           = 'texconvert')
-
+    bld.program(features         = 'c cprogram cxx',
+                use              = 'DLIB TEXC PROFILE_NULL PLATFORM_NULL BASIS_ENCODER',
+                source           = 'main.cpp',
+                target           = 'texconvert')

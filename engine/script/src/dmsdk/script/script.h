@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -39,6 +39,7 @@ namespace dmScript
      * @name Script
      * @namespace dmScript
      * @path engine/dlib/src/dmsdk/script/script.h
+     * @language C++
      */
 
     /*#
@@ -137,7 +138,7 @@ namespace dmScript
      * top of the stack (and pops the object).
      * It also tracks number of global references kept.
      *
-     * @name dmScript::Ref
+     * @name Ref
      * @param L [type:lua_State*] lua state
      * @param table [type:int] table the lua table that stores the references. E.g LUA_REGISTRYINDEX
      * @return reference [type:int] the new reference
@@ -150,7 +151,7 @@ namespace dmScript
      * The entry is removed from the table, so that the referred object can be collected.
      * It also decreases the number of global references kept
      *
-     * @name dmScript::Unref
+     * @name Unref
      * @param L [type:lua_State*] lua state
      * @param table [type:int] table the lua table that stores the references. E.g LUA_REGISTRYINDEX
      * @param reference [type:int] the reference to the object
@@ -160,7 +161,7 @@ namespace dmScript
     /*#
      * Retrieve current script instance from the global table and place it on the top of the stack, only valid when set.
      * (see [ref:dmScript::GetMainThread])
-     * @name dmScript::GetInstance
+     * @name GetInstance
      * @param L [type:lua_State*] lua state
      */
     void GetInstance(lua_State* L);
@@ -169,14 +170,14 @@ namespace dmScript
      * Sets the current script instance
      * Set the value on the top of the stack as the instance into the global table and pops it from the stack.
      * (see [ref:dmScript::GetMainThread])
-     * @name dmScript::SetInstance
+     * @name SetInstance
      * @param L [type:lua_State*] lua state
      */
     void SetInstance(lua_State* L);
 
     /*#
      * Check if the script instance in the lua state is valid. The instance is assumed to have been previously set by [ref:dmScript::SetInstance].
-     * @name dmScript::IsInstanceValid
+     * @name IsInstanceValid
      * @param L [type:lua_State*] lua state
      * @return boolean [type:bool] Returns true if the instance is valid
      */
@@ -184,7 +185,7 @@ namespace dmScript
 
     /*#
      * Retrieve the main thread lua state from any lua state (main thread or coroutine).
-     * @name dmScript::GetMainThread
+     * @name GetMainThread
      * @param L [type:lua_State*] lua state
      * @return lua_State [type:lua_State*] the main thread lua state
      *
@@ -246,6 +247,7 @@ namespace dmScript
 
     /*#
      * Retrieve Lua state from the context
+     * @name GetLuaState
      * @param context [type: HContext] the script context
      * @return state [type: lua_State*] the lua state
      */
@@ -253,7 +255,7 @@ namespace dmScript
 
     /*# get the value at index as a dmVMath::Vector3*
      * Get the value at index as a dmVMath::Vector3*
-     * @name dmScript::ToVector3
+     * @name ToVector3
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return v [type:dmVMath::Vector3*] The pointer to the value, or 0 if not correct type
@@ -262,7 +264,7 @@ namespace dmScript
 
     /*#
      * Check if the value at #index is a dmVMath::Vector3*
-     * @name dmScript::IsVector3
+     * @name IsVector3
      * @param L Lua state
      * @param index Index of the value
      * @return true if value at #index is a dmVMath::Vector3*
@@ -272,7 +274,7 @@ namespace dmScript
     /*# push a dmVMath::Vector3 onto the Lua stack
      *
      * Push a dmVMath::Vector3 value onto the supplied lua state, will increase the stack by 1.
-     * @name dmScript::PushVector3
+     * @name PushVector3
      * @param L [type:lua_State*] Lua state
      * @param v [type:dmVMath::Vector3] Vector3 value to push
      */
@@ -282,7 +284,7 @@ namespace dmScript
      *
      * Check if the value in the supplied index on the lua stack is a dmVMath::Vector3.
      * @note throws a luaL_error if it's not the correct type
-     * @name dmScript::CheckVector3
+     * @name CheckVector3
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return vector3 [type:dmVMath::Vector3*] The pointer to the value
@@ -291,7 +293,7 @@ namespace dmScript
 
     /*# get the value at index as a dmVMath::Vector4*
      * Get the value at index as a dmVMath::Vector4*
-     * @name dmScript::ToVector4
+     * @name ToVector4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return v [type:dmVMath::Vector4*] The pointer to the value, or 0 if not correct type
@@ -300,7 +302,7 @@ namespace dmScript
 
     /*#
      * Check if the value at #index is a dmVMath::Vector4*
-     * @name dmScript::IsVector4
+     * @name IsVector4
      * @param L Lua state
      * @param index Index of the value
      * @return true if value at #index is a dmVMath::Vector4*
@@ -309,7 +311,7 @@ namespace dmScript
 
     /*# push a dmVMath::Vector4 on the stack
      * Push a dmVMath::Vector4 value onto the supplied lua state, will increase the stack by 1.
-     * @name dmScript::PushVector4
+     * @name PushVector4
      * @param L [type:lua_State*] Lua state
      * @param v [type:dmVMath::Vector4] dmVMath::Vector4 value to push
      */
@@ -319,7 +321,7 @@ namespace dmScript
      *
      * Check if the value in the supplied index on the lua stack is a dmVMath::Vector3.
      * @note throws a luaL_error if it's not the correct type
-     * @name dmScript::CheckVector4
+     * @name CheckVector4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return vector4 [type:dmVMath::Vector4*] The pointer to the value
@@ -328,7 +330,7 @@ namespace dmScript
 
     /*# get the value at index as a dmVMath::Quat*
      * Get the value at index as a dmVMath::Quat*
-     * @name dmScript::ToQuat
+     * @name ToQuat
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return quat [type:dmVMath::Quat*] The pointer to the value, or 0 if not correct type
@@ -337,7 +339,7 @@ namespace dmScript
 
     /*#
      * Check if the value at #index is a dmVMath::Quat*
-     * @name dmScript::IsQuat
+     * @name IsQuat
      * @param L Lua state
      * @param index Index of the value
      * @return true if value at #index is a dmVMath::Quat*
@@ -346,7 +348,7 @@ namespace dmScript
 
     /*# push a dmVMath::Quat onto the Lua stack
      * Push a quaternion value onto Lua stack. Will increase the stack by 1.
-     * @name dmScript::PushQuat
+     * @name PushQuat
      * @param L [type:lua_State*] Lua state
      * @param quat [type:dmVMath::Quat] dmVMath::Quat value to push
      */
@@ -356,7 +358,7 @@ namespace dmScript
      *
      * Check if the value in the supplied index on the lua stack is a dmVMath::Quat.
      * @note throws a luaL_error if it's not the correct type
-     * @name dmScript::CheckQuat
+     * @name CheckQuat
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return quat [type:dmVMath::Quat*] The pointer to the value
@@ -365,7 +367,7 @@ namespace dmScript
 
     /*# get the value at index as a dmVMath::Matrix4*
      * Get the value at index as a dmVMath::Matrix4*
-     * @name dmScript::ToMatrix4
+     * @name ToMatrix4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return quat [type:dmVMath::Matrix4*] The pointer to the value, or 0 if not correct type
@@ -374,7 +376,7 @@ namespace dmScript
 
     /*#
      * Check if the value at #index is a dmVMath::Matrix4*
-     * @name dmScript::IsMatrix4
+     * @name IsMatrix4
      * @param L Lua state
      * @param index Index of the value
      * @return true if value at #index is a dmVMath::Matrix4*
@@ -383,7 +385,7 @@ namespace dmScript
 
     /*# push a dmVMath::Matrix4 onto the Lua stack
      * Push a matrix4 value onto the Lua stack. Will increase the stack by 1.
-     * @name dmScript::PushMatrix4
+     * @name PushMatrix4
      * @param L [type:lua_State*] Lua state
      * @param matrix [type:dmVMath::Matrix4] dmVMath::Matrix4 value to push
      */
@@ -394,7 +396,7 @@ namespace dmScript
      * Check if the value in the supplied index on the lua stack is a dmVMath::Matrix4.
      *
      * @note throws a luaL_error if it's not the correct type
-     * @name dmScript::CheckMatrix4
+     * @name CheckMatrix4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return matrix [type:dmVMath::Matrix4*] The pointer to the value
@@ -403,24 +405,33 @@ namespace dmScript
 
     /*#
      * Check if the value at #index is a hash
-     * @name dmScript::IsHash
+     * @name IsHash
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return true if the value at #index is a hash
+     * @return result [type:bool] true if the value at #index is a hash
      */
     bool IsHash(lua_State *L, int index);
 
     /*#
-     * Push a hash value onto the supplied lua state, will increase the stack by 1.
-     * @name dmScript::PushHash
+     * Check if the value at #index is a hash
+     * @name ToHash
      * @param L [type:lua_State*] Lua state
-     * @param hash [tyoe: dmhash_t] Hash value to push
+     * @param index [type:int] Index of the value
+     * @return hash [type: dmhash_t*] pointer to hash or 0 if it's not a hash
+     */
+    dmhash_t* ToHash(lua_State *L, int index);
+
+    /*#
+     * Push a hash value onto the supplied lua state, will increase the stack by 1.
+     * @name PushHash
+     * @param L [type:lua_State*] Lua state
+     * @param hash [type: dmhash_t] Hash value to push
      */
     void PushHash(lua_State* L, dmhash_t hash);
 
     /*# get hash value
      * Check if the value in the supplied index on the lua stack is a hash.
-     * @name dmScript::CheckHash
+     * @name CheckHash
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return The hash value
@@ -430,7 +441,7 @@ namespace dmScript
     /*# get hash from hash or string
      * Check if the value in the supplied index on the lua stack is a hash or string.
      * If it is a string, it gets hashed on the fly
-     * @name dmScript::CheckHashOrString
+     * @name CheckHashOrString
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return The hash value
@@ -450,10 +461,11 @@ namespace dmScript
 
     /*#
      * Push DDF message to Lua stack
+     * @name PushDDF
      * @param L [type: lua_State*] the Lua state
      * @param descriptor [type: const dmDDF::Descriptor*] field descriptor
-     * @param pointers_are_offets [type: bool] True if pointers are offsets
      * @param data [type: const char*] the message data (i.e. the message struct)
+     * @param pointers_are_offsets [type: bool] True if pointers are offsets
      */
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
 
@@ -461,7 +473,7 @@ namespace dmScript
      * Convert a Json string to Lua table.
      * @note Throws Lua error if it fails to parser the json
      *
-     * @name dmScript::JsonToLua
+     * @name JsonToLua
      * @param L [type:lua_State*] lua state
      * @param json [type:const char*] json string
      * @param json_len [type:size_t] length of json string
@@ -472,7 +484,7 @@ namespace dmScript
     /*# convert a Lua table to a Json string
      * Convert a Lua table to a Json string
      *
-     * @name dmScript::LuaToJson
+     * @name LuaToJson
      * @param L [type:lua_State*] lua state
      * @param json [type:char**] [out] Pointer to char*, which will receive a newly allocated string. Use free().
      * @param json_len [type:size_t*] length of json string
@@ -483,7 +495,7 @@ namespace dmScript
     /*# callback info struct
      * callback info struct that will hold the relevant info needed to make a callback into Lua
      * @struct
-     * @name dmScript::LuaCallbackInfo
+     * @name LuaCallbackInfo
      */
     struct LuaCallbackInfo;
 
@@ -497,7 +509,7 @@ namespace dmScript
      * If the callback is not explicitly deleted with DestroyCallback() the references and
      * data will stay around until the script instance is deleted.
      *
-     * @name dmScript::CreateCallback
+     * @name CreateCallback
      * @param L Lua state
      * @param index Lua stack index of the function
      * @return Lua callback struct if successful, 0 otherwise
@@ -533,19 +545,19 @@ namespace dmScript
     LuaCallbackInfo* CreateCallback(lua_State* L, int index);
 
     /*# Check if Lua callback is valid.
-     * @name dmScript::IsCallbackValid
+     * @name IsCallbackValid
      * @param cbk Lua callback struct
      */
     bool IsCallbackValid(LuaCallbackInfo* cbk);
 
     /*# Deletes the Lua callback
-     * @name dmScript::DestroyCallback
+     * @name DestroyCallback
      * @param cbk Lua callback struct
      */
     void DestroyCallback(LuaCallbackInfo* cbk);
 
     /*# Gets the Lua context from a callback struct
-     * @name dmScript::GetCallbackLuaContext
+     * @name GetCallbackLuaContext
      * @param cbk Lua callback struct
      * @return L Lua state
      */
@@ -562,7 +574,7 @@ namespace dmScript
      * ```
      *  In the event of an unsuccessful call, the Lua stack is unchanged
      *
-     * @name dmScript::SetupCallback
+     * @name SetupCallback
      * @param cbk Lua callback struct
      * @return true if the setup was successful
      */
@@ -577,7 +589,7 @@ namespace dmScript
      * ```
      * Both values are removed from the stack
      *
-     * @name dmScript::TeardownCallback
+     * @name TeardownCallback
      * @param cbk Lua callback struct
      */
     void TeardownCallback(LuaCallbackInfo* cbk);
@@ -586,7 +598,7 @@ namespace dmScript
      * This function wraps lua_pcall with the addition of specifying an error handler which produces a backtrace.
      * In the case of an error, the error is logged and popped from the stack.
      *
-     * @name dmScript::PCall
+     * @name PCall
      * @param L lua state
      * @param nargs number of arguments
      * @param nresult number of results
@@ -631,6 +643,7 @@ namespace dmScript
     /*#
      * Resolves the value in the supplied index on the lua stack to a URL. It long jumps (calls luaL_error) on failure.
      * It also gets the current (caller) url if the a pointer is passed to `out_default_url`
+     * @name ResolveURL
      * @param L [type:lua_State*] Lua state
      * @param out_url [type:dmMessage::URL*] where to store the result
      * @param out_default_url [type:dmMessage::URL*] default URL used in the resolve, can be 0x0 (not used)
@@ -663,6 +676,37 @@ namespace dmScript
      * @return buffer [type:const char*] returns the passed in buffer
      */
     const char* UrlToString(const dmMessage::URL* url, char* buffer, uint32_t buffer_size);
+
+    /**
+     * Get the size of a table when serialized
+     * @name CheckTableSize
+     * @param L [type: lua_State*] Lua state
+     * @param index [type: int] Index of the table
+     * @return result [type: uint32_t] Number of bytes required for the serialized table
+     */
+    uint32_t CheckTableSize(lua_State* L, int index);
+
+    /*#
+     * Serialize a table to a buffer
+     * Supported types: LUA_TBOOLEAN, LUA_TNUMBER, LUA_TSTRING, Point3, Vector3, Vector4 and Quat
+     * Keys must be strings
+     * @name CheckTable
+     * @param L [type: lua_State*] Lua state
+     * @param buffer [type: char*] Buffer that will be written to (must be DM_ALIGNED(16))
+     * @param buffer_size [type: uint32_t] Buffer size
+     * @param index [type: int] Index of the table
+     * @return result [type: uint32_t] Number of bytes used in buffer
+     */
+    uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index);
+
+    /**
+     * Push a serialized table to the supplied lua state, will increase the stack by 1.
+     * @name PushTable
+     * @param L [type: lua_State*] Lua state
+     * @param data [type: const char*] Buffer with serialized table to push
+     * @param data_size [type: uint32_t] Size of buffer of serialized data
+     */
+    void PushTable(lua_State* L, const char* data, uint32_t data_size);
 }
 
 #endif // DMSDK_SCRIPT_SCRIPT_H

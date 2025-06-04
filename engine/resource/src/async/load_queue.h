@@ -1,22 +1,23 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef RESOURCE_LOAD_QUEUE
-#define RESOURCE_LOAD_QUEUE
+#ifndef DM_RESOURCE_LOAD_QUEUE_H
+#define DM_RESOURCE_LOAD_QUEUE_H
 
-#include "resource.h"
-#include "resource_private.h"
+#include "../resource.h"
+#include "../resource_private.h"
+#include <dmsdk/resource/resource.h>
 
 namespace dmLoadQueue
 {
@@ -34,9 +35,11 @@ namespace dmLoadQueue
 
     struct PreloadInfo
     {
-        dmResource::FResourcePreload m_Function;
-        dmResource::PreloadHintInfo m_HintInfo;
-        void* m_Context;
+        ResourcePreloadHintInfo     m_HintInfo;
+        dmResource::HResourceType   m_Type;
+        // TODO: Now that we have the type, we can access these at the call site
+        FResourcePreload            m_CompleteFunction;
+        void*                       m_Context;
     };
 
     struct LoadResult
@@ -44,6 +47,7 @@ namespace dmLoadQueue
         dmResource::Result m_LoadResult;
         dmResource::Result m_PreloadResult;
         void* m_PreloadData;
+        bool m_IsBufferOwnershipTransferred; // If true, the resource preloader has taken ownership of the data
     };
 
     HQueue CreateQueue(dmResource::HFactory factory);
@@ -54,10 +58,10 @@ namespace dmLoadQueue
     HRequest BeginLoad(HQueue queue, const char* name, const char* canonical_path, PreloadInfo* info);
 
     // Actual load result will be put in load_result. Ptrs can be handled until FreeLoad has been called.
-    Result EndLoad(HQueue queue, HRequest request, void** buf, uint32_t* size, LoadResult* load_result);
+    Result EndLoad(HQueue queue, HRequest request, void** buffer, uint32_t* buffer_size, uint32_t* resource_size, LoadResult* load_result);
 
     // Free once completed.
     void FreeLoad(HQueue queue, HRequest request);
 } // namespace dmLoadQueue
 
-#endif
+#endif // DM_RESOURCE_LOAD_QUEUE_H

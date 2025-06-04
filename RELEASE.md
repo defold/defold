@@ -28,10 +28,14 @@ The alpha channel is automatically released for every successful push to dev.
         $ git merge dev
         $ git push
 
-    Beta beta channel is automatically released for every successful push to beta.
+    Beta channel is automatically released for every successful push to beta.
 
-1. Collect release notes using `python scripts/releasenotes_git.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
+1. Collect release notes using `python scripts/releasenotes_github_projectv2.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
 and add the "BETA" tag to the headline
+
+* Note: The release notes script requires a github access token to work correctly (https://github.com/settings/tokens). If the token is incorrect, you will likely get an error saying 'Unable to find GitHub project for version x.x.x'. Create a "classic" github token and add permissions to read projects. If the script still fails, you might need more permissions.
+
+### Update private repos
 
 1. Also update the beta for the console platforms
 
@@ -93,6 +97,15 @@ and add the "BETA" tag to the headline
 
 1. Repost the releasenotes on the [forum](https://forum.defold.com/) and remove the "BETA" part from the headline
 
+1. Announce the Stable release in other channels:
+
+* Twitter (https://x.com/defold)
+* LinkedIn (https://www.linkedin.com/company/53400322/admin/page-posts/published/?share=true)
+* Discord (usually done by Amel)
+* Telegram (usually done by Alexey)
+* WebGameDev Discord Native Engines channel (https://discord.com/channels/1032873609280106566/1052862658954670120)
+* Poki Discord (https://discord.com/channels/466173880751357963/940949540012433488)
+
 ### Update private repos
 
 1. Update the master branch for the console platforms
@@ -112,9 +125,18 @@ and add the "BETA" tag to the headline
 1. Update the dev branch for the console platforms
 
         $ cd defold-platform
+        $ git checkout master
+        $ git pull
         $ git checkout dev
         $ git pull
+        $ git merge master
         $ git fetch upstream
         $ git merge upstream/dev
         $ git push
 
+
+## Release stable to other stores
+
+* Steam - Follow instructions [here](/RELEASE_STEAM).
+* Epic Game Store - Follow instructions [here](/RELEASE_EGS).
+* itch.io - Configured with an external link to the latest stable releases on GitHub

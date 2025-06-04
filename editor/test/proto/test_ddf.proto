@@ -6,25 +6,21 @@ import "ddf/ddf_math.proto";
 
 option java_package = "com.defold.editor.test";
 
-message Transform
-{
+message Transform {
     required dmMath.Vector3 position = 1;
     required dmMath.Quat rotation = 2;
 }
 
-message SubMsg
-{
+message SubMsg {
     required uint32 uint_value = 1;
 }
 
-enum Enum
-{
+enum Enum {
     ENUM_VAL0 = 0;
     ENUM_VAL1 = 1;
 }
 
-message Msg
-{
+message Msg {
     required uint32 uint_value = 1;
     required int32 int_value = 2;
     required string string_value = 3;
@@ -37,66 +33,131 @@ message Msg
     required bool bool_value = 10;
 }
 
-message DefaultValue
-{
-    optional uint32 uint_value = 1 [ default = 10 ];
-    optional string string_value = 2  [ default = "test" ];
+message DefaultValue {
+    optional uint32 uint_value = 1 [default = 10];
+    optional string string_value = 2 [default = "test"];
     optional dmMath.Quat quat_value = 3;
-    optional Enum enum_value = 4 [ default = ENUM_VAL1 ];
-    optional bool bool_value = 5 [ default = true ];
+    optional Enum enum_value = 4 [default = ENUM_VAL1];
+    optional bool bool_value = 5 [default = true];
 }
 
-message OptionalNoDefaultValue
-{
+message NestedDefaultsSubMsg {
+    optional string optional_string = 1 [default = "default"];
+    optional int32 optional_int = 2 [default = 10];
+    optional dmMath.Quat optional_quat = 3;
+    optional Enum optional_enum = 4 [default = ENUM_VAL1];
+    optional bool optional_bool = 5 [default = true];
+}
+
+message NestedDefaults {
+    required string required_string = 1;
+    optional string optional_with_default = 2 [default = "default"];
+    optional string optional_without_default = 3;
+    optional NestedDefaultsSubMsg optional_message = 4;
+    repeated NestedDefaultsSubMsg repeated_message = 5;
+    repeated int32 repeated_int = 6;
+}
+
+message NestedRequiredsSubMsg {
+    required string required_string = 1;
+    required dmMath.Quat required_quat = 2;
+    required Enum required_enum = 3;
+}
+
+message NestedRequireds {
+    required NestedRequiredsSubMsg required_message = 1;
+    optional NestedRequiredsSubMsg optional_message = 2;
+    repeated NestedRequiredsSubMsg repeated_message = 3;
+}
+
+message ResourceFields {
+    optional string optional_resource = 1 [(resource) = true, default = "/default"];
+}
+
+message OptionalNoDefaultValue {
     optional uint32 uint_value = 1;
     optional string string_value = 2;
     optional Enum enum_value = 3;
 }
 
-message LuaDDFBufferOverflow
-{
+message LuaDDFBufferOverflow {
     required uint32 uint_value = 1;
     required string string_value = 3;
 }
 
 message EmptyMsg {}
 
-message Uint64Msg
-{
+message Uint64Msg {
     required uint64 uint64_value = 1;
 }
 
-message RepeatedUints
-{
+message RepeatedUints {
     repeated uint32 uint_values = 1;
 }
 
-message NestedMessages
-{
-	message NestedEnum
-	{
-        enum Enum
-        {
+message NestedMessages {
+    message NestedEnum {
+        enum Enum {
             ENUM_VAL0     = 0 [(displayName) = "Enum Val0"];
             ENUM_VAL1     = 1 [(displayName) = "Enum Val1"];
         }
+
         required Enum enum = 1;
-	}
-	required NestedEnum msg = 1;
-	repeated NestedEnum multi_msgs = 2;
+    }
+
+    required NestedEnum msg = 1;
+    repeated NestedEnum multi_msgs = 2;
 }
 
-message BooleanMsg
-{
+message BooleanMsg {
     required bool value = 1;
 }
 
-message BytesMsg
-{
+message BytesMsg {
     required bytes value = 1;
 }
 
-message JavaCasingMsg
-{
-	required string javaCasing = 1;
+message JavaCasingMsg {
+    required string javaCasing = 1;
+}
+
+
+// -----------------------------------------------------------------------------
+// Resource fields
+// -----------------------------------------------------------------------------
+
+message ResourceSimple {
+    optional string image = 1 [(resource) = true];
+}
+
+message ResourceDefaulted {
+    optional string image = 1 [(resource) = true, default = "/default.png"];
+}
+
+message ResourceRepeated {
+    repeated string images = 1 [(resource) = true];
+}
+
+message ResourceSimpleNested {
+    optional ResourceSimple simple = 1;
+}
+
+message ResourceDefaultedNested {
+    optional ResourceDefaulted defaulted = 1;
+}
+
+message ResourceRepeatedNested {
+    optional ResourceRepeated repeated = 1;
+}
+
+message ResourceSimpleRepeatedlyNested {
+    repeated ResourceSimple simples = 1;
+}
+
+message ResourceDefaultedRepeatedlyNested {
+    repeated ResourceDefaulted defaulteds = 1;
+}
+
+message ResourceRepeatedRepeatedlyNested {
+    repeated ResourceRepeated repeateds = 1;
 }

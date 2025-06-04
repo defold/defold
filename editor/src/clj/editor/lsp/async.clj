@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,8 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.lsp.async
-  (:require [clojure.core.async :as a :refer [<! >!]]
-            [editor.ui :as ui])
+  (:require [cljfx.api :as fx]
+            [clojure.core.async :as a :refer [<! >!]])
   (:import [clojure.core.async.impl.channels ManyToManyChannel]))
 
 (set! *warn-on-reflection* true)
@@ -105,5 +105,5 @@
   [ec & body]
   `(let [~ec (g/make-evaluation-context)
          ret# (do ~@body)]
-     (ui/run-later (g/update-cache-from-evaluation-context! ~ec))
+     (fx/on-fx-thread (g/update-cache-from-evaluation-context! ~ec))
      ret#))

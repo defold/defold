@@ -1,19 +1,19 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef GAMEOBJECT_H
-#define GAMEOBJECT_H
+#ifndef DM_GAMEOBJECT_H
+#define DM_GAMEOBJECT_H
 
 #include <stdint.h>
 
@@ -48,6 +48,7 @@ namespace dmGameObject
 
     extern const dmhash_t UNNAMED_IDENTIFIER;
 
+    typedef struct PropertyContainer* HPropertyContainer;
 
     /**
      * Create a new component type register
@@ -113,58 +114,12 @@ namespace dmGameObject
      */
     void DeleteCollection(HCollection collection);
 
-
-    /**
-     * Get the component type index
-     * @name GetComponentTypeIndex
-     * @param collection Collection handle
-     * @param type_hash [type:dhmash_t] The hashed name of the registered component type (e.g. dmHashString("guic"))
-     * @return type_index [type:uint32_t] The component type index. 0xFFFFFFFF if not found
-     */
-    uint32_t GetComponentTypeIndex(HCollection collection, dmhash_t type_hash);
-
-    /**
-     * Retrieve the world in the collection connected to the supplied component
-     * @param collection Collection handle
-     * @param component_type_index index of the component type
-     * @return world [type:void*] The pointer to the world, 0x0 if not found
-     */
-    void* GetWorld(HCollection collection, uint32_t component_type_index);
-
-    /**
-     * Retrieve the context for a component type
-     * @param collection Collection handle
-     * @param component_type_index index of the component type
-     * @return context [type:void*] The pointer to the context, 0x0 if not found
-     */
-    void* GetContext(HCollection collection, uint32_t component_type_index);
-
     /**
      * Return an instance index to the index pool for the collection.
      * @param index The index to return.
      * @param collection Collection that the index should be returned to.
      */
     void ReleaseInstanceIndex(uint32_t index, HCollection collection);
-
-    /**
-     * Spawns a new gameobject instance. The actual creation is performed after the update is completed.
-     * @param collection Gameobject collection
-     * @param prototype_name Prototype file name
-     * @param id Id of the spawned instance
-     * @param property_buffer Buffer with serialized properties
-     * @param property_buffer_size Size of property buffer
-     * @param position Position of the spawed object
-     * @param rotation Rotation of the spawned object
-     * @param scale Scale of the spawned object
-     * return the spawned instance, 0 at failure
-     */
-    HInstance Spawn(HCollection collection, HPrototype prototype, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale);
-
-    struct InstancePropertyBuffer
-    {
-        uint8_t *property_buffer;
-        uint32_t property_buffer_size;
-    };
 
     /**
      * Used for mapping instance ids from a collection definition to newly spawned instances
@@ -174,7 +129,7 @@ namespace dmGameObject
     /**
      * Contains property buffers for game objects to be spawned
      */
-    typedef dmHashTable<dmhash_t, InstancePropertyBuffer> InstancePropertyBuffers;
+    typedef dmHashTable<dmhash_t, HPropertyContainer> InstancePropertyBuffers;
 
     /**
      * Spawns a collection into an existing one, from a collection definition resource. Script properties
@@ -312,6 +267,15 @@ namespace dmGameObject
     HRegister GetRegister(HCollection collection);
 
     /**
+     * Retrieve a collection from the socket name hash
+     * @param regist The register bound to the specified collection
+     * @param socket_name The name of the socket
+     * @return The game object collection if successful. 0 otherwise.
+     */
+    // Used by comp_collision_object.cpp to do cold lookups of urls
+    HCollection GetCollectionByHash(HRegister regist, dmhash_t socket_name);
+
+    /**
      * Retrieve the frame message socket for the specified collection.
      * @param collection Collection handle
      * @return The frame message socket of the specified collection
@@ -357,9 +321,6 @@ namespace dmGameObject
      * @return PROPERTY_RESULT_OK if the out-parameters were written
      */
     PropertyResult GetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, PropertyDesc& out_value);
-
-
-    uint32_t GetPropertyArrayLength(HInstance instance, dmhash_t component_id, dmhash_t property_id);
 
     /**
      * Sets the value of a property.
@@ -432,4 +393,4 @@ namespace dmGameObject
     void RemoveDynamicResourceHash(HCollection collection, dmhash_t resource_hash);
 }
 
-#endif // GAMEOBJECT_H
+#endif // DM_GAMEOBJECT_H

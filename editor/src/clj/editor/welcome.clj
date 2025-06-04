@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -35,6 +35,7 @@
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.ui.updater :as ui.updater]
             [schema.core :as s]
+            [util.coll :as coll]
             [util.net :as net]
             [util.time :as time])
   (:import [clojure.lang ExceptionInfo]
@@ -43,6 +44,7 @@
            [java.time Instant]
            [java.util.zip ZipInputStream]
            [javafx.beans.property StringProperty]
+           [javafx.beans.value ChangeListener]
            [javafx.event Event]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
@@ -58,9 +60,8 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defonce ^:private last-opened-project-directory-prefs-key "open-project-directory")
-(defonce ^:private legacy-recent-project-paths-prefs-key "recent-projects")
-(defonce ^:private recent-projects-prefs-key "recent-project-entries")
+(defonce ^:private last-opened-project-directory-prefs-key [:welcome :last-opened-project-directory])
+(defonce ^:private recent-projects-prefs-key [:welcome :recent-projects])
 
 ;; -----------------------------------------------------------------------------
 ;; Welcome config file parsing
@@ -149,12 +150,12 @@
 
 (defn- last-opened-project-directory
   ^File [prefs]
-  (when-some [directory (io/as-file (prefs/get-prefs prefs last-opened-project-directory-prefs-key nil))]
+  (when-some [directory (io/as-file (prefs/get prefs last-opened-project-directory-prefs-key))]
     directory))
 
 (defn- set-last-opened-project-directory!
   ^File [prefs ^File directory]
-  (prefs/set-prefs prefs last-opened-project-directory-prefs-key (.getAbsolutePath directory)))
+  (prefs/set! prefs last-opened-project-directory-prefs-key (.getAbsolutePath directory)))
 
 (defn- new-project-location-directory
   ^File [^File last-opened-project-directory]
@@ -184,33 +185,14 @@
                  :last-opened instant
                  :title title}))))))
 
-(def ^:private xform-paths->recent-projects
-  (keep (fn [path]
-          (let [file (io/as-file path)]
-            (when (fs/existing-file? file)
-              (when-some [title (try-read-project-title file)]
-                (let [instant (Instant/ofEpochMilli (.lastModified file))]
-                  {:project-file file
-                   :last-opened instant
-                   :title title})))))))
-
-(defn- descending-order [a b]
-  (compare b a))
-
 (defn- recent-projects
   "Returns a sequence of recently opened projects. Project files that no longer
-  exist will be filtered out. If the user has an older preference file that does
-  not contain timestamps, we'll fall back on the last modified time of the
-  game.project file itself. The projects are returned in descending order with
+  exist will be filtered out. The projects are returned in descending order with
   the most recently opened project first."
   [prefs]
-  (sort-by :last-opened
-           descending-order
-           (if-some [timestamps-by-path (prefs/get-prefs prefs recent-projects-prefs-key nil)]
-             (into [] xform-timestamps-by-path->recent-projects timestamps-by-path)
-             (if-some [paths (prefs/get-prefs prefs legacy-recent-project-paths-prefs-key nil)]
-               (into [] xform-paths->recent-projects paths)
-               []))))
+  (->> (prefs/get prefs recent-projects-prefs-key)
+       (into [] xform-timestamps-by-path->recent-projects)
+       (sort-by :last-opened coll/descending-order)))
 
 (defn add-recent-project!
   "Updates the recent projects list in the preferences to include a new entry
@@ -219,10 +201,11 @@
   (let [recent-projects (recent-projects prefs)
         timestamps-by-path (assoc (into {} xform-recent-projects->timestamps-by-path recent-projects)
                              (.getAbsolutePath project-file) (str (Instant/now)))]
-    (prefs/set-prefs prefs recent-projects-prefs-key timestamps-by-path)))
+    (prefs/set! prefs recent-projects-prefs-key timestamps-by-path)))
 
 (defn remove-recent-project! [prefs ^File project-file]
-  (prefs/update-prefs prefs recent-projects-prefs-key dissoc (.getAbsolutePath project-file)))
+  (when-let [recent-projects-map (prefs/get prefs recent-projects-prefs-key)]
+    (prefs/set! prefs recent-projects-prefs-key (dissoc recent-projects-map (.getAbsolutePath project-file)))))
 
 ;; -----------------------------------------------------------------------------
 ;; New project creation
@@ -471,7 +454,9 @@
   (doto (ui/load-fxml "welcome/new-project-pane.fxml")
     (ui/with-controls [^ButtonBase create-new-project-button new-project-location-field ^TextField new-project-title-field template-categories ^ListVew template-list]
       (setup-location-field! new-project-location-field "Select New Project Location" new-project-location-directory)
-      (b/bind! (location-field-title-property new-project-location-field) (.textProperty new-project-title-field))
+      (let [title-text-property (.textProperty new-project-title-field)
+        sanitized-title-property (b/map dialogs/sanitize-folder-name title-text-property)]
+        (b/bind! (location-field-title-property new-project-location-field) sanitized-title-property))
       (doto template-list
         (ui/cell-factory! (fn [project-template]
                             {:graphic (make-template-entry project-template)})))
@@ -598,7 +583,27 @@
          welcome-settings {:new-project {:categories (concat default-categories custom-categories)}}
          welcome-settings-load-error (or default-welcome-settings-load-error custom-welcome-settings-load-error)
          root (ui/load-fxml "welcome/welcome-dialog.fxml")
-         stage (ui/make-dialog-stage)
+         min-width 792.0
+         min-height 338.0
+         stage (doto (ui/make-dialog-stage) (.setResizable true))
+         ;; Adapted from https://stackoverflow.com/questions/57425534/how-to-limit-how-much-the-user-can-resize-a-javafx-window
+         ;; because setting minWidth/minHeight on a resizable stage does not prevent resizing the stage to a smaller size
+         _ (.addListener (.widthProperty stage)
+                         (reify ChangeListener
+                           (changed [_ _ _ v]
+                             (when (< (double v) min-width)
+                               (doto stage
+                                 (.setResizable false)
+                                 (.setWidth min-width)
+                                 (.setResizable true))))))
+         _ (.addListener (.heightProperty stage)
+                         (reify ChangeListener
+                           (changed [_ _ _ v]
+                             (when (< (double v) min-height)
+                               (doto stage
+                                 (.setResizable false)
+                                 (.setHeight min-height)
+                                 (.setResizable true))))))
          scene (Scene. root)
          last-opened-project-directory (last-opened-project-directory prefs)
          new-project-location-directory (new-project-location-directory last-opened-project-directory)

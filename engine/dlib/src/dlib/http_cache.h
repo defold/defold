@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -75,6 +75,10 @@ namespace dmHttpCache
         uint64_t m_Expires;
         /// Checksum
         uint64_t m_Checksum;
+        uint32_t m_RangeStart;
+        uint32_t m_RangeEnd;
+        uint32_t m_DocumentSize;
+
         /// True if the entry is verified, ie the cached version is valid, during the session
         uint8_t  m_Verified : 1;
         /// Valid in terms of Cache-Control expires
@@ -130,10 +134,13 @@ namespace dmHttpCache
      * @param uri uri
      * @param etag etag
      * @param max_age max-age from http-header "Cache-Control"
+     * @param range_start   The partial request start byte
+     * @param range_end     The partial request end byte (inclusive)
+     * @param document_size The full document size (!= from content length)
      * @param cache_creator cache creator handle (out)
      * @return RESULT_OK on success
      */
-    Result Begin(HCache cache, const char* uri, const char* etag, uint32_t max_age, HCacheCreator* cache_creator);
+    Result Begin(HCache cache, const char* uri, const char* etag, uint32_t max_age, uint32_t range_start, uint32_t range_end, uint32_t document_size, HCacheCreator* cache_creator);
 
     /**
      * Add data to cache entry
@@ -174,14 +181,19 @@ namespace dmHttpCache
 
     /**
      * Get file for cache entry
-     * @param cache cache
-     * @param uri uri
-     * @param etag etag
-     * @param file file representing the cached content
-     * @param checksum content checksum (dmHashString64)
+     * @param cache         cache
+     * @param uri           uri
+     * @param etag          etag
+     * @param file          file representing the cached content
+     * @param file_size     size of the cached content
+     * @param checksum      content checksum (dmHashString64)
+     * @param range_start   start offset into original file
+     * @param range_end     end offset into original file (inclusive)
+     * @param document_size size of the original file
      * @return RESULT_OK on success.
      */
-    Result Get(HCache cache, const char* uri, const char* etag, FILE** file, uint64_t* checksum);
+    Result Get(HCache cache, const char* uri, const char* etag, FILE** file, uint32_t* file_size, uint64_t* checksum,
+                    uint32_t* range_start, uint32_t* range_end, uint32_t* document_size);
 
     /**
      * Set cache entry to verifed

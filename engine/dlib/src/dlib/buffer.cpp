@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@
 #include <dlib/hash.h>
 #include <dmsdk/dlib/buffer.h>
 
+#include <dlib/dalloca.h>
 #include <dlib/log.h>
 #include <dlib/memory.h>
 #include <dlib/math.h>
@@ -27,10 +28,6 @@
 #include <string.h>
 #include <assert.h>
 #include <new>
-
-#if defined(_WIN32)
-#include <malloc.h>
-#endif
 
 #include <stdio.h>
 

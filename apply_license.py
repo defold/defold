@@ -4,10 +4,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -37,7 +37,14 @@ CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.''') % YEAR
 
 def license(comment):
-    return "\n".join([comment + line for line in LICENSE.split("\n")])
+    license = ""
+    for line in LICENSE.split("\n"):
+        if len(line.strip()) == 0:
+            license = license + comment.strip() + "\n"
+        else:
+            license = license + comment + line + "\n"
+    return license.strip()
+    # return "\n".join([comment + line for line in LICENSE.split("\n")])
 
 # map extensions to strings with the commented license
 ext_to_license = {
@@ -76,9 +83,13 @@ excluded_files = [
     "editor/resources/templates/template.gui_script",
     "editor/resources/templates/template.render_script",
     "editor/resources/templates/template.lua",
-    # resource test files:
+    "editor/test/resources/transpile_teal_project/main/main.script",
+    "engine/resource/src/test/empty.script",
     "engine/resource/src/test/archive_data/file5.script",
     "engine/resource/src/test/archive_data/liveupdate.file6.script",
+    "engine/liveupdate/src/ringbuffer.h",
+    "engine/dlib/src/remotery/lib/Remotery.c",
+    "engine/dlib/src/remotery/lib/RemoteryMetal.mm",
 ]
 
 excluded_paths = [
@@ -91,13 +102,15 @@ excluded_paths = [
     "./engine/dlib/src/lz4",
     "./engine/dlib/src/mbedtls",
     "./engine/dlib/src/stb",
+    "./engine/dlib/src/jc",
     "./engine/dlib/src/zlib",
     "./engine/dlib/src/zip",
     "./engine/glfw/tests",
     "./engine/glfw/examples",
     "./engine/lua",
+    "./engine/jni/scripts/external",
     "./engine/physics/src/box2d",
-    "./engine/sound/src/openal",
+    "./engine/sound/src/stb_vorbis",
     "./engine/script/src/bitop",
     "./engine/script/src/luasocket",
     "./com.dynamo.cr/com.dynamo.cr.bob/src/org/jagatoo",
@@ -174,13 +187,14 @@ def process_file(filepath):
             f.truncate()
 
 
-for root, dirs, files in os.walk(".", topdown=True):
-    # exclude dirs to avoid traversing them at all
-    # with topdown set to True we can make in place modifications of dirs to
-    # have os.walk() skip directories
-    dirs[:] = [ d for d in dirs if not skip_path(os.path.join(root, d)) and not check_ignored(os.path.join(root, d)) ]
+if __name__ == "__main__":
+    for root, dirs, files in os.walk(".", topdown=True):
+        # exclude dirs to avoid traversing them at all
+        # with topdown set to True we can make in place modifications of dirs to
+        # have os.walk() skip directories
+        dirs[:] = [ d for d in dirs if not skip_path(os.path.join(root, d)) and not check_ignored(os.path.join(root, d)) ]
 
-    for file in files:
-        process_file(os.path.join(root, file))
+        for file in files:
+            process_file(os.path.join(root, file))
 
-print("NOTE! Manually update ddfc.py, editor/bundle-resources/Info.plist, editor/resources/splash.fxml and editor/resources/about.fxml!")
+    print("NOTE! Manually update ddfc.py, editor/bundle-resources/Info.plist, editor/resources/splash.fxml and editor/resources/about.fxml!")

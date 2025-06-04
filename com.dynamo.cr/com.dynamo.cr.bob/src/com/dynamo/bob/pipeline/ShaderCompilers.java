@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,142 +16,217 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
-import com.dynamo.bob.bundle.BundlerParams;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.IShaderCompiler;
-import com.dynamo.bob.pipeline.ShaderCompilerHelpers;
-import com.dynamo.bob.pipeline.ShaderProgramBuilder;
-import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
+import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderCompilers {
-    public static IShaderCompiler getCommonShaderCompiler(Platform platform) {
-        switch(platform) {
-            case X86_64MacOS:
-                return new MacOSShaderCompiler();
-            case X86Win32:
-            case X86_64Win32:
-                return new Win32ShaderCompiler();
-            case X86Linux:
-            case X86_64Linux:
-                return new LinuxShaderCompiler();
-            case Arm64Ios:
-            case X86_64Ios:
-                return new IOSShaderCompiler();
-            case Armv7Android:
-            case Arm64Android:
-                return new AndroidShaderCompiler();
-            case JsWeb:
-            case WasmWeb:
-                return new WebShaderCompiler();
-            case Arm64NX64:
-                return new NXShaderCompiler();
-            default:break;
+
+    public static class CommonShaderCompiler implements IShaderCompiler {
+        private final Platform platform;
+
+        public CommonShaderCompiler(Platform platform) {
+            this.platform = platform;
         }
-        return null;
-    }
 
-    // Generate a shader desc struct that consists of either the built shader desc, or a list of compile warnings/errors
-    public static ArrayList<ShaderProgramBuilder.ShaderBuildResult> getBaseShaderBuildResults(String resourceOutputPath, String fullShaderSource,
-            ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language[] shaderLanguages,
-            String spirvTargetProfile, boolean isDebug, boolean softFail) throws IOException, CompileExceptionError {
+        private Set<ShaderDesc.Language> getPlatformShaderLanguages(boolean isComputeType, boolean outputSpirv, boolean outputWGLS, boolean outputHLSL, boolean outputGLSL) {
+            Set<ShaderDesc.Language> shaderLanguages = new LinkedHashSet<>();
 
-        ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<ShaderProgramBuilder.ShaderBuildResult>();
+            boolean spirvSupported = true;
+            boolean hlslSupported = platform == Platform.X86_64Win32;
 
-        for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
-            if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
-                shaderBuildResults.add(ShaderCompilerHelpers.buildSpirvFromGLSL(fullShaderSource, shaderType, resourceOutputPath, spirvTargetProfile, isDebug, softFail));
-            } else {
-                shaderBuildResults.add(ShaderCompilerHelpers.buildGLSL(fullShaderSource, shaderType, shaderLanguage, isDebug));
+            if (platform == Platform.Arm64MacOS ||
+                platform == Platform.X86_64MacOS) {
+
+                outputSpirv = true;
+
+                // Vulkan is default on OSX since 1.9.9, meaning OpenGL is optional.
+                if (!isComputeType && outputGLSL) {
+                    shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+                }
             }
-        }
+            else
+            if (platform == Platform.X86Win32 ||
+                platform == Platform.X86_64Win32 ||
+                platform == Platform.X86_64Linux) {
+                    if (isComputeType) {
+                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
+                    } else {
+                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+                    }
+            }
+            else
+            if (platform == Platform.Arm64Linux) {
+                if (!isComputeType) {
+                    shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+                    shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                }
+            }
+            else
+            if (platform == Platform.Arm64Ios ||
+                platform == Platform.X86_64Ios) {
+                    if (!isComputeType) {
+                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+                    }
+            }
+            else
+            if (platform == Platform.Armv7Android ||
+                platform == Platform.Arm64Android) {
+                    if (!isComputeType) {
+                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                    }
+            }
+            else
+            if (platform == Platform.JsWeb ||
+                platform == Platform.WasmWeb ||
+                platform == Platform.WasmPthreadWeb) {
+                    if (!isComputeType) {
+                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                    }
+                    if (outputWGLS)
+                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
+                    spirvSupported = false;
+            }
+            else
+            if (platform == Platform.Arm64NX64) {
+                outputSpirv = true;
+            }
+            else {
+                return null;
+            }
 
-        return shaderBuildResults;
-    }
-
-    public static class MacOSShaderCompiler implements IShaderCompiler {
-        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
-            ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
-            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
-            if (outputSpirv)
-            {
+            if (spirvSupported && outputSpirv) {
                 shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
             }
 
-            return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "", isDebug, softFail);
-        }
-    }
-
-    public static class Win32ShaderCompiler implements IShaderCompiler {
-        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
-            ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
-            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
-            if (outputSpirv)
-            {
-                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
+            if (hlslSupported && outputHLSL) {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL);
             }
 
-            return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "", isDebug, softFail);
+            return shaderLanguages;
         }
-    }
 
-    public static class LinuxShaderCompiler implements IShaderCompiler {
-        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
-            ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
-            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
-            if (outputSpirv)
-            {
-                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
+        private static void validateModules(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> descs) throws CompileExceptionError{
+            if (descs.isEmpty())
+                throw new CompileExceptionError("No shader modules");
+
+            int vsCount=0, fsCount=0, computeCount=0;
+            for (ShaderCompilePipeline.ShaderModuleDesc desc : descs) {
+                switch(desc.type) {
+                    case SHADER_TYPE_COMPUTE -> computeCount++;
+                    case SHADER_TYPE_VERTEX -> vsCount++;
+                    case SHADER_TYPE_FRAGMENT -> fsCount++;
+                }
             }
 
-            return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "", isDebug, softFail);
+            if (computeCount > 0 && (vsCount > 0 || fsCount > 0))
+                throw new CompileExceptionError("Can't match compute with graphics modules");
+        }
+
+        public ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, CompileOptions compileOptions) throws IOException, CompileExceptionError {
+
+            boolean isComputeType = shaderModules.get(0).type == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
+            boolean outputSpirv = false;
+            boolean outputHLSL = false;
+            boolean outputWGSL = false;
+            boolean outputGlsl = false;
+
+            ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
+            opts.splitTextureSamplers = compileOptions.forceSplitSamplers;
+
+            for (ShaderDesc.Language shaderLanguage : compileOptions.forceIncludeShaderLanguages) {
+                opts.splitTextureSamplers |= shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL || shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
+                outputSpirv |= shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV;
+                outputHLSL |= shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL;
+                outputWGSL |= shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
+                outputGlsl |= shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM330 ||
+                        shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
+                        shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
+                        shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ||
+                        shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM430;
+            }
+
+            ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModules, opts);
+            ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
+
+            validateModules(shaderModules);
+
+            Set<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(isComputeType, outputSpirv, outputWGSL, outputHLSL, outputGlsl);
+            assert shaderLanguages != null;
+
+            // Used for tests, merge in potentially unsupported languages here.
+            shaderLanguages.addAll(compileOptions.forceIncludeShaderLanguages);
+
+            HashMap<ShaderDesc.ShaderType, Boolean> shaderTypeKeys = new HashMap<>();
+
+            for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
+
+                boolean arrayTextureFallbackRequired = ShaderUtil.VariantTextureArrayFallback.isRequired(shaderLanguage);
+
+                for (ShaderCompilePipeline.ShaderModuleDesc shaderModule : shaderModules) {
+
+                    boolean variantTextureArray = false;
+                    byte[] crossCompileResult = pipeline.crossCompile(shaderModule.type, shaderLanguage);
+
+                    if (!shaderTypeKeys.containsKey(shaderModule.type)) {
+                        shaderTypeKeys.put(shaderModule.type, true);
+                    }
+
+                    if (arrayTextureFallbackRequired) {
+                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(crossCompileResult), compileOptions.maxPageCount);
+                        if (variantCompileResult != null && variantCompileResult.arraySamplers.length > 0) {
+                            crossCompileResult = variantCompileResult.source.getBytes();
+                            variantTextureArray = true;
+                        }
+                    }
+
+                    ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(crossCompileResult, shaderLanguage, shaderModule.type);
+                    shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
+
+                    if (variantTextureArray) {
+                        builder.setVariantTextureArray(true);
+                    }
+                }
+            }
+
+            ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
+            compileResult.shaderBuildResults = shaderBuildResults;
+
+            for(ShaderDesc.ShaderType type : shaderTypeKeys.keySet()) {
+                compileResult.reflectors.add(pipeline.getReflectionData(type));
+            }
+
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+
+            return compileResult;
         }
     }
 
-    public static class IOSShaderCompiler implements IShaderCompiler {
-        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
-            ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
+    public static IShaderCompiler GetCommonShaderCompiler(Platform platform) {
+        return new CommonShaderCompiler(platform);
+    }
+
+    public static ArrayList<ShaderDesc.Language> GetSupportedOpenGLVersionsForPlatform(Platform platform) {
+        ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<>();
+        if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS) {
+            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+        } else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-            if (outputSpirv)
-            {
-                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
-            }
-            return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "es", isDebug, softFail);
-        }
-    }
-
-    public static class AndroidShaderCompiler implements IShaderCompiler {
-        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
-            ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
+        } else if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32 || platform == Platform.X86_64Linux) {
+            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430); // Compute
+        } else if (platform == Platform.Arm64Linux || platform == Platform.Armv7Android || platform == Platform.Arm64Android ||
+                platform == Platform.JsWeb || platform == Platform.WasmWeb || platform == Platform.WasmPthreadWeb) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
-            if (outputSpirv)
-            {
-                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
-            }
-
-            return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "", isDebug, softFail);
         }
-    }
-
-    public static class WebShaderCompiler implements IShaderCompiler {
-        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
-            ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
-            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
-            return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "", isDebug, softFail);
-        }
-    }
-
-    public static class NXShaderCompiler implements IShaderCompiler {
-        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
-            ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
-            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
-            return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "", isDebug, softFail);
-        }
+        return shaderLanguages;
     }
 }
-

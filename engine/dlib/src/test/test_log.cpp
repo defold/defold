@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,8 +14,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-#include <string>
-#include <map>
+#include <testmain/testmain.h>
 #include "../dlib/array.h"
 #include "../dlib/atomic.h"
 #include "../dlib/dlib.h"
@@ -206,29 +205,25 @@ TEST(dmLog, LogFile)
         return;
     }
 
-    char path[DMPATH_MAX_PATH];
-    dmSys::GetLogPath(path, sizeof(path));
-    dmStrlCat(path, "log.txt", sizeof(path));
-
-    char apppath[DMPATH_MAX_PATH];
-    dmTestUtil::MakeHostPath(apppath, sizeof(apppath), path);
+    char logpath[DMPATH_MAX_PATH];
+    dmTestUtil::MakeHostPath(logpath, sizeof(logpath), "log.txt");
 
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
-    dmLog::SetLogFile(apppath);
+    dmLog::SetLogFile(logpath);
     dmLogInfo("TESTING_LOG");
     dmLog::LogFinalize();
 
     char tmp[1024];
 
-    FILE* f = fopen(apppath, "rb");
+    FILE* f = fopen(logpath, "rb");
     ASSERT_NE((FILE*) 0, f);
     if (f) {
         fread(tmp, 1, sizeof(tmp), f);
         ASSERT_TRUE(strstr(tmp, "TESTING_LOG") != 0);
         fclose(f);
     }
-    dmSys::Unlink(apppath);
+    dmSys::Unlink(logpath);
 }
 
 dmArray<char> g_LogListenerOutput;
@@ -317,6 +312,8 @@ TEST(dmLog, TestLogThreadWithLogCalls)
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
+
     dmSocket::Initialize();
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();

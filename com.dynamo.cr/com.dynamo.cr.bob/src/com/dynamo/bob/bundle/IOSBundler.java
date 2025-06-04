@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,14 +21,11 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StringWriter;
 import java.io.OutputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -55,8 +52,9 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.FileUtil;
 
-@BundlerParams(platforms = {Platform.Arm64Ios, Platform.X86_64Ios})
+@BundlerParams(platforms = {"arm64-ios", "x86_64-ios"})
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
 
@@ -82,7 +80,7 @@ public class IOSBundler implements IBundler {
     private static File createTempDirectory() throws IOException {
         final File temp;
 
-        temp = File.createTempFile("temp", Long.toString(System.nanoTime()));
+        temp = File.createTempFile("temp_defold_", Long.toString(System.nanoTime()));
 
         if(!(temp.delete()))
         {
@@ -97,7 +95,7 @@ public class IOSBundler implements IBundler {
         return (temp);
     }
 
-    private String getFileDescription(File file) {
+    public static String getFileDescription(File file) {
         if (file == null) {
             return "null";
         }
@@ -122,8 +120,7 @@ public class IOSBundler implements IBundler {
         return file.getPath();
     }
 
-    private void lipoBinaries(File resultFile, List<File> binaries)
-    throws IOException, CompileExceptionError {
+    public static void lipoBinaries(File resultFile, List<File> binaries) throws IOException, CompileExceptionError {
         if (binaries.size() == 1) {
             FileUtils.copyFile(binaries.get(0), resultFile);
             return;
@@ -148,6 +145,87 @@ public class IOSBundler implements IBundler {
         }
     }
 
+    public static boolean isMacOS(Platform platform) {
+        return platform == Platform.X86_64MacOS ||
+               platform == Platform.Arm64MacOS;
+    }
+
+    public static void stripExecutable(Platform platform, File exe) throws IOException {
+        // Currently, we don't have a "strip_darwin.exe" for win32/linux, so we have to pass on those platforms
+        if (isMacOS(Platform.getHostPlatform())) {
+            String stripName = isMacOS(platform) ? "strip" : "strip_ios";
+
+            Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip"), exe.getPath()); // Using the same executable
+            if (stripResult.ret != 0) {
+                logger.severe("Error executing strip command:\n" + new String(stripResult.stdOutErr));
+            }
+        }
+    }
+
+    public static List<File> getBinariesFromArchitectures(Project project, List<Platform> architectures, String variant) throws IOException {
+        // Loop over all architectures needed for bundling
+        // Pickup each binary, either vanilla or from a extender build.
+        List<File> binaries = new ArrayList<File>();
+        for (Platform architecture : architectures) {
+            List<File> bins = ExtenderUtil.getNativeExtensionEngineBinaries(project, architecture);
+            if (bins == null) {
+                bins = Bob.getDefaultDmengineFiles(architecture, variant);
+            }
+            else {
+                logger.info("Using extender binary for " + architecture.getPair());
+            }
+
+            File binary = bins.get(0);
+            logger.info(architecture.getPair() + " exe: " + getFileDescription(binary));
+            binaries.add(binary);
+        }
+        return binaries;
+    }
+
+    private static final String SYMBOL_EXE_RELATIVE_PATH = String.format("Contents/Resources/DWARF/dmengine");
+
+    public static List<File> getSymbolDirsFromArchitectures(File buildDir, List<Platform> architectures) {
+        final String[] prefixes = {"", "src" + File.separator};
+        List<File> symbolDirectories = new ArrayList<File>();
+        for (Platform architecture : architectures) {
+
+            File platformDir = new File(buildDir, architecture.getExtenderPair());
+            for (String prefix: prefixes) {
+                File symbolsDir = new File(platformDir, prefix + "dmengine.dSYM");
+                if (symbolsDir.exists()) {
+                    File symbols = new File(symbolsDir, SYMBOL_EXE_RELATIVE_PATH);
+                    if (symbols.exists()) {
+                        symbolDirectories.add(symbolsDir);
+                    }
+                }
+            }
+        }
+        return symbolDirectories;
+    }
+
+    public static void generateSymbols(File targetFolder, String exeName, List<File> symbolDirectories) throws IOException, CompileExceptionError {
+        // For legacy reasons, we use one of the folder to copy extra files from the output architectures
+        File symbolsDir = symbolDirectories.get(0);
+
+        // Copy any extra files in the folders (e.g. Info.plist) // TODO: Is this really necessary?
+        FileUtils.copyDirectory(symbolsDir, targetFolder);
+
+        // Create the target exe file
+        File destSymbolsExeTmp = new File(targetFolder, SYMBOL_EXE_RELATIVE_PATH);
+        File destSymbolsExe = new File(destSymbolsExeTmp.getParent(), exeName);
+
+        List<File> dSYMBinaries = new ArrayList<>();
+        for (File symbolDir : symbolDirectories) {
+            File symbols = new File(symbolDir, SYMBOL_EXE_RELATIVE_PATH);
+            if (symbols.exists())
+                dSYMBinaries.add(symbols);
+        }
+
+        lipoBinaries(destSymbolsExeTmp, dSYMBinaries);
+        destSymbolsExeTmp.renameTo(destSymbolsExe);
+
+        logger.info("Symbols binary: " + getFileDescription(destSymbolsExe));
+    }
 
     private static String MANIFEST_NAME = "Info.plist";
 
@@ -252,25 +330,6 @@ public class IOSBundler implements IBundler {
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         final boolean strip_executable = project.hasOption("strip-executable");
 
-        // Loop over all architectures needed for bundling
-        // Pickup each binary, either vanilla or from a extender build.
-        List<File> binaries = new ArrayList<File>();
-        for (Platform architecture : architectures) {
-            List<File> bins = ExtenderUtil.getNativeExtensionEngineBinaries(project, architecture);
-            if (bins == null) {
-                bins = Bob.getDefaultDmengineFiles(architecture, variant);
-            }
-            else {
-                logger.info("Using extender binary for " + architecture.getPair());
-            }
-
-            File binary = bins.get(0);
-            logger.info(architecture.getPair() + " exe: " + getFileDescription(binary));
-            binaries.add(binary);
-
-            BundleHelper.throwIfCanceled(canceled);
-        }
-
         BundleHelper.throwIfCanceled(canceled);
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
@@ -310,7 +369,7 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        if (BundleHelper.isArchiveExcluded(project)) {
+        if (BundleHelper.isArchiveIncluded(project)) {
             // Copy archive and game.projectc
             for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
                 FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
@@ -387,7 +446,7 @@ public class IOSBundler implements IBundler {
             logger.warning("ios.icons_asset is not set");
         }
 
-        BundleHelper helper = new BundleHelper(project, Platform.Arm64Ios, bundleDir, variant);
+        BundleHelper helper = new BundleHelper(project, Platform.Arm64Ios, bundleDir, variant, this);
         copyManifestFile(helper, architectures.get(0), appDir);
         helper.copyIosIcons();
 
@@ -407,32 +466,28 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
         // Create fat/universal binary
-        File tmpFile = File.createTempFile("dmengine", "");
-        tmpFile.deleteOnExit();
-        String exe = tmpFile.getPath();
+        File exe = File.createTempFile("dmengine", "");
+        FileUtil.deleteOnExit(exe);
 
         BundleHelper.throwIfCanceled(canceled);
+
+        // Loop over all architectures needed for bundling
+        // Pickup each binary, either vanilla or from a extender build.
+        List<File> binaries = getBinariesFromArchitectures(project, architectures, variant);
 
         // Run lipo on supplied architecture binaries.
-        lipoBinaries(tmpFile, binaries);
+        lipoBinaries(exe, binaries);
 
         BundleHelper.throwIfCanceled(canceled);
-        // Strip executable
         if( strip_executable ) {
-            Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exe);
-            if (stripResult.ret == 0) {
-                logger.fine("Stripped binary: " + getFileDescription(tmpFile));
-            }
-            else {
-                logger.severe("Error executing strip_ios command:\n" + new String(stripResult.stdOutErr));
-            }
+            stripExecutable(platform, exe);
         }
 
         BundleHelper.throwIfCanceled(canceled);
 
         // Copy Executable
         File destExecutable = new File(appDir, exeName);
-        FileUtils.copyFile(new File(exe), destExecutable);
+        FileUtils.copyFile(exe, destExecutable);
         destExecutable.setExecutable(true);
 
         // Copy extension frameworks
@@ -448,39 +503,43 @@ public class IOSBundler implements IBundler {
             }
         }
 
-        // Copy debug symbols
-        // Create list of dSYM binaries
-        List<File> dSYMBinaries = new ArrayList<File>();
+        // Copy all resources that were return as build result from Extender
+        // TODO: resources should be shared between architectures but it's not supported by Extender
         for (Platform architecture : architectures) {
-            String zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), architecture.getExtenderPair());
-            File buildSymbols = new File(zipDir, "dmengine.dSYM");
-            if (buildSymbols.exists()) {
-                dSYMBinaries.add(new File(buildSymbols, FilenameUtils.concat("Contents", FilenameUtils.concat("Resources", FilenameUtils.concat("DWARF", "dmengine")))));
-                logger.fine("Copy debug symbols");
+            File architectureDir = new File(project.getBinaryOutputDirectory(), architecture.getExtenderPair());
+            if (!architectureDir.exists()) continue;
+            File resourcesDir = new File(architectureDir, "resources");
+            if (!resourcesDir.exists()) continue;
+            for (File resource : resourcesDir.listFiles()) {
+                File dest = new File(appDir, resource.getName());
+                if (resource.isDirectory()) {
+                    FileUtils.copyDirectory(resource, dest);
+                } else {
+                    FileUtils.copyFile(resource, dest);
+                }
+                logger.info("Copy resource " + resource);
             }
         }
 
-        if (dSYMBinaries.size() > 0) {
-            // Copy one of debug symbols and use it as result for lipo
-            String zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), architectures.get(0).getExtenderPair());
-            File buildSymbols = new File(zipDir, "dmengine.dSYM");
-            String symbolsDir = String.format("%s.dSYM", title);
-            File bundleSymbols = new File(bundleDir, symbolsDir);
-            FileUtils.copyDirectory(buildSymbols, bundleSymbols);
-            File bundleExeOld = new File(bundleSymbols, FilenameUtils.concat("Contents", FilenameUtils.concat("Resources", FilenameUtils.concat("DWARF", "dmengine"))));
-
-            lipoBinaries(bundleExeOld, dSYMBinaries);
-            // Also rename the executable
-            File symbolExe = new File(bundleExeOld.getParent(), destExecutable.getName());
-            bundleExeOld.renameTo(symbolExe);
+        // Copy debug symbols
+        // Create list of dSYM binaries
+        File extenderBuildDir = new File(project.getRootDirectory(), "build");
+        List<File> symbolDirectories = getSymbolDirsFromArchitectures(extenderBuildDir, architectures);
+        if (symbolDirectories.size() > 0)
+        {
+            File bundleSymbolsDir = new File(bundleDir, String.format("%s.dSYM", title));
+            generateSymbols(bundleSymbolsDir, exeName, symbolDirectories);
         }
 
         BundleHelper.throwIfCanceled(canceled);
 
+        // Copy PrivacyManifest.xcprivacy
+        BundleHelper.copyPrivacyManifest(project, platform, appDir);
+        BundleHelper.throwIfCanceled(canceled);
+
         // Package zip file
         File tmpZipDir = createTempDirectory();
-        tmpZipDir.deleteOnExit();
-
+        FileUtil.deleteOnExit(tmpZipDir);
         File swiftSupportDir = new File(tmpZipDir, "SwiftSupport");
 
         // Copy any libswift*.dylib files from the Frameworks folder
@@ -517,7 +576,7 @@ public class IOSBundler implements IBundler {
             FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
 
             File textProvisionFile = File.createTempFile("mobileprovision", ".plist");
-            textProvisionFile.deleteOnExit();
+            FileUtil.deleteOnExit(textProvisionFile);
 
             Result securityResult = Exec.execResult("security", "cms", "-D", "-i", provisioningProfile, "-o", textProvisionFile.getAbsolutePath());
             if (securityResult.ret != 0) {
@@ -591,7 +650,7 @@ public class IOSBundler implements IBundler {
                     entitlements.initFileLocator(locator);
                     entitlements.write(writer);
                     writer.close();
-                    entitlementOut.deleteOnExit();
+                    FileUtil.deleteOnExit(entitlementOut);
                 }
                 catch (ConfigurationException e) {
                     logger.severe("Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );
@@ -694,5 +753,7 @@ public class IOSBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
         Files.move( Paths.get(zipFileTmp.getAbsolutePath()), Paths.get(zipFile.getAbsolutePath()), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         logger.info("Finished ipa: " + getFileDescription(zipFile));
+
+        BundleHelper.moveBundleIfNeed(project, bundleDir);
     }
 }

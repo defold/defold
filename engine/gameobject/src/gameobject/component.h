@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -29,7 +29,7 @@ namespace dmGameObject
     {
         ComponentType();
 
-        dmResource::ResourceType m_ResourceType;
+        HResourceType           m_ResourceType;
         const char*             m_Name;
         dmhash_t                m_NameHash;
         void*                   m_Context;
@@ -75,7 +75,7 @@ namespace dmGameObject
      * @param out_component_index Optional component index out argument, 0x0 is accepted
      * @return the registered component type or 0x0 if not found
      */
-    ComponentType* FindComponentType(HRegister regist, dmResource::ResourceType resource_type, uint32_t* out_component_index);
+    ComponentType* FindComponentType(HRegister regist, HResourceType resource_type, uint32_t* out_component_index);
 
     /*#
      * Gets the number of registered component types
@@ -101,7 +101,7 @@ namespace dmGameObject
      * @param prio Priority
      * @return RESULT_OK on success
      */
-    Result SetUpdateOrderPrio(HRegister regist, dmResource::ResourceType resource_type, uint16_t prio);
+    Result SetUpdateOrderPrio(HRegister regist, HResourceType resource_type, uint16_t prio);
 
     /*#
      * Sort component types according to update order priority.

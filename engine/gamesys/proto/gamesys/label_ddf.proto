@@ -12,6 +12,7 @@ option java_outer_classname = "Label";
  * @document
  * @name Label
  * @namespace label
+ * @language Lua
  */
 
 message LabelDesc
@@ -37,20 +38,19 @@ message LabelDesc
         PIVOT_NW     = 8 [(displayName) = "North West"];
     };
 
-
     required dmMath.Vector4 size        = 1;
-    optional dmMath.Vector4 scale       = 2;
-    required dmMath.Vector4 color       = 3;
-    required dmMath.Vector4 outline     = 4;
-    required dmMath.Vector4 shadow      = 5;
+    optional dmMath.Vector4One scale    = 2; // Deprecated
+    optional dmMath.Vector4One color    = 3;
+    optional dmMath.Vector4WOne outline = 4;
+    optional dmMath.Vector4WOne shadow  = 5;
 
-    required float          leading     = 6;
-    required float          tracking    = 7;
-    required Pivot          pivot       = 8;
-    required BlendMode      blend_mode  = 9;
-    required bool           line_break  = 10;
+    optional float          leading     = 6 [default = 1.0];
+    optional float          tracking    = 7;
+    optional Pivot          pivot       = 8 [default = PIVOT_CENTER];
+    optional BlendMode      blend_mode  = 9 [default = BLEND_MODE_ALPHA];
+    optional bool           line_break  = 10 [default = false];
 
-    required string         text        = 11;
+    optional string         text        = 11;
     required string         font        = 12 [(resource)=true];
     required string         material    = 13 [(resource)=true];
 }

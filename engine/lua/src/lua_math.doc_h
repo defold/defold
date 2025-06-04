@@ -12,6 +12,7 @@
  * @document
  * @name Math
  * @namespace math
+ * @language Lua
  */
 
 /*# absolute value

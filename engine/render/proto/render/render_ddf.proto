@@ -9,14 +9,22 @@ option java_outer_classname = "Render";
 
 message RenderPrototypeDesc
 {
+    // Deprecated
     message MaterialDesc
     {
         required string name = 1;
         required string material = 2 [(resource) = true];
     }
 
-    required string script = 1 [(resource) = true];
-    repeated MaterialDesc materials = 2;
+    message RenderResourceDesc
+    {
+        required string name = 1;
+        required string path = 2 [(resource) = true];
+    }
+
+    required string script                       = 1 [(resource) = true];
+    repeated MaterialDesc materials              = 2; // Deprecated
+    repeated RenderResourceDesc render_resources = 3;
 }
 
 /*# Rendering API documentation
@@ -24,6 +32,7 @@ message RenderPrototypeDesc
  * @document
  * @name Render
  * @namespace render
+ * @language Lua
  */
 
 message DrawText

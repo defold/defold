@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,10 +19,12 @@
 #include <jc_test/jc_test.h>
 #include <dlib/log.h>
 #include <dlib/hash.h>
+#include <dlib/hashtable.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/dstrings.h>
 
 #include <../rig.h>
+#include <../rig_private.h>
 
 using namespace dmVMath;
 
@@ -175,20 +177,24 @@ static void CreateTestMesh(dmRigDDF::MeshSet* mesh_set, int model_index, int mes
     mesh.m_Normals[10]            = 1.0;
     mesh.m_Normals[11]            = 0.0;
 
-    mesh.m_Tangents.m_Count       = vert_count*3;
+    mesh.m_Tangents.m_Count       = vert_count*4;
     mesh.m_Tangents.m_Data        = new float[mesh.m_Tangents.m_Count];
     mesh.m_Tangents[0]            = 0.0;
     mesh.m_Tangents[1]            = 0.0;
     mesh.m_Tangents[2]            = 1.0;
-    mesh.m_Tangents[3]            = 0.0;
+    mesh.m_Tangents[3]            = 1.0;
     mesh.m_Tangents[4]            = 0.0;
-    mesh.m_Tangents[5]            = 1.0;
-    mesh.m_Tangents[6]            = 0.0;
-    mesh.m_Tangents[7]            = 0.0;
-    mesh.m_Tangents[8]            = 1.0;
+    mesh.m_Tangents[5]            = 0.0;
+    mesh.m_Tangents[6]            = 1.0;
+    mesh.m_Tangents[7]            = 1.0;
+    mesh.m_Tangents[8]            = 0.0;
     mesh.m_Tangents[9]            = 0.0;
-    mesh.m_Tangents[10]           = 0.0;
+    mesh.m_Tangents[10]           = 1.0;
     mesh.m_Tangents[11]           = 1.0;
+    mesh.m_Tangents[12]           = 0.0;
+    mesh.m_Tangents[13]           = 0.0;
+    mesh.m_Tangents[14]           = 1.0;
+    mesh.m_Tangents[15]           = 1.0;
 
     mesh.m_Colors.m_Count         = vert_count*4;
     mesh.m_Colors.m_Data          = new float[mesh.m_Colors.m_Count];
@@ -336,6 +342,7 @@ static void CalcWorldTransforms(dmRigDDF::Bone* bones, uint32_t bone_count)
 // }
 
 static dmRigDDF::AnimationTrack* CreateAnimationTracks(const dmRigDDF::Bone* bones, uint32_t bone_count,
+                                                        dmHashTable64<uint32_t>& bone_indices,
                                                         uint32_t num_samples,
                                                         const dmRigDDF::AnimationTrack* tracks, uint32_t track_count)
 {
@@ -345,7 +352,7 @@ static dmRigDDF::AnimationTrack* CreateAnimationTracks(const dmRigDDF::Bone* bon
         const dmRigDDF::Bone* bone = &bones[i];
         dmRigDDF::AnimationTrack* out_track = &out_tracks[i];
 
-        out_track->m_BoneIndex = i;
+        out_track->m_BoneId = bone->m_Id;
 
         out_track->m_Positions.m_Count = 3;
         out_track->m_Positions.m_Data = new float[out_track->m_Positions.m_Count];
@@ -377,10 +384,13 @@ static dmRigDDF::AnimationTrack* CreateAnimationTracks(const dmRigDDF::Bone* bon
     for (uint32_t ti = 0; ti < track_count; ++ti)
     {
         const dmRigDDF::AnimationTrack* track = &tracks[ti];
-        if (track->m_BoneIndex >= bone_count)
+        uint32_t* bone_index = bone_indices.Get(track->m_BoneId);
+        if (!bone_index)
+            continue;
+        if (*bone_index >= bone_count)
             continue;
 
-        dmRigDDF::AnimationTrack* out_track = &out_tracks[track->m_BoneIndex];
+        dmRigDDF::AnimationTrack* out_track = &out_tracks[*bone_index];
 
         if (track->m_Positions.m_Count)
         {
@@ -424,7 +434,7 @@ static void DeleteAnimationTracks(const dmRigDDF::AnimationTrack* tracks, uint32
     }
 }
 
-void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skeleton, dmRigDDF::MeshSet* mesh_set, dmRigDDF::AnimationSet* animation_set)
+void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmHashTable64<uint32_t>& bone_indices, dmRigDDF::Skeleton* skeleton, dmRigDDF::MeshSet* mesh_set, dmRigDDF::AnimationSet* animation_set)
 {
 
     /*
@@ -601,6 +611,12 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
 
         CalcWorldTransforms(skeleton->m_Bones.m_Data, bone_count);
 
+        bone_indices.SetCapacity((bone_count*2)/3, bone_count);
+        for (uint32_t i = 0; i < bone_count; ++i)
+        {
+            bone_indices.Put(skeleton->m_Bones[i].m_Id, i);
+        }
+
 //PrintTransforms(skeleton->m_Bones.m_Data, bone_count);
 
         // Calculate bind pose
@@ -650,8 +666,8 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             memset(&anim_track0, 0, sizeof(dmRigDDF::AnimationTrack));
             memset(&anim_track1, 0, sizeof(dmRigDDF::AnimationTrack));
 
-            anim_track0.m_BoneIndex         = 0;
-            anim_track1.m_BoneIndex         = 1;
+            anim_track0.m_BoneId         = 0;
+            anim_track1.m_BoneId         = 1;
 
             uint32_t samples = 5;
             anim_track0.m_Rotations.m_Data = new float[samples*4];
@@ -670,7 +686,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             ((Quat*)anim_track1.m_Rotations.m_Data)[3] = Quat::identity();
             ((Quat*)anim_track1.m_Rotations.m_Data)[4] = Quat::identity();
 
-            dmRigDDF::AnimationTrack* merged_tracks = CreateAnimationTracks(skeleton->m_Bones.m_Data, skeleton->m_Bones.m_Count, samples,
+            dmRigDDF::AnimationTrack* merged_tracks = CreateAnimationTracks(skeleton->m_Bones.m_Data, skeleton->m_Bones.m_Count, bone_indices, samples,
                                                                             tracks, track_count);
             anim0.m_Tracks.m_Data = merged_tracks;
             anim0.m_Tracks.m_Count = skeleton->m_Bones.m_Count;
@@ -687,8 +703,8 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             memset(&anim_track0, 0, sizeof(dmRigDDF::AnimationTrack));
             memset(&anim_track1, 0, sizeof(dmRigDDF::AnimationTrack));
 
-            anim_track0.m_BoneIndex = 5;
-            anim_track1.m_BoneIndex = 4;
+            anim_track0.m_BoneId = 5;
+            anim_track1.m_BoneId = 4;
 
             uint32_t samples = 3;
             anim_track0.m_Rotations.m_Data = new float[samples*4];
@@ -715,7 +731,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             ((Quat*)anim_track1.m_Rotations.m_Data)[1] = Quat::rotationZ(-(float)M_PI / 2.0f);
             ((Quat*)anim_track1.m_Rotations.m_Data)[2] = Quat::rotationZ(-(float)M_PI / 2.0f);
 
-            dmRigDDF::AnimationTrack* merged_tracks = CreateAnimationTracks(skeleton->m_Bones.m_Data, skeleton->m_Bones.m_Count, samples,
+            dmRigDDF::AnimationTrack* merged_tracks = CreateAnimationTracks(skeleton->m_Bones.m_Data, skeleton->m_Bones.m_Count, bone_indices, samples,
                                                                             tracks, track_count);
             anim1.m_Tracks.m_Data = merged_tracks;
             anim1.m_Tracks.m_Count = skeleton->m_Bones.m_Count;
@@ -730,7 +746,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             dmRigDDF::AnimationTrack& anim_track0 = tracks[0];
             memset(&anim_track0, 0, sizeof(dmRigDDF::AnimationTrack));
 
-            anim_track0.m_BoneIndex = 6;
+            anim_track0.m_BoneId = 6;
 
             uint32_t samples = 4;
             anim_track0.m_Rotations.m_Data = new float[samples*4];
@@ -740,7 +756,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             ((Quat*)anim_track0.m_Rotations.m_Data)[2] = Quat::rotationZ((float)M_PI / 2.0f);
             ((Quat*)anim_track0.m_Rotations.m_Data)[3] = Quat::rotationZ((float)M_PI / 2.0f);
 
-            dmRigDDF::AnimationTrack* merged_tracks = CreateAnimationTracks(skeleton->m_Bones.m_Data, skeleton->m_Bones.m_Count, samples,
+            dmRigDDF::AnimationTrack* merged_tracks = CreateAnimationTracks(skeleton->m_Bones.m_Data, skeleton->m_Bones.m_Count, bone_indices, samples,
                                                                             tracks, track_count);
             anim2.m_Tracks.m_Data = merged_tracks;
             anim2.m_Tracks.m_Count = skeleton->m_Bones.m_Count;
@@ -755,7 +771,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             dmRigDDF::AnimationTrack& anim_track0 = tracks[0];
             memset(&anim_track0, 0, sizeof(dmRigDDF::AnimationTrack));
 
-            anim_track0.m_BoneIndex = 0;
+            anim_track0.m_BoneId = 0;
 
             uint32_t samples = 2;
             anim_track0.m_Rotations.m_Data = new float[samples*4];
@@ -764,7 +780,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::rotationZ(rot_angle);
             ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::rotationZ(rot_angle);
 
-            dmRigDDF::AnimationTrack* merged_tracks = CreateAnimationTracks(skeleton->m_Bones.m_Data, skeleton->m_Bones.m_Count, samples,
+            dmRigDDF::AnimationTrack* merged_tracks = CreateAnimationTracks(skeleton->m_Bones.m_Data, skeleton->m_Bones.m_Count, bone_indices, samples,
                                                                             tracks, track_count);
             anim3.m_Tracks.m_Data = merged_tracks;
             anim3.m_Tracks.m_Count = skeleton->m_Bones.m_Count;
@@ -779,7 +795,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             dmRigDDF::AnimationTrack& anim_track0 = tracks[0];
             memset(&anim_track0, 0, sizeof(dmRigDDF::AnimationTrack));
 
-            anim_track0.m_BoneIndex = 0;
+            anim_track0.m_BoneId = 0;
 
             uint32_t samples = 2;
             anim_track0.m_Rotations.m_Data = new float[samples*4];
@@ -788,7 +804,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::rotationZ(rot_angle);
             ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::rotationZ(rot_angle);
 
-            dmRigDDF::AnimationTrack* merged_tracks = CreateAnimationTracks(skeleton->m_Bones.m_Data, skeleton->m_Bones.m_Count, samples,
+            dmRigDDF::AnimationTrack* merged_tracks = CreateAnimationTracks(skeleton->m_Bones.m_Data, skeleton->m_Bones.m_Count, bone_indices, samples,
                                                                             tracks, track_count);
             anim4.m_Tracks.m_Data = merged_tracks;
             anim4.m_Tracks.m_Count = skeleton->m_Bones.m_Count;
@@ -805,7 +821,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             dmRigDDF::AnimationTrack& anim_track0 = tracks[0];
             memset(&anim_track0, 0, sizeof(dmRigDDF::AnimationTrack));
 
-            anim_track0.m_BoneIndex = 0;
+            anim_track0.m_BoneId = 0;
 
             anim_track0.m_Rotations.m_Data = new float[samples*4];
             anim_track0.m_Rotations.m_Count = samples*4;
@@ -821,7 +837,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             anim_track0.m_Positions.m_Data[4] = 0.0f;
             anim_track0.m_Positions.m_Data[5] = 0.0f;
 
-            dmRigDDF::AnimationTrack* merged_tracks = CreateAnimationTracks(skeleton->m_Bones.m_Data, skeleton->m_Bones.m_Count, samples,
+            dmRigDDF::AnimationTrack* merged_tracks = CreateAnimationTracks(skeleton->m_Bones.m_Data, skeleton->m_Bones.m_Count, bone_indices, samples,
                                                                             tracks, track_count);
             anim5.m_Tracks.m_Data = merged_tracks;
             anim5.m_Tracks.m_Count = skeleton->m_Bones.m_Count;
@@ -850,15 +866,11 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         CreateTestMesh(mesh_set, 1, 0, Vector4(0.5f, 0.4f, 0.3f, 0.2f));
         CreateTestMesh(mesh_set, 1, 1, Vector4(1.0f, 0.9f, 0.8f, 0.7f));
 
-        // We create bone lists for both the meshset and animationset,
-        // that is in "inverted" order of the skeleton hirarchy.
         mesh_set->m_BoneList.m_Data = new uint64_t[bone_count];
         mesh_set->m_BoneList.m_Count = bone_count;
-        animation_set->m_BoneList.m_Data = mesh_set->m_BoneList.m_Data;
-        animation_set->m_BoneList.m_Count = bone_count;
         for (uint32_t i = 0; i < bone_count; ++i)
         {
-            mesh_set->m_BoneList.m_Data[i] = bone_count-i-1;
+            mesh_set->m_BoneList.m_Data[i] = i;
         }
 }
 
@@ -906,6 +918,7 @@ class RigInstanceCursorTest : public RigContextCursorTest<T>
 public:
     dmRig::HRigInstance     m_Instance;
     dmArray<dmRig::RigBone> m_BindPose;
+    dmHashTable64<uint32_t> m_BoneIndices;
     dmRigDDF::Skeleton*     m_Skeleton;
     dmRigDDF::MeshSet*      m_MeshSet;
     dmRigDDF::AnimationSet* m_AnimationSet;
@@ -919,11 +932,12 @@ protected:
         m_Skeleton     = new dmRigDDF::Skeleton();
         m_MeshSet      = new dmRigDDF::MeshSet();
         m_AnimationSet = new dmRigDDF::AnimationSet();
-        SetUpSimpleRig(m_BindPose, m_Skeleton, m_MeshSet, m_AnimationSet);
+        SetUpSimpleRig(m_BindPose, m_BoneIndices, m_Skeleton, m_MeshSet, m_AnimationSet);
 
         // Data
         dmRig::InstanceCreateParams create_params = {0};
         create_params.m_BindPose     = &m_BindPose;
+        create_params.m_BoneIndices  = &m_BoneIndices;
         create_params.m_Skeleton     = m_Skeleton;
         create_params.m_MeshSet      = m_MeshSet;
         create_params.m_AnimationSet = m_AnimationSet;
@@ -1137,6 +1151,7 @@ class RigInstanceTest : public RigContextTest
 public:
     dmRig::HRigInstance     m_Instance;
     dmArray<dmRig::RigBone> m_BindPose;
+    dmHashTable64<uint32_t> m_BoneIndices;
     dmRigDDF::Skeleton*     m_Skeleton;
     dmRigDDF::MeshSet*      m_MeshSet;
     dmRigDDF::Mesh*         m_FirstMesh;
@@ -1151,13 +1166,14 @@ protected:
         m_Skeleton     = new dmRigDDF::Skeleton();
         m_MeshSet      = new dmRigDDF::MeshSet();
         m_AnimationSet = new dmRigDDF::AnimationSet();
-        SetUpSimpleRig(m_BindPose, m_Skeleton, m_MeshSet, m_AnimationSet);
+        SetUpSimpleRig(m_BindPose, m_BoneIndices, m_Skeleton, m_MeshSet, m_AnimationSet);
 
         m_FirstMesh = &m_MeshSet->m_Models.m_Data[0].m_Meshes.m_Data[0];
 
         // Data
         dmRig::InstanceCreateParams create_params = {0};
         create_params.m_BindPose     = &m_BindPose;
+        create_params.m_BoneIndices  = &m_BoneIndices;
         create_params.m_Skeleton     = m_Skeleton;
         create_params.m_MeshSet      = m_MeshSet;
         create_params.m_AnimationSet = m_AnimationSet;
@@ -1490,11 +1506,13 @@ TEST_F(RigInstanceTest, MultipleRigInfluences)
     dmRigDDF::AnimationSet* animation_set = new dmRigDDF::AnimationSet();
 
     dmArray<dmRig::RigBone> bind_pose;
-    SetUpSimpleRig(bind_pose, skeleton, mesh_set, animation_set);
+    dmHashTable64<uint32_t> bone_indices;
+    SetUpSimpleRig(bind_pose, bone_indices, skeleton, mesh_set, animation_set);
 
     // Second rig instance data
     dmRig::InstanceCreateParams create_params = {0};
     create_params.m_BindPose         = &bind_pose;
+    create_params.m_BoneIndices      = &bone_indices;
     create_params.m_Skeleton         = skeleton;
     create_params.m_MeshSet          = mesh_set;
     create_params.m_ModelId          = dmHashString64((const char*)"test");
@@ -1821,11 +1839,13 @@ TEST_F(RigContextTest, DEF_3121)
     dmRigDDF::MeshSet*      mesh_set      = new dmRigDDF::MeshSet();
     dmRigDDF::AnimationSet* animation_set = new dmRigDDF::AnimationSet();
     dmArray<dmRig::RigBone> bind_pose;
-    SetUpSimpleRig(bind_pose, skeleton, mesh_set, animation_set);
+    dmHashTable64<uint32_t> bone_indices;
+    SetUpSimpleRig(bind_pose, bone_indices, skeleton, mesh_set, animation_set);
 
     // Create rig instance
     dmRig::InstanceCreateParams create_params = {0};
     create_params.m_BindPose         = &bind_pose;
+    create_params.m_BoneIndices      = &bone_indices;
     create_params.m_Skeleton         = skeleton;
     create_params.m_MeshSet          = mesh_set;
     create_params.m_ModelId          = dmHashString64((const char*)"test");
@@ -1859,6 +1879,45 @@ TEST_F(RigContextTest, DEF_3121)
     // Cleanup
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceDestroy(m_Context, instance));
     DeleteRigData(mesh_set, skeleton, animation_set);
+}
+
+TEST_F(RigContextTest, TestBindPoseCache)
+{
+    dmRig::HRigInstance instance = 0x0;
+
+    // Setup test data
+    dmRigDDF::Skeleton*     skeleton      = new dmRigDDF::Skeleton();
+    dmRigDDF::MeshSet*      mesh_set      = new dmRigDDF::MeshSet();
+    dmRigDDF::AnimationSet* animation_set = new dmRigDDF::AnimationSet();
+    dmArray<dmRig::RigBone> bind_pose;
+    dmHashTable64<uint32_t> bone_indices;
+    SetUpSimpleRig(bind_pose, bone_indices, skeleton, mesh_set, animation_set);
+
+    // Create rig instance
+    dmRig::InstanceCreateParams create_params = {0};
+    create_params.m_BindPose         = &bind_pose;
+    create_params.m_BoneIndices      = &bone_indices;
+    create_params.m_Skeleton         = skeleton;
+    create_params.m_MeshSet          = mesh_set;
+    create_params.m_ModelId          = dmHashString64("test");
+    create_params.m_DefaultAnimation = dmHashString64("valid");
+    create_params.m_AnimationSet     = animation_set;
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceCreate(m_Context, create_params, &instance));
+    dmRig::HCachePoseMatrixEntry pose_matrix_entry = dmRig::AcquirePoseMatrixCacheEntry(m_Context, instance);
+
+    ASSERT_NE(dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY, pose_matrix_entry);
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+
+    const dmRig::PoseMatrixCache* cache = dmRig::GetPoseMatrixCache(m_Context);
+    ASSERT_EQ(bind_pose.Size(), cache->m_PoseMatrices.Size());
+
+    // If we update the cache again without resetting, we just write the same data into the cache again.
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(bind_pose.Size() * 2, cache->m_PoseMatrices.Size());
+
+    dmRig::ResetPoseMatrixCache(m_Context);
+    ASSERT_EQ(0, cache->m_PoseMatrices.Size());
 }
 
 #undef ASSERT_VERT_POS

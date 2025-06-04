@@ -13,14 +13,10 @@ def build(bld):
     platform_defines = []
     platform_drivers = []
 
-    if build_util.get_target_os() in ('nx64','ps4'):
+    if build_util.get_target_os() in ('nx64','ps4','ps5'):
         platform_folder = build_util.get_target_os()
     else:
         platform_drivers = ['%s/hid_gamepad_driver_glfw.cpp' % platform_folder]
-
-        if 'win32' in bld.env.PLATFORM:
-            platform_drivers.append('%s/hid_gamepad_driver_dinput.cpp' % platform_folder)
-            platform_defines.append('DM_HID_DINPUT')
 
     hid = bld.stlib(features = 'cxx',
                     includes = [platform_folder,'.'],

@@ -14,10 +14,6 @@ def configure(conf):
         conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = search_path)
 
 def build(bld):
-    # if not desktop
-    if not bld.env.PLATFORM in ('x86_64-win32', 'x86_64-macos', 'x86_64-linux'):
-        return
-
     build_util = create_build_utility(bld.env)
     target = build_util.get_target_os()
 

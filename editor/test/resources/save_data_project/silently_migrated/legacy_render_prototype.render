@@ -1,0 +1,5 @@
+script: "/builtins/render/default.render_script"
+materials {
+  name: "test"
+  material: "/builtins/materials/sprite.material"
+}

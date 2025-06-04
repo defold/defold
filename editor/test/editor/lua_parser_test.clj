@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,18 +14,18 @@
 
 (ns editor.lua-parser-test
   (:require [clojure.java.io :as io]
-            [clojure.test :refer :all]
-            [clojure.java.io :as io]
             [clojure.string :as string]
+            [clojure.test :refer :all]
             [editor.lua-parser :as lp]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :as test-support])
+            [support.test-support :as test-support]
+            [util.fn :as fn])
   (:import [org.apache.commons.lang3 RandomStringUtils]))
 
 (defn- lua-info
   ([code]
-   (lp/lua-info nil (constantly true) code))
+   (lp/lua-info nil fn/constantly-true code))
   ([workspace valid-resource-kind? code]
    (lp/lua-info workspace valid-resource-kind? code)))
 
@@ -76,6 +76,11 @@
     (let [code "x,y = require(\"myx\"), require(\"myy\")"
           result (select-keys (lua-info code) [:vars :requires])]
       (is (= {:vars #{"x" "y"}
+              :requires [["x" "myx"] ["y" "myy"]]} result))))
+  (testing "global with multiple global require assignments"
+    (let [code "x,y = _G.require(\"myx\"), _G.require(\"myy\")"
+          result (select-keys (lua-info code) [:vars :requires])]
+      (is (= {:vars #{"x" "y"}
               :requires [["x" "myx"] ["y" "myy"]]} result)))))
 
 (deftest test-require
@@ -84,6 +89,26 @@
           result (select-keys (lua-info code) [:vars :requires])]
       (is (= {:vars #{}
               :requires [[nil "mymath"]]} result))))
+  (testing "require function call with tail function call"
+    (let [code "require(\"deep_thought\").get_question(\"42\")"
+          result (select-keys (lua-info code) [:vars :requires])]
+      (is (= {:vars #{}
+              :requires [[nil "deep_thought"]]} result))))
+  (testing "global require function call with tail function call"
+    (let [code "_G.require(\"deep_thought\").get_question(\"42\")"
+          result (select-keys (lua-info code) [:vars :requires])]
+      (is (= {:vars #{}
+              :requires [[nil "deep_thought"]]} result))))
+  (testing "require function call with tail function call with local assignment"
+    (let [code "local result = require(\"deep_thought\").get_question(\"42\")"
+          result (select-keys (lua-info code) [:local-vars :requires])]
+      (is (= {:local-vars #{"result"}
+              :requires [["result" "deep_thought"]]} result))))
+  (testing "global require function call with tail function call with local assignment"
+    (let [code "local result = _G.require(\"deep_thought\").get_question(\"42\")"
+          result (select-keys (lua-info code) [:local-vars :requires])]
+      (is (= {:local-vars #{"result"}
+              :requires [["result" "deep_thought"]]} result))))
   (testing "require call as part of complex expression"
     (let [code (string/join "\n" ["state_rules[hash(\"main\")] = hash_rules("
                                   "    require \"main/state_rules\""
@@ -324,7 +349,10 @@
               {:type :script-property-type-resource :resource-kind "texture" :value (resolve-workspace-resource "/absolute/path/to/resource.png")}
               {:type :script-property-type-resource :resource-kind "tile_source" :value nil}
               {:type :script-property-type-resource :resource-kind "tile_source" :value nil}
-              {:type :script-property-type-resource :resource-kind "tile_source" :value (resolve-workspace-resource "/absolute/path/to/resource.tilesource")}]
+              {:type :script-property-type-resource :resource-kind "tile_source" :value (resolve-workspace-resource "/absolute/path/to/resource.tilesource")}
+              {:type :script-property-type-resource :resource-kind "render_target" :value nil}
+              {:type :script-property-type-resource :resource-kind "render_target" :value nil}
+              {:type :script-property-type-resource :resource-kind "render_target" :value (resolve-workspace-resource "/absolute/path/to/resource.render_target")}]
              (map #(select-keys % [:value :type :resource-kind])
                   (src->properties workspace
                     (string/join "\n" ["go.property(\"test\", true)"
@@ -368,7 +396,10 @@
                                        "go.property(\"test\", resource.texture('/absolute/path/to/resource.png'))"
                                        "go.property(\"test\", resource.tile_source())"
                                        "go.property(\"test\", resource.tile_source(''))"
-                                       "go.property(\"test\", resource.tile_source('/absolute/path/to/resource.tilesource'))"])))))
+                                       "go.property(\"test\", resource.tile_source('/absolute/path/to/resource.tilesource'))"
+                                       "go.property(\"test\", resource.render_target())"
+                                       "go.property(\"test\", resource.render_target(''))"
+                                       "go.property(\"test\", resource.render_target('/absolute/path/to/resource.render_target'))"])))))
 
       (is (= []
              (src->properties workspace "foo.property(\"test\", true)")))

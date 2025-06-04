@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,6 +24,7 @@
  * @name Intersection structs and functions
  * @namespace dmIntersection
  * @path engine/dlib/src/dmsdk/dlib/intersection.h
+ * @language C++
  */
 
 namespace dmIntersection
@@ -55,6 +56,7 @@ namespace dmIntersection
     {
         // The plane normals point inwards
         Plane m_Planes[6]; // left, right, bottom, top, near, far
+        int   m_NumPlanes; // 4 or 6
     };
 
     /*#
@@ -64,7 +66,7 @@ namespace dmIntersection
      * @param normalize [type: bool] true if the normals should be normalized
      * @return frustum [type: dmIntersection::Frustum&] the frustum output
      */
-    void CreateFrustumFromMatrix(const dmVMath::Matrix4& m, bool normalize, Frustum& frustum);
+    void CreateFrustumFromMatrix(const dmVMath::Matrix4& m, bool normalize, int num_planes, Frustum& frustum);
 
     // Returns true if the objects intersect
 
@@ -76,7 +78,7 @@ namespace dmIntersection
      * @param skip_near_far [type: bool] if true, the near+far planes of the frustum are ignored
      * @return intersects [type: bool] Returns true if the objects intersect
      */
-    bool TestFrustumPoint(const Frustum& frustum, const dmVMath::Point3& pos, bool skip_near_far);
+    bool TestFrustumPoint(const Frustum& frustum, const dmVMath::Point3& pos);
 
     /*#
      * Tests intersection between a frustum and a sphere
@@ -87,7 +89,7 @@ namespace dmIntersection
      * @param skip_near_far [type: bool] if true, the near+far planes of the frustum are ignored
      * @return intersects [type: bool] Returns true if the objects intersect
      */
-    bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Point3& pos, float radius, bool skip_near_far);
+    bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Point3& pos, float radius);
 
     /*#
      * Tests intersection between a frustum and a sphere
@@ -98,7 +100,7 @@ namespace dmIntersection
      * @param skip_near_far [type: bool] if true, the near+far planes of the frustum are ignored
      * @return intersects [type: bool] Returns true if the objects intersect
      */
-    bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Vector4& pos, float radius, bool skip_near_far);
+    bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Vector4& pos, float radius);
 
     /*#
      * Tests intersection between a frustum and a sphere
@@ -109,7 +111,7 @@ namespace dmIntersection
      * @param skip_near_far [type: bool] if true, the near+far planes of the frustum are ignored
      * @return intersects [type: bool] Returns true if the objects intersect
      */
-    bool TestFrustumSphereSq(const Frustum& frustum, const dmVMath::Point3& pos, float radius_sq, bool skip_near_far);
+    bool TestFrustumSphereSq(const Frustum& frustum, const dmVMath::Point3& pos, float radius_sq);
 
     /*#
      * Tests intersection between a frustum and a sphere
@@ -120,7 +122,7 @@ namespace dmIntersection
      * @param skip_near_far [type: bool] if true, the near+far planes of the frustum are ignored
      * @return intersects [type: bool] Returns true if the objects intersect
      */
-    bool TestFrustumSphereSq(const Frustum& frustum, const dmVMath::Vector4& pos, float radius_sq, bool skip_near_far);
+    bool TestFrustumSphereSq(const Frustum& frustum, const dmVMath::Vector4& pos, float radius_sq);
 
     /*#
      * Tests intersection between a frustum and an oriented bounding box (OBB)
@@ -132,7 +134,7 @@ namespace dmIntersection
      * @param skip_near_far [type: bool] if true, the near+far planes of the frustum are ignored
      * @return intersects [type: bool] Returns true if the objects intersect
      */
-    bool TestFrustumOBB(const Frustum& frustum, const dmVMath::Matrix4& world, dmVMath::Vector3& aabb_min, dmVMath::Vector3& aabb_max, bool skip_near_far);
+    bool TestFrustumOBB(const Frustum& frustum, const dmVMath::Matrix4& world, dmVMath::Vector3& aabb_min, dmVMath::Vector3& aabb_max);
 
 } // dmIntersection
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from waf_dynamo import apidoc_extract_task
+
 def init(ctx):
     pass
 
@@ -23,6 +25,8 @@ def build(bld):
                                 target       = 'liveupdate_null')
 
     bld.recurse('test')
+
+    apidoc_extract_task(bld, ['script_liveupdate.h'])
 
     bld.install_files('${PREFIX}/include/liveupdate', 'liveupdate.h')
 

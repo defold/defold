@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,43 +15,90 @@
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dmsdk/dlib/intersection.h>
 
+#include <testmain/testmain.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
 
 #include <script/script.h>
 #include <algorithm> // std::stable_sort
 
+#include "../../../graphics/src/graphics_private.h"
+#include "../../../graphics/src/null/graphics_null_private.h"
+#include "../../../graphics/src/test/test_graphics_util.h"
+
 #include "render/render.h"
 #include "render/render_private.h"
 #include "render/font_renderer_private.h"
+#include "render/font_renderer_default.h" // for dmRender::Layout
 
 const static uint32_t WIDTH = 600;
 const static uint32_t HEIGHT = 400;
 
+#define EPSILON 0.0001f
+#define ASSERT_VEC4(exp, act)\
+    ASSERT_NEAR(exp.getX(), act.getX(), EPSILON);\
+    ASSERT_NEAR(exp.getY(), act.getY(), EPSILON);\
+    ASSERT_NEAR(exp.getZ(), act.getZ(), EPSILON);\
+    ASSERT_NEAR(exp.getW(), act.getW(), EPSILON);
+
 using namespace dmVMath;
+
+static dmRender::FontGlyph* GetGlyph(uint32_t utf8, void* user_ctx)
+{
+    dmRender::FontGlyph* glyphs = (dmRender::FontGlyph*)user_ctx;
+    return &glyphs[utf8];
+}
+
+static void* GetGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels)
+{
+    return 0;
+}
+
+static uint32_t GetFontMetrics(void* user_ctx, dmRender::FontMetrics* metrics)
+{
+    return 0;
+}
 
 class dmRenderTest : public jc_test_base_class
 {
 protected:
+    dmPlatform::HWindow m_Window;
     dmRender::HRenderContext m_Context;
     dmGraphics::HContext m_GraphicsContext;
     dmScript::HContext m_ScriptContext;
     dmRender::HFontMap m_SystemFontMap;
+    dmRender::FontGlyph m_Glyphs[128];
 
     virtual void SetUp()
     {
-        dmGraphics::Initialize();
-        m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
+        dmGraphics::InstallAdapter();
+
+        dmPlatform::WindowParams win_params = {};
+        win_params.m_Width = 20;
+        win_params.m_Height = 10;
+        win_params.m_ContextAlphabits = 8;
+
+        m_Window = dmPlatform::NewWindow();
+        dmPlatform::OpenWindow(m_Window, win_params);
+
+        dmGraphics::ContextParams graphics_context_params = {};
+        graphics_context_params.m_Window                  = m_Window;
+        graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
+        graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
+
+        m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         dmRender::RenderContextParams params;
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        dmScript::ContextParams script_context_params = {};
+        script_context_params.m_GraphicsContext = m_GraphicsContext;
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         params.m_MaxRenderTargets = 1;
         params.m_MaxInstances = 2;
         params.m_ScriptContext = m_ScriptContext;
         params.m_MaxDebugVertexCount = 256;
         params.m_MaxCharacters = 256;
+        params.m_MaxBatches = 128;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
 
         dmRender::FontMapParams font_map_params;
@@ -61,19 +108,23 @@ protected:
         font_map_params.m_CacheCellHeight = 8;
         font_map_params.m_MaxAscent = 2;
         font_map_params.m_MaxDescent = 1;
-        font_map_params.m_Glyphs.SetCapacity(128);
-        font_map_params.m_Glyphs.SetSize(128);
-        memset((void*)&font_map_params.m_Glyphs[0], 0, sizeof(dmRender::Glyph)*128);
-        for (uint32_t i = 0; i < 128; ++i)
+        font_map_params.m_GetGlyph = GetGlyph;
+        font_map_params.m_GetGlyphData = GetGlyphData;
+        font_map_params.m_GetFontMetrics = GetFontMetrics;
+
+        m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
+
+        memset(m_Glyphs, 0, sizeof(m_Glyphs));
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Glyphs); ++i)
         {
-            font_map_params.m_Glyphs[i].m_Character = i;
-            font_map_params.m_Glyphs[i].m_Width = 1;
-            font_map_params.m_Glyphs[i].m_LeftBearing = 1;
-            font_map_params.m_Glyphs[i].m_Advance = 2;
-            font_map_params.m_Glyphs[i].m_Ascent = 2;
-            font_map_params.m_Glyphs[i].m_Descent = 1;
+            m_Glyphs[i].m_Character = i;
+            m_Glyphs[i].m_Width = 1;
+            m_Glyphs[i].m_LeftBearing = 1;
+            m_Glyphs[i].m_Advance = 2;
+            m_Glyphs[i].m_Ascent = 2;
+            m_Glyphs[i].m_Descent = 1;
         }
-        m_SystemFontMap = dmRender::NewFontMap(m_GraphicsContext, font_map_params);
+        dmRender::SetFontMapUserData(m_SystemFontMap, m_Glyphs);
     }
 
     virtual void TearDown()
@@ -82,6 +133,9 @@ protected:
         dmRender::DeleteFontMap(m_SystemFontMap);
         dmGraphics::DeleteContext(m_GraphicsContext);
         dmScript::DeleteContext(m_ScriptContext);
+
+        dmPlatform::CloseWindow(m_Window);
+        dmPlatform::DeleteWindow(m_Window);
     }
 };
 
@@ -89,56 +143,23 @@ TEST_F(dmRenderTest, TestFontMapTextureFiltering)
 {
     dmRender::HFontMap bitmap_font_map;
     dmRender::FontMapParams bitmap_font_map_params;
-    bitmap_font_map_params.m_CacheWidth = 1;
-    bitmap_font_map_params.m_CacheHeight = 1;
+    bitmap_font_map_params.m_CacheWidth = 8;
+    bitmap_font_map_params.m_CacheHeight = 8;
     bitmap_font_map_params.m_CacheCellWidth = 8;
     bitmap_font_map_params.m_CacheCellHeight = 8;
     bitmap_font_map_params.m_MaxAscent = 2;
     bitmap_font_map_params.m_MaxDescent = 1;
-    bitmap_font_map_params.m_Glyphs.SetCapacity(1);
-    bitmap_font_map_params.m_Glyphs.SetSize(1);
-    memset((void*)&bitmap_font_map_params.m_Glyphs[0], 0, sizeof(dmRender::Glyph)*1);
-    for (uint32_t i = 0; i < 1; ++i)
-    {
-        bitmap_font_map_params.m_Glyphs[i].m_Character = i;
-        bitmap_font_map_params.m_Glyphs[i].m_Width = 1;
-        bitmap_font_map_params.m_Glyphs[i].m_LeftBearing = 1;
-        bitmap_font_map_params.m_Glyphs[i].m_Advance = 2;
-        bitmap_font_map_params.m_Glyphs[i].m_Ascent = 2;
-        bitmap_font_map_params.m_Glyphs[i].m_Descent = 1;
-    }
+
     bitmap_font_map_params.m_ImageFormat = dmRenderDDF::TYPE_BITMAP;
 
-    bitmap_font_map = dmRender::NewFontMap(m_GraphicsContext, bitmap_font_map_params);
+    bitmap_font_map_params.m_GetGlyph = GetGlyph;
+    bitmap_font_map_params.m_GetGlyphData = GetGlyphData;
+    bitmap_font_map_params.m_GetFontMetrics = GetFontMetrics;
+
+    bitmap_font_map = dmRender::NewFontMap(m_Context, m_GraphicsContext, bitmap_font_map_params);
     ASSERT_TRUE(VerifyFontMapMinFilter(bitmap_font_map, dmGraphics::TEXTURE_FILTER_LINEAR));
     ASSERT_TRUE(VerifyFontMapMagFilter(bitmap_font_map, dmGraphics::TEXTURE_FILTER_LINEAR));
     dmRender::DeleteFontMap(bitmap_font_map);
-}
-
-TEST_F(dmRenderTest, TestContextNewDelete)
-{
-
-}
-
-TEST_F(dmRenderTest, TestRenderTarget)
-{
-    dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
-    dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
-
-    creation_params[0].m_Width = WIDTH;
-    creation_params[0].m_Height = HEIGHT;
-    creation_params[1].m_Width = WIDTH;
-    creation_params[1].m_Height = HEIGHT;
-
-    params[0].m_Width = WIDTH;
-    params[0].m_Height = HEIGHT;
-    params[0].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-    params[1].m_Width = WIDTH;
-    params[1].m_Height = HEIGHT;
-    params[1].m_Format = dmGraphics::TEXTURE_FORMAT_DEPTH;
-    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT;
-    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_GraphicsContext, flags, creation_params, params);
-    dmGraphics::DeleteRenderTarget(target);
 }
 
 TEST_F(dmRenderTest, TestGraphicsContext)
@@ -170,6 +191,44 @@ TEST_F(dmRenderTest, TestRenderObjects)
     ASSERT_NE(dmRender::RESULT_OK, AddToRender(m_Context, &ro));
     ASSERT_EQ(dmRender::RESULT_OK, ClearRenderObjects(m_Context));
     ASSERT_EQ(dmRender::RESULT_OK, AddToRender(m_Context, &ro));
+}
+
+TEST_F(dmRenderTest, TestRenderCamera)
+{
+    dmRender::HRenderCamera camera = dmRender::NewRenderCamera(m_Context);
+
+    dmMessage::URL camera_url = {};
+    camera_url.m_Socket   = dmHashString64("socket");
+    camera_url.m_Path     = dmHashString64("my_go");
+    camera_url.m_Fragment = dmHashString64("camera");
+
+    dmRender::SetRenderCameraURL(m_Context, camera, &camera_url);
+
+    dmRender::RenderCameraData data = {};
+    data.m_Viewport               = dmVMath::Vector4(0.0f, 0.0f, WIDTH, HEIGHT);
+    data.m_AspectRatio            = WIDTH / HEIGHT;
+    data.m_Fov                    = M_PI / 4.0f;
+    data.m_NearZ                  = 0.1f;
+    data.m_FarZ                   = 1000.0f;
+    data.m_OrthographicZoom       = 1.0f;
+    data.m_AutoAspectRatio        = true;
+    data.m_OrthographicProjection = true;
+
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+
+    dmRender::RenderCameraData data_other = {};
+    dmRender::GetRenderCameraData(m_Context, camera, &data_other);
+
+    ASSERT_VEC4(data.m_Viewport, data_other.m_Viewport);
+    ASSERT_NEAR(data.m_AspectRatio, data_other.m_AspectRatio, EPSILON);
+    ASSERT_NEAR(data.m_Fov, data_other.m_Fov, EPSILON);
+    ASSERT_NEAR(data.m_NearZ, data_other.m_NearZ, EPSILON);
+    ASSERT_NEAR(data.m_FarZ, data_other.m_FarZ, EPSILON);
+    ASSERT_NEAR(data.m_OrthographicZoom, data_other.m_OrthographicZoom, EPSILON);
+    ASSERT_EQ(data.m_AutoAspectRatio, data_other.m_AutoAspectRatio);
+    ASSERT_EQ(data.m_OrthographicProjection, data_other.m_OrthographicProjection);
+
+    dmRender::DeleteRenderCamera(m_Context, camera);
 }
 
 TEST_F(dmRenderTest, TestSquare2d)
@@ -388,23 +447,16 @@ static void TestDrawStateDispatch(dmRender::RenderListDispatchParams const & par
     }
 }
 
-static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uint32_t count)
-{
-    dmGraphics::ShaderDesc::Shader ddf;
-    memset(&ddf,0,sizeof(ddf));
-    ddf.m_Source.m_Data  = (uint8_t*)data;
-    ddf.m_Source.m_Count = count;
-    return ddf;
-}
-
 TEST_F(dmRenderTest, TestRenderListDrawState)
 {
     dmRender::RenderListBegin(m_Context);
 
-    dmGraphics::ShaderDesc::Shader shader = MakeDDFShader("foo", 3);
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader);
-    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, vp, fp);
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
     dmhash_t tag = dmHashString64("tag");
     dmRender::SetMaterialTags(material, 1, &tag);
 
@@ -452,10 +504,507 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
 
     ASSERT_EQ(0, memcmp(&ps_before, &ps_after, sizeof(dmGraphics::PipelineState)));
 
-    dmGraphics::DeleteVertexProgram(vp);
-    dmGraphics::DeleteFragmentProgram(fp);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+
+    dmGraphics::DeleteVertexBuffer(vx_buffer);
+    dmGraphics::DeleteVertexDeclaration(vx_decl);
+}
+
+struct TestEnableTextureByHashDispatchCtx
+{
+    dmRender::HRenderContext        m_Context;
+    dmRender::RenderObject          m_RenderObject;
+    dmGraphics::HTexture*           m_Textures;
+
+    dmRender::HMaterial             m_Material;
+    dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+    dmGraphics::HVertexBuffer       m_VertexBuffer;
+};
+
+static void TestEnableTextureByHashDispatch(dmRender::RenderListDispatchParams const & params)
+{
+    if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+    {
+        TestEnableTextureByHashDispatchCtx* user_ctx = (TestEnableTextureByHashDispatchCtx*) params.m_UserData;
+        dmRender::RenderObject* ro_0                 = &user_ctx->m_RenderObject;
+
+        ro_0->m_Material          = user_ctx->m_Material;
+        ro_0->m_VertexCount       = 1;
+        ro_0->m_VertexDeclaration = user_ctx->m_VertexDeclaration;
+        ro_0->m_VertexBuffer      = user_ctx->m_VertexBuffer;
+        memcpy(ro_0->m_Textures, user_ctx->m_Textures, sizeof(ro_0->m_Textures));
+
+        AddToRender(user_ctx->m_Context, ro_0);
+    }
+}
+
+static dmGraphics::HTexture MakeDummyTexture(dmGraphics::HContext context, uint32_t depth = 1)
+{
+    dmGraphics::TextureCreationParams creation_params;
+    creation_params.m_Type           = depth > 1 ? dmGraphics::TEXTURE_TYPE_2D_ARRAY : dmGraphics::TEXTURE_TYPE_2D;
+    creation_params.m_Width          = 2;
+    creation_params.m_Height         = 2;
+    creation_params.m_OriginalWidth  = 2;
+    creation_params.m_OriginalHeight = 2;
+    creation_params.m_Depth          = depth;
+
+    uint8_t tex_data[2 * 2];
+    dmGraphics::TextureParams params;
+    params.m_DataSize  = sizeof(tex_data);
+    params.m_Data      = tex_data;
+    params.m_Width     = creation_params.m_Width;
+    params.m_Height    = creation_params.m_Height;
+    params.m_Format    = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    params.m_MinFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
+    params.m_MagFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
+
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(context, creation_params);
+    dmGraphics::SetTexture(texture, params);
+    return texture;
+}
+
+static inline int CountSamplersInTextureBindTable(dmRender::HRenderContext context, dmhash_t sampler_name)
+{
+    int c = 0;
+    for (int i = 0; i < context->m_TextureBindTable.Size(); ++i)
+    {
+        if (context->m_TextureBindTable[i].m_Samplerhash == sampler_name)
+        {
+            c++;
+        }
+    }
+    return c;
+}
+
+TEST_F(dmRenderTest, TestEnableTextureByHash)
+{
+    const char* shader_src = "uniform lowp sampler2D texture_sampler_1;\n"
+                             "uniform lowp sampler2D texture_sampler_2;\n"
+                             "uniform lowp sampler2DArray texture_sampler_3;\n"
+                             "uniform lowp sampler2D texture_sampler_4;\n";
+
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
+
+    shader_desc_builder.AddTexture("texture_sampler_1", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shader_desc_builder.AddTexture("texture_sampler_2", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shader_desc_builder.AddTexture("texture_sampler_3", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY);
+    shader_desc_builder.AddTexture("texture_sampler_4", 3, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+
+    dmRender::HMaterial material    = dmRender::NewMaterial(m_Context, program);
+    dmhash_t texture_sampler_1_hash = dmHashString64("texture_sampler_1");
+    dmhash_t texture_sampler_2_hash = dmHashString64("texture_sampler_2");
+    dmhash_t texture_sampler_3_hash = dmHashString64("texture_sampler_3");
+    dmhash_t texture_sampler_4_hash = dmHashString64("texture_sampler_4");
+
+    SetMaterialSampler(material, texture_sampler_1_hash, 0, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_FILTER_LINEAR, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f);
+    SetMaterialSampler(material, texture_sampler_2_hash, 1, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_FILTER_LINEAR, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f);
+    SetMaterialSampler(material, texture_sampler_3_hash, 2, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_FILTER_LINEAR, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f);
+    SetMaterialSampler(material, texture_sampler_4_hash, 3, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_FILTER_LINEAR, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f);
+
+    dmhash_t tag = dmHashString64("tag");
+    dmRender::SetMaterialTags(material, 1, &tag);
+
+    dmGraphics::HVertexDeclaration vx_decl = dmGraphics::NewVertexDeclaration(m_GraphicsContext, 0, 0);
+    dmGraphics::HVertexBuffer vx_buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+    dmGraphics::HTexture textures[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {};
+
+    for (int i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+    {
+        textures[i] = MakeDummyTexture(m_GraphicsContext);
+    }
+
+    TestEnableTextureByHashDispatchCtx user_ctx;
+    user_ctx.m_Context           = m_Context;
+    user_ctx.m_Material          = material;
+    user_ctx.m_VertexDeclaration = vx_decl;
+    user_ctx.m_VertexBuffer      = vx_buffer;
+    user_ctx.m_Textures          = textures;
+
+    dmRender::RenderListBegin(m_Context);
+
+    uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestEnableTextureByHashDispatch, 0, &user_ctx);
+    dmRender::RenderListEntry* out = dmRender::RenderListAlloc(m_Context, 1);
+
+    dmRender::RenderListEntry & entry = out[0];
+    entry.m_WorldPosition             = Point3(0,0,0);
+    entry.m_MajorOrder                = 0;
+    entry.m_MinorOrder                = 0;
+    entry.m_TagListKey                = 0;
+    entry.m_Order                     = 1;
+    entry.m_BatchKey                  = 0;
+    entry.m_Dispatch                  = dispatch;
+    entry.m_UserData                  = 0;
+
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    // Turn off all context features (mostly for testing array textutes here)
+    null_context->m_ContextFeatures = 0;
+
+    dmGraphics::HTexture test_texture_0     = MakeDummyTexture(m_GraphicsContext);
+    dmGraphics::HTexture test_texture_1     = MakeDummyTexture(m_GraphicsContext);
+    dmGraphics::HTexture test_texture_array = MakeDummyTexture(m_GraphicsContext, 4);
+
+    SetTextureBindingByUnit(m_Context, 0, test_texture_0);
+    SetTextureBindingByHash(m_Context, texture_sampler_1_hash, test_texture_1);
+
+    dmRender::RenderListSubmit(m_Context, out, out + 1);
+    dmRender::RenderListEnd(m_Context);
+
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+
+    // we bind test_texture_0 to unit 0, but that binding will be overwritten by the name hash binding
+    // since the "texture_sampler_1" sampler is bound to unit 0
+    dmGraphics::Texture* tex0_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::Texture>(null_context->m_AssetHandleContainer, test_texture_0);
+    ASSERT_EQ(m_Context->m_TextureBindTable[0].m_Texture, test_texture_0);
+    ASSERT_EQ(-1, tex0_ptr->m_LastBoundUnit[0]);
+
+    // test_texture_1 is bound by hash to unit 0 ("texture_sampler_1")
+    dmGraphics::Texture* tex1_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::Texture>(null_context->m_AssetHandleContainer, test_texture_1);
+    ASSERT_EQ(m_Context->m_TextureBindTable[1].m_Texture, test_texture_1);
+    ASSERT_EQ(0, tex1_ptr->m_LastBoundUnit[0]);
+
+    // we should allow binding the same texture to multiple logical units
+    SetTextureBindingByHash(m_Context, texture_sampler_2_hash, test_texture_1);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+
+    ASSERT_EQ(m_Context->m_TextureBindTable[1].m_Texture, test_texture_1);
+    ASSERT_EQ(m_Context->m_TextureBindTable[2].m_Texture, test_texture_1);
+
+    // The last bound texture should be unit 1, since we bind it to the second sampler (and not the first)
+    ASSERT_EQ(1, tex1_ptr->m_LastBoundUnit[0]);
+
+    // Bind an array texture with 4 sub-ids
+    SetTextureBindingByHash(m_Context, texture_sampler_3_hash, test_texture_array);
+
+    // Bind another texture after, to make sure we can bind something after an array and all the unit offsets should be valid
+    SetTextureBindingByHash(m_Context, texture_sampler_4_hash, test_texture_0);
+
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+
+    dmGraphics::Texture* tex_array = dmGraphics::GetAssetFromContainer<dmGraphics::Texture>(null_context->m_AssetHandleContainer, test_texture_array);
+    ASSERT_EQ(m_Context->m_TextureBindTable[3].m_Texture, test_texture_array);
+    ASSERT_EQ(2, tex_array->m_LastBoundUnit[0]);
+    ASSERT_EQ(3, tex_array->m_LastBoundUnit[1]);
+    ASSERT_EQ(4, tex_array->m_LastBoundUnit[2]);
+    ASSERT_EQ(5, tex_array->m_LastBoundUnit[3]);
+
+    ASSERT_EQ(m_Context->m_TextureBindTable[0].m_Texture, test_texture_0);
+    ASSERT_EQ(m_Context->m_TextureBindTable[4].m_Texture, test_texture_0);
+    ASSERT_EQ(6, tex0_ptr->m_LastBoundUnit[0]);
+
+    // Unbind everything
+    for (int i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+    {
+        SetTextureBindingByUnit(m_Context, i, 0);
+    }
+
+    // Drawing should trim the texture bind table based on where the last valid texture was found
+    // which will set the table to zero in this case
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    ASSERT_EQ(0, m_Context->m_TextureBindTable.Size());
+
+    // table is [t0, 0, 0, t0];
+    SetTextureBindingByUnit(m_Context, 0, test_texture_0);
+    SetTextureBindingByUnit(m_Context, 3, test_texture_0);
+    ASSERT_EQ(4, m_Context->m_TextureBindTable.Size());
+    ASSERT_EQ(test_texture_0, m_Context->m_TextureBindTable[0].m_Texture);
+    ASSERT_EQ(test_texture_0, m_Context->m_TextureBindTable[3].m_Texture);
+    // Unbind [t0, 0, 0, 0]
+    SetTextureBindingByUnit(m_Context, 3, 0);
+
+    // Draw should trim the array to [t0]
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    ASSERT_EQ(1, m_Context->m_TextureBindTable.Size());
+    ASSERT_EQ(test_texture_0, m_Context->m_TextureBindTable[0].m_Texture);
+
+    // Reset bind table
+    m_Context->m_TextureBindTable.SetSize(0);
+
+    // Test binding and unbinding in different order, each sampler can only have one entry in the list
+    SetTextureBindingByHash(m_Context, texture_sampler_1_hash, textures[0]);
+    SetTextureBindingByHash(m_Context, texture_sampler_2_hash, textures[0]);
+
+    ASSERT_EQ(1, CountSamplersInTextureBindTable(m_Context, texture_sampler_1_hash));
+    ASSERT_EQ(1, CountSamplersInTextureBindTable(m_Context, texture_sampler_2_hash));
+
+    // Unbinding the first sampler will clear up one slot
+    SetTextureBindingByHash(m_Context, texture_sampler_1_hash, 0);
+    SetTextureBindingByHash(m_Context, texture_sampler_2_hash, textures[1]);
+
+    // The second sampler should just be present once in the table
+    ASSERT_EQ(0, CountSamplersInTextureBindTable(m_Context, texture_sampler_1_hash));
+    ASSERT_EQ(1, CountSamplersInTextureBindTable(m_Context, texture_sampler_2_hash));
+
+    dmGraphics::DeleteTexture(test_texture_0);
+    dmGraphics::DeleteTexture(test_texture_1);
+    dmGraphics::DeleteTexture(test_texture_array);
+
+    for (int i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+    {
+        dmGraphics::DeleteTexture(textures[i]);
+    }
+
+    dmGraphics::DeleteTexture(test_texture_0);
+
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
     dmRender::DeleteMaterial(m_Context, material);
 
+    dmGraphics::DeleteVertexBuffer(vx_buffer);
+    dmGraphics::DeleteVertexDeclaration(vx_decl);
+}
+
+TEST_F(dmRenderTest, TestEnableDisableContextTextures)
+{
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
+
+    dmhash_t tag = dmHashString64("tag");
+    dmRender::SetMaterialTags(material, 1, &tag);
+
+    dmGraphics::HVertexDeclaration vx_decl = dmGraphics::NewVertexDeclaration(m_GraphicsContext, 0, 0);
+    dmGraphics::HVertexBuffer vx_buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+    ASSERT_EQ(0, m_Context->m_TextureBindTable.Size());
+
+    SetTextureBindingByUnit(m_Context, 0, 13);
+    SetTextureBindingByUnit(m_Context, 7, 99);
+    SetTextureBindingByUnit(m_Context, 31, 1337);
+
+    ASSERT_EQ(32, m_Context->m_TextureBindTable.Size());
+    ASSERT_EQ(13,   m_Context->m_TextureBindTable[0].m_Texture);
+    ASSERT_EQ(99,   m_Context->m_TextureBindTable[7].m_Texture);
+    ASSERT_EQ(1337, m_Context->m_TextureBindTable[31].m_Texture);
+
+    // Unbind by unit
+    SetTextureBindingByUnit(m_Context, 0, 0);
+    SetTextureBindingByUnit(m_Context, 7, 0);
+    SetTextureBindingByUnit(m_Context, 31, 0);
+
+    ASSERT_EQ(0, m_Context->m_TextureBindTable[0].m_Texture);
+    ASSERT_EQ(0, m_Context->m_TextureBindTable[7].m_Texture);
+    ASSERT_EQ(0, m_Context->m_TextureBindTable[31].m_Texture);
+
+    // Bind by unit and hashes
+    dmhash_t sampler_0 = dmHashString64("sampler_0");
+    dmhash_t sampler_1 = dmHashString64("sampler_1");
+
+    SetTextureBindingByHash(m_Context, sampler_0, 13); // -> slot 0
+    SetTextureBindingByUnit(m_Context, 0,         31); // -> overwrite slot 0
+    ASSERT_EQ(31, m_Context->m_TextureBindTable[0].m_Texture);
+    ASSERT_EQ(0,  m_Context->m_TextureBindTable[0].m_Samplerhash);
+
+    SetTextureBindingByUnit(m_Context, 1,         64); // -> slot 1
+    SetTextureBindingByHash(m_Context, sampler_0, 46); // -> slot 2 (not overwriting)
+
+    ASSERT_EQ(64,        m_Context->m_TextureBindTable[1].m_Texture);
+    ASSERT_EQ(0,         m_Context->m_TextureBindTable[1].m_Samplerhash);
+    ASSERT_EQ(46,        m_Context->m_TextureBindTable[2].m_Texture);
+    ASSERT_EQ(sampler_0, m_Context->m_TextureBindTable[2].m_Samplerhash);
+
+    SetTextureBindingByUnit(m_Context, 1, 0); // reset 1
+    ASSERT_EQ(0, m_Context->m_TextureBindTable[1].m_Texture);
+    ASSERT_EQ(0, m_Context->m_TextureBindTable[1].m_Samplerhash);
+
+    SetTextureBindingByHash(m_Context, sampler_1, 999); // -> reuse slot 1
+    ASSERT_EQ(999,       m_Context->m_TextureBindTable[1].m_Texture);
+    ASSERT_EQ(sampler_1, m_Context->m_TextureBindTable[1].m_Samplerhash);
+
+    SetTextureBindingByHash(m_Context, sampler_1, 9000); // -> reuse hash sampler_1
+    ASSERT_EQ(9000,      m_Context->m_TextureBindTable[1].m_Texture);
+    ASSERT_EQ(sampler_1, m_Context->m_TextureBindTable[1].m_Samplerhash);
+
+    SetTextureBindingByHash(m_Context, sampler_1, 0); // -> unbind sampler_1
+    ASSERT_EQ(0, m_Context->m_TextureBindTable[1].m_Texture);
+    ASSERT_EQ(0, m_Context->m_TextureBindTable[1].m_Samplerhash);
+
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+
+    dmGraphics::DeleteVertexBuffer(vx_buffer);
+    dmGraphics::DeleteVertexDeclaration(vx_decl);
+}
+
+struct TestDefaultSamplerFiltersDispatchCtx
+{
+    dmRender::HRenderContext        m_Context;
+    dmRender::RenderObject          m_RenderObjects[2];
+    dmRender::HMaterial             m_Material[2];
+    dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+    dmGraphics::HVertexBuffer       m_VertexBuffer;
+    dmGraphics::HTexture            m_Texture;
+    uint8_t                         m_Dispatch;
+};
+
+static void TestDefaultSamplerFiltersDispatch(dmRender::RenderListDispatchParams const & params)
+{
+    if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+    {
+        TestDefaultSamplerFiltersDispatchCtx* user_ctx = (TestDefaultSamplerFiltersDispatchCtx*) params.m_UserData;
+        dmRender::RenderObject* ro = &user_ctx->m_RenderObjects[user_ctx->m_Dispatch];
+
+        ro->Init();
+        ro->m_Material          = user_ctx->m_Material[user_ctx->m_Dispatch];
+        ro->m_VertexCount       = 1;
+        ro->m_VertexDeclaration = user_ctx->m_VertexDeclaration;
+        ro->m_VertexBuffer      = user_ctx->m_VertexBuffer;
+        ro->m_Textures[0]       = user_ctx->m_Texture;
+        ro->m_Textures[1]       = user_ctx->m_Texture;
+        ro->m_Textures[2]       = user_ctx->m_Texture;
+
+        AddToRender(user_ctx->m_Context, ro);
+    }
+}
+
+TEST_F(dmRenderTest, TestDefaultSamplerFilters)
+{
+    dmGraphics::TextureFilter gfx_min_filter_default;
+    dmGraphics::TextureFilter gfx_mag_filter_default;
+    dmGraphics::GetDefaultTextureFilters(m_GraphicsContext, gfx_min_filter_default, gfx_mag_filter_default);
+    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR, gfx_min_filter_default);
+    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR, gfx_mag_filter_default);
+
+    const char* shader_src = "uniform lowp sampler2D texture_sampler_1;\n"
+                             "uniform lowp sampler2D texture_sampler_2;\n"
+                             "uniform lowp sampler2D texture_sampler_3;\n";
+
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
+
+    shader_desc_builder.AddTexture("texture_sampler_1", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shader_desc_builder.AddTexture("texture_sampler_2", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shader_desc_builder.AddTexture("texture_sampler_3", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+
+    dmGraphics::HProgram program             = dmGraphics::NewProgram(m_GraphicsContext, shader_desc_builder.Get(), 0, 0);
+    dmRender::HMaterial material             = dmRender::NewMaterial(m_Context, program);
+    dmRender::HMaterial material_no_samplers = dmRender::NewMaterial(m_Context, program);
+
+    dmhash_t tag = dmHashString64("tag");
+    dmRender::SetMaterialTags(material, 1, &tag);
+
+    dmGraphics::TextureCreationParams creation_params;
+    creation_params.m_Width          = 2;
+    creation_params.m_Height         = 2;
+    creation_params.m_OriginalWidth  = 2;
+    creation_params.m_OriginalHeight = 2;
+    dmGraphics::HTexture texture     = dmGraphics::NewTexture(m_GraphicsContext, creation_params);
+
+    uint8_t tex_data[2 * 2];
+    dmGraphics::TextureParams params;
+    params.m_DataSize  = sizeof(tex_data);
+    params.m_Data      = tex_data;
+    params.m_Width     = creation_params.m_Width;
+    params.m_Height    = creation_params.m_Height;
+    params.m_Format    = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    params.m_MinFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
+    params.m_MagFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
+    dmGraphics::SetTexture(texture, params);
+
+    ASSERT_TRUE(dmRender::SetMaterialSampler(material,
+        dmHashString64("texture_sampler_1"), 0,
+        dmGraphics::TEXTURE_WRAP_REPEAT,
+        dmGraphics::TEXTURE_WRAP_REPEAT,
+        dmGraphics::TEXTURE_FILTER_NEAREST,
+        dmGraphics::TEXTURE_FILTER_NEAREST,
+        1.0f));
+
+    ASSERT_TRUE(dmRender::SetMaterialSampler(material,
+        dmHashString64("texture_sampler_2"), 1,
+        dmGraphics::TEXTURE_WRAP_REPEAT,
+        dmGraphics::TEXTURE_WRAP_REPEAT,
+        dmGraphics::TEXTURE_FILTER_DEFAULT,
+        dmGraphics::TEXTURE_FILTER_NEAREST,
+        1.0f));
+
+    ASSERT_TRUE(dmRender::SetMaterialSampler(material,
+        dmHashString64("texture_sampler_3"), 2,
+        dmGraphics::TEXTURE_WRAP_REPEAT,
+        dmGraphics::TEXTURE_WRAP_REPEAT,
+        dmGraphics::TEXTURE_FILTER_DEFAULT,
+        dmGraphics::TEXTURE_FILTER_DEFAULT,
+        1.0f));
+
+    dmGraphics::HVertexDeclaration vx_decl = dmGraphics::NewVertexDeclaration(m_GraphicsContext, 0, 0);
+    dmGraphics::HVertexBuffer vx_buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+    TestDefaultSamplerFiltersDispatchCtx user_ctx;
+    user_ctx.m_Context           = m_Context;
+    user_ctx.m_Dispatch          = 0;
+    user_ctx.m_Material[0]       = material;
+    user_ctx.m_Material[1]       = material_no_samplers;
+    user_ctx.m_Texture           = texture;
+    user_ctx.m_VertexDeclaration = vx_decl;
+    user_ctx.m_VertexBuffer      = vx_buffer;
+
+    dmRender::RenderListBegin(m_Context);
+    uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestDefaultSamplerFiltersDispatch, 0, &user_ctx);
+
+    dmRender::RenderListEntry* out = dmRender::RenderListAlloc(m_Context, 1);
+    dmRender::RenderListEntry& entry = out[0];
+    entry.m_WorldPosition             = Point3(0,0,0);
+    entry.m_MajorOrder                = 0;
+    entry.m_MinorOrder                = 0;
+    entry.m_TagListKey                = 0;
+    entry.m_Order                     = 1;
+    entry.m_BatchKey                  = 0;
+    entry.m_Dispatch                  = dispatch;
+    entry.m_UserData                  = 0;
+
+    dmGraphics::TextureFilter gfx_min_filter_active;
+    dmGraphics::TextureFilter gfx_mag_filter_active;
+
+    {
+        dmRender::RenderListSubmit(m_Context, out, out + 1);
+        dmRender::RenderListEnd(m_Context);
+        dmRender::DrawRenderList(m_Context, 0, 0, 0);
+
+        dmGraphics::GetTextureFilters(m_GraphicsContext, 0, gfx_min_filter_active, gfx_mag_filter_active);
+        ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST, gfx_min_filter_active);
+        ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST, gfx_mag_filter_active);
+
+        dmGraphics::GetTextureFilters(m_GraphicsContext, 1, gfx_min_filter_active, gfx_mag_filter_active);
+        ASSERT_EQ(gfx_min_filter_default, gfx_min_filter_active);
+        ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST, gfx_mag_filter_active);
+
+        dmGraphics::GetTextureFilters(m_GraphicsContext, 2, gfx_min_filter_active, gfx_mag_filter_active);
+        ASSERT_EQ(gfx_min_filter_default, gfx_min_filter_active);
+        ASSERT_EQ(gfx_mag_filter_default, gfx_mag_filter_active);
+    }
+
+    user_ctx.m_Dispatch++;
+
+    {
+        dmRender::RenderListSubmit(m_Context, out, out + 1);
+        dmRender::RenderListEnd(m_Context);
+        dmRender::DrawRenderList(m_Context, 0, 0, 0);
+
+        dmGraphics::GetTextureFilters(m_GraphicsContext, 0, gfx_min_filter_active, gfx_mag_filter_active);
+        ASSERT_EQ(gfx_min_filter_default, gfx_min_filter_active);
+        ASSERT_EQ(gfx_mag_filter_default, gfx_mag_filter_active);
+
+        dmGraphics::GetTextureFilters(m_GraphicsContext, 1, gfx_min_filter_active, gfx_mag_filter_active);
+        ASSERT_EQ(gfx_min_filter_default, gfx_min_filter_active);
+        ASSERT_EQ(gfx_mag_filter_default, gfx_mag_filter_active);
+
+        dmGraphics::GetTextureFilters(m_GraphicsContext, 2, gfx_min_filter_active, gfx_mag_filter_active);
+        ASSERT_EQ(gfx_min_filter_default, gfx_min_filter_active);
+        ASSERT_EQ(gfx_mag_filter_default, gfx_mag_filter_active);
+    }
+
+    dmRender::DeleteMaterial(m_Context, material);
+    dmRender::DeleteMaterial(m_Context, material_no_samplers);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+
+    dmGraphics::DeleteTexture(texture);
     dmGraphics::DeleteVertexBuffer(vx_buffer);
     dmGraphics::DeleteVertexDeclaration(vx_decl);
 }
@@ -526,7 +1075,7 @@ static void TestDrawVisibility(dmRender::RenderListVisibilityParams const &param
     for (uint32_t i = 0; i < params.m_NumEntries; ++i)
     {
         dmRender::RenderListEntry* entry = &params.m_Entries[i];
-        bool intersect = dmIntersection::TestFrustumPoint(*params.m_Frustum, entry->m_WorldPosition, true);
+        bool intersect = dmIntersection::TestFrustumPoint(*params.m_Frustum, entry->m_WorldPosition);
         entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
     }
 }
@@ -597,7 +1146,17 @@ TEST_F(dmRenderTest, TestRenderListCulling)
         dmRender::RenderListSubmit(m_Context, out, out + n);
         dmRender::RenderListEnd(m_Context);
 
-        dmRender::DrawRenderList(m_Context, 0, 0, frustum_matrices[c]);
+        if (frustum_matrices[c])
+        {
+            dmRender::FrustumOptions frustum_options;
+            frustum_options.m_Matrix = *frustum_matrices[c];
+            frustum_options.m_NumPlanes = dmRender::FRUSTUM_PLANES_SIDES;
+            dmRender::DrawRenderList(m_Context, 0, 0, &frustum_options);
+        }
+        else
+        {
+            dmRender::DrawRenderList(m_Context, 0, 0, 0);
+        }
 
         ASSERT_EQ(ctx.m_BeginCalls, 2);
         ASSERT_GT(ctx.m_BatchCalls, 2);
@@ -856,6 +1415,16 @@ static inline float ExpectedHeight(float line_height, float num_lines, float lea
     return num_lines * (line_height * fabsf(leading)) - line_height * (fabsf(leading) - 1.0f);
 }
 
+static void GetTextMetrics(dmRender::HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, dmRender::TextMetrics* metrics)
+{
+    dmRender::TextMetricsSettings settings;
+    settings.m_Width = width;
+    settings.m_LineBreak = line_break;
+    settings.m_Leading = leading;
+    settings.m_Tracking = tracking;
+    dmRender::GetTextMetrics(font_map, text, &settings, metrics);
+}
+
 TEST_F(dmRenderTest, GetTextMetrics)
 {
     dmRender::TextMetrics metrics;
@@ -865,7 +1434,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     const int descent       = 1;
     const int lineheight    = ascent + descent;
 
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello World", 0, false, 1.0f, 0.0f, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", 0, false, 1.0f, 0.0f, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*11, metrics.m_Width);
@@ -874,7 +1443,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     // line break in the middle of the sentence
     int numlines = 2;
 
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, 1.0f, 0.0f, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, 1.0f, 0.0f, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*5, metrics.m_Width);
@@ -885,7 +1454,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
 
     leading = 2.0f;
     tracking = 0.0f;
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, leading, tracking, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, leading, tracking, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*5, metrics.m_Width);
@@ -893,7 +1462,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
 
     leading = 0.0f;
     tracking = 0.0f;
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, leading, tracking, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, leading, tracking, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*5, metrics.m_Width);
@@ -902,7 +1471,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     leading = 1.0f;
     tracking = 0.0f;
     numlines = 3;
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", 8*charwidth, true, leading, tracking, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", 8*charwidth, true, leading, tracking, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*7, metrics.m_Width);
@@ -917,14 +1486,14 @@ TEST_F(dmRenderTest, GetTextMetricsMeasureTrailingSpace)
     dmRender::TextMetrics metricsSingleLineHelloAndSpace;
     dmRender::TextMetrics metricsSingleLineSpace;
 
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello", 0, true, 1.0f, 0.0f, &metricsHello);
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello      ", 0, true, 1.0f, 0.0f, &metricsMultiLineHelloAndSpace);
+    GetTextMetrics(m_SystemFontMap, "Hello", 0, true, 1.0f, 0.0f, &metricsHello);
+    GetTextMetrics(m_SystemFontMap, "Hello      ", 0, true, 1.0f, 0.0f, &metricsMultiLineHelloAndSpace);
     ASSERT_EQ(metricsHello.m_Width, metricsMultiLineHelloAndSpace.m_Width);
 
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello      ", 0, false, 1.0f, 0.0f, &metricsSingleLineHelloAndSpace);
+    GetTextMetrics(m_SystemFontMap, "Hello      ", 0, false, 1.0f, 0.0f, &metricsSingleLineHelloAndSpace);
     ASSERT_LT(metricsHello.m_Width, metricsSingleLineHelloAndSpace.m_Width);
 
-    dmRender::GetTextMetrics(m_SystemFontMap, " ", 0, false, 1.0f, 0.0f, &metricsSingleLineSpace);
+    GetTextMetrics(m_SystemFontMap, " ", 0, false, 1.0f, 0.0f, &metricsSingleLineSpace);
     ASSERT_GT(metricsSingleLineSpace.m_Width, 0);
 }
 
@@ -946,7 +1515,7 @@ TEST_F(dmRenderTest, TextAlignment)
         float leading = leadings[i];
         tracking = 0.0f;
         numlines = 3;
-        dmRender::GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", 8*charwidth, true, leading, tracking, &metrics);
+        GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", 8*charwidth, true, leading, tracking, &metrics);
         ASSERT_EQ(ascent, metrics.m_MaxAscent);
         ASSERT_EQ(descent, metrics.m_MaxDescent);
         ASSERT_EQ(charwidth*7, metrics.m_Width);
@@ -1125,13 +1694,6 @@ static void IterateNameConstantsCallback(dmhash_t name_hash, void* _ctx)
 
 TEST(Constants, NamedConstantsArray)
 {
-    #define ASSERT_VEC4_EPS 0.0001f
-    #define ASSERT_VEC4(exp, act)\
-        ASSERT_NEAR(exp.getX(), act.getX(), ASSERT_VEC4_EPS);\
-        ASSERT_NEAR(exp.getY(), act.getY(), ASSERT_VEC4_EPS);\
-        ASSERT_NEAR(exp.getZ(), act.getZ(), ASSERT_VEC4_EPS);\
-        ASSERT_NEAR(exp.getW(), act.getW(), ASSERT_VEC4_EPS);
-
     dmHashEnableReverseHash(true);
     dmRender::HNamedConstantBuffer buffer = dmRender::NewNamedConstantBuffer();
     ASSERT_TRUE(buffer != 0);
@@ -1210,7 +1772,7 @@ TEST(Constants, NamedConstantsArray)
     result = dmRender::GetNamedConstant(buffer, name_hash_array, &values, &num_values);
     ASSERT_TRUE(result);
     ASSERT_EQ(num_values, 7);
-    
+
     // All intermediate vectors should be 0 i.e values of index [1...6]
     dmVMath::Vector4 test_zero_vec(0,0,0,0);
     for (int i = 1; i < num_values-1; ++i)
@@ -1239,9 +1801,6 @@ TEST(Constants, NamedConstantsArray)
     ASSERT_EQ(3, iter_ctx.m_Count);
 
     dmRender::DeleteNamedConstantBuffer(buffer);
-
-    #undef ASSERT_VEC4_EPS
-    #undef ASSERT_VEC4
 }
 
 TEST(Constants, NamedConstants)
@@ -1376,8 +1935,12 @@ TEST(Render, BatchIterator)
     ASSERT_FALSE(iterator1.Next());
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

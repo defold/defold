@@ -37,7 +37,11 @@ The following software has licenses which require inclusion of their respective 
     * [microsoft_craziness.h](/licenses/NOTICE-microsoft_craziness) - Used when running unit tests in the engine. Not included in any builds.
     * [XHR2](/licenses/NOTICE-xhr2) - Used in HTML5 builds.
     * [xxtea-c](/licenses/NOTICE-xxtea) - Used internally in the engine to obfuscate/encode Lua source code. Included in all builds of Defold.
-    * [cgltf](/licenses/NOTICE-cgtlf) - Used when loading models in glTF format. Included in all builds.
+    * [cgltf](/licenses/NOTICE-cgltf) - Used when loading models in glTF format. Included in all builds.
+    * [lipo](https://github.com/konoui/lipo) - Used when building bundles for macOS and iOS. Included in all Editor/bob.jar builds.
+    * [miniz](https://github.com/richgel999/miniz) - Rich Geldrich
+    * [zip](https://github.com/kuba--/zip) - Kuba Podgórski
+    * [SampleRateConverter] (https://github.com/zephray/SampleRateConverter/tree/master) - Used off line to generate polyphase filter coefficients for sound system
   * Simplified BSD license (2-clause license)
     * [LZ4](/licenses/NOTICE-lz4) - Used internally by the engine to read game archives. Included in all builds.
   * BSD 2.0 license (3-clause license)
@@ -55,12 +59,11 @@ The following third party software has licenses which does not require inclusion
   * Public Domain
     * stb_image - Sean Barrett
     * stb_vorbis - Sean Barrett
-    * miniz - Rich Geldrich
-    * zip - Kuba Podgórski
   * ZLib
     * zlib - Jean-loup Gailly and Mark Adler
     * Box2D - Erin Catto
     * Bullet Physics - Erwin Coumans
     * GLFW - Marcus Geelnard, Camilla Löwy
+    * bindgen (Sokol) - Andre Weissflog
 
 NOTE: The Zlib license encourages attribution but does not require inclusion of the license.

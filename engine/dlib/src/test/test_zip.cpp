@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,14 +25,23 @@
 extern unsigned char FOO_ZIP[];
 extern uint32_t FOO_ZIP_SIZE;
 
+// If you get a duplicate here, then we've missed to put the "miniz.h" header within a namespace
+extern "C" void mz_free(void *p)
+{
+    free(p);
+}
+
 
 #define PATH_FORMAT "src/test/data/%s"
 
 
 TEST(dmZip, NotExist)
 {
+    char path[128];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "NOTEEXIST");
+
     dmZip::HZip zip;
-    dmZip::Result zr = dmZip::Open("FOOBAR", &zip);
+    dmZip::Result zr = dmZip::Open(path, &zip);
     ASSERT_NE(dmZip::RESULT_OK, zr);
 }
 
@@ -68,6 +77,47 @@ TEST(dmZip, Read)
 
     ASSERT_STREQ("Hello World", (const char*)manifest_data);
 
+    dmZip::Close(zip);
+}
+
+TEST(dmZip, ReadPartial)
+{
+    char path[128];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/foo.zip");
+
+    dmZip::HZip zip;
+    dmZip::Result zr = dmZip::Open(path, &zip);
+    ASSERT_EQ(dmZip::RESULT_OK, zr);
+
+    const char* entryname = "hello.txt";
+    zr = dmZip::OpenEntry(zip, entryname);
+    ASSERT_EQ(dmZip::RESULT_OK, zr);
+
+    uint8_t expected_data[] = "Hello World";
+    uint32_t expected_size = sizeof(expected_data)-1; // the \0 isn't stored in this file
+
+    const uint32_t max_chunk_len = 11;
+    uint8_t buffer[max_chunk_len];
+
+    for (uint32_t i = 1; i <= max_chunk_len; ++i)
+    {
+        const uint32_t chunk_len = i;
+        uint32_t offset = 0;
+
+        while (offset < expected_size)
+        {
+            uint32_t nread;
+            dmZip::GetEntryDataOffset(zip, offset, chunk_len, buffer, &nread);
+            ASSERT_GE(chunk_len, nread);
+            ASSERT_NE(0u, nread);
+
+            ASSERT_ARRAY_EQ_LEN(&expected_data[offset], buffer, nread);
+
+            offset += nread;
+        }
+    }
+
+    dmZip::CloseEntry(zip);
     dmZip::Close(zip);
 }
 

@@ -1,0 +1,14 @@
+name: "test_camera_multiple_acquire_focus"
+instances {
+  id: "camera_1"
+  prototype: "/camera/camera_acquire_input_focus.go"
+}
+instances {
+  id: "camera_2"
+  prototype: "/camera/camera_acquire_input_focus.go"
+}
+instances {
+  id: "camera_3"
+  prototype: "/camera/camera_acquire_input_focus.go"
+}
+

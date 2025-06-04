@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -36,10 +36,10 @@ public class TextureSetLayoutTest {
 
     void assertRect(Layout layout, int i, String id, int index, int x, int y) {
         Rect r = layout.getRectangles().get(i);
-        assertThat(r.id, is(id));
-        assertThat(r.index, is(index));
-        assertThat(r.x, is(x));
-        assertThat(r.y, is(y));
+        assertThat(r.getId(), is(id));
+        assertThat(r.getIndex(), is(index));
+        assertThat(r.getX(), is(x));
+        assertThat(r.getY(), is(y));
     }
 
     private static List<Layout> packedLayout(int margin, List<Rect> rectangles) {
@@ -137,36 +137,39 @@ public class TextureSetLayoutTest {
 
     @Test
     public void testBasicMargin1() {
+        int size = 16;
         List<TextureSetLayout.Rect> rectangles
-            = Arrays.asList(rect("0", 0, 16, 16),
-                            rect("1", 1, 16, 16),
-                            rect("2", 2, 16, 16),
-                            rect("3", 3, 16, 16));
+            = Arrays.asList(rect("0", 0, size, size),
+                            rect("1", 1, size, size),
+                            rect("2", 2, size, size),
+                            rect("3", 3, size, size));
 
-        Layout layout = packedLayout(2, rectangles).get(0);
+        int margin = 2;
+        Layout layout = packedLayout(margin, rectangles).get(0);
         assertThat(layout.getWidth(), is(64));
         assertThat(layout.getHeight(), is(64));
-        assertRect(layout, 0, "0", 0, 0, 0);
-        assertRect(layout, 1, "1", 1, 0, (16 + 2));
-        assertRect(layout, 2, "2", 2, (16 + 2), 0);
-        assertRect(layout, 3, "3", 3, 0, (16 + 2) * 2);
+        assertRect(layout, 0, "0", 0, margin, margin);
+        assertRect(layout, 1, "1", 1, margin, (margin + size + margin));
+        assertRect(layout, 2, "2", 2, (margin + size + margin), margin);
+        assertRect(layout, 3, "3", 3, margin, margin + (size + margin) * 2);
     }
 
     @Test
     public void testBasicMargin2() {
+        int size = 15;
         List<TextureSetLayout.Rect> rectangles
-            = Arrays.asList(rect("0", 0, 15, 15),
-                            rect("1", 1, 15, 15),
-                            rect("2", 2, 15, 15),
-                            rect("3", 3, 15, 15));
-
-        Layout layout = packedLayout(2, rectangles).get(0);
+            = Arrays.asList(rect("0", 0, size, size),
+                            rect("1", 1, size, size),
+                            rect("2", 2, size, size),
+                            rect("3", 3, size, size));
+        int margin = 2;
+        Layout layout = packedLayout(margin, rectangles).get(0);
         assertThat(layout.getWidth(), is(64));
         assertThat(layout.getHeight(), is(64));
-        assertRect(layout, 0, "0", 0, 0, 0);
-        assertRect(layout, 1, "1", 1, 0, (15 + 2));
-        assertRect(layout, 2, "2", 2, (15 + 2), 0);
-        assertRect(layout, 3, "3", 3, 0, (15 + 2) * 2);
+        assertRect(layout, 0, "0", 0, margin, margin);
+        assertRect(layout, 1, "1", 1, margin, (margin + size + margin));
+        assertRect(layout, 2, "2", 2, (margin + size + margin), margin);
+        assertRect(layout, 3, "3", 3, margin, margin +(size + margin) * margin);
     }
 
     @Test
@@ -235,24 +238,24 @@ public class TextureSetLayoutTest {
         HashSet<String> recordedIds = new HashSet<String>();
 
         for (Rect r : layout.getRectangles()) {
-            assertFalse(recordedIds.contains(r.id));
-            recordedIds.add(r.id);
+            assertFalse(recordedIds.contains(r.getId()));
+            recordedIds.add(r.getId());
         }
 
         assertEquals(recordedIds.size(), rectangles.size());
     }
 
     private static boolean isOverlapping(Rect a, Rect b) {
-        if (a.x >= b.x + b.width) {
+        if (a.getX() >= b.getX() + b.getWidth()) {
             return false;
         }
-        if (a.y >= b.y + b.height) {
+        if (a.getY() >= b.getY() + b.getHeight()) {
             return false;
         }
-        if (a.x + a.width <= b.x) {
+        if (a.getX() + a.getWidth() <= b.getX()) {
             return false;
         }
-        if (a.y + a.height <= b.y) {
+        if (a.getY() + a.getHeight() <= b.getY()) {
             return false;
         }
         return true;

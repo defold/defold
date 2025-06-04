@@ -7,6 +7,7 @@ import dlib
 import google.protobuf.text_format
 from threading import Lock
 stderr_lock = Lock()
+importlib_lock = Lock()
 
 def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = ''):
     def create(self, node):
@@ -27,8 +28,16 @@ create_simple_protoc_task('input_target', '.it_pb', '.it', 'TestGameObjectDDF.In
 create_simple_protoc_task('reload_target', '.rt_pb', '.rt', 'TestGameObjectDDF.ReloadTarget', before='c cxx', proto_file = '../src/gameobject/test/reload/test_gameobject_reload_ddf.proto')
 create_simple_protoc_task('no_user_data_res', '.no_user_data', '.no_user_datac', 'TestGameObjectDDF.NoUserDataResource', before='c cxx', proto_file = '../src/gameobject/test/props/test_gameobject_props_ddf.proto')
 
+
+def clear_caches():
+    importlib_lock.acquire()
+    try:
+        importlib.invalidate_caches() # make sure any modules created after the processes started will be found
+    finally:
+        importlib_lock.release()
+
 def transform_properties(properties, out_properties):
-    importlib.invalidate_caches() # make sure any modules created after the processes started will be found
+    clear_caches()
     import gameobject_ddf_pb2
 
     for property in properties:
@@ -81,7 +90,7 @@ def merge_collections(msg, sub_msg, sub_id):
         new_inst.id = sub_id + "/" + inst.id
 
 def read_collection(path):
-    importlib.invalidate_caches() # make sure any modules created after the processes started will be found
+    clear_caches()
     import gameobject_ddf_pb2
 
     msg = gameobject_ddf_pb2.CollectionDesc()
@@ -133,7 +142,7 @@ def transform_gameobject(task, msg):
     return msg
 
 def compile_go(task):
-    importlib.invalidate_caches() # make sure any modules created after the processes started will be found
+    clear_caches()
     import gameobject_ddf_pb2
 
     try:
@@ -230,7 +239,7 @@ def parse_properties(props):
             key = "%s.%s" % (id, e)
             entry.element_ids.append(dlib.dmHashBuffer64(key))
 
-    importlib.invalidate_caches() # make sure any modules created after the processes started will be found
+    clear_caches()
     import properties_ddf_pb2
 
     declarations = properties_ddf_pb2.PropertyDeclarations()
@@ -321,7 +330,7 @@ def parse_properties(props):
     return declarations
 
 def compile_lua(task):
-    importlib.invalidate_caches() # make sure any modules created after the processes started will be found
+    clear_caches()
     import lua_ddf_pb2
 
     with open(task.inputs[0].srcpath(), 'r') as in_f:
@@ -363,12 +372,19 @@ def script_file(self, node):
 
 def build(bld):
     def new_test(dir, exts = ['.cpp', '.proto', '.go_pb', '.script']):
-        exported_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua', 'ResourceTypeAnim','ComponentTypeScript', 'ComponentTypeAnim']
+        exported_symbols = ['ResourceTypeGameObject',
+                            'ResourceTypeCollection',
+                            'ResourceTypeScript',
+                            'ResourceTypeLua',
+                            'ResourceTypeAnim',
+                            'ResourceProviderFile',
+                            'ComponentTypeScript',
+                            'ComponentTypeAnim']
         test_task_gen = bld.program(features = 'cxx cprogram test',
                                     includes = '../../../src . .. ../../../proto',
-                                    source = bld.path.ant_glob('%s/*' % (dir), incl=exts),
+                                    source = ['test_main.cpp'] + bld.path.ant_glob('%s/*' % (dir), incl=exts),
                                     exported_symbols = exported_symbols,
-                                    use = 'TESTMAIN RESOURCE DDF PLATFORM_SOCKET PLATFORM_THREAD SCRIPT LUA EXTENSION DLIB PROFILE_NULL RIG HID gameobject',
+                                    use = 'TESTMAIN APP SOCKET PLATFORM_THREAD RESOURCE DDF SCRIPT GRAPHICS_NULL PLATFORM_NULL LUA EXTENSION DLIB PLATFORM_NULL PROFILE_NULL RIG HID gameobject',
                                     web_libs = ['library_sys.js', 'library_script.js'],
                                     proto_gen_py = True,
                                     target = 'test_gameobject_%s' % dir)

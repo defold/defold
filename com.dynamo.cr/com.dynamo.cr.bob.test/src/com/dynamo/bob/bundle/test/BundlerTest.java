@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,17 +23,15 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.zip.ZipFile;
@@ -66,6 +64,7 @@ import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.publisher.NullPublisher;
@@ -83,36 +82,40 @@ public class BundlerTest {
     private Platform platform;
 
     private final String ANDROID_MANIFEST = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-    	+ "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\" android:versionCode=\"1\">"
-    	+ "  <application android:label=\"Minimal Android Application\">"
-    	+ "    <activity android:name=\".MainActivity\" android:label=\"Hello World\">"
-    	+ "      <intent-filter>"
-    	+ "        <action android:name=\"android.intent.action.MAIN\" />"
-    	+ "        <category android:name=\"android.intent.category.DEFAULT\" />"
-    	+ "        <category android:name=\"android.intent.category.LAUNCHER\" />"
-    	+ "      </intent-filter>"
-    	+ "    </activity>"
-    	+ "  </application>"
-    	+ "</manifest>";
+        + "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\" android:versionCode=\"1\">"
+        + "  <application android:label=\"Minimal Android Application\">"
+        + "    <activity android:name=\".MainActivity\" android:label=\"Hello World\">"
+        + "      <intent-filter>"
+        + "        <action android:name=\"android.intent.action.MAIN\" />"
+        + "        <category android:name=\"android.intent.category.DEFAULT\" />"
+        + "        <category android:name=\"android.intent.category.LAUNCHER\" />"
+        + "      </intent-filter>"
+        + "    </activity>"
+        + "  </application>"
+        + "</manifest>";
 
     @Parameters
     public static Collection<Platform[]> data() {
         List<Platform[]> data = new ArrayList<>();
 
-        String skipTest = System.getenv("DM_BOB_BUNDLERTEST_ONLY_HOST");
-        if (skipTest != null) {
+        String envSkipTest = System.getenv("DM_BOB_BUNDLERTEST_ONLY_HOST");
+        String skipTest =  envSkipTest != null ? envSkipTest : System.getProperty("DM_BOB_BUNDLERTEST_ONLY_HOST");
+        // By default property is `${DM_BOB_BUNDLERTEST_ONLY_HOST}`
+        if (skipTest != null && !skipTest.isEmpty() && !skipTest.equals("0") && !skipTest.equals("${DM_BOB_BUNDLERTEST_ONLY_HOST}")) {
+            System.out.println("Bundle test only for host");
             data.add(new Platform[]{Platform.getHostPlatform()});
         }
         else {
             data.add(new Platform[]{Platform.X86Win32});
             data.add(new Platform[]{Platform.X86_64Win32});
             data.add(new Platform[]{Platform.X86_64MacOS});
+            data.add(new Platform[]{Platform.Arm64MacOS});
             data.add(new Platform[]{Platform.X86_64Linux});
             data.add(new Platform[]{Platform.Armv7Android});
             data.add(new Platform[]{Platform.JsWeb});
 
             // Can only do this on OSX machines currently
-            if (Platform.getHostPlatform() == Platform.X86_64MacOS) {
+            if (Platform.getHostPlatform().isMacOS()) {
                 data.add(new Platform[]{Platform.Arm64Ios});
                 data.add(new Platform[]{Platform.X86_64Ios});
             }
@@ -122,25 +125,39 @@ public class BundlerTest {
 
     private File getOutputDirFile(String outputDir, String projectName) {
         String folderName = projectName;
-        switch (platform)
+        if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS ||
+            platform == Platform.Arm64Ios || platform == Platform.X86_64Ios)
         {
-            case X86_64MacOS:
-            case Arm64Ios:
-            case X86_64Ios:
-                    folderName = projectName + ".app";
-            break;
+            folderName = projectName + ".app";
         }
         return new File(outputDir, folderName);
     }
 
     private String getBundleAppFolder(String projectName) {
-        switch (platform)
+        if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios)
         {
-            case Arm64Ios:
-            case X86_64Ios:
                 return String.format("Payload/%s.app/", projectName);
         }
         return "";
+    }
+
+    private void listDir(File dir)
+    {
+        for (File file : FileUtils.listFiles(dir, new RegexFileFilter(".*"), DirectoryFileFilter.DIRECTORY)) {
+            String relative = dir.toURI().relativize(file.toURI()).getPath();
+            System.out.printf("%s\n", file);
+        }
+    }
+
+    private void checkFileExist(File bundleDir, File file)
+    {
+        if (!file.exists())
+        {
+            System.out.printf("A missing file %s\n", file);
+            System.out.printf("Directory contents:\n");
+            listDir(bundleDir);
+        }
+        assertTrue(file.exists());
     }
 
     // Used to check if the built and bundled test projects all contain the correct engine binaries.
@@ -150,105 +167,102 @@ public class BundlerTest {
         String exeName = BundleHelper.projectNameToBinaryName(projectName);
         File outputDirFile = getOutputDirFile(outputDir, projectName);
         assertTrue(outputDirFile.exists());
-        switch (platform)
+
+        if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32)
         {
-            case X86Win32:
-            case X86_64Win32:
-            {
-                File outputBinary = new File(outputDirFile, projectName + ".exe");
-                assertTrue(outputBinary.exists());
+            File outputBinary = new File(outputDirFile, projectName + ".exe");
+            checkFileExist(outputDirFile, outputBinary);
+        }
+        else if (platform == Platform.Armv7Android)
+        {
+            File outputApk = new File(outputDirFile, projectName + ".apk");
+            checkFileExist(outputDirFile, outputApk);
+            FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), new HashMap<>());
+            Path enginePathArmv7 = apkZip.getPath("lib/armeabi-v7a/lib" + exeName + ".so");
+            assertTrue(Files.isReadable(enginePathArmv7));
+            Path classesDexPath = apkZip.getPath("classes.dex");
+            assertTrue(Files.isReadable(classesDexPath));
+        }
+        else if (platform == Platform.Arm64Android)
+        {
+            File outputApk = new File(outputDirFile, projectName + ".apk");
+            checkFileExist(outputDirFile, outputApk);
+            FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), new HashMap<>());
+            Path enginePathArm64 = apkZip.getPath("lib/arm64-v8a/lib" + exeName + ".so");
+            assertTrue(Files.isReadable(enginePathArm64));
+            Path classesDexPath = apkZip.getPath("classes.dex");
+            assertTrue(Files.isReadable(classesDexPath));
+        }
+        else if (platform == Platform.WasmWeb)
+        {
+            File wasmjsFile = new File(outputDirFile, exeName + "_wasm.js");
+            checkFileExist(outputDirFile, wasmjsFile);
+            File wasmFile = new File(outputDirFile, exeName + ".wasm");
+            checkFileExist(outputDirFile, wasmFile);
+        }
+        else if (platform == Platform.WasmPthreadWeb)
+        {
+            File wasmjsFile = new File(outputDirFile, exeName + "_pthread_wasm.js");
+            checkFileExist(outputDirFile, wasmjsFile);
+            File wasmFile = new File(outputDirFile, exeName + "_pthread.wasm");
+            checkFileExist(outputDirFile, wasmFile);
+        }
+        else if (platform == Platform.JsWeb)
+        {
+            File asmjsFile = new File(outputDirFile, exeName + "_asmjs.js");
+            assertTrue(asmjsFile.exists());
+        }
+        else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios)
+        {
+            List<String> names = Arrays.asList(
+                exeName,
+                "Info.plist",
+                "AppIcon60x60@2x.png",
+                "AppIcon60x60@3x.png",
+                "AppIcon76x76@2x~ipad.png",
+                "AppIcon83.5x83.5@2x~ipad.png",
+                "AppIcon76x76~ipad.png"
+            );
+            for (String name : names) {
+                File file = new File(outputDirFile, name);
+                checkFileExist(outputDirFile, file);
             }
-            break;
-            case Armv7Android:
-            {
-                File outputApk = new File(outputDirFile, projectName + ".apk");
-                assertTrue(outputApk.exists());
-                FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), null);
-                Path enginePathArmv7 = apkZip.getPath("lib/armeabi-v7a/lib" + exeName + ".so");
-                assertTrue(Files.isReadable(enginePathArmv7));
-                Path classesDexPath = apkZip.getPath("classes.dex");
-                assertTrue(Files.isReadable(classesDexPath));
+        }
+        else if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS)
+        {
+            List<String> names = Arrays.asList(
+                String.format("Contents/MacOS/%s", exeName),
+                "Contents/Info.plist"
+            );
+            for (String name : names) {
+                File file = new File(outputDirFile, name);
+                checkFileExist(outputDirFile, file);
             }
-            break;
-            case Arm64Android:
-            {
-                File outputApk = new File(outputDirFile, projectName + ".apk");
-                assertTrue(outputApk.exists());
-                FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), null);
-                Path enginePathArm64 = apkZip.getPath("lib/arm64-v8a/lib" + exeName + ".so");
-                assertTrue(Files.isReadable(enginePathArm64));
-                Path classesDexPath = apkZip.getPath("classes.dex");
-                assertTrue(Files.isReadable(classesDexPath));
-            }
-            break;
-            case JsWeb:
-            {
-                File asmjsFile = new File(outputDirFile, exeName + "_asmjs.js");
-                assertTrue(asmjsFile.exists());
-                File wasmjsFile = new File(outputDirFile, exeName + "_wasm.js");
-                assertTrue(wasmjsFile.exists());
-                File wasmFile = new File(outputDirFile, exeName + ".wasm");
-                assertTrue(wasmFile.exists());
-            }
-            break;
-            case Arm64Ios:
-            case X86_64Ios:
-            {
-                List<String> names = Arrays.asList(
-                    exeName,
-                    "Info.plist",
-                    "Icon.png",
-                    "Icon@2x.png",
-                    "Icon-60@2x.png",
-                    "Icon-60@3x.png",
-                    "Icon-72.png",
-                    "Icon-72@2x.png",
-                    "Icon-76.png",
-                    "Icon-76@2x.png",
-                    "Icon-167.png"
-                );
-                for (String name : names) {
-                    File file = new File(outputDirFile, name);
-                    assertTrue(file.exists());
-                }
-            }
-            break;
-            case X86_64MacOS:
-                List<String> names = Arrays.asList(
-                    String.format("Contents/MacOS/%s", exeName),
-                    "Contents/Info.plist"
-                );
-                for (String name : names) {
-                    File file = new File(outputDirFile, name);
-                    assertTrue(file.exists());
-                }
-                break;
-            case X86_64Linux:
-                break;
-            default:
-                throw new IOException("Verifying engine binaries not implemented for platform: " + platform.toString());
+        }
+        else if (platform == Platform.Arm64Linux || platform == Platform.X86_64Linux)
+        {
+        }
+        else
+        {
+            throw new IOException("Verifying engine binaries not implemented for platform: " + platform.toString());
         }
     }
 
-    
+
     private void verifyArchive() throws IOException
     {
         String projectName = "unnamed";
         File outputDirFile = getOutputDirFile(outputDir, projectName);
         assertTrue(outputDirFile.exists());
-        switch (platform)
+
+        if (platform == Platform.Arm64Android || platform == Platform.Armv7Android)
         {
-            case Arm64Android:
-            case Armv7Android:
-            {
-                File outputApk = new File(outputDirFile, projectName + ".apk");
-                assertTrue(outputApk.exists());
-                ZipFile apkZip = new ZipFile(outputApk.getAbsolutePath());
-                ZipEntry zipEntry = apkZip.getEntry("assets/game.arcd");
-                assertFalse(zipEntry == null);
-                assertEquals(zipEntry.getMethod(), ZipEntry.STORED);
-            }
-            break;
+            File outputApk = new File(outputDirFile, projectName + ".apk");
+            assertTrue(outputApk.exists());
+            ZipFile apkZip = new ZipFile(outputApk.getAbsolutePath());
+            ZipEntry zipEntry = apkZip.getEntry("assets/game.arcd");
+            assertFalse(zipEntry == null);
+            assertEquals(zipEntry.getMethod(), ZipEntry.STORED);
         }
     }
 
@@ -333,9 +347,6 @@ public class BundlerTest {
 
         setProjectProperties(project);
 
-        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", project.getBuildDirectory(), ".internal"));
-
-        project.findSources(contentRoot, skipDirs);
         List<TaskResult> result = project.build(new NullProgress(), "clean", "build", "bundle");
         for (TaskResult taskResult : result) {
             assertTrue(taskResult.toString(), taskResult.isOk());
@@ -399,6 +410,9 @@ public class BundlerTest {
 
         // These aren't put in the DARC file, so we don't count up
         createFile(outputContentRoot, "builtins/graphics/default.texture_profiles", "");
+        createFile(outputContentRoot, "builtins/manifests/web/engine_template.html", "");
+        createFile(outputContentRoot, "builtins/manifests/web/light_theme.css", "");
+        createFile(outputContentRoot, "builtins/manifests/web/dark_theme.css", "");
         createFile(outputContentRoot, "builtins/manifests/osx/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/ios/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/ios/LaunchScreen.storyboardc/Info.plist", "");
@@ -417,7 +431,7 @@ public class BundlerTest {
 
     private String createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
-        file.deleteOnExit();
+        FileUtil.deleteOnExit(file);
         FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
         return file.getAbsolutePath();
     }
@@ -435,33 +449,6 @@ public class BundlerTest {
         project.setOption("architectures", platform.getPair());
         project.setOption("archive", "true");
         project.setOption("bundle-output", outputDir);
-    }
-
-    @Test
-    public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
-        int builtins_count = createDefaultFiles(contentRootUnused);
-        createFile(contentRootUnused, "main.collection", "name: \"default\"\nscale_along_z: 0\n");
-        createFile(contentRootUnused, "unused.collection", "name: \"unused\"\nscale_along_z: 0\n");
-
-        Project project = new Project(new DefaultFileSystem(), contentRootUnused, "build");
-        project.setPublisher(new NullPublisher(new PublisherSettings()));
-
-        ClassLoaderScanner scanner = new ClassLoaderScanner();
-        project.scan(scanner, "com.dynamo.bob");
-        project.scan(scanner, "com.dynamo.bob.pipeline");
-
-        setProjectProperties(project);
-        project.setOption("keep-unused", "true");
-
-        project.findSources(contentRootUnused, new HashSet<String>());
-        List<TaskResult> result = project.build(new NullProgress(), "clean", "build");
-        for (TaskResult taskResult : result) {
-            assertTrue(taskResult.toString(), taskResult.isOk());
-        }
-
-        Set<byte[]> entries = readDarcEntries(contentRootUnused);
-
-        assertEquals(builtins_count + 2, entries.size());
     }
 
     @Test
@@ -538,103 +525,129 @@ public class BundlerTest {
     static HashSet<String> getExpectedFilesForPlatform(Platform platform, HashSet<String> actualFiles)
     {
         HashSet<String> expectedFiles = new HashSet<String>();
-        switch (platform)
+        if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32)
         {
-            case X86Win32:
-            case X86_64Win32:
                 expectedFiles.add("unnamed.exe");
                 expectedFiles.add("game.public.der");
                 expectedFiles.add("game.dmanifest");
-                expectedFiles.add("OpenAL32.dll");
                 expectedFiles.add("game.arci");
-                expectedFiles.add("wrap_oal.dll");
                 expectedFiles.add("game.arcd");
                 expectedFiles.add("game.projectc");
-                break;
-            case JsWeb:
+        }
+        else if (platform == Platform.WasmWeb)
+        {
                 expectedFiles.add("dmloader.js");
                 expectedFiles.add("index.html");
                 expectedFiles.add("unnamed_wasm.js");
                 expectedFiles.add("unnamed.wasm");
-                expectedFiles.add("unnamed_asmjs.js");
-                expectedFiles.add("archive/game.arcd0");
-                expectedFiles.add("archive/game.arci0");
-                expectedFiles.add("archive/game.dmanifest0");
-                expectedFiles.add("archive/game.projectc0");
-                expectedFiles.add("archive/game.public.der0");
+                expectedFiles.add("archive/game0.arcd");
+                expectedFiles.add("archive/game0.arci");
+                expectedFiles.add("archive/game0.dmanifest");
+                expectedFiles.add("archive/game0.projectc");
+                expectedFiles.add("archive/game0.public.der");
                 expectedFiles.add("archive/archive_files.json");
-                break;
-            case Armv7Android:
-            case Arm64Android:
-                expectedFiles.add("classes.dex");
-                expectedFiles.add("lib/armeabi-v7a/libunnamed.so");
-                expectedFiles.add("AndroidManifest.xml");
-                expectedFiles.add("assets/game.arcd");
-                expectedFiles.add("assets/game.arci");
-                expectedFiles.add("assets/game.dmanifest");
-                expectedFiles.add("assets/game.projectc");
-                expectedFiles.add("assets/game.public.der");
-                expectedFiles.add("META-INF/MANIFEST.MF");
-                expectedFiles.add("res/drawable-hdpi-v4/icon.png");
-                expectedFiles.add("res/drawable-ldpi-v4/icon.png");
-                expectedFiles.add("res/drawable-mdpi-v4/icon.png");
-                expectedFiles.add("res/drawable-xhdpi-v4/icon.png");
-                expectedFiles.add("res/drawable-xxhdpi-v4/icon.png");
-                expectedFiles.add("res/drawable-xxxhdpi-v4/icon.png");
-                expectedFiles.add("res/xml/splits0.xml");
-                expectedFiles.add("resources.arsc");
-                // the APK may or may not be signed, depending on if bundletool was able
-                // to find a debug keystore on the system or not
-                if (actualFiles.contains("META-INF/BNDLTOOL.SF")) {
-                    expectedFiles.add("META-INF/BNDLTOOL.SF");
-                }
-                if (actualFiles.contains("META-INF/BNDLTOOL.RSA")) {
-                    expectedFiles.add("META-INF/BNDLTOOL.RSA");
-                }
-                break;
-            case Arm64Ios:
-            case X86_64Ios:
-                expectedFiles.add("Payload/unnamed.app/unnamed");
-                expectedFiles.add("Payload/unnamed.app/Info.plist");
-                expectedFiles.add("Payload/unnamed.app/LaunchScreen.storyboardc/Info.plist");
-                expectedFiles.add("Payload/unnamed.app/game.arcd");
-                expectedFiles.add("Payload/unnamed.app/game.arci");
-                expectedFiles.add("Payload/unnamed.app/game.dmanifest");
-                expectedFiles.add("Payload/unnamed.app/game.projectc");
-                expectedFiles.add("Payload/unnamed.app/game.public.der");
-                expectedFiles.add("Payload/unnamed.app/Icon-167.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-60@2x.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-60@3x.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-72.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-72@2x.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-76.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-76@2x.png");
-                expectedFiles.add("Payload/unnamed.app/Icon.png");
-                expectedFiles.add("Payload/unnamed.app/Icon@2x.png");
-                break;
-            case X86_64MacOS:
-                expectedFiles.add("Contents/MacOS/unnamed");
-                expectedFiles.add("Contents/Info.plist");
-                expectedFiles.add("Contents/Resources/game.arcd");
-                expectedFiles.add("Contents/Resources/game.arci");
-                expectedFiles.add("Contents/Resources/game.dmanifest");
-                expectedFiles.add("Contents/Resources/game.projectc");
-                expectedFiles.add("Contents/Resources/game.public.der");
-                break;
-            case X86_64Linux:
-                expectedFiles.add("unnamed.x86_64");
-                expectedFiles.add("game.arcd");
-                expectedFiles.add("game.arci");
-                expectedFiles.add("game.dmanifest");
-                expectedFiles.add("game.projectc");
-                expectedFiles.add("game.public.der");
-                break;
-            default:
-                System.err.println("Expected file set is not implemented for this platform.");
-                break;
+        }
+        else if (platform == Platform.JsWeb)
+        {
+                expectedFiles.add("dmloader.js");
+                expectedFiles.add("index.html");
+                expectedFiles.add("unnamed_asmjs.js");
+                expectedFiles.add("archive/game0.arcd");
+                expectedFiles.add("archive/game0.arci");
+                expectedFiles.add("archive/game0.dmanifest");
+                expectedFiles.add("archive/game0.projectc");
+                expectedFiles.add("archive/game0.public.der");
+                expectedFiles.add("archive/archive_files.json");
+        }
+        else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android)
+        {
+            expectedFiles.add("classes.dex");
+            expectedFiles.add("lib/armeabi-v7a/libunnamed.so");
+            expectedFiles.add("AndroidManifest.xml");
+            expectedFiles.add("assets/game.arcd");
+            expectedFiles.add("assets/game.arci");
+            expectedFiles.add("assets/game.dmanifest");
+            expectedFiles.add("assets/game.projectc");
+            expectedFiles.add("assets/game.public.der");
+            expectedFiles.add("META-INF/MANIFEST.MF");
+            expectedFiles.add("res/drawable-hdpi-v4/icon.png");
+            expectedFiles.add("res/drawable-ldpi-v4/icon.png");
+            expectedFiles.add("res/drawable-mdpi-v4/icon.png");
+            expectedFiles.add("res/drawable-xhdpi-v4/icon.png");
+            expectedFiles.add("res/drawable-xxhdpi-v4/icon.png");
+            expectedFiles.add("res/drawable-xxxhdpi-v4/icon.png");
+            expectedFiles.add("res/xml/splits0.xml");
+            expectedFiles.add("resources.arsc");
+            // the APK may or may not be signed, depending on if bundletool was able
+            // to find a debug keystore on the system or not
+            if (actualFiles.contains("META-INF/BNDLTOOL.SF")) {
+                expectedFiles.add("META-INF/BNDLTOOL.SF");
+            }
+            if (actualFiles.contains("META-INF/BNDLTOOL.RSA")) {
+                expectedFiles.add("META-INF/BNDLTOOL.RSA");
+            }
+        }
+        else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios)
+        {
+            expectedFiles.add("Payload/unnamed.app/unnamed");
+            expectedFiles.add("Payload/unnamed.app/Info.plist");
+            expectedFiles.add("Payload/unnamed.app/LaunchScreen.storyboardc/Info.plist");
+            expectedFiles.add("Payload/unnamed.app/game.arcd");
+            expectedFiles.add("Payload/unnamed.app/game.arci");
+            expectedFiles.add("Payload/unnamed.app/game.dmanifest");
+            expectedFiles.add("Payload/unnamed.app/game.projectc");
+            expectedFiles.add("Payload/unnamed.app/game.public.der");
+            expectedFiles.add("Payload/unnamed.app/AppIcon60x60@2x.png");
+            expectedFiles.add("Payload/unnamed.app/AppIcon60x60@3x.png");
+            expectedFiles.add("Payload/unnamed.app/AppIcon76x76@2x~ipad.png");
+            expectedFiles.add("Payload/unnamed.app/AppIcon83.5x83.5@2x~ipad.png");
+            expectedFiles.add("Payload/unnamed.app/AppIcon76x76~ipad.png");
+        }
+        else if (platform == Platform.X86_64MacOS || platform == Platform.Arm64MacOS)
+        {
+            expectedFiles.add("Contents/MacOS/unnamed");
+            expectedFiles.add("Contents/Info.plist");
+            expectedFiles.add("Contents/Resources/game.arcd");
+            expectedFiles.add("Contents/Resources/game.arci");
+            expectedFiles.add("Contents/Resources/game.dmanifest");
+            expectedFiles.add("Contents/Resources/game.projectc");
+            expectedFiles.add("Contents/Resources/game.public.der");
+        }
+        else if (platform == Platform.X86_64Linux)
+        {
+            expectedFiles.add("unnamed.x86_64");
+            expectedFiles.add("game.arcd");
+            expectedFiles.add("game.arci");
+            expectedFiles.add("game.dmanifest");
+            expectedFiles.add("game.projectc");
+            expectedFiles.add("game.public.der");
+        }
+        else if (platform == Platform.Arm64Linux)
+        {
+            expectedFiles.add("unnamed.arm64");
+            expectedFiles.add("game.arcd");
+            expectedFiles.add("game.arci");
+            expectedFiles.add("game.dmanifest");
+            expectedFiles.add("game.projectc");
+            expectedFiles.add("game.public.der");
+        }
+        else
+        {
+            System.err.println("Expected file set is not implemented for this platform.");
         }
 
         return expectedFiles;
+    }
+
+    private void dumpExpectedAndActualFiles(Set<String> expectedFiles, Set<String> actualFiles) {
+        if (expectedFiles.size() != actualFiles.size()) {
+            for (String file : actualFiles) {
+                System.out.println("Actual file:" + file);
+            }
+            for (String file : expectedFiles) {
+                System.out.println("Expected file:" + file);
+            }
+        }
     }
 
     @Test
@@ -720,48 +733,29 @@ public class BundlerTest {
         // first test - no bundle resources
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=\n[display]\nwidth=640\nheight=480\n");
         build();
-        HashSet<String> actualFiles = new HashSet<String>();
-        List<String> files = getBundleFiles();
-        for (String file : files) {
-            System.out.println(file);
-            actualFiles.add(file);
-        }
+        HashSet<String> actualFiles = new HashSet<String>(getBundleFiles());
         HashSet<String> expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
-        for (String file : expectedFiles) {
-            System.out.println("Expected file:" + file);
-        }
-        assertEquals(expectedFiles.size(), files.size());
+        dumpExpectedAndActualFiles(expectedFiles, actualFiles);
+        assertEquals(expectedFiles.size(), actualFiles.size());
         assertEquals(expectedFiles, actualFiles);
 
 
         // second test - /sub1
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1\n[display]\nwidth=640\nheight=480\n");
         build();
-        files = getBundleFiles();
-        actualFiles = new HashSet<String>();
-        for (String file : files) {
-            System.out.println(file);
-            actualFiles.add(file);
-        }
+        actualFiles = new HashSet<String>(getBundleFiles());
         expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
         expectedFiles.add(appFolder + "s1-root1.txt");
         expectedFiles.add(appFolder + "s1-root2.txt");
-        for (String file : expectedFiles) {
-            System.out.println("Expected file:" + file);
-        }
-        assertEquals(expectedFiles.size(), files.size());
+        dumpExpectedAndActualFiles(expectedFiles, actualFiles);
+        assertEquals(expectedFiles.size(), actualFiles.size());
         assertEquals(expectedFiles, actualFiles);
 
 
         // third test - /sub1 and /sub2
         createFile(contentRoot, "game.project", "[project]\nbundle_resources=/sub1,/sub2\n[display]\nwidth=640\nheight=480\n");
         build();
-        files = getBundleFiles();
-        actualFiles = new HashSet<String>();
-        for (String file : files) {
-            System.out.println(file);
-            actualFiles.add(file);
-        }
+        actualFiles = new HashSet<String>(getBundleFiles());
         expectedFiles = getExpectedFilesForPlatform(platform, actualFiles);
         expectedFiles.add(appFolder + "s1-root1.txt");
         expectedFiles.add(appFolder + "s1-root2.txt");
@@ -770,10 +764,8 @@ public class BundlerTest {
         if (isAndroid) expectedFiles.add("res/raw/s2_raw.txt");
         if (isAndroid) expectedFiles.add("assets/s2-asset.txt");
         if (isAndroid) expectedFiles.add("lib/" + ((platform == Platform.Armv7Android) ? "armeabi-v7a" : "arm64-v8a") + "/s2-lib.so");
-        for (String file : expectedFiles) {
-            System.out.println("Expected file:" + file);
-        }
-        assertEquals(expectedFiles.size(), files.size());
+        dumpExpectedAndActualFiles(expectedFiles, actualFiles);
+        assertEquals(expectedFiles.size(), actualFiles.size());
         assertEquals(expectedFiles, actualFiles);
     }
 }

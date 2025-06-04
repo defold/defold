@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "resource.h"
 #include "resource_archive.h"
@@ -52,8 +53,12 @@ namespace dmResource
         out_map = mmap(NULL, fs.st_size, PROT_READ, MAP_SHARED, fd, 0);
         close(fd);
 
-        if (!out_map || out_map == (void*)-1)
+        if (!out_map || out_map == MAP_FAILED)
         {
+            int err = errno;
+            char errstr[128];
+            dmStrError(errstr, sizeof(errstr), err);
+            dmLogError("Failed to memory map file %s: errno: %d %s", path, err, errstr);
             return RESULT_IO_ERROR;
         }
 
@@ -110,6 +115,8 @@ namespace dmResource
         {
             munmap(index_map, index_size);
             munmap(data_map, data_size);
+            if (res == dmResourceArchive::RESULT_VERSION_MISMATCH)
+                return RESULT_VERSION_MISMATCH;
             return RESULT_IO_ERROR;
         }
 

@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,12 +20,14 @@
             [editor.defold-project :as project]
             [editor.game-object :as game-object]
             [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
             [editor.label :as label]
             [editor.math :as math]
             [editor.resource :as resource]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [util.fn :as fn])
   (:import [editor.types Region]))
 
 (deftest label-validation-test
@@ -59,8 +61,8 @@
         (is (= node-id (some-> scene :renderable :select-batch-key)))
         (is (= :blend-mode-alpha (some-> scene :renderable :batch-key :blend-mode)))
         (is (= "Label" (some-> scene :renderable :user-data :text-data :text-layout :lines first)))
-        (is (string/includes? (some-> scene :renderable :user-data :material-shader :verts) "gl_Position"))
-        (is (string/includes? (some-> scene :renderable :user-data :material-shader :frags) "gl_FragColor"))))))
+        (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/vertex-shader-source) "gl_Position"))
+        (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/fragment-shader-source) "gl_FragColor"))))))
 
 (defn- get-render-calls-by-pass
   [scene camera selection key-fn]
@@ -72,7 +74,7 @@
     (into {}
           (keep (fn [pass]
                   (let [render-args (scene/pass-render-args (Region. 0 100 0 100) camera pass)
-                        calls (test-util/with-logged-calls [label/render-lines label/render-tris]
+                        calls (fn/with-logged-calls [label/render-lines label/render-tris]
                                 (let [patched-renderables (walk/postwalk-replace {old-render-lines label/render-lines
                                                                                   old-render-tris label/render-tris}
                                                                                  renderables)]

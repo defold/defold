@@ -1,18 +1,16 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
-
-#if !(defined(__SCE__))
 
 #include <dmsdk/dlib/sockettypes.h>
 #include <dmsdk/dlib/log.h>
@@ -26,7 +24,12 @@
 #include <linux/if.h>
 #endif
 
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
+#if defined(__EMSCRIPTEN__)
+/// used for dmStrCpy
+#include <dlib/dstrings.h>
+#endif
+
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
 #include <unistd.h>
 #include <errno.h>
 #include <sys/socket.h>
@@ -175,6 +178,7 @@ namespace dmSocket
             case TYPE_STREAM:  return SOCK_STREAM;
             case TYPE_DGRAM:   return SOCK_DGRAM;
         }
+        return 0;
     }
     static int ProtocolToNative(Protocol protocol)
     {
@@ -183,6 +187,7 @@ namespace dmSocket
             case PROTOCOL_TCP:  return IPPROTO_TCP;
             case PROTOCOL_UDP:  return IPPROTO_UDP;
         }
+        return 0;
     }
     static int DomainToNative(Domain domain)
     {
@@ -193,6 +198,7 @@ namespace dmSocket
             case DOMAIN_IPV6:     return AF_INET6;
             case DOMAIN_UNKNOWN:  return 0xff;
         }
+        return 0;
     }
 
     Result New(Domain domain, Type type, Protocol protocol, Socket* socket)
@@ -215,9 +221,13 @@ namespace dmSocket
 
     static Result SetSockoptBool(Socket socket, int level, int name, bool option)
     {
+#if defined(__EMSCRIPTEN__)
+        return NATIVETORESULT(DM_SOCKET_ERRNO);
+#else
         int on = (int) option;
         int ret = setsockopt(socket, level, name, (char *) &on, sizeof(on));
         return ret >= 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+#endif
     }
 
     Result SetReuseAddress(Socket socket, bool reuse)
@@ -238,6 +248,9 @@ namespace dmSocket
 
     Result AddMembership(Socket socket, Address multi_addr, Address interface_addr, int ttl)
     {
+#if defined(__EMSCRIPTEN__)
+        return RESULT_AFNOSUPPORT;
+#else
         int result = -1;
         if (IsSocketIPv4(socket))
         {
@@ -263,10 +276,14 @@ namespace dmSocket
         }
 
         return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+#endif
     }
 
     Result SetMulticastIf(Socket socket, Address address)
     {
+#if defined(__EMSCRIPTEN__)
+        return RESULT_AFNOSUPPORT;
+#else
         int result = -1;
         if (IsSocketIPv4(socket))
         {
@@ -290,6 +307,7 @@ namespace dmSocket
         }
 
         return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+#endif
     }
 
     Result Delete(Socket socket)
@@ -435,6 +453,7 @@ namespace dmSocket
             case SHUTDOWNTYPE_READWRITE:    return SHUT_RDWR;
 #endif
         }
+        return 0;
     }
 
     Result Shutdown(Socket socket, ShutdownType how)
@@ -629,13 +648,18 @@ namespace dmSocket
 
     Result GetHostname(char* hostname, int hostname_length)
     {
+#if defined(__EMSCRIPTEN__)
+        dmStrlCpy(hostname, "emscripten", hostname_length);
+        return RESULT_OK;
+#else
         int r = gethostname(hostname, hostname_length);
         if (hostname_length > 0)
             hostname[hostname_length - 1] = '\0';
         return r == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+#endif
     }
 
-#if !(defined(__MACH__) && (defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)))
+#if !defined(__APPLE__)
     Result GetLocalAddress(Address* address)
     {
 #ifdef __ANDROID__
@@ -713,7 +737,7 @@ namespace dmSocket
 
     Result SetBlocking(Socket socket, bool blocking)
     {
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__NX__)
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
         int flags = fcntl(socket, F_GETFL, 0);
         if (flags < 0)
         {
@@ -768,7 +792,7 @@ namespace dmSocket
 
     Result SetQuickAck(Socket socket, bool use_quick_ack)
     {
-#if defined(__MACH__) || defined(_WIN32) || defined(__NX__)
+#if defined(__MACH__) || defined(_WIN32)
         return RESULT_OK;
 #else
         return SetSockoptBool(socket, IPPROTO_TCP, TCP_QUICKACK, use_quick_ack);
@@ -777,6 +801,9 @@ namespace dmSocket
 
     static Result SetSockoptTime(Socket socket, int level, int name, uint64_t time)
     {
+#if defined(__EMSCRIPTEN__)
+        return NATIVETORESULT(DM_SOCKET_ERRNO);
+#else
 #ifdef WIN32
         DWORD timeval = time / 1000;
         if (time > 0 && timeval == 0) {
@@ -797,6 +824,7 @@ namespace dmSocket
         {
             return RESULT_OK;
         }
+#endif
     }
 
     Result SetSendTimeout(Socket socket, uint64_t timeout)
@@ -887,5 +915,3 @@ namespace dmSocket
         return result;
     }
 }
-
-#endif

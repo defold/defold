@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,12 +16,13 @@
 
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+eval $(python $SCRIPT_DIR/../../../build_tools/set_sdk_vars.py VERSION_XCODE)
 pushd $SCRIPT_DIR/..
 BUILD_DIR=$(realpath ./build/src)
 
 set -e
 
-CLASS_NAME=com.dynamo.bob.TexcLibrary
+CLASS_NAME=com.dynamo.bob.pipeline.TexcLibraryJni
 LIBNAME=texc_shared
 SUFFIX=.so
 if [ "Darwin" == "$(uname)" ]; then
@@ -59,7 +60,7 @@ if [ "Darwin" == "$(uname)" ]; then
     set -e
 
     PACKAGED_XCODE=${DYNAMO_HOME}/ext/SDKs/
-    PACKAGED_XCODE_TOOLCHAIN=${PACKAGED_XCODE}/Toolchains/XcodeDefault.xctoolchain
+    PACKAGED_XCODE_TOOLCHAIN=${PACKAGED_XCODE}/XcodeDefault${VERSION_XCODE}.xctoolchain
     LOCAL_XCODE=$(xcode-select -print-path)
     LOCAL_XCODE_TOOLCHAIN=${LOCAL_XCODE}/Toolchains/XcodeDefault.xctoolchain
 fi
@@ -95,10 +96,11 @@ if [ "${USING_UBSAN}" != "" ]; then
 fi
 
 #JNI_DEBUG_FLAGS="-Xcheck:jni"
+#export DYLD_INSERT_LIBRARIES=${JAVA_HOME}/lib/libjsig.dylib
 
 export DM_TEXTURECOMPILER_LOG_LEVEL=DEBUG
 export DM_ATLASPACKER_LOG_LEVEL=DEBUG
 
 JAR_FOLDER=${DYNAMO_HOME}/../../com.dynamo.cr/com.dynamo.cr.bob/bin/lib/*
 
-java ${JNI_DEBUG_FLAGS} -Djava.library.path=${BUILD_DIR} -Djni.library.path=${BUILD_DIR} -Djna.library.path=${BUILD_DIR} ${JNA_DEBUG_FLAGS} -cp "${JAR}:${JAR_FOLDER}" ${CLASS_NAME} $*
+java ${JNI_DEBUG_FLAGS} -Djava.library.path=${BUILD_DIR} -Djni.library.path=${BUILD_DIR} -cp "${JAR}:${JAR_FOLDER}" ${CLASS_NAME} $*

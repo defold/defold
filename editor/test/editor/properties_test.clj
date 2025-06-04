@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,9 +15,10 @@
 (ns editor.properties-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.types :as t]
             [editor.properties :as properties]
-            [support.test-support :refer [with-clean-system tx-nodes]]))
+            [editor.types :as t]
+            [support.test-support :refer [tx-nodes with-clean-system]]
+            [util.id-vec :as id-vec]))
 
 (g/defnode NumProp
   (property my-prop g/Num))
@@ -222,7 +223,7 @@
 
 (g/defnode DynamicSetFn
   (property a g/Num)
-  (property count g/Any (default (atom 0)))
+  (property count g/Any)
 
   (output _properties g/Properties (g/fnk [_declared-properties]
                                           (assoc-in _declared-properties [:properties :a :edit-type :set-fn]
@@ -234,7 +235,7 @@
   (with-clean-system
     (let [n (first
               (tx-nodes
-                (g/make-nodes world [n DynamicSetFn])))
+                (g/make-nodes world [n [DynamicSetFn :count (atom 0)]])))
           p (:a (coalesce-nodes [n]))]
       (is (= 0 @(g/node-value n :count)))
       (properties/set-values! p [1])
@@ -242,7 +243,7 @@
 
 (g/defnode DynamicClearFn
   (property a g/Keyword)
-  (property cleared g/Any (default (atom [])))
+  (property cleared g/Any)
 
   (output _properties g/Properties (g/fnk [_declared-properties]
                                      (assoc-in _declared-properties [:properties :a :edit-type :clear-fn]
@@ -253,7 +254,7 @@
 (deftest dynamic-clear-fn
   (with-clean-system
     (let [override-node (last (tx-nodes (g/make-nodes world
-                                          [original-node [DynamicClearFn :a :original-value]]
+                                          [original-node [DynamicClearFn :a :original-value :cleared (atom [])]]
                                           (g/override original-node {}))))
           _ (g/set-property! override-node :a :override-value)
           p (:a (coalesce-nodes [override-node]))]
@@ -263,13 +264,13 @@
 
 (g/defnode QuatAsEuler
   (property rotation t/Vec4
-            (dynamic edit-type (g/constantly (properties/quat->euler)))))
+            (dynamic edit-type (g/constantly properties/quat-rotation-edit-type))))
 
 (deftest value-conversion
   (with-clean-system
     (testing "Value conversion"
              (let [nodes (g/tx-nodes-added (g/transact
-                                              (g/make-node world QuatAsEuler :rotation [0.0 0.0 0.0 1.0])))
+                                             (g/make-node world QuatAsEuler :rotation [0.0 0.0 0.0 1.0])))
                    property (-> (coalesce-nodes nodes) :rotation)]
                (is (= [[0.0 0.0 0.0]] (properties/values property)))
                (properties/set-values! property [[0.0 0.0 180.0]])
@@ -295,3 +296,23 @@
         (g/set-property! error-node :error? true)
         (is (= [nil] (properties/values (-> (coalesce-nodes nodes) :prop))))
         (is (g/error? (-> (coalesce-nodes nodes) :prop :errors)))))))
+
+(deftest curve-construction
+  (let [curve (properties/->curve nil)]
+    (is (= properties/default-control-points (id-vec/iv-vals (:points curve)))))
+  (let [curve (properties/->curve [[0.1 0.2 0.3 0.4] [1.1 1.2 1.3 1.4]])]
+    (is (= [[0.1 0.2 0.3 0.4] [1.1 1.2 1.3 1.4]] (id-vec/iv-vals (:points curve))))))
+
+(deftest curve-spread-construction
+  (let [curve-spread (properties/->curve-spread nil nil)]
+    (is (= properties/default-control-points (id-vec/iv-vals (:points curve-spread))))
+    (is (= properties/default-spread (:spread curve-spread))))
+  (let [curve-spread (properties/->curve-spread [[0.1 0.2 0.3 0.4] [1.1 1.2 1.3 1.4]] nil)]
+    (is (= [[0.1 0.2 0.3 0.4] [1.1 1.2 1.3 1.4]] (id-vec/iv-vals (:points curve-spread))))
+    (is (= properties/default-spread (:spread curve-spread))))
+  (let [curve-spread (properties/->curve-spread nil 2.0)]
+    (is (= properties/default-control-points (id-vec/iv-vals (:points curve-spread))))
+    (is (= 2.0 (:spread curve-spread))))
+  (let [curve-spread (properties/->curve-spread [[0.1 0.2 0.3 0.4] [1.1 1.2 1.3 1.4]] 2.0)]
+    (is (= [[0.1 0.2 0.3 0.4] [1.1 1.2 1.3 1.4]] (id-vec/iv-vals (:points curve-spread))))
+    (is (= 2.0 (:spread curve-spread)))))

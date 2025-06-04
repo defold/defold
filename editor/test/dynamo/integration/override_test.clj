@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,7 +22,8 @@
             [internal.graph.types :as gt]
             [internal.util]
             [schema.core :as s]
-            [support.test-support :as ts])
+            [support.test-support :as ts]
+            [util.fn :as fn])
   (:import [javax.vecmath Vector3d]))
 
 (g/defnode BaseNode
@@ -406,7 +407,7 @@
     (let [[[main sub]
            [or-main or-sub]] (setup world 1)]
       (g/transact (g/set-property or-main :a-property "override"))
-      (let [fragment (g/copy [or-main] {:traverse? (constantly true)})
+      (let [fragment (g/copy [or-main] {:traverse? fn/constantly-true})
             paste-data (g/paste (g/node-id->graph-id or-main) fragment {})
             copy-id (first (:root-node-ids paste-data))]
         (g/transact (:tx-data paste-data))
@@ -1000,7 +1001,7 @@
                                                           (concat
                                                             (g/connect or-script :_node-id comp :instance)
                                                             (g/connect comp :_node-id go :components)))))))]
-      (let [all-script-nodes (doall (tree-seq (constantly true) g/overrides script))]
+      (let [all-script-nodes (doall (tree-seq fn/constantly-true g/overrides script))]
         (is (= 4 (count all-script-nodes)))
         (g/transact (g/delete-node comp))
         (is (= 1 (count (keep g/node-by-id all-script-nodes))))

@@ -20,6 +20,8 @@ def build(bld):
     apidoc_extract_task(bld, ['../../proto/gameobject/gameobject_ddf.proto', 'gameobject_script.cpp'])
 
     bld.install_files('${PREFIX}/include/gameobject', 'gameobject.h')
+    bld.install_files('${PREFIX}/include/gameobject', 'gameobject_props.h')
+    bld.install_files('${PREFIX}/include/gameobject', 'gameobject_props_lua.h')
     bld.install_files('${PREFIX}/include/gameobject', 'component.h')
     bld.install_files('${PREFIX}/include/gameobject', 'script.h')
     bld.install_files('${PREFIX}/include/gameobject', 'gameobject_script_util.h')

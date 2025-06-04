@@ -10,7 +10,7 @@ def build(bld):
 
     test_texc = bld(features     = 'c cxx cprogram test',
                     source       = bld.path.ant_glob("*.cpp"),
-                    use          = 'DLIB BASIS_ENCODER PROFILE_NULL texc',
+                    use          = 'DLIB BASIS_ENCODER PROFILE_NULL ASTCENC texc',
                     proto_gen_py = True,
                     target       = 'test_texc')
     test_texc.install_path = None

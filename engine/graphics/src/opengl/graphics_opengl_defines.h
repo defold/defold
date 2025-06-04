@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,14 +17,21 @@
 
 #if defined(__linux__) && !defined(ANDROID)
 
+#if defined(DM_GRAPHICS_USE_OPENGLES)
+#define GL_GLEXT_PROTOTYPES
+#include <GLES3/gl3.h>
+#include <GLES2/gl2ext.h>
+#define GL_BGRA GL_BGRA_EXT
+#else
 #define GL_HAS_RENDERDOC_SUPPORT
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <GL/glut.h>
+#endif
 
 #elif defined (__MACH__)
 
-#if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
+#if defined(DM_PLATFORM_IOS)
 #include <OpenGLES/ES2/gl.h>
 #include <OpenGLES/ES2/glext.h>
 #else
@@ -41,6 +48,7 @@
 #include <win32/glut.h>
 
 #include "win32/glext.h"
+#include "win32/glcorearb.h"
 
 #elif defined (ANDROID)
 #define GL_GLEXT_PROTOTYPES
@@ -54,6 +62,18 @@
 #error "Platform not supported."
 #endif
 
+#ifdef __ANDROID__
+    #define DMGRAPHICS_TEX_IMAGE_3D                PFN_glTexImage3D
+    #define DMGRAPHICS_TEX_SUB_IMAGE_3D            PFN_glTexSubImage3D
+    #define DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D     PFN_glCompressedTexImage3D
+    #define DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D PFN_glCompressedTexSubImage3D
+#else
+    #define DMGRAPHICS_TEX_IMAGE_3D                glTexImage3D
+    #define DMGRAPHICS_TEX_SUB_IMAGE_3D            glTexSubImage3D
+    #define DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D     glCompressedTexImage3D
+    #define DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D glCompressedTexSubImage3D
+#endif
+
 // Types
 #define DMGRAPHICS_TYPE_UNSIGNED_SHORT_4444                 (GL_UNSIGNED_SHORT_4_4_4_4)
 #define DMGRAPHICS_TYPE_UNSIGNED_SHORT_565                  (GL_UNSIGNED_SHORT_5_6_5)
@@ -65,11 +85,84 @@
 #define DMGRAPHICS_TYPE_HALF_FLOAT                          (0x140B)
 #endif
 
+#ifdef GL_HALF_FLOAT_OES
+#define DMGRAPHICS_TYPE_HALF_FLOAT_OES                      (GL_HALF_FLOAT_OES)
+#else
+#define DMGRAPHICS_TYPE_HALF_FLOAT_OES                      (0x8D61)
+#endif
+
 // Texture arrays
 #ifdef GL_SAMPLER_2D_ARRAY
-#define DMGRAPHICS_SAMPLER_2D_ARRAY 						(GL_SAMPLER_2D_ARRAY)
+#define DMGRAPHICS_SAMPLER_2D_ARRAY                         (GL_SAMPLER_2D_ARRAY)
 #else
-#define DMGRAPHICS_SAMPLER_2D_ARRAY 						(0x8DC1)
+#define DMGRAPHICS_SAMPLER_2D_ARRAY                         (0x8DC1)
+#endif
+
+// Texture images
+#ifdef GL_IMAGE_2D
+    #define DMGRAPHICS_IMAGE_2D                         (GL_IMAGE_2D)
+#else
+    #define DMGRAPHICS_IMAGE_2D                         (0x904D)
+#endif
+
+// 3D Texturing
+#ifdef GL_SAMPLER_3D
+    #define DMGRAPHICS_SAMPLER_3D (GL_SAMPLER_3D)
+#else
+    #define DMGRAPHICS_SAMPLER_3D (0x8B5F)
+#endif
+
+#ifdef GL_IMAGE_3D
+    #define DMGRAPHICS_IMAGE_3D (GL_IMAGE_3D)
+#else
+    #define DMGRAPHICS_IMAGE_3D (0x904E)
+#endif
+
+// Barrier bits
+#ifdef GL_SHADER_IMAGE_ACCESS_BARRIER_BIT
+    #define DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS       (GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
+#else
+    #define DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS       (0x00000020)
+#endif
+
+// GL_READ_WRITE
+#ifdef GL_READ_WRITE
+    #define DMGRAPHICS_READ_WRITE               (GL_READ_WRITE)
+#else
+    #define DMGRAPHICS_READ_WRITE               (0x88BA)
+#endif
+
+// GL_READ_ONLY
+#ifdef GL_READ_ONLY
+    #define DMGRAPHICS_READ_ONLY                (GL_READ_ONLY)
+#else
+    #define DMGRAPHICS_READ_ONLY                (0x88B8)
+#endif
+
+// GL_MAJOR_VERSION
+#ifdef GL_MAJOR_VERSION
+    #define DMGRAPHICS_MAJOR_VERSION           (GL_MAJOR_VERSION)
+#else
+    #define DMGRAPHICS_MAJOR_VERSION           (0x821B)
+#endif
+
+// GL_MINOR_VERSION
+#ifdef GL_MINOR_VERSION
+    #define DMGRAPHICS_MINOR_VERSION           (GL_MINOR_VERSION)
+#else
+    #define DMGRAPHICS_MINOR_VERSION           (0x821C)
+#endif
+
+#ifdef GL_DEPTH_STENCIL_OES
+#define DMGRAPHICS_FORMAT_DEPTH_STENCIL (GL_DEPTH_STENCIL_OES)
+#else
+#define DMGRAPHICS_FORMAT_DEPTH_STENCIL (GL_DEPTH_STENCIL)
+#endif
+
+#ifdef GL_UNSIGNED_INT_24_8_OES
+#define DMGRAPHICS_TYPE_UNSIGNED_INT_24_8 (GL_UNSIGNED_INT_24_8_OES)
+#else
+#define DMGRAPHICS_TYPE_UNSIGNED_INT_24_8 (GL_UNSIGNED_INT_24_8)
 #endif
 
 // Render buffer storage formats
@@ -78,20 +171,39 @@
 #else
 #define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL       (GL_DEPTH_STENCIL)
 #endif
+
 #ifdef GL_DEPTH_COMPONENT24_OES
 #define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24             (GL_DEPTH_COMPONENT24_OES)
 #else
 #define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24             (GL_DEPTH_COMPONENT)
 #endif
+
 #ifdef GL_DEPTH_COMPONENT16_OES
 #define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16             (GL_DEPTH_COMPONENT16_OES)
 #else
 #define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16             (GL_DEPTH_COMPONENT16)
 #endif
+
 #ifdef GL_STENCIL_INDEX8_OES
-#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL            (GL_STENCIL_INDEX8_OES)
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8            (GL_STENCIL_INDEX8_OES)
 #else
-#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL            (GL_STENCIL_INDEX8)
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8            (GL_STENCIL_INDEX8)
+#endif
+
+#ifdef GL_DEPTH24_STENCIL8_OES
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24_STENCIL8    (GL_DEPTH24_STENCIL8_OES)
+#elif defined(GL_DEPTH24_STENCIL8)
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24_STENCIL8    (GL_DEPTH24_STENCIL8)
+#else
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24_STENCIL8    (0x88F0)
+#endif
+
+#ifdef GL_STENCIL_INDEX_OES
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL             (GL_STENCIL_INDEX_OES)
+#elif defined(GL_STENCIL_INDEX)
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL             (GL_STENCIL_INDEX)
+#else
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL             (0x1901)
 #endif
 #ifdef GL_COLOR_EXT
 #define DMGRAPHICS_RENDER_BUFFER_COLOR                      (GL_COLOR_EXT)
@@ -363,10 +475,127 @@
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR         0x93B0
 #endif
+
 #ifdef GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR
 #define DMGRAPHICS_TEXTURE_FORMAT_SRGB8_ALPHA8_ASTC_4x4_KHR (GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_SRGB8_ALPHA8_ASTC_4x4_KHR 0x93D0
+#endif
+
+#ifdef GL_COMPRESSED_RGBA_ASTC_5x4_KHR
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x4_KHR         (GL_COMPRESSED_RGBA_ASTC_5x4_KHR)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x4_KHR         0x93B1
+#endif
+
+#ifdef GL_COMPRESSED_RGBA_ASTC_5x4_KHR
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x5_KHR         (GL_COMPRESSED_RGBA_ASTC_5x5_KHR)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x5_KHR         0x93B2
+#endif
+
+#ifdef GL_COMPRESSED_RGBA_ASTC_5x4_KHR
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x5_KHR         (GL_COMPRESSED_RGBA_ASTC_6x5_KHR)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x5_KHR         0x93B3
+#endif
+
+#ifdef GL_COMPRESSED_RGBA_ASTC_5x4_KHR
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x6_KHR         (GL_COMPRESSED_RGBA_ASTC_6x6_KHR)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x6_KHR         0x93B4
+#endif
+
+#ifdef GL_COMPRESSED_RGBA_ASTC_5x4_KHR
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x5_KHR         (GL_COMPRESSED_RGBA_ASTC_8x5_KHR)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x5_KHR         0x93B5
+#endif
+
+#ifdef GL_COMPRESSED_RGBA_ASTC_5x4_KHR
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x6_KHR         (GL_COMPRESSED_RGBA_ASTC_8x6_KHR)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x6_KHR         0x93B6
+#endif
+
+#ifdef GL_COMPRESSED_RGBA_ASTC_5x4_KHR
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x8_KHR         (GL_COMPRESSED_RGBA_ASTC_8x8_KHR)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x8_KHR         0x93B7
+#endif
+
+#ifdef GL_COMPRESSED_RGBA_ASTC_5x4_KHR
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x5_KHR         (GL_COMPRESSED_RGBA_ASTC_10x5_KHR)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x5_KHR         0x93B8
+#endif
+
+#ifdef GL_COMPRESSED_RGBA_ASTC_5x4_KHR
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x6_KHR         (GL_COMPRESSED_RGBA_ASTC_10x6_KHR)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x6_KHR         0x93B9
+#endif
+
+#ifdef GL_COMPRESSED_RGBA_ASTC_5x4_KHR
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x8_KHR         (GL_COMPRESSED_RGBA_ASTC_10x8_KHR)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x8_KHR         0x93BA
+#endif
+
+#ifdef GL_COMPRESSED_RGBA_ASTC_5x4_KHR
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x10_KHR         (GL_COMPRESSED_RGBA_ASTC_10x10_KHR)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x10_KHR         0x93BB
+#endif
+
+#ifdef GL_COMPRESSED_RGBA_ASTC_5x4_KHR
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x10_KHR         (GL_COMPRESSED_RGBA_ASTC_12x10_KHR)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x10_KHR         0x93BC
+#endif
+
+#ifdef GL_COMPRESSED_RGBA_ASTC_5x4_KHR
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x12_KHR         (GL_COMPRESSED_RGBA_ASTC_12x12_KHR)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x12_KHR         0x93BD
+#endif
+
+#ifdef GL_COMPUTE_SHADER
+#define DMGRAPHICS_TYPE_COMPUTE_SHADER                      (GL_COMPUTE_SHADER)
+#else
+#define DMGRAPHICS_TYPE_COMPUTE_SHADER                      (0x91B9)
+#endif
+
+#ifndef GL_UNIFORM_BUFFER
+#define GL_UNIFORM_BUFFER                                0x8A11
+#endif
+
+#ifndef GL_INVALID_INDEX
+#define GL_INVALID_INDEX                                 0xFFFFFFFFu
+#endif
+
+#ifndef GL_UNIFORM_BLOCK_BINDING
+#define GL_UNIFORM_BLOCK_BINDING                         0x8A3F
+#endif
+
+#ifndef GL_UNIFORM_OFFSET
+#define GL_UNIFORM_OFFSET                                0x8A3B
+#endif
+
+#ifndef GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES
+#define GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES          0x8A43
+#endif
+
+#ifndef GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS
+#define GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS                 0x8A42
+#endif
+
+#ifndef GL_UNIFORM_BLOCK_DATA_SIZE
+#define GL_UNIFORM_BLOCK_DATA_SIZE                       0x8A40
+#endif
+
+#ifndef GL_UNIFORM_BLOCK_INDEX
+#define GL_UNIFORM_BLOCK_INDEX                           0x8A3A
 #endif
 
 #endif // DMGRAPHICS_OPENGL_DEFINES_H

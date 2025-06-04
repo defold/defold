@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -119,7 +119,7 @@ namespace dmSocket
 #else
     Result GetHostByNameT(const char* name, Address* address, uint64_t timeout, int* cancelflag, bool ipv4, bool ipv6)
     {
-        const uint32_t THREAD_STACK_SIZE = 0x20000;
+        const uint32_t THREAD_STACK_SIZE = 256*1024;
 
         GetHostByNameThreadContext* ctx = new GetHostByNameThreadContext;
         ctx->m_Name = strdup(name);
@@ -129,8 +129,8 @@ namespace dmSocket
         ctx->m_Finished = 0;
 
         dmThread::Thread t = dmThread::New(&GetHostByNameThreadWorker, THREAD_STACK_SIZE, ctx, "GetHostByName");
-        uint64_t tend = timeout ? dmTime::GetTime() + timeout : 0xFFFFFFFFFFFFFFFF;
-        while (tend > dmTime::GetTime())
+        uint64_t tend = timeout ? dmTime::GetMonotonicTime() + timeout : 0xFFFFFFFFFFFFFFFF;
+        while (tend > dmTime::GetMonotonicTime())
         {
             if (dmAtomicAdd32(&ctx->m_Finished, 0) == 1) // the thread has finished
             {

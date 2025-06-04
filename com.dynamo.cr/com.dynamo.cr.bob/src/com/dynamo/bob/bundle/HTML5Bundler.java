@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,6 +14,9 @@
 
 package com.dynamo.bob.bundle;
 
+import java.math.BigInteger;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.BufferedWriter;
@@ -24,12 +27,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.text.ParseException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -48,17 +47,30 @@ import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.samskivert.mustache.Mustache;
-import com.samskivert.mustache.Template;
+import com.dynamo.bob.archive.EngineVersion;
 
-@BundlerParams(platforms = {Platform.JsWeb, Platform.WasmWeb})
+@BundlerParams(platforms = {"js-web", "wasm-web", "wasm_pthread-web"})
 public class HTML5Bundler implements IBundler {
     private static Logger logger = Logger.getLogger(HTML5Bundler.class.getName());
 
     private static final String SplitFileDir = "archive";
     private static final String SplitFileJson = "archive_files.json";
     private static int SplitFileSegmentSize = 2 * 1024 * 1024;
+    private static String SplitFileSHA1 = "";
 
+    // previously it was hardcoded in dmloader.js
+    private String WasmSHA1 = "";
+    private long WasmSize = 2000000;
+    private String WasmjsSHA1 = "";
+    private long WasmjsSize = 250000;
+
+    private String WasmPthreadSHA1 = "";
+    private long WasmPthreadSize = 2000000;
+    private String WasmPthreadjsSHA1 = "";
+    private long WasmPthreadjsSize = 250000;
+
+    private String AsmjsSHA1 = "";
+    private long AsmjsSize = 4000000;
     public static final String MANIFEST_NAME = "engine_template.html";
 
     @Override
@@ -95,12 +107,25 @@ public class HTML5Bundler implements IBundler {
             }
         }
         properties.put("DEFOLD_HEAP_SIZE", customHeapSize);
+        properties.put("DEFOLD_ARCHIVE_SHA1", SplitFileSHA1);
+        properties.put("DEFOLD_WASM_SHA1", WasmSHA1);
+        properties.put("DEFOLD_WASM_SIZE", WasmSize);
+        properties.put("DEFOLD_WASMJS_SHA1", WasmjsSHA1);
+        properties.put("DEFOLD_WASMJS_SIZE", WasmjsSize);
+        properties.put("DEFOLD_WASM_PTHREAD_SHA1", WasmPthreadSHA1);
+        properties.put("DEFOLD_WASM_PTHREAD_SIZE", WasmPthreadSize);
+        properties.put("DEFOLD_WASMJS_PTHREAD_SHA1", WasmPthreadjsSHA1);
+        properties.put("DEFOLD_WASMJS_PTHREAD_SIZE", WasmPthreadjsSize);
+        properties.put("DEFOLD_ENGINE_VERSION", EngineVersion.version);
+        properties.put("DEFOLD_SDK_SHA1", project.option("defoldsdk", EngineVersion.sha1));
+        properties.put("ASMJS_SHA1", AsmjsSHA1);
+        properties.put("ASMJS_SIZE", AsmjsSize);
 
         String splashImage = projectProperties.getStringValue("html5", "splash_image", null);
         if (splashImage != null) {
             properties.put("DEFOLD_SPLASH_IMAGE", new File(project.getRootDirectory(), splashImage).getName());
         } else {
-            // Without this value we can't use Inverted Sections (^) in Mustache and recive an error:
+            // Without this value we can't use Inverted Sections (^) in Mustache and receive an error:
             // "No key, method or field with name 'DEFOLD_SPLASH_IMAGE' on line N"
             properties.put("DEFOLD_SPLASH_IMAGE", false);
         }
@@ -149,19 +174,52 @@ public class HTML5Bundler implements IBundler {
         if (customCSS != null) {
             properties.put("DEFOLD_CUSTOM_CSS_INLINE", BundleHelper.formatResource(propertiesMap, properties, customCSS));
         }
+
+        // set flag so that we can disable wasm support in the engine_template.html if we're not
+        // bundling with a wasm engine
+        final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
+        boolean hasWasm = architectures.contains(Platform.WasmWeb) || architectures.contains(Platform.WasmPthreadWeb);
+        properties.put("DEFOLD_HAS_WASM_ENGINE", hasWasm);
+
+        properties.put("DEFOLD_HAS_WASM_PTHREAD_ENGINE", architectures.contains(Platform.WasmPthreadWeb));
     }
 
     class SplitFile {
         private File source;
+        private Project project;
+        private MessageDigest sha1;
         private List<File> subdivisions;
 
-        SplitFile(File src) {
+        SplitFile(Project proj, File src) {
+            project = proj;
             source = src;
             subdivisions = new ArrayList<File>();
         }
 
+        public long getTotalSize() {
+            return source.length();
+        }
+
+        private static String insertNumberBeforeExtension(String filePath, int number) {
+            int dotIndex = filePath.indexOf('.');
+            if (dotIndex > 0) {
+                String baseName = filePath.substring(0, dotIndex);
+                String extension = filePath.substring(dotIndex);
+                return baseName + number + extension;
+            } else {
+                return filePath + number;
+            }
+        }
+
         void performSplit(File destDir) throws IOException {
             InputStream input = null;
+            if (project.hasOption("with-sha1")) {
+                try {
+                    this.sha1 = MessageDigest.getInstance("SHA1");
+                } catch (NoSuchAlgorithmException e) {
+                    throw new RuntimeException(e);
+                }
+            }
             try {
                 input = new BufferedInputStream(new FileInputStream(source));
                 long remaining = source.length();
@@ -171,10 +229,12 @@ public class HTML5Bundler implements IBundler {
                     byte[] readBuffer = new byte[thisRead];
                     long bytesRead = input.read(readBuffer, 0, thisRead);
                     assert(bytesRead == thisRead);
-
-                    File output = new File(destDir, source.getName() + subdivisions.size());
+                    File output = new File(destDir, insertNumberBeforeExtension(source.getName(), subdivisions.size()));
                     writeChunk(output, readBuffer);
                     subdivisions.add(output);
+                    if (this.sha1 != null) {
+                        this.sha1.update(readBuffer);
+                    }
 
                     remaining -= thisRead;
                 }
@@ -191,10 +251,17 @@ public class HTML5Bundler implements IBundler {
             generator.writeString(source.getName());
             generator.writeFieldName("size");
             generator.writeNumber(source.length());
-
+            if(this.sha1 != null) {
+                generator.writeFieldName("sha1");
+                String sha1 = new BigInteger(1, this.sha1.digest()).toString(16);
+                while (sha1.length() < 40) {
+                    sha1 = "0" + sha1;
+                }
+                generator.writeString(sha1);
+            }
             generator.writeFieldName("pieces");
             generator.writeStartArray();
-            int offset = 0;
+            long offset = 0;
             for (File split : this.subdivisions) {
                 String path = split.getName();
 
@@ -224,8 +291,99 @@ public class HTML5Bundler implements IBundler {
         }
     }
 
+    private static String calculateSHA1(File file) throws IOException {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-1");
+            BufferedInputStream is = new BufferedInputStream(new FileInputStream(file));
+            byte[] buffer = new byte[1024];
+            int n = is.read(buffer);
+            while (n != -1) {
+                md.update(buffer, 0, n);
+                n = is.read(buffer);
+            }
+            is.close();
+            String sha1 = new BigInteger(1, md.digest()).toString(16);
+            while (sha1.length() < 40) {
+                sha1 = "0" + sha1;
+            }
+            return sha1;
+        } catch (IOException e) {
+            return null;
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     URL getResource(String name) {
         return getClass().getResource(String.format("resources/jsweb/%s", name));
+    }
+
+    private void createDmLoader(BundleHelper helper, URL inputResource, File targetFile) throws IOException {
+        helper.formatResourceToFile(inputResource.openStream().readAllBytes(), inputResource.getPath(), targetFile);
+    }
+
+    private void buildWasm(Project project, ICanceled canceled, Platform platform, File appDir, String variant, String enginePrefix, String suffix) throws IOException {
+        BundleHelper.throwIfCanceled(canceled);
+        List<File> binsWasm = ExtenderUtil.getNativeExtensionEngineBinaries(project, platform);
+        if (binsWasm == null) {
+            try {
+                binsWasm = Bob.getDefaultDmengineFiles(platform, variant);
+            } catch(IOException e) {
+                System.err.println(String.format("Unable to bundle platform %s: %s", platform, e.getMessage()));
+            }
+        }
+        else {
+            logger.info("Using extender binary for WASM");
+        }
+        if(binsWasm != null) {
+            // Copy dwarf debug file if it is generated
+            String dwarfName = "dmengine.wasm.debug.wasm";
+            if (variant.equals(Bob.VARIANT_RELEASE)) {
+                dwarfName = "dmengine_release.wasm.debug.wasm";
+            }
+            String dwarfZipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), Platform.WasmWeb.getExtenderPair());
+            File bundleDwarf = new File(dwarfZipDir, dwarfName);
+            if (bundleDwarf.exists()) {
+                File dwarfOut = new File(appDir, enginePrefix + ".wasm.debug.wasm");
+                FileUtils.copyFile(bundleDwarf, dwarfOut);
+            }
+
+            for (File bin : binsWasm) {
+                BundleHelper.throwIfCanceled(canceled);
+                String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
+                if (binExtension.equals("js")) {
+                    FileUtils.copyFile(bin, new File(appDir, enginePrefix + suffix + "_wasm.js"));
+
+                    if (platform == Platform.WasmWeb)
+                        WasmjsSize = bin.length();
+                    else if (platform == Platform.WasmPthreadWeb)
+                        WasmPthreadjsSize = bin.length();
+
+                    if (project.hasOption("with-sha1")) {
+                        if (platform == Platform.WasmWeb)
+                            WasmjsSHA1 = HTML5Bundler.calculateSHA1(bin);
+                        else if (platform == Platform.WasmPthreadWeb)
+                            WasmPthreadjsSHA1 = HTML5Bundler.calculateSHA1(bin);
+                    }
+                } else if (binExtension.equals("wasm")) {
+                    FileUtils.copyFile(bin, new File(appDir, enginePrefix + suffix + ".wasm"));
+
+                    if (platform == Platform.WasmWeb)
+                        WasmSize = bin.length();
+                    else if (platform == Platform.WasmPthreadWeb)
+                        WasmPthreadSize = bin.length();
+
+                    if (project.hasOption("with-sha1")) {
+                        if (platform == Platform.WasmWeb)
+                            WasmSHA1 = HTML5Bundler.calculateSHA1(bin);
+                        else if (platform == Platform.WasmPthreadWeb)
+                            WasmPthreadSHA1 = HTML5Bundler.calculateSHA1(bin);
+                    }
+                } else {
+                    throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
+                }
+            }
+        }
     }
 
     @Override
@@ -247,38 +405,7 @@ public class HTML5Bundler implements IBundler {
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String enginePrefix = BundleHelper.projectNameToBinaryName(title);
 
-        List<File> binsAsmjs = null;
-        List<File> binsWasm = null;
-
         BundleHelper.throwIfCanceled(canceled);
-        // asmjs binaries
-        {
-            Platform targetPlatform = Platform.JsWeb;
-            binsAsmjs = ExtenderUtil.getNativeExtensionEngineBinaries(project, targetPlatform);
-            if (binsAsmjs == null) {
-                binsAsmjs = Bob.getDefaultDmengineFiles(targetPlatform, variant);
-            }
-            else {
-                logger.info("Using extender binary for Asm.js");
-            }
-            ;
-        }
-
-        BundleHelper.throwIfCanceled(canceled);
-        // wasm binaries
-        {
-            Platform targetPlatform = Platform.WasmWeb;
-            binsWasm = ExtenderUtil.getNativeExtensionEngineBinaries(project, targetPlatform);
-            if (binsWasm == null) {
-                binsWasm = Bob.getDefaultDmengineFiles(targetPlatform, variant);
-            }
-            else {
-                logger.info("Using extender binary for WASM");
-            }
-        }
-
-        BundleHelper.throwIfCanceled(canceled);
-        File projectRoot = new File(project.getRootDirectory());
 
         File appDir = new File(bundleDirectory, title);
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
@@ -286,23 +413,14 @@ public class HTML5Bundler implements IBundler {
         FileUtils.deleteDirectory(appDir);
         File splitDir = new File(appDir, SplitFileDir);
         splitDir.mkdirs();
-        createSplitFiles(buildDir, splitDir);
+        createSplitFiles(project, buildDir, splitDir);
 
         BundleHelper.throwIfCanceled(canceled);
         // Copy bundle resources into bundle directory
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
-        // Copy engine binaries
-        for (File bin : binsAsmjs) {
-            BundleHelper.throwIfCanceled(canceled);
-            String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
-            if (binExtension.equals("js")) {
-                FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_asmjs.js"));
-            } else {
-                throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
-            }
-        }
 
+        BundleHelper.throwIfCanceled(canceled);
         // Copy debug symbols if they were generated
         String symbolsName = "dmengine.js.symbols";
         if (variant.equals(Bob.VARIANT_RELEASE)) {
@@ -319,25 +437,55 @@ public class HTML5Bundler implements IBundler {
             FileUtils.copyFile(bundleSymbols, symbolsOut);
         }
 
-        for (File bin : binsWasm) {
+
+        if (architectures.contains(Platform.JsWeb)) {
             BundleHelper.throwIfCanceled(canceled);
-            String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
-            if (binExtension.equals("js")) {
-                FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_wasm.js"));
-            } else if (binExtension.equals("wasm")) {
-                FileUtils.copyFile(bin, new File(appDir, enginePrefix + ".wasm"));
-            } else {
-                throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
+            Platform targetPlatform = Platform.JsWeb;
+            List<File> binsAsmjs = ExtenderUtil.getNativeExtensionEngineBinaries(project, targetPlatform);
+            if (binsAsmjs == null) {
+                try {
+                    binsAsmjs = Bob.getDefaultDmengineFiles(targetPlatform, variant);
+                } catch(IOException e) {
+                    System.err.println("Unable to bundle js-web: " + e.getMessage());
+                }
             }
+            else {
+                logger.info("Using extender binary for Asm.js");
+            }
+            if(binsAsmjs != null) {
+                // Copy engine binaries
+                for (File bin : binsAsmjs) {
+                    BundleHelper.throwIfCanceled(canceled);
+                    String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
+                    if (binExtension.equals("js")) {
+                        FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_asmjs.js"));
+                        AsmjsSize = bin.length();
+                        if (project.hasOption("with-sha1")) {
+                            AsmjsSHA1 = HTML5Bundler.calculateSHA1(bin);
+                        }
+                    } else {
+                        throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
+                    }
+                }
+            }
+        }
+
+        if (architectures.contains(Platform.WasmWeb)) {
+            buildWasm(project, canceled, Platform.WasmWeb, appDir, variant, enginePrefix, "");
+        }
+
+        if (architectures.contains(Platform.WasmPthreadWeb)) {
+            buildWasm(project, canceled, Platform.WasmPthreadWeb, appDir, variant, enginePrefix, "_pthread");
         }
 
         BundleHelper.throwIfCanceled(canceled);
 
-        BundleHelper helper = new BundleHelper(project, platform, appDir, variant);
+        BundleHelper helper = new BundleHelper(project, platform, appDir, variant, this);
 
-        helper.copyOrWriteManifestFile(platform, appDir);
+        helper.copyOrWriteManifestFile(architectures.get(0), appDir);
 
-        FileUtils.copyURLToFile(getResource("dmloader.js"), new File(appDir, "dmloader.js"));
+        helper.updateTemplateProperties();
+        createDmLoader(helper, getResource("dmloader.js"), new File(appDir, "dmloader.js"));
 
         String splashImageName = projectProperties.getStringValue("html5", "splash_image");
         if (splashImageName != null && !splashImageName.isEmpty()) {
@@ -346,23 +494,25 @@ public class HTML5Bundler implements IBundler {
                 FileUtils.copyFile(splashImage, new File(appDir, splashImage.getName()));
             }
         }
+        BundleHelper.moveBundleIfNeed(project, appDir);
     }
 
-    private void createSplitFiles(File buildDir, File targetDir) throws IOException {
+    private void createSplitFiles(Project project, File buildDir, File targetDir) throws IOException {
         ArrayList<SplitFile> splitFiles = new ArrayList<SplitFile>();
         for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
-            SplitFile toSplit = new SplitFile(new File(buildDir, name));
+            SplitFile toSplit = new SplitFile(project, new File(buildDir, name));
             toSplit.performSplit(targetDir);
             splitFiles.add(toSplit);
         }
-        createSplitFilesJson(splitFiles, targetDir);
+        createSplitFilesJson(splitFiles, targetDir, project.hasOption("with-sha1"));
     }
 
-    private void createSplitFilesJson(ArrayList<SplitFile> splitFiles, File targetDir) throws IOException {
+    private void createSplitFilesJson(ArrayList<SplitFile> splitFiles, File targetDir, boolean sha1) throws IOException {
+        File descFile = new File(targetDir, SplitFileJson);
         BufferedWriter writer = null;
         JsonGenerator generator = null;
+        long totalSize = 0;
         try {
-            File descFile = new File(targetDir, SplitFileJson);
             writer = new BufferedWriter(new FileWriter(descFile));
             generator = (new JsonFactory()).createJsonGenerator(writer);
 
@@ -372,9 +522,10 @@ public class HTML5Bundler implements IBundler {
 
             for (SplitFile split : splitFiles) {
                 split.writeJson(generator);
+                totalSize += split.getTotalSize();
             }
-
             generator.writeEndArray();
+            generator.writeNumberField("total_size", totalSize);
             generator.writeEndObject();
         }
         finally {
@@ -382,6 +533,9 @@ public class HTML5Bundler implements IBundler {
                 generator.close();
             }
             IOUtils.closeQuietly(writer);
+            if (sha1) {
+                SplitFileSHA1 = HTML5Bundler.calculateSHA1(descFile);
+            }
         }
     }
 }

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -34,6 +34,7 @@ namespace dmIntersection
  * @document
  * @name Render
  * @namespace dmRender
+ * @language C++
  */
 
 namespace dmRender
@@ -55,9 +56,13 @@ namespace dmRender
     /*#
      * Font map handle
      * @typedef
-     * @name HFontMap
+     * @name HFont
      */
+    typedef struct FontMap* HFont;
+
+    // Old typedef, used internally. We want to migrate towards HFont
     typedef struct FontMap* HFontMap;
+
 
     /*#
      * Shader constant handle
@@ -178,13 +183,23 @@ namespace dmRender
         RenderObject();
         void Init();
 
-        static const uint32_t MAX_TEXTURE_COUNT = 8;
-        HNamedConstantBuffer            m_ConstantBuffer;
+        static const uint32_t MAX_TEXTURE_COUNT       = 8;
+        static const uint32_t MAX_VERTEX_BUFFER_COUNT = 3;
 
+        HNamedConstantBuffer            m_ConstantBuffer;
         dmVMath::Matrix4                m_WorldTransform;
         dmVMath::Matrix4                m_TextureTransform;
-        dmGraphics::HVertexBuffer       m_VertexBuffer;
-        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+        union
+        {
+            dmGraphics::HVertexBuffer m_VertexBuffer;
+            dmGraphics::HVertexBuffer m_VertexBuffers[MAX_VERTEX_BUFFER_COUNT];
+        };
+
+        union
+        {
+            dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+            dmGraphics::HVertexDeclaration  m_VertexDeclarations[MAX_VERTEX_BUFFER_COUNT];
+        };
         dmGraphics::HIndexBuffer        m_IndexBuffer;
         HMaterial                       m_Material;
         dmGraphics::HTexture            m_Textures[MAX_TEXTURE_COUNT];
@@ -194,8 +209,10 @@ namespace dmRender
         dmGraphics::BlendFactor         m_DestinationBlendFactor;
         dmGraphics::FaceWinding         m_FaceWinding;
         StencilTestParams               m_StencilTestParams;
+        uint32_t                        m_VertexBufferOffsets[MAX_VERTEX_BUFFER_COUNT];
         uint32_t                        m_VertexStart;
         uint32_t                        m_VertexCount;
+        uint32_t                        m_InstanceCount;
         uint8_t                         m_SetBlendFactors : 1;
         uint8_t                         m_SetStencilTest : 1;
         uint8_t                         m_SetFaceWinding : 1;
@@ -272,6 +289,32 @@ namespace dmRender
     {
         VISIBILITY_NONE = 0,
         VISIBILITY_FULL = 1, // Not sure if we ever need partial ?
+    };
+
+    /*#
+     * Frustum planes to use in a frustum
+     * @enum
+     * @name FrustumPlanes
+     * @member FRUSTUM_PLANES_SIDES
+     * @member FRUSTUM_PLANES_ALL
+     */
+    enum FrustumPlanes
+    {
+        FRUSTUM_PLANES_SIDES = 4,
+        FRUSTUM_PLANES_ALL   = 6
+    };
+
+    /*#
+     * Frustum options used when setting up a draw call
+     * @struct
+     * @name FrustumOptions
+     * @member m_FrustumMatrix [type: matrix4] the frustum matrix
+     * @member m_SkipNearFarPlanes [type: bool] should the frustum culling use the near and far planes
+     */
+    struct FrustumOptions
+    {
+        dmVMath::Matrix4 m_Matrix;
+        FrustumPlanes    m_NumPlanes;
     };
 
     /*#
@@ -440,15 +483,15 @@ namespace dmRender
      * @param constant [type: dmRender::HConstant] The shader constant
      * @return location [type: int32_t] the location
     */
-    int32_t GetConstantLocation(HConstant constant);
+    dmGraphics::HUniformLocation GetConstantLocation(HConstant constant);
 
     /*#
      * Sets the shader program constant location
      * @name SetConstantLocation
      * @param constant [type: dmRender::HConstant] The shader constant
-     * @param location [type: int32_t] the location
+     * @param location [type: dmGraphics::HUniformLocation] the location
     */
-    void SetConstantLocation(HConstant constant, int32_t location);
+    void SetConstantLocation(HConstant constant, dmGraphics::HUniformLocation location);
 
     /*#
      * Gets the type of the constant

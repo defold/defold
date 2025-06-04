@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,13 +23,13 @@
   * mark-deleted - a list of resource nodes to be marked as deleted
   * invalidate-outputs - a list of resource nodes (stateless) whose outputs should be invalidated
   * redirect - a list of [resource node, new resource] pairs, the resource nodes :resource will be reset to new resource."
-  (:require [clojure.java.io :as io]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.graph-util :as gu]
-            [editor.resource :as resource])
-  (:import [editor.resource ZipResource]
-           [java.io InputStream]
-           [org.apache.commons.codec.digest DigestUtils]))
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [util.coll :as coll]))
+
+(set! *warn-on-reflection* true)
 
 (defn print-plan [plan]
   (let [resource-info (fn [r] (pr-str r))
@@ -60,49 +60,28 @@
       (println "REDIRECTING:" (resource-node-info node) "TO:" (resource-info new))))
   plan)
 
-(defn- stateful? [resource]
-  (not (:stateless? (resource/resource-type resource))))
-
 (defn- merge-resource-change-plans [& plans]
   (apply merge-with into plans))
 
 (defn- keep-existing-node?
   "Check if we can safely keep the existing node in the graph. Every time a file
   has an updated timestamp it will be reported as changed, but if the contents
-  are unchanged we don't need to reload the node."
-  [old-node new-resource evaluation-context]
-  (let [resource-type (resource/resource-type new-resource)]
-    ;; Determine if the file contents have changed by comparing the sha256
-    ;; value of the in-memory state of the old-node to the calculated sha256 of
-    ;; the on-disk state of the new-resource.
-    (if (:stateless? resource-type)
-      ;; Stateless resources do not have an in-memory state, so their sha256
-      ;; output will return the sha256 of their on-disk state. Thus, we cannot
-      ;; determine if the file has changed compared to their in-memory state,
-      ;; and must assume it is unsafe to keep the existing node in the graph.
-      false
+  are unchanged we don't need to reload the node. The old node must have
+  registered a disk-sha256 using the workspace/set-disk-sha256 function for the
+  existing node to potentially be kept. Resource nodes will typically call
+  workspace/set-disk-sha256 from their load-fn, but lazy-loaded resource nodes
+  can use other methods."
+  [old-node new-resource old-node->old-disk-sha256]
+  (if-some [old-disk-sha256 (old-node->old-disk-sha256 old-node)]
+    (if-some [new-disk-sha256 (try
+                                (resource/resource->sha256-hex new-resource)
+                                (catch Exception _
+                                  nil))]
+      (= old-disk-sha256 new-disk-sha256)
+      false)
+    false))
 
-      ;; This is a stateful resource. Compare the sha256 of the in-memory state
-      ;; to the sha256 of the on-disk state of the new-resource.
-      (let [read-fn (:read-fn resource-type)
-            write-fn (:write-fn resource-type)
-            old-sha256 (try
-                         (g/node-value old-node :sha256 evaluation-context)
-                         (catch Exception _
-                           nil))
-            new-sha256 (try
-                         (when (and read-fn write-fn)
-                           (let [source-value (read-fn new-resource)
-                                 sanitized-content (write-fn source-value)]
-                             (DigestUtils/sha256Hex ^String sanitized-content)))
-                         (catch Exception _
-                           nil))]
-        (and (some? old-sha256)
-             (some? new-sha256)
-             (not (g/error? old-sha256))
-             (= old-sha256 new-sha256))))))
-
-(defn- replace-resources-plan [{:keys [resource->old-node]} resources force-replacement]
+(defn- replace-resources-plan [{:keys [resource->old-node old-node->old-disk-sha256]} resources force-replacement]
   ;; Creates new resource nodes for all resources, transfers overrides and outgoing arcs
   ;; from old (if any) and deletes them. If force-replacement is false, we check whether
   ;; the file has significant changes before replacing any nodes.
@@ -113,12 +92,9 @@
                        resources)
         [kept replaced] (if force-replacement
                           [nil in-graph]
-                          (let [{replaced true kept false}
-                                (g/with-auto-evaluation-context evaluation-context
-                                  (group-by (fn [[resource old-node]]
-                                              (keep-existing-node? old-node resource evaluation-context))
-                                            in-graph))]
-                            [replaced kept]))
+                          (coll/separate-by (fn [[resource old-node]]
+                                              (keep-existing-node? old-node resource old-node->old-disk-sha256))
+                                            in-graph))
         transfer-overrides replaced
         transfer-outgoing-arcs (mapv (fn [[resource old-node]]
                                        [resource (gu/explicit-outputs old-node)])
@@ -139,20 +115,25 @@
     ;; than simply adding new nodes for the introduced resources.
     (replace-resources-plan plan-info non-moved-added true)))
 
-(defn- resource-may-linger-on-disk? [resource]
-  (instance? ZipResource resource))
-
 (defn- resource-removed-plan [{:keys [removed]} {:keys [move-source-paths resource->old-node]}]
-  ;; Ideally, for stateless (external) resources, we should only have to invalidate-outputs
-  ;; and the next attempt to access the data will cause an appropriate "file not found" error.
-  ;; But since the .zip file that hosts ZipResources may remain cached on disk, those have
-  ;; to be explicitly marked deleted as well. Note that marking a node as deleted will
-  ;; implicitly invalidate its cached outputs.
-  (let [non-moved-removed (remove (comp move-source-paths resource/proj-path) removed)
-        {loadable-removed true stateless-removed false} (group-by stateful? non-moved-removed)
-        {stateless-lingering true stateless-external false} (group-by resource-may-linger-on-disk? stateless-removed)]
-    {:mark-deleted (mapv resource->old-node (concat loadable-removed stateless-lingering))
-     :invalidate-outputs (mapv resource->old-node stateless-external)}))
+  ;; You might think that we should only have to invalidate-outputs for
+  ;; stateless (external) resources, and the next attempt to access the data
+  ;; would cause an appropriate "file not found" error. However, we actually
+  ;; want the node to be marked defective, as we specifically check for this in
+  ;; some places. For example, double-clicking a build error will navigate to
+  ;; the referencing resource rather than the missing resource when the missing
+  ;; resource node is marked defective with a :file-not-found error type.
+  ;;
+  ;; Marking stateless nodes as defective when their resources are deleted is
+  ;; also consistent with what happens to them when we load the project.
+  ;;
+  ;; The additional complexities around ZipResources detailed in the comment in
+  ;; the resource-changed-plan function below also apply.
+  ;;
+  ;; Note that marking a node as deleted will implicitly invalidate its cached
+  ;; outputs, so no need to emit :invalidate-outputs instructions here.
+  (let [non-moved-removed (remove (comp move-source-paths resource/proj-path) removed)]
+    {:mark-deleted (mapv resource->old-node non-moved-removed)}))
 
 (defn- resource-changed-plan [{:keys [changed]}
                               {:keys [move-source-paths
@@ -167,7 +148,7 @@
   ;; one that has the same file - thus, we must update the :resource field of the
   ;; node. Just like a redirect.
   (let [non-moved-changed (remove (comp (some-fn move-source-paths move-target-paths) resource/proj-path) changed)
-        {loadable-changed true stateless-changed false} (group-by stateful? non-moved-changed)
+        {loadable-changed true stateless-changed false} (group-by resource/stateful? non-moved-changed)
         {stateless-swapped true stateless-changed false} (group-by resource-swapped? stateless-changed)]
     (merge-resource-change-plans
       (replace-resources-plan plan-info loadable-changed false)
@@ -202,7 +183,7 @@
 
 (defmethod resource-moved-case-plan [:removed :changed] [_ move-pairs {:keys [resource->old-node]}]
   ;; We don't have to do the resource->changed-resource translation because move target always comes from new snapshot.
-  (let [{loadable-targets-changed true stateless-targets-changed false} (group-by stateful? (map second move-pairs))
+  (let [{loadable-targets-changed true stateless-targets-changed false} (group-by resource/stateful? (map second move-pairs))
         ;; Transfer overrides from old source nodes to the new target node, and from the old loadable target nodes.
         ;; We don't need to bother with stateless targets as those nodes are not replaced.
         transfer-overrides (into (mapv (fn [[source target]] [target (resource->old-node source)]) move-pairs)
@@ -221,7 +202,7 @@
 (defmethod resource-moved-case-plan [:changed :added] [_ move-pairs {:keys [resource->old-node resource-swapped? resource->changed-resource]}]
   ;; Just like in resource-changed-plan, we must handle the case of the actual resource value being updated
   ;; for stateless resources. I.e. redirect instead of invalidate-outputs.
-  (let [{loadable-sources-changed true stateless-sources-changed false} (group-by stateful? (map (comp resource->changed-resource first) move-pairs))
+  (let [{loadable-sources-changed true stateless-sources-changed false} (group-by resource/stateful? (map (comp resource->changed-resource first) move-pairs))
         new (concat loadable-sources-changed (map second move-pairs))
         transfer-overrides (into (mapv (fn [source] [source (resource->old-node source)]) loadable-sources-changed)
                                  (keep (fn [[_ target]] (when-let [old-target-node (resource->old-node target)] [target old-target-node])))
@@ -241,8 +222,8 @@
 (defmethod resource-moved-case-plan [:changed :changed] [_ move-pairs {:keys [resource->old-node resource-swapped? resource->changed-resource]}]
   ;; Just like in resource-changed-plan, we must handle the case of the actual resource value being updated
   ;; for stateless resources. I.e. redirect instead of invalidate-outputs.
-  (let [{loadable-sources-changed true stateless-sources-changed false} (group-by stateful? (map (comp resource->changed-resource first) move-pairs))
-        {loadable-targets-changed true stateless-targets-changed false} (group-by stateful? (map (comp resource->changed-resource second) move-pairs))
+  (let [{loadable-sources-changed true stateless-sources-changed false} (group-by resource/stateful? (map (comp resource->changed-resource first) move-pairs))
+        {loadable-targets-changed true stateless-targets-changed false} (group-by resource/stateful? (map (comp resource->changed-resource second) move-pairs))
         new (concat loadable-sources-changed loadable-targets-changed)
         transfer-overrides (into (mapv (fn [source] [source (resource->old-node source)]) loadable-sources-changed)
                                  (mapv (fn [target] [target (resource->old-node target)]) loadable-targets-changed))
@@ -290,18 +271,18 @@
                   (resource-moved-case-plan case move-pairs plan-info))
                 move-cases))))
 
-(defn resource-change-plan [old-nodes-by-path {:keys [added removed changed moved] :as changes}]
-  (let [move-sources (map first moved)
+(defn resource-change-plan [old-nodes-by-path old-node->old-disk-sha256 {:keys [added removed changed moved] :as changes}]
+  (let [basis (g/now)
+        move-sources (map first moved)
         move-targets (map second moved)
         move-source-paths (into #{} (map resource/proj-path) move-sources)
         move-target-paths (into #{} (map resource/proj-path) move-targets)
         resource->old-node (comp old-nodes-by-path resource/proj-path)
-        old-resource-by-old-node (g/with-auto-evaluation-context evaluation-context
-                                   (into {}
-                                         (map (fn [[_ old-node]]
-                                                (let [old-resource (g/node-value old-node :resource evaluation-context)]
-                                                  [old-node old-resource])))
-                                         old-nodes-by-path))
+        old-resource-by-old-node (into {}
+                                       (map (fn [[_ old-node]]
+                                              (let [old-resource (resource-node/resource basis old-node)]
+                                                [old-node old-resource])))
+                                       old-nodes-by-path)
         resource->old-resource (comp old-resource-by-old-node resource->old-node)
         resource-swapped? (fn [r] (not= r (resource->old-resource r)))
         changed-map (into {} (map (juxt resource/proj-path identity)) changed)
@@ -311,7 +292,8 @@
                    :resource->old-node resource->old-node
                    :resource->old-resource resource->old-resource
                    :resource-swapped? resource-swapped?
-                   :resource->changed-resource resource->changed-resource}]
+                   :resource->changed-resource resource->changed-resource
+                   :old-node->old-disk-sha256 old-node->old-disk-sha256}]
     ;; sanity checks
     (let [known? (fn [r] (contains? old-nodes-by-path (resource/proj-path r)))
           unknown? (complement known?)

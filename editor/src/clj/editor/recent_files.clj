@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,13 +27,6 @@
 
 (def ^:private history-size 32)
 
-(defn- make-prefs-key
-  ([workspace]
-   (g/with-auto-evaluation-context evaluation-context
-     (make-prefs-key workspace evaluation-context)))
-  ([workspace evaluation-context]
-   (str "recent-files-by-workspace-root-" (hash (g/node-value workspace :root evaluation-context)))))
-
 (defn- conj-history-item [items x]
   (let [new-items (into [] (remove #(= x %)) items)
         drop-count (- (count new-items)
@@ -42,13 +35,12 @@
         (cond->> (pos? drop-count) (into [] (drop drop-count)))
         (conj x))))
 
-(defn add! [prefs workspace resource view-type]
+(defn add! [prefs resource view-type]
   {:pre [(resource/openable? resource)
          (some? (:id view-type))]}
   (let [item [(resource/proj-path resource) (:id view-type)]
-        k (make-prefs-key workspace)]
-    (prefs/set-prefs prefs k (conj-history-item (prefs/get-prefs prefs k []) item))
-    nil))
+        k [:workflow :recent-files]]
+    (prefs/set! prefs k (conj-history-item (prefs/get prefs k) item))))
 
 (defn- project-path+view-type-id->resource+view-type [workspace evaluation-context [project-path view-type-id]]
   (when-let [res (workspace/find-resource workspace project-path evaluation-context)]
@@ -57,7 +49,7 @@
         [res view-type]))))
 
 (defn- ordered-resource+view-types [prefs workspace evaluation-context]
-  (-> (prefs/get-prefs prefs (make-prefs-key workspace evaluation-context) [])
+  (-> (prefs/get prefs [:workflow :recent-files])
       rseq
       (->> (keep #(project-path+view-type-id->resource+view-type workspace evaluation-context %)))))
 
@@ -79,7 +71,7 @@
                              :children [{:fx/type fx.region/lifecycle
                                          :h-box/hgrow :always}
                                         {:fx/type fx.label/lifecycle
-                                         :style {:-fx-text-fill :-df-text-darker}
+                                         :style {:-fx-text-fill :-df-text-dark}
                                          :text (str (:label view-type) " view")}]}})
        :selection :multiple
        :filter-fn #(fuzzy-choices/filter-options (comp resource/proj-path first) (comp resource/proj-path first) %1 %2)})))

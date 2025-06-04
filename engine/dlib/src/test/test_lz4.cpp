@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -73,6 +73,8 @@ char * RandomCharArray(int max, int *real)
 {
     char *tmp;
     uint32_t n = rand() % max;
+    if (n == 0)
+        n++;
 
     tmp = (char *)malloc(n + 1);
 
@@ -92,9 +94,12 @@ TEST(dmLZ4, Stress)
 {
     int max_size = 373425;
 
+    srand(dmTime::GetTime());
+
     for (int i = 0; i < 100; ++i) {
         int ref_len;
         char *ref = RandomCharArray(max_size, &ref_len);
+        ASSERT_NE(0, ref_len);
         int max_compressed_size, compressed_size;
         dmLZ4::Result r = dmLZ4::MaxCompressedSize(ref_len, &max_compressed_size);
         ASSERT_EQ(dmLZ4::RESULT_OK, r);

@@ -11,6 +11,7 @@ import waf_dynamo, waf_ddf
 from BuildUtility import create_build_utility
 import waflib.Options
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -25,6 +26,7 @@ def options(opt):
 def configure(conf):
     conf.load('waf_dynamo')
 
+    target_os = conf.env['TARGET_OS']
     try:
         build_util = create_build_utility(conf.env)
     except BuildUtilityException as ex:
@@ -36,15 +38,18 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
-    if platform in ("x86_64-macos",):
+    glfw_library = 'dmglfw'
+
+    if waf_dynamo.platform_glfw_version(conf.env.PLATFORM) == 3:
+        glfw_library = 'glfw3'
+
+    if target_os == TargetOS.MACOS:
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
     elif platform == 'x86_64-ios':
         pass
-    elif platform == "linux" or platform == "x86_64-linux":
-        conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
-    elif "win32" in platform:
+    elif target_os == TargetOS.WINDOWS:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'dinput8.lib', 'dxguid.lib'])
-    elif re.match('arm.*?android', platform):
+    elif target_os == TargetOS.ANDROID:
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
 
     conf.env.append_value('INCLUDES', "default/src")
@@ -53,10 +58,13 @@ def configure(conf):
     conf.env['STLIB_HID'] = 'hid'
     conf.env['STLIB_TEXC'] = ['texc', 'basis_encoder']
     conf.env['STLIB_INPUT'] = 'input'
-    conf.env['STLIB_DMGLFW'] = 'dmglfw'
+    conf.env['STLIB_DMGLFW'] = glfw_library
     conf.env['STLIB_GRAPHICS'] = 'graphics'
+    conf.env['STLIB_GRAPHICS_WEBGPU'] = ['graphics_webgpu']
     conf.env['STLIB_GRAPHICS_VULKAN'] = ['graphics_vulkan']
-    if platform in ("x86_64-macos",):
+    conf.env['STLIB_GRAPHICS_PS4'] = ['graphics_ps4']
+    conf.env['STLIB_PLATFORM_NULL'] = ['platform_null']
+    if target_os == TargetOS.MACOS:
         conf.env['STLIB_GRAPHICS_VULKAN'] += ['MoltenVK']
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')

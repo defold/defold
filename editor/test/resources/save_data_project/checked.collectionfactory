@@ -1,0 +1,3 @@
+prototype: "/checked.collection"
+load_dynamically: true
+dynamic_prototype: true

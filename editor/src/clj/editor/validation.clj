@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,7 +17,8 @@
             [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.util :as util]))
+            [editor.util :as util]
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 
@@ -45,6 +46,17 @@
 (defn prop-id-duplicate? [id-counts id]
   (when (> (id-counts id) 1)
     (format "'%s' is in use by another instance" id)))
+
+(defn prop-contains-prohibited-characters? [id name]
+  (cond
+    (coll/empty? id)
+    nil
+
+    (re-find #"[#:]" id)
+    (format "%s should not contain special URL symbols such as '#' or ':'" name)
+
+    (or (= (first id) \space) (= (last id) \space))
+    (format "%s should not start or end with a space symbol" name)))
 
 (defn prop-negative? [v name]
   (when (< v 0)
@@ -74,6 +86,13 @@
       (when-not (= (resource/type-ext v) ext)
         (format "%s '%s' is not of type %s" name (resource/resource->proj-path v) (format-ext ext)))))
 
+(defn prop-resource-not-component? [v name]
+  (let [resource-type (some-> v resource/resource-type)
+        tags (:tags resource-type)]
+    (when-not (or (contains? tags :component)
+                  (contains? tags :embeddable))
+      (format "Only components allowed for '%s'. '%s' is not a component." name (:ext resource-type)))))
+
 (defn prop-member-of? [v val-set message]
   (when (and val-set (not (val-set v)))
     message))
@@ -82,12 +101,34 @@
   (when (and anim-ids (not-any? #(= animation %) anim-ids))
     (format "'%s' could not be found in the specified image" animation)))
 
+(defn prop-anim-missing-in? [animation anim-data in]
+  (when-not (contains? anim-data animation)
+    (format "'%s' could not be found in '%s'" animation in)))
+
 (defn prop-outside-range? [[min max] v name]
   (let [tmpl (if (integer? min)
                "'%s' must be between %d and %d"
                "'%s' must be between %f and %f")]
     (when (not (<= min v max))
-      (format tmpl name min max))))
+      (util/format* tmpl name min max))))
+
+(defn prop-minimum-check? [min v name]
+  (when (< v min)
+    (let [tmpl (if (integer? min)
+                 "'%s' must be at least %d"
+                 "'%s' must be at least %f")]
+      (util/format* tmpl name min))))
+
+(defn prop-maximum-check? [max v name]
+  (when (> v max)
+    (let [tmpl (if (integer? max)
+                 "'%s' must be at most %d"
+                 "'%s' must be at most %f")]
+      (util/format* tmpl name max))))
+
+(defn prop-collision-shape-conflict? [shapes collision-shape]
+  (when (and collision-shape (not (empty? shapes)))
+    "Cannot combine embedded shapes with a referenced 'Collision Shape'. Please remove either."))
 
 (def prop-0-1? (partial prop-outside-range? [0.0 1.0]))
 

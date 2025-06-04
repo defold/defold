@@ -1,17 +1,36 @@
-echo off
+@echo off
 
-if not defined INCLUDE goto :FAIL
-if not defined VCINSTALLDIR goto :FAIL
-if not defined PLATFORM goto :FAIL
+if not defined INCLUDE goto :FAIL_MSVS
+if not defined VCINSTALLDIR goto :FAIL_MSVS
+
+set PLATFORM=%1
+
+
+if "%PLATFORM%" equ "x64" set PLATFORM=x86_64-win32
+if "%PLATFORM%" equ "x86" set PLATFORM=win32
+
+if "%PLATFORM%" equ "x86_64-win32" goto :PLATFORM_X64
+if "%PLATFORM%" equ "win32" goto :PLATFORM_X86
+goto :FAIL_PLATFORM
+
+:PLATFORM_X64
+if "%VSCMD_ARG_TGT_ARCH%" equ "x64" goto :PLATFORM_OK
+goto :PLATFORM_ARCH_FAIL
+:PLATFORM_X86
+if "%VSCMD_ARG_TGT_ARCH%" equ "x86" goto :PLATFORM_OK
+goto :PLATFORM_ARCH_FAIL
+
+:PLATFORM_ARCH_FAIL
+@echo "Platform chosen is %PLATFORM% but MSVS arch is %VSCMD_ARG_TGT_ARCH%"
+goto :END
+:PLATFORM_OK
 
 set TMP_TARGET=tmp_%PLATFORM%
 
 set URL=https://github.com/LuaJIT/LuaJIT/archive/
-set SHA1=6c4826f12c4d33b8b978004bc681eb1eef2be977
-set SHA1_SHORT=6c4826f
-set VERSION=2.1.0-%SHA1_SHORT%
-set PRODUCT=luajit
-set TARGET_FILE=%PRODUCT%-%VERSION%
+
+call version.bat
+
 set PATCH_FILE=patch_%VERSION%
 
 set ZIPFILENAME=%SHA1%.zip
@@ -39,14 +58,14 @@ del %ZIPFILENAME%
 if not exist %PATCH_FILE% goto ZIPEXTRACTED
 
 echo "**************************************************"
-echo "Applying patch $PATCH_FILE"
+echo "Applying patch %PATCH_FILE%"
 echo "**************************************************"
 
 set FOLDER=%~dp0\%TMP_TARGET%\%PACKAGEDIR%\
 set PATCH_PATH=%~dp0\%PATCH_FILE%
 
 pushd %FOLDER%
-git apply --unsafe-paths %PATCH_PATH%
+git apply --unsafe-paths --ignore-space-change --ignore-whitespace %PATCH_PATH%
 popd
 
 
@@ -63,10 +82,10 @@ echo "SOURCE_TARGET:" %SOURCE_TARGET%
 pushd %SOURCE_TARGET%
 
 
-if "%platform%" == "x64" goto :BUILD_X64
+if "%PLATFORM%" == "x86_64-win32" goto :BUILD_X64
 
 :BUILD_X32
-cmd "/C msvcbuild.bat nogc64 static dummy"
+cmd "/C msvcbuild.bat static dummy"
 set TARGET_PLATFORM=win32
 set BITDEPTH=32
 goto :BUILD_DONE
@@ -133,9 +152,16 @@ echo.
 echo *******************************************************
 echo *** Build FAILED -- Please check the error messages ***
 echo *******************************************************
-goto :END
-:FAIL
+goto :ERROR_END
+:FAIL_MSVS
 echo To run this script you must open a "Native Tools Command Prompt for VS".
 echo.
 echo Either the x86 version, or x64.
+goto :ERROR_END
+:FAIL_PLATFORM
+echo You need to supply a PLATFORM: win32 or x86_64-win32 (found '%PLATFORM%')
+goto :ERROR_END
 :END
+exit /b 0
+:ERROR_END
+exit /b 1

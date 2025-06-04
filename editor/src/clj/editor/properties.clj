@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,15 +22,18 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.types :as t]
-            [editor.util :as util]
+            [editor.util :as eutil]
             [editor.workspace :as workspace]
+            [internal.util :as util]
             [schema.core :as s]
+            [util.coll :as coll :refer [pair]]
             [util.id-vec :as iv]
             [util.murmur :as murmur])
   (:import [java.util StringTokenizer]
            [javax.vecmath Matrix4d Point3d Quat4d]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn user-name->key [name]
   (->> name
@@ -47,12 +50,18 @@
     (sort-by first)
     vec))
 
-(defn spline-cp [spline x]
+(declare round-scalar round-scalar-float)
+
+(defn spline-cp [spline ^double x]
   (let [x (min (max x 0.0) 1.0)
-        [cp0 cp1] (some (fn [cps] (and (<= (ffirst cps) x) (<= x (first (second cps))) cps)) (partition 2 1 spline))]
+        [cp0 cp1] (some (fn [cps]
+                          (and (<= ^double (ffirst cps) x)
+                               (<= x ^double (first (second cps)))
+                               cps))
+                        (partition 2 1 spline))]
     (when (and cp0 cp1)
-      (let [[x0 y0 s0 t0] cp0
-            [x1 y1 s1 t1] cp1
+      (let [[^double x0 ^double y0 ^double s0 ^double t0] cp0
+            [^double x1 ^double y1 ^double s1 ^double t1] cp1
             dx (- x1 x0)
             t (/ (- x x0) (- x1 x0))
             d0 (* dx (/ t0 s0))
@@ -61,8 +70,15 @@
             ty (/ (math/hermite' y0 y1 d0 d1 t) dx)
             l (Math/sqrt (+ 1.0 (* ty ty)))
             ty (/ ty l)
-            tx (/ 1.0 l)]
-        [x y tx ty]))))
+            tx (/ 1.0 l)
+            num-fn (if (math/float32? (first cp0))
+                     round-scalar-float
+                     round-scalar)]
+        (-> (coll/empty-with-meta cp0)
+            (conj (num-fn x))
+            (conj (num-fn y))
+            (conj (num-fn tx))
+            (conj (num-fn ty)))))))
 
 (defprotocol Sampler
   (sample [this])
@@ -72,27 +88,36 @@
   ([curve]
    (curve-aabbs curve nil))
   ([curve ids]
-   (->> (iv/iv-filter-ids (:points curve) ids)
-        (iv/iv-mapv (fn [[id v]] (let [[x y] v
-                                       v [x y 0.0]]
-                                   [id [v v]])))
-        (into {}))))
+   (let [points (if ids
+                  (iv/iv-filter-ids (:points curve) ids)
+                  (:points curve))
+         id-vec-entries (iv/iv-entries points)
+         [_id [cp-x]] (first id-vec-entries)
+         zero (if (math/float32? cp-x)
+                (float 0.0)
+                0.0)]
+     (into {}
+           (map (fn [[id v]]
+                  (let [[x y] v
+                        v [x y zero]]
+                    [id [v v]])))
+           id-vec-entries))))
 
 (defn- curve-insert [curve positions]
-  (let [spline (->> (:points curve)
-                 (iv/iv-mapv second)
-                 ->spline)
-        points (mapv (fn [[x]] (-> spline
-                                 (spline-cp x))) positions)]
+  (let [spline (-> curve :points iv/iv-vals ->spline)
+        points (mapv (fn [[x]]
+                       (spline-cp spline x))
+                     positions)]
     (update curve :points iv/iv-into points)))
 
 (defn- curve-delete [curve ids]
-  (let [include (->> (iv/iv-mapv identity (:points curve))
-                  (sort-by (comp first second))
-                  (map first)
-                  (drop 1)
-                  (butlast)
-                  (into #{}))]
+  (let [include (->> (:points curve)
+                     (iv/iv-entries)
+                     (sort-by (comp first second))
+                     (map first)
+                     (drop 1)
+                     (butlast)
+                     (into #{}))]
     (update curve :points iv/iv-remove-ids (filter include ids))))
 
 (defn- curve-update [curve ids f]
@@ -104,20 +129,32 @@
         cps (->> (:points curve) iv/iv-vals (mapv first) sort vec)
         margin 0.01
         limits (->> cps
-                 (partition 3 1)
-                 (mapv (fn [[min x max]] [x [(+ min margin) (- max margin)]]))
-                 (into {}))
+                    (partition 3 1)
+                    (into {}
+                          (map (fn [[^double min x ^double max]]
+                                 (pair x
+                                       (pair (+ min margin)
+                                             (- max margin)))))))
         limits (-> limits
-                 (assoc (first cps) [0.0 0.0]
-                        (last cps) [1.0 1.0]))]
+                   (assoc (first cps) (pair 0.0 0.0)
+                          (last cps) (pair 1.0 1.0)))]
     (curve-update curve ids (fn [v]
-                              (let [[x y] v]
+                              (let [[x y] v
+                                    num-fn (if (math/float32? x)
+                                             round-scalar-float
+                                             round-scalar)]
                                 (.set p x y 0.0)
                                 (.transform transform p)
-                                (let [[min-x max-x] (limits x)
+                                (let [[^double min-x ^double max-x] (limits x)
                                       x (max min-x (min max-x (.getX p)))
                                       y (.getY p)]
-                                  (assoc v 0 x 1 y)))))))
+                                  (assoc v
+                                    0 (num-fn x)
+                                    1 (num-fn y))))))))
+
+(defn curve-point-count
+  ^long [curve]
+  (iv/iv-count (:points curve)))
 
 (defn curve-vals [curve]
   (iv/iv-vals (:points curve)))
@@ -154,11 +191,11 @@
   (t/geom-update [this ids f] (curve-update this ids f))
   (t/geom-transform [this ids transform] (curve-transform this ids transform)))
 
-(defrecord CurveSpread [points ^double spread]
+(defrecord CurveSpread [points ^float spread]
   Sampler
   (sample [this] (second (first (iv/iv-vals points))))
-  (sample-range [this] (let [[^double min ^double max] (curve-range this)]
-                         [(- min spread) (+ max spread)]))
+  (sample-range [this] (let [[^float min ^float max] (curve-range this)]
+                         (pair (- min spread) (+ max spread))))
   t/GeomCloud
   (t/geom-aabbs [this] (curve-aabbs this))
   (t/geom-aabbs [this ids] (curve-aabbs this ids))
@@ -167,15 +204,28 @@
   (t/geom-update [this ids f] (curve-update this ids f))
   (t/geom-transform [this ids transform] (curve-transform this ids transform)))
 
-(defn ->curve [control-points]
-  (Curve. (iv/iv-vec control-points)))
+(defn curve? [value]
+  (or (instance? Curve value)
+      (instance? CurveSpread value)))
 
-(def default-curve (->curve [[0.0 0.0 1.0 0.0]]))
+(def default-control-point [protobuf/float-zero protobuf/float-zero protobuf/float-one protobuf/float-zero])
+
+(def default-control-points [default-control-point])
+
+(def default-spread (float 0.0))
+
+(defn ->curve [control-points]
+  (Curve. (iv/iv-vec (or control-points
+                         default-control-points))))
+
+(def default-curve (->curve default-control-points))
 
 (defn ->curve-spread [control-points spread]
-  (CurveSpread. (iv/iv-vec control-points) spread))
+  (CurveSpread. (iv/iv-vec (or control-points
+                               default-control-points))
+                (or spread default-spread)))
 
-(def default-curve-spread (->curve-spread [[0.0 0.0 1.0 0.0]] 0.0))
+(def default-curve-spread (->curve-spread default-control-points default-spread))
 
 (core/register-read-handler!
  (.getName Curve)
@@ -204,7 +254,7 @@
     {:points (curve-vals c)
      :spread (:spread c)})))
 
-(defn- q-round [v]
+(defn- q-round [^double v]
   (let [f 10e6]
     (/ (Math/round (* v f)) f)))
 
@@ -224,7 +274,7 @@
 (defn- tokenize! [^StringTokenizer tokenizer parse-fn]
   (-> tokenizer (.nextToken) (.trim) (parse-fn)))
 
-(defn- parse-vec [s count]
+(defn- parse-vec [s ^long count]
   (let [tokenizer (StringTokenizer. s ",")]
     (loop [result []
            counter 0]
@@ -312,7 +362,8 @@
       {:type (:type property)}))
 
 (defn edit-type-id [property]
-  (let [t (:type (property-edit-type property))]
+  (let [t (:type (property-edit-type property))
+        t (or (g/value-type-dispatch-value t) t)]
     (if (:on-interface t)
       (:on t)
       t)))
@@ -354,6 +405,11 @@
         display-order))
 
 (defn- flatten-properties [properties]
+  ;; TODO:
+  ;; The (dynamic link) and (dynamic override) decorations supported here appear
+  ;; unused outside of tests. Remove this processing? It seems to only be used
+  ;; by the property editor, and we seem to override the `_properties` output
+  ;; instead to achieve the same result.
   (let [pairs (seq (:properties properties))
         flat-pairs (filter #(not-any? links (keys (second %))) pairs)
         link-pairs (filter #(contains? (second %) :link) pairs)
@@ -406,48 +462,71 @@
   (let [node-ids (mapv :node-id properties)
         properties (mapv flatten-properties properties)
         display-orders (mapv :display-order properties)
-        properties (mapv :properties properties)
         node-count (count properties)
-        ; Filter out invisible properties
-        visible-props (mapcat (fn [p] (filter (fn [[k v]] (visible? v)) p)) properties)
-        ; Filter out properties not common to *all* property sets
-        ; Heuristic is to compare count and also type
-        common-props (filter (fn [[k v]] (and (= node-count (count v)) (apply = (map property-edit-type v))))
-                             (map (fn [[k v]] [k (mapv second v)]) (group-by first visible-props)))
-        ; Coalesce into properties consumable by e.g. the properties view
-        coalesced (into {} (map (fn [[k v]]
-                                  (let [prop {:key k
-                                              :node-ids (mapv :node-id v)
-                                              :prop-kws (mapv (fn [{:keys [prop-kw]}]
-                                                                (cond (some? prop-kw) prop-kw
-                                                                      (vector? k) (first k)
-                                                                      :else k)) v)
-                                              :tooltip (some :tooltip v)
-                                              :values (mapv (fn [{:keys [value]}]
+        ;; Filter out invisible properties
+        visible-prop-colls (->> properties
+                                (eduction
+                                  (mapcat :properties)
+                                  (filter #(visible? (val %))))
+                                (util/group-into {} [] key val))
+        coalesced (into {}
+                        (comp
+                          ;; Filter out properties not common to *all* property sets
+                          ;; Heuristic is to compare count and also type
+                          (filter
+                            (fn [e]
+                              (let [v (val e)]
+                                (and (= node-count (count v))
+                                     (apply = (map property-edit-type v))))))
+                          ;; Coalesce into properties consumable by e.g. the properties view
+                          (map (fn [[k v]]
+                                 (let [prop {:key k
+                                             :node-ids (mapv :node-id v)
+                                             :prop-kws (mapv (fn [{:keys [prop-kw]}]
+                                                               (cond (some? prop-kw) prop-kw
+                                                                     (vector? k) (first k)
+                                                                     :else k)) v)
+                                             :tooltip (some :tooltip v)
+                                             :values (mapv (fn [{:keys [value]}]
                                                              (when-not (g/error? value)
                                                                value)) v)
-                                              :errors  (mapv (fn [{:keys [value error]}]
-                                                               (or error
-                                                                   (when (g/error? value) value))) v)
-                                              :edit-type (property-edit-type (first v))
-                                              :label (:label (first v))
-                                              :read-only? (reduce (fn [res read-only] (or res read-only)) false (map #(get % :read-only? false) v))}
-                                        default-vals (mapv :original-value (filter #(contains? % :original-value) v))
-                                        prop (if (empty? default-vals) prop (assoc prop :original-values default-vals))]
-                                    [k prop]))
-                                common-props))]
+                                             :errors (mapv (fn [{:keys [value error]}]
+                                                             (or error
+                                                                 (when (g/error? value) value))) v)
+                                             :edit-type (property-edit-type (first v))
+                                             :label (:label (first v))
+                                             :read-only? (reduce
+                                                           (fn [acc prop]
+                                                             (if (:read-only? prop false)
+                                                               (reduced true)
+                                                               acc))
+                                                           false
+                                                           v)}
+                                       original-values (mapv (fn [{:keys [original-value]}]
+                                                               (when-not (g/error? original-value)
+                                                                 original-value))
+                                                             v)
+                                       prop (cond-> prop
+                                                    (not-every? nil? original-values)
+                                                    (assoc :original-values original-values))]
+                                   (pair k prop)))))
+                        visible-prop-colls)]
     {:properties coalesced
      :display-order (prune-display-order (first display-orders) (set (keys coalesced)))
      :original-node-ids node-ids}))
 
-(defn values [property]
-  (let [f (get-in property [:edit-type :to-type] identity)]
-    (mapv (fn [value default-value]
-            (f (if-not (nil? value)
-                 value
-                 default-value)))
-          (:values property)
-          (:original-values property (repeat nil)))))
+(defn values [{:keys [edit-type original-values values]}]
+  {:pre [(or (nil? original-values)
+             (= (count values)
+                (count original-values)))]}
+  (let [to-type (:to-type edit-type identity)]
+    (mapv (fn [value original-value]
+            (to-type (if-not (nil? value)
+                       value
+                       original-value)))
+          values
+          (or original-values
+              (repeat nil)))))
 
 (defn- set-value-txs [evaluation-context node-id prop-kw key set-fn old-value new-value]
   (cond
@@ -548,7 +627,9 @@
       v0)))
 
 (defn overridden? [property]
-  (and (contains? property :original-values) (not-every? nil? (:values property))))
+  (and (contains? property :original-values)
+       (every? some? (:original-values property))
+       (not-every? nil? (:values property))))
 
 (defn error-aggregate [vals]
   (when-let [errors (seq (remove nil? (distinct (filter g/error? vals))))]
@@ -571,32 +652,74 @@
                (:node-ids property)
                (:prop-kws property)))))))
 
-(defn round-scalar [n]
-  (math/round-with-precision n 0.001))
+(definline round-scalar [num]
+  `(math/round-with-precision ~num math/precision-general))
 
-(defn round-vec [v]
-  (mapv round-scalar v))
+(definline round-scalar-float [num]
+  `(float (round-scalar ~num)))
 
-(defn ->choicebox [vals]
-  {:type :choicebox
-   :options (mapv (juxt identity identity) (sort util/natural-order vals))})
+(definline round-scalar-coarse [num]
+  `(math/round-with-precision ~num math/precision-coarse))
+
+(definline round-scalar-coarse-float [num]
+  `(float (round-scalar-coarse ~num)))
+
+(definline round-vec [vec]
+  `(mapv round-scalar ~vec))
+
+(definline round-vec-coarse [vec]
+  `(mapv round-scalar-coarse ~vec))
+
+(defn scale-and-round [num ^double scale]
+  (let [scaled-num (* (double num) scale)]
+    (if (math/float32? num)
+      (round-scalar-float scaled-num)
+      (round-scalar scaled-num))))
+
+(definline scale-and-round-vec [vec scale]
+  `(math/zip-clj-v3 ~vec ~scale scale-and-round))
+
+(definline scale-by-absolute-value-and-round [num scale]
+  `(scale-and-round ~num (Math/abs (double ~scale))))
+
+;; SDK api
+(defn ->choicebox
+  ([vals]
+   (->choicebox vals true))
+  ([vals apply-natural-sorting?]
+   (let [sorted-vals (if apply-natural-sorting?
+                       (sort eutil/natural-order vals)
+                       vals)]
+     {:type :choicebox
+      :options (mapv (juxt identity identity) sorted-vals)})))
 
 (defn ->pb-choicebox-raw [cls]
   (let [values (protobuf/enum-values cls)]
     {:type :choicebox
      :options (mapv (juxt first (comp :display-name second)) values)}))
 
+;; SDK api
 (def ->pb-choicebox (memoize ->pb-choicebox-raw))
 
-(defn vec3->vec2 [default-z]
-  {:type t/Vec2
-   :from-type (fn [[x y _]] [x y])
-   :to-type (fn [[x y]] [x y default-z])})
-
+;; SDK api
 (defn quat->euler []
   {:type t/Vec3
-   :from-type (fn [v] (-> v math/euler->quat math/vecmath->clj))
-   :to-type (fn [v] (round-vec (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v)))))})
+   :from-type (fn [euler]
+                (let [quat (math/euler->quat euler)]
+                  (if-not (math/float32? (first euler))
+                    (math/vecmath-into-clj quat (coll/empty-with-meta euler))
+                    (into (coll/empty-with-meta euler)
+                          (map float)
+                          (math/vecmath->clj quat)))))
+   :to-type (fn [clj-quat]
+              (let [euler (math/clj-quat->euler clj-quat)]
+                (into (coll/empty-with-meta clj-quat)
+                      (map (if (math/float32? (first clj-quat))
+                             round-scalar-coarse-float
+                             round-scalar-coarse))
+                      euler)))})
+
+(def quat-rotation-edit-type (quat->euler))
 
 (defn property-entry->go-prop [[key {:keys [go-prop-type value error]}]]
   (when (some? go-prop-type)
@@ -651,7 +774,13 @@
       go-prop-value)))
 
 (defn property-desc->go-prop [property-desc proj-path->resource]
+  ;; GameObject$PropertyDesc in map format.
   (assoc property-desc :clj-value (property-desc->clj-value property-desc proj-path->resource)))
+
+(defn go-prop->property-desc [go-prop]
+  ;; GameObject$PropertyDesc in map format with additional internal keys.
+  ;; We strip these out to get a "clean" GameObject$PropertyDesc in map format.
+  (dissoc go-prop :clj-value :error))
 
 (defmulti sanitize-go-prop-value (fn [go-prop-type _go-prop-value] go-prop-type))
 (defmethod sanitize-go-prop-value :default [_go-prop-type go-prop-value]
@@ -693,16 +822,18 @@
   "Returns transaction steps that applies the overrides from the supplied
   GameObject$PropertyDescs in map format to the specified node."
   [workspace id-mapping overridable-properties property-descs]
-  (assert (sequential? property-descs))
-  (when (seq overridable-properties)
-    (assert (map? overridable-properties))
-    (assert (every? (comp keyword? key) overridable-properties))
-    (mapcat (fn [property-desc]
-              (let [prop-kw (user-name->key (:id property-desc))
-                    prop (get overridable-properties prop-kw)]
-                (when (some? prop)
-                  (apply-property-override workspace id-mapping prop-kw prop property-desc))))
-            property-descs)))
+  {:pre [(or (nil? property-descs) (sequential? property-descs))
+         (or (nil? overridable-properties) (map? overridable-properties))
+         (every? (comp keyword? key) overridable-properties)]}
+  (when (and (seq property-descs)
+             (seq overridable-properties))
+    (eduction
+      (mapcat (fn [property-desc]
+                (let [prop-kw (user-name->key (:id property-desc))
+                      prop (get overridable-properties prop-kw)]
+                  (when (some? prop)
+                    (apply-property-override workspace id-mapping prop-kw prop property-desc)))))
+      property-descs)))
 
 (defn build-target-go-props
   "Convert go-props that may contain references to Resources inside the project
@@ -801,7 +932,10 @@
 
     go-props-with-fused-build-resources))
 
-(defn- source-resource-go-prop [property-desc]
+(defn source-resource-go-prop
+  "Resolve any reference to a build resource in the provided go-prop so that it
+  refers to a source resource instead."
+  [property-desc]
   (if (not= :property-type-hash (:type property-desc))
     property-desc
     (let [build-resource (:clj-value property-desc)]
@@ -812,13 +946,6 @@
           (assoc property-desc
             :clj-value source-resource
             :value source-proj-path))))))
-
-(defn source-resource-go-props
-  "Given a sequence of go-props, return an equal-length sequence of go-props
-  where all build resources have been replaced by their respective source
-  resources."
-  [go-props-with-build-resources]
-  (mapv source-resource-go-prop go-props-with-build-resources))
 
 (defn try-get-go-prop-proj-path
   "Returns a non-empty string of the assigned proj-path, or nil if no

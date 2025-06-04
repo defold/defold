@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -34,6 +34,8 @@
 #include "gameobject_private.h"
 #include "gameobject_props_lua.h"
 
+#include "gameobject/gameobject_ddf.h"
+
 // Not to pretty to include res_lua.h here but lua-modules
 // are released at system shutdown and not on a per parent-resource basis
 // as all other resource are. Due to the nature of lua-code and
@@ -58,6 +60,7 @@ namespace dmGameObject
      * @document
      * @name Game object
      * @namespace go
+     * @language Lua
      */
 
     /*# [type:vector3] game object position
@@ -411,41 +414,7 @@ namespace dmGameObject
         return instance;
     }
 
-    static Result GetComponentUserData(HInstance instance, dmhash_t component_id, uint32_t* component_type, uintptr_t* user_data)
-    {
-        // TODO: We should probably not store user-data sparse.
-        // A lot of loops just to find user-data such as the code below
-        assert(instance != 0x0);
-        const Prototype::Component* components = instance->m_Prototype->m_Components;
-        uint32_t n = instance->m_Prototype->m_ComponentCount;
-        uint32_t component_instance_data = 0;
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            const Prototype::Component* component = &components[i];
-            if (component->m_Id == component_id)
-            {
-                if (component->m_Type->m_InstanceHasUserData)
-                {
-                    *user_data = instance->m_ComponentInstanceUserData[component_instance_data];
-                }
-                else
-                {
-                    *user_data = 0;
-                }
-                *component_type = component->m_TypeIndex;
-                return RESULT_OK;
-            }
-
-            if (component->m_Type->m_InstanceHasUserData)
-            {
-                component_instance_data++;
-            }
-        }
-
-        return RESULT_COMPONENT_NOT_FOUND;
-    }
-
-    void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url, void** out_world)
+    void GetComponentFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, dmGameObject::HComponent* out_component, dmMessage::URL* url, dmGameObject::HComponentWorld* out_world)
     {
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
@@ -465,23 +434,24 @@ namespace dmGameObject
                 return; // Actually never reached
             }
 
+            dmGameObject::HComponentWorld world;
             uint32_t component_type_index;
-            dmGameObject::Result result = GetComponentUserData(instance, receiver.m_Fragment, &component_type_index, user_data);
-            if ((component_ext != 0x0 || user_data != 0x0) && result != dmGameObject::RESULT_OK)
+            dmGameObject::Result result = dmGameObject::GetComponent(instance, receiver.m_Fragment, &component_type_index, out_component, &world);
+            if ((component_ext != 0x0 || *out_component != 0x0) && result != dmGameObject::RESULT_OK)
             {
                 char buffer[128];
                 luaL_error(L, "The component could not be found: '%s'", dmScript::UrlToString(&receiver, buffer, sizeof(buffer)));
                 return; // Actually never reached
             }
 
-            void* world = GetWorld(instance->m_Collection->m_HCollection, component_type_index);
-            if (out_world != 0) {
+            if (out_world != 0)
+            {
                 *out_world = world;
             }
 
             if (component_ext != 0x0)
             {
-                dmResource::ResourceType resource_type;
+                HResourceType resource_type;
                 dmResource::Result resource_res = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(instance->m_Collection->m_HCollection), component_ext, &resource_type);
                 if (resource_res != dmResource::RESULT_OK)
                 {
@@ -494,12 +464,6 @@ namespace dmGameObject
                     luaL_error(L, "Component expected to be of type '%s' but was '%s'", component_ext, type->m_Name);
                     return; // Actually never reached
                 }
-
-                // If there is a GetComponent function, then use it to translate from user_data to the correct struct
-                if (type->m_GetFunction) {
-                    ComponentGetParams params = {world, user_data};
-                    *user_data = (uintptr_t)type->m_GetFunction(params);
-                }
             }
             if (url)
             {
@@ -511,13 +475,6 @@ namespace dmGameObject
             luaL_error(L, "function called is not available from this script-type.");
             return; // Actually never reached
         }
-    }
-
-    void GetComponentFromLua(lua_State* L, int index, const char* component_type, void** out_world, void** component, dmMessage::URL* url)
-    {
-        ScriptInstance* i = ScriptInstance_Check(L);
-        Instance* instance = i->m_Instance;
-        GetComponentUserDataFromLua(L, index, instance->m_Collection->m_HCollection, component_type, (uintptr_t*)component, url, out_world);
     }
 
     HInstance GetInstanceFromLua(lua_State* L) {
@@ -550,7 +507,29 @@ namespace dmGameObject
 
         if (dmMessage::RESULT_OK != result)
         {
-            dmLogError("Failed to send message %s to %s:%s/%s", dmHashReverseSafe64(descriptor->m_NameHash), dmMessage::GetSocketName(receiver->m_Socket), dmHashReverseSafe64(receiver->m_Path), dmHashReverseSafe64(receiver->m_Fragment));
+            DM_HASH_REVERSE_MEM(hash_ctx, 512);
+            dmLogError("Failed to send message %s to %s:%s/%s", dmHashReverseSafe64Alloc(&hash_ctx, descriptor->m_NameHash), dmMessage::GetSocketName(receiver->m_Socket), dmHashReverseSafe64Alloc(&hash_ctx, receiver->m_Path), dmHashReverseSafe64Alloc(&hash_ctx, receiver->m_Fragment));
+            return RESULT_UNKNOWN_ERROR;
+        }
+        return RESULT_OK;
+    }
+
+    Result PostScriptUnrefMessage(const dmMessage::URL* sender, const dmMessage::URL* receiver, int reference)
+    {
+        dmGameObjectDDF::ScriptUnrefMessage msg = {};
+        msg.m_Reference = reference;
+
+        dmDDF::Descriptor* descriptor = dmGameObjectDDF::ScriptUnrefMessage::m_DDFDescriptor;
+        dmMessage::Result result = Post(sender, receiver, descriptor->m_NameHash, 0, 0, (uintptr_t)descriptor, &msg, sizeof(msg), 0);
+
+        if (dmMessage::RESULT_OK != result)
+        {
+            DM_HASH_REVERSE_MEM(hash_ctx, 512);
+            dmLogError("Failed to send message %s to %s:%s/%s",
+                dmHashReverseSafe64Alloc(&hash_ctx, descriptor->m_NameHash),
+                dmMessage::GetSocketName(receiver->m_Socket),
+                dmHashReverseSafe64Alloc(&hash_ctx, receiver->m_Path),
+                dmHashReverseSafe64Alloc(&hash_ctx, receiver->m_Fragment));
             return RESULT_UNKNOWN_ERROR;
         }
         return RESULT_OK;
@@ -593,6 +572,18 @@ namespace dmGameObject
      * go.get(url, "example.x", {index=1})
      * ```
      *
+     * Getting all values in a material property array as a table
+     *
+     * ```lua
+     * -- get all vector4's in the constant array
+     * go.get(url, "example")
+     * -- result: { vector4, vector4, ... }
+     *
+     * -- get all elements of the vector4's from an array
+     * go.get(url, "example.x")
+     * -- result: { number1, number2, ... }
+     * ```
+     *
      * @examples
      * Get a named property
      *
@@ -611,6 +602,7 @@ namespace dmGameObject
         dmScript::GetURL(L, &sender);
         dmMessage::URL target;
         dmScript::ResolveURL(L, 1, &target, &sender);
+        DM_HASH_REVERSE_MEM(hash_ctx, 256);
         if (target.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection->m_HCollection))
         {
             return luaL_error(L, "go.get can only access instances within the same collection.");
@@ -626,7 +618,10 @@ namespace dmGameObject
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
         if (target_instance == 0)
-            return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
+        {
+            return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path));
+        }
+
         dmGameObject::PropertyOptions property_options;
         property_options.m_Index = 0;
         property_options.m_HasKey = 0;
@@ -635,129 +630,41 @@ namespace dmGameObject
         // Options table
         if (lua_gettop(L) > 2)
         {
-            luaL_checktype(L, 3, LUA_TTABLE);
-            lua_pushvalue(L, 3);
-
-            lua_getfield(L, -1, "key");
-            if (!lua_isnil(L, -1))
-            {
-                property_options.m_Key = dmScript::CheckHashOrString(L, -1);
-                property_options.m_HasKey = 1;
-            }
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "index");
-            if (!lua_isnil(L, -1)) // make it optional
-            {
-                if (property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Options table cannot contain both 'key' and 'index'.");
-                }
-                if (!lua_isnumber(L, -1))
-                {
-                    return luaL_error(L, "Invalid number passed as index argument in options table.");
-                }
-
-                property_options.m_Index = luaL_checkinteger(L, -1) - 1;
-
-                if (property_options.m_Index < 0)
-                {
-                    return luaL_error(L, "Trying to get property value from '%s' with an index < 0: %d", dmHashReverseSafe64(property_id), property_options.m_Index);
-                }
-
-                index_requested = true;
-            }
-            lua_pop(L, 1);
-
-            lua_pop(L, 1);
+            dmGameObject::LuaToPropertyOptions(L, 3, &property_options, property_id, &index_requested);
         }
         dmGameObject::PropertyDesc property_desc;
         dmGameObject::PropertyResult result = dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_options, property_desc);
-        switch (result)
-        {
-        case dmGameObject::PROPERTY_RESULT_OK:
-            {
-                if (index_requested && (property_desc.m_ValueType != dmGameObject::PROP_VALUE_ARRAY))
-                {
-                    return luaL_error(L, "Options table contains index, but property '%s' is not an array.", dmHashReverseSafe64(property_id));
-                }
-                else if (property_options.m_HasKey && (property_desc.m_ValueType != dmGameObject::PROP_VALUE_HASHTABLE))
-                {
-                    return luaL_error(L, "Options table contains key, but property '%s' is not a hashtable.", dmHashReverseSafe64(property_id));
-                }
 
-                dmGameObject::LuaPushVar(L, property_desc.m_Variant);
-                return 1;
-            }
-        case dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND:
-            {
-                if (property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Resource `%s` for property '%s' not found!", dmHashReverseSafe64(property_options.m_Key), dmHashReverseSafe64(property_id));
-                }
-                else
-                {
-                    return luaL_error(L, "Property '%s' not found!", dmHashReverseSafe64(property_id));
-                }
-            }
-        case dmGameObject::PROPERTY_RESULT_INVALID_INDEX:
-            {
-                if (property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Property '%s' is an array, but in options table specified key instead of index.", dmHashReverseSafe64(property_id));
-                }
-                return luaL_error(L, "Invalid index %d for property '%s'", property_options.m_Index+1, dmHashReverseSafe64(property_id));
-            }
-        case dmGameObject::PROPERTY_RESULT_INVALID_KEY:
-            {
-                if (!property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Property '%s' is a hashtable, but in options table specified index instead of key.", dmHashReverseSafe64(property_id));
-                }
-                return luaL_error(L, "Invalid key '%s' for property '%s'", dmHashReverseSafe64(property_options.m_Key), dmHashReverseSafe64(property_id));
-            }
-        case dmGameObject::PROPERTY_RESULT_NOT_FOUND:
-            {
-                const char* path = dmHashReverseSafe64(target.m_Path);
-                const char* property = dmHashReverseSafe64(property_id);
-                if (target.m_Fragment)
-                {
-                    return luaL_error(L, "'%s#%s' does not have any property called '%s'", path, dmHashReverseSafe64(target.m_Fragment), property);
-                }
-                return luaL_error(L, "'%s' does not have any property called '%s'", path, property);
-            }
-        case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-            return luaL_error(L, "Could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
-        default:
-            // Should never happen, programmer error
-            return luaL_error(L, "go.get failed with error code %d", result);
-        }
-        return 0; // shouldn't reach this point
-    }
-
-    static const char* GetPropertyTypeName(PropertyType type)
-    {
-        switch (type)
+        if (result == dmGameObject::PROPERTY_RESULT_OK && !index_requested && property_desc.m_ValueType == dmGameObject::PROP_VALUE_ARRAY && property_desc.m_ArrayLength > 1)
         {
-        case PROPERTY_TYPE_NUMBER:
-            return "number";
-        case PROPERTY_TYPE_HASH:
-            return "hash";
-        case PROPERTY_TYPE_URL:
-            return "msg.url";
-        case PROPERTY_TYPE_VECTOR3:
-            return "vmath.vector3";
-        case PROPERTY_TYPE_VECTOR4:
-            return "vmath.vector4";
-        case PROPERTY_TYPE_QUAT:
-            return "vmath.quat";
-        case PROPERTY_TYPE_BOOLEAN:
-            return "boolean";
-        case PROPERTY_TYPE_MATRIX4:
-            return "vmath.matrix4";
-        default:
-            return "unknown";
+            lua_newtable(L);
+
+            // We already have the first value, so no need to get it again.
+            // But we do need to check the result, we could still get errors even if the result is OK
+            int handle_go_get_result = CheckGetPropertyResult(L, "go", result, property_desc, property_id, target, property_options, index_requested);
+            if (handle_go_get_result != 1)
+            {
+                return handle_go_get_result;
+            }
+            lua_rawseti(L, -2, 1);
+
+            // Get the rest of the array elements and check each result individually
+            for (int i = 1; i < property_desc.m_ArrayLength; ++i)
+            {
+                property_options.m_Index = i;
+                result                   = dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_options, property_desc);
+                handle_go_get_result     = CheckGetPropertyResult(L, "go", result, property_desc, property_id, target, property_options, index_requested);
+                if (handle_go_get_result != 1)
+                {
+                    return handle_go_get_result;
+                }
+                lua_rawseti(L, -2, i + 1);
+            }
+
+            return 1;
         }
+
+        return CheckGetPropertyResult(L, "go", result, property_desc, property_id, target, property_options, index_requested);
     }
 
     /*# sets a named property of the specified game object or component, or a material constant
@@ -765,7 +672,7 @@ namespace dmGameObject
      * @name go.set
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to set
-     * @param value [type:any] the value to set
+     * @param value [type:any|table] the value to set
      * @param [options] [type:table] optional options table
      * - index [type:integer] index into array property (1 based)
      * - key [type:hash] name of internal property
@@ -797,6 +704,14 @@ namespace dmGameObject
      * go.set(url, "example.x", 7, {index=1})
      * ```
      *
+     * Set a material property array by a table of vector4
+     *
+     * ```lua
+     * -- set the first two vector4's in the array
+     * -- if the array has more than two elements in the array they will not be set
+     * go.set(url, "example", { vmath.vector4(1,1,1,1), vmath.vector4(2,2,2,2) })
+     * ```
+     *
      * @examples
      * Set a named property
      *
@@ -812,6 +727,7 @@ namespace dmGameObject
     {
         DM_LUA_STACK_CHECK(L, 0);
 
+        DM_HASH_REVERSE_MEM(hash_ctx, 256);
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
         dmMessage::URL sender;
@@ -823,6 +739,7 @@ namespace dmGameObject
             luaL_error(L, "go.set can only access instances within the same collection.");
         }
         dmhash_t property_id = 0;
+
         if (lua_isstring(L, 2))
         {
             property_id = dmHashString64(lua_tostring(L, 2));
@@ -831,110 +748,73 @@ namespace dmGameObject
         {
             property_id = dmScript::CheckHash(L, 2);
         }
-        dmGameObject::PropertyVar property_var;
+
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
         if (target_instance == 0)
-            return luaL_error(L, "could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
-        dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
+        {
+            return luaL_error(L, "could not find any instance with id '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path));
+        }
 
-        dmGameObject::PropertyOptions property_options;
-        property_options.m_Index = 0;
-        property_options.m_HasKey = 0;
-
-        // Options table
+        dmGameObject::PropertyOptions property_options = {};
         if (lua_gettop(L) > 3)
         {
-            luaL_checktype(L, 4, LUA_TTABLE);
-            lua_pushvalue(L, 4);
-
-            lua_getfield(L, -1, "key");
-            if (!lua_isnil(L, -1))
+            int options_result = LuaToPropertyOptions(L, 4, &property_options, property_id, 0);
+            if (options_result != 0)
             {
-                property_options.m_Key = dmScript::CheckHashOrString(L, -1);
-                property_options.m_HasKey = 1;
+                return options_result;
             }
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "index");
-            if (!lua_isnil(L, -1)) // make it optional
-            {   
-                if (property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Options table cannot contain both 'key' and 'index'.");
-                }
-                if (!lua_isnumber(L, -1))
-                {
-                    return luaL_error(L, "Invalid number passed as index argument in options table.");
-                }
-
-                property_options.m_Index = luaL_checkinteger(L, -1) - 1;
-
-                if (property_options.m_Index < 0)
-                {
-                    return luaL_error(L, "Trying to set property value for '%s' with an index < 0: %d", dmHashReverseSafe64(property_id), property_options.m_Index);
-                }
-            }
-            lua_pop(L, 1);
-
-            lua_pop(L, 1);
         }
 
-        if (result == PROPERTY_RESULT_OK)
+        if (lua_istable(L, 3))
         {
-            result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_options, property_var);
+            lua_pushvalue(L, 3);
+            lua_pushnil(L);
+            while (lua_next(L, -2) != 0)
+            {
+                if (!lua_isnumber(L, -2))
+                {
+                    return luaL_error(L, "Trying to set property value '%s' as array with a non-integer key.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
+                }
+
+                int32_t table_index_lua = lua_tonumber(L, -2);
+
+                if (table_index_lua < 1)
+                {
+                    return luaL_error(L, "Trying to set property value '%s' as array with a negative key (%d) is not permitted.", dmHashReverseSafe64Alloc(&hash_ctx, property_id), table_index_lua);
+                }
+
+                dmGameObject::PropertyVar property_var;
+                dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, -1, property_var);
+
+                property_options.m_Index = table_index_lua - 1;
+
+                if (result == PROPERTY_RESULT_OK)
+                {
+                    result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_options, property_var);
+                    if (result != PROPERTY_RESULT_OK)
+                    {
+                        return dmGameObject::HandleGoSetResult(L, result, property_id, target_instance, target, property_options);
+                    }
+                }
+
+                lua_pop(L, 1);
+            }
+            lua_pop(L, 1);
         }
-        switch (result)
+        else
         {
-        case dmGameObject::PROPERTY_RESULT_OK:
-            return 0;
-        case PROPERTY_RESULT_NOT_FOUND:
+            dmGameObject::PropertyVar property_var;
+            dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
+
+            if (result == PROPERTY_RESULT_OK)
             {
-                // The supplied URL parameter don't need to be a string,
-                // we let Lua handle the "conversion" to string using concatenation.
-                const char* name = "nil";
-                if (!lua_isnil(L, 1))
-                {
-                    lua_pushliteral(L, "");
-                    lua_pushvalue(L, 1);
-                    lua_concat(L, 2);
-                    name = lua_tostring(L, -1);
-                    lua_pop(L, 1);
-                }
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
+                result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_options, property_var);
             }
-        case PROPERTY_RESULT_UNSUPPORTED_TYPE:
-        case PROPERTY_RESULT_TYPE_MISMATCH:
-            {
-                dmGameObject::PropertyDesc property_desc;
-                dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_options, property_desc);
-                return luaL_error(L, "the property '%s' of '%s' must be a %s", dmHashReverseSafe64(property_id), lua_tostring(L, 1), GetPropertyTypeName(property_desc.m_Variant.m_Type));
-            }
-        case dmGameObject::PROPERTY_RESULT_INVALID_INDEX:
-            {
-                if (property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Property '%s' is an array, but in options table specified key instead of index.", dmHashReverseSafe64(property_id));
-                }
-                return luaL_error(L, "Invalid index %d for property '%s'", property_options.m_Index+1, dmHashReverseSafe64(property_id));
-            }
-        case dmGameObject::PROPERTY_RESULT_INVALID_KEY:
-            {
-                if (!property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Property '%s' is a hashtable, but in options table specified index instead of key.", dmHashReverseSafe64(property_id));
-                }
-                return luaL_error(L, "Invalid key '%s' for property '%s'", dmHashReverseSafe64(property_options.m_Key), dmHashReverseSafe64(property_id));
-            }
-        case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-            return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
-        case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE:
-            return luaL_error(L, "go.set failed because the value is unsupported");
-        case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION:
-            return luaL_error(L, "could not perform unsupported operation on '%s'", dmHashReverseSafe64(property_id));
-        default:
-            // Should never happen, programmer error
-            return luaL_error(L, "go.set failed with error code %d", result);
+
+            return dmGameObject::HandleGoSetResult(L, result, property_id, target_instance, target, property_options);
         }
+
+        return 0;
     }
 
     /*# gets the position of a game object instance
@@ -1012,7 +892,7 @@ namespace dmGameObject
      * local s = go.get_scale("x")
      * ```
      */
-    int Script_GetScale(lua_State* L)
+    static int Script_GetScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 1);
         dmScript::PushVector3(L, dmGameObject::GetScale(instance));
@@ -1039,11 +919,9 @@ namespace dmGameObject
      * local s = go.get_scale_vector("x")
      * ```
      */
-    int Script_GetScaleVector(lua_State* L)
+    static int Script_GetScaleVector(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 1);
-        dmScript::PushVector3(L, dmGameObject::GetScale(instance));
-        return 1;
+        return Script_GetScale(L);
     }
 
     /*# gets the uniform scale factor of the game object instance
@@ -1219,6 +1097,7 @@ namespace dmGameObject
     {
         DM_LUA_STACK_CHECK(L,0);
 
+        DM_HASH_REVERSE_MEM(hash_ctx, 256);
         ScriptInstance* i  = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
 
@@ -1237,7 +1116,7 @@ namespace dmGameObject
 
         if (!child_instance)
         {
-            return DM_LUA_ERROR("Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
+            return DM_LUA_ERROR("Could not find any instance with id '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path));
         }
 
         if (lua_gettop(L) > 1 && !lua_isnil(L, 2))
@@ -1247,7 +1126,7 @@ namespace dmGameObject
 
             if (!parent_instance)
             {
-                return DM_LUA_ERROR("Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
+                return DM_LUA_ERROR("Could not find any instance with id '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path));
             }
 
             if (target.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
@@ -1288,7 +1167,7 @@ namespace dmGameObject
      *
      * @name go.get_parent
      * @param [id] [type:string|hash|url] optional id of the game object instance to get parent for, defaults to the instance containing the calling script
-     * @return parent_id [type:hash] parent instance or nil
+     * @return parent_id [type:hash|nil] parent instance or `nil`
      * @examples
      *
      * Get parent of the instance containing the calling script:
@@ -1566,7 +1445,7 @@ namespace dmGameObject
      * [icon:attention] If you call `go.animate()` from a game object's `final()` function,
      * any passed `complete_function` will be ignored and never called upon animation completion.
      *
-     * See the <a href="/manuals/properties">properties guide</a> for which properties can be animated and the <a href="/manuals/animation">animation guide</a> for how 
+     * See the <a href="/manuals/properties">properties guide</a> for which properties can be animated and the <a href="/manuals/animation">animation guide</a> for how
      them.
      *
      * @name go.animate
@@ -1630,6 +1509,7 @@ namespace dmGameObject
         int top = lua_gettop(L);
         (void)top;
 
+        DM_HASH_REVERSE_MEM(hash_ctx, 256);
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
         dmMessage::URL sender;
@@ -1652,7 +1532,7 @@ namespace dmGameObject
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
         if (target_instance == 0)
-            return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
+            return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path));
         lua_Integer playback = luaL_checkinteger(L, 3);
         if (playback >= PLAYBACK_COUNT)
             return luaL_error(L, "invalid playback mode when starting an animation");
@@ -1713,7 +1593,7 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
+                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64Alloc(&hash_ctx, property_id));
             }
         case PROPERTY_RESULT_UNSUPPORTED_TYPE:
         case PROPERTY_RESULT_TYPE_MISMATCH:
@@ -1723,10 +1603,10 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "The property '%s' of '%s' has incorrect type", dmHashReverseSafe64(property_id), name);
+                return luaL_error(L, "The property '%s' of '%s' has incorrect type %d (errcode: %d)", dmHashReverseSafe64Alloc(&hash_ctx, property_id), name, property_var.m_Type, result);
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-            return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
+            return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Fragment), lua_tostring(L, 1));
         case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION:
             {
                 lua_pushliteral(L, "");
@@ -1734,7 +1614,7 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "Animation of the property '%s' of '%s' is unsupported", dmHashReverseSafe64(property_id), name);
+                return luaL_error(L, "Animation of the property '%s' of '%s' is unsupported", dmHashReverseSafe64Alloc(&hash_ctx, property_id), name);
             }
         default:
             // Should never happen, programmer error
@@ -1761,15 +1641,15 @@ namespace dmGameObject
      * ```lua
      * go.cancel_animations(go.get_id(), "position")
      * ```
-     * 
+     *
      * Cancel all property animations of the current game object:
-     * 
+     *
      * ```lua
      * go.cancel_animations(".")
      * ```
-     * 
+     *
      * Cancel all property animations of the sprite component of the current game object:
-     * 
+     *
      * ```lua
      * go.cancel_animations("#sprite")
      * ```
@@ -1779,6 +1659,7 @@ namespace dmGameObject
         int top = lua_gettop(L);
         (void)top;
 
+        DM_HASH_REVERSE_MEM(hash_ctx, 256);
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
         dmMessage::URL sender;
@@ -1804,7 +1685,7 @@ namespace dmGameObject
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
         if (target_instance == 0)
-            return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
+            return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path));
 
         dmGameObject::PropertyOptions opt;
         opt.m_Index = 0;
@@ -1822,17 +1703,17 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
+                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64Alloc(&hash_ctx, property_id));
             }
         case PROPERTY_RESULT_UNSUPPORTED_TYPE:
         case PROPERTY_RESULT_TYPE_MISMATCH:
             {
                 dmGameObject::PropertyDesc property_desc;
                 dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, opt, property_desc);
-                return luaL_error(L, "The property '%s' must be of a numerical type", dmHashReverseSafe64(property_id));
+                return luaL_error(L, "The property '%s' must be of a numerical type", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-            return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
+            return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Fragment), lua_tostring(L, 1));
         default:
             // Should never happen, programmer error
             return luaL_error(L, "go.cancel_animations failed with error code %d", res);
@@ -1845,6 +1726,7 @@ namespace dmGameObject
 
     static int DeleteGOTable(lua_State* L, bool recursive)
     {
+        DM_HASH_REVERSE_MEM(hash_ctx, 256);
         ScriptInstance* i = ScriptInstance_Check(L);
         HCollection hcollection = i->m_Instance->m_Collection->m_HCollection;
 
@@ -1865,11 +1747,7 @@ namespace dmGameObject
             {
                 if(dmGameObject::IsBone(todelete))
                 {
-                    return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(todelete)));
-                }
-                if (todelete->m_Generated)
-                {
-                    dmScript::ReleaseHash(L, todelete->m_Identifier);
+                    return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64Alloc(&hash_ctx, dmGameObject::GetIdentifier(todelete)));
                 }
                 dmGameObject::Delete(hcollection, todelete, recursive);
             }
@@ -1925,7 +1803,7 @@ namespace dmGameObject
      * ```
      *
      */
-    int Script_Delete(lua_State* L)
+    static int Script_Delete(lua_State* L)
     {
         int args = lua_gettop(L);
 
@@ -1979,7 +1857,7 @@ namespace dmGameObject
             }
             else if(lua_isnil(L, 1))
             {
-                dmLogWarning("go.delete() invoked with nil and self will be deleted");
+                return luaL_error(L, "go.delete() invoked with first argument 'id' set to 'nil'");
             }
         }
 
@@ -1987,11 +1865,8 @@ namespace dmGameObject
         dmGameObject::HInstance instance = ResolveInstance(L, 1);
         if(dmGameObject::IsBone(instance))
         {
-            return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(instance)));
-        }
-        if (instance->m_Generated)
-        {
-            dmScript::ReleaseHash(L, instance->m_Identifier);
+            DM_HASH_REVERSE_MEM(hash_ctx, 256);
+            return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64Alloc(&hash_ctx, dmGameObject::GetIdentifier(instance)));
         }
         dmGameObject::HCollection collection = instance->m_Collection->m_HCollection;
         dmGameObject::Delete(collection, instance, recursive);
@@ -2024,43 +1899,9 @@ namespace dmGameObject
      * go.delete_all(ids)
      * ```
      */
-    int Script_DeleteAll(lua_State* L)
+    static int Script_DeleteAll(lua_State* L)
     {
-        const int top = lua_gettop(L);
-        if (lua_gettop(L) != 1 || !lua_istable(L, 1)) {
-            dmLogWarning("go.delete_all() needs a table as its first argument");
-            return 0;
-        }
-        int result = DeleteGOTable(L, false);
-        if(result == 0)
-        {
-            assert(top == lua_gettop(L));
-        }
-        return result;
-    }
-
-    /* OMITTED FROM API DOCS!
-     * constructs a ray in world space from a position in screen space
-     *
-     * [icon:alert] Do not use this function, WIP!
-     *
-     * @name go.screen_ray
-     * @param x [type:number] x-coordinate of the screen space position
-     * @param y [type:number] y-coordinate of the screen space position
-     * @return position [type:vector3] of the ray in world-space
-     * @return direction [type:vector3] of the ray in world space
-     */
-    int Script_ScreenRay(lua_State* L)
-    {
-        lua_Number x = luaL_checknumber(L, 1);
-        lua_Number y = luaL_checknumber(L, 2);
-        // TODO: This temporarily assumes the worldspace is simply screen space
-        // Should be fixed in a more robust way.
-        Vector3 p((float) x, (float) y, 1.0f);
-        Vector3 d(0.0f, 0.0f, -1.0f);
-        dmScript::PushVector3(L, p);
-        dmScript::PushVector3(L, d);
-        return 2;
+        return Script_Delete(L);
     }
 
     /*# define a property for the script
@@ -2146,7 +1987,9 @@ namespace dmGameObject
 
 
     /*# check if the specified game object exists
-     *
+     * A lua-error will be raised if the game object belongs to another
+     * collection than the collection from which the function was called.
+     * 
      * @name go.exists
      * @param url [type:string|hash|url] url of the game object to check
      * @return exists [type:bool] true if the game object exists
@@ -2161,8 +2004,23 @@ namespace dmGameObject
     int Script_Exists(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
+        if (lua_isnil(L, 1))
+        {
+            return luaL_error(L, "The url shouldn't be `nil`");
+        }
+
+        // get "this" instance
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
+
+        // resolve instance provided as argument and make sure it is the same as "this"
+        dmMessage::URL receiver;
+        dmScript::ResolveURL(L, 1, &receiver, 0x0);
+        if (receiver.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
+        {
+            luaL_error(L, "function called can only access instances within the same collection.");
+        }
+
         dmMessage::URL sender;
         dmScript::GetURL(L, &sender);
         dmMessage::URL target;
@@ -2170,6 +2028,66 @@ namespace dmGameObject
 
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
         lua_pushboolean(L, target_instance != 0);
+        return 1;
+    }
+
+
+    /*# convert position to game object's coordinate space
+    * [icon:attention] The function uses world transformation calculated at the end of previous frame.
+    *
+    * @name go.world_to_local_position
+    * @param position [type:vector3] position which need to be converted
+    * @param url [type:string|hash|url] url of the game object which coordinate system convert to
+    * @return converted_postion [type:vector3] converted position
+    *
+    * @examples
+    * Convert position of "test" game object into coordinate space of "child" object.
+    *
+    * ```lua
+    *   local test_pos = go.get_world_position("/test")
+    *   local child_pos = go.get_world_position("/child")
+    *   local new_position = go.world_to_local_position(test_pos, "/child")
+    * ```
+    */
+    int Script_WorldToLocalPosition(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        dmVMath::Vector3* world_position = dmScript::CheckVector3(L, 1);
+        Instance* instance = ResolveInstance(L, 2);
+        dmVMath::Matrix4 go_transform = dmGameObject::GetWorldMatrix(instance);
+        dmVMath::Matrix4 world_transform = dmVMath::Matrix4::identity();
+        world_transform.setTranslation(*world_position);
+        dmVMath::Matrix4 result_transfrom = world_transform * go_transform;
+        dmScript::PushVector3(L, result_transfrom.getTranslation());
+        return 1;
+    }
+
+
+    /*# convert transformation matrix to game object's coordinate space
+    * [icon:attention] The function uses world transformation calculated at the end of previous frame.
+    *
+    * @name go.world_to_local_transform
+    * @param transformation [type:matrix4] transformation which need to be converted
+    * @param url [type:string|hash|url] url of the game object which coordinate system convert to
+    * @return converted_transform [type:matrix4] converted transformation
+    *
+    * @examples
+    * Convert transformation of "test" game object into coordinate space of "child" object.
+    *
+    * ```lua
+    *    local test_transform = go.get_world_transform("/test")
+    *    local child_transform = go.get_world_transform("/child")
+    *    local result_transform = go.world_to_local_transform(test_transform, "/child")
+    * ```
+    */
+    int Script_WorldToLocalTransfrom(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        dmVMath::Matrix4* world_transform = dmScript::CheckMatrix4(L, 1);
+        Instance* instance = ResolveInstance(L, 2);
+        const dmVMath::Matrix4& go_transform = dmGameObject::GetWorldMatrix(instance);
+
+        dmScript::PushMatrix4(L,  *world_transform * go_transform);
         return 1;
     }
 
@@ -2197,9 +2115,10 @@ namespace dmGameObject
         {"cancel_animations",       Script_CancelAnimations},
         {"delete",                  Script_Delete},
         {"delete_all",              Script_DeleteAll},
-        {"screen_ray",              Script_ScreenRay},
         {"property",                Script_Property},
         {"exists",                  Script_Exists},
+        {"world_to_local_position", Script_WorldToLocalPosition},
+        {"world_to_local_transform",Script_WorldToLocalTransfrom},
         {0, 0}
     };
 
@@ -2581,20 +2500,10 @@ bail:
         assert(top == lua_gettop(L));
     }
 
-const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
-        "number", // PROPERTY_TYPE_NUMBER
-        "hash", // PROPERTY_TYPE_HASH
-        "msg.url", // PROPERTY_TYPE_URL
-        "vmath.vector3", // PROPERTY_TYPE_VECTOR3
-        "vmath.vector4", // PROPERTY_TYPE_VECTOR4
-        "vmath.quat", // PROPERTY_TYPE_QUAT
-        "boolean", // PROPERTY_TYPE_BOOLEAN
-};
-
 #define CHECK_PROP_RESULT(key, type, expected_type, result)\
     if (result == PROPERTY_RESULT_OK) {\
         if (type != expected_type) {\
-            dmLogError("The property '%s' must be of type '%s'.", key, TYPE_NAMES[expected_type]);\
+            dmLogError("The property '%s' must be of type '%s'.", key, dmGameObject::TYPE_NAMES[expected_type]);\
             result = PROPERTY_RESULT_TYPE_MISMATCH;\
         }\
     }\
@@ -2746,6 +2655,19 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      * ```
      */
 
+    /*# called at fixed intervals to update the script component
+     *
+     * This is a callback-function, which is called by the engine at fixed intervals to update the state of a script
+     * component. The function will be called if 'Fixed Update Frequency' is enabled in the Engine section of game.project.
+     * It can for instance be used to update game logic with the physics simulation if using a fixed timestep for the
+     * physics (enabled by ticking 'Use Fixed Timestep' in the Physics section of game.project).
+     *
+     * @name fixed_update
+     * @param self [type:object] reference to the script state to be used for storing data
+     * @param dt [type:number] the time-step of the frame update
+     * @examples
+     */
+
     /*# called when a message has been sent to the script component
      *
      * This is a callback-function, which is called by the engine whenever a message has been sent to the script component.
@@ -2818,22 +2740,36 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      *
      * Here is a brief description of the available table fields:
      *
-     * Field       | Description
-     * ----------- | ----------------------------------------------------------
-     * `value`     | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.
-     * `pressed`   | If the input was pressed this frame. This is not present for mouse movement.
-     * `released`  | If the input was released this frame. This is not present for mouse movement.
-     * `repeated`  | If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.
-     * `x`         | The x value of a pointer device, if present.
-     * `y`         | The y value of a pointer device, if present.
-     * `screen_x`  | The screen space x value of a pointer device, if present.
-     * `screen_y`  | The screen space y value of a pointer device, if present.
-     * `dx`        | The change in x value of a pointer device, if present.
-     * `dy`        | The change in y value of a pointer device, if present.
-     * `screen_dx` | The change in screen space x value of a pointer device, if present.
-     * `screen_dy` | The change in screen space y value of a pointer device, if present.
-     * `gamepad`   | The index of the gamepad device that provided the input.
-     * `touch`     | List of touch input, one element per finger, if present. See table below about touch input
+     * Field         | Description
+     * ------------- | ----------------------------------------------------------
+     * `value`       | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement and text input.
+     * `pressed`     | If the input was pressed this frame. This is not present for mouse movement and text input.
+     * `released`    | If the input was released this frame. This is not present for mouse movement and text input.
+     * `repeated`    | If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement and text input.
+     * `x`           | The x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `y`           | The y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_x`    | The screen space x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_y`    | The screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `dx`          | The change in x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `dy`          | The change in y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_dx`   | The change in screen space x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_dy`   | The change in screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `gamepad`     | The index of the gamepad device that provided the input. See table below about gamepad input.
+     * `touch`       | List of touch input, one element per finger, if present. See table below about touch input
+     * `text`        | Text input from a (virtual) keyboard or similar.
+     * `marked_text` | Sequence of entered symbols while entering a symbol combination, for example Japanese Kana.
+     *
+     * Gamepad specific fields:
+     *
+     * Field             | Description
+     * ----------------- | ----------------------------------------------------------
+     * `gamepad`         | The index of the gamepad device that provided the input.
+     * `userid`          | Id of the user associated with the controller. Usually only relevant on consoles.
+     * `gamepad_unknown` | True if the inout originated from an unknown/unmapped gamepad.
+     * `gamepad_name`    | Name of the gamepad
+     * `gamepad_axis`    | List of gamepad axis values. For raw gamepad input only.
+     * `gamepadhats`     | List of gamepad hat values. For raw gamepad input only.
+     * `gamepad_buttons` | List of gamepad button values. For raw gamepad input only.
      *
      * Touch input table:
      *
@@ -2855,7 +2791,7 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      * @param self [type:object] reference to the script state to be used for storing data
      * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
      * @param action [type:table] a table containing the input data, see above for a description
-     * @return [consume] [type:boolean] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
+     * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples
      *
      * This example demonstrates how a game object instance can be moved as a response to user input.

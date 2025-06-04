@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -95,6 +95,7 @@
   (resource-hash [this] (resource/resource-hash resource))
   (openable? [this] (resource/openable? resource))
   (editable? [this] (resource/editable? resource))
+  (loaded? [this] (resource/loaded? resource))
 
   io/IOFactory
   (make-input-stream  [this opts] (io/input-stream resource))
@@ -143,7 +144,7 @@
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
 
 (g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets resource-settings dep-build-targets]
-  (g/precluding-errors build-errors
+  (g/precluding-errors (some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
      (let [clean-meta-info (settings-core/remove-to-from-string meta-info)
            dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
            deps-by-source (into {} (map
@@ -183,7 +184,6 @@
 
   (input raw-settings g/Any)
   (input resource-settings g/Any)
-  (input setting-errors g/Any)
 
   (input resource-map g/Any)
   (input dep-build-targets g/Any :array)
@@ -230,7 +230,7 @@
                     (g/connect settings-node :raw-settings self :raw-settings)
                     (g/connect settings-node :meta-info self :meta-info)
                     (g/connect settings-node :resource-settings self :resource-settings)
-                    (g/connect settings-node :setting-errors self :setting-errors)
+                    (g/connect settings-node :setting-errors self :build-errors)
                     (settings/load-settings-node settings-node resource source-value gpcore/basic-meta-info resource-setting-connections))
       (g/connect project :resource-map self :resource-map))))
 
@@ -244,8 +244,11 @@
       (set user-data path value))))
 
 (defn get-setting
-  [game-project path]
-  ((g/node-value game-project :settings-map) path))
+  ([game-project path]
+   (g/with-auto-evaluation-context evaluation-context
+     (get-setting game-project path evaluation-context)))
+  ([game-project path evaluation-context]
+   ((g/node-value game-project :settings-map evaluation-context) path)))
 
 (defn register-resource-types [workspace]
   (resource-node/register-settings-resource-type workspace
@@ -255,4 +258,5 @@
     :load-fn load-game-project
     :meta-settings (:settings gpcore/basic-meta-info)
     :icon game-project-icon
+    :icon-class :property
     :view-types [:cljfx-form-view :text]))

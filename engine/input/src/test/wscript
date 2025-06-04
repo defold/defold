@@ -31,7 +31,7 @@ def extension_cont_pb(self, node):
 def build(bld):
     test_input = bld(features = 'cc cxx cprogram test',
                      includes = '. .. ../../proto',
-                     use = 'TESTMAIN PROFILE_NULL DDF PLATFORM_SOCKET PLATFORM_THREAD HID_NULL DLIB input',
+                     use = 'TESTMAIN PROFILE_NULL DDF SOCKET PLATFORM_THREAD PLATFORM_NULL HID_NULL DLIB input',
                      source = bld.path.ant_glob('*', excl='wscript'),
                      protoc_includes = '../../proto',
                      target = 'test_input')

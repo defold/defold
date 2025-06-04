@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,11 +16,10 @@
 #include <string.h>
 
 #include <dlib/log.h>
-#include <dlib/utf8.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 
-#include <dmsdk/graphics/glfw/glfw.h>
+#include <platform/platform_window.h>
 
 #include "hid.h"
 #include "hid_private.h"
@@ -28,9 +27,6 @@
 
 namespace dmHID
 {
-    extern const char* KEY_NAMES[MAX_KEY_COUNT];
-    extern const char* MOUSE_BUTTON_NAMES[MAX_MOUSE_BUTTON_COUNT];
-
     static const uint8_t DRIVER_HANDLE_FREE = 0xff;
 
     struct NativeContextUserData
@@ -38,27 +34,24 @@ namespace dmHID
         dmArray<GamepadDriver*> m_GamepadDrivers;
     };
 
-    // This is unfortunately needed for GLFW since we need the context in the callbacks,
-    // and there's no userdata pointers available for us to pass it in..
-    static HContext g_HidContext = 0;
-
-    static void GLFWCharacterCallback(int chr, int _)
+    static void GLFWAddKeyboardChar(void* ctx, int chr)
     {
-        AddKeyboardChar(g_HidContext, chr);
+        AddKeyboardChar((HContext) ctx, chr);
     }
 
-    static void GLFWMarkedTextCallback(char* text)
+    static void GLFWSetMarkedText(void* ctx, char* text)
     {
-        SetMarkedText(g_HidContext, text);
+        SetMarkedText((HContext) ctx, text);
     }
 
-    static void GLFWDeviceChangedCallback(int status)
+    static void GLFWDeviceChangedCallback(void* ctx, int status)
     {
-        NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
+        HContext context = (HContext) ctx;
+        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
 
         for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
         {
-            user_data->m_GamepadDrivers[i]->m_DetectDevices(g_HidContext, user_data->m_GamepadDrivers[i]);
+            user_data->m_GamepadDrivers[i]->m_DetectDevices(context, user_data->m_GamepadDrivers[i]);
         }
     }
 
@@ -88,11 +81,11 @@ namespace dmHID
         return -1;
     }
 
-    static void InstallGamepadDriver(GamepadDriver* driver, const char* driver_name)
+    static void InstallGamepadDriver(HContext context, GamepadDriver* driver, const char* driver_name)
     {
-        NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
+        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
 
-        if (!driver->m_Initialize(g_HidContext, driver))
+        if (!driver->m_Initialize(context, driver))
         {
             dmLogError("Unable to initialize gamepad driver '%s'", driver_name);
             return;
@@ -107,7 +100,7 @@ namespace dmHID
 
         dmLogDebug("Installed gamepad driver '%s'", driver_name);
 
-        driver->m_DetectDevices(g_HidContext, driver);
+        driver->m_DetectDevices(context, driver);
     }
 
     static void InitializeGamepads(HContext context)
@@ -119,11 +112,7 @@ namespace dmHID
             context->m_Gamepads[i].m_Driver = DRIVER_HANDLE_FREE;
         }
 
-        InstallGamepadDriver(CreateGamepadDriverGLFW(context), "GLFW");
-
-    #ifdef DM_HID_DINPUT
-        InstallGamepadDriver(CreateGamepadDriverDInput(context), "Direct Input");
-    #endif
+        InstallGamepadDriver(context, CreateGamepadDriverGLFW(context), "GLFW");
     }
 
     // Called from gamepad drivers
@@ -137,9 +126,9 @@ namespace dmHID
             {
                 if (!context->m_GamepadConnectivityCallback(gamepad_index, connection_status, context->m_GamepadConnectivityUserdata))
                 {
-                    char buffer[128];
-                    GetGamepadDeviceName(context, gamepad, buffer, (uint32_t)sizeof(buffer));
-                    dmLogWarning("The connection for '%s' was ignored by the callback function!", buffer);
+                    char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+                    GetGamepadDeviceName(context, gamepad, device_name);
+                    dmLogWarning("The connection for '%s' was ignored by the callback function!", device_name);
                     return;
                 }
             } else {
@@ -182,27 +171,19 @@ namespace dmHID
     {
         if (context != 0x0)
         {
-            if (glfwInit() == GL_FALSE)
+            if (!context->m_Window)
             {
-                dmLogFatal("glfw could not be initialized.");
+                dmLogFatal("No window has been created.");
                 return false;
             }
-            if (glfwSetCharCallback(GLFWCharacterCallback) == 0)
-            {
-                dmLogFatal("could not set glfw char callback.");
-            }
-            if (glfwSetMarkedTextCallback(GLFWMarkedTextCallback) == 0)
-            {
-                dmLogFatal("could not set glfw marked text callback.");
-            }
-            if (glfwSetDeviceChangedCallback(GLFWDeviceChangedCallback) == 0)
-            {
-                dmLogFatal("coult not set glfw gamepad connection callback.");
-            }
+
+            assert(context->m_Window && "No window has been set.");
+            dmPlatform::SetKeyboardCharCallback(context->m_Window, GLFWAddKeyboardChar, (void*) context);
+            dmPlatform::SetKeyboardMarkedTextCallback(context->m_Window, GLFWSetMarkedText, (void*) context);
+            dmPlatform::SetKeyboardDeviceChangedCallback(context->m_Window, GLFWDeviceChangedCallback, (void*) context);
 
             assert(context->m_NativeContextUserData == 0);
             context->m_NativeContextUserData = new NativeContextUserData();
-            g_HidContext = context;
 
             InitializeGamepads(context);
 
@@ -213,26 +194,25 @@ namespace dmHID
 
     void Final(HContext context)
     {
-        if (g_HidContext)
+        if (context)
         {
-            NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
-
-            for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
+            NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
+            if (user_data)
             {
-                user_data->m_GamepadDrivers[i]->m_Destroy(context, user_data->m_GamepadDrivers[i]);
-            }
+                for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
+                {
+                    user_data->m_GamepadDrivers[i]->m_Destroy(context, user_data->m_GamepadDrivers[i]);
+                }
 
-            delete user_data;
-            g_HidContext->m_NativeContextUserData = 0;
+                delete user_data;
+            }
+            context->m_NativeContextUserData = 0;
         }
     }
 
     void Update(HContext context)
     {
-        // NOTE: GLFW_AUTO_POLL_EVENTS might be enabled but an application shouldn't have rely on
-        // running glfwSwapBuffers for event queue polling
-        // Accessing OpenGL isn't permitted on iOS when the application is transitioning to resumed mode either
-        glfwPollEvents();
+        dmPlatform::PollEvents(context->m_Window);
 
         // Update keyboard
         if (!context->m_IgnoreKeyboard)
@@ -244,10 +224,12 @@ namespace dmHID
 
                 for (uint32_t i = 0; i < MAX_KEY_COUNT; ++i)
                 {
-                    uint32_t mask = 1;
-                    mask <<= i % 32;
-                    int state = glfwGetKey(i);
-                    if (state == GLFW_PRESS)
+                    Key key        = (Key) i;
+                    int key_value  = GetKeyValue(key);
+                    int state      = dmPlatform::GetKey(context->m_Window, key_value);
+                    uint32_t mask  = 1 << (i % 32);
+
+                    if (state)
                         keyboard->m_Packet.m_Keys[i / 32] |= mask;
                     else
                         keyboard->m_Packet.m_Keys[i / 32] &= ~mask;
@@ -270,25 +252,31 @@ namespace dmHID
                 {
                     uint32_t mask = 1;
                     mask <<= i % 32;
-                    int state = glfwGetMouseButton(i);
-                    if (state == GLFW_PRESS)
+
+                    int button_value = GetMouseButtonValue((MouseButton) i);
+                    int state        = dmPlatform::GetMouseButton(context->m_Window, button_value);
+
+                    if (state)
                         packet.m_Buttons[i / 32] |= mask;
                     else
                         packet.m_Buttons[i / 32] &= ~mask;
                 }
-                int32_t wheel = glfwGetMouseWheel();
+                int32_t wheel = dmPlatform::GetMouseWheel(context->m_Window);
+
                 if (context->m_FlipScrollDirection)
                 {
                     wheel *= -1;
                 }
+
                 packet.m_Wheel = wheel;
-                glfwGetMousePos(&packet.m_PositionX, &packet.m_PositionY);
+
+                dmPlatform::GetMousePosition(context->m_Window, &packet.m_PositionX, &packet.m_PositionY);
             }
         }
 
         if (!context->m_IgnoreGamepads)
         {
-            NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
+            NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
 
             for (uint32_t t = 0; t < MAX_GAMEPAD_COUNT; ++t)
             {
@@ -308,23 +296,23 @@ namespace dmHID
             for (uint32_t t = 0; t < MAX_TOUCH_DEVICE_COUNT; ++t)
             {
                 TouchDevice* device = &context->m_TouchDevices[t];
+                TouchDevicePacket* packet = &device->m_Packet;
 
-                GLFWTouch glfw_touch[dmHID::MAX_TOUCH_COUNT];
-                int n_touch;
-                if (glfwGetTouch(glfw_touch, dmHID::MAX_TOUCH_COUNT, &n_touch))
+                dmPlatform::TouchData touch_data[dmHID::MAX_TOUCH_COUNT] = {};
+                packet->m_TouchCount = dmPlatform::GetTouchData(context->m_Window, touch_data, dmHID::MAX_TOUCH_COUNT);
+
+                if (packet->m_TouchCount > 0)
                 {
                     device->m_Connected = 1;
-                    TouchDevicePacket* packet = &device->m_Packet;
-                    packet->m_TouchCount = n_touch;
-                    for (int i = 0; i < n_touch; ++i)
+                    for (int i = 0; i < packet->m_TouchCount; ++i)
                     {
-                        packet->m_Touches[i].m_TapCount = glfw_touch[i].TapCount;
-                        packet->m_Touches[i].m_Id = glfw_touch[i].Id;
-                        packet->m_Touches[i].m_Phase = (dmHID::Phase) glfw_touch[i].Phase;
-                        packet->m_Touches[i].m_X = glfw_touch[i].X;
-                        packet->m_Touches[i].m_Y = glfw_touch[i].Y;
-                        packet->m_Touches[i].m_DX = glfw_touch[i].DX;
-                        packet->m_Touches[i].m_DY = glfw_touch[i].DY;
+                        packet->m_Touches[i].m_TapCount = touch_data[i].m_TapCount;
+                        packet->m_Touches[i].m_Id       = touch_data[i].m_Id;
+                        packet->m_Touches[i].m_Phase    = (dmHID::Phase) touch_data[i].m_Phase;
+                        packet->m_Touches[i].m_X        = touch_data[i].m_X;
+                        packet->m_Touches[i].m_Y        = touch_data[i].m_Y;
+                        packet->m_Touches[i].m_DX       = touch_data[i].m_DX;
+                        packet->m_Touches[i].m_DY       = touch_data[i].m_DY;
                     }
                 }
             }
@@ -333,7 +321,7 @@ namespace dmHID
         {
             AccelerationPacket packet;
             context->m_AccelerometerConnected = 0;
-            if (glfwGetAcceleration(&packet.m_X, &packet.m_Y, &packet.m_Z))
+            if (dmPlatform::GetAcceleration(context->m_Window, &packet.m_X, &packet.m_Y, &packet.m_Z))
             {
                 context->m_AccelerometerConnected = 1;
                 context->m_AccelerationPacket = packet;
@@ -341,210 +329,23 @@ namespace dmHID
         }
     }
 
-    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char* buffer, uint32_t buffer_length)
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
-        assert(buffer_length != 0);
-        assert(buffer != 0);
+        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
 
-        NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
+        name[0] = 0;
         if (gamepad->m_Driver == DRIVER_HANDLE_FREE)
         {
-            buffer[0] = 0;
             return;
         }
 
         assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
         GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
-        driver->m_GetGamepadDeviceName(context, driver, gamepad, buffer, buffer_length);
-    }
-
-    void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)
-    {
-        int t = GLFW_KEYBOARD_DEFAULT;
-        switch (type) {
-            case KEYBOARD_TYPE_DEFAULT:
-                t = GLFW_KEYBOARD_DEFAULT;
-                break;
-            case KEYBOARD_TYPE_NUMBER_PAD:
-                t = GLFW_KEYBOARD_NUMBER_PAD;
-                break;
-            case KEYBOARD_TYPE_EMAIL:
-                t = GLFW_KEYBOARD_EMAIL;
-                break;
-            case KEYBOARD_TYPE_PASSWORD:
-                t = GLFW_KEYBOARD_PASSWORD;
-                break;
-            default:
-                dmLogWarning("Unknown keyboard type %d\n", type);
-        }
-        glfwShowKeyboard(1, t, (int) autoclose);
-    }
-
-    void HideKeyboard(HContext context)
-    {
-        glfwShowKeyboard(0, GLFW_KEYBOARD_DEFAULT, 0);
+        driver->m_GetGamepadDeviceName(context, driver, gamepad, name);
     }
 
     void ResetKeyboard(HContext context)
     {
-        glfwResetKeyboard();
+        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_RESET, true);
     }
-
-    void EnableAccelerometer()
-    {
-        glfwAccelerometerEnable();
-    }
-
-    void ShowMouseCursor(HContext context)
-    {
-        glfwEnable(GLFW_MOUSE_CURSOR);
-    }
-
-    void HideMouseCursor(HContext context)
-    {
-        glfwDisable(GLFW_MOUSE_CURSOR);
-    }
-
-    bool GetCursorVisible(HContext context)
-    {
-        return !glfwGetMouseLocked();
-    }
-
-    const char* GetKeyName(Key key)
-    {
-        return KEY_NAMES[key];
-    }
-
-    const char* GetMouseButtonName(MouseButton input)
-    {
-        return MOUSE_BUTTON_NAMES[input];
-    }
-
-    const char* KEY_NAMES[MAX_KEY_COUNT] =
-    {
-        "KEY_SPACE",
-        "KEY_EXCLAIM",
-        "KEY_QUOTEDBL",
-        "KEY_HASH",
-        "KEY_DOLLAR",
-        "KEY_AMPERSAND",
-        "KEY_QUOTE",
-        "KEY_LPAREN",
-        "KEY_RPAREN",
-        "KEY_ASTERISK",
-        "KEY_PLUS",
-        "KEY_COMMA",
-        "KEY_MINUS",
-        "KEY_PERIOD",
-        "KEY_SLASH",
-        "KEY_0",
-        "KEY_1",
-        "KEY_2",
-        "KEY_3",
-        "KEY_4",
-        "KEY_5",
-        "KEY_6",
-        "KEY_7",
-        "KEY_8",
-        "KEY_9",
-        "KEY_COLON",
-        "KEY_SEMICOLON",
-        "KEY_LESS",
-        "KEY_EQUALS",
-        "KEY_GREATER",
-        "KEY_QUESTION",
-        "KEY_AT",
-        "KEY_A",
-        "KEY_B",
-        "KEY_C",
-        "KEY_D",
-        "KEY_E",
-        "KEY_F",
-        "KEY_G",
-        "KEY_H",
-        "KEY_I",
-        "KEY_J",
-        "KEY_K",
-        "KEY_L",
-        "KEY_M",
-        "KEY_N",
-        "KEY_O",
-        "KEY_P",
-        "KEY_Q",
-        "KEY_R",
-        "KEY_S",
-        "KEY_T",
-        "KEY_U",
-        "KEY_V",
-        "KEY_W",
-        "KEY_X",
-        "KEY_Y",
-        "KEY_Z",
-        "KEY_LBRACKET",
-        "KEY_BACKSLASH",
-        "KEY_RBRACKET",
-        "KEY_CARET",
-        "KEY_UNDERSCORE",
-        "KEY_BACKQUOTE",
-        "KEY_LBRACE",
-        "KEY_PIPE",
-        "KEY_RBRACE",
-        "KEY_TILDE",
-        "KEY_ESC",
-        "KEY_F1",
-        "KEY_F2",
-        "KEY_F3",
-        "KEY_F4",
-        "KEY_F5",
-        "KEY_F6",
-        "KEY_F7",
-        "KEY_F8",
-        "KEY_F9",
-        "KEY_F10",
-        "KEY_F11",
-        "KEY_F12",
-        "KEY_UP",
-        "KEY_DOWN",
-        "KEY_LEFT",
-        "KEY_RIGHT",
-        "KEY_LSHIFT",
-        "KEY_RSHIFT",
-        "KEY_LCTRL",
-        "KEY_RCTRL",
-        "KEY_LALT",
-        "KEY_RALT",
-        "KEY_TAB",
-        "KEY_ENTER",
-        "KEY_BACKSPACE",
-        "KEY_INSERT",
-        "KEY_DEL",
-        "KEY_PAGEUP",
-        "KEY_PAGEDOWN",
-        "KEY_HOME",
-        "KEY_END",
-        "KEY_KP_0",
-        "KEY_KP_1",
-        "KEY_KP_2",
-        "KEY_KP_3",
-        "KEY_KP_4",
-        "KEY_KP_5",
-        "KEY_KP_6",
-        "KEY_KP_7",
-        "KEY_KP_8",
-        "KEY_KP_9",
-        "KEY_KP_DIVIDE",
-        "KEY_KP_MULTIPLY",
-        "KEY_KP_SUBTRACT",
-        "KEY_KP_ADD",
-        "KEY_KP_DECIMAL",
-        "KEY_KP_EQUAL",
-        "KEY_KP_ENTER"
-    };
-
-    const char* MOUSE_BUTTON_NAMES[MAX_MOUSE_BUTTON_COUNT] =
-    {
-        "MOUSE_BUTTON_LEFT",
-        "MOUSE_BUTTON_MIDDLE",
-        "MOUSE_BUTTON_RIGHT"
-    };
 }

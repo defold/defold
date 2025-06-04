@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -147,9 +147,9 @@
   [pred m]
   (into {} (filter pred m)))
 
-(defn key-set
-  [m]
-  (set (keys m)))
+(defmacro key-set [m]
+  ;; TODO: Replace all calls so we can get rid of this macro.
+  `(coll/key-set ~m))
 
 (defn map-keys
   [f m]
@@ -468,7 +468,7 @@
 
      (map? value)
      (finalize-coll-value-fn
-       (into (empty value)
+       (into (coll/empty-with-meta value)
              (map (fn [[k v]]
                     (let [v' (deep-map finalize-coll-value-fn value-fn v)]
                       (pair k v'))))
@@ -476,7 +476,7 @@
 
      (coll? value)
      (finalize-coll-value-fn
-       (into (empty value)
+       (into (coll/empty-with-meta value)
              (map #(deep-map finalize-coll-value-fn value-fn %))
              value))
 
@@ -696,3 +696,118 @@
           (do
             (vswap! unique-volatile conj item)
             item)))))
+
+(defn name-index
+  "Create an index for items' names that, while identify the items, are not
+  guaranteed to be unique within the coll
+
+  Returns a map of [name name-order] => item-index
+
+  Args:
+    coll           nil or vector of items
+    get-name-fn    fn that extracts the item's name"
+  [coll get-name-fn]
+  {:pre [(or (nil? coll) (vector? coll))]}
+  (let [n (count coll)]
+    (loop [i 0
+           name->order (transient {})
+           name+order->index (transient {})]
+      (if (= i n)
+        (persistent! name+order->index)
+        (let [item (coll i)
+              name (get-name-fn item)
+              order (long (name->order name 0))]
+          (recur (inc i)
+                 (assoc! name->order name (inc order))
+                 (assoc! name+order->index (pair name order) i)))))))
+
+(defn detect-renames
+  "Given 2 name indices, detect renames
+
+  Renames are left-over names that don't match between 2 name indices
+
+  Returns a map from old name+order to new name+order
+
+  Args:
+    old-name-index    map of name+order->item-index produced by [[name-index]]
+    new-name-index    map of name+order->item-index produced by [[name-index]]"
+  [old-name-index new-name-index]
+  (into {}
+        (mapv (fn [removed-entry added-entry]
+                (pair (key removed-entry) (key added-entry)))
+              (filterv (comp not new-name-index key) old-name-index)
+              (filterv (comp not old-name-index key) new-name-index))))
+
+(defn detect-deletions
+  "Given 2 name indices, detect deletions from the old name index
+
+  Returns a set of deleted old name+orders
+
+  Args:
+    old-name-index    map of name+order->item-index produced by [[name-index]]
+    new-name-index    map of name+order->item-index produced by [[name-index]]"
+  [old-name-index new-name-index]
+  (let [renames (detect-renames old-name-index new-name-index)]
+    (into #{}
+          (comp
+            (map key)
+            (remove #(or (contains? renames %)
+                         (contains? new-name-index %))))
+          old-name-index)))
+
+(defn detect-and-apply-renames
+  "Given 2 collections of maps, detect and apply the renames to first one
+
+  Returns updated first coll
+
+  Args:
+    old-coll        nil or vector of maps
+    old-name-key    key used to extract names from maps in the old-coll
+    new-coll        nil or vector of maps
+    new-name-key    key used to extract names from maps in the new-coll"
+  [old-coll old-name-key new-coll new-name-key]
+  (let [old-index (name-index old-coll old-name-key)
+        new-index (name-index new-coll new-name-key)
+        renames (detect-renames old-index new-index)]
+    (reduce-kv
+      (fn [acc old-name+order new-name+order]
+        (update acc (old-index old-name+order) assoc old-name-key (key new-name+order)))
+      old-coll
+      renames)))
+
+(defn detect-renames-and-update-all
+  "Given 2 collections, update every item in 1st with a matching item form 2nd
+
+  Returns updated first coll
+
+  Args:
+    old-coll        nil or vector of maps
+    old-name-key    key used to extract names from maps in the old-coll
+    new-coll        nil or vector of maps
+    new-name-key    key used to extract names from maps in the new-coll
+    update-fn       fn of 2 args - an item from the old coll and an item from
+                    the new-coll (or nil if there is no match for the old item)
+
+  Optional kv-args:
+    :not-found    fallback value to pass to update-fn when there is no matching
+                  item in the new coll, defaults to nil"
+  [old-coll old-name-key new-coll new-name-key update-fn & {:keys [not-found]}]
+  (let [old-index (name-index old-coll old-name-key)
+        new-index (name-index new-coll new-name-key)
+        renames (detect-renames old-index new-index)]
+    (persistent!
+      (reduce-kv
+        (fn [acc old-name+order old-item-index]
+          (let [old-item (acc old-item-index)
+                new-name+order (renames old-name+order)
+                new-item-index (new-index (or new-name+order old-name+order))
+                new-item (if new-item-index (new-coll new-item-index) not-found)]
+            (assoc! acc old-item-index (update-fn old-item new-item))))
+        (transient old-coll)
+        old-index))))
+
+(defn first-rf
+  "first as a reducing function"
+  ([] nil)
+  ([acc] acc)
+  ([_ v] (ensure-reduced v)))

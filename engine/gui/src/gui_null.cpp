@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -116,11 +116,6 @@ namespace dmGui
         return ADJUST_REFERENCE_DISABLED;
     }
 
-    dmRig::HRigContext GetRigContext(HScene scene)
-    {
-        return 0;
-    }
-
     void SetDisplayProfiles(HContext context, void* display_profiles)
     {
     }
@@ -155,7 +150,7 @@ namespace dmGui
         return 0;
     }
 
-    Result AddTexture(HScene scene, dmhash_t texture_name_hash, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
+    Result AddTexture(HScene scene, dmhash_t texture_name_hash, dmGui::HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
     {
         return RESULT_OK;
     }
@@ -168,7 +163,7 @@ namespace dmGui
     {
     }
 
-    void* GetTexture(HScene scene, dmhash_t texture_name_hash)
+    HTextureSource GetTexture(HScene scene, dmhash_t texture_name_hash)
     {
         return 0;
     }
@@ -524,7 +519,7 @@ namespace dmGui
         return 0.0f;
     }
 
-    void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
+    HTextureSource GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
     {
         return 0;
     }
@@ -794,20 +789,6 @@ namespace dmGui
                          AnimationComplete animation_complete,
                          void* userdata1,
                          void* userdata2)
-    {
-    }
-
-    void AnimateNode(HScene scene,
-                     HNode node,
-                     Property property,
-                     const Vector4& to,
-                     dmEasing::Curve easing,
-                     Playback playback,
-                     float duration,
-                     float delay,
-                     AnimationComplete animation_complete,
-                     void* userdata1,
-                     void* userdata2)
     {
     }
 

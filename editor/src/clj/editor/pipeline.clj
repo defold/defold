@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,119 +14,113 @@
 
 (ns editor.pipeline
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.fs :as fs]
+            [editor.graph-util :as gu]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
+            [util.coll :as coll :refer [pair]]
             [util.digest :as digest])
   (:import [java.io File]))
 
 (set! *warn-on-reflection* true)
 
-(defn- resolve-resource-paths
-  [pb dep-resources resource-props]
-  (reduce (fn [m [prop resource]]
-            (assoc m prop (resource/proj-path (get dep-resources resource))))
-          pb
-          resource-props))
-
-(defn- make-resource-props
-  [dep-build-targets m resource-keys]
-  (let [deps-by-source (into {}
-                             (map (fn [build-target]
-                                    (let [build-resource (:resource build-target)
-                                          source-resource (:resource build-resource)]
-                                      (when-not (and (satisfies? resource/Resource build-resource)
-                                                     (satisfies? resource/Resource source-resource))
-                                        (throw (ex-info "dep-build-targets contains an invalid build target"
-                                                        {:build-target build-target
-                                                         :build-resource build-resource
-                                                         :source-resource source-resource})))
-                                      [source-resource build-resource])))
-                             dep-build-targets)]
-    (keep (fn [resource-key]
-            (when-let [source-resource (m resource-key)]
-              (when-not (satisfies? resource/Resource source-resource)
-                (throw (ex-info "value for resource key in m is not a Resource"
-                                {:key resource-key
-                                 :value source-resource
-                                 :resource-keys resource-keys})))
-              (if-let [build-resource (deps-by-source source-resource)]
-                [resource-key build-resource]
-                (throw (ex-info "deps-by-source is missing a referenced source-resource"
-                                {:key resource-key
-                                 :deps-by-source deps-by-source
-                                 :source-resource source-resource})))))
-          resource-keys)))
+(defn- replace-resources-with-fused-build-resource-paths [pb-map pb-class dep-resources]
+  (let [field-value->fused-path
+        (persistent!
+          (reduce-kv
+            (fn [acc build-resource fused-build-resource]
+              (let [source-resource (:resource build-resource)
+                    fused-path (resource/proj-path fused-build-resource)]
+                (when-not (and (workspace/build-resource? build-resource)
+                               (workspace/source-resource? source-resource))
+                  (throw (ex-info "dep-resources contains an invalid build resource."
+                                  {:build-resource build-resource
+                                   :source-resource source-resource})))
+                (-> acc
+                    (assoc! build-resource fused-path)
+                    (assoc! (resource/proj-path build-resource) fused-path)
+                    (assoc! source-resource fused-path)
+                    (assoc! (resource/proj-path source-resource) fused-path))))
+            (transient {"" nil
+                        nil nil})
+            dep-resources))]
+    (reduce
+      (fn [pb-map [field-path field-value]]
+        (when-not (or (nil? field-value)
+                      (string? field-value)
+                      (resource/resource? field-value))
+          (throw (ex-info "value for resource field in pb-map is not a Resource or proj-path."
+                          {:field-value field-value :field-path field-path})))
+        (let [fused-path (field-value->fused-path field-value ::not-found)]
+          (if (identical? ::not-found fused-path)
+            (throw (ex-info "dep-resources is missing a referenced source-resource. Ensure it is among the dep-build-targets."
+                            {:field-value field-value
+                             :field-path field-path
+                             :deps-by-source field-value->fused-path}))
+            (coll/assoc-in-ex pb-map field-path fused-path))))
+      pb-map
+      (protobuf/get-field-value-paths pb-map pb-class))))
 
 (defn- build-protobuf
   [resource dep-resources user-data]
-  (let [{:keys [pb-class pb-msg resource-keys]} user-data
-        pb-msg (resolve-resource-paths pb-msg dep-resources resource-keys)]
+  (let [{:keys [pb-class pb-map]} user-data
+        pb-map (replace-resources-with-fused-build-resource-paths pb-map pb-class dep-resources)]
     {:resource resource
-     :content (protobuf/map->bytes pb-class pb-msg)}))
+     :content (protobuf/map->bytes pb-class pb-map)}))
 
 (defn make-protobuf-build-target
-  [resource dep-build-targets pb-class pb-msg pb-resource-fields]
-  (let [dep-build-targets (flatten dep-build-targets)
-        resource-keys (make-resource-props dep-build-targets pb-msg pb-resource-fields)]
-    (bt/with-content-hash
-      {:resource (workspace/make-build-resource resource)
-       :build-fn build-protobuf
-       :user-data {:pb-class pb-class
-                   :pb-msg (reduce dissoc pb-msg resource-keys)
-                   :resource-keys resource-keys}
-       :deps dep-build-targets})))
+  ([node-id source-resource pb-class pb-map]
+   (make-protobuf-build-target node-id source-resource pb-class pb-map nil nil))
+  ([node-id source-resource pb-class pb-map dep-build-targets]
+   (make-protobuf-build-target node-id source-resource pb-class pb-map dep-build-targets nil))
+  ([node-id source-resource pb-class pb-map dep-build-targets dynamic-deps]
+   {:pre [(g/node-id? node-id)
+          (protobuf/pb-class? pb-class)
+          (map? pb-map)]}
+   (bt/with-content-hash
+     (cond-> {:node-id node-id
+              :resource (workspace/make-build-resource source-resource)
+              :build-fn build-protobuf
+              :user-data {:pb-class pb-class
+                          :pb-map pb-map}}
+
+             (coll/not-empty dep-build-targets)
+             (assoc :deps dep-build-targets)
+
+             (coll/not-empty dynamic-deps)
+             (assoc :dynamic-deps dynamic-deps)))))
 
 ;;--------------------------------------------------------------------
 
-(defn flatten-build-targets
-  "Breadth first traversal / collection of build-targets and their child :deps,
-  skipping seen targets identified by the :content-hash of each build-target."
-  ([build-targets]
-   (flatten-build-targets build-targets #{}))
-  ([build-targets seen-content-hashes]
-   (assert (set? seen-content-hashes))
-   (loop [targets build-targets
-          queue []
-          seen seen-content-hashes
-          result (transient [])]
-     (if-some [target (first targets)]
-       (let [content-hash (:content-hash target)]
-         (assert (bt/content-hash? content-hash)
-                 (str "Build target has invalid content-hash: "
-                      (resource/resource->proj-path (:resource target))))
-         (if (contains? seen content-hash)
-           (recur (rest targets)
-                  queue
-                  seen
-                  result)
-           (recur (rest targets)
-                  (conj queue (flatten (:deps target)))
-                  (conj seen content-hash)
-                  (conj! result target))))
-       (if-some [targets (first queue)]
-         (recur targets
-                (rest queue)
-                seen
-                result)
-         (persistent! result))))))
-
 (defn- make-build-targets-by-content-hash
-  [build-targets]
-  (into {}
-        (map (juxt :content-hash identity))
-        (flatten-build-targets build-targets)))
+  [flat-build-targets]
+  (coll/pair-map-by :content-hash flat-build-targets))
 
 (defn- make-dep-resources
   [deps build-targets-by-content-hash]
+  ;; Create a map that resolves an original BuildResource into a fused
+  ;; BuildResource. Build target fusion is based on the content-hash values of
+  ;; the build targets. In order to fuse build targets from both editable and
+  ;; non-editable BuildResources, we make sure to add their counterpart to the
+  ;; resulting map alongside the original BuildResource.
   (into {}
-        (map (fn [{:keys [content-hash resource] :as _build-target}]
-               (assert (bt/content-hash? content-hash))
-               [resource (:resource (get build-targets-by-content-hash content-hash))]))
+        (mapcat
+          (fn [{:keys [content-hash] :as build-target}]
+            (assert (bt/content-hash? content-hash))
+            (let [original-build-resource (:resource build-target)
+                  counterpart-build-resource (workspace/counterpart-build-resource original-build-resource)
+                  fused-build-target (get build-targets-by-content-hash content-hash)
+                  fused-build-resource (:resource fused-build-target)]
+              (cond-> [(pair original-build-resource fused-build-resource)]
+
+                      counterpart-build-resource
+                      (conj (pair counterpart-build-resource fused-build-resource))))))
         (flatten deps)))
 
 (defn prune-artifact-map [artifact-map build-targets-by-content-hash]
@@ -142,21 +136,25 @@
       (and (.exists f) (= mtime (.lastModified f)) (= size (.length f))))))
 
 (defn- to-disk! [artifact content-hash]
-  (assert (some? (:content artifact)))
+  (assert (or (some? (:write-content-fn artifact)) (some? (:content artifact))))
   (fs/create-parent-directories! (io/as-file (:resource artifact)))
-  (let [^bytes content (:content artifact)]
-    (with-open [out (io/output-stream (:resource artifact))]
-      (.write out content))
+  (let [^bytes content (:content artifact)
+        write-content-fn (:write-content-fn artifact)
+        sha1-hash (if write-content-fn
+                    ;; The write-content-fn returns the hash of the content
+                    (write-content-fn (:resource artifact) (:user-data artifact))
+                    ;; otherwise, we write and hash the content
+                    (with-open [out (io/output-stream (:resource artifact))]
+                      (.write out content)
+                      (digest/sha1-hex content)))]
     (let [^File target-f (io/as-file (:resource artifact))
           mtime (.lastModified target-f)
           size (.length target-f)]
-      (-> artifact
-          (dissoc :content)
-          (assoc
-            :content-hash content-hash
-            :mtime mtime
-            :size size
-            :etag (digest/sha1-hex content))))))
+      {:resource (:resource artifact)
+       :content-hash content-hash
+       :mtime mtime
+       :size size
+       :etag sha1-hash})))
 
 (defn- prune-build-dir! [build-dir build-targets-by-content-hash]
   (let [targets (into #{}
@@ -180,9 +178,45 @@
 (def ^:private cheap-batch-size 500)
 (def ^:private expensive-batch-size 5)
 
+(defn decorate-build-exception [exception stage node-id resource-path {:keys [basis] :as evaluation-context}]
+  (try
+    (let [{:keys [owner-resource-node-id node-debug-label-path] :as node-debug-info}
+          (gu/node-debug-info node-id evaluation-context)]
+      (ex-info (format "Failed to %s %s %s."
+                       (name stage)
+                       (if (= owner-resource-node-id node-id)
+                         "resource"
+                         "node")
+                       (string/join " -> "
+                                    (map #(str \' % \')
+                                         node-debug-label-path)))
+               (assoc node-debug-info
+                 :ex-type ::decorated-build-exception
+                 :node-id node-id
+                 :proj-path (or (some->> owner-resource-node-id
+                                         (resource-node/as-resource basis)
+                                         (resource/proj-path))
+                                resource-path))
+               exception))
+    (catch Throwable error
+      (try
+        (if (coll/not-empty resource-path)
+          (ex-info (format "Failed for resource '%s'." resource-path)
+                   {:node-id node-id
+                    :proj-path resource-path
+                    :stage stage
+                    :error error}
+                   exception)
+          exception)
+        (catch Throwable _
+          exception)))))
+
+(defn decorated-build-exception? [exception]
+  (= ::decorated-build-exception (:ex-type (ex-data exception))))
+
 (defn build!
-  [build-targets build-dir old-artifact-map render-progress!]
-  (let [build-targets-by-content-hash (make-build-targets-by-content-hash build-targets)
+  [flat-build-targets build-dir old-artifact-map evaluation-context render-progress!]
+  (let [build-targets-by-content-hash (make-build-targets-by-content-hash flat-build-targets)
         pruned-old-artifact-map (prune-artifact-map old-artifact-map build-targets-by-content-hash)
         progress (atom (progress/make "" (count build-targets-by-content-hash)))]
     (prune-build-dir! build-dir build-targets-by-content-hash)
@@ -196,11 +230,20 @@
                             cached-artifact (when-some [artifact (get pruned-old-artifact-map resource-path)]
                                               (when (valid? resource artifact)
                                                 (assoc artifact :resource resource)))
-                            message (str "Building " (resource/proj-path resource))]
+                            message (str "Building " resource-path)]
                         (render-progress! (swap! progress progress/with-message message))
                         (let [result (or cached-artifact
                                          (let [dep-resources (make-dep-resources deps build-targets-by-content-hash)
-                                               build-result (build-fn resource dep-resources user-data)]
+                                               build-result (try
+                                                              (build-fn resource dep-resources user-data)
+                                                              (catch OutOfMemoryError error
+                                                                (g/error-aggregate
+                                                                  [(g/error-fatal
+                                                                     (format "Failed to allocate memory while building '%s': %s."
+                                                                             resource-path
+                                                                             (.getMessage error)))]))
+                                                              (catch Throwable error
+                                                                (throw (decorate-build-exception error :build node-id resource-path evaluation-context))))]
                                            ;; Error results are assumed to be error-aggregates.
                                            ;; We need to inject the node-id of the source build
                                            ;; target into the causes, since the build-fn will

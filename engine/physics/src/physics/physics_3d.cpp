@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -167,6 +167,11 @@ namespace dmPhysics
         delete m_CollisionConfiguration;
     }
 
+    HContext3D GetContext3D(HWorld3D world)
+    {
+        return world->m_Context;
+    }
+
     static void ResponseFromRayCastResult(RayCastResponse& response, btScalar inv_scale, btScalar fraction,
                         const btVector3& point, const btVector3& normal, const btCollisionObject* co)
     {
@@ -287,7 +292,7 @@ namespace dmPhysics
         context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
         context->m_AllowDynamicTransforms = params.m_AllowDynamicTransforms;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
-        if (result != dmMessage::RESULT_OK)
+        if (result != dmMessage::RESULT_OK && result != dmMessage::RESULT_SOCKET_EXISTS)
         {
             dmLogFatal("Could not create socket '%s'.", PHYSICS_SOCKET_NAME);
             DeleteContext3D(context);
@@ -583,9 +588,9 @@ namespace dmPhysics
                 }
                 if (max_distance >= context->m_TriggerEnterLimit)
                 {
-                    add_data.m_ObjectA = object_a;
+                    add_data.m_ObjectA = (uint64_t) object_a;
                     add_data.m_UserDataA = object_a->getUserPointer();
-                    add_data.m_ObjectB = object_b;
+                    add_data.m_ObjectB = (uint64_t) object_b;
                     add_data.m_UserDataB = object_b->getUserPointer();
                     add_data.m_GroupA = object_a->getBroadphaseHandle()->m_collisionFilterGroup;
                     add_data.m_GroupB = object_b->getBroadphaseHandle()->m_collisionFilterGroup;
@@ -693,10 +698,7 @@ namespace dmPhysics
         float object_scale = 1.0f;
         if (has_world_transform)
         {
-            if( data.m_Type != COLLISION_OBJECT_TYPE_TRIGGER)
-            {
-                object_scale = world_transform.GetUniformScale();
-            }
+            object_scale = world_transform.GetUniformScale();
         }
 
         bool clone_shapes = world->m_AllowDynamicTransforms || object_scale != 1.0f;
@@ -800,7 +802,7 @@ namespace dmPhysics
     void DeleteCollisionObject3D(HWorld3D world, HCollisionObject3D collision_object)
     {
         CollisionObject3D* co = (CollisionObject3D*)collision_object;
-        OverlapCacheRemove(&world->m_TriggerOverlaps, co->m_CollisionObject);
+        OverlapCacheRemove(&world->m_TriggerOverlaps, (uint64_t) co->m_CollisionObject);
         btCollisionObject* bt_co = co->m_CollisionObject;
         if (bt_co == 0x0)
             return;
@@ -816,6 +818,25 @@ namespace dmPhysics
         world->m_DynamicsWorld->removeCollisionObject(bt_co);
         delete bt_co;
         delete co;
+    }
+
+    HCollisionShape3D GetCollisionShape3D(HCollisionObject3D collision_object, uint32_t index)
+    {
+        btCollisionShape* shape = GetCollisionObject(collision_object)->getCollisionShape();
+
+        if (shape->isCompound())
+        {
+            btCompoundShape* compound = (btCompoundShape*)shape;
+            if (compound->getNumChildShapes() > index)
+            {
+                return compound->getChildShape(index);
+            }
+        }
+        else if (index == 0)
+        {
+            return shape;
+        }
+        return 0;
     }
 
     uint32_t GetCollisionShapes3D(HCollisionObject3D collision_object, HCollisionShape3D* out_buffer, uint32_t buffer_size)
@@ -1012,7 +1033,7 @@ namespace dmPhysics
         btCollisionObject* co = GetCollisionObject(collision_object);
         return co->getActivationState() == ISLAND_SLEEPING;
     }
-    
+
     void Wakeup3D(HCollisionObject3D collision_object)
     {
         btCollisionObject* co = GetCollisionObject(collision_object);
@@ -1091,10 +1112,10 @@ namespace dmPhysics
     void SetGroup3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit) {
 		CollisionObject3D* co = (CollisionObject3D*) collision_object;
 		btCollisionObject* bt_co = co->m_CollisionObject;
-		
+
 		bool enabled = IsEnabled3D(collision_object);
-		
-		if (!enabled) { 
+
+		if (!enabled) {
 			// the collision object off the world. We just have to update the group property in CollisionObject3D. When the co is enabled, the group property will get applied.
 			co->m_CollisionGroup = groupbit;
 		} else {
@@ -1115,23 +1136,23 @@ namespace dmPhysics
 	bool GetMaskBit3D(HCollisionObject3D collision_object, uint16_t groupbit) {
 		CollisionObject3D* co = (CollisionObject3D*) collision_object;
 		uint16_t maskbits = co->m_CollisionMask;
-		return !!(maskbits & groupbit);		
+		return !!(maskbits & groupbit);
 	}
-	
+
     void SetMaskBit3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit, bool boolvalue) {
 		CollisionObject3D* co = (CollisionObject3D*) collision_object;
 		btCollisionObject* bt_co = co->m_CollisionObject;
-		
+
 		bool enabled = IsEnabled3D(collision_object);
-		
+
 		//calculate new mask once
 		uint16_t newmask = co->m_CollisionMask;
 		if (boolvalue)
 			newmask |= groupbit;
 		else
 			newmask &= ~groupbit;
-		
-		if (!enabled) { 
+
+		if (!enabled) {
 			// the collision object off the world. We just have to update the mask property in CollisionObject3D. When the co is enabled, the mask property will get applied.
 			co->m_CollisionMask = newmask;
 		} else {
@@ -1147,8 +1168,8 @@ namespace dmPhysics
 				world->m_DynamicsWorld->addCollisionObject(bt_co, co->m_CollisionGroup, co->m_CollisionMask);
 			}
 		}
-	}	
-    
+	}
+
     void RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())
@@ -1249,9 +1270,70 @@ namespace dmPhysics
         return gravity;
     }
 
+    void GetCollisionShapeRadius3D(HCollisionShape3D shape, float* radius)
+    {
+        btCollisionShape* bt_shape = (btCollisionShape*) shape;
+        assert(bt_shape->getShapeType() == SPHERE_SHAPE_PROXYTYPE);
+        *radius = ((btSphereShape*) bt_shape)->getRadius();
+    }
+
+    void GetCollisionShapeCapsuleRadiusHeight3D(HCollisionShape3D shape, float* radius, float* half_height)
+    {
+        btCollisionShape* bt_shape = (btCollisionShape*) shape;
+        assert(bt_shape->getShapeType() == CAPSULE_SHAPE_PROXYTYPE);
+        btCapsuleShape* as_capsule = (btCapsuleShape*) bt_shape;
+        *radius                    = as_capsule->getRadius();
+        *half_height               = as_capsule->getHalfHeight();
+    }
+
+    void SetCollisionShapeRadius3D(HCollisionShape3D shape, float radius)
+    {
+        btCollisionShape* bt_shape = (btCollisionShape*) shape;
+        assert(bt_shape->getShapeType() == SPHERE_SHAPE_PROXYTYPE);
+        ((btSphereShape*) bt_shape)->setUnscaledRadius(radius);
+    }
+
+    void GetCollisionShapeHalfBoxExtents3D(HCollisionShape3D shape, float* xyz)
+    {
+        btCollisionShape* bt_shape = (btCollisionShape*) shape;
+        assert(bt_shape->getShapeType() == BOX_SHAPE_PROXYTYPE);
+        const btVector3& half_extents = ((btBoxShape*) bt_shape)->getHalfExtentsWithMargin();
+        xyz[0] = half_extents.getX();
+        xyz[1] = half_extents.getY();
+        xyz[2] = half_extents.getZ();
+    }
+
     void SetDebugCallbacks3D(HContext3D context, const DebugCallbacks& callbacks)
     {
         context->m_DebugCallbacks = callbacks;
+    }
+
+    void ReplaceShape3D(HCollisionObject3D object, HCollisionShape3D old_shape, HCollisionShape3D new_shape)
+    {
+        btCollisionObject* bt_object = GetCollisionObject(object);
+
+        btCollisionShape* bt_current_shape = bt_object->getCollisionShape();
+
+        if (bt_current_shape->isCompound())
+        {
+            btCompoundShape* compound_shape = (btCompoundShape*) bt_current_shape;
+            uint32_t n = compound_shape->getNumChildShapes();
+            for (uint32_t k = 0; k < n; ++k)
+            {
+                btCollisionShape* child = compound_shape->getChildShape(k);
+                if (child == old_shape)
+                {
+                    btTransform t = compound_shape->getChildTransform(k);
+                    compound_shape->removeChildShape(child);
+                    compound_shape->addChildShape(t, (btConvexShape*)new_shape);
+                    break;
+                }
+            }
+        }
+        else if (bt_current_shape == old_shape)
+        {
+            bt_object->setCollisionShape((btConvexShape*) new_shape);
+        }
     }
 
     void ReplaceShape3D(HContext3D context, HCollisionShape3D old_shape, HCollisionShape3D new_shape)

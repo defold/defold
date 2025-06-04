@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,7 +21,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.text.ParseException;
-import java.util.HashSet;
 import java.util.List;
 
 import static org.junit.Assert.assertTrue;
@@ -42,6 +41,7 @@ import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.DefaultFileSystem;
@@ -76,7 +76,6 @@ public class ProjectBuildTest {
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
         // project.setOption("platform", Platform.X86Win32.getPair());
-        project.findSources(contentRoot, new HashSet<String>());
         List<TaskResult> result = project.build(new NullProgress(), "clean", "build");
         for (TaskResult taskResult : result) {
             assertTrue(taskResult.toString(), taskResult.isOk());
@@ -221,7 +220,7 @@ public class ProjectBuildTest {
 
     private String createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
-        file.deleteOnExit();
+        FileUtil.deleteOnExit(file);
         FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
         return file.getAbsolutePath();
     }

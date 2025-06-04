@@ -106,9 +106,15 @@ PAD
 
 The manifest file contains cryptographic checksums of both the entire data set, as well as the individual files.
 The manifest file is mainly used for Live Update content on the platforms that support this feature.
+Each entry in the manifest may have a list of dependants, which is a list of url hashes. The dependants refer to which oother files are required to be loaded in order for the resource itself to be loaded.
+
+See [](./LIVEUPDATE.md) for more detailed info about the liveupdate system.
 
 See [ManifestBuilder.java](https://github.com/defold/defold/blob/dev/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/archive/ManifestBuilder.java) for more detailed information.
 
+#### Debugging
+
+It is possible to print the contents of a `.dmanifest` by calling `<defold>/scripts/unpack_ddf.py /path/to/game.dmanifest`
 
 ### The public key `.public.der`
 

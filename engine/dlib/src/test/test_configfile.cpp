@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,19 +14,31 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/dstrings.h>
 #include <dlib/configfile.h>
 #include <dlib/testutil.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 // We're currently disabling some tests on win32 host
-#if defined(_WIN32) || defined(__SCE__) || defined(__NX__)
-#define HOST_WIN32
+#if defined(_WIN32) || defined(DM_PLATFORM_VENDOR) || defined(__EMSCRIPTEN__)
+#define SUPPORT_HTTP
 #endif
 
 const char* DEFAULT_ARGV[] = { "test_engine" };
 int g_HttpPort = -1;
+
+extern "C" void TestConfigfileExtension();
+
+struct ExtensionInitializer
+{
+    ExtensionInitializer()
+    {
+        TestConfigfileExtension();
+    }
+} g_Initializer;
 
 struct TestParam
 {
@@ -82,7 +94,7 @@ public:
         else
         {
             if (strstr(param.m_Url, "http") != 0) {
-                sprintf(path, param.m_Url, g_HttpPort);
+                dmSnPrintf(path, sizeof(path), param.m_Url, g_HttpPort);
             }
 
             r = dmConfigFile::Load(path, param.m_Argc, param.m_Argv, &config);
@@ -117,7 +129,7 @@ TEST_P(Empty, Empty)
 const TestParam params_empty[] = {
     TestParam("src/test/data/empty.config"),
     TestParam("src/test/data/empty.config",false),
-#ifndef HOST_WIN32
+#ifndef SUPPORT_HTTP
     TestParam("http://localhost:%d/src/test/data/test.config")
 #endif
 };
@@ -133,7 +145,7 @@ TEST_P(MissingFile, MissingFile)
 
 const TestParam params_missing_file[] = {
     TestParam("does_not_exist"),
-#ifndef HOST_WIN32
+#ifndef SUPPORT_HTTP
     TestParam("http://localhost:%d/does_not_exist")
 #endif
 };
@@ -152,7 +164,7 @@ TEST_P(NoSection, NoSection)
 const TestParam params_no_section[] = {
     TestParam("src/test/data/nosection.config"),
     TestParam("src/test/data/nosection.config", true),
-#ifndef HOST_WIN32
+#ifndef SUPPORT_HTTP
     TestParam("http://localhost:%d/src/test/data/nosection.config")
 #endif
 };
@@ -168,7 +180,7 @@ TEST_P(SectionError, SectionError)
 const TestParam params_section_error[] = {
     TestParam("src/test/data/section_error.config"),
     TestParam("src/test/data/section_error.config", true),
-#ifndef HOST_WIN32
+#ifndef SUPPORT_HTTP
     TestParam("http://localhost:%d/src/test/data/section_error.config")
 #endif
 };
@@ -207,10 +219,38 @@ TEST_P(Test01, Test01)
     ASSERT_EQ(0, dmConfigFile::GetInt(config, "ext.virtual", 0));
 }
 
+TEST_P(Test01, TestApiC)
+{
+    ASSERT_STREQ("123", ConfigFileGetString(config, "main.foo", 0));
+    ASSERT_EQ(123, ConfigFileGetInt(config, "main.foo", 0));
+
+    ASSERT_STREQ("#value", ConfigFileGetString(config, "comments.pound", 0));
+    ASSERT_STREQ(";value", ConfigFileGetString(config, "comments.semi", 0));
+
+    ASSERT_STREQ("456", ConfigFileGetString(config, "sub.bar", 0));
+    ASSERT_EQ(456, ConfigFileGetInt(config, "sub.bar", 0));
+    ASSERT_STREQ("foo_bar", ConfigFileGetString(config, "sub.value", 0));
+    ASSERT_STREQ("", ConfigFileGetString(config, "sub.bad_int1", 0));
+    ASSERT_EQ(-1, ConfigFileGetInt(config, "sub.bad_int1", -1));
+    ASSERT_EQ(-1, ConfigFileGetInt(config, "sub.bad_int2", -1));
+
+    ASSERT_STREQ("missing_value", ConfigFileGetString(config, "missing_key", "missing_value"));
+    ASSERT_EQ(1122, ConfigFileGetInt(config, "missing_int_key", 1122));
+
+    // The extension plugin hooks are disabled
+    ASSERT_STREQ("hello", ConfigFileGetString(config, "ext.string", 0));
+    ASSERT_STREQ("42", ConfigFileGetString(config, "ext.int", 0));
+    ASSERT_STREQ("1.0", ConfigFileGetString(config, "ext.float", 0));
+
+    ASSERT_EQ(42, ConfigFileGetInt(config, "ext.int", 0));
+    ASSERT_EQ(1.0f, ConfigFileGetFloat(config, "ext.float", 0));
+    ASSERT_EQ(0, ConfigFileGetInt(config, "ext.virtual", 0));
+}
+
 const TestParam params_test01[] = {
     TestParam("src/test/data/test.config"),
     TestParam("src/test/data/test.config", true),
-#ifndef HOST_WIN32
+#ifndef SUPPORT_HTTP
     TestParam("http://localhost:%d/src/test/data/test.config")
 #endif
 };
@@ -229,7 +269,7 @@ TEST_P(MissingTrailingNewline, MissingTrailingNewline)
 const TestParam params_missing_trailing_nl[] = {
     TestParam("src/test/data/missing_trailing_nl.config"),
     TestParam("src/test/data/missing_trailing_nl.config", true),
-#ifndef HOST_WIN32
+#ifndef SUPPORT_HTTP
     TestParam("http://localhost:%d/src/test/data/missing_trailing_nl.config")
 #endif
 };
@@ -267,7 +307,7 @@ int COMMAND_LINE_ARGC = sizeof(COMMAND_LINE_ARGV) / sizeof(COMMAND_LINE_ARGV[0])
 const TestParam params_command_line[] = {
     TestParam("src/test/data/test.config", COMMAND_LINE_ARGC, COMMAND_LINE_ARGV),
     TestParam("src/test/data/test.config", COMMAND_LINE_ARGC, COMMAND_LINE_ARGV, true),
-#ifndef HOST_WIN32
+#ifndef SUPPORT_HTTP
     TestParam("http://localhost:%d/src/test/data/test.config", COMMAND_LINE_ARGC, COMMAND_LINE_ARGV)
 #endif
 };
@@ -404,7 +444,7 @@ int main(int argc, char **argv)
         dmConfigFile::HConfig config;
         if( dmConfigFile::Load(path, argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
         {
-            dmLogError("Could not read config file '%s'", argv[1]);
+            dmLogError("Could not read config file '%s'", path);
             Usage();
             return 1;
         }
@@ -420,4 +460,3 @@ int main(int argc, char **argv)
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
-

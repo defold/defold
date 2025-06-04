@@ -8,14 +8,16 @@ new_copy_task('luascript', '.lua', '.luac')
 def build(bld):
     if options.skip_build_tests:
        return
-    libs = ['TESTMAIN', 'SCRIPT', 'EXTENSION', 'THREAD', 'RESOURCE', 'DDF', 'DLIB', 'PROFILE_NULL', 'LUA', 'SCRIPT']
+    libs = ['TESTMAIN', 'SCRIPT', 'EXTENSION', 'THREAD', 'RESOURCE', 'DDF', 'DLIB', 'PROFILE_NULL', 'LUA', 'GRAPHICS_NULL', 'PLATFORM_NULL']
     if 'android' in bld.env['PLATFORM']:
         libs.append('UNWIND')
 
     extra_features = []
-    if 'ps4' in bld.env['PLATFORM']:
-        libs += ['PLATFORM_SOCKET']
+    if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5'):
+        libs += ['SOCKET']
         extra_features = ['skip_test'] # until we've implemented a crash handler for PS4
+
+    exported_symbols = ['CrashExt', 'ResourceProviderFile']
 
     test_crash = bld.program(features = 'cxx cprogram test'.split() + extra_features,
                              includes = '..',
@@ -29,7 +31,7 @@ def build(bld):
         test_crash.env.append_value('LINKFLAGS', ['Psapi.lib'])
 
     # essentially only test that it links
-    test_crash_null = bld.program(features = 'cxx cprogram',
+    test_crash_null = bld.program(features = 'cxx cprogram test skip_test',
                                      includes = '..',
                                      use = libs + ['crashext_null'],
                                      web_libs = ['library_sys.js'],
@@ -43,7 +45,7 @@ def build(bld):
                                      use = libs + ['crashext'],
                                      web_libs = ['library_sys.js','library_script.js'],
                                      target = 'test_script_crash',
-                                     exported_symbols = 'CrashExt',
+                                     exported_symbols = exported_symbols,
                                      source = 'test_script_crash.cpp test_crash.lua')
 
     if 'win32' in bld.env['PLATFORM']:
@@ -54,5 +56,5 @@ def build(bld):
                  use              = libs + ['crashext_null'],
                  web_libs         = ['library_sys.js','library_script.js'],
                  target           = 'test_script_crash_null',
-                 exported_symbols = 'CrashExt',
+                 exported_symbols = exported_symbols,
                  source           = 'test_script_crash_null.cpp test_crash_null.lua')

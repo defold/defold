@@ -14,6 +14,7 @@ option java_outer_classname = "Camera";
  * @document
  * @name Camera
  * @namespace camera
+ * @language Lua
  */
 
 message CameraDesc
@@ -58,7 +59,7 @@ message SetCamera
     optional float  orthographic_zoom       = 6 [default = 1.0];
 }
 
-/*# makes the receiving camera become the active camera
+/** DEPRECATED! makes the receiving camera become the active camera
  *
  * Post this message to a camera-component to activate it.
  *
@@ -79,7 +80,7 @@ message SetCamera
  */
 message AcquireCameraFocus {}
 
-/*# deactivates the receiving camera
+/** DEPRECATED! deactivates the receiving camera
  * <p>
  * Post this message to a camera-component to deactivate it. The camera is then removed from the active cameras.
  * See <code>acquire_camera_focus</code> for more information how the active cameras are used in rendering.
@@ -167,6 +168,59 @@ message ReleaseCameraFocus {}
  *   local orthographic_zoom = go.get("#camera", "orthographic_zoom")
  *   go.set("#camera", "orthographic_zoom", 2.0)
  *   go.animate("#camera", "orthographic_zoom", go.PLAYBACK_ONCE_PINGPONG, 0.5, go.EASING_INOUTQUAD, 2)
+ * end
+ * ```
+ */
+
+/*# [type:float] camera projection
+ *
+ * [mark:READ ONLY] The calculated projection matrix of the camera.
+ * The type of the property is matrix4.
+ *
+ * @name projection
+ * @property
+ *
+ * @examples
+ *
+ * ```lua
+ * function init(self)
+ *   local projection = go.get("#camera", "projection")
+ * end
+ * ```
+ */
+
+/*# [type:float] camera view
+ *
+ * [mark:READ ONLY] The calculated view matrix of the camera.
+ * The type of the property is matrix4.
+ *
+ * @name view
+ * @property
+ *
+ * @examples
+ *
+ * ```lua
+ * function init(self)
+ *   local view = go.get("#camera", "view")
+ * end
+ * ```
+ */
+
+/*# [type:float] camera aspect ratio
+ *
+ * The ratio between the frustum width and height. Used when calculating the
+ * projection of a perspective camera.
+ * The type of the property is number.
+ *
+ * @name aspect_ratio
+ * @property
+ *
+ * @examples
+ *
+ * ```lua
+ * function init(self)
+ *   local aspect_ratio = go.get("#camera", "aspect_ratio")
+ *   go.set("#camera", "aspect_ratio", 1.2)
  * end
  * ```
  */

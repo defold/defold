@@ -1,0 +1,6 @@
+right: "/referenced/images/red.png"
+left: "/referenced/images/cyan.png"
+top: "/referenced/images/green.png"
+bottom: "/referenced/images/magenta.png"
+front: "/referenced/images/blue.png"
+back: "/referenced/images/yellow.png"

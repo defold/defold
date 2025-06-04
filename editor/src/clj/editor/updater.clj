@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -111,6 +111,7 @@
 
 (defn platform-supported? [updater]
   (contains? #{Platform/X86_64Linux
+               Platform/Arm64MacOS
                Platform/X86_64MacOS
                Platform/X86_64Win32}
              (:platform updater)))
@@ -278,7 +279,7 @@
 (defn restart! [updater]
   (let [{:keys [launcher-path install-dir]} updater]
     (log/info :message "Restarting editor")
-    (process/start! launcher-path *command-line-args* {:directory install-dir})
+    (apply process/start! {:dir install-dir} launcher-path *command-line-args*)
     (javafx.application.Platform/exit)))
 
 (defn delete-backup-files!
@@ -336,7 +337,7 @@
                           (or "")
                           io/file
                           .getCanonicalFile)
-        protected-dirs [(io/file resources-dir "packages" "jdk-11.0.15+10")]
+        protected-dirs [(io/file resources-dir "packages" "jdk-21.0.5+11")]
         install-dir (.getCanonicalFile
                       (if-let [path (system/defold-resourcespath)]
                         (case os

@@ -1,38 +1,51 @@
 #! /usr/bin/env python
 
 def build(bld):
-    libs = 'TESTMAIN PLATFORM_SOCKET GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB PROFILE_NULL LUA render'
+    libs = 'TESTMAIN SOCKET APP GRAPHICS_NULL DDF SCRIPT EXTENSION RESOURCE DLIB PROFILE_NULL PLATFORM_NULL LUA render render_font_default'
     exported_symbols = ['GraphicsAdapterNull']
 
+    if 'web' in bld.env['PLATFORM']:
+        lib_dirs = {}
+        lib_dirs['library_render.js'] = '../src/js'
+        bld.env['JS_LIB_PATHS'] = lib_dirs
+
     bld.program(features = 'cxx cprogram test',
-                source = 'test_render.cpp',
+                source = ['test_render.cpp'],
                 use = libs,
                 exported_symbols = exported_symbols,
-                web_libs = ['library_sys.js', 'library_script.js'],
+                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
                 includes = ['../../src', '../../proto'],
                 target = 'test_render')
 
     bld.program(features = 'cxx cprogram test',
-                source = 'test_display_profiles.cpp',
+                source = ['test_display_profiles.cpp'],
                 use = libs,
                 exported_symbols = exported_symbols,
-                web_libs = ['library_sys.js', 'library_script.js'],
+                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
                 includes = ['../../src', '../../proto'],
                 target = 'test_display_profiles')
 
     bld.program(features = 'cxx cprogram test',
-                source = 'test_material.cpp',
+                source = ['test_render_programs.cpp'],
                 use = libs,
                 exported_symbols = exported_symbols,
-                web_libs = ['library_sys.js', 'library_script.js'],
+                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
                 includes = ['../../src', '../../proto'],
-                target = 'test_material')
+                target = 'test_render_programs')
 
     bld.program(features = 'cxx cprogram test',
-                source = 'test_render_script.cpp',
+                source = ['test_render_script.cpp'],
                 use = libs,
                 exported_symbols = exported_symbols,
-                web_libs = ['library_sys.js', 'library_script.js'],
+                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
                 includes = ['../../src', '../../proto'],
                 target = 'test_render_script')
+
+    bld.program(features = 'cxx cprogram test',
+                source = ['test_render_buffer.cpp'],
+                use = libs,
+                exported_symbols = exported_symbols,
+                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
+                includes = ['../../src', '../../proto'],
+                target = 'test_render_buffer')
 

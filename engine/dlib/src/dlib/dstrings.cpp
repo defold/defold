@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,19 +25,15 @@
 
 int dmSnPrintf(char *buffer, size_t count, const char *format, ...)
 {
-    // MS-compliance
+    // mimics ms pre-ucrt vsnprintf_s behavior
     if (buffer == 0x0 || count == 0 || format == 0x0)
         return -1;
     va_list argp;
     va_start(argp, format);
-#if defined(_WIN32)
-    int result = _vsnprintf_s(buffer, count, _TRUNCATE, format, argp);
-#else
     int result = vsnprintf(buffer, count, format, argp);
-#endif
     va_end(argp);
-    // MS-compliance
-    if (count == 0 || (count > 0 && result >= (int)count))
+    // mimics ms pre-ucrt vsnprintf_s behavior
+    if (result >= (int)count)
         return -1;
     return result;
 }
@@ -193,7 +189,7 @@ size_t dmStrlCpy(char *dst, const char *src, size_t siz)
  * Appends src to string dst of size siz (unlike strncat, siz is the
  * full size of dst, not space left).  At most siz-1 characters
  * will be copied.  Always NUL terminates (unless siz == 0).
- * Returns strlen(src); if retval >= siz, truncation occurred.
+ * Returns strlen(dst) + strlen(src); if retval >= siz, truncation occurred.
  */
 size_t
 dmStrlCat(char *dst, const char *src, size_t siz)
@@ -235,7 +231,7 @@ int dmStrCaseCmp(const char *s1, const char *s2)
 
 #if defined(DM_NO_ERRNO)
     #define DM_STRERROR_USE_POSIX
-    #define DM_STRERROR_FN(buf, size, errval) (int) dmSnPrintf(buf, size, "%d", errval) == -1 ? 0 : 1
+    #define DM_STRERROR_FN(buf, size, errval) (int) dmSnPrintf(buf, size, "Unknown error %d", errval) == -1 ? 1 : 0
 #else
     #if !(defined(DM_STRERROR_USE_POSIX) || defined(DM_STRERROR_USE_GNU))
         #if defined(ANDROID)
@@ -283,14 +279,17 @@ void dmStrError(char* dst, size_t size, int err)
 
     if (ret == 0 || ret == ERANGE)
     {
-    #if defined(_WIN32)
         // apparently windows returns a success ret value and a "Unknown error" string
         // even if it's not a supported errno
         if (dmStrCaseCmp("Unknown error", scratch) == 0)
         {
             dmSnPrintf(scratch, scratch_size, "Unknown error %d", err);
         }
-    #endif
+        // Another platform returns "error_code=0xffffffff"
+        else if (strstr(scratch, "error_code=0x") == scratch)
+        {
+            dmSnPrintf(scratch, scratch_size, "Unknown error %d", err);
+        }
     }
     else
     {

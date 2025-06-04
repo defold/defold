@@ -1,0 +1,17 @@
+syntax = "proto2";
+package dmRenderDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+import "render/material_ddf.proto";
+
+option java_package = "com.dynamo.render.proto";
+option java_outer_classname = "Compute";
+
+message ComputeDesc
+{
+    required string compute_program          = 1 [(resource)=true];
+    repeated MaterialDesc.Constant constants = 2; // This is shared with the material DDF since constants in the engine use the same types
+    repeated MaterialDesc.Sampler samplers   = 3;
+}

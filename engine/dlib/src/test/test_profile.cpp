@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -72,7 +72,6 @@ struct PropertyCtx
 
 // *******************************************************************************
 // Samples
-/*
 static void ProcessSample(SampleCtx* ctx, dmProfile::HSample sample)
 {
     TestSample out;
@@ -112,7 +111,6 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
     printf("Thread: %s\n", thread_name);
     TraverseSampleTree(ctx, 1, root);
 }
-*/
 
 // *******************************************************************************
 // Properties
@@ -168,15 +166,6 @@ TEST(dmProfile, SmallTest)
     dmProfile::Finalize();
 }
 
-#if 0
-// This test is currently disabled until we can figure out a good way to test it.
-// It is currentlyu very tricky to do due to its threadeded mechanic.
-
-// TODO
-// 100 msec, which is in fact much higher than the expected time of the profiler
-// On OSX, the time is usually a few microseconds, but once in a while the time spikes to ~0.5 ms
-// On Linux CI, the time can be as high as 16 msec
-// The timings (dmTime::BusyWait) is based around dmTime::GetTime, this issue is a revisit to improve the expected granularity: DEF-2013
 #define TOL 0.1
 
 TEST(dmProfile, Profile)
@@ -263,20 +252,18 @@ TEST(dmProfile, Profile)
     dmMutex::Delete(ctx.m_Mutex);
 }
 
-#endif // Disable
 
-
-DM_PROPERTY_GROUP(prop_TestGroup1, "");
-DM_PROPERTY_BOOL(prop_TestBOOL, 0, FrameReset, "", &prop_TestGroup1);
-DM_PROPERTY_S32(propt_TestS32, 0, FrameReset, "", &prop_TestGroup1);
-DM_PROPERTY_U32(propt_TestU32, 0, FrameReset, "", &prop_TestGroup1);
-DM_PROPERTY_F32(propt_TestF32, 0, FrameReset, "", &prop_TestGroup1);
-DM_PROPERTY_S64(propt_TestS64, 0, FrameReset, "", &prop_TestGroup1);
-DM_PROPERTY_U64(propt_TestU64, 0, FrameReset, "", &prop_TestGroup1);
-DM_PROPERTY_F64(propt_TestF64, 0, FrameReset, "", &prop_TestGroup1);
+DM_PROPERTY_GROUP(prop_TestGroup1, "", 0);
+DM_PROPERTY_BOOL(prop_TestBOOL, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_S32(propt_TestS32, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_U32(propt_TestU32, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_F32(propt_TestF32, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_S64(propt_TestS64, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_U64(propt_TestU64, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_F64(propt_TestF64, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
 
 DM_PROPERTY_GROUP(prop_TestGroup2, "", &prop_TestGroup1);
-DM_PROPERTY_U32(prop_FrameCounter, 0, NoFlags, "", &prop_TestGroup2);
+DM_PROPERTY_U32(prop_FrameCounter, 0, PROFILE_PROPERTY_NONE, "", &prop_TestGroup2);
 
 static TestProperty* GetProperty(PropertyCtx* ctx, const char* name)
 {
@@ -296,6 +283,8 @@ TEST(dmProfile, PropertyIterator)
 
     dmProfile::SetPropertyTreeCallback(&ctx, PropertyTreeCallback);
     dmProfile::Initialize(0);
+
+    if (dmProfile::IsInitialized()) // false for profile null (i.e. on unsupported platforms)
     {
         for (int i = 0; i < 2; ++i)
         {

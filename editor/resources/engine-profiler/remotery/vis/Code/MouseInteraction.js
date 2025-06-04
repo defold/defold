@@ -1,6 +1,6 @@
 class MouseInteraction
 {
-	constructor(node)
+	constructor(node, doNotPreventMouseDown)
 	{
 		this.node = node;
 
@@ -14,6 +14,8 @@ class MouseInteraction
 		this.onMoveHandler = null;
 		this.onHoverHandler = null;
         this.onScrollHandler = null;
+
+        this.doNotPreventMouseDown = doNotPreventMouseDown;
 
 		// Setup DOM handlers
 		DOM.Event.AddHandler(this.node, "mousedown", (evt) => this._OnMouseDown(evt));
@@ -31,6 +33,11 @@ class MouseInteraction
 		this.mouseDown = true;
 		this.lastMouseState = new Mouse.State(evt);
 		this.mouseMoved = false;
+
+		if (this.doNotPreventMouseDown) {
+			return;
+		}
+		
 		DOM.Event.StopDefaultAction(evt);
 	}
 

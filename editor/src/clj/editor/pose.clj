@@ -1,3 +1,17 @@
+;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;;
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;;
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns editor.pose
   (:require [clojure.spec.alpha :as s]
             [editor.math :as math])
@@ -26,22 +40,6 @@
 
 (def ^:private mat4-identity (doto (Matrix4d.) (.setIdentity)))
 (def ^:private num4-zero (vector-of :double 0.0 0.0 0.0 0.0))
-
-(defn- significant-translation? [[^double x ^double y ^double z]]
-  (not (and (zero? x)
-            (zero? y)
-            (zero? z))))
-
-(defn- significant-rotation? [[^double x ^double y ^double z ^double w]]
-  (not (and (zero? x)
-            (zero? y)
-            (zero? z)
-            (== 1.0 w))))
-
-(defn- significant-scale? [[^double x ^double y ^double z]]
-  (not (and (== 1.0 x)
-            (== 1.0 y)
-            (== 1.0 z))))
 
 (defn- add-vector [[^double ax ^double ay ^double az] [^double bx ^double by ^double bz]]
   (vector-of
@@ -105,24 +103,12 @@
        (* ay by)
        (* az bz))))
 
-(defn translation-pose
-  ^Pose [^double x ^double y ^double z]
-  (if (and (zero? x) (zero? y) (zero? z))
-    default
-    (->Pose (vector-of :double x y z) default-rotation default-scale)))
-
-(defn rotation-pose
-  ^Pose [^double x ^double y ^double z ^double w]
-  (if (and (zero? x) (zero? y) (zero? z) (== 1.0 w))
-    default
-    (->Pose default-translation (vector-of :double x y z w) default-scale)))
-
 (defn euler-rotation [^double x-deg ^double y-deg ^double z-deg]
   ;; Implementation based on:
   ;; http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19770024290.pdf
   ;; Rotation sequence: 231 (YZX)
-  (if (== 0.0 x-deg y-deg)
-    (if (== 0.0 z-deg)
+  (if (= 0.0 x-deg y-deg)
+    (if (= 0.0 z-deg)
       default-rotation
       (let [ha (* 0.5 (math/deg->rad z-deg))
             s (Math/sin ha)
@@ -153,6 +139,75 @@
           (vector-of :double (* qx r) (* qy r) (* qz r) (* qw r)))
         num4-zero))))
 
+(defn- seq->double-vec3 [coll default-double-vec]
+  (if (nil? coll)
+    default-double-vec
+    (let [[x y z] coll]
+      (cond
+        (and (= (double x) ^double (default-double-vec 0))
+             (= (double y) ^double (default-double-vec 1))
+             (= (double z) ^double (default-double-vec 2)))
+        default-double-vec
+
+        (and (vector? coll)
+             (= 3 (count coll))
+             (double? x)
+             (double? y)
+             (double? z))
+        coll
+
+        :else
+        (vector-of :double x y z)))))
+
+(defn- seq->double-vec4 [coll default-double-vec]
+  (if (nil? coll)
+    default-double-vec
+    (let [[x y z w] coll]
+      (cond
+        (and (= (double x) ^double (default-double-vec 0))
+             (= (double y) ^double (default-double-vec 1))
+             (= (double z) ^double (default-double-vec 2))
+             (= (double w) ^double (default-double-vec 3)))
+        default-double-vec
+
+        (and (vector? coll)
+             (= 4 (count coll))
+             (double? x)
+             (double? y)
+             (double? z)
+             (double? w))
+        coll
+
+        :else
+        (vector-of :double x y z w)))))
+
+(defn seq-translation [component-seq]
+  (seq->double-vec3 component-seq default-translation))
+
+(defn seq-rotation [component-seq]
+  (seq->double-vec4 component-seq default-rotation))
+
+(defn seq-euler-rotation [euler-seq]
+  (if (nil? euler-seq)
+    default-rotation
+    (let [[^double x-deg ^double y-deg ^double z-deg] euler-seq]
+      (euler-rotation x-deg y-deg z-deg))))
+
+(defn seq-scale [component-seq]
+  (seq->double-vec3 component-seq default-scale))
+
+(defn translation-pose
+  ^Pose [^double x ^double y ^double z]
+  (if (and (zero? x) (zero? y) (zero? z))
+    default
+    (->Pose (vector-of :double x y z) default-rotation default-scale)))
+
+(defn rotation-pose
+  ^Pose [^double x ^double y ^double z ^double w]
+  (if (and (zero? x) (zero? y) (zero? z) (= 1.0 w))
+    default
+    (->Pose default-translation (vector-of :double x y z w) default-scale)))
+
 (defn euler-rotation-pose
   ^Pose [^double x-deg ^double y-deg ^double z-deg]
   (if (and (zero? x-deg) (zero? y-deg) (zero? z-deg))
@@ -161,7 +216,7 @@
 
 (defn scale-pose
   ^Pose [^double x ^double y ^double z]
-  (if (and (== 1.0 x) (== 1.0 y) (== 1.0 z))
+  (if (and (= 1.0 x) (= 1.0 y) (= 1.0 z))
     default
     (->Pose default-translation default-rotation (vector-of :double x y z))))
 
@@ -170,9 +225,9 @@
   {:pre [(or (nil? translation) (s/valid? ::translation translation))
          (or (nil? rotation) (s/valid? ::rotation rotation))
          (or (nil? scale) (s/valid? ::scale scale))]}
-  (let [translated (and translation (significant-translation? translation))
-        rotated (and rotation (significant-rotation? rotation))
-        scaled (and scale (significant-scale? scale))]
+  (let [translated (and translation (not= default-translation translation))
+        rotated (and rotation (not= default-rotation rotation))
+        scaled (and scale (not= default-scale scale))]
     (if (or translated rotated scaled)
       (->Pose (if translated translation default-translation)
               (if rotated rotation default-rotation)
@@ -217,9 +272,9 @@
         parent-translation (.-translation parent-pose)
         parent-rotation (.-rotation parent-pose)
         parent-scale (.-scale parent-pose)
-        parent-translated (significant-translation? parent-translation)
-        parent-rotated (significant-rotation? parent-rotation)
-        parent-scaled (significant-scale? parent-scale)]
+        parent-translated (not= default-translation parent-translation)
+        parent-rotated (not= default-rotation parent-rotation)
+        parent-scaled (not= default-scale parent-scale)]
     (cond-> child-pose
 
             parent-scaled
@@ -235,15 +290,39 @@
                            parent-rotated (rotate-vector parent-rotation)
                            parent-translated (add-vector parent-translation))))))
 
-(defn to-map [^Pose pose translation-key rotation-key scale-key]
-  {:pre [(pose? pose)]}
-  {translation-key (.-translation pose)
-   rotation-key (.-rotation pose)
-   scale-key (.-scale pose)})
-
-(defn to-mat4
+(defn matrix
   ^Matrix4d [^Pose pose]
   {:pre [(pose? pose)]}
   (if (identical? default pose)
     mat4-identity
     (math/clj->mat4 (.-translation pose) (.-rotation pose) (.-scale pose))))
+
+(defmacro translation-v3 [pose-expr]
+  `(.-translation ~(with-meta pose-expr {:tag `Pose})))
+
+(defmacro translation-v4 [pose-expr w-expr]
+  `(conj (translation-v3 ~pose-expr) (float ~w-expr)))
+
+(defmacro rotation-q4 [pose-expr]
+  `(.-rotation ~(with-meta pose-expr {:tag `Pose})))
+
+(defmacro euler-rotation-v3 [pose-expr]
+  `(math/clj-quat->euler (rotation-q4 ~pose-expr)))
+
+(defmacro euler-rotation-v4 [pose-expr]
+  `(conj (math/clj-quat->euler (rotation-q4 ~pose-expr)) 0.0))
+
+(defmacro scale-v3 [pose-expr]
+  `(.-scale ~(with-meta pose-expr {:tag `Pose})))
+
+(defmacro scale-v4 [pose-expr]
+  `(conj (scale-v3 ~pose-expr) 1.0))
+
+(defmacro translated? [pose-expr]
+  `(not= default-translation (translation-v3 ~pose-expr)))
+
+(defmacro rotated? [pose-expr]
+  `(not= default-rotation (rotation-q4 ~pose-expr)))
+
+(defmacro scaled? [pose-expr]
+  `(not= default-scale (scale-v3 ~pose-expr)))

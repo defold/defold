@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,6 +20,7 @@
 #include <jc_test/jc_test.h>
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
+#include "../dlib/time.h"
 
 class dlib : public jc_test_base_class
 {
@@ -181,7 +182,74 @@ TEST_F(dlib, HashToString64)
         ASSERT_TRUE(memcmp(iter->first.c_str(), reverse, len) == 0);
         // Check that the buffer is null-terminated
         ASSERT_STREQ(iter->first.c_str(), reverse);
+
+        const char* reverse_safe = (const char*) dmHashReverseSafe64(iter->second.first);
+        ASSERT_NE((void*) 0, reverse_safe);
+        ASSERT_STREQ(iter->first.c_str(), reverse_safe);
+
         ++iter;
+    }
+}
+
+TEST_F(dlib, ReverseHashSafeDeprecated)
+{
+    {
+        const char* test_string = "TestString1";
+        uint64_t h = dmHashString64(test_string);
+        ASSERT_STREQ(test_string, dmHashReverseSafe64(h));
+    }
+
+    {
+        dmHashEnableReverseHash(false);
+        const char* test_string = "TestString2";
+        uint64_t h64 = dmHashString64(test_string);
+        uint64_t h32 = dmHashString64(test_string);
+        dmHashEnableReverseHash(true);
+
+        ASSERT_STREQ("<unknown>", dmHashReverseSafe64(h64));
+        ASSERT_STREQ("<unknown>", dmHashReverseSafe32(h32));
+    }
+}
+
+
+TEST_F(dlib, ReverseHashSafeStack)
+{
+    const char* test_string = "TestString"; // 10 chars
+    dmHashEnableReverseHash(true);
+    uint64_t h64 = dmHashString64(test_string);
+    uint32_t h32 = dmHashString32(test_string);
+
+    {
+        DM_HASH_REVERSE_MEM(hash_ctx, 32);
+        ASSERT_STREQ(test_string, dmHashReverseSafe64Alloc(&hash_ctx, h64));
+        ASSERT_STREQ(test_string, dmHashReverseSafe32Alloc(&hash_ctx, h32));
+    }
+
+    dmHashEnableReverseHash(false);
+    uint64_t h64unk = dmHashString64(test_string);
+    uint32_t h32unk = dmHashString32(test_string);
+    dmHashEnableReverseHash(true);
+
+    {
+        DM_HASH_REVERSE_MEM(hash_ctx, 52+21);
+
+        const char* reverse64 = dmHashReverseSafe64Alloc(&hash_ctx, h64);
+        ASSERT_STREQ("<unknown:16993514797287668626>", reverse64); // 30 chars
+        ASSERT_STREQ("<unknown:3053055052>", dmHashReverseSafe32Alloc(&hash_ctx, h32)); // 20 chars
+        ASSERT_STREQ("<unknown:16993514797287668626>", reverse64); // Check that the null termination wasn't messed up
+
+        // Test that the string will get truncated, and we'll fallback to the default string
+        // No allocation from the context will occur
+        ASSERT_STREQ("<unknown>", dmHashReverseSafe64Alloc(&hash_ctx, 0xFFFFFFFFFFFFFFFF));
+        ASSERT_STREQ("<unknown>", dmHashReverseSafe64Alloc(&hash_ctx, 0x0));
+        // We have room for just one more allocation
+        ASSERT_STREQ("<unknown:4294967295>", dmHashReverseSafe32Alloc(&hash_ctx, 0xFFFFFFFF));
+    }
+
+    {
+        // Making sure the macro works and that the variables names don't collide
+        DM_HASH_REVERSE_MEM(hash_ctx2, 32);
+        DM_HASH_REVERSE_MEM(hash_ctx3, 32);
     }
 }
 
@@ -426,6 +494,52 @@ TEST_F(dlib, HashMaxReverse)
 
     free((void*) buffer);
 }
+
+TEST_F(dlib, HashReverseStress)
+{
+    // Make sure creating many reverse hashes doesn't take too much time
+    uint32_t count_small = 1000;
+    uint32_t count_large = 100000;
+
+    uint64_t tsmall_start = dmTime::GetMonotonicTime();
+    for(uint32_t i = 0; i < count_small; ++i)
+    {
+        uint64_t h = dmHashBuffer64(&i, sizeof(i));
+
+        uint32_t* rh = (uint32_t*)dmHashReverse64(h, 0);
+
+        ASSERT_NE((uint32_t*)0, rh);
+        ASSERT_EQ(i, *rh);
+    }
+    uint64_t tsmall_end = dmTime::GetMonotonicTime();
+    float time_small = (tsmall_end - tsmall_start)/1000000.0f;
+
+    printf("Hash + reverse lookup of %u items took %f s\n", count_small, time_small);
+    // The complexity goes up
+    float multiplier = 1000.0f;
+    float expected_time = multiplier * (time_small * (count_large / count_small));
+    printf("Hash + reverse lookup of %u items x %f %%: ca %f s\n", count_large, multiplier*100.0f, expected_time);
+
+    uint64_t tlarge_start = dmTime::GetMonotonicTime();
+    for(uint32_t i = 0; i < count_large; ++i)
+    {
+        uint64_t h = dmHashBuffer64(&i, sizeof(i));
+
+        uint32_t* rh = (uint32_t*)dmHashReverse64(h, 0);
+
+        ASSERT_NE((uint32_t*)0, rh);
+        ASSERT_EQ(i, *rh);
+    }
+    uint64_t tlarge_end = dmTime::GetMonotonicTime();
+
+    float time_large = (tlarge_end - tlarge_start)/1000000.0f;
+
+    printf("Hash + reverse lookup of %u items took %f s\n", count_large, time_large);
+
+    ASSERT_GE(expected_time, time_large);
+
+}
+
 
 TEST_F(dlib, HashIncrementalReverse)
 {

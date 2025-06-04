@@ -1,13 +1,13 @@
 #! /usr/bin/env python
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,9 +24,10 @@ if os.path.exists(server_config_path):
     os.unlink(server_config_path)
 
 start = time.time()
+timeout = 8
 while True:
-    if time.time() - start > 5:
-        error('HTTP server failed to start within 5 seconds')
+    if time.time() - start > timeout:
+        error('HTTP server failed to start within ' + timeout + ' seconds')
         sys.exit(1)
     try:
         if not os.path.exists(server_config_path):

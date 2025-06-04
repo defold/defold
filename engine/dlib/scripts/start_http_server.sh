@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,11 +23,15 @@ if [ "${OS}" == "Windows_NT" ]; then
 	if [ "${TERM}" == "cygwin" ]; then
 		PATHSEP=":"
 	else
-		PATHSEP="\\;"
+		PATHSEP=";"
 	fi
 fi
 
-CLASSPATH=$SCRIPTDIR/../ext/jetty-all-7.0.2.v20100331.jar${PATHSEP}$SCRIPTDIR/../ext/servlet-api-2.5.jar${PATHSEP}$SCRIPTDIR/../build/src/test/http_server${PATHSEP}.${PATHSEP}$CLASSPATH
+CLASSPATH="."
+CLASSPATH=${CLASSPATH}${PATHSEP}${SCRIPTDIR}/../ext/*
+CLASSPATH=${CLASSPATH}${PATHSEP}${SCRIPTDIR}/../ext/jetty/*
+CLASSPATH=${CLASSPATH}${PATHSEP}${SCRIPTDIR}/../ext/jetty/logging/*
+CLASSPATH=${CLASSPATH}${PATHSEP}${SCRIPTDIR}/../build/src/test/http_server
 
 echo $CLASSPATH
 

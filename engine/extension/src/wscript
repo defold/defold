@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import re
 from waf_dynamo import dmsdk_add_files
+from waflib import Options
 
 def configure(conf):
     pass
@@ -20,7 +21,14 @@ def build(bld):
 
     bld.add_group() # not sure why needed, but it won't build with '--skip-build-tests' otherwise. Use '-v -v' for more info
 
-    bld.install_files('${PREFIX}/include/extension', 'extension.h')
+    bld.install_files('${PREFIX}/include/extension', 'extension.hpp')
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
+    dmsdk_add_files(bld, '${PREFIX}/sdk/cs/dmsdk', 'cs/dmsdk')
 
-    bld.recurse('test')
+    if not Options.options.skip_build_tests:
+        bld.stlib(features= 'cs_stlib',
+                  project = 'cs/extension_cs.csproj')
+
+        bld.add_group()
+
+        bld.recurse('test')

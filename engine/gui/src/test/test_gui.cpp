@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,12 +17,14 @@
 #include <stdlib.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include <testmain/testmain.h>
 #include <dlib/dstrings.h>
 #include <dlib/align.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
 #include <dlib/message.h>
 #include <dlib/log.h>
+#include <dlib/testutil.h>
 #include <dmsdk/dlib/vmath.h>
 #include <particle/particle.h>
 #include <script/script.h>
@@ -30,6 +32,8 @@
 #include "../gui.h"
 #include "../gui_private.h"
 #include "test_gui_ddf.h"
+
+#include "test_gui_shared.h"
 
 extern "C"
 {
@@ -42,11 +46,6 @@ using namespace dmVMath;
 extern unsigned char BUG352_LUA[];
 extern uint32_t BUG352_LUA_SIZE;
 
-#if defined(__NX__)
-    #define MOUNTFS "host:/"
-#else
-    #define MOUNTFS ""
-#endif
 
 // Basic
 //  - Create scene
@@ -82,11 +81,14 @@ dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t pat
 
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 
+static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+static void DynamicDeleteTexture(dmGui::HScene scene, dmhash_t path_hash, dmGui::HTextureSource texture_source);
+static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+
 static const float EPSILON = 0.000001f;
 static const float TEXT_GLYPH_WIDTH = 1.0f;
 static const float TEXT_MAX_ASCENT = 0.75f;
 static const float TEXT_MAX_DESCENT = 0.25f;
-
 
 static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str, int length = -1)
 {
@@ -104,7 +106,7 @@ void OnWindowResizeCallback(const dmGui::HScene scene, uint32_t width, uint32_t 
     dmGui::SetDefaultResolution(scene->m_Context, width, height);
 }
 
-dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void* texture_set_ptr, dmhash_t animation, dmGui::TextureSetAnimDesc* out_data)
+dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(dmGui::HTextureSource texture_source, dmhash_t animation, dmGui::TextureSetAnimDesc* out_data)
 {
     out_data->Init();
     static float uv_quad[] = {0,1,0,0, 1,0,1,1};
@@ -128,9 +130,12 @@ public:
     std::map<std::string, Point3> m_NodeTextToRenderedPosition;
     std::map<std::string, Vector3> m_NodeTextToRenderedSize;
 
+    DynamicTextureContainer m_DynamicTextures;
+
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        dmScript::ContextParams script_context_params = {};
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
 
         dmMessage::NewSocket("test_m_Socket", &m_Socket);
@@ -149,27 +154,25 @@ public:
         m_Context->m_SceneTraversalCache.m_Data.SetCapacity(MAX_NODES);
         m_Context->m_SceneTraversalCache.m_Data.SetSize(MAX_NODES);
 
-        // Bogus font for the metric callback to be run (not actually using the default font)
-        dmGui::SetDefaultFont(m_Context, (void*)0x1);
-        dmGui::NewSceneParams params;
+        dmGui::NewSceneParams params = {};
         params.m_MaxNodes = MAX_NODES;
         params.m_MaxAnimations = MAX_ANIMATIONS;
         params.m_UserData = this;
-
         params.m_MaxParticlefxs = MAX_PARTICLEFXS;
         params.m_MaxParticlefx = MAX_PARTICLEFX;
         params.m_ParticlefxContext = dmParticle::CreateContext(MAX_PARTICLEFX, MAX_PARTICLES);
         params.m_FetchTextureSetAnimCallback = FetchTextureSetAnimCallback;
         params.m_OnWindowResizeCallback = 0x0;
+        params.m_NewTextureResourceCallback    = DynamicNewTexture;
+        params.m_DeleteTextureResourceCallback = DynamicDeleteTexture;
+        params.m_SetTextureResourceCallback    = DynamicSetTextureData;
+
         m_Scene = dmGui::NewScene(m_Context, &params);
         dmGui::SetSceneResolution(m_Scene, 1, 1);
         m_Script = dmGui::NewScript(m_Context);
         dmGui::SetSceneScript(m_Scene, m_Script);
 
         m_RenderParams.m_RenderNodes = RenderNodes;
-        m_RenderParams.m_NewTexture = 0;
-        m_RenderParams.m_DeleteTexture = 0;
-        m_RenderParams.m_SetTextureData = 0;
     }
 
     static void RenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
@@ -204,6 +207,24 @@ public:
 
 private:
 };
+
+static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+{
+    dmGuiTest* self = (dmGuiTest*) scene->m_UserData;
+    return (dmGui::HTextureSource) self->m_DynamicTextures.New(path_hash, width, height, type, buffer);
+}
+
+static void DynamicDeleteTexture(dmGui::HScene scene, dmhash_t path_hash, dmGui::HTextureSource texture_source)
+{
+    dmGuiTest* self = (dmGuiTest*) scene->m_UserData;
+    self->m_DynamicTextures.Delete(texture_source);
+}
+
+static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+{
+    dmGuiTest* self = (dmGuiTest*) scene->m_UserData;
+    self->m_DynamicTextures.Set(path_hash, width, height, type, buffer);
+}
 
 void GetURLCallback(dmGui::HScene scene, dmMessage::URL* url)
 {
@@ -406,13 +427,13 @@ TEST_F(dmGuiTest, Layouts)
 TEST_F(dmGuiTest, NodeTextureType)
 {
     int t1, t2;
-    void* raw_tex;
+    dmGui::HTextureSource raw_tex;
     dmGui::Result r;
     dmGui::NodeTextureType node_texture_type;
     uint64_t fb_id;
 
     // Test NODE_TEXTURE_TYPE_TEXTURE_SET: Create and get type
-    r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (dmGui::HTextureSource) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(0,0,0), dmGui::NODE_TYPE_BOX, 0);
@@ -422,7 +443,7 @@ TEST_F(dmGuiTest, NodeTextureType)
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     raw_tex = dmGui::GetNodeTexture(m_Scene, node, &node_texture_type);
-    ASSERT_EQ(raw_tex, &t1);
+    ASSERT_EQ(raw_tex, (dmGui::HTextureSource) &t1);
     ASSERT_EQ(node_texture_type, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET);
 
     // Test NODE_TEXTURE_TYPE_TEXTURE_SET: Playing flipbook animation
@@ -433,14 +454,14 @@ TEST_F(dmGuiTest, NodeTextureType)
     ASSERT_EQ(dmHashString64("ta1"), fb_id);
 
     // Test NODE_TEXTURE_TYPE_TEXTURE: Create and get type
-    r = dmGui::AddTexture(m_Scene, dmHashString64("t2"), (void*) &t2, dmGui::NODE_TEXTURE_TYPE_TEXTURE, 1, 1);
+    r = dmGui::AddTexture(m_Scene, dmHashString64("t2"), (dmGui::HTextureSource) &t2, dmGui::NODE_TEXTURE_TYPE_TEXTURE, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     r = dmGui::SetNodeTexture(m_Scene, node, "t2");
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     raw_tex = dmGui::GetNodeTexture(m_Scene, node, &node_texture_type);
-    ASSERT_EQ(raw_tex, &t2);
+    ASSERT_EQ(raw_tex, (dmGui::HTextureSource) &t2);
     ASSERT_EQ(node_texture_type, dmGui::NODE_TEXTURE_TYPE_TEXTURE);
 
     // Test NODE_TEXTURE_TYPE_TEXTURE: Playing flipbook animation should not work!
@@ -459,7 +480,7 @@ TEST_F(dmGuiTest, SizeMode)
     int t1;
     dmGui::Result r;
 
-    r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (dmGui::HTextureSource) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
@@ -485,7 +506,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     int t1;
     dmGui::Result r;
 
-    r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (dmGui::HTextureSource) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
@@ -535,7 +556,7 @@ TEST_F(dmGuiTest, FlipbookAnim)
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
     ASSERT_EQ(0U, fb_id);
 
-    r = dmGui::AddTexture(m_Scene, dmHashString64("t2"), (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    r = dmGui::AddTexture(m_Scene, dmHashString64("t2"), (dmGui::HTextureSource) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     r = dmGui::SetNodeTexture(m_Scene, node, "t2");
@@ -552,8 +573,8 @@ TEST_F(dmGuiTest, TextureFontLayer)
 
     dmhash_t test_font_path = dmHashString64("test_font_path");
 
-    dmGui::AddTexture(m_Scene, dmHashString64("t1"), (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
-    dmGui::AddTexture(m_Scene, dmHashString64("t2"), (void*) &t2, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    dmGui::AddTexture(m_Scene, dmHashString64("t1"), (dmGui::HTextureSource) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    dmGui::AddTexture(m_Scene, dmHashString64("t2"), (dmGui::HTextureSource) &t2, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     dmGui::AddFont(m_Scene, dmHashString64("f1"), &f1, 0);
     dmGui::AddFont(m_Scene, dmHashString64("f2"), &f2, 0);
     dmGui::AddFont(m_Scene, dmHashString64("test_font_id"), &f2, test_font_path);
@@ -578,11 +599,11 @@ TEST_F(dmGuiTest, TextureFontLayer)
     r = dmGui::SetNodeTexture(m_Scene, node, "t2");
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    dmGui::AddTexture(m_Scene, dmHashString64("t2"), (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
-    ASSERT_EQ(&t1, m_Scene->m_Nodes[node & 0xffff].m_Node.m_Texture);
+    dmGui::AddTexture(m_Scene, dmHashString64("t2"), (dmGui::HTextureSource) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    ASSERT_EQ((dmGui::HTextureSource) &t1, (dmGui::HTextureSource) m_Scene->m_Nodes[node & 0xffff].m_Node.m_Texture);
 
     dmGui::RemoveTexture(m_Scene, dmHashString64("t2"));
-    ASSERT_EQ((void*)0, m_Scene->m_Nodes[node & 0xffff].m_Node.m_Texture);
+    ASSERT_EQ((dmGui::HTextureSource) 0, (dmGui::HTextureSource) m_Scene->m_Nodes[node & 0xffff].m_Node.m_Texture);
 
     r = dmGui::SetNodeTexture(m_Scene, node, "t2");
     ASSERT_EQ(r, dmGui::RESULT_RESOURCE_NOT_FOUND);
@@ -632,21 +653,6 @@ TEST_F(dmGuiTest, TextureFontLayer)
     dmGui::DeleteNode(m_Scene, node, true);
 }
 
-static void* DynamicNewTexture(dmGui::HScene scene, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
-{
-    return malloc(16);
-}
-
-static void DynamicDeleteTexture(dmGui::HScene scene, void* texture, void* context)
-{
-    assert(texture);
-    free(texture);
-}
-
-static void DynamicSetTextureData(dmGui::HScene scene, void* texture, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
-{
-}
-
 static void DynamicRenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
@@ -666,9 +672,6 @@ TEST_F(dmGuiTest, DynamicTexture)
     uint32_t count = 0;
     dmGui::RenderSceneParams rp;
     rp.m_RenderNodes = DynamicRenderNodes;
-    rp.m_NewTexture = DynamicNewTexture;
-    rp.m_DeleteTexture = DynamicDeleteTexture;
-    rp.m_SetTextureData = DynamicSetTextureData;
 
     const int width = 2;
     const int height = 2;
@@ -714,6 +717,16 @@ TEST_F(dmGuiTest, DynamicTexture)
     r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
 
+    // test create same texture twice
+    // https://github.com/defold/defold/issues/9893
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    ASSERT_EQ(r, dmGui::RESULT_TEXTURE_ALREADY_EXISTS);
+    r = dmGui::DeleteDynamicTexture(m_Scene, dmHashString64("t1"));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+
     dmGui::DeleteNode(m_Scene, node, true);
 
     dmGui::RenderScene(m_Scene, rp, &count);
@@ -756,48 +769,39 @@ TEST_F(dmGuiTest, DynamicTextureFlip)
             255, 0, 0, 255,  0, 255, 0, 255,
         };
 
-    // Vars to fetch data results
-    uint32_t out_width = 0;
-    uint32_t out_height = 0;
-    dmImage::Type out_type = dmImage::TYPE_LUMINANCE;
-    const uint8_t* out_buffer = NULL;
-
     // Create and upload RGB image + flip
     dmGui::Result r;
     r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, true, data_rgb, sizeof(data_rgb));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Get buffer, verify same as input but flipped
-    r = dmGui::GetDynamicTextureData(m_Scene, dmHashString64("t1"), &out_width, &out_height, &out_type, (const void**)&out_buffer);
-    ASSERT_EQ(r, dmGui::RESULT_OK);
-    ASSERT_EQ(width, out_width);
-    ASSERT_EQ(height, out_height);
-    ASSERT_EQ(dmImage::TYPE_RGB, out_type);
-    ASSERT_BUFFER(data_rgb_flip, out_buffer, width*height*3);
+    TestDynamicTexture* t1 = m_DynamicTextures.Get(dmHashString64("t1"));
+
+    ASSERT_NE((TestDynamicTexture*) 0, t1);
+    ASSERT_EQ(width, t1->m_Width);
+    ASSERT_EQ(height, t1->m_Height);
+    ASSERT_EQ(dmImage::TYPE_RGB, t1->m_Type);
+    ASSERT_BUFFER(data_rgb_flip, (uint8_t*) t1->m_Buffer, width*height*3);
 
     // Upload RGBA data and flip
     r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGBA, true, data_rgba, sizeof(data_rgba));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Verify flipped result
-    r = dmGui::GetDynamicTextureData(m_Scene, dmHashString64("t1"), &out_width, &out_height, &out_type, (const void**)&out_buffer);
-    ASSERT_EQ(r, dmGui::RESULT_OK);
-    ASSERT_EQ(width, out_width);
-    ASSERT_EQ(height, out_height);
-    ASSERT_EQ(dmImage::TYPE_RGBA, out_type);
-    ASSERT_BUFFER(data_rgba_flip, out_buffer, width*height*4);
+    ASSERT_EQ(width, t1->m_Width);
+    ASSERT_EQ(height, t1->m_Height);
+    ASSERT_EQ(dmImage::TYPE_RGBA, t1->m_Type);
+    ASSERT_BUFFER(data_rgba_flip, (uint8_t*) t1->m_Buffer, width*height*4);
 
     // Upload luminance data and flip
     r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_LUMINANCE, true, data_lum, sizeof(data_lum));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Verify flipped result
-    r = dmGui::GetDynamicTextureData(m_Scene, dmHashString64("t1"), &out_width, &out_height, &out_type, (const void**)&out_buffer);
-    ASSERT_EQ(r, dmGui::RESULT_OK);
-    ASSERT_EQ(width, out_width);
-    ASSERT_EQ(height, out_height);
-    ASSERT_EQ(dmImage::TYPE_LUMINANCE, out_type);
-    ASSERT_BUFFER(data_lum_flip, out_buffer, width*height);
+    ASSERT_EQ(width, t1->m_Width);
+    ASSERT_EQ(height, t1->m_Height);
+    ASSERT_EQ(dmImage::TYPE_LUMINANCE, t1->m_Type);
+    ASSERT_BUFFER(data_lum_flip, (uint8_t*) t1->m_Buffer, width*height);
 
     r = dmGui::DeleteDynamicTexture(m_Scene, dmHashString64("t1"));
     ASSERT_EQ(r, dmGui::RESULT_OK);
@@ -810,7 +814,7 @@ TEST_F(dmGuiTest, ScriptFlipbookAnim)
     int t1;
     dmGui::Result r;
 
-    r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (dmGui::HTextureSource) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     const char* id = "n";
@@ -854,7 +858,7 @@ TEST_F(dmGuiTest, ScriptTextureFontLayer)
     int t;
     int f;
 
-    dmGui::AddTexture(m_Scene, dmHashString64("t"), (void*) &t, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    dmGui::AddTexture(m_Scene, dmHashString64("t"), (dmGui::HTextureSource) &t, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     dmGui::AddFont(m_Scene, dmHashString64("f"), &f, 0);
     dmGui::AddLayer(m_Scene, "l");
 
@@ -917,9 +921,6 @@ TEST_F(dmGuiTest, ScriptDynamicTexture)
 
     dmGui::RenderSceneParams rp;
     rp.m_RenderNodes = DynamicRenderNodes;
-    rp.m_NewTexture = DynamicNewTexture;
-    rp.m_DeleteTexture = DynamicDeleteTexture;
-    rp.m_SetTextureData = DynamicSetTextureData;
     dmGui::RenderScene(m_Scene, rp, this);
 }
 
@@ -1779,8 +1780,18 @@ TEST_F(dmGuiTest, ScriptGetSet)
                     "    assert(string.find(tostring(s), \"vector3\") ~= nil)\n"
                     "    gui.set_scale(self.n1, s)\n"
                     "    local r = gui.get_rotation(self.n1)\n"
-                    "    assert(string.find(tostring(r), \"vector3\") ~= nil)\n"
+                    "    assert(string.find(tostring(r), \"quat\") ~= nil)\n"
+                    "    assert(r.x == 0)\n"
+                    "    assert(r.y == 0)\n"
+                    "    assert(r.z == 0)\n"
+                    "    assert(r.w == 1)\n"
                     "    gui.set_rotation(self.n1, r)\n"
+                    "    local e = gui.get_euler(self.n1)\n"
+                    "    assert(string.find(tostring(e), \"vector3\") ~= nil)\n"
+                    "    assert(e.x == 0)\n"
+                    "    assert(e.y == 0)\n"
+                    "    assert(e.z == 0)\n"
+                    "    gui.set_euler(self.n1, e)\n"
                     "    local c = gui.get_color(self.n1)\n"
                     "    assert(string.find(tostring(c), \"vector4\") ~= nil)\n"
                     "    gui.set_color(self.n1, c)\n"
@@ -2498,6 +2509,9 @@ TEST_F(dmGuiTest, ScriptAnchoring)
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
     dmGui::SetSceneResolution(m_Scene, width, height);
 
+    int f;
+    dmGui::AddFont(m_Scene, dmHashString64("_default"), &f, 0);
+
     Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene, 0);
 
     const char* s = "function init(self)\n"
@@ -2539,6 +2553,8 @@ TEST_F(dmGuiTest, ScriptAnchoring)
     const float EPSILON = 0.0001f;
     ASSERT_NEAR(physical_width - 10.0f * ref_scale.getX(), pos2.getX() + ref_factor * TEXT_GLYPH_WIDTH, EPSILON);
     ASSERT_NEAR(physical_height - 10.0f * ref_scale.getY(), pos2.getY() + ref_factor * 0.5f * (TEXT_MAX_DESCENT + TEXT_MAX_ASCENT), EPSILON);
+
+    dmGui::ClearFonts(m_Scene);
 }
 
 TEST_F(dmGuiTest, ScriptPivot)
@@ -2713,13 +2729,13 @@ TEST_F(dmGuiTest, Picking)
     ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, tmax.getX(), tmin.getY()));
     ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, ceil(size.getX() + 0.5f), size.getY()));
 
-    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 45, 0, 0));
+    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_EULER, Vector4(0, 45, 0, 0));
     Vector3 ext(pos);
     ext.setX(ext.getX() * cosf((float) (M_PI * 0.25)));
     ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX() + floor(ext.getX()), pos.getY()));
     ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, pos.getX() + ceil(ext.getX()), pos.getY()));
 
-    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 90, 0, 0));
+    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_EULER, Vector4(0, 90, 0, 0));
     ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX(), pos.getY()));
     ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, pos.getX() + 1.0f, pos.getY()));
 }
@@ -2758,6 +2774,9 @@ TEST_F(dmGuiTest, ScriptPicking)
     dmGui::SetSceneResolution(m_Scene, physical_width, physical_height);
     dmGui::SetDefaultResolution(m_Context, physical_width, physical_height);
 
+    int f;
+    dmGui::AddFont(m_Scene, dmHashString64("_default"), &f, 0);
+
     char buffer[1024];
 
     const char* s = "function init(self)\n"
@@ -2775,13 +2794,15 @@ TEST_F(dmGuiTest, ScriptPicking)
                     "    assert(not gui.pick_node(n1, size.x + 1, size.y))\n"
                     "end\n";
 
-    sprintf(buffer, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT, EPSILON);
+    dmSnPrintf(buffer, sizeof(buffer), s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT, EPSILON);
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, LuaSourceFromStr(buffer));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmGui::ClearFonts(m_Scene);
 }
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, Vector4 v) {
@@ -3439,7 +3460,7 @@ TEST_F(dmGuiTest, ScriptEnableDisable)
                     "    gui.set_enabled(self.n1, false)\n"
                     "    assert(not gui.is_enabled(self.n1))\n"
                     "end\n";
-    sprintf(buffer, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
+    dmSnPrintf(buffer, sizeof(buffer), s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, LuaSourceFromStr(buffer));
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -3467,7 +3488,7 @@ TEST_F(dmGuiTest, ScriptRecursiveEnabled)
                     "    assert(not gui.is_enabled(self.n1))\n"
                     "    assert(not gui.is_enabled(self.n2, true))\n" // n2 node enabled but n1 disabled
                     "end\n";
-    sprintf(buffer, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
+    dmSnPrintf(buffer, sizeof(buffer), s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, LuaSourceFromStr(buffer));
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -3899,7 +3920,7 @@ TEST_F(dmGuiTest, NodeTransform)
     ref_mat *= dmVMath::Matrix4::rotation(radians * 0.50f, Vector3(0.0f, 1.0f, 0.0f));
     ref_mat *= dmVMath::Matrix4::rotation(radians * 1.00f, Vector3(0.0f, 0.0f, 1.0f));
     ref_mat *= dmVMath::Matrix4::rotation(radians * 0.25f, Vector3(1.0f, 0.0f, 0.0f));
-    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(90.0f*0.25f, 90.0f*0.5f, 90.0f, 0.0f));
+    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_EULER, Vector4(90.0f*0.25f, 90.0f*0.5f, 90.0f, 0.0f));
     dmGui::RenderScene(m_Scene, render_params, transforms);
     ASSERT_MAT4(transforms[0], ref_mat);
 
@@ -4826,8 +4847,8 @@ TEST_F(dmGuiTest, AdjustReferenceScaled)
 
 bool LoadParticlefxPrototype(const char* filename, dmParticle::HPrototype* prototype)
 {
-    char path[64];
-    dmSnPrintf(path, 64, MOUNTFS "build/src/test/%s", filename);
+    char path[128];
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/test/%s", filename);
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
     uint32_t file_size = 0;
@@ -5357,7 +5378,7 @@ TEST_F(dmGuiTest, CloneNodeAndAnim)
     int t1;
     dmGui::Result r;
 
-    r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    r = dmGui::AddTexture(m_Scene, dmHashString64("t1"), (dmGui::HTextureSource) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
@@ -5430,9 +5451,19 @@ TEST_F(dmGuiTest, SetGetScreenPosition)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
+TEST_F(dmGuiTest, ZeroMaxDynamicTextures)
+{
+    dmGui::NewSceneParams params;
+    params.m_UserData = (void*)this;
+    params.m_MaxDynamicTextures = 0;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    ASSERT_NE((void*)scene, (void*)0x0);
+    dmGui::DeleteScene(scene);
+}
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     return jc_test_run_all();

@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -37,8 +37,8 @@
         animation-ids (ArrayList.)]
     (ColladaUtil/loadSkeleton scene skeleton-builder)
     (ColladaUtil/loadModels scene mesh-set-builder)
-    (let [mesh-set (protobuf/pb->map (.build mesh-set-builder))
-          skeleton (protobuf/pb->map (.build skeleton-builder))]
+    (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))
+          skeleton (protobuf/pb->map-with-defaults (.build skeleton-builder))]
       {:mesh-set mesh-set
        :skeleton skeleton
        :bones bones
@@ -47,21 +47,21 @@
 
 (defn- load-model-scene [resource ^InputStream stream]
   (let [workspace (resource/workspace resource)
-        project-path (workspace/project-path workspace)
+        project-directory (workspace/project-directory workspace)
         mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
         path (resource/path resource)
         options nil
-        data-resolver (ModelUtil/createFileDataResolver project-path)
+        data-resolver (ModelUtil/createFileDataResolver project-directory)
         scene (ModelUtil/loadScene stream ^String path options data-resolver)
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)
-        animation-ids (ArrayList.)]
+        animation-ids (ModelUtil/getAnimationNames scene)] ; sorted on duration (largest first)
     (when-not (empty? bones)
       (ModelUtil/skeletonToDDF bones skeleton-builder))
     (ModelUtil/loadModels scene mesh-set-builder)
-    (let [mesh-set (protobuf/pb->map (.build mesh-set-builder))
-          skeleton (protobuf/pb->map (.build skeleton-builder))]
+    (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))
+          skeleton (protobuf/pb->map-with-defaults (.build skeleton-builder))]
       {:mesh-set mesh-set
        :skeleton skeleton
        :bones bones

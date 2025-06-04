@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,6 +16,7 @@ package com.defold.libs;
 
 import java.io.IOException;
 import java.nio.Buffer;
+import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.Arrays;
@@ -88,8 +89,8 @@ public class ParticleLibrary {
     public static native boolean Particle_IsSleeping(Pointer context, Pointer instance);
 
     public static native void Particle_Update(Pointer context, float dt, FetchAnimationCallback callback);
-    
-    public static native void Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitter_index, Vector4 color, Buffer vb, int vbMaxSize, IntByReference outVbSize, int particleVertexFormat);
+
+    public static native int Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitterIndex, VertexAttributeInfos attributeInfos, Vector4 color, Buffer vb, int vbMaxSize, IntByReference outVbSize);
 
     public static native void Particle_RenderEmitter(Pointer context, Pointer instance, int emitterIndex, Pointer userContext, RenderInstanceCallback callback);
 
@@ -104,6 +105,43 @@ public class ParticleLibrary {
     public static native void Particle_GetInstanceStats(Pointer context, Pointer instance, InstanceStats stats);
 
     public static native int Particle_GetVertexBufferSize(int particle_count, int vertex_format);
+
+    public static native void Particle_ResetAttributeScratchBuffer(Pointer context);
+
+    public static native Pointer Particle_WriteAttributeToScratchBuffer(Pointer context, Buffer bytes, int byte_count);
+
+    public static class VertexAttributeInfo extends Structure {
+        public long    nameHash;
+        public int     semanticType;
+        public int     dataType;
+        public int     vectorType;
+        public int     stepFunction;
+        public int     coordinateSpace;
+        public Pointer valuePtr;
+        public int     valueVectorType;
+        public boolean normalize;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("nameHash", "semanticType", "dataType", "vectorType", "stepFunction", "coordinateSpace", "valuePtr", "valueVectorType", "normalize");
+        }
+    }
+
+    public static class VertexAttributeInfos extends Structure {
+        public VertexAttributeInfos() {
+            structSize = size();
+        }
+
+        public VertexAttributeInfo[] infos = new VertexAttributeInfo[8]; // ==> dmGraphics::MAX_VERTEX_STREAM_COUNT
+        public int                   vertexStride;
+        public int                   numInfos;
+        public int                   structSize;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("infos", "vertexStride", "numInfos", "structSize");
+        }
+    }
 
     public static class Stats extends Structure {
 

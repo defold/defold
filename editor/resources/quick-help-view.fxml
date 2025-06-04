@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.*?>
+<VBox id="quick-help-box" alignment="CENTER" spacing="10" visible="false"
+      AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0"
+      minWidth="0" minHeight="0"
+      xmlns="http://javafx.com/javafx/17.0.2-ea">
+    <ImageView id="quick-help-logo" fitWidth="300.0" pickOnBounds="true" preserveRatio="true">
+        <Image url="@logo-ver-outline-white.png" />
+        <VBox.margin>
+            <Insets>
+                <bottom>10</bottom>
+            </Insets>
+        </VBox.margin>
+    </ImageView>
+    <GridPane id="quick-help-items" alignment="CENTER" vgap="15" hgap="15"/>
+</VBox>

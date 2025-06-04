@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,11 +17,12 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.gui :as gui]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [util.fn :as fn]))
 
 (defn- gui-node [scene id]
   (let [id->node (->> (get-in (g/node-value scene :node-outline) [:children 0])
-                   (tree-seq (constantly true) :children)
+                   (tree-seq fn/constantly-true :children)
                    (map :node-id)
                    (map (fn [node-id] [(g/node-value node-id :id) node-id]))
                    (into {}))]
@@ -74,7 +75,7 @@
   (let [scene (g/node-value scene-id :scene)
         gpu {:sb (->stencil-buffer)
              :fb (->frame-buffer)}
-        scenes (filter #(contains? shapes (:node-id %)) (tree-seq (constantly true) :children scene))]
+        scenes (filter #(contains? shapes (:node-id %)) (tree-seq fn/constantly-true :children scene))]
     (-> (reduce (fn [gpu scene]
                   (let [colors (shapes (:node-id scene))
                         shape (reduce bit-or colors)
@@ -147,7 +148,7 @@
     (is (nil? act))))
 
 (defn- scene-seq [scene]
-  (tree-seq (constantly true) :children scene))
+  (tree-seq fn/constantly-true :children scene))
 
 (defn- visual-seq [scene]
   (->> scene

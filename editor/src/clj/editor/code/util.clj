@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -47,9 +47,9 @@
   ordered, the result is undefined. New items will be inserted after exact
   matches, or between two non-exact matches that each compare differently to
   item using the supplied comparator."
-  ([coll item]
+  (^long [coll item]
    (find-insert-index coll item compare))
-  ([^List coll item ^Comparator comparator]
+  (^long [^List coll item ^Comparator comparator]
    (let [search-result (Collections/binarySearch coll item comparator)]
      (->insert-index search-result))))
 
@@ -61,6 +61,12 @@
   (into (subvec coll 0 index)
         (cons item
               (subvec coll index))))
+
+(defn remove-index
+  "Removes an item at the specified position in a vector"
+  [coll ^long index]
+  (into (subvec coll 0 index)
+        (subvec coll (inc index))))
 
 (defn insert-sort
   "Inserts an item into an ordered vector. If the collection is not ordered, the

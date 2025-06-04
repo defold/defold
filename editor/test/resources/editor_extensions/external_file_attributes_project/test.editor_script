@@ -1,0 +1,22 @@
+local M = {}
+
+local function report_path(path)
+    local attrs = editor.external_file_attributes(path)
+    print("path = '" .. path .. "', exists = " .. tostring(attrs.exists) .. ", file = " .. tostring(attrs.is_file) .. ", directory = " .. tostring(attrs.is_directory))
+end
+
+function M.get_commands()
+    return {
+        {
+            label = "Test editor.external_file_attributes()",
+            locations = {"Edit"},
+            run = function()
+                report_path(".")
+                report_path("game.project")
+                report_path("does_not_exist.txt")
+            end
+        }
+    }
+end
+
+return M

@@ -1,30 +1,29 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 #include <dmsdk/dlib/vmath.h>
 
 #include <dlib/hash.h>
 
-#include <resource/resource.h>
-
 #include "../gameobject.h"
 #include "../component.h"
 
 #include "gameobject/test/reload/test_gameobject_reload_ddf.h"
+
+#include <dmsdk/resource/resource.h>
 
 using namespace dmVMath;
 
@@ -71,8 +70,11 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/reload");
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+
+        dmScript::ContextParams script_context_params = {};
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
+
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
 
@@ -93,7 +95,7 @@ protected:
         dmResource::Result e = dmResource::RegisterType(m_Factory, "rt", this, 0, ResReloadTargetCreate, 0, ResReloadTargetDestroy, ResReloadTargetRecreate);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        dmResource::ResourceType resource_type;
+        HResourceType resource_type;
         e = dmResource::GetTypeFromExtension(m_Factory, "rt", &resource_type);
         ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType rt_type;
@@ -127,9 +129,9 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
     }
 
-    static dmResource::Result ResReloadTargetCreate(const dmResource::ResourceCreateParams& params);
-    static dmResource::Result ResReloadTargetDestroy(const dmResource::ResourceDestroyParams& params);
-    static dmResource::Result ResReloadTargetRecreate(const dmResource::ResourceRecreateParams& params);
+    static dmResource::Result ResReloadTargetCreate(const dmResource::ResourceCreateParams* params);
+    static dmResource::Result ResReloadTargetDestroy(const dmResource::ResourceDestroyParams* params);
+    static dmResource::Result ResReloadTargetRecreate(const dmResource::ResourceRecreateParams* params);
 
     static dmGameObject::CreateResult CompReloadTargetNewWorld(const dmGameObject::ComponentNewWorldParams& params);
     static dmGameObject::CreateResult CompReloadTargetDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
@@ -154,13 +156,13 @@ public:
     dmHashTable64<void*> m_Contexts;
 };
 
-dmResource::Result ReloadTest::ResReloadTargetCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result ReloadTest::ResReloadTargetCreate(const dmResource::ResourceCreateParams* params)
 {
     TestGameObjectDDF::ReloadTarget* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::ReloadTarget>(params.m_Buffer, params.m_BufferSize, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::ReloadTarget>(params->m_Buffer, params->m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        params.m_Resource->m_Resource = (void*) obj;
+        ResourceDescriptorSetResource(params->m_Resource, obj);
         return dmResource::RESULT_OK;
     }
     else
@@ -169,20 +171,20 @@ dmResource::Result ReloadTest::ResReloadTargetCreate(const dmResource::ResourceC
     }
 }
 
-dmResource::Result ReloadTest::ResReloadTargetDestroy(const dmResource::ResourceDestroyParams& params)
+dmResource::Result ReloadTest::ResReloadTargetDestroy(const dmResource::ResourceDestroyParams* params)
 {
-    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
+    dmDDF::FreeMessage((void*) ResourceDescriptorGetResource(params->m_Resource));
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result ReloadTest::ResReloadTargetRecreate(const dmResource::ResourceRecreateParams& params)
+dmResource::Result ReloadTest::ResReloadTargetRecreate(const dmResource::ResourceRecreateParams* params)
 {
-    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
+    dmDDF::FreeMessage((void*) ResourceDescriptorGetResource(params->m_Resource));
     TestGameObjectDDF::ReloadTarget* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::ReloadTarget>(params.m_Buffer, params.m_BufferSize, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::ReloadTarget>(params->m_Buffer, params->m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        params.m_Resource->m_Resource = (void*) obj;
+        ResourceDescriptorSetResource(params->m_Resource, obj);
         return dmResource::RESULT_OK;
     }
     else
@@ -352,12 +354,4 @@ TEST_F(ReloadTest, TestGameObjectReload)
     ASSERT_EQ(1, m_World->m_FinalCount);
     ASSERT_EQ(1, m_World->m_AddToUpdateCount);
     ASSERT_EQ(0, m_World->m_ReloadCount);
-}
-
-int main(int argc, char **argv)
-{
-    jc_test_init(&argc, argv);
-
-    int ret = jc_test_run_all();
-    return ret;
 }

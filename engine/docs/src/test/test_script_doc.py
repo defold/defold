@@ -1,12 +1,12 @@
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2025 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -75,7 +75,6 @@ foobar
         self.assertEqual(1, len(elements))
         self.assertEqual(u'MY_DESC', elements[0].description)
         self.assertEqual('MY_NAME', elements[0].name)
-        self.assertEqual('MY_NAME', elements[0].name)
         self.assertEqual(script_doc_ddf_pb2.VARIABLE, elements[0].type)
 
     def test_description_markdown(self):
@@ -88,10 +87,11 @@ foobar
  * @name MY_NAME
  */
 """
-        elements = script_doc.parse_document(doc).elements
+        doc_msg = script_doc.parse_document(doc)
+        doc_dict = script_doc.message_to_json_dict(doc_msg)
+        elements = doc_dict["elements"]
         self.assertEqual(1, len(elements))
-        self.assertEqual(u'<em>EMPHASIS</em>\n<ul>\n<li>MY_DESC</li>\n<li>MY_DESC</li>\n</ul>', elements[0].description)
-        self.assertEqual('MY_NAME', elements[0].name)
+        self.assertEqual(u'<em>EMPHASIS</em>\n<ul>\n<li>MY_DESC</li>\n<li>MY_DESC</li>\n</ul>', elements[0].get("description"))
 
     def test_multiple(self):
         doc= """
@@ -164,15 +164,19 @@ foobar
         p3 = elements[0].parameters[2]
         p4 = elements[0].parameters[3]
         self.assertEqual('param_x', p1.name)
+        self.assertEqual(False, p1.is_optional)
         self.assertEqual(u'type_a', p1.types[0])
         self.assertEqual(u'DOCX', p1.doc)
-        self.assertEqual('[param_y]', p2.name)
+        self.assertEqual('param_y', p2.name)
+        self.assertEqual(True, p2.is_optional)
         self.assertEqual(u'type_b', p2.types[0])
         self.assertEqual(u'DOCY', p2.doc)
-        self.assertEqual('[param_z]', p3.name)
+        self.assertEqual('param_z', p3.name)
+        self.assertEqual(True, p3.is_optional)
         self.assertEqual(u'*type_c*', p3.types[0])
         self.assertEqual(u'DOCZ', p3.doc)
         self.assertEqual('param_w', p4.name)
+        self.assertEqual(False, p4.is_optional)
         self.assertEqual(u'type_d', p4.types[0])
         self.assertEqual(u'type_e', p4.types[1])
         self.assertEqual(u'DOCW', p4.doc)
@@ -224,29 +228,22 @@ foobar
         self.assertEqual(u'MY_DESC', elements[0].description)
         self.assertEqual('MY_MESSAGE', elements[0].name)
 
-    def test_examples_code(self):
+    def test_examples_code_markdown(self):
         doc= """
 /*#
- * MY_DESC
  * @name MY_MESSAGE
- * @message
  * @examples example:
  *
  * ```language
  * MY_EXAMPLE
  * ```
- * @param param_x DOC X
  */
 """
-        elements = script_doc.parse_document(doc).elements
+        doc_msg = script_doc.parse_document(doc)
+        doc_dict = script_doc.message_to_json_dict(doc_msg)
+        elements = doc_dict["elements"]
         self.assertEqual(1, len(elements))
-        self.assertEqual(script_doc_ddf_pb2.MESSAGE, elements[0].type)
-        self.assertEqual(u'MY_DESC', elements[0].description)
-        self.assertEqual('MY_MESSAGE', elements[0].name)
-        self.assertEqual(u'example:\n<div class="codehilite"><pre><span></span><code>MY_EXAMPLE\n</code></pre></div>', elements[0].examples)
-        p1 = elements[0].parameters[0]
-        self.assertEqual('param_x', p1.name)
-        self.assertEqual(u'DOC X', p1.doc)
+        self.assertEqual(u'example:\n<div class="codehilite"><pre><span></span><code>MY_EXAMPLE\n</code></pre></div>', elements[0].get("examples"))
 
     def test_examples2(self):
         doc= """
@@ -288,11 +285,11 @@ foobar
  * See [ref:some.func] for example or [ref:func]
  */
 """
-        elements = script_doc.parse_document(doc).elements
+        doc_msg = script_doc.parse_document(doc)
+        doc_dict = script_doc.message_to_json_dict(doc_msg)
+        elements = doc_dict["elements"]
         self.assertEqual(1, len(elements))
-        self.assertEqual(u'MY_DESC', elements[0].description)
-        self.assertEqual('MY_MESSAGE', elements[0].name)
-        self.assertEqual(u'example:\nSee <a href="/ref/some#some.func">some.func</a> for example or <a href="#func">func</a>', elements[0].examples)
+        self.assertEqual(u'example:\nSee <a href="/ref/some#some.func">some.func</a> for example or <a href="#func">func</a>', elements[0].get("examples"))
 
     def test_at(self):
         doc= """

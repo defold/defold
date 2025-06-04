@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -103,6 +103,10 @@ public class LuaScannerTest {
         assertValidRequire("require 'foo.bar' --[[ some comment]]--", "foo.bar");
         assertValidRequire("require (\"foo.bar\") --[[ some comment]]--", "foo.bar");
         assertValidRequire("require ('foo.bar') --[[ some comment]]--", "foo.bar");
+
+        int linesInFile = file.split("\r\n|\r|\n").length;
+        int linesAfterScanner = scanner.getParsedLua().split("\r\n|\r|\n").length;
+        assertEquals(linesInFile, linesAfterScanner);
     }
 
     private Property findProperty(List<Property> properties, String name) {
@@ -129,13 +133,13 @@ public class LuaScannerTest {
         assertTrue(property != null && property.status == status && property.line == line);
     }
 
-    private List<Property> getPropertiesFromString(String s) throws IOException {
+    private List<Property> getPropertiesFromString(String s) throws IOException, LuaScanner.LuaScannerException {
         LuaScanner scanner = new LuaScanner();
         scanner.parse(s);
         return scanner.getProperties();
     }
 
-    private List<Property> getPropertiesFromFile(String path) throws IOException {
+    private List<Property> getPropertiesFromFile(String path) throws IOException, LuaScanner.LuaScannerException {
         return getPropertiesFromString(getFile(path));
     }
 
@@ -144,11 +148,11 @@ public class LuaScannerTest {
         List<Property> properties = getPropertiesFromFile("test_props.lua");
 
         assertEquals(8, properties.size());
-        assertProperty(properties, "prop1", new Double(0), 10);
-        assertProperty(properties, "prop2", new Double(0), 13);
-        assertProperty(properties, "prop3", new Double(0), 14);
-        assertProperty(properties, "prop4", new Double(0), 15);
-        assertProperty(properties, "prop5", new Double(0), 16);
+        assertProperty(properties, "prop1", Double.valueOf(0), 10);
+        assertProperty(properties, "prop2", Double.valueOf(0), 13);
+        assertProperty(properties, "prop3", Double.valueOf(0), 14);
+        assertProperty(properties, "prop4", Double.valueOf(0), 15);
+        assertProperty(properties, "prop5", Double.valueOf(0), 16);
         assertEquals(Status.INVALID_ARGS, properties.get(5).status);
         assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 19);
         assertPropertyStatus(properties, "unknown_type", Status.INVALID_VALUE, 20);
@@ -161,14 +165,18 @@ public class LuaScannerTest {
         source = scanner.parse(source);
         List<Property> properties = scanner.getProperties();
         assertEquals(8, properties.size());
-        assertProperty(properties, "prop1", new Double(0), 10);
-        assertProperty(properties, "prop2", new Double(0), 13);
-        assertProperty(properties, "prop3", new Double(0), 14);
-        assertProperty(properties, "prop4", new Double(0), 15);
-        assertProperty(properties, "prop5", new Double(0), 16);
+        assertProperty(properties, "prop1", Double.valueOf(0), 10);
+        assertProperty(properties, "prop2", Double.valueOf(0), 13);
+        assertProperty(properties, "prop3", Double.valueOf(0), 14);
+        assertProperty(properties, "prop4", Double.valueOf(0), 15);
+        assertProperty(properties, "prop5", Double.valueOf(0), 16);
         assertEquals(Status.INVALID_ARGS, properties.get(5).status);
         assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 19);
         assertPropertyStatus(properties, "unknown_type", Status.INVALID_VALUE, 20);
+
+        int linesInSource = source.split("\r\n|\r|\n").length;
+        int linesAfterScanner = scanner.getParsedLua().split("\r\n|\r|\n").length;
+        assertEquals(linesInSource, linesAfterScanner);
         
         // parse the already stripped source
         // there should be no properties left
@@ -182,10 +190,10 @@ public class LuaScannerTest {
         List<Property> properties = getPropertiesFromFile("test_props_number.lua");
 
         assertEquals(4, properties.size());
-        assertProperty(properties, "prop1", new Double(12), 0);
-        assertProperty(properties, "prop2", new Double(1.0), 1);
-        assertProperty(properties, "prop3", new Double(.1), 2);
-        assertProperty(properties, "prop4", new Double(-1.0E2), 3);
+        assertProperty(properties, "prop1", Double.valueOf(12), 0);
+        assertProperty(properties, "prop2", Double.valueOf(1.0), 1);
+        assertProperty(properties, "prop3", Double.valueOf(.1), 2);
+        assertProperty(properties, "prop4", Double.valueOf(-1.0E2), 3);
     }
 
     @Test
@@ -201,13 +209,25 @@ public class LuaScannerTest {
 
     @Test
     public void testPropsUrl() throws Exception {
-        List<Property> properties = getPropertiesFromFile("test_props_url.lua");
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(getFile("test_props_url.lua"));
+        List<Property> properties = scanner.getProperties();
+        List<LuaScanner.LuaScannerException> exceptions = scanner.exceptions;
 
-        assertEquals(4, properties.size());
+        assertEquals(11, properties.size());
         assertProperty(properties, "prop1", "url", 0);
         assertProperty(properties, "prop2", "", 1);
         assertProperty(properties, "prop3", "", 2);
         assertProperty(properties, "prop4", "url", 3);
+        assertProperty(properties, "prop5", "", 4);
+        assertProperty(properties, "prop6", "socket:/path/to/object#fragment", 5);
+        assertProperty(properties, "prop7", "socket-hash:/path/to/object-hash#fragment-hash", 6);
+        assertProperty(properties, "prop8", ":#", 7);
+        // prop9, prop10, prop11 throw exception and line number starts from 1
+        assertEquals(3, exceptions.size());
+        assertEquals(9, exceptions.get(0).getLineNumber());
+        assertEquals(10, exceptions.get(1).getLineNumber());
+        assertEquals(11, exceptions.get(2).getLineNumber());
     }
 
     @Test
@@ -261,4 +281,282 @@ public class LuaScannerTest {
         assertProperty(properties, "prop4", "material", 3);
     }
 
+    @Test
+    public void testCommentRemoving() throws Exception {
+        // few comments
+        String luaCode = 
+            "local var = 1\n" +
+            "-- comment 1\n" +
+            "-- comment 2\n" +
+            "-- comment 3\n" +
+            "local var2 = 2\n";
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        String parsed = scanner.getParsedLua();
+        String expected = 
+            "local var = 1\n" +
+            "\n" +
+            "\n" +
+            "\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, parsed);
+
+        // Function with comment
+        luaCode =
+            "local function run(self)\n" +
+            "self.temp = 1" +
+            "-- Some comment\n" +
+            "end\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local function run(self)\n" +
+            "self.temp = 1" +
+            "\n" +
+            "end\n";
+        assertEquals(expected, parsed);
+
+        // With comment
+        luaCode =
+            "local var = 2 -- Some comment\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local var = 2 \n";
+        assertEquals(expected, parsed);
+
+        // With multiline comment
+        luaCode =
+            "local var = 2 --[[Some multiline comment\n"+
+            "line two]]--\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local var = 2 \n"+
+            "\n";
+        assertEquals(expected, parsed);
+
+        // With multiline comment
+        luaCode =
+            "--[[Some comment\n"+
+            "line two]]--\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "\n"+
+            "\n";
+        assertEquals(expected, parsed);
+
+        // With multiline comment
+        luaCode =
+            "--[[Some comment\n"+
+            "line two]]local var = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "\n"+
+            "local var = 2\n";
+        assertEquals(expected, parsed);
+    }
+
+    @Test
+    public void testRemoveEmptyLifecycleFunctions() throws Exception {
+        // Basic
+        String luaCode = 
+            "local var = 1\n" +
+            "function update(self, dt)\n" +
+            "\n" +
+            "end\n" +
+            "local var2 = 2\n";
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        String parsed = scanner.getParsedLua();
+        String expected = 
+            "local var = 1\n" +
+            "  \n" +
+            "\n" +
+            "\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, parsed);
+
+        // With comment
+        luaCode =
+            "local var = 1\n" +
+            "function on_reload(self)\n" +
+            "-- Some comment\n" +
+            "end\n" +
+            "local var2 = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local var = 1\n" +
+            " \n" +
+            "\n" +
+            "\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, parsed);
+
+        // With multiline comment
+        luaCode =
+            "function on_message(self)\n" +
+            "--[[Some comment\n" +
+            "next line]]--\n" +
+            "end\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            " \n" +
+            "\n" +
+            "\n" +
+            "\n";
+        assertEquals(expected, parsed);
+
+        // With _G
+        luaCode =
+            "function _G.final(self)\n" +
+            "end\n" +
+            "local var2 = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            " \n" +
+            "\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, parsed);
+
+        // local function
+        luaCode =
+            "local var = 1\n" +
+            "local init = function(self)\n" +
+            "\n" +
+            "end\n" +
+            "local var2 = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local var = 1\n" +
+            "local init = function(self)\n" +
+            "\n" +
+            "end\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, parsed);
+
+        // local function 2
+        luaCode =
+            "local var = 1\n" +
+            "local function init(self)\n" +
+            "\n" +
+            "end\n" +
+            "local var2 = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local var = 1\n" +
+            "local function init(self)\n" +
+            "\n" +
+            "end\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, parsed);
+
+        // not empty
+        luaCode =
+            "local var = 1\n" +
+            "local function fixed_update(self)\n" +
+            "self.var = 1\n" +
+            "end\n" +
+            "local var2 = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local var = 1\n" +
+            "local function fixed_update(self)\n" +
+            "self.var = 1\n" +
+            "end\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, parsed);
+    }
+
+    @Test
+    public void testSemicolon() throws Exception {
+        // Basic
+        String luaCode = "do return nil end;else end;";
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        String expected = "do return nil end;else end;";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "local tbl = {a = 1,b=2;c=3}";
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        expected = "local tbl = {a = 1,b=2;c=3}";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "go.property('semi1', 1);go.property('semi2', 2)";
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        expected = "  ";
+        assertEquals(expected, scanner.getParsedLua());
+    }
+
+    @Test
+    public void testGoPropertyHash() throws Exception {
+        String luaCode = "go.property(\"hash1\", hash(\"value\"))";
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        String expected = " ";
+        assertEquals(expected, scanner.getParsedLua());
+
+        scanner = new LuaScanner();
+        scanner.setDebug();
+        scanner.parse(luaCode);
+        expected = " hash(\"value\")";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "go.property(\"hash2\", hash \"value\")";
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        expected = "  ";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "go.property(\"hash3\", hash \"value\")";
+        scanner = new LuaScanner();
+        scanner.setDebug();
+        scanner.parse(luaCode);
+        expected = " hash \"value\"";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "go.property(\"data_texture\", resource.texture(\"/builtins/assets/images/logo/logo_256.png\"))";
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        expected = " ";
+        assertEquals(expected, scanner.getParsedLua());
+
+        scanner = new LuaScanner();
+        scanner.setDebug();
+        scanner.parse(luaCode);
+        expected = " ";
+        assertEquals(expected, scanner.getParsedLua());
+    }
 }

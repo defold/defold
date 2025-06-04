@@ -1,25 +1,25 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.system
-  (:require [internal.util :as util]
-            [internal.cache :as c]
+  (:require [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.history :as h]
             [internal.node :as in]
-            [service.log :as log])
+            [internal.util :as util]
+            [util.coll :as coll])
   (:import [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
@@ -113,7 +113,7 @@
 
 (defn invalidate-outputs
   "Invalidate the given outputs and _everything_ that could be
-  affected by them. Outputs are specified as collection of endpoints
+  affected by them. Outputs are specified as a seq of Endpoints
   for both the argument and return value."
   [system outputs]
   (assert (every? gt/endpoint? outputs))
@@ -123,6 +123,29 @@
     (-> system
         (update :cache c/cache-invalidate cache-entries)
         (update :invalidate-counters bump-invalidate-counters cache-entries))))
+
+(defn cache-output-values
+  "Write the supplied key-value pairs to the cache. Downstream endpoints will be
+  invalidated if the value differs from the previously cached entry."
+  [system endpoint+value-pairs]
+  (let [basis (basis system)
+        cache (:cache system)
+
+        changed-endpoint+value-pairs
+        (filterv (fn [[endpoint new-value]]
+                   (let [old-value (get cache endpoint ::not-found)]
+                     (or (= ::not-found old-value)
+                         (not= old-value new-value))))
+                 endpoint+value-pairs)
+
+        invalidated-endpoints
+        (gt/dependencies basis (mapv first changed-endpoint+value-pairs))]
+
+    (-> system
+        (update :invalidate-counters bump-invalidate-counters invalidated-endpoints)
+        (assoc :cache (-> cache
+                          (c/cache-invalidate invalidated-endpoints)
+                          (c/cache-encache changed-endpoint+value-pairs basis))))))
 
 (defn- step-through-history
   [step-function system graph-id]
@@ -180,19 +203,34 @@
     (first (drop-while used (range 0 gt/MAX-GROUP-ID)))))
 
 (defn next-node-id*
-  [id-generators graph-id]
+  ^long [id-generators ^long graph-id]
   (gt/make-node-id graph-id (.getAndIncrement ^AtomicLong (get id-generators graph-id))))
 
 (defn next-node-id
-  [system graph-id]
+  ^long [system ^long graph-id]
   (next-node-id* (id-generators system) graph-id))
 
+(defn take-node-ids*
+  [id-generators ^long graph-id ^long node-id-count]
+  (let [^AtomicLong id-generator (get id-generators graph-id)
+        node-ids (long-array node-id-count)]
+    (loop [index 0]
+      (when (< index node-id-count)
+        (let [node-id (gt/make-node-id graph-id (.getAndIncrement id-generator))]
+          (aset node-ids index node-id)
+          (recur (inc index)))))
+    node-ids))
+
+(defn take-node-ids
+  [system ^long graph-id ^long node-id-count]
+  (take-node-ids* (id-generators system) graph-id node-id-count))
+
 (defn next-override-id*
-  [override-id-generator graph-id]
-  (gt/make-override-id graph-id (.getAndIncrement ^AtomicLong override-id-generator)))
+  ^long [^AtomicLong override-id-generator ^long graph-id]
+  (gt/make-override-id graph-id (.getAndIncrement override-id-generator)))
 
 (defn next-override-id
-  [system graph-id]
+  ^long [system ^long graph-id]
   (next-override-id* (override-id-generator system) graph-id))
 
 (defn- attach-graph*
@@ -313,8 +351,23 @@
             :initial-invalidate-counters (:invalidate-counters system))
           options)))))
 
+(defn evaluation-context-invalidate-counters [evaluation-context]
+  (if-let [invalidate-counters (:initial-invalidate-counters evaluation-context)]
+    invalidate-counters
+    (throw (IllegalArgumentException. "The evaluation-context does not have :initial-invalidate-counters."))))
+
+(defn invalidate-counters [system]
+  (if-let [invalidate-counters (:invalidate-counters system)]
+    invalidate-counters
+    (throw (IllegalArgumentException. "The argument is not a valid system."))))
+
+(definline endpoint-invalidated-since? [endpoint snapshot-invalidate-counters system-invalidate-counters]
+  `(not= (long (get ~snapshot-invalidate-counters ~endpoint 0))
+         (long (get ~system-invalidate-counters ~endpoint 0))))
+
 (defn update-cache-from-evaluation-context
   [system evaluation-context]
+  {:pre [(some? system)]}
   ;; We assume here that the evaluation context was created from
   ;; the system but they may have diverged, making some cache
   ;; hits/misses invalid.
@@ -333,32 +386,21 @@
           evaluation-context-misses @(:local evaluation-context)]
       (if (identical? invalidate-counters initial-invalidate-counters) ; nice case
         (cond-> system
-                (seq evaluation-context-hits)
+                (coll/not-empty evaluation-context-hits)
                 (update :cache c/cache-hit evaluation-context-hits)
 
-                (seq evaluation-context-misses)
+                (coll/not-empty evaluation-context-misses)
                 (update :cache c/cache-encache evaluation-context-misses (:basis evaluation-context)))
-        (let [invalidated-during-node-value? (fn [endpoint]
-                                               (not= (get initial-invalidate-counters endpoint 0)
-                                                     (get invalidate-counters endpoint 0)))
+        (let [invalidated-during-node-value? #(endpoint-invalidated-since? % initial-invalidate-counters invalidate-counters)
               safe-cache-hits (remove invalidated-during-node-value? evaluation-context-hits)
               safe-cache-misses (remove (comp invalidated-during-node-value? first) evaluation-context-misses)]
           (cond-> system
-                  (seq safe-cache-hits)
+                  (coll/not-empty safe-cache-hits)
                   (update :cache c/cache-hit safe-cache-hits)
 
-                  (seq safe-cache-misses)
+                  (coll/not-empty safe-cache-misses)
                   (update :cache c/cache-encache safe-cache-misses (:basis evaluation-context))))))
     system))
-
-(defn node-value
-  "Get a value, possibly cached, from a node. This is the entry point
-  to the \"plumbing\". If the value is cacheable and exists in the
-  cache, then return that value. Otherwise, produce the value by
-  gathering inputs to call a production function, invoke the function,
-  maybe cache the value that was produced, and return it."
-  [system node-id label evaluation-context]
-  (in/node-value node-id label evaluation-context))
 
 (defn user-data [system node-id key]
   (let [graph-id (gt/node-id->graph-id node-id)]
@@ -371,6 +413,19 @@
 (defn update-user-data [system node-id key f & args]
   (let [graph-id (gt/node-id->graph-id node-id)]
     (update-in system [:user-data graph-id node-id key] #(apply f %1 %2) args)))
+
+(defn merge-user-data [system values-by-key-by-node-id]
+  (assoc system
+    :user-data (reduce (fn [user-data [graph-id values-by-key-by-node-id]]
+                         (assoc user-data
+                           graph-id (reduce (fn [graph-user-data [node-id values-by-key]]
+                                              (update graph-user-data node-id coll/merge values-by-key))
+                                            (get user-data graph-id)
+                                            values-by-key-by-node-id)))
+                       (:user-data system)
+                       (group-by (fn [[node-id]]
+                                   (gt/node-id->graph-id node-id))
+                                 values-by-key-by-node-id))))
 
 (defn clone-system [system]
   {:graphs (:graphs system)

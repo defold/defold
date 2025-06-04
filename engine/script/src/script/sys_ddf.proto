@@ -15,6 +15,7 @@ option java_outer_classname = "System";
  * @document
  * @name System
  * @namespace sys
+ * @language Lua
  */
 
 /*# exits application
@@ -232,4 +233,19 @@ message SetVsync
 message SetUpdateFrequency
 {
     required int32 frequency = 1;
+}
+
+/*# resume rendering
+ * Resume rendering.
+ * This message can only be sent to the designated `@system` socket.
+ *
+ * @message
+ * @name resume_rendering
+ * @examples
+ * <pre>
+ * msg.post("@system:", "resume_rendering")
+ * </pre>
+ */
+message ResumeRendering
+{
 }

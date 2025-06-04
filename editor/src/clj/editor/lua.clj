@@ -1,163 +1,165 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.lua
-  (:require [clojure.java.io :as io]
-            [clojure.edn :as edn]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.set :as set]
+            [clojure.spec.alpha :as s]
             [clojure.string :as string]
+            [editor.code-completion :as code-completion]
+            [editor.editor-extensions.docs :as ext-docs]
+            [editor.lua-completion :as lua-completion]
             [editor.protobuf :as protobuf]
             [internal.util :as util]
-            [schema.core :as s]
-            [service.log :as log])
-  (:import [com.dynamo.scriptdoc.proto ScriptDoc$Type ScriptDoc$Document ScriptDoc$Element ScriptDoc$Parameter ScriptDoc$ReturnValue]
+            [util.coll :refer [pair]]
+            [util.eduction :as e])
+  (:import [com.dynamo.scriptdoc.proto ScriptDoc$Document]
+           [java.net URI]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
-(defn- load-sdoc [path]
-  (try
-    (with-open [in (io/input-stream (io/resource path))]
-      (let [^ScriptDoc$Document doc (.build (protobuf/read-text-into! (ScriptDoc$Document/newBuilder) in))
-            elements (.getElementsList doc)]
-        (reduce
-         (fn [ns-elements ^ScriptDoc$Element element]
-           (let [qname (.getName element)
-                 dot (.indexOf qname ".")
-                 ns (if (= dot -1) "" (subs qname 0 dot))]
-             (update ns-elements ns conj element)))
-         nil
-         elements)))
-    (catch Exception e
-      (log/warn :message "Failed to load documentation resource." :path path :exception e)
-      {})))
-
-(def ^:private docs (string/split "base bit buffer builtins camera collectionfactory collectionproxy coroutine crash debug facebook factory go gui html5 http iac iap image io json label math model msg os package particlefx physics profiler push render resource socket sound sprite string sys table tilemap timer vmath webview window zlib" #" "))
+(def ^:private docs
+  [
+  "gameobject_script.cpp"
+  "gui_script.cpp"
+  "lua_base.doc_h"
+  "lua_coroutine.doc_h"
+  "lua_debug.doc_h"
+  "lua_io.doc_h"
+  "lua_math.doc_h"
+  "lua_os.doc_h"
+  "lua_package.doc_h"
+  "lua_string.doc_h"
+  "lua_table.doc_h"
+  "luasocket-luasocket.doc_h"
+  "profiler.cpp"
+  "proto-gameobject-gameobject_ddf.proto"
+  "proto-gamesys-camera_ddf.proto"
+  "proto-gamesys-gui_ddf.proto"
+  "proto-gamesys-label_ddf.proto"
+  "proto-gamesys-model_ddf.proto"
+  "proto-gamesys-physics_ddf.proto"
+  "proto-gamesys-sprite_ddf.proto"
+  "proto-render-render_ddf.proto"
+  "render-render_script.cpp"
+  "render-render_script_camera.cpp"
+  "script-sys_ddf.proto"
+  "script.cpp"
+  "script_bitop.cpp"
+  "script_crash.cpp"
+  "script_graphics.cpp"
+  "script_hash.cpp"
+  "script_html5_js.cpp"
+  "script_json.cpp"
+  "script_liveupdate.h"
+  "script_msg.cpp"
+  "script_sys.cpp"
+  "script_timer.cpp"
+  "script_types.cpp"
+  "script_vmath.cpp"
+  "script_zlib.cpp"
+  "scripts-box2d-script_box2d.cpp"
+  "scripts-box2d-script_box2d_body.cpp"
+  "scripts-script_buffer.cpp"
+  "scripts-script_camera.cpp"
+  "scripts-script_collection_factory.cpp"
+  "scripts-script_collectionproxy.cpp"
+  "scripts-script_factory.cpp"
+  "scripts-script_http.cpp"
+  "scripts-script_image.cpp"
+  "scripts-script_label.cpp"
+  "scripts-script_model.cpp"
+  "scripts-script_particlefx.cpp"
+  "scripts-script_physics.cpp"
+  "scripts-script_resource.cpp"
+  "scripts-script_sound.cpp"
+  "scripts-script_sprite.cpp"
+  "scripts-script_sys_gamesys.cpp"
+  "scripts-script_tilemap.cpp"
+  "scripts-script_window.cpp" ])
 
 (defn- sdoc-path [doc]
   (format "doc/%s_doc.sdoc" doc))
 
-(defn load-documentation []
-  (let [ns-elements (reduce
-                     (fn [sofar doc]
-                       (merge-with concat sofar (load-sdoc (sdoc-path doc))))
-                     nil
-                     docs)
-        namespaces (keys ns-elements)]
-    (reduce
-     (fn [sofar ns]
-       (let [e (-> (ScriptDoc$Element/newBuilder)
-                   (.setType ScriptDoc$Type/NAMESPACE)
-                   (.setName ns)
-                   (.setBrief "")
-                   (.setDescription "")
-                   (.build))]
-         (if (not= (.getName e) "")
-           sofar
-           (update sofar "" conj e))))
-     ns-elements
-     namespaces)))
+(defn- load-sdoc [doc-name]
+  (:elements (protobuf/read-map-with-defaults ScriptDoc$Document (io/resource (sdoc-path doc-name)))))
 
-(defn- element-additional-info [^ScriptDoc$Element element]
-  (when (= (.getType element) ScriptDoc$Type/FUNCTION)
-    (string/join
-     (concat
-      [(.getDescription element)]
-      ["<br><br>"]
-      ["<b>Parameters:</b>"]
-      ["<br>"]
-      (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
-        (concat
-         ["&#160;&#160;&#160;&#160;<b>"]
-         [(.getName parameter)]
-         ["</b> "]
-         [(.getDoc parameter)]
-         ["<br>"]))
-      (when (< 0 (.getReturnvaluesCount element))
-        (concat
-         ["<br>"]
-         ["<b>Returns:</b><br>"]
-         ["&#160;&#160;&#160;&#160;<b>"]
-         (for [^ScriptDoc$ReturnValue retval (.getReturnvaluesList element)]
-           [(format "%s: %s" (.getName retval) (.getDoc retval))])))))))
+(defn make-completion-map
+  "Make a completion map from reducible of ns path + completion tuples
 
-(defn- element-display-string [^ScriptDoc$Element element include-optional-params?]
-  (let [base (.getName element)
-        rest (when (= (.getType element) ScriptDoc$Type/FUNCTION)
-               (let [params (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
-                              (.getName parameter))
-                     display-params (if include-optional-params? params (remove #(= \[ (first %)) params))]
-                 (str "(" (string/join ", " display-params) ")")))]
-    (str base rest)))
+  Args:
+    ns-path       a vector of strings that defines a nested context for the
+                  completion, e.g. [\"socket\" \"dns\"] with the completion
+                  \"toip\" defines a completion socket.dns.toip
+    completion    a completion map
 
-(defn- element-tab-triggers [^ScriptDoc$Element element]
-  (when (= (.getType element) ScriptDoc$Type/FUNCTION)
-    (let [params (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
-                   (.getName parameter))]
-      {:select (filterv #(not= \[ (first %)) params) :exit (when params ")")})))
-
-(defn create-code-hint
-  ([type name]
-   (create-code-hint type name name name nil nil))
-  ([type name display-string insert-string doc tab-triggers]
-   (cond-> {:type type
-            :name name
-            :display-string display-string
-            :insert-string insert-string}
-
-           (not-empty doc)
-           (assoc :doc doc)
-
-           (some? tab-triggers)
-           (assoc :tab-triggers tab-triggers))))
-
-(def ^:private documentation-schema
-  {s/Str [{:type (s/enum :constant :function :message :namespace :property :snippet :variable :keyword)
-           :name s/Str
-           :display-string s/Str
-           :insert-string s/Str
-           (s/optional-key :doc) s/Str
-           (s/optional-key :tab-triggers) (s/constrained {:select [s/Str]
-                                                          (s/optional-key :types) [(s/enum :arglist :expr :name)]
-                                                          (s/optional-key :start) s/Str
-                                                          (s/optional-key :exit) s/Str}
-                                                         (fn [tab-trigger]
-                                                           (or (nil? (:types tab-trigger))
-                                                               (= (count (:select tab-trigger))
-                                                                  (count (:types tab-trigger)))))
-                                                         "specified :types count equals :select count")}]})
-
-(defn defold-documentation []
-  (s/validate documentation-schema
-    (reduce (fn [result [ns elements]]
-              (let [global-results (get result "" [])
-                    new-result (assoc result ns (into []
-                                                      (comp (map (fn [^ScriptDoc$Element e]
-                                                                   (create-code-hint (protobuf/pb-enum->val (.getType e))
-                                                                                     (.getName e)
-                                                                                     (element-display-string e true)
-                                                                                     (element-display-string e false)
-                                                                                     (element-additional-info e)
-                                                                                     (element-tab-triggers e))))
-                                                            (util/distinct-by :display-string))
-                                                      elements))]
-                (if (= "" ns) new-result (assoc new-result "" (conj global-results (create-code-hint :namespace ns))))))
+  Returns a map from completion context string (e.g. \"socket.dns\") to
+  available completions for that context."
+  [ns-path+completions]
+  (letfn [(ensure-modules [acc ns-path]
+            (reduce (fn [acc module-path]
+                      (let [parent-path (pop module-path)
+                            module-name (peek module-path)
+                            k [:module module-name]]
+                        (update acc (string/join "." parent-path)
+                                (fn [m]
+                                  (if (contains? m k)
+                                    m
+                                    (assoc m k (code-completion/make module-name :type :module)))))))
+                    acc
+                    (drop 1 (reductions conj [] ns-path))))]
+    (let [context->key->completion
+          (reduce
+            (fn [acc [ns-path completion]]
+              (-> acc
+                  (ensure-modules ns-path)
+                  (update (string/join "." ns-path) assoc [(:type completion) (:display-string completion)] completion)))
             {}
-            (load-documentation))))
+            ns-path+completions)]
+      (into {}
+            (map (fn [[context key->completion]]
+                   [context (vec (sort-by :display-string (vals key->completion)))]))
+            context->key->completion))))
 
-(def helper-keywords #{"assert" "collectgarbage" "dofile" "error" "getfenv" "getmetatable" "ipairs" "loadfile" "loadstring" "module" "next" "pairs" "pcall"
-                       "print" "rawequal" "rawget" "rawset" "require" "select" "setfenv" "setmetatable" "tonumber" "tostring" "type" "unpack" "xpcall"})
+(s/def ::documentation
+  (s/map-of string? (s/coll-of ::code-completion/completion)))
+
+(defn- defold-documentation []
+  {:post [(s/assert ::documentation %)]}
+  (make-completion-map
+    (eduction
+      (mapcat (fn [doc-name]
+                (eduction
+                  (map #(pair doc-name %))
+                  (load-sdoc doc-name))))
+      (map (fn [[doc-name raw-element]]
+             (let [raw-name (:name raw-element)
+                   name-parts (string/split raw-name #"\.")
+                   ns-path (pop name-parts)
+                   {:keys [type parameters] :as el} (assoc raw-element :name (peek name-parts))
+                   base-url (URI. (str "https://defold.com/ref/" doc-name))
+                   site-url (str "#"
+                                 (string/replace
+                                   (str
+                                     raw-name
+                                     (when (= :function type)
+                                       (str ":" (string/join "-" (mapv :name parameters)))))
+                                   #"[\"#*]" ""))]
+               [ns-path (lua-completion/make el :base-url base-url :url site-url)])))
+      docs)))
 
 (def logic-keywords #{"and" "or" "not"})
 
@@ -172,8 +174,7 @@
 (def lua-constants #{"nil" "false" "true"})
 
 (def all-keywords
-  (set/union helper-keywords
-             logic-keywords
+  (set/union logic-keywords
              self-keyword
              control-flow-keywords
              defold-keywords))
@@ -183,8 +184,8 @@
 
 (def base-globals
   (into #{"coroutine" "package" "string" "table" "math" "io" "file" "os" "debug"}
-        (map #(.getName ^ScriptDoc$Element %))
-        (get (load-sdoc (sdoc-path "base")) "")))
+        (map :name)
+        (load-sdoc "lua_base.doc_h")))
 
 (defn extract-globals-from-completions [completions]
   (into #{}
@@ -199,28 +200,20 @@
 (def defined-globals
   (extract-globals-from-completions defold-docs))
 
-(defn lua-base-documentation []
-  (s/validate documentation-schema
-              {"" (into []
-                        (util/distinct-by :display-string)
-                        (concat (map #(assoc % :type :snippet)
-                                     (-> (io/resource "lua-base-snippets.edn")
-                                         slurp
-                                         edn/read-string))
-                                (map (fn [constant]
-                                       {:type :constant
-                                        :name constant
-                                        :display-string constant
-                                        :insert-string constant})
-                                     lua-constants)
-                                (map (fn [keyword]
-                                       {:type :keyword
-                                        :name keyword
-                                        :display-string keyword
-                                        :insert-string keyword})
-                                     all-keywords)))}))
+(defn- lua-base-documentation []
+  {:post [(s/assert ::documentation %)]}
+  {"" (into []
+            (util/distinct-by :display-string)
+            (concat (map #(assoc % :type :snippet)
+                         (-> (io/resource "lua-base-snippets.edn")
+                             slurp
+                             edn/read-string))
+                    (map #(code-completion/make % :type :constant)
+                         lua-constants)
+                    (map #(code-completion/make % :type :keyword)
+                         all-keywords)))})
 
-(def lua-std-libs-docs (lua-base-documentation))
+(def std-libs-docs (lua-base-documentation))
 
 (defn lua-module->path [module]
   (str "/" (string/replace module #"\." "/") ".lua"))
@@ -232,3 +225,68 @@
 
 (defn lua-module->build-path [module]
   (str (lua-module->path module) "c"))
+
+(defn- make-completion-info-completions [vars functions module-alias]
+  (eduction
+    cat
+    [(eduction
+       (map (fn [var-name]
+              [[] (code-completion/make var-name :type :variable)]))
+       vars)
+     (eduction
+       (map (fn [[qualified-name {:keys [params]}]]
+              (let [name-parts (string/split qualified-name #"\.")
+                    ns-path (pop name-parts)
+                    ns-path (if (and module-alias (pos? (count ns-path)))
+                              (assoc ns-path 0 module-alias)
+                              ns-path)
+                    name (peek name-parts)]
+                [ns-path (code-completion/make
+                           name
+                           :type :function
+                           :display-string (str name "(" (string/join ", " params) ")")
+                           :insert (str name
+                                        "("
+                                        (->> params
+                                             (map-indexed #(format "${%s:%s}" (inc %1) %2))
+                                             (string/join ", "))
+                                        ")"))])))
+       functions)]))
+
+(defn- make-ast-completions [local-completion-info required-completion-infos]
+  (make-completion-map
+    (eduction
+      cat
+      [(make-completion-info-completions
+         (set/union (:vars local-completion-info) (:local-vars local-completion-info))
+         (merge (:functions local-completion-info) (:local-functions local-completion-info))
+         nil)
+       (let [module->completion-info (into {} (map (juxt :module identity)) required-completion-infos)]
+         (eduction
+           (mapcat (fn [[alias module]]
+                     (let [completion-info (module->completion-info module)]
+                       (make-completion-info-completions (:vars completion-info)
+                                                         (:functions completion-info)
+                                                         alias))))
+           (:requires local-completion-info)))])))
+
+(defn combine-completions
+  [local-completion-info required-completion-infos script-intelligence-completions]
+  (merge-with (fn [dest new]
+                (let [taken-display-strings (into #{} (map :display-string) dest)]
+                  (into dest
+                        (comp (remove #(contains? taken-display-strings (:display-string %)))
+                              (util/distinct-by :display-string))
+                        new)))
+              defold-docs
+              std-libs-docs
+              script-intelligence-completions
+              (make-ast-completions local-completion-info required-completion-infos)))
+
+(def editor-completions
+  (->> (ext-docs/editor-script-docs)
+       (e/map
+         (fn [doc]
+           (let [name-parts (string/split (:name doc) #"\.")]
+             [(pop name-parts) (lua-completion/make (assoc doc :name (peek name-parts)))])))
+       (make-completion-map)))

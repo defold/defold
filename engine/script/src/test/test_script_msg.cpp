@@ -1,40 +1,32 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
-#include <string.h>
+#include <string.h> // memcpy
 
 #include "script.h"
-#include "test/test_ddf.h"
+#include "test/test_ddf.h" // from the ddf library
+#include "test_script.h"
 
+#include <testmain/testmain.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
 
-extern "C"
-{
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
-
-#define PATH_FORMAT "build/src/test/%s"
-
 #define DEFAULT_URL "__default_url"
 
-int ResolvePathCallback(lua_State* L)
+static int ResolvePathCallback(lua_State* L)
 {
     uint32_t* user_data = (uint32_t*)lua_touserdata(L, 1);
     assert(*user_data == 1);
@@ -43,7 +35,7 @@ int ResolvePathCallback(lua_State* L)
     return 1;
 }
 
-int GetURLCallback(lua_State* L)
+static int GetURLCallback(lua_State* L)
 {
     uint32_t* user_data = (uint32_t*)lua_touserdata(L, 1);
     assert(*user_data == 1);
@@ -63,7 +55,8 @@ class ScriptMsgTest : public jc_test_base_class
 protected:
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        dmScript::ContextParams script_context_params = {};
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
         L = dmScript::GetLuaState(m_ScriptContext);
 
@@ -98,36 +91,12 @@ protected:
     dmMessage::URL m_DefaultURL;
 };
 
-bool RunFile(lua_State* L, const char* filename)
-{
-    char path[64];
-    dmSnPrintf(path, 64, PATH_FORMAT, filename);
-    if (luaL_dofile(L, path) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        lua_pop(L, 1);
-        return false;
-    }
-    return true;
-}
-
-bool RunString(lua_State* L, const char* script)
-{
-    if (luaL_dostring(L, script) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        lua_pop(L, 1);
-        return false;
-    }
-    return true;
-}
-
 TEST_F(ScriptMsgTest, TestURLNewAndIndex)
 {
     int top = lua_gettop(L);
 
     // empty
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url()\n"
         "assert(url.socket == __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == __default_url.path, \"invalid path\")\n"
@@ -135,7 +104,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
        ));
 
     // empty string
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url(\"\")\n"
         "assert(url.socket == __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == __default_url.path, \"invalid path\")\n"
@@ -143,7 +112,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
         ));
 
     // default path
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url(\".\")\n"
         "assert(url.socket == __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == __default_url.path, \"invalid path\")\n"
@@ -151,7 +120,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
        ));
 
     // default fragment
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url(\"#\")\n"
         "assert(url.socket == __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == __default_url.path, \"invalid path\")\n"
@@ -161,7 +130,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
     // socket string
     dmMessage::HSocket socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("test", &socket));
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url(\"test:\")\n"
         "assert(url.socket ~= __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == nil, \"invalid path\")\n"
@@ -170,7 +139,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 
     // fragment string
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url(\"test\")\n"
         "assert(url.socket == __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == hash(\"test\"), \"invalid path\")\n"
@@ -178,7 +147,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
         ));
 
     // path string
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url(\"#test\")\n"
         "assert(url.socket == __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == __default_url.path, \"invalid path\")\n"
@@ -188,7 +157,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("test", &socket));
 
     // socket arg string
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url(\"test\", \"\", \"\")\n"
         "assert(url.socket ~= __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == nil, \"invalid path\")\n"
@@ -196,7 +165,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
         ));
 
     // socket arg value
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url1 = msg.url(\"test:\")\n"
         "local url2 = msg.url(url1.socket, \"\", \"\")\n"
         "assert(url2.socket ~= __default_url.socket, \"invalid socket\")\n"
@@ -205,7 +174,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
         ));
 
     // path arg string
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url(\"test\", \"test\", \"\")\n"
         "assert(url.socket ~= __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == hash(\"test\"), \"invalid path\")\n"
@@ -213,7 +182,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
         ));
 
     // path arg value
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url(\"test\", hash(\"test\"), \"\")\n"
         "assert(url.socket ~= __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == hash(\"test\"), \"invalid path\")\n"
@@ -221,7 +190,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
         ));
 
     // path arg value
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url(\"test\", hash(\"test\"), nil)\n"
         "assert(url.socket ~= __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == hash(\"test\"), \"invalid path\")\n"
@@ -229,7 +198,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
         ));
 
     // fragment arg string
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url(\"test\", \"\", \"test\")\n"
         "assert(url.socket ~= __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == nil, \"invalid path\")\n"
@@ -237,7 +206,7 @@ TEST_F(ScriptMsgTest, TestURLNewAndIndex)
         ));
 
     // fragment arg value
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url(\"test\", \"\", hash(\"test\"))\n"
         "assert(url.socket ~= __default_url.socket, \"invalid socket\")\n"
         "assert(url.path == nil, \"invalid path\")\n"
@@ -385,27 +354,28 @@ TEST_F(ScriptMsgTest, TestFailURLNewAndIndex)
     int top = lua_gettop(L);
 
     // invalid arg
-    ASSERT_FALSE(RunString(L,
+    ASSERT_FALSE(dmScriptTest::RunString(L,
         "msg.url({})\n"
         ));
     // malformed
-    ASSERT_FALSE(RunString(L,
+    ASSERT_FALSE(dmScriptTest::RunString(L,
         "msg.url(\"test:test:\")\n"
         ));
     // invalid socket arg
-    ASSERT_FALSE(RunString(L,
+    ASSERT_FALSE(dmScriptTest::RunString(L,
         "msg.url(\"\", nil, nil)\n"
         ));
     // path arg
-    ASSERT_FALSE(RunString(L,
+    ASSERT_FALSE(dmScriptTest::RunString(L,
         "msg.url(nil, {}, nil)\n"
         ));
     // fragment arg
-    ASSERT_FALSE(RunString(L,
+    ASSERT_FALSE(dmScriptTest::RunString(L,
         "msg.url(nil, nil, {})\n"
         ));
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top+5, lua_gettop(L));
+    lua_pop(L, lua_gettop(L)-top);
 }
 
 TEST_F(ScriptMsgTest, TestURLToString)
@@ -418,24 +388,48 @@ TEST_F(ScriptMsgTest, TestURLToString)
     dmMessage::HSocket overflow_socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("very_very_very_very_very_very_very_very_very_very_very_very_socket", &overflow_socket));
-    ASSERT_TRUE(RunString(L,
-        "local url = msg.url()\n"
-        "print(tostring(url))\n"
-        "url = msg.url(\"socket\", \"path\", \"test\")\n"
-        "print(tostring(url))\n"
-        "-- overflow\n"
-        "url = msg.url(\"very_very_very_very_very_very_very_very_very_very_very_very_socket\", \"path\", \"test\")\n"
-        "print(tostring(url))\n"
+    ASSERT_TRUE(dmScriptTest::RunString(L,
+        "test_msg_fn = function (url, expected)\n"
+        "    local s = tostring(url)\n"
+        "    local e = string.format('url: [%s]', expected)\n"
+        "    if s ~= e then\n"
+        "        print('Expected url:', e)\n"
+        "        print('     but got:', s)\n"
+        "        assert(false)\n"
+        "    else\n"
+        "        print(s)\n"
+        "    end\n"
+        "end\n"
+        "test_msg_regex_fn = function (url, pattern)\n"
+        "    local s = tostring(url)\n"
+        "    local e = string.format('url: [%s]', pattern)\n"
+        "    if string.match(s, e) == nil then\n"
+        "        print('Expected url:', e)\n"
+        "        print('     but got:', s)\n"
+        "        assert(false)\n"
+        "    else\n"
+        "        print(s)\n"
+        "    end\n"
+        "end\n"
+        "test_msg_regex_fn(msg.url(), 'default_socket:<unknown:[0-9]*>#<unknown:[0-9]*>')\n"
+        "test_msg_fn(msg.url('socket', 'path', 'test'), 'socket:path#test')\n"
+        "\n" // test the per part concatenation
+        "local long_s = string.rep('x', 300)\n"
+        "test_msg_fn(msg.url(long_s, 'path', 'test'), long_s .. ':path#test')\n"
+        "\n"
+        // Test the length limit of the stack allocator (currently max 512 chars)
+        // Here the 300+300 won't fit into the allocator, so it'll be 300 + unknown string + "#test"
+        "test_msg_fn(msg.url(long_s, long_s, 'test'), long_s .. ':' .. '<unknown:10406604193357003573>#test')\n"
         ));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(overflow_socket));
 
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url()\n"
         "-- the socket doesn't exist yet\n"
-        "url = msg.url(\"socket_not_exist\", \"path\", \"test\")\n"
-        "print(tostring(url))\n"
-        "assert(url.socket == hash(\"socket_not_exist\"))\n"
+        "url = msg.url('socket_not_exist', 'path', 'test')\n"
+        "test_msg_fn(url, 'socket_not_exist:path#test')\n"
+        "assert(url.socket == hash('socket_not_exist'))\n"
         ));
 
     ASSERT_EQ(top, lua_gettop(L));
@@ -449,7 +443,7 @@ TEST_F(ScriptMsgTest, TestURLConcat)
     dmMessage::HSocket overflow_socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("very_very_very_very_very_very_very_very_very_very_very_very_socket", &overflow_socket));
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url()\n"
         "print(\"url: \" .. url)\n"
         "url = msg.url(\"socket\", \"path\", \"fragment\")\n"
@@ -470,7 +464,7 @@ TEST_F(ScriptMsgTest, TestURLNewIndex)
 
     dmMessage::HSocket socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url1 = msg.url()\n"
         "local url2 = msg.url(\"socket\", nil, nil)\n"
         "url1.socket = url2.socket\n"
@@ -494,12 +488,12 @@ TEST_F(ScriptMsgTest, TestURLNewIndex)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 
     // socket not created yet
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "msg.url(\"test:\")\n"
         ));
 
     // socket arg not found
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "msg.url(\"test\", nil, nil)\n"
         ));
 
@@ -510,20 +504,21 @@ TEST_F(ScriptMsgTest, TestFailURLNewIndex)
 {
     int top = lua_gettop(L);
 
-    ASSERT_FALSE(RunString(L,
+    ASSERT_FALSE(dmScriptTest::RunString(L,
         "local url = msg.url()\n"
         "url.socket = {}\n"
         ));
-    ASSERT_FALSE(RunString(L,
+    ASSERT_FALSE(dmScriptTest::RunString(L,
         "local url = msg.url()\n"
         "url.path = {}\n"
         ));
-    ASSERT_FALSE(RunString(L,
+    ASSERT_FALSE(dmScriptTest::RunString(L,
         "local url = msg.url()\n"
         "url.fragment = {}\n"
         ));
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top+3, lua_gettop(L));
+    lua_pop(L, lua_gettop(L)-top);
 }
 
 TEST_F(ScriptMsgTest, TestURLEq)
@@ -532,7 +527,7 @@ TEST_F(ScriptMsgTest, TestURLEq)
 
     dmMessage::HSocket socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url1 = msg.url(\"socket\", \"path\", \"fragment\")\n"
         "local url2 = msg.url()\n"
         "assert(url1 ~= url2)\n"
@@ -564,13 +559,13 @@ TEST_F(ScriptMsgTest, TestURLGlobal)
     lua_pushnil(L);
     lua_setglobal(L, DEFAULT_URL);
 
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
             "local url1 = msg.url(\"default_socket:/path#fragment\")\n"
             "assert(url1.path == hash(\"/path\"))\n"
             "print(url1.fragment)\n"
             "assert(url1.fragment == hash(\"fragment\"))\n"));
 
-    ASSERT_FALSE(RunString(L,
+    ASSERT_FALSE(dmScriptTest::RunString(L,
             "local url1 = msg.url(\"path#fragment\")\n"));
 }
 
@@ -616,7 +611,7 @@ TEST_F(ScriptMsgTest, TestPost)
     int top = lua_gettop(L);
 
     // DDF to default socket
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "msg.post(\".\", \"sub_msg\", {uint_value = 1})\n"
         ));
     uint32_t test_value = 0;
@@ -624,7 +619,7 @@ TEST_F(ScriptMsgTest, TestPost)
     ASSERT_EQ(1u, test_value);
 
     // DDF to default socket
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "msg.post(\"\", \"sub_msg\", {uint_value = 1})\n"
         ));
     test_value = 0;
@@ -635,7 +630,7 @@ TEST_F(ScriptMsgTest, TestPost)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
 
     // DDF
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "msg.post(\"socket:\", \"sub_msg\", {uint_value = 1})\n"
         ));
     test_value = 0;
@@ -643,7 +638,7 @@ TEST_F(ScriptMsgTest, TestPost)
     ASSERT_EQ(1u, test_value);
 
     // Empty DDF
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "msg.post(\"socket:\", \"empty_msg\")\n"
         ));
     test_value = 0;
@@ -651,7 +646,7 @@ TEST_F(ScriptMsgTest, TestPost)
     ASSERT_EQ(2u, test_value);
 
     // table
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "msg.post(\"socket:\", \"table\", {uint_value = 1})\n"
         ));
     TableUserData user_data;
@@ -662,7 +657,7 @@ TEST_F(ScriptMsgTest, TestPost)
     ASSERT_EQ(1u, user_data.m_TestValue);
 
     // table, full url
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "msg.post(\"socket:path2#fragment2\", \"table\", {uint_value = 1})\n"
         ));
     user_data.m_URL.m_Socket = socket;
@@ -672,7 +667,7 @@ TEST_F(ScriptMsgTest, TestPost)
     ASSERT_EQ(1u, user_data.m_TestValue);
 
     // table, resolve path
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "msg.post(\"path2#fragment2\", \"table\", {uint_value = 1})\n"
         ));
     user_data.m_URL.m_Socket = m_DefaultURL.m_Socket;
@@ -693,25 +688,26 @@ TEST_F(ScriptMsgTest, TestFailPost)
     dmMessage::HSocket socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
 
-    ASSERT_FALSE(RunString(L,
+    ASSERT_FALSE(dmScriptTest::RunString(L,
         "msg.post(\"socket2:\", \"sub_msg\", {uint_value = 1})\n"
         ));
 
-    ASSERT_FALSE(RunString(L,
+    ASSERT_FALSE(dmScriptTest::RunString(L,
         "msg.post(\"#:\", \"sub_msg\", {uint_value = 1})\n"
         ));
 
-    ASSERT_FALSE(RunString(L,
+    ASSERT_FALSE(dmScriptTest::RunString(L,
         "msg.post(\"::\", \"sub_msg\", {uint_value = 1})\n"
         ));
 
-    ASSERT_FALSE(RunString(L,
+    ASSERT_FALSE(dmScriptTest::RunString(L,
         "msg.post(nil, \"sub_msg\", {uint_value = 1})\n"
         ));
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top+4, lua_gettop(L));
+    lua_pop(L, lua_gettop(L)-top);
 }
 
 
@@ -721,7 +717,7 @@ TEST_F(ScriptMsgTest, TestURLCreateBeforeSocket)
 
     dmHashEnableReverseHash(true);
 
-    ASSERT_FALSE(RunString(L,
+    ASSERT_FALSE(dmScriptTest::RunString(L,
         "local url = msg.url(\"socket:\")"
         "msg.post(url, \"table\", {uint_value = 1})\n"
         ));
@@ -729,7 +725,7 @@ TEST_F(ScriptMsgTest, TestURLCreateBeforeSocket)
     dmMessage::HSocket socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
 
-    ASSERT_TRUE(RunString(L,
+    ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url(\"socket:\")"
         "msg.post(url, \"table\", {uint_value = 2})\n"
         ));
@@ -742,18 +738,19 @@ TEST_F(ScriptMsgTest, TestURLCreateBeforeSocket)
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
 
-    ASSERT_FALSE(RunString(L,
+    ASSERT_FALSE(dmScriptTest::RunString(L,
         "local url = msg.url(\"socket:\")"
         "msg.post(url, \"table\", {uint_value = 1})\n"
         ));
 
-    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(top+2, lua_gettop(L));
+    lua_pop(L, lua_gettop(L)-top);
 }
 
 
 TEST_F(ScriptMsgTest, TestPerf)
 {
-    uint64_t time = dmTime::GetTime();
+    uint64_t time = dmTime::GetMonotonicTime();
     uint32_t count = 10000;
     char program[256];
     dmSnPrintf(program, 256,
@@ -762,8 +759,8 @@ TEST_F(ScriptMsgTest, TestPerf)
         "    msg.post(\"test_path\", \"table\", {uint_value = 1})\n"
         "end\n",
         count);
-    ASSERT_TRUE(RunString(L, program));
-    time = dmTime::GetTime() - time;
+    ASSERT_TRUE(dmScriptTest::RunString(L, program));
+    time = dmTime::GetMonotonicTime() - time;
     printf("Time per post: %.4f\n", time / (double)count);
 }
 
@@ -772,20 +769,28 @@ TEST_F(ScriptMsgTest, TestPostDeletedSocket)
     dmMessage::HSocket socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("test_socket", &socket));
 
-    ASSERT_TRUE(RunString(L, "test_url = msg.url(\"test_socket:\")"));
-    ASSERT_TRUE(RunString(L, "msg.post(test_url, \"test_message\")"));
+    ASSERT_TRUE(dmScriptTest::RunString(L, "test_url = msg.url(\"test_socket:\")"));
+    ASSERT_TRUE(dmScriptTest::RunString(L, "msg.post(test_url, \"test_message\")"));
 
     ASSERT_EQ(1u, dmMessage::Consume(socket));
 
     dmMessage::DeleteSocket(socket);
 
-    ASSERT_FALSE(RunString(L, "msg.post(test_url, \"test_message\")"));
+    ASSERT_FALSE(dmScriptTest::RunString(L, "msg.post(test_url, \"test_message\")"));
 }
 
 int main(int argc, char **argv)
 {
+    dmHashEnableReverseHash(true);
+
+    TestMainPlatformInit();
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
     dmDDF::RegisterAllTypes();
+
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
+
+    dmLog::LogFinalize();
     return ret;
 }

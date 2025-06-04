@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -67,8 +67,16 @@ namespace dmHttpClient
      * @param status_code Status code, eg 200
      * @param content_data Content data
      * @param content_data_size Content data size
+     * @param content_length The content length to receive (possibly in multiple callbacks)
+     * @param range_start The start byte offset into the original file
+     * @param range_end The end byte offset into the original file (inclusive)
+     * @param document_size The full size of the document
+     * @param method The method of the request.
      */
-    typedef void (*HttpContent)(HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size);
+    typedef void (*HttpContent)(HResponse response, void* user_data, int status_code,
+                                const void* content_data, uint32_t content_data_size, int32_t content_length,
+                                uint32_t range_start, uint32_t range_end, uint32_t document_size,
+                                const char* method);
 
     /**
      * HTTP content-length callback. Invoked for POST-request prior to HttpWrite-callback to determine content-length
@@ -207,6 +215,24 @@ namespace dmHttpClient
      * @return dmSocket::Result
      */
     dmSocket::Result GetLastSocketResult(HClient client);
+
+    /**
+     * Get full http uri given the client and a path
+     * @param client Client handle
+     * @param path the path
+     * @param uri the buffer to receive the uri
+     * @param uri_length the buffer length
+     * @return RESULT_OK on success
+     */
+    Result GetURI(HClient client, const char* path, char* uri, uint32_t uri_length);
+
+    /**
+     * Set HTTP request key
+     * @param client Client handle
+     * @param key The key to use for lookups in the http cache
+     * @return RESULT_OK on success
+     */
+    Result SetCacheKey(HClient client, const char* key);
 
     /**
      * HTTP GET-request with automatic retry

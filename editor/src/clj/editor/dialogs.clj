@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -34,7 +34,7 @@
             [editor.field-expression :as field-expression]
             [editor.fxui :as fxui]
             [editor.github :as github]
-            [editor.handler :as handler]
+            [editor.os :as os]
             [editor.progress :as progress]
             [editor.ui :as ui]
             [editor.util :as util]
@@ -46,15 +46,14 @@
            [javafx.application Platform]
            [javafx.collections ListChangeListener]
            [javafx.event Event]
-           [javafx.scene Node]
            [javafx.scene.control ListView TextField]
-           [javafx.scene.input KeyCode KeyEvent MouseEvent MouseButton]
+           [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Stage Window]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
-(defn- dialog-stage
+(defn dialog-stage
   "Dialog `:stage` that manages scene graph itself and provides layout common
   for many dialogs.
 
@@ -106,15 +105,15 @@
 
 (defn- confirmation-dialog-header->fx-desc [header]
   (if (string? header)
-    {:fx/type fxui/label
+    {:fx/type fxui/legacy-label
      :variant :header
      :text header}
     header))
 
-(defn- dialog-buttons [props]
+(defn dialog-buttons [props]
   (-> props
       (assoc :fx/type fx.h-box/lifecycle)
-      (fxui/provide-defaults :alignment :center-right)
+      (util/provide-defaults :alignment :center-right)
       (fxui/add-style-classes "spacing-smaller")))
 
 (defn- confirmation-dialog [{:keys [buttons icon]
@@ -127,7 +126,7 @@
                                                    (dissoc :result))]
                                (if (:default-button button-props)
                                  {:fx/type fxui/ext-focused-by-default
-                                  :desc (fxui/provide-defaults button-desc :variant :primary)}
+                                  :desc (util/provide-defaults button-desc :variant :primary)}
                                  button-desc)))
                            buttons)]
     (-> props
@@ -149,11 +148,38 @@
                                             icon)
                                           header-desc]})))))))
 
+(defn content-text-area [props]
+  (-> props
+      (assoc :fx/type fxui/legacy-text-area)
+      (fxui/add-style-classes "text-area-with-dialog-content-padding")
+      (util/provide-defaults
+        :pref-row-count (max 3 (count (string/split (:text props "") #"\n" 10)))
+        :variant :borderless
+        :editable false)))
+
+(defn- coerce-dialog-content [content]
+  (cond
+    (:fx/type content)
+    content
+
+    (map? content)
+    (assoc content :fx/type content-text-area)
+
+    (string? content)
+    {:fx/type content-text-area :text content}))
+
 (defn make-confirmation-dialog
   "Shows a dialog and blocks current thread until users selects one option.
 
-  `props` is a prop map for `editor.dialogs/dialog-stage`, but instead of
-  `:footer` you use `:buttons`
+  `props` is a prop map to configure the dialog, supports all options from
+  `editor.dialogs/dialog-stage` with these changes:
+  - instead of `:footer` you use `:buttons`.
+  - `:content` can be:
+    * fx description (a map with `:fx/type` key) - used as is
+    * prop map (map without `:fx/type` key) for `editor.fxui/text-area` -
+      readonly by default to allow user select and copy text, `:text` prop is
+      required
+    * string - text for readonly text area
 
   Additional keys:
   - `:buttons` (optional) - a coll of button descriptions. Button
@@ -171,16 +197,9 @@
   (fxui/show-dialog-and-await-result!
     :event-handler (fn [state event]
                      (assoc state ::fxui/result (:result event)))
-    :description (assoc props :fx/type confirmation-dialog)))
-
-(defn- info-dialog-text-area [props]
-  (-> props
-      (assoc :fx/type fxui/text-area)
-      (fxui/add-style-classes "text-area-with-dialog-content-padding")
-      (fxui/provide-defaults
-        :pref-row-count (max 3 (count (string/split (:text props "") #"\n" 10)))
-        :variant :borderless
-        :editable false)))
+    :description (-> props
+                     (assoc :fx/type confirmation-dialog)
+                     (update :content coerce-dialog-content))))
 
 (def ^String indented-bullet
   ;; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
@@ -194,27 +213,11 @@
 
   `props` is a map to configure the dialog, supports all options from
   `editor.dialogs/make-confirmation-dialog` with these changes:
-  - `:buttons` have a close button by default
-  - `:content` can be:
-    * fx description (a map with `:fx/type` key) - used as is
-    * prop map (map without `:fx/type` key) for `editor.fxui/text-area` -
-      readonly by default to allow user select and copy text, `:text` prop is
-      required
-    * string - text for readonly text area"
+  - `:buttons` have a close button by default"
   [props]
   (make-confirmation-dialog
     (-> props
-        (update :content (fn [content]
-                           (cond
-                             (:fx/type content)
-                             content
-
-                             (map? content)
-                             (assoc content :fx/type info-dialog-text-area)
-
-                             (string? content)
-                             {:fx/type info-dialog-text-area :text content})))
-        (fxui/provide-defaults :buttons [{:text "Close"
+        (util/provide-defaults :buttons [{:text "Close"
                                           :cancel-button true
                                           :default-button true}]))))
 
@@ -232,22 +235,22 @@
      :title "Set Custom Resolution"
      :size :small
      :header {:fx/type fx.v-box/lifecycle
-              :children [{:fx/type fxui/label
+              :children [{:fx/type fxui/legacy-label
                           :variant :header
                           :text "Set custom game resolution"}
-                         {:fx/type fxui/label
+                         {:fx/type fxui/legacy-label
                           :text "Game window will be resized to this size"}]}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
-               :children [{:fx/type fxui/label
+               :children [{:fx/type fxui/legacy-label
                            :text "Width"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :variant (if width-valid :default :error)
                            :text width-text
                            :on-text-changed {:event-type :set-width}}
-                          {:fx/type fxui/label
+                          {:fx/type fxui/legacy-label
                            :text "Height"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :variant (if height-valid :default :error)
                            :text height-text
                            :on-text-changed {:event-type :set-height}}]}
@@ -263,10 +266,10 @@
                           :text "Set Resolution"
                           :on-action {:event-type :confirm}}]}}))
 
-(defn make-resolution-dialog []
+(defn make-resolution-dialog [data]
   (fxui/show-dialog-and-await-result!
-    :initial-state {:width-text "320"
-                    :height-text "420"}
+    :initial-state {:width-text (str (or (:width data) "320"))
+                    :height-text (str (or (:height data) "420"))}
     :event-handler (fn [state {:keys [fx/event event-type]}]
                      (case event-type
                        :set-width (assoc state :width-text event)
@@ -282,10 +285,10 @@
                   :owner owner
                   :icon :icon/triangle-error
                   :header {:fx/type fx.v-box/lifecycle
-                           :children [{:fx/type fxui/label
+                           :children [{:fx/type fxui/legacy-label
                                        :variant :header
                                        :text "An error occurred during update installation"}
-                                      {:fx/type fxui/label
+                                      {:fx/type fxui/legacy-label
                                        :text "You probably should perform a fresh install"}]}
                   :buttons [{:text "Quit"
                              :cancel-button true
@@ -303,10 +306,10 @@
      :size :large
      :owner owner
      :header {:fx/type fx.v-box/lifecycle
-              :children [{:fx/type fxui/label
+              :children [{:fx/type fxui/legacy-label
                           :variant :header
                           :text "Update is ready, but there is even newer version available"}
-                         {:fx/type fxui/label
+                         {:fx/type fxui/legacy-label
                           :text "You can install downloaded update or download newer one"}]}
      :buttons [{:text "Not Now"
                 :cancel-button true
@@ -322,10 +325,10 @@
      :icon :icon/circle-sad
      :owner owner
      :header {:fx/type fx.v-box/lifecycle
-              :children [{:fx/type fxui/label
+              :children [{:fx/type fxui/legacy-label
                           :variant :header
                           :text "Updates are no longer provided for this platform"}
-                         {:fx/type fxui/label
+                         {:fx/type fxui/legacy-label
                           :text "Supported platforms are 64-bit Linux, macOS and Windows"}]}
      :buttons [{:text "Close"
                 :cancel-button true
@@ -366,14 +369,14 @@
             :alignment :center-left
             :children [{:fx/type fxui/icon
                         :type :icon/triangle-sad}
-                       {:fx/type fxui/label
+                       {:fx/type fxui/legacy-label
                         :variant :header
                         :text "An error occurred"}]}
-   :content {:fx/type info-dialog-text-area
+   :content {:fx/type content-text-area
              :text (messages ex-map)}
    :footer {:fx/type fx.v-box/lifecycle
             :style-class "spacing-smaller"
-            :children [{:fx/type fxui/label
+            :children [{:fx/type fxui/legacy-label
                         :text "You can help us fix this problem by reporting it and providing more information about what you were doing when it happened."}
                        {:fx/type dialog-buttons
                         :children [{:fx/type fxui/button
@@ -412,17 +415,18 @@
                                     :scale-x 0.25
                                     :scale-y 0.25
                                     :image "logo.png"}]}
-                       {:fx/type fxui/label
+                       {:fx/type fxui/legacy-label
                         :variant :header
                         :text "Loading project"}]}
    :content {:fx/type fx.v-box/lifecycle
              :style-class ["dialog-content-padding" "spacing-smaller"]
-             :children [{:fx/type fxui/label
+             :children [{:fx/type fxui/legacy-label
                          :wrap-text false
                          :text (:message progress)}
                         {:fx/type fx.progress-bar/lifecycle
                          :max-width Double/MAX_VALUE
-                         :progress (progress/fraction progress)}]}
+                         :progress (or (progress/fraction progress)
+                                       -1.0)}]} ; Indeterminate.
    :footer {:fx/type dialog-buttons
             :children [{:fx/type fxui/button
                         :disable true
@@ -451,11 +455,11 @@
     {:title "Insufficient OpenGL Support"
      :header {:fx/type fx.v-box/lifecycle
               :children
-              (-> [{:fx/type fxui/label
+              (-> [{:fx/type fxui/legacy-label
                     :variant :header
                     :text "This is a very common issue. See if any of these instructions help:"}]
                   (cond->
-                    (util/is-linux?)
+                    (os/is-linux?)
                     (conj {:fx/type fx.hyperlink/lifecycle
                            :text "OpenGL on linux"
                            :on-action (fn [_] (ui/open-url "https://defold.com/faq/faq/#linux-questions"))}))
@@ -463,10 +467,10 @@
                     {:fx/type fx.hyperlink/lifecycle
                      :on-action (fn [_] (ui/open-url (github/glgenbuffers-link)))
                      :text "glGenBuffers"}
-                    {:fx/type fxui/label
+                    {:fx/type fxui/legacy-label
                      :text "You can continue with scene editing disabled."}))}
      :icon :icon/circle-sad
-     :content {:fx/type info-dialog-text-area
+     :content {:fx/type content-text-area
                :text support-error}
      :buttons [{:text "Quit"
                 :cancel-button true
@@ -500,25 +504,6 @@
         (.setTitle title))
       (.showDialog owner-window)))
 
-(handler/defhandler ::confirm :dialog
-  (enabled? [selection]
-            (seq selection))
-  (run [^Stage stage selection]
-       (ui/user-data! stage ::selected-items selection)
-       (ui/close! stage)))
-
-(handler/defhandler ::close :dialog
-  (run [^Stage stage]
-       (ui/close! stage)))
-
-(handler/defhandler ::focus :dialog
-  (active? [user-data] (if-let [active-fn (:active-fn user-data)]
-                         (active-fn nil)
-                         true))
-  (run [^Stage stage user-data]
-       (when-let [^Node node (:node user-data)]
-         (ui/request-focus! node))))
-
 (defn- default-filter-fn [filter-on text items]
   (let [text (string/lower-case text)]
     (filterv (fn [item]
@@ -546,14 +531,15 @@
                               (.put properties "isDefaultAnchor" true)))))))
 
 (defn- select-list-dialog
-  [{:keys [filter-term filtered-items title ok-label prompt cell-fn selection]
+  [{:keys [filter-term filtered-items title ok-label prompt cell-fn selection owner]
     :as props}]
   {:fx/type dialog-stage
    :title title
    :showing (fxui/dialog-showing? props)
+   :owner owner
    :on-close-request {:event-type :cancel}
    :size :large
-   :header {:fx/type fxui/text-field
+   :header {:fx/type fxui/legacy-text-field
             :prompt-text prompt
             :text filter-term
             :on-text-changed {:event-type :set-filter-term}}
@@ -661,7 +647,8 @@
                       return a filtered coll of items
       :filter-on      if no custom :filter-fn is supplied, use this fn of item
                       to string for default filtering, defaults to str
-      :prompt         filter text field's prompt text"
+      :prompt         filter text field's prompt text
+      :owner          the owner window, defaults to main stage"
   ([items]
    (make-select-list-dialog items {}))
   ([items options]
@@ -684,6 +671,7 @@
                                 :ok-label (:ok-label options "OK")
                                 :prompt (:prompt options "Type to filter")
                                 :cell-fn cell-fn
+                                :owner (or (:owner options) (ui/main-stage))
                                 :selection (:selection options :single)})]
      (when result
        (let [{:keys [filter-term selected-items]} result]
@@ -704,20 +692,20 @@
      :on-close-request {:event-type :cancel}
      :title "New Folder"
      :size :small
-     :header {:fx/type fxui/label
+     :header {:fx/type fxui/legacy-label
               :variant :header
               :text "Enter New Folder Name"}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
-               :children [{:fx/type fxui/label
+               :children [{:fx/type fxui/legacy-label
                            :text "Name"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :text ""
                            :variant (if invalid :error :default)
                            :on-text-changed {:event-type :set-folder-name}}
-                          {:fx/type fxui/label
+                          {:fx/type fxui/legacy-label
                            :text "Preview"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :editable false
                            :text (or error-msg sanitized-name)}]}
      :footer {:fx/type dialog-buttons
@@ -751,14 +739,14 @@
      :on-close-request {:event-type :cancel}
      :title "Enter Target IP"
      :size :small
-     :header {:fx/type fxui/label
+     :header {:fx/type fxui/legacy-label
               :variant :header
               :text msg}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
-               :children [{:fx/type fxui/label
+               :children [{:fx/type fxui/legacy-label
                            :text "Target IP Address"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :variant (if ip-valid :default :error)
                            :text ip
                            :on-text-changed {:event-type :set-ip}}]}
@@ -787,19 +775,36 @@
 
 (defn- sanitize-common [name]
   (-> name
-      string/trim
       (string/replace #"[/\\]" "") ; strip path separators
       (string/replace #"[\"']" "") ; strip quotes
-      (string/replace #"^\.+" "") ; prevent hiding files (.dotfile)
-      (string/replace #"[<>:|?*]" ""))) ; Additional Windows forbidden characters
+      (string/replace #"[<>:|?*]" "") ; Additional Windows forbidden characters
+      string/trim))
 
 (defn sanitize-file-name [extension name]
-  (-> name
-      sanitize-common
-      (#(if (empty? extension) (string/replace % #"\..*" "") %)) ; disallow adding extension = resource type
-      (#(if (and (seq extension) (seq %))
-          (str % "." extension)
-          %)))) ; append extension if there was one
+  (let [name (sanitize-common name)]
+    (cond-> name
+            ; disallow "." and ".." names (only necessary when there is no extension)
+            (not (seq extension)) (string/replace #"^\.{1,2}$" "")
+            ; append extension if there was one
+            (and (seq extension) (seq name)) (str "." extension))))
+
+(defn- apply-extension [name extension]
+  (cond-> name (seq extension) (str "." extension)))
+
+(defn- sanitize-against-extensions
+  "Sanitizes the file/folder name against a coll of possible extensions
+
+  Returns a valid (and possibly empty!), file/folder name, or nil"
+  [name extensions]
+  {:pre [(string? name) (seq extensions)]}
+  (let [name (sanitize-common name)]
+    (when (every? (fn [extension]
+                    (let [full-name (apply-extension name extension)]
+                      (and (pos? (count full-name))
+                           (not= "." full-name)
+                           (not= ".." full-name))))
+                  extensions)
+      name)))
 
 (defn sanitize-folder-name [name]
   (sanitize-common name))
@@ -812,31 +817,35 @@
                        (map sanitize-folder-name))
                      (string/split path #"[\\\/]"))))
 
-(defn- rename-dialog [{:keys [initial-name name title label validate sanitize] :as props}]
-  (let [sanitized (some-> (not-empty name) sanitize)
-        validation-msg (some-> sanitized validate)
-        invalid (or (empty? sanitized) (some? validation-msg))]
+(defn- rename-dialog [{:keys [initial-name name title label extensions validate] :as props}]
+  (let [sanitized (sanitize-against-extensions name extensions)
+        validation-msg (when sanitized
+                         (some #(validate (apply-extension sanitized %)) extensions))
+        invalid (or (not sanitized) (some? validation-msg))]
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
      :title title
      :size :small
-     :header {:fx/type fxui/label
+     :header {:fx/type fxui/legacy-label
               :variant :header
               :text (str "Rename " initial-name)}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
                :children [{:fx/type fx.label/lifecycle
                            :text label}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :text name
                            :variant (if invalid :error :default)
                            :on-text-changed {:event-type :set-name}}
                           {:fx/type fx.label/lifecycle
                            :text "Preview"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :editable false
-                           :text (or validation-msg sanitized)}]}
+                           :text (or validation-msg
+                                     (->> extensions
+                                          (map #(apply-extension sanitized %))
+                                          (string/join ", ")))}]}
      :footer {:fx/type dialog-buttons
               :children [{:fx/type fxui/button
                           :text "Cancel"
@@ -852,25 +861,29 @@
 (defn make-rename-dialog
   "Shows rename dialog
 
-  Options expect keys:
-  - `:title`
-  - `:label`
-  - `:validate`
-  - `:sanitize`"
-  ^String [name options]
-  (let [sanitize (:sanitize options)]
-    (fxui/show-dialog-and-await-result!
-      :initial-state {:name name}
-      :event-handler (fn [state event]
-                       (case (:event-type event)
-                         :set-name (assoc state :name (:fx/event event))
-                         :cancel (assoc state ::fxui/result nil)
-                         :confirm (assoc state ::fxui/result (-> state
-                                                                 :name
-                                                                 sanitize
-                                                                 not-empty))))
-      :description (assoc options :fx/type rename-dialog
-                                  :initial-name (sanitize name)))))
+  Returns either file name that fits all extensions (might be empty!) or nil
+
+  Options expect kv-args:
+    :title         dialog title, a string
+    :label         name input label, a string
+    :extensions    non-empty coll of used extension for renamed file(s), where
+                   empty string or nil item means the renamed file will be used
+                   without any extensions
+    :validate      1-arg fn from a sanitized file name to either nil (if valid)
+                   or string (error message)"
+  ^String [name & {:as options}]
+  (fxui/show-dialog-and-await-result!
+    :initial-state {:name name}
+    :event-handler (fn [state event]
+                     (case (:event-type event)
+                       :set-name (assoc state :name (:fx/event event))
+                       :cancel (assoc state ::fxui/result nil)
+                       :confirm (assoc state ::fxui/result
+                                             (sanitize-against-extensions
+                                               (:name state)
+                                               (:extensions options)))))
+    :description (assoc options :fx/type rename-dialog
+                                :initial-name name)))
 
 (defn- relativize [^File base ^File path]
   (let [[^Path base ^Path path] (map #(Paths/get (.toURI ^File %)) [base path])]
@@ -890,24 +903,24 @@
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
-     :title (str "New " type)
+     :title (str "New " (or type "File"))
      :size :small
-     :header {:fx/type fxui/label
+     :header {:fx/type fxui/legacy-label
               :variant :header
-              :text (str "Enter " type " File Name")}
+              :text (str "Enter " (or type "the") " File Name")}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
-               :children [{:fx/type fxui/label
+               :children [{:fx/type fxui/legacy-label
                            :text "Name"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :text ""
                            :variant (if empty :error :default)
                            :on-text-changed {:event-type :set-file-name}}
-                          {:fx/type fxui/label
+                          {:fx/type fxui/legacy-label
                            :text "Location"}
                           {:fx/type fx.h-box/lifecycle
                            :spacing 4
-                           :children [{:fx/type fxui/text-field
+                           :children [{:fx/type fxui/legacy-text-field
                                        :h-box/hgrow :always
                                        :variant (if location-exists :default :error)
                                        :on-text-changed {:event-type :set-location}
@@ -916,9 +929,9 @@
                                        :variant :icon
                                        :on-action {:event-type :pick-location}
                                        :text "…"}]}
-                          {:fx/type fxui/label
+                          {:fx/type fxui/legacy-label
                            :text "Preview"}
-                          {:fx/type fxui/text-field
+                          {:fx/type fxui/legacy-text-field
                            :editable false
                            :text (if valid-input
                                    (str relative-path \/ sanitized-name)
@@ -1009,13 +1022,13 @@
                         :modality :none
                         :showing true
                         :size :large
-                        :header {:fx/type fxui/label
+                        :header {:fx/type fxui/legacy-label
                                  :variant :header
                                  :text "Target discovery log"}
                         :content (let [str (string/join "\n" log)]
                                    {:fx/type ext-with-selection-props
                                     :props {:selection [(count str) (count str)]}
-                                    :desc {:fx/type info-dialog-text-area
+                                    :desc {:fx/type content-text-area
                                            :pref-row-count 20
                                            :text str}})
                         :footer {:fx/type dialog-buttons

@@ -1,12 +1,12 @@
--- Copyright 2020-2023 The Defold Foundation
+-- Copyright 2020-2025 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
 -- this file except in compliance with the License.
--- 
+--
 -- You may obtain a copy of the License, together with FAQs at
 -- https://www.defold.com/license
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software distributed
 -- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -51,7 +51,7 @@ assert(q.w == 8, "q.w is not 8")
 
 -- mul
 q = vmath.quat(math.sin(math.pi/4), 0, 0, math.cos(math.pi/4)) * vmath.quat(math.sin(math.pi/4), 0, 0, math.cos(math.pi/4))
-assert(math.abs(q.x - 1) < 0.000001 and q.y == 0 and q.z == 0 and q.w == 0, "quat * quat")
+assert(math.abs(q.x - 1) < 0.000001 and q.y == 0 and q.z == 0 and math.abs(q.w) < 0.000001, "quat * quat")
 
 -- quat_from_to
 q = vmath.quat_from_to(vmath.vector3(1, 0, 0), vmath.vector3(0, 1, 0))

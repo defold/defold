@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -90,6 +90,21 @@ public:
      */
     T* Get(HOpaqueHandle handle);
 
+    /*# container get by index
+     *
+     * Get the pointer to the object based on an index into the container. The handle will be checked for validity,
+     * i.e the handle version must match the object version and the index of the handle must be in a valid
+     * range of the object list. If the handle is invalid, a NULL pointer will be returned.
+     *
+     * Note: this is indented for internal use only and relies on the fact that the backing
+     *       data structure for the container is a continuous array.
+     *
+     * @name GetByIndex
+     * @param index [type:uint32_t] The index to query the container with
+     * @return pointer [type:T*] Return the object associated with the handle If it is valid, NULL otherwise
+     */
+    T* GetByIndex(uint32_t index);
+
     /*# container put
      *
      * Adds a reference to an object to the list and returns an opaque handle to that object. If the container
@@ -137,13 +152,6 @@ private:
     uint16_t* m_ObjectVersions;
     uint32_t  m_Capacity;
     uint16_t  m_Version;
-
-    // Internal helper functions
-    inline T* GetByIndex(uint32_t i)
-    {
-        assert(i < m_Capacity);
-        return m_Objects[i];
-    }
 
     // TODO: We can improve the performance of this function by adding as freelist (see comments in https://github.com/defold/defold/pull/7421)
     uint32_t GetFirstEmptyIndex()
@@ -228,6 +236,13 @@ T* dmOpaqueHandleContainer<T>::Get(HOpaqueHandle handle)
     }
 
     return entry;
+}
+
+template <typename T>
+T* dmOpaqueHandleContainer<T>::GetByIndex(uint32_t i)
+{
+    assert(i < m_Capacity);
+    return m_Objects[i];
 }
 
 template <typename T>

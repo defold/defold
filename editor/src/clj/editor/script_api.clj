@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,126 +15,93 @@
 (ns editor.script-api
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.script-intelligence :as si]
             [editor.defold-project :as project]
+            [editor.lua :as lua]
             [editor.resource :as resource]
-            [editor.workspace :as workspace]
             [editor.yaml :as yaml]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defmulti convert
-  "Converts YAML documentation input to the internal auto-complete format defined
-  in `editor.lua` namespace."
-  :type)
-
-(defn- name-with-ns
-  [ns name]
-  (if (nil? ns)
-    name
-    (str ns \. name)))
-
-(defmethod convert "table"
-  [{:keys [ns name members desc]}]
-  (let [name (name-with-ns ns name)]
-    (into [{:type :namespace
-            :name name
-            :doc desc
-            :display-string name
-            :insert-string name}]
-          (comp
-            (filter map?)
-            (map #(convert (assoc % :ns name))))
-          members)))
-
 (defn- bracketname?
   [x]
   (= \[ (first (:name x))))
 
-(defn- optional-param?
-  [x]
-  (or (:optional x) (bracketname? x)))
+(defn- build-param-string [params mode]
+  (str "("
+       (->> params
+            (keep-indexed
+              (fn [i {:keys [name optional] :as param}]
+                (case mode
+                  :display-string (if (and optional (not (bracketname? param)))
+                                    (str "[" name "]")
+                                    name)
+                  :snippet (when (and (not optional) (not (bracketname? param)))
+                             (format "${%s:%s}" (inc ^long i) name)))))
+            (string/join ", "))
+       ")"))
 
-(defn- param-names
-  [params remove-optional?]
-  (let [filter-optionals (if remove-optional?
-                           (filter #(not (optional-param? %)))
-                           (map #(if (and (:optional %) (not (bracketname? %)))
-                                   (assoc % :name (str "[" (:name %) "]"))
-                                   %)))]
-    (into [] (comp filter-optionals (map :name)) params)))
+(defn- args->html [args]
+  (str "<dl>"
+       (->> args
+            (map (fn [{:keys [name type desc parameters members]}]
+                   (let [nested-args (or parameters members)]
+                     (format "<dt><code>%s%s</code></dt>%s"
+                             (or name "")
+                             (cond
+                               (string? type)
+                               (format " <small>%s</small>" type)
 
-(defn- build-param-string
-  ([params]
-   (build-param-string params false))
-  ([params remove-optional?]
-   (str "(" (string/join ", " (param-names params remove-optional?)) ")")))
+                               (and (vector? type)
+                                    (pos? (count type)))
+                               (format " <small>%s</small>" (string/join "|" type))
 
-(defmethod convert "function"
-  [{:keys [ns name desc parameters]}]
-  (let [name (name-with-ns ns name)]
-    {:type :function
-     :name name
-     :doc desc
-     :display-string (str name (build-param-string parameters))
-     :insert-string (str name (build-param-string parameters true))
-     :tab-triggers {:select (param-names parameters true) :exit (when parameters ")")}}))
+                               :else
+                               "")
+                             (if (or desc nested-args)
+                               (format "<dd>%s%s</dd>"
+                                       (or desc "")
+                                       (if nested-args
+                                         (args->html nested-args)
+                                         ""))
+                               "")))))
+            string/join)
+       "</dl>"))
 
-(defmethod convert :default
-  [{:keys [ns name desc]}]
-  (when name
-    (let [name (name-with-ns ns name)]
-      {:type :variable
-       :name name
-       :doc desc
-       :display-string name
-       :insert-string name})))
+(defn lines->completion-info [lines]
+  (letfn [(make-completions [ns-path {:keys [type name desc] :as el}]
+            (case type
+              "table"
+              (let [child-path (conj ns-path name)]
+                (into [[ns-path (code-completion/make name :type :module :doc desc)]]
+                      (mapcat #(make-completions child-path %))
+                      (:members el)))
 
-(defn convert-lines
-  [lines]
-  (into []
-        (comp (map convert) (remove nil?))
-        (-> (data/lines-reader lines) (yaml/load keyword))))
+              "function"
+              (let [{:keys [parameters returns examples]} el]
+                [[ns-path (code-completion/make
+                            name
+                            :type :function
+                            :doc (str desc
+                                      (when (pos? (count parameters))
+                                        (str "\n\n**Parameters:**<br>" (args->html parameters)))
+                                      (when (pos? (count returns))
+                                        (str "\n\n**Returns:**<br>" (args->html returns)))
+                                      (when (pos? (count examples))
+                                        (str "\n\n**Examples:**<br>\n"
+                                             (string/join "\n\n" (map :desc examples)))))
+                            :display-string (str name (build-param-string parameters :display-string))
+                            :insert (str name (build-param-string parameters :snippet)))]])
 
-(defn combine-conversions
-  "This function combines the individual hierarchical conversions into a map where
-  all the namespaces are keys at the top level mapping to a vector of their
-  respective contents. A global namespace is also added with the empty string as
-  a name, which contains a vector of namespace entries to enable auto completion
-  of namespace names."
-  [conversions]
-  (first (reduce
-           (fn [[m ns] x]
-             (cond
-               ;; Recurse into sublevels and merge the current map with the
-               ;; result. Any key collisions will have vector values so we
-               ;; can merge them with into.
-               (vector? x) [(merge-with into m (combine-conversions x)) ns]
-
-               (= :namespace (:type x)) [(let [m (assoc m (:name x) [])
-                                               m (if-not (= "" ns)
-                                                   (update m ns conj x)
-                                                   m)]
-                                           ;; Always add namespaces as members
-                                           ;; of the global namespace.
-                                           (update m "" conj x))
-                                         (:name x)]
-
-               x [(update m ns conj x) ns]
-
-               ;; Don't add empty parse results. They are probably
-               ;; from syntactically valid but incomplete yaml
-               ;; records.
-               :else [m ns]))
-           [{"" []} ""]
-           conversions)))
-
-(defn lines->completion-info
-  [lines]
-  (combine-conversions (convert-lines lines)))
+              (when name
+                [[ns-path (code-completion/make name :type :variable :doc desc)]])))]
+    (->> (yaml/load (data/lines-reader lines) keyword)
+         (eduction (mapcat #(make-completions [] %)))
+         lua/make-completion-map)))
 
 (g/defnk produce-completions
   [parse-result]
@@ -158,32 +125,28 @@
   (output build-errors g/Any produce-build-errors)
   (output completions si/ScriptCompletions produce-completions))
 
-(defn- load-script-api
+(defn- additional-load-fn
   [project self resource]
   (let [si (project/script-intelligence project)]
     (concat (g/connect self :completions si :lua-completions)
             (when (resource/file-resource? resource)
               ;; Only connect to the script-intelligence build errors if this is
               ;; a file resource. The assumption is that if it is a file
-              ;; resource then it is being actively worked on. Otherwise it
+              ;; resource then it is being actively worked on. Otherwise, it
               ;; belongs to an external dependency and should not stop the build
               ;; on errors.
-              (concat (g/connect self :build-errors si :build-errors)
-                      (g/connect self :save-data project :save-data))))))
+              (g/connect self :build-errors si :build-errors)))))
 
 (defn register-resource-types
   [workspace]
-  (workspace/register-resource-type workspace
-                                    :ext "script_api"
-                                    :label "Script API"
-                                    :icon "icons/32/Icons_29-AT-Unknown.png"
-                                    :view-types [:code :default]
-                                    :view-opts nil
-                                    :node-type ScriptApiNode
-                                    :load-fn load-script-api
-                                    :read-fn r/read-fn
-                                    :write-fn r/write-fn
-                                    :textual? true
-                                    :language "yaml"
-                                    :auto-connect-save-data? false))
-
+  (r/register-code-resource-type workspace
+    :ext "script_api"
+    :label "Script API"
+    :icon "icons/32/Icons_29-AT-Unknown.png"
+    :view-types [:code :default]
+    :view-opts nil
+    :node-type ScriptApiNode
+    :additional-load-fn additional-load-fn
+    :textual? true
+    :lazy-loaded true
+    :language "yaml"))

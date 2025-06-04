@@ -4,8 +4,9 @@ $spacing-default: 24px;
 $spacing-larger: 32px;
 $spacing-largest: 40px;
 
+@use "sass:string";
 @mixin font-size-default { -fx-font-size: 110%; }
-@mixin font-size-header { -fx-font-size: 170%; }
+@mixin font-size-header { -fx-font-size: 22px; }
 @mixin font-default { -fx-font-family: $default-font; }
 @mixin font-light { -fx-font-family: $default-font-light; }
 @mixin text-fill-text-color { -fx-text-fill: -df-text; }
@@ -94,7 +95,7 @@ $spacing-largest: 40px;
   -fx-text-fill: -df-text;
   -fx-background-radius: 2px;
   -fx-border-radius: 2px;
-  -fx-background-color: -df-background-lighter;
+  -fx-background-color: -df-component-dark;
   -fx-padding: 0;
   -fx-min-width: 28px;
   -fx-max-width: 28px;
@@ -105,7 +106,7 @@ $spacing-largest: 40px;
   -fx-focus-traversable: false;
   -fx-border-width: 0;
   &:hover {
-    -fx-background-color: -df-component;
+    -fx-background-color: -df-component-lighter;
   }
   &:armed {
     -fx-background-color: -df-background-light !important;
@@ -160,8 +161,8 @@ $spacing-largest: 40px;
   @include font-size-default();
   -fx-highlight-fill: -df-component-light;
   -fx-text-fill: -df-text-selected;
-  -fx-prompt-text-fill: -df-component;
-  -fx-background-color: -df-background-darker;
+  -fx-prompt-text-fill: -df-component-light;
+  -fx-background-color: -df-background-input;
   -fx-border-width: 1px;
 
   &:readonly {
@@ -239,10 +240,10 @@ $spacing-largest: 40px;
     -fx-background-radius: 5px;
     -fx-background-insets: 1px;
     &:hover {
-      -fx-background-color: -df-component;
+      -fx-background-color: -df-component-light;
     }
     &:pressed {
-      -fx-background-color: -df-component-lighter;
+      -fx-background-color: -df-component-light;
     }
   }
   &:vertical {
@@ -259,7 +260,7 @@ $spacing-largest: 40px;
   > .increment-button > .increment-arrow,
   > .decrement-button,
   > .decrement-button > .decrement-arrow {
-    -fx-shape: null;
+    -fx-shape: string.unquote("null");
     -fx-padding: 0;
   }
 }
@@ -294,28 +295,14 @@ $spacing-largest: 40px;
         @include icon-extension-template(-df-folder, -df-folder-active)
     }
 
-    &.resource-ext- {
-        /* Script files */
-        &fp, &gui_script, &lua,
-        &render_script, &script, &vp {
+    &.resource-kind {
+        &-script {
             @include icon-extension-template(-df-script-file, -df-script-file-active);
         }
-
-        /* Design files */
-        &atlas, &collection, &collisionobject,
-        &cubemap, &dae, &font, &go,
-        &gui, &label, &model, &particlefx,
-        &spinemodel, &spinescene, &sprite,
-        &tilemap, &tilesource {
+        &-design {
             @include icon-extension-template(-df-design-file, -df-design-file-active);
         }
-
-        /* Property container files */
-        &animationset,
-        &camera, &collectionfactory, &collectionproxy,
-        &display_profiles, &factory,
-        &gamepads, &input_binding, &material, &project,
-        &render, &sound, &texture_profiles {
+        &-property {
             @include icon-extension-template(-df-property-file, -df-property-file-active);
         }
     }
@@ -362,12 +349,12 @@ Text {
   }
 
   .track {
-    -fx-background-color: -df-component;
+    -fx-background-color: -df-component-light;
   }
 }
 
 .context-menu {
-  -fx-background-color: -df-component;
+  -fx-background-color: -df-component-dark;
   -fx-background-radius: 2px;
   -fx-padding: 5px;
   .menu-item {
@@ -375,7 +362,7 @@ Text {
       > .label {
         -fx-text-fill: -df-text-selected;
       }
-      -fx-background-color: -df-component-light;
+      -fx-background-color: -df-component-lighter;
       -fx-background-radius: 1px;
     }
     &:disabled {
@@ -440,13 +427,4 @@ Text {
   &.matched {
     -fx-fill: -df-defold-blue-lighter;
   }
-}
-
-.hover-popup {
-  -fx-background-color: -df-background-lighter;
-  -fx-border-color: -df-background;
-}
-.hover-separator {
-  -fx-min-height: 1px;
-  -fx-background-color: -df-background;
 }

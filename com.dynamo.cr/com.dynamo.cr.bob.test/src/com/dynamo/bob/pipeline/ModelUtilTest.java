@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,17 +14,12 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.File;
-import java.io.InputStream;
 import java.io.IOException;
-import java.nio.ByteOrder;
-import java.nio.ShortBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -44,12 +39,8 @@ import org.junit.Test;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 
-import com.dynamo.proto.DdfMath.Point3;
-import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
-import com.dynamo.proto.DdfMath.Transform;
 import com.dynamo.rig.proto.Rig;
-import com.dynamo.rig.proto.Rig.RigAnimation;
 
 public class ModelUtilTest {
 
@@ -133,7 +124,7 @@ public class ModelUtilTest {
      */
     private void assertBone(Rig.Bone bone, Vector3d expectedPosition, Quat4d expectedRotation) {
         assertV(expectedPosition, MathUtil.ddfToVecmath(bone.getLocal().getTranslation()));
-        assertV(expectedRotation, MathUtil.ddfToVecmath(bone.getLocal().getRotation()));
+        assertV(expectedRotation, MathUtil.ddfToVecmath(bone.getLocal().getRotation(), "bone %s".formatted(bone.getName())));
     }
 
     /*
@@ -214,43 +205,42 @@ public class ModelUtilTest {
         }
     }
 
-   ModelImporter.Scene loadScene(String path) {
+   Modelimporter.Scene loadScene(String path) {
         try {
             File cwd = new File(".");
-            return ModelUtil.loadScene(getClass().getResourceAsStream(path), path, new ModelImporter.Options(), new ModelImporter.FileDataResolver(cwd));
+            return ModelUtil.loadScene(getClass().getResourceAsStream(path), path, new Modelimporter.Options(), new ModelImporterJni.FileDataResolver(cwd));
         } catch (IOException e) {
             e.printStackTrace();
             return null;
         }
     }
 
-    private ModelImporter.Scene loadBuiltScene(String path,
+    private Modelimporter.Scene loadBuiltScene(String path,
                                          Rig.MeshSet.Builder meshSetBuilder,
                                          Rig.AnimationSet.Builder animSetBuilder,
                                          Rig.Skeleton.Builder skeletonBuilder) {
-        ModelImporter.Scene scene = loadScene(path);
+        Modelimporter.Scene scene = loadScene(path);
         if (scene != null)
         {
             ModelUtil.loadModels(scene, meshSetBuilder);
             ModelUtil.loadSkeleton(scene, skeletonBuilder);
 
             ArrayList<String> animationIds = new ArrayList<>();
-            ArrayList<ModelImporter.Bone> bones = ModelUtil.loadSkeleton(scene);
-            ModelUtil.loadAnimations(scene, bones, animSetBuilder, "top_anim", animationIds);
+            ModelUtil.loadAnimations(scene, animSetBuilder, "top_anim", animationIds);
         }
         return scene;
     }
 
-    private ModelImporter.Scene loadBuiltScene(String path,
+    private Modelimporter.Scene loadBuiltScene(String path,
                                          Rig.MeshSet.Builder meshSetBuilder) {
-        ModelImporter.Scene scene = loadScene(path);
+        Modelimporter.Scene scene = loadScene(path);
         ModelUtil.loadModels(scene, meshSetBuilder);
         return scene;
     }
 
-    private ModelImporter.Scene loadBuiltScene(String path,
+    private Modelimporter.Scene loadBuiltScene(String path,
                                          Rig.Skeleton.Builder skeletonBuilder) {
-        ModelImporter.Scene scene = loadScene(path);
+        Modelimporter.Scene scene = loadScene(path);
         ModelUtil.loadSkeleton(scene, skeletonBuilder);
         return scene;
     }
@@ -297,7 +287,7 @@ public class ModelUtilTest {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ModelImporter.Scene scene = loadBuiltScene("bend2bones.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
+        Modelimporter.Scene scene = loadBuiltScene("bend2bones.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
 
         Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
 
@@ -333,11 +323,11 @@ public class ModelUtilTest {
     @Test
     public void testSkeleton() throws Exception {
 
-        String[] boneIds   = {"Bottom", "Middle", "Top"};
-        String[] parentIds = {null,     "Bottom", "Middle"};
+        String[] boneIds   = {"root", "Middle", "Top"};
+        String[] parentIds = {null,   "root", "Middle"};
 
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ModelImporter.Scene scene = loadBuiltScene("bend2bones.gltf", skeletonBuilder);
+        Modelimporter.Scene scene = loadBuiltScene("bend2bones.gltf", skeletonBuilder);
 
         List<Rig.Bone> bones = skeletonBuilder.getBonesList();
         assertEquals(boneIds.length, bones.size());
@@ -387,6 +377,10 @@ public class ModelUtilTest {
          */
         Quat4d rotIdentity = new Quat4d(0.0, 0.0, 0.0, 1.0);
 
+        long boneId0 = skeletonBuilder.getBones(0).getId(); // Bottom
+        long boneId1 = skeletonBuilder.getBones(1).getId(); // Middle
+        long boneId2 = skeletonBuilder.getBones(2).getId(); // Top
+
         int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
         float duration = animSetBuilder.getAnimations(0).getDuration();
         float sampleRate = animSetBuilder.getAnimations(0).getSampleRate();
@@ -394,33 +388,31 @@ public class ModelUtilTest {
         for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
 
             Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
-            int boneIndex = track.getBoneIndex();
+            long boneId = track.getBoneId();
 
             // There should be no position or scale animation.
             assertAnimationSamePosScale(track);
 
             int rotKeyframeCount = track.getRotationsCount()/4;
 
-            System.out.printf("testTwoBoneAnimation: bone: %d. keyframeCount: %d, %d  #keyframes: %d\n", boneIndex, rotKeyframeCount, rotKeyframeCount/2, track.getRotationsCount()/4);
-
             if (track.getRotationsCount() > 0) {
-                if (boneIndex == 0) {
+                if (boneId == boneId0) {
                     // The root bone isn't animated so it only has one key
                     assertEquals(4, track.getRotationsCount());
                     assertAnimationRotation(track, 0, rotIdentity);
 
-                } else if (boneIndex == 1) {
+                } else if (boneId == boneId1) {
                     assertAnimationRotation(track, 0, rotIdentity);
                     assertAnimationRotation(track, rotKeyframeCount/2, new Quat4d(0.0, 0.0, -0.706773, 0.707440));
                     assertAnimationRotation(track, rotKeyframeCount-1, new Quat4d(0.0, 0.0, -0.706773, 0.707440));
 
-                } else if (boneIndex == 2) {
+                } else if (boneId == boneId2) {
                     assertAnimationRotation(track, 0, rotIdentity);
                     assertAnimationRotation(track, 28, rotIdentity);
                     assertAnimationRotation(track, rotKeyframeCount-1, new Quat4d(0.684243, -0.000646, -0.000000, 0.729254));
 
                 } else {
-                    fail("Animations on invalid bone index: " + boneIndex);
+                    fail("Animations on invalid bone index: " + boneId);
                 }
             }
         }
@@ -487,7 +479,7 @@ public class ModelUtilTest {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ModelImporter.Scene scene = loadBuiltScene("broken.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
+        Modelimporter.Scene scene = loadBuiltScene("broken.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
         assertTrue(scene == null);
     }
 }

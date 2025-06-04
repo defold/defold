@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,8 +20,8 @@
  *
  * @document
  * @name Align
- * @namespace dmAlign
  * @path engine/dlib/src/dmsdk/dlib/align.h
+ * @language C++
  */
 
 /*# data structure alignment macro
@@ -61,7 +61,7 @@
  * int result = DM_ALIGN(24, 16);
  * ```
  */
-#define DM_ALIGN(x, a) (((uintptr_t) (x) + (a-1)) & ~(a-1))
+#define DM_ALIGN(x, a) (((uintptr_t) (x) + (a-1)) & ~(uintptr_t) (a-1))
 
 #if defined(__GNUC__)
 #define DM_ALIGNED(a) __attribute__ ((aligned (a)))

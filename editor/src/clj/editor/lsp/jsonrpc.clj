@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -116,7 +116,7 @@
                         close
 
   Returns a message sink: a chan to put messages to send to the language server,
-  a message is a map with following keys:
+  a message is a map with the following keys:
     :method         server's JSON-RPC method name, a string, required
     :params         server's JSON-RPC method parameter map, optional
     :response-ch    a channel that might eventually receive a response and

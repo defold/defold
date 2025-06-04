@@ -1,22 +1,26 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.non-editable-resources-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.defold-project :as project]
+            [editor.fs :as fs]
+            [editor.game-project :as game-project]
             [editor.math :as math]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.shared-editor-settings :as shared-editor-settings]
@@ -28,6 +32,7 @@
             [util.coll :refer [pair]]
             [util.digestable :as digestable])
   (:import [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
+           [com.dynamo.gameobject.proto GameObject$CollectionDesc]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl.util.texture TextureData]
            [editor.gl.shader ShaderLifecycle]
@@ -119,18 +124,6 @@
               value))]
     (util/deep-keep-kv util/with-sorted-keys value-fn output)))
 
-(defn- save-project! [project]
-  (let [save-data (project/dirty-save-data project)]
-    (project/write-save-data-to-disk! save-data nil)
-    (project/invalidate-save-data-source-values! save-data)))
-
-(defn- set-non-editable-directories! [project-root-path non-editable-directory-proj-paths]
-  (shared-editor-settings/write-config!
-    project-root-path
-    (cond-> {}
-            (seq non-editable-directory-proj-paths)
-            (assoc :non-editable-directories (vec non-editable-directory-proj-paths)))))
-
 (defn- load-non-editable-project! [world project-path proj-paths-by-node-key]
   (let [workspace (log/without-logging (tu/setup-workspace! world project-path))
         project (tu/setup-project! workspace)
@@ -176,7 +169,7 @@
       (tu/make-atlas-resource-node! project atlas-proj-path))
     (let [sprite-resource-type (workspace/get-resource-type workspace "sprite")
           script (doto (tu/make-resource-node! project "/assets/script.script")
-                   (tu/code-editor-source! "go.property('atlas', resource.atlas('/assets/from-script.atlas'))"))
+                   (tu/set-code-editor-source! "go.property('atlas', resource.atlas('/assets/from-script.atlas'))"))
           chair (tu/make-resource-node! project "/assets/chair.go")
           chair-referenced-script (tu/add-referenced-component! chair (resource-node/resource script))
           chair-embedded-sprite (tu/add-embedded-component! chair sprite-resource-type)
@@ -201,9 +194,9 @@
           (g/set-property room-embedded-chair-embedded-sprite :id "room-embedded-chair-embedded-sprite")
           (g/set-property room-referenced-chair :id "room-referenced-chair")
           (g/set-property house-room :id "house-room")))
-      (tu/prop! chair-embedded-sprite :image (tu/resource workspace "/assets/from-chair-embedded-sprite.atlas"))
+      (tu/prop! chair-embedded-sprite :__sampler__texture_sampler__0 (tu/resource workspace "/assets/from-chair-embedded-sprite.atlas"))
       (tu/prop! chair-embedded-sprite :default-animation "from-chair-embedded-sprite")
-      (tu/prop! room-embedded-chair-embedded-sprite :image (tu/resource workspace "/assets/from-room-embedded-chair-embedded-sprite.atlas"))
+      (tu/prop! room-embedded-chair-embedded-sprite :__sampler__texture_sampler__0 (tu/resource workspace "/assets/from-room-embedded-chair-embedded-sprite.atlas"))
       (tu/prop! room-embedded-chair-embedded-sprite :default-animation "from-room-embedded-chair-embedded-sprite")
       {:chair chair
        :chair-referenced-script chair-referenced-script
@@ -246,8 +239,8 @@
                        :build-targets {:chair (g/node-value chair :build-targets)
                                        :room (g/node-value room :build-targets)
                                        :house (g/node-value house :build-targets)}}]
-                  (save-project! project)
-                  (set-non-editable-directories! project-path ["/assets"])
+                  (tu/save-project! project)
+                  (tu/set-non-editable-directories! project-path ["/assets"])
                   editable-results)))]
         ;; Reload the project now that the resources are in a non-editable state
         ;; and compare the non-editable output to the editable output.
@@ -298,6 +291,49 @@
             :house-room-referenced-chair-referenced-script "/assets/from-house-room-referenced-chair-referenced-script.atlas"}]]
     (perform-build-target-test atlas-property-proj-paths-by-node-key)))
 
+(deftest build-target-fusion-test
+  (let [project-path (tu/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_ (tu/make-directory-deleter project-path)]
+      (tu/set-non-editable-directories! project-path ["/non-editable"])
+      (with-clean-system
+        ;; Create a collection with an embedded game object with an embedded
+        ;; component. Then, make a copy of the collection resource under a
+        ;; non-editable directory, and reference both collections from the main
+        ;; collection.  We want to ensure the build targets for the embedded
+        ;; resources are fused into one.
+        (let [workspace (tu/setup-workspace! world project-path)
+              project (tu/setup-project! workspace)
+              game-project (tu/resource-node project "/game.project")
+              main-collection (tu/make-resource-node! project "/main.collection")]
+          (game-project/set-setting! game-project ["bootstrap" "main_collection"] (resource-node/resource main-collection))
+          (let [editable-room (tu/make-resource-node! project "/editable/room.collection")]
+            (is (resource/editable? (resource-node/resource editable-room)))
+            (is (= :editor.collection/CollectionNode (g/node-type-kw editable-room)))
+            (-> editable-room
+                (tu/add-embedded-game-object!)
+                (tu/add-embedded-component! (workspace/get-resource-type workspace "camera")))
+            (-> (tu/add-referenced-collection! main-collection (resource-node/resource editable-room))
+                (tu/prop! :id "editable-room")))
+          (tu/save-project! project)
+          (fs/copy-directory! (io/file project-path "editable")
+                              (io/file project-path "non-editable"))
+          (workspace/resource-sync! workspace)
+          (let [non-editable-room (tu/resource-node project "/non-editable/room.collection")]
+            (is (not (resource/editable? (resource-node/resource non-editable-room))))
+            (is (= :editor.collection-non-editable/NonEditableCollectionNode (g/node-type-kw non-editable-room)))
+            (-> (tu/add-referenced-collection! main-collection (resource-node/resource non-editable-room))
+                (tu/prop! :id "non-editable-room")))
+
+          (testing "Build targets from embedded resources inside editable resources fuse with equivalents from non-editable resources."
+            (with-open [_ (tu/build! main-collection)]
+              (let [main-collection-pb-map (protobuf/bytes->map-without-defaults GameObject$CollectionDesc (tu/node-build-output main-collection))
+                    [editable-room-instance-pb-map non-editable-room-instance-pb-map] (:instances main-collection-pb-map)]
+                (is (= "/editable-room/go" (:id editable-room-instance-pb-map)))
+                (is (= "/non-editable-room/go" (:id non-editable-room-instance-pb-map)))
+                (is (string/includes? (:prototype editable-room-instance-pb-map) "generated"))
+                (is (= (:prototype editable-room-instance-pb-map)
+                       (:prototype non-editable-room-instance-pb-map)))))))))))
+
 ;; -----------------------------------------------------------------------------
 ;; scene-test
 ;; -----------------------------------------------------------------------------
@@ -325,7 +361,7 @@
           house-referenced-room (tu/add-referenced-collection! house (resource-node/resource room))]
 
       (doto sprite
-        (tu/prop! :image (tu/resource workspace "/assets/from-sprite.atlas"))
+        (tu/prop! :__sampler__texture_sampler__0 (tu/resource workspace "/assets/from-sprite.atlas"))
         (tu/prop! :default-animation "from-sprite"))
 
       (doto chair-embedded-sprite
@@ -333,7 +369,7 @@
         (tu/prop! :position [1.1 1.2 1.3])
         (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 1.0)))
         (tu/prop! :scale [1.4 1.5 1.6])
-        (tu/prop! :image (tu/resource workspace "/assets/from-chair-embedded-sprite.atlas"))
+        (tu/prop! :__sampler__texture_sampler__0 (tu/resource workspace "/assets/from-chair-embedded-sprite.atlas"))
         (tu/prop! :default-animation "from-chair-embedded-sprite"))
 
       (doto chair-referenced-script
@@ -356,7 +392,7 @@
         (tu/prop! :position [4.1 4.2 4.3])
         (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 4.0)))
         (tu/prop! :scale [4.4 4.5 4.6])
-        (tu/prop! :image (tu/resource workspace "/assets/from-room-embedded-chair-embedded-sprite.atlas"))
+        (tu/prop! :__sampler__texture_sampler__0 (tu/resource workspace "/assets/from-room-embedded-chair-embedded-sprite.atlas"))
         (tu/prop! :default-animation "from-room-embedded-chair-embedded-sprite"))
 
       (doto room-embedded-chair-referenced-script
@@ -408,8 +444,8 @@
                       {:scene {:chair (g/node-value chair :scene)
                                :room (g/node-value room :scene)
                                :house (g/node-value house :scene)}}]
-                  (save-project! project)
-                  (set-non-editable-directories! project-path ["/assets"])
+                  (tu/save-project! project)
+                  (tu/set-non-editable-directories! project-path ["/assets"])
                   editable-results)))]
         ;; Reload the project now that the resources are in a non-editable state
         ;; and compare the non-editable output to the editable output.

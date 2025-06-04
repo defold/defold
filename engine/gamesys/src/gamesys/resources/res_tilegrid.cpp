@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,6 +20,9 @@
 
 #include "gamesys.h"
 #include <gamesys/gamesys_ddf.h>
+
+#include <dmsdk/gamesys/resources/res_material.h>
+#include <dmsdk/gamesys/resources/res_textureset.h>
 
 namespace dmGameSystem
 {
@@ -48,7 +51,7 @@ namespace dmGameSystem
         {
             return r;
         }
-        if(dmRender::GetMaterialVertexSpace(tile_grid->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
+        if(dmRender::GetMaterialVertexSpace(tile_grid->m_Material->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
         {
             dmLogError("Failed to create Tile Grid component. This component only supports materials with the Vertex Space property set to 'vertex-space-world'");
             return dmResource::RESULT_NOT_SUPPORTED;
@@ -133,69 +136,72 @@ namespace dmGameSystem
         return size;
     }
 
-    dmResource::Result ResTileGridPreload(const dmResource::ResourcePreloadParams& params)
+    dmResource::Result ResTileGridPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmGameSystemDDF::TileGrid* tile_grid_ddf;
-        dmDDF::Result e  = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &tile_grid_ddf);
+        dmDDF::Result e  = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &tile_grid_ddf);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmResource::PreloadHint(params.m_HintInfo, tile_grid_ddf->m_TileSet);
-        dmResource::PreloadHint(params.m_HintInfo, tile_grid_ddf->m_Material);
+        dmResource::PreloadHint(params->m_HintInfo, tile_grid_ddf->m_TileSet);
+        dmResource::PreloadHint(params->m_HintInfo, tile_grid_ddf->m_Material);
 
-        *params.m_PreloadData = tile_grid_ddf;
+        *params->m_PreloadData = tile_grid_ddf;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResTileGridCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResTileGridCreate(const dmResource::ResourceCreateParams* params)
     {
         TileGridResource* tile_grid = new TileGridResource();
-        dmGameSystemDDF::TileGrid* tile_grid_ddf = (dmGameSystemDDF::TileGrid*) params.m_PreloadData;
+        dmGameSystemDDF::TileGrid* tile_grid_ddf = (dmGameSystemDDF::TileGrid*) params->m_PreloadData;
 
-        dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, params.m_Factory, tile_grid_ddf, tile_grid, params.m_Filename, false);
+        PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*) params->m_Context;
+
+        dmResource::Result r = AcquireResources(physics_context->m_Context, params->m_Factory, tile_grid_ddf, tile_grid, params->m_Filename, false);
         if (r == dmResource::RESULT_OK)
         {
-            params.m_Resource->m_Resource = (void*) tile_grid;
-            params.m_Resource->m_ResourceSize = GetResourceSize(tile_grid, params.m_BufferSize);
+            dmResource::SetResource(params->m_Resource, tile_grid);
+            dmResource::SetResourceSize(params->m_Resource, GetResourceSize(tile_grid, params->m_BufferSize));
         }
         else
         {
-            ReleaseResources(params.m_Factory, tile_grid);
+            ReleaseResources(params->m_Factory, tile_grid);
             delete tile_grid;
         }
         return r;
     }
 
-    dmResource::Result ResTileGridDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResTileGridDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        TileGridResource* tile_grid = (TileGridResource*) params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, tile_grid);
+        TileGridResource* tile_grid = (TileGridResource*) dmResource::GetResource(params->m_Resource);
+        ReleaseResources(params->m_Factory, tile_grid);
         delete tile_grid;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResTileGridRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResTileGridRecreate(const dmResource::ResourceRecreateParams* params)
     {
         dmGameSystemDDF::TileGrid* tile_grid_ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &tile_grid_ddf);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &tile_grid_ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        TileGridResource* tile_grid = (TileGridResource*) params.m_Resource->m_Resource;
+        TileGridResource* tile_grid = (TileGridResource*) dmResource::GetResource(params->m_Resource);
         TileGridResource tmp_tile_grid;
 
-        dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, params.m_Factory, tile_grid_ddf, &tmp_tile_grid, params.m_Filename, true);
+        PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*) params->m_Context;
+        dmResource::Result r = AcquireResources(physics_context->m_Context, params->m_Factory, tile_grid_ddf, &tmp_tile_grid, params->m_Filename, true);
         if (r == dmResource::RESULT_OK)
         {
             uint32_t layer_count_old = tile_grid->m_GridShapes.Size();
             uint32_t layer_count_new = tmp_tile_grid.m_GridShapes.Size();
             uint32_t layer_count     = layer_count_new;
 
-            ReleaseResources(params.m_Factory, tile_grid);
+            ReleaseResources(params->m_Factory, tile_grid);
 
             tile_grid->m_TileGrid = tmp_tile_grid.m_TileGrid;
             tile_grid->m_Material = tmp_tile_grid.m_Material;
@@ -231,12 +237,12 @@ namespace dmGameSystem
 
             tile_grid->m_Dirty = 1;
 
-            params.m_Resource->m_ResourceSize = GetResourceSize(tile_grid, params.m_BufferSize);
+            dmResource::SetResourceSize(params->m_Resource, GetResourceSize(tile_grid, params->m_BufferSize));
         }
         else
         {
             dmLogWarning("Failed AcquireResources, result: %i", r);
-            ReleaseResources(params.m_Factory, &tmp_tile_grid);
+            ReleaseResources(params->m_Factory, &tmp_tile_grid);
         }
         return r;
     }

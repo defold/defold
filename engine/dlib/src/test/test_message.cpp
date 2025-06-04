@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -150,13 +150,13 @@ TEST(dmMessage, Bench)
     ASSERT_LT(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
 
     // Benchmark
-    uint64_t start = dmTime::GetTime();
+    uint64_t start = dmTime::GetMonotonicTime();
     for (uint32_t iter = 0; iter < iter_count; ++iter)
     {
         ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage1, 0, 0x0, &message_data1, sizeof(CustomMessageData1), 0));
     }
     ASSERT_LT(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
-    uint64_t end = dmTime::GetTime();
+    uint64_t end = dmTime::GetMonotonicTime();
     printf("Bench elapsed: %f ms (%f us per call)\n", (end-start) / 1000.0f, (end-start) / float(iter_count));
 
     ASSERT_EQ(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
@@ -280,6 +280,7 @@ TEST(dmMessage, PostDuringDispatch)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
 }
 
+#if !defined(DM_NO_THREAD_SUPPORT)
 #define T_ASSERT_EQ(_A, _B) \
     if ( (_A) != (_B) ) { \
         printf("%s:%d: ASSERT: %s != %s: %d != %d", __FILE__, __LINE__, #_A, #_B, (_A), (_B)); \
@@ -364,6 +365,7 @@ TEST(dmMessage, ThreadTest2)
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
 }
+#endif // DM_NO_THREAD_SUPPORT
 
 void HandleIntegrityMessage(dmMessage::Message *message_object, void *user_ptr)
 {

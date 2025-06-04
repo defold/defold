@@ -1,0 +1,7 @@
+font: "/font/valid.ttf"
+material: "/material/valid.material"
+size: 14
+antialias: 4
+alpha: 0.25
+shadow_alpha: 0.5
+shadow_blur: 4

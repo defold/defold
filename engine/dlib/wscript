@@ -68,11 +68,13 @@ def shutdown(sht):
     server_config_path = "test_http_server.cfg"
     if os.path.exists(server_config_path):
         os.unlink(server_config_path)
+        print('File ' + server_config_path + ' already exist. Removing.')
 
     start = time.time()
+    timeout = 15
     while True:
-        if time.time() - start > 10:
-            error('HTTP server failed to start within 10 seconds')
+        if time.time() - start > timeout:
+            error('HTTP server failed to start within ' + str(timeout) + ' seconds')
             sys.exit(1)
         try:
             if not os.path.exists(server_config_path):
@@ -97,7 +99,12 @@ def shutdown(sht):
     # write a config file for the tests to use
     config = configparser.RawConfigParser()
     hostname = socket.gethostname()
-    local_ip = socket.gethostbyname(hostname)
+    try:
+        local_ip = socket.gethostbyname(hostname)
+    except socket.gaierror as e:
+        print(e)
+        print(f"Hostname was '{hostname}', now trying empty ('') string now")
+        local_ip = socket.gethostbyname("")
     print ("SERVER IP: %s" % local_ip)
 
     config.add_section("server")

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,6 +19,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/vmath.h>
 #include <particle/particle.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
@@ -47,6 +48,7 @@ namespace dmGameSystem
      * @document
      * @name Particle effects
      * @namespace particlefx
+     * @language Lua
      */
 
     /*# sleeping state
@@ -80,7 +82,7 @@ namespace dmGameSystem
     void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_id, dmParticle::EmitterState emitter_state, void* user_data)
     {
 
-        EmitterStateChangedScriptData data = *(EmitterStateChangedScriptData*)(user_data);
+        EmitterStateChangedScriptData& data = *(EmitterStateChangedScriptData*)(user_data);
 
         if (!dmScript::IsCallbackValid(data.m_CallbackInfo))
         {
@@ -93,6 +95,7 @@ namespace dmGameSystem
 
         if (!dmScript::SetupCallback(data.m_CallbackInfo))
         {
+            dmLogError("Failed to setup state changed callback (has the calling script been destroyed?)");
             dmScript::DestroyCallback(data.m_CallbackInfo);
             data.m_CallbackInfo = 0x0;
             return;
@@ -161,7 +164,7 @@ namespace dmGameSystem
      */
     int ParticleFX_Play(lua_State* L)
     {
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         int top = lua_gettop(L);
 
@@ -211,7 +214,7 @@ namespace dmGameSystem
             &sender,
             &receiver,
             dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash,
-            (uintptr_t)instance,
+            0,
             (uintptr_t)dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor,
             (void*)msg_buf,
             msg_size,
@@ -227,7 +230,7 @@ namespace dmGameSystem
      *
      * @name particlefx.stop
      * @param url [type:string|hash|url] the particle fx that should stop playing
-     * @param options [type:table] Options when stopping the particle fx. Supported options:
+     * @param [options] [type:table] Options when stopping the particle fx. Supported options:
      *
      * - [type:boolean] `clear`: instantly clear spawned particles
      *
@@ -246,7 +249,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmGameSystemDDF::StopParticleFX msg;
         uint32_t msg_size = sizeof(dmGameSystemDDF::StopParticleFX);
@@ -277,7 +280,7 @@ namespace dmGameSystem
 
         msg.m_ClearParticles = clear_particles;
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::StopParticleFX::m_DDFDescriptor, (void*)&msg, msg_size, 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::StopParticleFX::m_DDFDescriptor, (void*)&msg, msg_size, 0);
         return 0;
     }
 
@@ -311,12 +314,12 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmhash_t emitter_id = dmScript::CheckHashOrString(L, 2);
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 3);
 
-        Vectormath::Aos::Matrix4 value;
+        dmVMath::Matrix4 value;
         bool is_matrix4_type = dmScript::IsMatrix4(L,4);
         if (is_matrix4_type)
         {
@@ -324,7 +327,7 @@ namespace dmGameSystem
         }
         else
         {
-            Vectormath::Aos::Vector4* value_vec4 = dmScript::CheckVector4(L, 4);
+            dmVMath::Vector4* value_vec4 = dmScript::CheckVector4(L, 4);
             value.setCol0(*value_vec4);
         }
 
@@ -338,7 +341,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetConstantParticleFX::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -371,7 +374,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
         dmhash_t emitter_id = dmScript::CheckHashOrString(L, 2);
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 3);
 
@@ -383,7 +386,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }

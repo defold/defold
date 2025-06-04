@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,9 +21,9 @@
             [editor.build :as build]
             [editor.defold-project :as project]
             [editor.git :as git]
-            [editor.pipeline :as pipeline]
             [editor.progress :as progress]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
@@ -106,9 +106,11 @@
   ;; that differ from the editor state.
   (let [previous-margin (g/node-value atlas :margin)]
     (g/set-property! atlas :margin margin)
-    (let [save-data (g/node-value atlas :save-data)]
+    (let [save-data (g/node-value atlas :save-data)
+          resource (:resource save-data)
+          content (resource-node/save-data-content save-data)]
       (g/set-property! atlas :margin previous-margin)
-      (spit-until-new-mtime (:resource save-data) (:content save-data))
+      (spit-until-new-mtime resource content)
       (workspace/resource-sync! workspace []))))
 
 (defn- revert-all! [workspace git]
@@ -129,8 +131,8 @@
           atlas-path2 "/atlas/single2.atlas"
           atlas-res2 (workspace/resolve-workspace-resource workspace atlas-path2)
           [atlas scene-view] (test-util/open-scene-view! project app-view atlas-path 64 64)
-          proj-path (.getAbsolutePath (workspace/project-path workspace))
-          git (init-git proj-path)
+          project-path (.getAbsolutePath (workspace/project-directory workspace))
+          git (init-git project-path)
           atlas-outline (fn [path] (test-util/outline (g/node-value app-view :active-resource-node) path))]
       (is (= atlas-res (g/node-value app-view :active-resource)))
       (test-util/move-file! workspace atlas-path atlas-path2)
@@ -161,7 +163,7 @@
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
         (workspace/artifact-map! workspace (:artifact-map build-results)))
-      (asset-browser/rename main-dir "/blahonga")
+      (asset-browser/rename [main-dir] "blahonga")
       (is (nil? (workspace/find-resource workspace "/main")))
       (is (workspace/find-resource workspace "/blahonga"))
       (let [old-artifact-map (workspace/artifact-map workspace)
@@ -188,7 +190,6 @@
               project (test-util/setup-project! workspace)
               artifact-map (workspace/artifact-map workspace)
               game-project (test-util/resource-node project "/game.project")
-              game-project-build-targets (g/node-value game-project :build-targets)
               expected-cached-build-target-endpoints (into (sorted-set)
                                                            (mapcat (fn [{build-resource :resource :as build-target}]
                                                                      (let [source-resource (:resource build-resource)]
@@ -197,7 +198,7 @@
                                                                          ;; This is a project (i.e. not embedded) resource node.
                                                                          (when-some [source-node-id (test-util/resource-node project source-resource)]
                                                                            (node-cacheable-build-target-endpoints source-node-id))))))
-                                                           (pipeline/flatten-build-targets game-project-build-targets))]
+                                                           (build/resolve-node-dependencies game-project project))]
           (test-util/run-event-loop!
             (fn [exit-event-loop!]
               (g/clear-system-cache!)
@@ -205,6 +206,7 @@
                                      :debug false
                                      :build-engine false
                                      :old-artifact-map artifact-map
+                                     :prefs (test-util/make-test-prefs)
                                      :result-fn (fn [build-results]
                                                   (when (is (nil? (:error build-results)))
 

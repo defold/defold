@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,7 +16,6 @@
 #define DM_SOUND_DECODER_H
 
 #include "sound_codec.h"
-#include "sound_decoder.h"
 #include "sound.h"
 
 namespace dmSoundCodec
@@ -49,7 +48,7 @@ namespace dmSoundCodec
         /**
          * Open a stream for decoding
          */
-        Result (*m_OpenStream)(const void* buffer, const uint32_t size, HDecodeStream* out);
+        Result (*m_OpenStream)(dmSound::HSoundData sound_data, HDecodeStream* out);
 
         /**
          * Close and free decoding resources
@@ -57,10 +56,10 @@ namespace dmSoundCodec
         void (*m_CloseStream)(HDecodeStream);
 
         /**
-         * Fetch a chunk of PCM data from the decoder. The buffer will be filled as long as there is
+         * Fetch a chunk of PCM data from the decoder. The buffer(s) will be filled as long as there is
          * enough data left in the compressed stream.
          */
-        Result (*m_DecodeStream)(HDecodeStream decoder, char* buffer, uint32_t buffer_size, uint32_t* decoded);
+        Result (*m_DecodeStream)(HDecodeStream decoder, char* buffer[], uint32_t buffer_size, uint32_t* decoded);
 
         /**
          * Seek to the beginning.
@@ -100,21 +99,9 @@ namespace dmSoundCodec
      */
     const DecoderInfo* FindDecoderByName(const char *name);
 
-    #ifdef __GNUC__
-        // Workaround for dead-stripping on OSX/iOS. The symbol "name" is explicitly exported. See wscript "exported_symbols"
-        // Otherwise it's dead-stripped even though -no_dead_strip_inits_and_terms is passed to the linker
-        // The bug only happens when the symbol is in a static library though
-        #define DM_REGISTER_SOUND_DECODER(name, desc) extern "C" void __attribute__((constructor)) name () { \
-            dmSoundCodec::RegisterDecoder(&desc); \
-        }
-    #else
-        #define DM_REGISTER_SOUND_DECODER(name, desc) extern "C" void name () { \
-            dmSoundCodec::RegisterDecoder(&desc); \
-            }\
-            int name ## Wrapper(void) { name(); return 0; } \
-            __pragma(section(".CRT$XCU",read)) \
-            __declspec(allocate(".CRT$XCU")) int (* _Fp ## name)(void) = name ## Wrapper;
-    #endif
+    #define DM_REGISTER_SOUND_DECODER(name, desc) extern "C" void name () { \
+        dmSoundCodec::RegisterDecoder(&desc); \
+    }
 
     #ifndef DM_SOUND_PASTE
     #define DM_SOUND_PASTE(x, y) x ## y

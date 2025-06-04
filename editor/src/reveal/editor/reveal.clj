@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,17 +20,19 @@
             [clojure.core.async :as a]
             [clojure.main :as m]
             [clojure.string :as str]
+            [dev]
             [dynamo.graph :as g]
-            editor.code.data
+            [editor.code.data]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            editor.workspace
-            [vlaaad.reveal :as r]
-            [internal.system :as is])
+            [editor.workspace :as workspace]
+            [editor.workspace]
+            [internal.system :as is]
+            [vlaaad.reveal :as r])
   (:import [clojure.core.async.impl.channels ManyToManyChannel]
            [clojure.lang IRef]
-           [editor.resource FileResource ZipResource]
            [editor.code.data Cursor CursorRange]
+           [editor.resource FileResource ZipResource]
            [editor.workspace BuildResource]
            [internal.graph.types Endpoint]
            [javafx.scene Parent]))
@@ -65,14 +67,24 @@
 
 (defn- node-children-fn [ec node-id]
   (fn []
-    (let [node-type-def @(g/node-type* (:basis ec) node-id)]
-      (->> [:input :property :output]
-           (mapcat (fn [k] (keys (get node-type-def k))))
-           distinct
-           sort
-           (map
-             (fn [label]
-               (label-tree-node ec node-id label)))))))
+    (let [{:keys [basis]} ec
+          node-type-def @(g/node-type* basis node-id)
+          override-original (g/override-original basis node-id)
+          children (->> [:input :property :output]
+                        (mapcat (fn [k] (keys (get node-type-def k))))
+                        distinct
+                        sort
+                        (map
+                          (fn [label]
+                            (label-tree-node ec node-id label))))]
+      (cond->> children
+               override-original
+               (cons {:value override-original
+                      :render (r/horizontal
+                                (r/raw-string "override-original" {:fill :symbol})
+                                r/separator
+                                (node-id-sf ec override-original))
+                      :children (node-children-fn ec override-original)})))))
 
 (defn- label-tree-node [{:keys [basis] :as ec} node-id label]
   (let [[v e :as v-or-e] (node-value-or-err ec node-id label)
@@ -183,11 +195,17 @@
     (r/stream (g/endpoint-label endpoint))
     (r/raw-string "]" {:fill :object})))
 
+(defn- read-file-resource [str-expr]
+  `(workspace/resolve-workspace-resource (dev/workspace) ~str-expr))
+
 (r/defstream FileResource [resource]
   (r/horizontal
     (r/raw-string "#resource/file" {:fill :object})
     r/separator
     (r/stream (resource/proj-path resource))))
+
+(defn- read-zip-resource [str-expr]
+  `(workspace/find-resource (dev/workspace) ~str-expr))
 
 (r/defstream ZipResource [resource]
   (r/horizontal
@@ -201,26 +219,42 @@
     r/separator
     (r/stream (resource/proj-path resource))))
 
-(r/defstream Cursor [{:keys [row col]}]
-  (r/horizontal
-    (r/raw-string "#code/cursor [" {:fill :object})
+(defn- stream-cursor-contents [{:keys [row col] :as cursor}]
+  (apply
+    r/horizontal
     (r/stream row)
     r/separator
     (r/stream col)
+    (when-let [other (seq (dissoc cursor :row :col))]
+      [r/separator
+       (->> other
+            (eduction (map r/horizontally))
+            (r/horizontally))])))
+
+(r/defstream Cursor [{:keys [row col] :as cursor}]
+  (r/horizontal
+    (r/raw-string "#code/cursor [" {:fill :object})
+    (stream-cursor-contents cursor)
     (r/raw-string "]" {:fill :object})))
 
 (r/defstream CursorRange [{:keys [from to] :as range}]
   (r/horizontal
     (r/raw-string "#code/range [" {:fill :object})
     (apply
-      r/vertical
-      (r/horizontal
-        (r/stream ((juxt :row :col) from))
-        r/separator
-        (r/stream ((juxt :row :col) to)))
-      (let [rest (dissoc range :from :to)]
-        (when (seq rest)
-          [(r/vertically (map r/horizontally rest))])))
+      r/horizontal
+      (r/as from
+        (r/horizontal
+          (r/raw-string "[" {:fill :object})
+          (stream-cursor-contents from)
+          (r/raw-string "]" {:fill :object})))
+      r/separator
+      (r/as to
+        (r/horizontal
+          (r/raw-string "[" {:fill :object})
+          (stream-cursor-contents to)
+          (r/raw-string "]" {:fill :object})))
+      (when-let [rest (seq (dissoc range :from :to))]
+        [r/separator (->> rest (eduction (map r/horizontally)) (r/horizontally))]))
     (r/raw-string "]" {:fill :object})))
 
 (r/defaction ::javafx:children [x]

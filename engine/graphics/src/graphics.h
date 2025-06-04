@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,23 +16,20 @@
 #define DM_GRAPHICS_H
 
 #include <stdint.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
 
 #include <dlib/hash.h>
+#include <dlib/job_thread.h>
 #include <dlib/opaque_handle_container.h>
 
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
+#include <platform/platform_window.h>
+
 namespace dmGraphics
 {
-    typedef void (*WindowResizeCallback)(void* user_data, uint32_t width, uint32_t height);
-
-    typedef void (*WindowFocusCallback)(void* user_data, uint32_t focus);
-
-    typedef void (*WindowIconifyCallback)(void* user_data, uint32_t iconified);
-
     /**
      * Callback function called when the window is requested to close.
      * @param user_data user data that was supplied when opening the window
@@ -67,16 +64,39 @@ namespace dmGraphics
     //       to the users via lua: http://lua-users.org/wiki/NumbersTutorial
     typedef uint64_t HAssetHandle;
 
-    const static uint64_t MAX_ASSET_HANDLE_VALUE = 0x20000000000000-1; // 2^53 - 1
+    const static uint64_t MAX_ASSET_HANDLE_VALUE  = 0x20000000000000-1; // 2^53 - 1
+    static const uint8_t  MAX_BUFFER_TYPE_COUNT   = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
+    const static uint8_t  MAX_VERTEX_STREAM_COUNT = 8;
 
-    static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
-    static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_R   = 0x1;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_G   = 0x2;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_B   = 0x4;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_A   = 0x8;
 
-    enum AdapterType
+    static const HProgram         INVALID_PROGRAM_HANDLE   = ~0u;
+    static const HUniformLocation INVALID_UNIFORM_LOCATION = ~0ull;
+
+    enum AdapterFamily
     {
-        ADAPTER_TYPE_NULL,
-        ADAPTER_TYPE_OPENGL,
-        ADAPTER_TYPE_VULKAN,
+        ADAPTER_FAMILY_NONE     = -1,
+        ADAPTER_FAMILY_NULL     = 1,
+        ADAPTER_FAMILY_OPENGL   = 2,
+        ADAPTER_FAMILY_OPENGLES = 3,
+        ADAPTER_FAMILY_VULKAN   = 4,
+        ADAPTER_FAMILY_VENDOR   = 5,
+        ADAPTER_FAMILY_WEBGPU   = 6,
+        ADAPTER_FAMILY_DIRECTX  = 7,
+    };
+
+    enum AdapterFamilyPriority
+    {
+        ADAPTER_FAMILY_PRIORITY_NULL     = 32,
+        ADAPTER_FAMILY_PRIORITY_OPENGL   = 2,
+        ADAPTER_FAMILY_PRIORITY_OPENGLES = 2,
+        ADAPTER_FAMILY_PRIORITY_VULKAN   = 1,
+        ADAPTER_FAMILY_PRIORITY_VENDOR   = 0,
+        ADAPTER_FAMILY_PRIORITY_WEBGPU   = 0,
+        ADAPTER_FAMILY_PRIORITY_DIRECTX  = 0,
     };
 
     enum AssetType
@@ -97,9 +117,6 @@ namespace dmGraphics
         BUFFER_TYPE_STENCIL_BIT = 0x20,
     };
 
-    static const uint8_t MAX_BUFFER_COLOR_ATTACHMENTS = 4;
-    static const uint8_t MAX_BUFFER_TYPE_COUNT        = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
-
     // render states
     enum State
     {
@@ -113,19 +130,20 @@ namespace dmGraphics
         STATE_ALPHA_TEST_SUPPORTED = 7,
     };
 
-    // Translation table to translate RenderTargetAttachment to BufferType
-    struct AttachmentToBufferType
-    {
-        BufferType m_AttachmentToBufferType[MAX_ATTACHMENT_COUNT];
-        AttachmentToBufferType();
-    };
-
     // Texture type
     enum TextureType
     {
-        TEXTURE_TYPE_2D       = 0,
-        TEXTURE_TYPE_2D_ARRAY = 1,
-        TEXTURE_TYPE_CUBE_MAP = 2,
+        TEXTURE_TYPE_2D               = 0,
+        TEXTURE_TYPE_2D_ARRAY         = 1,
+        TEXTURE_TYPE_3D               = 2,
+        TEXTURE_TYPE_CUBE_MAP         = 3,
+        TEXTURE_TYPE_IMAGE_2D         = 4,
+        TEXTURE_TYPE_IMAGE_3D         = 5,
+        TEXTURE_TYPE_SAMPLER          = 6,
+        TEXTURE_TYPE_TEXTURE_2D       = 7,
+        TEXTURE_TYPE_TEXTURE_2D_ARRAY = 8,
+        TEXTURE_TYPE_TEXTURE_3D       = 9,
+        TEXTURE_TYPE_TEXTURE_CUBE     = 10,
     };
 
     // Texture filter
@@ -157,53 +175,43 @@ namespace dmGraphics
         FACE_TYPE_FRONT_AND_BACK = 2,
     };
 
-    enum WindowState
-    {
-        WINDOW_STATE_OPENED             = 0x00020001,
-        WINDOW_STATE_ACTIVE             = 0x00020002,
-        WINDOW_STATE_ICONIFIED          = 0x00020003,
-        WINDOW_STATE_ACCELERATED        = 0x00020004,
-        WINDOW_STATE_RED_BITS           = 0x00020005,
-        WINDOW_STATE_GREEN_BITS         = 0x00020006,
-        WINDOW_STATE_BLUE_BITS          = 0x00020007,
-        WINDOW_STATE_ALPHA_BITS         = 0x00020008,
-        WINDOW_STATE_DEPTH_BITS         = 0x00020009,
-        WINDOW_STATE_STENCIL_BITS       = 0x0002000A,
-        WINDOW_STATE_REFRESH_RATE       = 0x0002000B,
-        WINDOW_STATE_ACCUM_RED_BITS     = 0x0002000C,
-        WINDOW_STATE_ACCUM_GREEN_BITS   = 0x0002000D,
-        WINDOW_STATE_ACCUM_BLUE_BITS    = 0x0002000E,
-        WINDOW_STATE_ACCUM_ALPHA_BITS   = 0x0002000F,
-        WINDOW_STATE_AUX_BUFFERS        = 0x00020010,
-        WINDOW_STATE_STEREO             = 0x00020011,
-        WINDOW_STATE_WINDOW_NO_RESIZE   = 0x00020012,
-        WINDOW_STATE_FSAA_SAMPLES       = 0x00020013
-    };
-
-    enum WindowResult
-    {
-        WINDOW_RESULT_ALREADY_OPENED    = 1,
-        WINDOW_RESULT_OK                = 0,
-        WINDOW_RESULT_WINDOW_OPEN_ERROR = -2,
-        WINDOW_RESULT_UNKNOWN_ERROR     = -1000,
-    };
-
     enum TextureStatusFlags
     {
         TEXTURE_STATUS_OK               = 0,
         TEXTURE_STATUS_DATA_PENDING     = (1 << 0), // Currently waiting for the upload to be done
     };
 
-    struct TextureCreationParams {
+    enum ContextFeature
+    {
+        CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
+        CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
+        CONTEXT_FEATURE_COMPUTE_SHADER         = 2,
+        CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
+        CONTEXT_FEATURE_VSYNC                  = 4,
+        CONTEXT_FEATURE_INSTANCING             = 5,
+        CONTEXT_FEATURE_3D_TEXTURES            = 6,
+    };
 
-        TextureCreationParams() :
-            m_Type(TEXTURE_TYPE_2D),
-            m_Width(0),
-            m_Height(0),
-            m_Depth(1),
-            m_OriginalWidth(0),
-            m_OriginalHeight(0),
-            m_MipMapCount(1)
+    // Translation table to translate RenderTargetAttachment to BufferType
+    struct AttachmentToBufferType
+    {
+        BufferType m_AttachmentToBufferType[MAX_ATTACHMENT_COUNT];
+        AttachmentToBufferType();
+    };
+
+    struct TextureCreationParams
+    {
+        TextureCreationParams()
+        : m_Type(TEXTURE_TYPE_2D)
+        , m_Width(0)
+        , m_Height(0)
+        , m_Depth(1)
+        , m_OriginalWidth(0)
+        , m_OriginalHeight(0)
+        , m_OriginalDepth(1)
+        , m_LayerCount(1)
+        , m_MipMapCount(1)
+        , m_UsageHintBits(TEXTURE_USAGE_FLAG_SAMPLE)
         {}
 
         TextureType m_Type;
@@ -212,7 +220,10 @@ namespace dmGraphics
         uint16_t    m_Depth;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
+        uint16_t    m_OriginalDepth;
+        uint8_t     m_LayerCount;
         uint8_t     m_MipMapCount;
+        uint8_t     m_UsageHintBits;
     };
 
     struct TextureParams
@@ -228,9 +239,11 @@ namespace dmGraphics
         , m_X(0)
         , m_Y(0)
         , m_Z(0)
+        , m_Slice(0)
         , m_Width(0)
         , m_Height(0)
         , m_Depth(0)
+        , m_LayerCount(0)
         , m_MipMap(0)
         , m_SubUpdate(false)
         {}
@@ -246,59 +259,32 @@ namespace dmGraphics
         // For sub texture updates
         uint32_t m_X;
         uint32_t m_Y;
-        uint32_t m_Z; // For array texture, this is the slice to set
+        uint32_t m_Z;
+        uint32_t m_Slice;
 
         uint16_t m_Width;
         uint16_t m_Height;
-        uint16_t m_Depth; // For array texture, this is slice count
+        uint16_t m_Depth;
+        uint8_t  m_LayerCount; // For array texture, this is page count
         uint8_t  m_MipMap    : 7;
         uint8_t  m_SubUpdate : 1;
     };
 
-    // Parameters structure for OpenWindow
-    struct WindowParams
+    struct RenderTargetCreationParams
     {
-        WindowParams();
+        TextureCreationParams m_ColorBufferCreationParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureCreationParams m_DepthBufferCreationParams;
+        TextureCreationParams m_StencilBufferCreationParams;
+        TextureParams         m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureParams         m_DepthBufferParams;
+        TextureParams         m_StencilBufferParams;
+        AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        float                 m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
+        // TODO: Depth/Stencil
 
-        /// Window resize callback
-        WindowResizeCallback    m_ResizeCallback;
-        /// User data supplied to the callback function
-        void*                   m_ResizeCallbackUserData;
-        /// Window close callback
-        WindowCloseCallback     m_CloseCallback;
-        /// User data supplied to the callback function
-        void*                   m_CloseCallbackUserData;
-        /// Window focus callback
-        WindowFocusCallback     m_FocusCallback;
-        /// User data supplied to the callback function
-        void*                   m_FocusCallbackUserData;
-        /// Window iconify callback
-        WindowIconifyCallback   m_IconifyCallback;
-        /// User data supplied to the callback function
-        void*                   m_IconifyCallbackUserData;
-        /// Window width, 640 by default
-        uint32_t                m_Width;
-        /// Window height, 480 by default
-        uint32_t                m_Height;
-        /// Number of samples (for multi-sampling), 1 by default
-        uint32_t                m_Samples;
-        /// Window title, "Dynamo App" by default
-        const char*             m_Title;
-        /// If the window should cover the full screen or not, false by default
-        bool                    m_Fullscreen;
-        /// Log info about the graphics device being used, false by default
-        bool                    m_PrintDeviceInfo;
-
-        bool                    m_HighDPI;
-
-        // Window background color, RGB 0x00BBGGRR
-        uint32_t                m_BackgroundColor;
-    };
-
-    enum ContextFeature
-    {
-        CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
-        CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
+        uint8_t               m_DepthTexture   : 1;
+        uint8_t               m_StencilTexture : 1;
     };
 
     // Parameters structure for NewContext
@@ -306,19 +292,20 @@ namespace dmGraphics
     {
         ContextParams();
 
-        TextureFilter m_DefaultTextureMinFilter;
-        TextureFilter m_DefaultTextureMagFilter;
-        uint32_t      m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
-        uint8_t       m_VerifyGraphicsCalls : 1;
-        uint8_t       m_RenderDocSupport : 1;           // Vulkan only
-        uint8_t       m_UseValidationLayers : 1;        // Vulkan only
-        uint8_t       : 5;
+        dmPlatform::HWindow   m_Window;
+        dmJobThread::HContext m_JobThread;
+        TextureFilter         m_DefaultTextureMinFilter;
+        TextureFilter         m_DefaultTextureMagFilter;
+        uint32_t              m_Width;
+        uint32_t              m_Height;
+        uint32_t              m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
+        uint32_t              m_SwapInterval;                   // Initial VSync setting (default 1)
+        uint8_t               m_VerifyGraphicsCalls : 1;
+        uint8_t               m_PrintDeviceInfo : 1;
+        uint8_t               m_RenderDocSupport : 1;           // Vulkan only
+        uint8_t               m_UseValidationLayers : 1;        // Vulkan only
+        uint8_t               : 4;
     };
-
-    const static uint8_t DM_GRAPHICS_STATE_WRITE_R = 0x1;
-    const static uint8_t DM_GRAPHICS_STATE_WRITE_G = 0x2;
-    const static uint8_t DM_GRAPHICS_STATE_WRITE_B = 0x4;
-    const static uint8_t DM_GRAPHICS_STATE_WRITE_A = 0x8;
 
     struct PipelineState
     {
@@ -359,6 +346,107 @@ namespace dmGraphics
         uint64_t m_PolygonOffsetFillEnabled : 1;
     };
 
+    struct VertexAttributeInfo
+    {
+        dmhash_t                       m_NameHash;
+        VertexAttribute::SemanticType  m_SemanticType;
+        VertexAttribute::DataType      m_DataType;
+        VertexAttribute::VectorType    m_VectorType;
+        dmGraphics::VertexStepFunction m_StepFunction;
+        CoordinateSpace                m_CoordinateSpace;
+        const uint8_t*                 m_ValuePtr;
+        VertexAttribute::VectorType    m_ValueVectorType;
+        bool                           m_Normalize;
+    };
+
+    struct VertexAttributeInfos
+    {
+        VertexAttributeInfos()
+        {
+            memset(this, 0, sizeof(*this));
+            m_StructSize = sizeof(*this);
+        }
+
+        VertexAttributeInfo m_Infos[MAX_VERTEX_STREAM_COUNT];
+        uint32_t            m_VertexStride;
+        uint32_t            m_NumInfos;
+        uint32_t            m_StructSize;
+    };
+
+    struct VertexAttributeInfoMetadata
+    {
+        uint32_t m_HasAttributeWorldPosition : 1;
+        uint32_t m_HasAttributeLocalPosition : 1;
+        uint32_t m_HasAttributeNormal        : 1;
+        uint32_t m_HasAttributeTangent       : 1;
+        uint32_t m_HasAttributeColor         : 1;
+        uint32_t m_HasAttributeTexCoord      : 1;
+        uint32_t m_HasAttributePageIndex     : 1;
+        uint32_t m_HasAttributeWorldMatrix   : 1;
+        uint32_t m_HasAttributeNormalMatrix  : 1;
+        uint32_t m_HasAttributeNone          : 1;
+    };
+
+    struct WriteAttributeStreamDesc
+    {
+        const float** m_Data;
+        // Data source vector types corresponding to each data source passed in.
+        // The destination vector type is stored in the vertexattribute infos.
+        VertexAttribute::VectorType m_VectorType;
+        // Number of data "streams" for this attribute
+        uint8_t m_StreamCount  : 7;
+        // Some streams share the value across the entire mesh (page indices for example).
+        // An alternative would be to replicate the data across all vertices in the mesh,
+        // which would be cleaner but a bit of a waste. Perhaps it should be configurable by the write params?
+        // Assume the data is not global by default
+        uint8_t m_IsGlobalData : 1;
+    };
+
+    struct WriteAttributeParams
+    {
+        const VertexAttributeInfos* m_VertexAttributeInfos;
+        WriteAttributeStreamDesc    m_WorldMatrix;
+        WriteAttributeStreamDesc    m_NormalMatrix;
+        WriteAttributeStreamDesc    m_PositionsLocalSpace;
+        WriteAttributeStreamDesc    m_PositionsWorldSpace;
+        WriteAttributeStreamDesc    m_Normals;
+        WriteAttributeStreamDesc    m_Tangents;
+        WriteAttributeStreamDesc    m_Colors;
+        WriteAttributeStreamDesc    m_TexCoords;
+        WriteAttributeStreamDesc    m_PageIndices;
+        VertexStepFunction          m_StepFunction;
+    };
+
+    struct VertexDeclaration
+    {
+        struct Stream
+        {
+            dmhash_t m_NameHash;
+            int16_t  m_Location;
+            uint16_t m_Size;
+            uint16_t m_Offset;
+            Type     m_Type;
+            bool     m_Normalize;
+        };
+
+        Stream             m_Streams[MAX_VERTEX_STREAM_COUNT];
+        dmhash_t           m_PipelineHash; // Vulkan
+        uint16_t           m_StreamCount;
+        uint16_t           m_Stride;
+        VertexStepFunction m_StepFunction;
+        HProgram           m_BoundForProgram;     // OpenGL
+        uint32_t           m_ModificationVersion; // OpenGL
+    };
+
+    struct Uniform
+    {
+        char*            m_Name; // Name, e.g "my_member" or "some_struct.my_member"
+        dmhash_t         m_NameHash;
+        HUniformLocation m_Location;
+        Type             m_Type;
+        uint32_t         m_Count;
+    };
+
     /** Creates a graphics context
      * Currently, there can only be one context active at a time.
      * @return New graphics context
@@ -371,11 +459,13 @@ namespace dmGraphics
     void DeleteContext(HContext context);
 
     /**
-     * Initialize graphics system
-     * @params adapter_type_str String identifier for which adapter to use (vulkan/opengl/null)
+     * Install a graphics adapter
+     * @params family AdapterFamily identifier for which adapter to use (vulkan/opengl/null/vendor)
      * @return True if a graphics backend could be created, false otherwise.
      */
-    bool Initialize(const char* adapter_type_str = 0);
+    bool InstallAdapter(AdapterFamily family = ADAPTER_FAMILY_NONE);
+    AdapterFamily GetAdapterFamily(const char* adapter_name);
+    AdapterFamily GetInstalledAdapterFamily();
 
     /**
      * Finalize graphics system
@@ -395,12 +485,11 @@ namespace dmGraphics
     uint32_t GetWindowRefreshRate(HContext context);
 
     /**
-     * Open a window
+     * Get the window handle from the graphics context
      * @param context Graphics context handle
-     * @param params Window parameters
-     * @return The result of the operation
+     * @return The window handle
      */
-    WindowResult OpenWindow(HContext context, WindowParams *params);
+    dmPlatform::HWindow GetWindow(HContext context);
 
     /**
      * Close the open window if any.
@@ -420,7 +509,7 @@ namespace dmGraphics
      * @param state Aspect of the window state to query for
      * @return State of the supplied aspect. If no window is opened, 0 is always returned.
      */
-    uint32_t GetWindowState(HContext context, WindowState state);
+    uint32_t GetWindowStateParam(HContext context, dmPlatform::WindowState state);
 
     /**
      * Returns the specified dpi of default monitor.
@@ -531,38 +620,49 @@ namespace dmGraphics
      */
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
 
-    bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program);
-    void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
-    void HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
+    bool     SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
+    void     EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program);
+    void     DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
+    void     HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
+    uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration);
+    uint32_t GetVertexDeclarationStreamCount(HVertexDeclaration vertex_declaration);
 
-    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
-    void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
+    void     EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
+    void     DisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer);
+    uint32_t GetVertexBufferSize(HVertexBuffer vertex_buffer);
+    uint32_t GetIndexBufferSize(HIndexBuffer buffer);
 
-    HVertexProgram   NewVertexProgram(HContext context, ShaderDesc::Shader* ddf);
-    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf);
-    HProgram         NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
-    void             DeleteProgram(HContext context, HProgram program);
+    void     DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
+    void     Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
+    void     DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
-    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf);
-    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf);
-    void DeleteVertexProgram(HVertexProgram prog);
-    void DeleteFragmentProgram(HFragmentProgram prog);
-    ShaderDesc::Language GetShaderProgramLanguage(HContext context);
-    ShaderDesc::Shader* GetShaderProgram(HContext context, ShaderDesc* shader_desc);
+    HProgram             NewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
+    void                 DeleteProgram(HContext context, HProgram program);
 
-    void EnableProgram(HContext context, HProgram program);
-    void DisableProgram(HContext context);
-    bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
+    bool                 IsShaderLanguageSupported(HContext _context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
+    ShaderDesc::Language GetProgramLanguage(HProgram program);
 
-    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
-    uint32_t GetUniformCount(HProgram prog);
-    int32_t  GetUniformLocation(HProgram prog, const char* name);
+    void                 EnableProgram(HContext context, HProgram program);
+    void                 DisableProgram(HContext context);
+    bool                 ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf);
 
-    void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
-    void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
-    void SetSampler(HContext context, int32_t location, int32_t unit);
+    // Attributes
+    uint32_t         GetAttributeCount(HProgram prog);
+    void             GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
+    void             GetAttributeValues(const VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size);
+    Type             GetGraphicsType(VertexAttribute::DataType data_type);
+
+    float            VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr);
+    uint8_t*         WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type);
+    uint8_t*         WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, uint32_t vertex_count, const WriteAttributeParams& params);
+
+    // Uniforms
+    uint32_t         GetUniformCount(HProgram prog);
+    void             GetUniform(HProgram prog, uint32_t index, Uniform* uniform);
+
+    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+    void SetSampler(HContext context, HUniformLocation location, int32_t unit);
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
     void EnableState(HContext context, State state);
@@ -581,16 +681,17 @@ namespace dmGraphics
     void SetFaceWinding(HContext context, FaceWinding face_winding);
     void SetPolygonOffset(HContext context, float factor, float units);
 
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
-    void DeleteRenderTarget(HRenderTarget render_target);
-    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
-    HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
-    void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
-    void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
-    uint32_t GetBufferTypeIndex(BufferType buffer_type);
-    const char* GetBufferTypeLiteral(BufferType buffer_type);
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params);
+    void          DeleteRenderTarget(HRenderTarget render_target);
+    void          SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
+    HTexture      GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
+    void          GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
+    void          SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
+    uint32_t      GetBufferTypeIndex(BufferType buffer_type);
+    BufferType    GetBufferTypeFromIndex(uint32_t index);
+    const char*   GetBufferTypeLiteral(BufferType buffer_type);
     PipelineState GetPipelineState(HContext context);
-    bool IsContextFeatureSupported(HContext context, ContextFeature feature);
+    bool          IsContextFeatureSupported(HContext context, ContextFeature feature);
 
     TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
 
@@ -608,13 +709,19 @@ namespace dmGraphics
     void SetTexture(HTexture texture, const TextureParams& params);
 
     /**
+     * Function called when a texture has been set asynchronously
+     * @param user_data user data that will be passed to the SetTextureAsyncCallback
+     */
+    typedef void (*SetTextureAsyncCallback)(HTexture texture, void* user_data);
+
+    /**
      * Set texture data asynchronously. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
      * 6 mip-maps are present contiguously in memory with stride m_DataSize
      *
      * @param texture HTexture
      * @param params TextureParams
      */
-    void SetTextureAsync(HTexture texture, const TextureParams& paramsa);
+    void SetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
 
     void        SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
     uint32_t    GetTextureResourceSize(HTexture texture);
@@ -626,17 +733,27 @@ namespace dmGraphics
     uint8_t     GetTextureMipmapCount(HTexture texture);
     TextureType GetTextureType(HTexture texture);
     uint8_t     GetNumTextureHandles(HTexture texture);
+    uint32_t    GetTextureUsageHintFlags(HTexture texture);
+    uint8_t     GetTexturePageCount(HTexture texture);
+
+    /**
+     * Get status of texture.
+     *
+     * @name GetTextureStatusFlags
+     * @param texture HTexture
+     * @return  TextureStatusFlags enumerated status bit flags
+     */
+    uint32_t    GetTextureStatusFlags(HTexture texture);
+    void        EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
+    void        DisableTexture(HContext context, uint32_t unit, HTexture texture);
 
     const char* GetTextureTypeLiteral(TextureType texture_type);
     const char* GetTextureFormatLiteral(TextureFormat format);
     uint32_t    GetMaxTextureSize(HContext context);
-    void        EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
-    void        DisableTexture(HContext context, uint32_t unit, HTexture texture);
 
     // Calculating mipmap info helpers
     uint16_t    GetMipmapSize(uint16_t size_0, uint8_t mipmap);
     uint8_t     GetMipmapCount(uint16_t size);
-
 
     // Asset handle helpers
     const char* GetAssetTypeLiteral(AssetType type);
@@ -660,21 +777,157 @@ namespace dmGraphics
         return (HOpaqueHandle) asset_handle & 0xFFFFFFFF;
     }
 
-    /**
-     * Get status of texture.
-     *
-     * @name GetTextureStatusFlags
-     * @param texture HTexture
-     * @return  TextureStatusFlags enumerated status bit flags
-     */
-    uint32_t GetTextureStatusFlags(HTexture texture);
+    static inline bool IsColorBufferType(BufferType buffer_type)
+    {
+        return buffer_type == BUFFER_TYPE_COLOR0_BIT ||
+               buffer_type == BUFFER_TYPE_COLOR1_BIT ||
+               buffer_type == BUFFER_TYPE_COLOR2_BIT ||
+               buffer_type == BUFFER_TYPE_COLOR3_BIT;
+    }
+
+    static inline void SetWriteAttributeStreamDesc(WriteAttributeStreamDesc* stream, const float** data, VertexAttribute::VectorType vector_type, uint8_t stream_count, bool is_global_data)
+    {
+        stream->m_Data = data;
+        stream->m_VectorType = vector_type;
+        stream->m_StreamCount = stream_count;
+        stream->m_IsGlobalData = is_global_data;
+    }
+
+    static inline void VertexAttributeInfoMetadataMember(VertexAttributeInfoMetadata& metadata, VertexAttribute::SemanticType semantic_type, CoordinateSpace coordinate_space)
+    {
+        switch(semantic_type)
+        {
+        case VertexAttribute::SEMANTIC_TYPE_POSITION:
+            metadata.m_HasAttributeWorldPosition |= coordinate_space == COORDINATE_SPACE_WORLD;
+            metadata.m_HasAttributeLocalPosition |= coordinate_space == COORDINATE_SPACE_LOCAL;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
+            metadata.m_HasAttributeTexCoord = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
+            metadata.m_HasAttributePageIndex = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_NORMAL:
+            metadata.m_HasAttributeNormal = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_TANGENT:
+            metadata.m_HasAttributeTangent = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_COLOR:
+            metadata.m_HasAttributeColor = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
+            metadata.m_HasAttributeWorldMatrix = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
+            metadata.m_HasAttributeNormalMatrix = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_NONE:
+            metadata.m_HasAttributeNone = true;
+            break;
+        default:
+            break;
+        }
+    }
+
+    static inline VertexAttributeInfoMetadata GetVertexAttributeInfosMetaData(const VertexAttributeInfos& attribute_infos)
+    {
+        VertexAttributeInfoMetadata metadata = {};
+        for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
+        {
+            const VertexAttributeInfo& info = attribute_infos.m_Infos[i];
+            VertexAttributeInfoMetadataMember(metadata, info.m_SemanticType, info.m_CoordinateSpace);
+        }
+        return metadata;
+    }
+
+    static inline bool IsTypeTextureType(Type type)
+    {
+        return type == TYPE_SAMPLER_2D ||
+               type == TYPE_SAMPLER_2D_ARRAY ||
+               type == TYPE_TEXTURE_2D ||
+               type == TYPE_TEXTURE_2D_ARRAY ||
+               type == TYPE_IMAGE_2D ||
+
+               type == TYPE_SAMPLER_3D ||
+               type == TYPE_SAMPLER_3D_ARRAY ||
+               type == TYPE_TEXTURE_3D ||
+               type == TYPE_IMAGE_3D ||
+
+               type == TYPE_SAMPLER_CUBE ||
+               type == TYPE_TEXTURE_CUBE;
+    }
+
+    static inline bool IsTextureType3D(TextureType type)
+    {
+        return type == TEXTURE_TYPE_3D || type == TEXTURE_TYPE_3D || type == TEXTURE_TYPE_IMAGE_3D;
+    }
+
+    static inline uint32_t GetLayerCount(TextureType type)
+    {
+        return type == TEXTURE_TYPE_CUBE_MAP ? 6 : 1;
+    }
+
+    static inline TextureType TypeToTextureType(Type type)
+    {
+        switch(type)
+        {
+            case TYPE_SAMPLER_2D:       return TEXTURE_TYPE_2D;
+            case TYPE_SAMPLER_3D:       return TEXTURE_TYPE_3D;
+            case TYPE_SAMPLER_2D_ARRAY: return TEXTURE_TYPE_2D_ARRAY;
+            case TYPE_SAMPLER_CUBE:     return TEXTURE_TYPE_CUBE_MAP;
+            case TYPE_IMAGE_2D:         return TEXTURE_TYPE_IMAGE_2D;
+            case TYPE_IMAGE_3D:         return TEXTURE_TYPE_IMAGE_3D;
+            case TYPE_TEXTURE_2D:       return TEXTURE_TYPE_TEXTURE_2D;
+            case TYPE_TEXTURE_3D:       return TEXTURE_TYPE_TEXTURE_3D;
+            case TYPE_TEXTURE_2D_ARRAY: return TEXTURE_TYPE_TEXTURE_2D_ARRAY;
+            case TYPE_TEXTURE_CUBE:     return TEXTURE_TYPE_TEXTURE_CUBE;
+            case TYPE_SAMPLER:          return TEXTURE_TYPE_SAMPLER;
+            default:break;
+        }
+        assert(0);
+        return (TextureType) -1;
+    }
+
+    static inline uint32_t VectorTypeToElementCount(VertexAttribute::VectorType vector_type)
+    {
+        switch(vector_type)
+        {
+            case VertexAttribute::VECTOR_TYPE_SCALAR: return 1;
+            case VertexAttribute::VECTOR_TYPE_VEC2:   return 2;
+            case VertexAttribute::VECTOR_TYPE_VEC3:   return 3;
+            case VertexAttribute::VECTOR_TYPE_VEC4:   return 4;
+            case VertexAttribute::VECTOR_TYPE_MAT2:   return 4;
+            case VertexAttribute::VECTOR_TYPE_MAT3:   return 9;
+            case VertexAttribute::VECTOR_TYPE_MAT4:   return 16;
+        }
+        return 0;
+    }
+
+    static inline uint32_t DataTypeToByteWidth(VertexAttribute::DataType data_type)
+    {
+        switch(data_type)
+        {
+            case dmGraphics::VertexAttribute::TYPE_BYTE:           return 1;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:  return 1;
+            case dmGraphics::VertexAttribute::TYPE_SHORT:          return 2;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT: return 2;
+            case dmGraphics::VertexAttribute::TYPE_INT:            return 4;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:   return 4;
+            case dmGraphics::VertexAttribute::TYPE_FLOAT:          return 4;
+            default: break;
+        }
+        return 0;
+    }
+
+    void InvalidateGraphicsHandles(HContext context);
 
     /** checks if the texture format is compressed
      * @name IsFormatTranscoded
-     * @param format dmGraphics::TextureImage::CompressionType
+     * @param format TextureImage::CompressionType
      * @return true if the format is compressed
      */
-    bool IsFormatTranscoded(dmGraphics::TextureImage::CompressionType format);
+    bool IsFormatTranscoded(TextureImage::CompressionType format);
 
     /** checks if the texture format is compressed
      * @name Transcode
@@ -684,17 +937,19 @@ namespace dmGraphics
      * @param images An array of transcoded mipmaps
      * @param sizes An array of transcoded mipmap sizes
      * @param num_transcoded_mips (in) the size of the input arrays, (out) the number of mipmaps stored in the arrays
-     * @param format dmGraphics::TextureImage::CompressionType
+     * @param format TextureImage::CompressionType
      * @return true if the format is transcoded
      */
-    bool Transcode(const char* path, TextureImage::Image* image, uint8_t image_count, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips);
+    bool Transcode(const char* path, TextureImage::Image* image, uint8_t image_count, uint8_t* image_bytes, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips);
 
-    /**
-     * Read frame buffer pixels in BGRA format
-     * @param buffer buffer to read to
-     * @param buffer_size buffer size
-     */
-    void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
+    uint32_t    GetTypeSize(Type type);
+    const char* GetGraphicsTypeLiteral(Type type);
+
+    // Test functions:
+    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
+    bool  UnmapVertexBuffer(HContext context, HVertexBuffer buffer);
+    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access);
+    bool  UnmapIndexBuffer(HContext context, HIndexBuffer buffer);
 }
 
 #endif // DM_GRAPHICS_H

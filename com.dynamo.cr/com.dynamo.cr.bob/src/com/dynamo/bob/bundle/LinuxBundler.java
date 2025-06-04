@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,12 +16,10 @@ package com.dynamo.bob.bundle;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
@@ -31,7 +29,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
-@BundlerParams(platforms = {Platform.X86_64Linux})
+@BundlerParams(platforms = {"x86_64-linux", "arm64-linux"})
 public class LinuxBundler implements IBundler {
 
     @Override
@@ -74,7 +72,11 @@ public class LinuxBundler implements IBundler {
 
         // Copy executable
         File bundleExe = bundleExes.get(0);
-        File exeOut = new File(appDir, exeName + ".x86_64");
+        File exeOut;
+        if (platform.equals(Platform.X86_64Linux))
+            exeOut = new File(appDir, exeName + ".x86_64");
+        else
+            exeOut = new File(appDir, exeName + ".arm64");
         FileUtils.copyFile(bundleExe, exeOut);
         exeOut.setExecutable(true);
 
@@ -107,7 +109,7 @@ public class LinuxBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        if (BundleHelper.isArchiveExcluded(project)) {
+        if (BundleHelper.isArchiveIncluded(project)) {
             // Copy archive and game.projectc
             for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
                 FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
@@ -123,5 +125,7 @@ public class LinuxBundler implements IBundler {
 
         // Copy bundle resources into bundle directory
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
+
+        BundleHelper.moveBundleIfNeed(project, bundleDir);
     }
 }

@@ -1,0 +1,175 @@
+-- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+local expected_lorem_ipsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+
+local function assert_error(func)
+    local r, err = pcall(func)
+    if not r then
+        print(err)
+    end
+    assert(not r)
+end
+
+
+test_n = 0
+tests_done = false
+
+local function test_1(self)
+    print("Running async buffer test 'simple'")
+
+    local r1 = sys.load_buffer_async("/sys/sys_buffer_test_content.rawc",
+        function(self, request_id, result)
+            assert(request_id == self.data.requests[1])
+            local s = buffer.get_bytes(result.buffer, "data")
+            assert(s == expected_lorem_ipsum)
+            self.data.test_passed = self.data.test_passed + 1
+            tests_done = #self.data.requests == self.data.test_passed
+        end)
+
+    local r2 = sys.load_buffer_async("src/gamesys/test/sys/sys_buffer_test_content.raw",
+        function(self, request_id, result)
+            assert(request_id == self.data.requests[2])
+            local s = buffer.get_bytes(result.buffer, "data")
+            assert(s == expected_lorem_ipsum)
+            self.data.test_passed = self.data.test_passed + 1
+            tests_done = #self.data.requests == self.data.test_passed
+        end)
+
+    -- requesting something that is already requested will yield a new request
+    local r3 = sys.load_buffer_async("src/gamesys/test/sys/sys_buffer_test_content.raw",
+        function(self, request_id, result)
+            assert(request_id == self.data.requests[3])
+            local s = buffer.get_bytes(result.buffer, "data")
+            assert(s == expected_lorem_ipsum)
+            self.data.test_passed = self.data.test_passed + 1
+            tests_done = #self.data.requests == self.data.test_passed
+        end)
+
+    assert(r1 ~= r2)
+    assert(r1 ~= r3)
+    assert(r2 ~= r3)
+    self.data.requests = { r1, r2, r3 }
+end
+
+local function test_2(self)
+    print("Running async buffer test 'large_file'")
+    local r1 = sys.load_buffer_async("/sys/non_disk_content/large_file.raw",
+        function(self, request_id, result)
+            local s = buffer.get_stream(result.buffer, "data")
+            assert(request_id == self.data.requests[1])
+            assert(#s == 16 * 1024 * 1024)
+            assert(s[1] == 127)
+            assert(s[#s] == 255)
+            self.data.test_passed = self.data.test_passed + 1
+            tests_done = #self.data.requests == self.data.test_passed
+        end)
+
+    self.data.requests = { r1 }
+end
+
+local function test_3(self)
+    print("Running async buffer test 'invalid_files'")
+    local r1 = sys.load_buffer_async("/this_file_does_not_exist.raw",
+        function(self, request_id, result)
+            assert(request_id == self.data.requests[1])
+            assert(result.status == sys.REQUEST_STATUS_ERROR_NOT_FOUND)
+            assert(result.buffer == nil)
+            self.data.test_passed = self.data.test_passed + 1
+            tests_done = #self.data.requests == self.data.test_passed
+        end)
+
+    -- Loading a folder (or something that causes an ferror != 0) should yield REQUEST_STATUS_ERROR_IO_ERROR
+    local r2 = sys.load_buffer_async("build",
+        function(self, request_id, result)
+            assert(request_id == self.data.requests[2])
+            -- This is different between windows and linux it seems, on *nix systems we get IO error here
+            -- but on windows we get ERROR_NOT_FOUND from fopen. Oh well
+            assert(result.status == sys.REQUEST_STATUS_ERROR_IO_ERROR or result.status == sys.REQUEST_STATUS_ERROR_NOT_FOUND)
+            assert(result.buffer == nil)
+            self.data.test_passed = self.data.test_passed + 1
+            tests_done = #self.data.requests == self.data.test_passed
+        end)
+
+    self.data.requests = { r1, r2, r3 }
+end
+
+local function test_4(self)
+    print("Running async buffer test 'massive amounts of requests'")
+    local request_count = 32
+    self.data.requests = {}
+    for i=1,request_count do
+        local r = sys.load_buffer_async("/sys/sys_buffer_test_content.rawc",
+            function(self, request_id, result)
+                local found = false
+                for k,v in pairs(self.data.requests) do
+                    if v == request_id then
+                        found = true
+                    end
+                end
+                assert(found)
+                local s = buffer.get_bytes(result.buffer, "data")
+                assert(s == expected_lorem_ipsum)
+                self.data.test_passed = self.data.test_passed + 1
+                tests_done = #self.data.requests == self.data.test_passed
+            end)
+
+        table.insert(self.data.requests, r)
+    end
+end
+
+local function test_5(self)
+    print("Running async buffer test 'creating new requests in callback'")
+
+    local num_requests = 8
+    local cb = nil
+    cb = function(self, request_id, result)
+        assert(self.data.requests[request_id] ~= nil)
+        assert(self.data.requests[request_id] == false)
+
+        local s = buffer.get_bytes(result.buffer, "data")
+        assert(s == expected_lorem_ipsum)
+
+        self.data.requests[request_id] = true
+        self.data.test_passed = self.data.test_passed + 1
+
+        if self.data.test_passed == num_requests then
+            tests_done = true
+        else
+            self.data.requests[sys.load_buffer_async("/sys/sys_buffer_test_content.rawc", cb)] = false
+        end
+    end
+
+    self.data.requests = {}
+    self.data.requests[sys.load_buffer_async("/sys/sys_buffer_test_content.rawc", cb)] = false
+end
+
+function init(self)
+    assert(sys.REQUEST_STATUS_ERROR_IO_ERROR ~= nil)
+    assert(sys.REQUEST_STATUS_ERROR_NOT_FOUND ~= nil)
+    assert(sys.REQUEST_STATUS_FINISHED ~= nil)
+
+    self.test = 0
+    self.tests = { test_1, test_2, test_3, test_4, test_5 }
+end
+
+function update(self)
+    if self.test ~= test_n then
+        tests_done = false
+        self.data = { test_passed = 0 }
+        self.tests[test_n](self)
+        self.test = test_n
+    end
+end
+

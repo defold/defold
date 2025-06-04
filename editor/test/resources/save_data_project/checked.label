@@ -1,0 +1,31 @@
+size {
+  x: 256.0
+  y: 128.0
+  z: 64.0
+}
+color {
+  x: 0.949
+  y: 0.949
+  z: 0.949
+  w: 0.8
+}
+outline {
+  x: 0.4
+  y: 0.4
+  z: 0.4
+  w: 0.8
+}
+shadow {
+  x: 0.102
+  y: 0.102
+  z: 0.102
+  w: 0.8
+}
+leading: 1.2
+tracking: 0.2
+pivot: PIVOT_N
+blend_mode: BLEND_MODE_ADD
+line_break: true
+text: "Checked Label"
+font: "/checked.font"
+material: "/builtins/fonts/label-df.material"

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <dlib/dalloca.h>
 #include <dlib/buffer.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -26,11 +27,6 @@
 
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
-
-#if defined(_WIN32)
-#include <malloc.h>
-#define alloca(_SIZE) _alloca(_SIZE)
-#endif
 
 extern "C"
 {
@@ -55,6 +51,7 @@ namespace dmGameSystem
      * @document
      * @name Buffer
      * @namespace buffer
+     * @language Lua
      */
 
     /*# uint8
@@ -716,15 +713,24 @@ namespace dmGameSystem
     static int Buffer_gc(lua_State *L)
     {
         dmScript::LuaHBuffer* buffer = dmScript::CheckBufferNoError(L, 1);
+
         if( buffer )
         {
             if (buffer->m_Owner == dmScript::OWNER_LUA)
             {
                 dmBuffer::Destroy(buffer->m_Buffer);
-            } else if (buffer->m_Owner == dmScript::OWNER_RES) {
-                dmResource::Release(g_Factory, buffer->m_BufferRes);
             }
+            else if (buffer->m_Owner == dmScript::OWNER_RES && buffer->m_BufferResVersion != dmResource::RESOURCE_VERSION_INVALID)
+            {
+                uint16_t res_version   = dmResource::GetVersion(g_Factory, buffer->m_BufferRes);
+                dmhash_t res_path_hash = 0;
+                dmResource::GetPath(g_Factory, buffer->m_BufferRes, &res_path_hash);
 
+                if (res_version == buffer->m_BufferResVersion && res_path_hash == buffer->m_BufferResPathHash)
+                {
+                    dmResource::Release(g_Factory, buffer->m_BufferRes);
+                }
+            }
         }
         return 0;
     }
@@ -756,7 +762,7 @@ namespace dmGameSystem
         *s = 0;
         uint32_t version = 0;
         dmBuffer::GetContentVersion(hbuffer, &version);
-        dmSnPrintf(buf, sizeof(buf), "buffer.%s(count = %d, version = %u, ", SCRIPT_TYPE_NAME_BUFFER, out_element_count, version);
+        dmSnPrintf(buf, sizeof(buf), "buffer.%s(count = %d, version = %u, handle = %u, ", SCRIPT_TYPE_NAME_BUFFER, out_element_count, version, (uint32_t) hbuffer);
         dmStrlCat(s, buf, maxlen);
 
         for( uint32_t i = 0; i < num_streams; ++i )
@@ -1039,8 +1045,8 @@ namespace dmGameSystem
      * @name buffer.get_metadata
      * @param buf [type:buffer] the buffer to get the metadata from
      * @param metadata_name [type:hash|string] name of the metadata entry
-     * @return values [type:table] table of metadata values or nil if the entry does not exist
-     * @return value_type [type:constant] numeric type of values or nil
+     * @return values [type:table|nil] table of metadata values or `nil` if the entry does not exist
+     * @return value_type [type:constant|nil] numeric type of values or `nil`
      *
      * @examples
      * How to get a metadata entry from a buffer
@@ -1194,6 +1200,39 @@ namespace dmGameSystem
 
 namespace dmScript
 {
+    LuaHBuffer::LuaHBuffer()
+    {
+    }
+
+    LuaHBuffer::LuaHBuffer(dmBuffer::HBuffer buffer, LuaBufferOwnership ownership)
+    : m_Buffer(buffer)
+    , m_Owner(ownership)
+    , m_BufferResPathHash(0)
+    , m_BufferResVersion(dmResource::RESOURCE_VERSION_INVALID)
+    {
+    }
+
+    LuaHBuffer::LuaHBuffer(dmResource::HFactory factory, void* buffer_resource)
+    : m_BufferRes(buffer_resource)
+    , m_Owner(OWNER_RES)
+    , m_BufferResPathHash(0)
+    , m_BufferResVersion(dmResource::RESOURCE_VERSION_INVALID)
+    {
+        if (factory)
+        {
+            m_BufferResVersion = dmResource::GetVersion(factory, buffer_resource);
+            dmResource::GetPath(factory, buffer_resource, &m_BufferResPathHash);
+        }
+    }
+
+    LuaHBuffer::LuaHBuffer(dmBuffer::HBuffer buffer, bool use_lua_gc)
+    : m_Buffer(buffer)
+    , m_UseLuaGC(use_lua_gc)
+    {
+        dmLogOnceWarning("The constructor is deprecated: dmScript::LuaHBuffer wrapper = { HBuffer, bool };");
+        assert(0);
+    }
+
     static inline bool IsValidOwner(LuaBufferOwnership ownership)
     {
         return ownership == dmScript::OWNER_C || ownership == dmScript::OWNER_LUA || ownership == dmScript::OWNER_RES;
@@ -1208,9 +1247,19 @@ namespace dmScript
     {
         DM_LUA_STACK_CHECK(L, 1);
         dmScript::LuaHBuffer* luabuf = (dmScript::LuaHBuffer*)lua_newuserdata(L, sizeof(dmScript::LuaHBuffer));
-        luabuf->m_Buffer = v.m_Buffer;
-        luabuf->m_BufferRes = v.m_BufferRes;
         luabuf->m_Owner = v.m_Owner;
+
+        if (v.m_Owner == dmScript::OWNER_RES)
+        {
+            luabuf->m_BufferRes         = v.m_BufferRes;
+            luabuf->m_BufferResVersion  = v.m_BufferResVersion;
+            luabuf->m_BufferResPathHash = v.m_BufferResPathHash;
+        }
+        else
+        {
+            luabuf->m_Buffer = v.m_Buffer;
+        }
+
         assert(IsValidOwner(luabuf->m_Owner));
         luaL_getmetatable(L, SCRIPT_TYPE_NAME_BUFFER);
         lua_setmetatable(L, -2);
@@ -1219,31 +1268,44 @@ namespace dmScript
     // Note: the throw_error only controls this particular function, not the CheckUserType
     static dmBuffer::HBuffer CheckBufferUnpackInternal(lua_State* L, int index, bool throw_error, dmScript::LuaHBuffer** out_luabuffer)
     {
-        if (lua_type(L, index) == LUA_TUSERDATA)
+        if (!(lua_type(L, index) == LUA_TUSERDATA))
         {
-            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::CheckUserType(L, index, SCRIPT_BUFFER_TYPE_HASH, 0);
-            if (!dmGameSystem::CanUnpackLuaBuffer(buffer))
-            {
-                if (throw_error)
-                    luaL_error(L, "The buffer handle was stale");
-                else
-                    return 0;
-            }
-
-            dmBuffer::HBuffer hbuffer = dmGameSystem::UnpackLuaBuffer(buffer);
-            if( dmBuffer::IsBufferValid( hbuffer ) ) {
-                if (out_luabuffer)
-                    *out_luabuffer = buffer;
-                return hbuffer;
-            }
-
             if (throw_error)
-                luaL_error(L, "The buffer handle is invalid");
-            else
+                luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFER);
+            return 0;
+        }
+
+        dmScript::LuaHBuffer* buffer;
+        if (throw_error)
+        {
+            buffer = (dmScript::LuaHBuffer*)dmScript::CheckUserType(L, index, SCRIPT_BUFFER_TYPE_HASH, 0);
+        }
+        else
+        {
+            buffer = (dmScript::LuaHBuffer*)dmScript::ToUserType(L, index, SCRIPT_BUFFER_TYPE_HASH);
+            if (!buffer)
                 return 0;
         }
-        luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFER);
-        return 0x0;
+
+        if (!dmGameSystem::CanUnpackLuaBuffer(buffer))
+        {
+            if (throw_error)
+                luaL_error(L, "The buffer handle was stale");
+            return 0;
+        }
+
+        dmBuffer::HBuffer hbuffer = dmGameSystem::UnpackLuaBuffer(buffer);
+        if( dmBuffer::IsBufferValid( hbuffer ) )
+        {
+            if (out_luabuffer)
+                *out_luabuffer = buffer;
+            return hbuffer;
+        }
+
+        if (throw_error)
+            luaL_error(L, "The buffer handle is invalid");
+
+        return 0;
     }
 
     dmBuffer::HBuffer CheckBufferUnpack(lua_State* L, int index)
@@ -1263,10 +1325,16 @@ namespace dmScript
         return hbuffer != 0 ? buffer : 0; // SHouldn't get here due to the lua_error
     }
 
-    dmScript::LuaHBuffer* CheckBufferNoError(lua_State* L, int index)
+    dmScript::LuaHBuffer* ToBuffer(lua_State* L, int index)
     {
         dmScript::LuaHBuffer* buffer = 0;
         dmBuffer::HBuffer hbuffer = CheckBufferUnpackInternal(L, index, false, &buffer);
         return hbuffer != 0 ? buffer : 0;
     }
+
+    dmScript::LuaHBuffer* CheckBufferNoError(lua_State* L, int index) // Deprecated
+    {
+        return ToBuffer(L, index);
+    }
+
 }

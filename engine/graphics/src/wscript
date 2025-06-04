@@ -18,95 +18,150 @@ def build(bld):
 
     build_util = create_build_utility(bld.env)
 
-    if platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
-        obj = bld.stlib(features        = 'ddf cxx',
-                        includes        = ['. opengl', '../proto'],
-                        source          = bld.path.ant_glob(['*.cpp', 'opengl/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
-                        proto_gen_py    = True,
-                        protoc_includes = '../proto',
-                        use             = 'DDF DLIB',
-                        target          = 'graphics')
-
-        if 'web' in bld.env.PLATFORM:
-             obj.source.append('opengl/async/job_queue_sync.cpp');
-        else:
-             obj.source.append('opengl/async/job_queue_threaded.cpp');
+    # this is a library that is built for all platforms, so we let this one generate the ddf bindings
+    obj = bld.stlib(features        = 'ddf cxx',
+                    includes        = ['.', '../proto'],
+                    source          = bld.path.ant_glob(['graphics_proto.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
+                    proto_gen_py    = True,
+                    protoc_includes = '../proto',
+                    use             = 'DDF DLIB',
+                    target          = 'graphics_proto')
 
     bld.add_group()
 
-    if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
-        obj = bld.stlib(features        = 'ddf cxx',
-                        includes        = ['. vulkan', '../proto'],
-                        proto_gen_py    = True,
-                        protoc_includes = '../proto',
-                        use             = 'DDF DLIB',
-                        source          = bld.path.ant_glob(['*.cpp', 'vulkan/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
-                        target          = 'graphics_vulkan')
+    obj = bld.stlib(features        = obj.features + ['skip_asan'],
+                    includes        = obj.includes,
+                    source          = bld.path.ant_glob(['graphics_proto.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
+                    protoc_includes = obj.protoc_includes,
+                    use             = obj.use,
+                    target          = 'graphics_proto_noasan')
 
-        if bld.env.PLATFORM in ('arm64-nx64', 'x86_64-ps4'):
-            obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
+    proto_cpp_source = bld.path.parent.ant_glob('build/proto/graphics/*.cpp')
+    proto_cpp_includes = ['../proto']
 
-        obj.source = [x for x in obj.source if not x.abspath().endswith(os.path.join('vulkan','graphics_native.cpp'))]
-        obj.source.append(_get_native_source(build_util.get_target_os(), 'vulkan'))
-
-        if bld.env.PLATFORM in ('x86_64-macos','arm64-macos'):
-            obj.source.append('vulkan/macosx/graphics_vulkan_macosx_surface.mm')
-        elif bld.env.PLATFORM in ('arm64-ios',):
-            obj.source.append('vulkan/ios/graphics_vulkan_ios_surface.mm')
-        elif bld.env.PLATFORM in ['armv7-android', 'arm64-android']:
-            obj.source.append('vulkan/android/graphics_vulkan_android_surface.cpp')
-            obj.source.append('vulkan/android/graphics_vulkan_android.cpp')
-        elif bld.env.PLATFORM == 'x86_64-linux':
-            obj.source.append('vulkan/linux/graphics_vulkan_linux_surface.cpp')
-        elif bld.env.PLATFORM == 'x86_64-win32' or bld.env.PLATFORM == 'win32':
-            obj.source.append('vulkan/win32/graphics_vulkan_win32_surface.cpp')
-
-    if bld.env.PLATFORM == 'x86_64-ps4':
-        obj = bld.stlib(features = 'ddf cxx',
-                       includes = ['.', '../proto'],
-                       source   = bld.path.ant_glob(['*.cpp', 'null/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
-                       proto_gen_py = True,
-                       protoc_includes = '../proto',
-                       use    = 'DDF DLIB',
-                       target = 'graphics_ps4')
-        obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
-
-    obj = bld.stlib(features        = 'ddf cxx',
-                    includes        = ['.', 'null', '../proto'],
-                    source          = bld.path.ant_glob(['*.cpp', 'null/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
-                    proto_gen_py    = True,
-                    protoc_includes = '../proto',
+    obj = bld.stlib(features        = 'cxx',
+                    includes        = ['.', 'null'] + proto_cpp_includes,
+                    source          = bld.path.ant_glob(['*.cpp', 'null/*.cpp']) + proto_cpp_source,
                     use             = 'DDF DLIB',
                     target          = 'graphics_null')
 
     obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
 
+    bld.add_group()
+    obj = bld.stlib(features        = obj.features + ['skip_asan'],
+                    includes        = obj.includes,
+                    source          = obj.source,
+                    use             = obj.use,
+                    target          = 'graphics_null_noasan')
+
+    obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
+
+    for graphics_feature in ['opengl', 'opengles']:
+        if platform_supports_feature(bld.env.PLATFORM, graphics_feature, {}):
+            opengl_target = 'graphics'
+            opengl_defines = ['DM_GRAPHICS_USE_OPENGL']
+            opengl_platform_includes = []
+
+            if graphics_feature == 'opengles':
+                opengl_target = 'graphics_opengles'
+                opengl_defines = ['DM_GRAPHICS_USE_OPENGLES']
+
+            if platform_supports_feature(bld.env.PLATFORM, 'opengl_compute', {}):
+                opengl_defines.append('DM_HAVE_PLATFORM_COMPUTE_SUPPORT')
+
+            if bld.env.PLATFORM in ('x86_64-win32', 'win32'):
+                opengl_platform_includes = ['opengl/win32']
+
+            obj = bld.stlib(features        = 'cxx',
+                            includes        = ['.', 'opengl'] + proto_cpp_includes + opengl_platform_includes,
+                            source          = bld.path.ant_glob(['*.cpp', 'opengl/*.cpp']) + proto_cpp_source,
+                            use             = 'DDF DLIB',
+                            defines         = opengl_defines,
+                            target          = opengl_target)
+
+    if platform_supports_feature(bld.env.PLATFORM, 'webgpu', {}):
+        obj = bld.stlib(features        = 'cxx',
+                        includes        = ['.', 'webgpu'] + proto_cpp_includes,
+                        use             = 'DDF DLIB',
+                        source          = bld.path.ant_glob(['*.cpp', 'webgpu/*.cpp']) + proto_cpp_source,
+                        target          = 'graphics_webgpu')
+
+    bld.add_group()
+
+    if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
+        vulkan_defines = []
+
+        if waflib.Options.options.with_vulkan_validation:
+            vulkan_defines.append('DM_VULKAN_VALIDATION=1')
+
+        obj = bld.stlib(features        = 'cxx',
+                        includes        = ['.', 'vulkan'] + proto_cpp_includes,
+                        use             = 'DDF DLIB',
+                        source          = bld.path.ant_glob(['*.cpp', 'vulkan/*.cpp']) + proto_cpp_source,
+                        defines         = vulkan_defines,
+                        target          = 'graphics_vulkan')
+
+        if bld.env.PLATFORM in ('arm64-nx64',):
+            obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
+
+        obj.source = [x for x in obj.source if not x.abspath().endswith(os.path.join('vulkan','graphics_native.cpp'))]
+        obj.source.append(_get_native_source(build_util.get_target_os(), 'vulkan'))
+
+        if bld.env.PLATFORM in ('x86_64-macos','arm64-macos', 'x86_64-win32', 'win32', 'x86_64-linux', 'arm64-linux'):
+            obj.source.append('vulkan/desktop/graphics_vulkan_surface.cpp')
+
+            if bld.env.PLATFORM in ('x86_64-macos', 'arm64-macos'):
+                obj.source.append('vulkan/osx/graphics_vulkan_osx.mm')
+
+        elif bld.env.PLATFORM in ('arm64-ios',):
+            obj.source.append('vulkan/ios/graphics_vulkan_ios_surface.mm')
+            obj.source.append('vulkan/osx/graphics_vulkan_osx.mm')
+        elif bld.env.PLATFORM in ['armv7-android', 'arm64-android']:
+            obj.source.append('vulkan/android/graphics_vulkan_android_surface.cpp')
+            obj.source.append('vulkan/android/graphics_vulkan_android.cpp')
+
+        bld.add_group()
+
+    if platform_supports_feature(bld.env.PLATFORM, 'dx12', {}):
+
+        dx12_header_includes = [build_util.get_dynamo_ext('include', 'directx')]
+
+        obj = bld.stlib(features        = 'cxx',
+                        includes        = ['.', 'dx12'] + proto_cpp_includes + dx12_header_includes,
+                        use             = 'DDF DLIB',
+                        source          = bld.path.ant_glob(['*.cpp', 'dx12/*.cpp']) + proto_cpp_source,
+                        target          = 'graphics_dx12')
+
+    if bld.env.PLATFORM in ('x86_64-ps4','x86_64-ps5'):
+        bld.recurse('ps4')
+
     obj = bld.stlib(features     = 'cxx',
-                    includes     = ['.', '../proto'],
+                    includes     = ['.'] + proto_cpp_includes,
                     use          = 'DLIB',
                     source       = 'transcoder/graphics_transcoder_null.cpp',
                     target       = 'graphics_transcoder_null')
 
     obj = bld.stlib(features     = 'cxx',
-                    includes     = ['.', '../proto'],
+                    includes     = ['.'] + proto_cpp_includes,
                     use          = 'DLIB',
                     source       = 'transcoder/graphics_transcoder_basisu.cpp',
                     target       = 'graphics_transcoder_basisu')
 
-    bld.install_files('${PREFIX}/include/graphics/', 'graphics.h')
-    bld.install_files('${PREFIX}/include/graphics/', 'graphics_util.h')
-    bld.install_files('${PREFIX}/include/graphics/', 'graphics_native.h')
+    bld.install_files('${PREFIX}/include/graphics/',             'graphics.h')
+    bld.install_files('${PREFIX}/include/graphics/',             'graphics_util.h')
+    bld.install_files('${PREFIX}/include/graphics/',             'graphics_native.h')
     bld.install_files('${PREFIX}/include/graphics/opengl/win32', 'opengl/win32/glext.h')
-    bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/graphics_opengl_defines.h')
-
-    bld.install_files('${PREFIX}/share/proto/graphics', '../proto/graphics/graphics_ddf.proto')
+    bld.install_files('${PREFIX}/include/graphics/opengl',       'opengl/graphics_opengl_defines.h')
+    bld.install_files('${PREFIX}/share/proto/graphics',           '../proto/graphics/graphics_ddf.proto')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
-    bld.install_files('${PREFIX}/bin', 'texc.py')
+    bld.install_files('${PREFIX}/bin',        'texc.py')
     bld.install_files('${PREFIX}/lib/python', 'waf_graphics.py')
 
     if not waflib.Options.options.skip_build_tests:
+        bld.add_group() # make sure they've built before building the tests
+
         bld.recurse('test')
 
 def configure(conf):

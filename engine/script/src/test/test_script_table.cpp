@@ -1,26 +1,29 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include <stdlib.h>
+
+#include <testmain/testmain.h>
+#include <dlib/align.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
-#include <dlib/align.h>
-#include <dlib/memory.h>
 #include <dlib/math.h>
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
+#include <dlib/memory.h>
+
 #include "../script.h"
+#include "test_script.h"
+#include "test_script_private.h"
 #include "test/test_ddf.h"
 
 #include "data/table_cos_v0.dat.embed.h"
@@ -32,71 +35,12 @@
 #include "data/table_tstring_v2.dat.embed.h"
 #include "data/table_tstring_v3.dat.embed.h"
 
-extern "C"
-{
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
-#include <lua/lualib.h>
-}
-
-
-#define PATH_FORMAT "build/src/test/%s"
-
-// See test TSTRING_GenerateData below
-// static bool RunFile(lua_State* L, const char* filename)
-// {
-//     char path[64];
-//     dmSnPrintf(path, 64, PATH_FORMAT, filename);
-//     if (luaL_dofile(L, path) != 0)
-//     {
-//         dmLogError("%s", lua_tolstring(L, -1, 0));
-//         lua_pop(L, 1); // lua error
-//         return false;
-//     }
-//     return true;
-// }
-
-static bool RunString(lua_State* L, const char* script)
-{
-    if (luaL_dostring(L, script) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        lua_pop(L, 1); // lua error
-        return false;
-    }
-    return true;
-}
-
 class LuaTableTest* g_LuaTableTest = 0;
 
 char DM_ALIGNED(16) g_Buf[256];
 
-
-class LuaTableTest : public jc_test_base_class
+class LuaTableTest : public dmScriptTest::ScriptTest
 {
-protected:
-    virtual void SetUp()
-    {
-        g_LuaTableTest = this;
-        m_Context = dmScript::NewContext(0, 0, true);
-        dmScript::Initialize(m_Context);
-        L = dmScript::GetLuaState(m_Context);
-        top = lua_gettop(L);
-    }
-
-    virtual void TearDown()
-    {
-        ASSERT_EQ(top, lua_gettop(L));
-        dmScript::Finalize(m_Context);
-        dmScript::DeleteContext(m_Context);
-        g_LuaTableTest = 0;
-
-    }
-
-    int top;
-    dmScript::HContext m_Context;
-    lua_State* L;
-
 };
 
 TEST_F(LuaTableTest, EmptyTable)
@@ -113,7 +57,7 @@ TEST_F(LuaTableTest, EmptyTable)
  * A helper function used when validating serialized data in original or v1 format.
  */
 typedef double (*TableGenFunc)(double);
-int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_length, TableGenFunc fn, int key_stride)
+static int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_length, TableGenFunc fn, int key_stride)
 {
     int error = 0;
     const double epsilon = 1.0e-7f;
@@ -148,7 +92,7 @@ int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_length, T
     return error;
 }
 
-int ReadUnsupportedVersion(lua_State* L)
+static int ReadUnsupportedVersion(lua_State* L)
 {
     dmScript::PushTable(L, (const char*)TABLE_V818192_DAT, TABLE_V818192_DAT_SIZE);
     return 1;
@@ -156,12 +100,12 @@ int ReadUnsupportedVersion(lua_State* L)
 
 
 // The v0.0 tables were generated with dense keys.
-int ReadCosTableDataOriginal(lua_State* L)
+static int ReadCosTableDataOriginal(lua_State* L)
 {
     return ReadSerializedTable(L, TABLE_COS_V0_DAT, TABLE_COS_V0_DAT_SIZE, cos, 1);
 }
 
-int ReadSinTableDataOriginal(lua_State* L)
+static int ReadSinTableDataOriginal(lua_State* L)
 {
     return ReadSerializedTable(L, TABLE_SIN_V0_DAT, TABLE_SIN_V0_DAT_SIZE, sin, 1);
 }
@@ -171,22 +115,19 @@ TEST_F(LuaTableTest, AttemptReadUnsupportedVersion)
     int result = lua_cpcall(L, ReadUnsupportedVersion, 0x0);
     ASSERT_NE(0, result);
     char str[256];
-    dmSnPrintf(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", 818192, 4);
+    dmSnPrintf(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", 818192, 5);
     ASSERT_STREQ(str, lua_tostring(L, -1));
     // pop error message
     lua_pop(L, 1);
 }
 
-TEST_F(LuaTableTest, VerifyCosTableOriginal)
+TEST_F(LuaTableTest, DeprecatedVersion0)
 {
     int result = lua_cpcall(L, ReadCosTableDataOriginal, 0x0);
-    ASSERT_EQ(0, result);
-}
+    ASSERT_EQ(LUA_ERRRUN, result);
 
-TEST_F(LuaTableTest, VerifySinTableOriginal)
-{
-    int result = lua_cpcall(L, ReadSinTableDataOriginal, 0x0);
-    ASSERT_EQ(0, result);
+    result = lua_cpcall(L, ReadSinTableDataOriginal, 0x0);
+    ASSERT_EQ(LUA_ERRRUN, result);
 }
 
 
@@ -260,7 +201,7 @@ TEST_F(LuaTableTest, TestSerializeLargeNumbers)
 
 const uint32_t IOOB_BUFFER_SIZE = 8 + 2 + 2 + (sizeof(char) + sizeof(char) + 5 * sizeof(char) + sizeof(lua_Number));
 
-int ProduceIndexOutOfBounds(lua_State *L)
+static int ProduceIndexOutOfBounds(lua_State *L)
 {
     char DM_ALIGNED(16) buf[IOOB_BUFFER_SIZE];
     lua_newtable(L);
@@ -297,7 +238,7 @@ static int LuaCheckTable(lua_State* L) {
 }
 
 #define abs_index(L, i) ((i) > 0 || (i) <= LUA_REGISTRYINDEX ? (i) : \
-			 lua_gettop(L) + (i) + 1)
+             lua_gettop(L) + (i) + 1)
 
 static int PCallCheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index, bool do_log)
 {
@@ -443,7 +384,7 @@ TEST_F(LuaTableTest, NestedTableSizeCheck)
     /**
      * This table structure was guaranteed to crash on frist version of #6676
      * Fix in https://github.com/defold/defold/pull/6991
-     * 
+     *
      * {
      *   foo = 1234,
      *   b = {
@@ -475,6 +416,152 @@ TEST_F(LuaTableTest, NestedTableSizeCheck)
     lua_pop(L, 1);
 
     ASSERT_EQ(calculated_table_size, actual_table_size);
+}
+
+TEST_F(LuaTableTest, KeyTypesTableSizeCheck)
+{
+    // create table
+    lua_newtable(L);
+
+    // string key
+    lua_pushnumber(L, 1234);
+    lua_setfield(L, -2, "foo");
+
+    // hash key
+    dmScript::PushHash(L, dmHashString64("key1"));
+    lua_pushnumber(L, 1234);
+    lua_settable(L, -3);
+
+    // number key
+    lua_pushnumber(L, 128);
+    lua_pushnumber(L, 1234);
+    lua_settable(L, -3);
+
+    // negative, bigger number key
+    lua_pushnumber(L, -123456789);
+    lua_pushnumber(L, 1234);
+    lua_settable(L, -3);
+
+    uint32_t calculated_table_size = dmScript::CheckTableSize(L, -1);
+    uint32_t actual_table_size = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
+
+    lua_pop(L, 1);
+
+    ASSERT_EQ(calculated_table_size, actual_table_size);
+}
+
+static int g_CustomPanicFunctionCalled = 0;
+static int CustomPanicFn(lua_State* L)
+{
+    fprintf(stderr, "PANIC: unprotected error in call to Lua API (%s) (custom CustomPanicFn)\n", lua_tostring(L, -1));
+    return ++g_CustomPanicFunctionCalled; // In our case, we pass this to the longjmp, and we check it with setjmp()
+}
+
+static void SetupCyclicTable(lua_State* L)
+{
+    /**
+     *  local x1 = {}
+     *  local x2 = {}
+     *  x1.x2 = x2
+     *  x2.x1 = x1
+     */
+
+    lua_newtable(L); // x1
+    // -1: x1
+
+    lua_newtable(L); // x2
+    // -2: x1
+    // -1: x2
+
+    lua_pushvalue(L, -2);
+    // -3: x1
+    // -2: x2
+    // -1: x1
+
+    lua_setfield(L, -2, "x1"); // x2.x1 = x1
+    // -2: x1
+    // -1: x2
+
+    lua_setfield(L, -2, "x2"); // x1.x2 = x2
+    // -1: x1
+}
+
+TEST_F(LuaTableTest, CyclicTable_CheckTableSize)
+{
+    g_CustomPanicFunctionCalled = 0;
+    SetupCyclicTable(L);
+
+    int scope_top = lua_gettop(L);
+
+    printf("\nExpected error begin -->\n");
+#if !defined(_WIN32)
+    {
+        static int count = 0;
+        int jmpval;
+        DM_SCRIPT_TEST_PANIC_SCOPE(L, CustomPanicFn, jmpval);
+        ++count;
+
+        if (jmpval == 0)
+        {
+            dmScript::CheckTableSize(L, -1);
+            ASSERT_FALSE(true && "We shouldn't get here");
+        }
+
+        ASSERT_EQ(2, count);
+    }
+#else
+    try {
+        dmScript::CheckTableSize(L, -1);
+        ASSERT_FALSE(true && "We shouldn't get here");
+    } catch (...)
+    {
+        g_CustomPanicFunctionCalled = 1;
+    }
+#endif
+    printf("<-- Expected error end\n");
+
+    ASSERT_EQ(1, g_CustomPanicFunctionCalled);
+    lua_pop(L, lua_gettop(L) - scope_top); // Pop any items that the function put on the stack
+    lua_pop(L, 1);
+}
+
+TEST_F(LuaTableTest, CyclicTable_CheckTable)
+{
+    g_CustomPanicFunctionCalled = 0;
+    SetupCyclicTable(L);
+
+    int scope_top = lua_gettop(L);
+
+    printf("\nExpected error begin -->\n");
+#if !defined(_WIN32)
+    {
+        static int count = 0;
+        int jmpval;
+        DM_SCRIPT_TEST_PANIC_SCOPE(L, CustomPanicFn, jmpval);
+        ++count;
+
+        if (jmpval == 0)
+        {
+            dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
+            ASSERT_FALSE(true && "We shouldn't get here");
+        }
+
+        ASSERT_EQ(2, count);
+    }
+#else
+    try {
+        dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
+        ASSERT_FALSE(true && "We shouldn't get here");
+    } catch (...)
+    {
+        g_CustomPanicFunctionCalled = 1;
+    }
+#endif
+    printf("<-- Expected error end\n");
+
+    ASSERT_EQ(1, g_CustomPanicFunctionCalled);
+    lua_pop(L, lua_gettop(L) - scope_top); // Pop any items that the function put on the stack
+    lua_pop(L, 1);
 }
 
 
@@ -787,12 +874,20 @@ TEST_F(LuaTableTest, MixedKeys)
     lua_pushnumber(L, 3);
     lua_settable(L, -3);
 
-    lua_pushnumber(L, 2);
+    dmScript::PushHash(L, dmHashString64("key2"));
     lua_pushnumber(L, 4);
     lua_settable(L, -3);
 
-    lua_pushstring(L, "key2");
+    lua_pushnumber(L, 2);
     lua_pushnumber(L, 5);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "key3");
+    lua_pushnumber(L, 6);
+    lua_settable(L, -3);
+
+    dmScript::PushHash(L, dmHashString64("key4"));
+    lua_pushnumber(L, 7);
     lua_settable(L, -3);
 
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
@@ -813,22 +908,34 @@ TEST_F(LuaTableTest, MixedKeys)
     ASSERT_EQ(3, lua_tonumber(L, -1));
     lua_pop(L, 1);
 
-    lua_pushnumber(L, 2);
+    dmScript::PushHash(L, dmHashString64("key2"));
     lua_gettable(L, -2);
     ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
     ASSERT_EQ(4, lua_tonumber(L, -1));
     lua_pop(L, 1);
 
-    lua_pushstring(L, "key2");
+    lua_pushnumber(L, 2);
     lua_gettable(L, -2);
     ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
     ASSERT_EQ(5, lua_tonumber(L, -1));
     lua_pop(L, 1);
 
+    lua_pushstring(L, "key3");
+    lua_gettable(L, -2);
+    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
+    ASSERT_EQ(6, lua_tonumber(L, -1));
+    lua_pop(L, 1);
+
+    dmScript::PushHash(L, dmHashString64("key4"));
+    lua_gettable(L, -2);
+    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
+    ASSERT_EQ(7, lua_tonumber(L, -1));
+    lua_pop(L, 1);
+
     lua_pop(L, 1);
 }
 
-int static ParseTruncatedTable(lua_State* L)
+static int ParseTruncatedTable(lua_State* L)
 {
     size_t buffer_len = 0;
     const char* buffer = lua_tolstring(L, -2, &buffer_len);
@@ -952,12 +1059,12 @@ TEST_F(LuaTableTest, Stress)
             buf[8 + buf_size + 2] = 0xF0;
             buf[8 + buf_size + 3] = 0x0D;
 
-    	    int result = PCallCheckTable(L, buf, buf_size, -1, false);
+            int result = PCallCheckTable(L, buf, buf_size, -1, false);
 
-    	    if (result == 0) {
-    	      dmScript::PushTable(L, buf, buf_size);
-    	      lua_pop(L, 1);
-    	    }
+            if (result == 0) {
+              dmScript::PushTable(L, buf, buf_size);
+              lua_pop(L, 1);
+            }
 
             uint8_t a = (uint8_t)0xBA;
             uint8_t b = (uint8_t)0xAD;
@@ -984,9 +1091,12 @@ TEST_F(LuaTableTest, Stress)
     }
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
+    TestMainPlatformInit();
     jc_test_init(&argc, argv);
-    int ret = jc_test_run_all();
-    return ret;
+    return jc_test_run_all();
 }

@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,6 +16,7 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as s]
+            [editor.system :as system]
             [editor.url :as url]
             [util.text-util :as text-util])
   (:import [java.io BufferedReader PushbackReader Reader StringReader]))
@@ -109,6 +110,18 @@
                           (empty-parse-state)
                           (read-setting-lines reader))))
 
+(defn inject-jvm-properties [^String raw-setting-value]
+  ;; Replace patterns such as {{defold.extension.spine.url}} with JVM property values.
+  (s/replace
+    raw-setting-value
+    #"\{\{(.+?)\}\}" ; Match the text inside the an {{...}} expression.
+    (fn [[_ jvm-property-key]]
+      (or (System/getProperty jvm-property-key)
+          (throw (ex-info (format "Required JVM property `%s` is not defined."
+                                  jvm-property-key)
+                          {:jvm-property-key jvm-property-key
+                           :raw-setting-value raw-setting-value}))))))
+
 (defmulti parse-setting-value (fn [meta-setting ^String raw] (:type meta-setting)))
 
 (defmethod parse-setting-value :string [_ raw]
@@ -119,10 +132,12 @@
   (= raw "1"))
 
 (defmethod parse-setting-value :integer [_ raw]
+  ;; Parsed as 32-bit integer in the engine runtime.
   (Integer/parseInt raw))
 
 (defmethod parse-setting-value :number [_ raw]
-  (Double/parseDouble raw))
+  ;; Parsed as 32-bit float in the engine runtime.
+  (Float/parseFloat raw))
 
 (defmethod parse-setting-value :resource [_ raw]
   raw)
@@ -133,8 +148,14 @@
 (defmethod parse-setting-value :directory [_ raw]
   raw)
 
-(defmethod parse-setting-value :url [_ raw]
-  (some-> raw url/try-parse))
+;; In dev builds, we replace patterns such as {{defold.extension.spine.url}}
+;; with JVM property values in dev builds. This ensures we can use a specific
+;; branch of an extension in the integration tests as we develop new features.
+(if (system/defold-dev?)
+  (defmethod parse-setting-value :url [_ raw]
+    (some-> raw inject-jvm-properties url/try-parse))
+  (defmethod parse-setting-value :url [_ raw]
+    (some-> raw url/try-parse)))
 
 (def ^:private default-list-element-meta-setting {:type :string})
 
@@ -156,39 +177,51 @@
    :comma-separated-list []
    :string ""
    :boolean false
-   :integer 0
-   :number 0.0})
+   :integer (int 0) ; Parsed as 32-bit integer in the engine runtime.
+   :number (float 0.0)}) ; Parsed as 32-bit float in the engine runtime.
 
-(defn- add-type-defaults [meta-info]
-  (update-in meta-info [:settings]
-             (partial map (fn [setting] (update setting :default #(if (nil? %) (type-defaults (:type setting)) %))))))
+(defn- sanitize-default [default type]
+  (case type
+    :integer (int default) ; Parsed as 32-bit integer in the engine runtime.
+    :number (float default) ; Parsed as 32-bit float in the engine runtime.
+    default))
+
+(defn- ensure-type-defaults [meta-info]
+  (update meta-info :settings
+          (fn [settings]
+            (mapv (fn [{:keys [type] :as meta-setting}]
+                    (update meta-setting :default
+                            (fn [default]
+                              (if (some? default)
+                                (sanitize-default default type)
+                                (type-defaults type)))))
+                  settings))))
 
 (declare render-raw-setting-value)
 
 (defn- add-to-from-string [meta-info]
-  (update-in meta-info [:settings]
-             (fn [settings]
-               (map (fn [meta-setting]
-                      (if (contains? meta-setting :options)
-                        (assoc meta-setting
-                          :from-string #(parse-setting-value meta-setting %)
-                          :to-string #(render-raw-setting-value meta-setting %))
-                        meta-setting))
-                    settings))))
+  (update meta-info :settings
+          (fn [settings]
+            (mapv (fn [meta-setting]
+                    (if (contains? meta-setting :options)
+                      (assoc meta-setting
+                        :from-string #(parse-setting-value meta-setting %)
+                        :to-string #(render-raw-setting-value meta-setting %))
+                      meta-setting))
+                  settings))))
 
 (defn remove-to-from-string [meta-info]
-  (update-in meta-info [:settings]
-             (fn [settings]
-               (map (fn [meta-setting]
-                      (if (contains? meta-setting :options)
-                        (let [type (:type meta-setting)]
-                          (dissoc meta-setting :from-string :to-string))
-                        meta-setting))
-                    settings))))
+  (update meta-info :settings
+          (fn [settings]
+            (mapv (fn [meta-setting]
+                    (if (contains? meta-setting :options)
+                      (dissoc meta-setting :from-string :to-string)
+                      meta-setting))
+                  settings))))
 
 (defn finalize-meta-info [meta-info]
   (-> meta-info
-      add-type-defaults
+      ensure-type-defaults
       add-to-from-string))
 
 (defn load-meta-info [reader]
@@ -369,3 +402,17 @@
 
 (defn settings-with-value [settings]
   (filter #(contains? % :value) settings))
+
+(defn raw-settings-search-fn
+  ([search-string]
+   (text-util/search-string->re-pattern search-string :case-insensitive))
+  ([raw-settings re-pattern]
+   (into []
+         (keep (fn [{:keys [value] :as raw-setting}]
+                 (some-> value
+                         (text-util/string->text-match re-pattern)
+                         (assoc
+                           :match-type :match-type-setting
+                           :value value
+                           :path (:path raw-setting)))))
+         raw-settings)))

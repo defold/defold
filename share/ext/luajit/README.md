@@ -1,12 +1,3 @@
-
-
-# Notes
-
-`luajit-32` for MacOS cannot currently be built with latest LuaJIT.
-We therefore use the prebuilt version.
-An option is to use a 32 bit VM of an old osx
-
-
 ## Win32 + Win64
 
 Start a "Native Tools Command Prompt for VS" for x86 and x64 respectively.

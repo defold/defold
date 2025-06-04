@@ -1,19 +1,20 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.slice9
-  (:require [editor.geom :as geom]))
+  (:require [editor.geom :as geom]
+            [util.coll :as coll :refer [pair]]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -40,21 +41,9 @@
 (defn- steps->ranges [v]
   (partition 2 1 v))
 
-(defn- pivot->h-align [pivot]
-  (case pivot
-    (:pivot-e :pivot-ne :pivot-se) :right
-    (:pivot-center :pivot-n :pivot-s) :center
-    (:pivot-w :pivot-nw :pivot-sw) :left))
-
-(defn- pivot->v-align [pivot]
-  (case pivot
-    (:pivot-ne :pivot-n :pivot-nw) :top
-    (:pivot-e :pivot-center :pivot-w) :middle
-    (:pivot-se :pivot-s :pivot-sw) :bottom))
-
 (defn- pivot-offset [pivot size]
-  (let [h-align (pivot->h-align pivot)
-        v-align (pivot->v-align pivot)
+  (let [h-align (geom/gui-pivot->h-align pivot)
+        v-align (geom/gui-pivot->v-align pivot)
         xs (case h-align
              :right -1.0
              :center -0.5
@@ -66,6 +55,9 @@
     (mapv * size [xs ys 1])))
 
 (def ^:private box-triangles-vertex-order [0 1 3 3 1 2])
+
+(defn sliced? [slice9]
+  (some? (some pos? slice9)))
 
 (defn box->triangle-vertices [box]
   ;; box vertices are in order BL TL TR BR
@@ -107,9 +99,10 @@
   (map box box-triangles-vertex-order))
 
 (defn vertex-data
-  [{:keys [width height tex-coords] :as _frame} size slice9 pivot]
-  (let [^double texture-width (or width 1.0)
-        ^double texture-height (or height 1.0)
+  [{:keys [width height tex-coords] :as _animation-frame} size slice9 pivot]
+  (let [[^double box-width ^double box-height] size
+        texture-width (max 1.0 (double (or width box-width)))
+        texture-height (max 1.0 (double (or height box-height)))
         ;; Sample tex-coords if anim from tile source:
         ;;
         ;;  no flip:  [[0.0 0.140625] [0.0 1.0] [0.5566406 1.0] [0.5566406 0.140625]]   TL BL BR TR     T-B-B-T L-L-R-R
@@ -216,14 +209,23 @@
                                   v1]
                          uv-box-coords (ranges->rotated-box-corner-coords (steps->ranges u-steps) (steps->ranges v-steps))]
                      (map rotated-box-corner-coords->vertices2 uv-box-coords)))
-        [^double box-width ^double box-height _] size
         x-steps [0.0 ^double (get slice9 0) (- box-width ^double (get slice9 2)) box-width]
         y-steps [0.0 ^double (get slice9 3) (- box-height ^double (get slice9 1)) box-height]
         xy-box-coords (ranges->box-corner-coords (steps->ranges x-steps) (steps->ranges y-steps))
-        non-empty-xy-box-coords+uv-boxes (into []
-                                               (filter (fn [[[x0 y0 x1 y1] _uv-box]]
-                                                         (and (not= x0 x1) (not= y0 y1))))
-                                               (map vector xy-box-coords uv-boxes))
+        empty-xy-box-coords+uv-boxes (mapv pair xy-box-coords uv-boxes)
+
+        non-empty-xy-box-coords+uv-boxes
+        (or (coll/not-empty
+              (filterv
+                (fn [[[x0 y0 x1 y1] _uv-box]]
+                  (and (not= x0 x1) (not= y0 y1)))
+                empty-xy-box-coords+uv-boxes))
+            ;; We need *some* geometry, or it will eventually result in invalid
+            ;; buffers that will likely crash the GL driver. When all 9 boxes
+            ;; are empty, use the center slice. This can happen with a manual
+            ;; size of zero.
+            [(empty-xy-box-coords+uv-boxes 4)])
+
         non-empty-xy-boxes (mapv (comp (partial geom/transl (pivot-offset pivot size))
                                        box-corner-coords->vertices3
                                        first)

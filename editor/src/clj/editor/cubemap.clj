@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,7 +16,6 @@
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.defold-project :as project]
-            [editor.pipeline.tex-gen :as tex-gen]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
@@ -25,7 +24,7 @@
             [editor.gl.vertex :as vtx]
             [editor.graph-util :as gu]
             [editor.image :as image]
-            [editor.image-util :as image-util]
+            [editor.pipeline.tex-gen :as tex-gen]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -35,8 +34,8 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap]
+           [com.dynamo.bob.util TextureUtil]
            [com.jogamp.opengl GL GL2]
-           [editor.types AABB]
            [java.awt.image BufferedImage]))
 
 (set! *warn-on-reflection* true)
@@ -97,12 +96,13 @@
   ((:f gpu-texture-generator) (:args gpu-texture-generator) _node-id texture/default-cubemap-texture-params 0))
 
 (g/defnk produce-save-value [right left top bottom front back]
-  {:right (resource/resource->proj-path right)
-   :left (resource/resource->proj-path left)
-   :top (resource/resource->proj-path top)
-   :bottom (resource/resource->proj-path bottom)
-   :front (resource/resource->proj-path front)
-   :back (resource/resource->proj-path back)})
+  (protobuf/make-map-without-defaults Graphics$Cubemap
+    :right (resource/resource->proj-path right)
+    :left (resource/resource->proj-path left)
+    :top (resource/resource->proj-path top)
+    :bottom (resource/resource->proj-path bottom)
+    :front (resource/resource->proj-path front)
+    :back (resource/resource->proj-path back)))
 
 (def ^:private cubemap-aabb (geom/coords->aabb [1 1 1] [-1 -1 -1]))
 
@@ -144,9 +144,10 @@
     (g/precluding-errors
       (vals images)
       (let [texture-images (tex-gen/make-cubemap-texture-images images texture-profile compress?)
-            cubemap-texture-image (tex-gen/assemble-cubemap-texture-images texture-images)]
+            cubemap-texture-image-generate-result (tex-gen/assemble-cubemap-texture-images texture-images)]
         {:resource resource
-         :content (protobuf/pb->bytes cubemap-texture-image)}))))
+         :write-content-fn tex-gen/write-texturec-content-fn
+         :user-data {:texture-generator-result cubemap-texture-image-generate-result}}))))
 
 (def ^:private cubemap-dir->property
   {:px :right
@@ -206,32 +207,32 @@
   (output texture-profile g/Any (g/fnk [texture-profiles resource]
                                   (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
 
-  (property right resource/Resource
+  (property right resource/Resource ; Required protobuf field.
             (value (gu/passthrough right-resource))
             (set (cubemap-side-setter :right-resource :right-image :right-image-generator :right-size))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (cubemap-side-error right)))
-  (property left resource/Resource
+  (property left resource/Resource; Required protobuf field.
             (value (gu/passthrough left-resource))
             (set (cubemap-side-setter :left-resource :left-image :left-image-generator :left-size))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (cubemap-side-error left)))
-  (property top resource/Resource
+  (property top resource/Resource; Required protobuf field.
             (value (gu/passthrough top-resource))
             (set (cubemap-side-setter :top-resource :top-image :top-image-generator :top-size))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (cubemap-side-error top)))
-  (property bottom resource/Resource
+  (property bottom resource/Resource; Required protobuf field.
             (value (gu/passthrough bottom-resource))
             (set (cubemap-side-setter :bottom-resource :bottom-image :bottom-image-generator :bottom-size))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (cubemap-side-error bottom)))
-  (property front resource/Resource
+  (property front resource/Resource; Required protobuf field.
             (value (gu/passthrough front-resource))
             (set (cubemap-side-setter :front-resource :front-image :front-image-generator :front-size))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
             (dynamic error (cubemap-side-error front)))
-  (property back resource/Resource
+  (property back resource/Resource; Required protobuf field.
             (value (gu/passthrough back-resource))
             (set (cubemap-side-setter :back-resource :back-image :back-image-generator :back-size))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
@@ -294,13 +295,19 @@
   (output save-value  g/Any :cached produce-save-value)
   (output scene       g/Any :cached produce-scene))
 
-(defn load-cubemap [project self resource cubemap-message]
-  (concat 
-    (for [[side input] cubemap-message
-          :let [image-resource (workspace/resolve-resource resource input)]]
-      (g/set-property self side image-resource))
-    (g/connect project :build-settings self :build-settings)
-    (g/connect project :texture-profiles self :texture-profiles)))
+(defn load-cubemap [project self resource cubemap]
+  {:pre [(map? cubemap)]} ; Graphics$Cubemap in map format.
+  (let [resolve-resource #(workspace/resolve-resource resource %)]
+    (concat
+      (g/connect project :build-settings self :build-settings)
+      (g/connect project :texture-profiles self :texture-profiles)
+      (gu/set-properties-from-pb-map self Graphics$Cubemap cubemap
+        right (resolve-resource :right)
+        left (resolve-resource :left)
+        top (resolve-resource :top)
+        bottom (resolve-resource :bottom)
+        front (resolve-resource :front)
+        back (resolve-resource :back)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -311,4 +318,5 @@
     :ddf-type Graphics$Cubemap
     :load-fn load-cubemap
     :icon cubemap-icon
+    :icon-class :design
     :view-types [:scene :text]))

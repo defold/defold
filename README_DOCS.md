@@ -76,7 +76,6 @@ Icons
 [icon:macos]
 [icon:linux]
 [icon:windows]
-[icon:facebook]
 [icon:google]
 [icon:amazon]
 ```
@@ -138,13 +137,13 @@ Since the documentation for a specific namespace (component or feature) might sp
 The @document comment should contain a brief, a description, what @namespace the documentation belongs to (so it can be grouped with documentation from other files) as well as a @name:
 
 ```
-/*# Facebook API documentation
+/*# MyFeature API documentation
  *
- * Functions and constants for interacting with Facebook APIs.
+ * Functions and constants for interacting with MyFeature APIs.
  *
  * @document
- * @name Facebook
- * @namespace facebook
+ * @name MyFeature
+ * @namespace myfeature
  */
 ```
 
@@ -268,7 +267,7 @@ Also by convention definition lists are used to lay out the details of function 
  * - `date`: transaction date
  * - `original_trans`: original transaction (only set when state == TRANS_STATE_RESTORED)
  * - `trans_ident` : transaction identifier (only set when state == TRANS_STATE_RESTORED, TRANS_STATE_UNVERIFIED or TRANS_STATE_PURCHASED)
- * - `request_id`: transaction request id. (only if receipt is set and for Facebook IAP transactions when used in the iap.buy call parameters)
+ * - `request_id`: transaction request id. (only if receipt is set and for transactions when used in the iap.buy call parameters)
  * - `receipt`: receipt (only set when state == TRANS_STATE_PURCHASED or TRANS_STATE_UNVERIFIED)
  *
  * `error`

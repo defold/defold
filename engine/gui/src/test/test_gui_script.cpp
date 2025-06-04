@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,11 +14,14 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include <testmain/testmain.h>
 #include <dlib/dstrings.h>
 #include <dmsdk/dlib/vmath.h>
 
 #include <ddf/ddf.h>
 #include <script/lua_source_ddf.h>
+
+#include "test_gui_shared.h"
 
 #include "../gui.h"
 #include "../gui_private.h"
@@ -56,25 +59,40 @@ class dmGuiScriptTest : public jc_test_base_class
 {
 public:
     dmScript::HContext m_ScriptContext;
+    dmPlatform::HWindow m_Window;
+    dmHID::HContext m_HidContext;
     dmGui::HContext m_Context;
     dmGui::RenderSceneParams m_RenderParams;
 
+    DynamicTextureContainer m_DynamicTextures;
+
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        dmPlatform::WindowParams window_params = {};
+        window_params.m_Width                  = 2;
+        window_params.m_Height                 = 2;
+        window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_NULL;
+
+        m_Window = dmPlatform::NewWindow();
+        dmPlatform::OpenWindow(m_Window, window_params);
+
+        dmScript::ContextParams script_context_params = {};
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
+
+        m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+        dmHID::Init(m_HidContext);
+        dmHID::SetWindow(m_HidContext, m_Window);
 
         dmGui::NewContextParams context_params;
         context_params.m_ScriptContext = m_ScriptContext;
         context_params.m_GetTextMetricsCallback = GetTextMetricsCallback;
         context_params.m_PhysicalWidth = 1;
         context_params.m_PhysicalHeight = 1;
+        context_params.m_HidContext = m_HidContext;
         m_Context = dmGui::NewContext(&context_params);
 
         m_RenderParams.m_RenderNodes = RenderNodesStoreTransform;
-        m_RenderParams.m_NewTexture = 0;
-        m_RenderParams.m_DeleteTexture = 0;
-        m_RenderParams.m_SetTextureData = 0;
     }
 
     virtual void TearDown()
@@ -82,6 +100,9 @@ public:
         dmGui::DeleteContext(m_Context, m_ScriptContext);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
+        dmHID::Final(m_HidContext);
+        dmHID::DeleteContext(m_HidContext);
+        dmPlatform::DeleteWindow(m_Window);
     }
 };
 
@@ -282,6 +303,44 @@ TEST_F(dmGuiScriptTest, TestParenting)
     dmGui::DeleteScript(script);
 }
 
+TEST_F(dmGuiScriptTest, TestGetType)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src =
+            "function init(self)\n"
+            "    local node = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    local type, subtype = gui.get_type(node)\n"
+            "    assert(type == gui.TYPE_BOX)\n"
+            "    assert(subtype == nil)\n"
+            "    local node = gui.new_text_node(vmath.vector3(1, 1, 1), \"TEST\")\n"
+            "    local type, subtype = gui.get_type(node)\n"
+            "    assert(type == gui.TYPE_TEXT)\n"
+            "    assert(subtype == nil)\n"
+            "    local node = gui.new_pie_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    local type, subtype = gui.get_type(node)\n"
+            "    assert(type == gui.TYPE_PIE)\n"
+            "    assert(subtype == nil)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::DeleteScene(scene);
+
+    dmGui::DeleteScript(script);
+}
+
 TEST_F(dmGuiScriptTest, TestGetIndex)
 {
     dmGui::HScript script = NewScript(m_Context);
@@ -309,6 +368,50 @@ TEST_F(dmGuiScriptTest, TestGetIndex)
             "    gui.set_parent(child, nil)\n"
             "    assert(gui.get_index(parent) == 0)\n"
             "    assert(gui.get_index(child) == 1)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::DeleteScene(scene);
+
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestCloneNode)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src =
+            "function init(self)\n"
+            "    local node1 = gui.new_box_node(vmath.vector3(1), vmath.vector3(1))\n"
+            "    local node2 = gui.new_box_node(vmath.vector3(2), vmath.vector3(2))\n"
+            "    local node3 = gui.new_box_node(vmath.vector3(3), vmath.vector3(3))\n"
+            "    gui.set_id(node1, \"box1\")\n"
+            "    gui.set_id(node2, \"box2\")\n"
+            "    gui.set_id(node3, \"box3\")\n"
+            "    local clone1 = gui.clone(node1)\n"
+            "    local clone2 = gui.clone(node2)\n"
+            "    local clone3 = gui.clone(node3)\n"
+            "    assert(gui.get_id(clone1) == hash(\"__node0\"))\n"
+            "    assert(gui.get_id(clone2) == hash(\"__node1\"))\n"
+            "    assert(gui.get_id(clone3) == hash(\"__node2\"))\n"
+            "    assert(gui.get_position(clone1) == gui.get_position(node1))\n"
+            "    assert(gui.get_position(clone2) == gui.get_position(node2))\n"
+            "    assert(gui.get_position(clone3) == gui.get_position(node3))\n"
+            "    assert(gui.get_size(clone1) == gui.get_size(node1))\n"
+            "    assert(gui.get_size(clone2) == gui.get_size(node2))\n"
+            "    assert(gui.get_size(clone3) == gui.get_size(node3))\n"
             "end\n";
 
     dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
@@ -356,6 +459,49 @@ TEST_F(dmGuiScriptTest, TestCloneTree)
             "    assert(gui.get_position(t.n1) ~= gui.get_position(n1))\n"
             "    gui.set_text(t.n4, \"TEST2\")\n"
             "    assert(gui.get_text(t.n4) ~= gui.get_text(n4))\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::DeleteScene(scene);
+
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestGetTree)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    //params.m_RigContext = m_RigContext;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src =
+            "function init(self)\n"
+            "    local n1 = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    gui.set_id(n1, \"n1\")\n"
+            "    local n2 = gui.new_box_node(vmath.vector3(2, 2, 2), vmath.vector3(1, 1, 1))\n"
+            "    gui.set_id(n2, \"n2\")\n"
+            "    local n3 = gui.new_box_node(vmath.vector3(3, 3, 3), vmath.vector3(1, 1, 1))\n"
+            "    gui.set_id(n3, \"n3\")\n"
+            "    local n4 = gui.new_text_node(vmath.vector3(3, 3, 3), \"TEST\")\n"
+            "    gui.set_id(n4, \"n4\")\n"
+            "    gui.set_parent(n2, n1)\n"
+            "    gui.set_parent(n3, n2)\n"
+            "    gui.set_parent(n4, n3)\n"
+            "    local t = gui.get_tree(n1)\n"
+            "    assert(t.n1 == n1)\n"
+            "    assert(t.n2 == n2)\n"
+            "    assert(t.n3 == n3)\n"
+            "    assert(t.n4 == n4)\n"
             "end\n";
 
     dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
@@ -484,7 +630,7 @@ TEST_F(dmGuiScriptTest, TestSizeMode)
     dmGui::Result result;
 
     int t1;
-    result = dmGui::AddTexture(scene, dmHashString64("t1"), (void*) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    result = dmGui::AddTexture(scene, dmHashString64("t1"), (dmGui::HTextureSource) &t1, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
     ASSERT_EQ(result, dmGui::RESULT_OK);
 
     const char* src =
@@ -844,7 +990,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimation)
         dmGui::RenderScene(scene, m_RenderParams, &t1);
         dmGui::UpdateScene(scene, 0.125f);
         dmVMath::Vector3 currentDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
-        if (tinyDifference < Vectormath::Aos::lengthSqr(currentDiagonal - postScaleDiagonal)) {
+        if (tinyDifference < dmVMath::LengthSqr(currentDiagonal - postScaleDiagonal)) {
             char animatedScale[64];
             char currentScale[64];
             dmSnPrintf(animatedScale, sizeof(animatedScale), "(%f,%f,%f)", postScaleDiagonal[0], postScaleDiagonal[1], postScaleDiagonal[2]);
@@ -912,7 +1058,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
         dmGui::RenderScene(scene, m_RenderParams, &t1);
         dmGui::UpdateScene(scene, 0.125f);
         dmVMath::Vector3 currentDiagonal = Vector3(t1[0][0], t1[1][1], t1[2][2]);
-        dmVMath::Vector3 difference = Vectormath::Aos::absPerElem(currentDiagonal - postScaleDiagonal);
+        dmVMath::Vector3 difference = dmVMath::AbsPerElem(currentDiagonal - postScaleDiagonal);
         if ( (tinyDifference >= difference[0]) || (tinyDifference < difference[1]) || (tinyDifference >= difference[2])) {
             char animatedScale[64];
             char currentScale[64];
@@ -992,8 +1138,297 @@ TEST_F(dmGuiScriptTest, TestVisibilityApi)
     dmGui::DeleteScript(script);
 }
 
+TEST_F(dmGuiScriptTest, TestGuiGetSet)
+{
+    dmHashEnableReverseHash(true);
+
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src =
+            "local EPSILON = 0.001\n"
+            "function assert_near(a,b)\n"
+            "    assert(math.abs(a-b) < EPSILON)\n"
+            "end\n"
+            "function check_near_vector4(a,b)\n"
+            "    assert(math.abs(a.x-b.x) < EPSILON)\n"
+            "    assert(math.abs(a.y-b.y) < EPSILON)\n"
+            "    assert(math.abs(a.z-b.z) < EPSILON)\n"
+            "    assert(math.abs(a.w-b.w) < EPSILON)\n"
+            "end\n"
+            "function check_near_vector3(a,b)\n"
+            "    assert(math.abs(a.x-b.x) < EPSILON)\n"
+            "    assert(math.abs(a.y-b.y) < EPSILON)\n"
+            "    assert(math.abs(a.z-b.z) < EPSILON)\n"
+            "end\n"
+            "function assert_near_vector4(a,b)\n"
+            "    local ok = pcall(check_near_vector4, a, b)"
+            "    if ok then return end"
+            "    print(\"Wanted\", a, \"but got\", b)\n"
+            "    assert(false)\n"
+            "end\n"
+            "function assert_near_vector3(a,b)\n"
+            "    local ok = pcall(check_near_vector3, a, b)"
+            "    if ok then return end"
+            "    print(\"Wanted\", a, \"but got\", b)\n"
+            "    assert(false)\n"
+            "end\n"
+            "local function assert_error(func)\n"
+            "    local r, err = pcall(func)\n"
+            "    if not r then\n"
+            "        print(err)\n"
+            "    end\n"
+            "    assert(not r)\n"
+            "end\n"
+            "function init(self)\n"
+            "   local node = gui.new_box_node(vmath.vector3(1, 2, 3), vmath.vector3(4, 5, 6))\n"
+            // Test valid
+            "   assert_near_vector4(vmath.vector4(1, 2, 3, 1), gui.get(node, 'position'))\n"
+            "   assert_near_vector4(vmath.vector4(4, 5, 6, 0), gui.get(node, 'size'))\n"
+            "   gui.set(node, 'position', vmath.vector3(99, 98, 97))\n"
+            "   assert_near_vector4(vmath.vector4(99, 98, 97, 1), gui.get(node, 'position'))\n"
+            "   gui.set(node, 'position', vmath.vector4(99, 98, 97, 1337))\n"
+            "   assert_near_vector4(vmath.vector4(99, 98, 97, 1337), gui.get(node, 'position'))\n"
+            // Test valid subcomponents
+            "   gui.set(node, 'position.x', 2001)\n"
+            "   assert_near(2001, gui.get(node, 'position.x'))\n"
+            "   gui.set(node, 'position.y', 2002)\n"
+            "   assert_near(2002, gui.get(node, 'position.y'))\n"
+            "   gui.set(node, 'position.z', 2003)\n"
+            "   assert_near(2003, gui.get(node, 'position.z'))\n"
+            "   gui.set(node, 'position.w', 2004)\n"
+            "   assert_near(2004, gui.get(node, 'position.w'))\n"
+            "   assert_near_vector4(vmath.vector4(2001, 2002, 2003, 2004), gui.get(node, 'position'))\n"
+            // Test rotation <-> euler conversion
+            "   gui.set(node, 'rotation', vmath.quat_rotation_z(math.rad(45)))\n"
+            "   assert_near_vector3(vmath.vector4(0, 0, 45, 0), gui.get(node, 'euler'))\n"
+            "   assert_near_vector3(vmath.vector4(0, 0, 45, 0), gui.get_euler(node))\n"
+            "   gui.set_rotation(node, vmath.quat_rotation_z(math.rad(90)))\n"
+            "   assert_near_vector3(vmath.vector4(0, 0, 90, 0), gui.get(node, 'euler'))\n"
+            "   assert_near_vector3(vmath.vector4(0, 0, 90, 0), gui.get_euler(node))\n"
+            "   gui.set(node, 'euler', vmath.vector3(0, 0, 45))\n"
+            "   assert_near_vector4(vmath.quat_rotation_z(math.rad(45)), gui.get(node, 'rotation'))\n"
+            "   assert_near_vector4(vmath.quat_rotation_z(math.rad(45)), gui.get_rotation(node))\n"
+            "   gui.set_euler(node, vmath.vector3(0, 0, 90))\n"
+            "   assert_near_vector4(vmath.quat_rotation_z(math.rad(90)), gui.get(node, 'rotation'))\n"
+            "   assert_near_vector4(vmath.quat_rotation_z(math.rad(90)), gui.get_rotation(node))\n"
+            // Test rotation <-> euler conversion subcomponents
+            "   gui.set(node, 'euler', vmath.vector4())\n"
+            "   assert_near_vector4(vmath.vector4(0,0,0,1), gui.get(node, 'rotation'))\n"
+            "   assert_near_vector4(vmath.vector4(0,0,0,1), gui.get_rotation(node))\n"
+            "   gui.set(node, 'euler.x', 180)\n"
+            "   assert_near(1, gui.get(node, 'rotation.x'))\n"
+            // Incorrect input for get
+            "   assert_error(function() gui.get('invalid', 'position') end)\n"
+            "   assert_error(function() gui.get(hash('invalid'), 'position') end)\n"
+            "   assert_error(function() gui.get(node, 'this_doesnt_exist') end)\n"
+            // Incorrect input for set
+            "   assert_error(function() gui.set('invalid', 'position', vmath.vector3()) end)\n"
+            "   assert_error(function() gui.set(node, 'position', 'incorrect-string') end)\n"
+            "   assert_error(function() gui.set(node, 'this_doesnt_exist', vmath.vector4()) end)\n"
+            "   assert_error(function() gui.set(node, 'rotation', vmath.vector3()) end)\n"
+            "   assert_error(function() gui.set(node, 'rotation', vmath.vector4()) end)\n"
+            "   assert_error(function() gui.set(node, 'rotation', 1) end)\n"
+            "   assert_error(function() gui.set(node, 'rotation.x', vmath.vector3()) end)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::DeleteScene(scene);
+
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestGuiAnimateEuler)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    //params.m_RigContext = m_RigContext;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneResolution(scene, 1, 1);
+    dmGui::SetSceneScript(scene, script);
+
+    // Set position
+    const char* src =
+            "function init(self)\n"
+            "    local n1 = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    gui.animate(n1, gui.PROP_EULER, vmath.vector3(2, 3, 4), gui.EASING_LINEAR, 1)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmVMath::Matrix4 transform;
+    dmGui::RenderScene(scene, m_RenderParams, &transform);
+
+    {
+        dmVMath::Quat q(transform.getUpper3x3());
+        dmVMath::Vector3 euler = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
+
+        ASSERT_NEAR(0.0f, euler.getX(), EPSILON);
+        ASSERT_NEAR(0.0f, euler.getY(), EPSILON);
+        ASSERT_NEAR(0.0f, euler.getZ(), EPSILON);
+    }
+
+    dmGui::UpdateScene(scene, 1.0f);
+
+    dmGui::RenderScene(scene, m_RenderParams, &transform);
+    {
+        dmVMath::Quat q(transform.getUpper3x3());
+        dmVMath::Vector3 euler = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
+
+        // We use a fairly large epsilon here, as we are doing two conversions back to euler values
+        ASSERT_NEAR(2.0f, euler.getX(), 0.01f);
+        ASSERT_NEAR(3.0f, euler.getY(), 0.01f);
+        ASSERT_NEAR(4.0f, euler.getZ(), 0.01f);
+    }
+    dmGui::DeleteScene(scene);
+
+    dmGui::DeleteScript(script);
+}
+
+static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+{
+    dmGuiScriptTest* self = (dmGuiScriptTest*) scene->m_UserData;
+    return (dmGui::HTextureSource) self->m_DynamicTextures.New(path_hash, width, height, type, buffer);
+}
+
+static void DynamicDeleteTexture(dmGui::HScene scene, dmhash_t path_hash, dmGui::HTextureSource texture_source)
+{
+    dmGuiScriptTest* self = (dmGuiScriptTest*) scene->m_UserData;
+    self->m_DynamicTextures.Delete(path_hash);
+}
+
+static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+{
+    dmGuiScriptTest* self = (dmGuiScriptTest*) scene->m_UserData;
+    self->m_DynamicTextures.Set(path_hash, width, height, type, buffer);
+}
+
+TEST_F(dmGuiScriptTest, TestRecreateDynamicTexture)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params = {};
+    params.m_MaxNodes                      = 64;
+    params.m_MaxAnimations                 = 32;
+    params.m_UserData                      = this;
+    params.m_NewTextureResourceCallback    = DynamicNewTexture;
+    params.m_DeleteTextureResourceCallback = DynamicDeleteTexture;
+    params.m_SetTextureResourceCallback    = DynamicSetTextureData;
+
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    // Test
+    // ----
+    // * create a texture with id 'tex'
+    // * delete the texture
+    // * within the same frame, recreate the texture with the same id but with different params
+    // * the texture should have the correct data (test in C world)
+    const char* src =
+            "function update(self)\n"
+            "   local w = 4\n"
+            "   local h = 4\n"
+            "   local tex_id = 'tex'\n"
+            "   local orange_pixel = string.char(0xff) .. string.char(0x80) .. string.char(0x10)\n"
+            "   local res = gui.new_texture(tex_id, w, h, 'rgb', string.rep(orange_pixel, w * h))\n"
+            "   assert(res)\n"
+            "   gui.delete_texture(tex_id)\n"
+            "   w = 8\n"
+            "   h = 8\n"
+            "   res = gui.new_texture(tex_id, w, h, 'rgb', string.rep(orange_pixel, w * h))\n"
+            "   assert(res)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::UpdateScene(scene, 1.0f / 60);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmhash_t path_hash = dmHashString64("tex");
+
+    TestDynamicTexture* tex = m_DynamicTextures.Get(path_hash);
+    ASSERT_NE((TestDynamicTexture*) 0, tex);
+    ASSERT_EQ(8, tex->m_Width);
+    ASSERT_EQ(8, tex->m_Height);
+
+    dmGui::DeleteScene(scene);
+
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestKeyboardFunctions)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params = {};
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src =
+            "function init(self)\n"
+            "   gui.show_keyboard(gui.KEYBOARD_TYPE_EMAIL, false)\n"
+            "   gui.show_keyboard(gui.KEYBOARD_TYPE_NUMBER_PAD, false)\n"
+            "   gui.show_keyboard(gui.KEYBOARD_TYPE_PASSWORD, false)\n"
+            "   gui.show_keyboard(gui.KEYBOARD_TYPE_DEFAULT, false)\n"
+            "end\n"
+            "function update(self)\n"
+            "   gui.hide_keyboard()\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    ASSERT_TRUE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_NUMBER_PAD));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_EMAIL));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_PASSWORD));
+
+    result = dmGui::UpdateScene(scene, 1.0f / 60);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_NUMBER_PAD));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_EMAIL));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_PASSWORD));
+
+    dmGui::DeleteScene(scene);
+
+    dmGui::DeleteScript(script);
+}
+
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     return jc_test_run_all();

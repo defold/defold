@@ -1,0 +1,23 @@
+#!/usr/bin/env python
+import os
+
+def init(ctx):
+    pass
+
+def configure(conf):
+    conf.recurse('test')
+
+def build(bld):
+    bld.stlib(features = 'cxx',
+               includes = ['.'],
+               source   = bld.path.ant_glob('jni/*.cpp'),
+               use      = 'JDK',
+               target   = 'jni')
+
+    bld.stlib(features = 'cxx skip_asan',
+               includes = ['.'],
+               source   = bld.path.ant_glob('jni/*.cpp'),
+               use      = 'JDK',
+               target   = 'jni_noasan')
+
+    bld.recurse('test')

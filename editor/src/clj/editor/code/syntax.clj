@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,13 +21,29 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+;; This is a simplified implementation of TextMate-style syntax highlighting
+;; that allows us to adopt rules from existing .tmLanguage files. At some point
+;; we might want to implement full support for TextMate grammars, since it has
+;; been widely adopted by modern text editors. To fully support them would take
+;; a bit of work. Here are a few useful resources that might help guide this
+;; effort in the future:
+;;
+;; Writing a TextMate Grammar: Some Lessons Learned
+;;   https://www.apeth.com/nonblog/stories/textmatebundle.html
+;;
+;; The Language Grammars section from the TextMate manual
+;;   https://macromates.com/manual/en/language_grammars
+;;
+;; The Indentation Rules section from the TextMate manual appendix
+;;   https://macromates.com/manual/en/appendix#indentation_rules
+
 (defrecord AnalysisContext [parent-pattern end-re])
 (defrecord Match [type contexts ^MatchResult match-result pattern])
 
 (defn- replace-back-references
   ^Pattern [^Pattern re ^MatchResult input]
   (re-pattern (reduce (fn [re-string group]
-                        (if-some [capture (.group input group)]
+                        (if-some [capture (.group input ^int group)]
                           (string/replace re-string
                                           (re-pattern (str "\\\\" group "(?!\\d)"))
                                           (string/re-quote-replacement (Pattern/quote capture)))
@@ -72,11 +88,11 @@
 (defn- append-captures! [transient-runs parent-scope ^MatchResult match-result captures]
   (reduce (fn [runs group]
             (or (when-some [capture (captures group)]
-                  (when (not= -1 (.start match-result group))
+                  (when (not= -1 (.start match-result ^int group))
                     (when-some [scope (:name capture)]
                       (-> runs
-                          (append-run! (.start match-result group) scope)
-                          (append-run! (.end match-result group) parent-scope)))))
+                          (append-run! (.start match-result ^int group) scope)
+                          (append-run! (.end match-result ^int group) parent-scope)))))
                 runs))
           transient-runs
           (range 0 (inc (.groupCount match-result)))))

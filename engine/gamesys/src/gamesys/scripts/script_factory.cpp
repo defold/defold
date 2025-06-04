@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,6 +21,8 @@
 #include <dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/gamesys/script.h>
+#include <dmsdk/gameobject/gameobject.h>
+#include <gameobject/gameobject_props_lua.h>
 #include <dmsdk/gameobject/script.h>
 #include <gameobject/script.h>
 
@@ -48,6 +50,7 @@ namespace dmGameSystem
      * @document
      * @name Factory
      * @namespace factory
+     * @language Lua
      */
 
     /*# Get factory status
@@ -84,10 +87,11 @@ namespace dmGameSystem
     static int FactoryComp_GetStatus(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        FactoryComponent* component;
-        dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, 0, (void**)&component, 0);
+        HFactoryWorld world;
+        HFactoryComponent component;
+        dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0);
 
-        dmGameSystem::CompFactoryStatus status = dmGameSystem::CompFactoryGetStatus(component);
+        dmGameSystem::CompFactoryStatus status = dmGameSystem::CompFactoryGetStatus(world, component);
         lua_pushinteger(L, (int)status);
         return 1;
     }
@@ -112,12 +116,12 @@ namespace dmGameSystem
     static int FactoryComp_Unload(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        dmGameObject::HCollection collection = dmScript::CheckCollection(L);
 
-        FactoryComponent* component;
-        dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, 0, (void**)&component, 0);
+        HFactoryWorld world;
+        HFactoryComponent component;
+        dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0);
 
-        bool success = dmGameSystem::CompFactoryUnload(collection, component);
+        bool success = dmGameSystem::CompFactoryUnload(world, component);
         if (!success)
         {
             return DM_LUA_ERROR("Error unloading factory resources");
@@ -134,7 +138,7 @@ namespace dmGameSystem
      *
      * @name factory.load
      * @param [url] [type:string|hash|url] the factory component to load
-     * @param [complete_function] [type:function(self, url, result))] function to call when resources are loaded.
+     * @param [complete_function] [type:function(self, url, result)] function to call when resources are loaded.
      *
      * `self`
      * : [type:object] The current object.
@@ -162,13 +166,12 @@ namespace dmGameSystem
             return luaL_error(L, "Argument #2 is expected to be completion function.");
         }
 
-        dmGameObject::HCollection collection = dmScript::CheckCollection(L);
-
-        FactoryComponent* component;
         dmMessage::URL receiver;
-        dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, 0, (void**)&component, &receiver);
+        HFactoryWorld world;
+        HFactoryComponent component;
+        dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, &receiver);
 
-        if (dmGameSystem::CompFactoryIsLoading(component)) {
+        if (dmGameSystem::CompFactoryIsLoading(world, component)) {
             dmLogError("Trying to load factory prototype resource when already loading.");
             return luaL_error(L, "Error loading factory resources");
         }
@@ -180,7 +183,7 @@ namespace dmGameSystem
         dmScript::PushURL(L, receiver);
         int url_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
-        bool success = dmGameSystem::CompFactoryLoad(collection, component, callback_ref, self_ref, url_ref);
+        bool success = dmGameSystem::CompFactoryLoad(world, component, callback_ref, self_ref, url_ref);
         if (!success)
         {
             dmScript::Unref(L, LUA_REGISTRYINDEX, callback_ref);
@@ -235,6 +238,43 @@ namespace dmGameSystem
      * end
      * ```
      */
+    static int FactoryComp_CreateWithMessage(lua_State* L, dmGameObject::HCollection collection, dmMessage::URL* receiver,
+                                            uint32_t index, dmhash_t id, dmGameObject::HPropertyContainer properties,
+                                            const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale)
+    {
+        uint8_t DM_ALIGNED(16) buffer[512];
+
+        dmGameSystemDDF::Create* create_msg = (dmGameSystemDDF::Create*)buffer;
+        create_msg->m_Id = id;
+        create_msg->m_Index = index;
+        create_msg->m_Position = position;
+        create_msg->m_Rotation = rotation;
+        create_msg->m_Scale3 = scale;
+
+        uint8_t* prop_buffer = buffer + sizeof(dmGameSystemDDF::Create);
+        uint32_t prop_buffer_size = DM_ARRAY_SIZE(buffer) - sizeof(dmGameSystemDDF::Create);
+        uint32_t properties_size = 0;
+        if (properties)
+        {
+            properties_size = dmGameObject::PropertyContainerGetMemorySize(properties);
+            if (properties_size > prop_buffer_size)
+                return luaL_error(L, "Properties of size %u bytes won't fit in the buffer of size %u", properties_size, prop_buffer_size);
+
+            dmGameObject::PropertyContainerSerialize(properties, prop_buffer, prop_buffer_size);
+        }
+
+        dmMessage::URL sender;
+        if (!dmScript::GetURL(L, &sender)) {
+            dmGameObject::ReleaseInstanceIndex(index, collection);
+            return luaL_error(L, "factory.create can not be called from this script type");
+        }
+
+        dmMessage::Post(&sender, receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, 0,
+                        (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, sizeof(dmGameSystemDDF::Create) + properties_size, 0);
+
+        return 0;
+    }
+
     static int FactoryComp_Create(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -242,9 +282,10 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        FactoryComponent* component;
+        HFactoryWorld world;
+        HFactoryComponent component;
         dmMessage::URL receiver;
-        dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, 0, (void**)&component, &receiver);
+        dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, &receiver);
 
         dmVMath::Point3 position;
         if (top >= 2 && !lua_isnil(L, 2))
@@ -264,22 +305,11 @@ namespace dmGameSystem
         {
             rotation = dmGameObject::GetWorldRotation(sender_instance);
         }
-        const uint32_t buffer_size = 512;
-        uint8_t DM_ALIGNED(16) buffer[buffer_size];
-        uint32_t actual_prop_buffer_size = 0;
-        uint8_t* prop_buffer = buffer;
-        uint32_t prop_buffer_size = buffer_size;
-        bool msg_passing = dmGameObject::GetInstanceFromLua(L) == 0x0; // TODO: When does this actually happen? In render scripts?
-        if (msg_passing) {
-            const uint32_t msg_size = sizeof(dmGameSystemDDF::Create);
-            prop_buffer = &(buffer[msg_size]);
-            prop_buffer_size -= msg_size;
-        }
-        if (top >= 4 && !lua_isnil(L, 4))
+
+        dmGameObject::HPropertyContainer properties = 0;
+        if (top >= 4 && lua_istable(L, 4))
         {
-            actual_prop_buffer_size = dmScript::CheckTable(L, (char*)prop_buffer, prop_buffer_size, 4);
-            if (actual_prop_buffer_size > prop_buffer_size)
-                return luaL_error(L, "the properties supplied to factory.create are too many.");
+            properties = dmGameObject::PropertyContainerCreateFromLua(L, 4);
         }
 
         dmVMath::Vector3 scale;
@@ -303,61 +333,49 @@ namespace dmGameSystem
         }
 
         uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
-        if (index != dmGameObject::INVALID_INSTANCE_POOL_INDEX)
+        if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
         {
-            bool success = true;
-            dmhash_t id = dmGameObject::ConstructInstanceId(index);
+            dmLogError("factory.create can not create gameobject since the buffer is full. See `collection.max_instances` in game.project");
+            lua_pushnil(L);
+        }
+        else
+        {
+            dmhash_t id = dmGameObject::CreateInstanceId();
 
-            if (msg_passing) {
-                dmGameSystemDDF::Create* create_msg = (dmGameSystemDDF::Create*)buffer;
-                create_msg->m_Id = id;
-                create_msg->m_Index = index;
-                create_msg->m_Position = position;
-                create_msg->m_Rotation = rotation;
-                create_msg->m_Scale3 = scale;
-                dmMessage::URL sender;
-                if (!dmScript::GetURL(L, &sender)) {
-                    dmGameObject::ReleaseInstanceIndex(index, collection);
-                    return luaL_error(L, "factory.create can not be called from this script type");
-                }
-
-                dmMessage::Post(&sender, &receiver, dmGameSystemDDF::Create::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor, buffer, sizeof(dmGameSystemDDF::Create) + actual_prop_buffer_size, 0);
-            } else {
-                dmScript::GetInstance(L);
-                int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
-                dmGameObject::HPrototype prototype = CompFactoryGetPrototype(collection, component);
-                const char* path = CompFactoryGetPrototypePath(component);
-                dmGameObject::HInstance instance = dmGameObject::Spawn(collection, prototype, path,
-                                                                        id, buffer, actual_prop_buffer_size, position, rotation, scale);
-                if (instance != 0x0)
-                {
-                    dmGameObject::AssignInstanceIndex(index, instance);
-                }
-                else
-                {
-                    dmGameObject::ReleaseInstanceIndex(index, collection);
-                    success = false;
-                }
-
-                lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-                dmScript::SetInstance(L);
-                dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
-            }
-
-            if (success)
+            // TODO: When does this actually happen? In render scripts? Or unit tests only?
+            bool msg_passing = dmGameObject::GetInstanceFromLua(L) == 0x0;
+            if (msg_passing)
             {
+                FactoryComp_CreateWithMessage(L, collection, &receiver, index, id, properties, position, rotation, scale);
+                // We currently don't know if the creation succeeds
                 dmScript::PushHash(L, id);
             }
             else
             {
-                lua_pushnil(L);
+                // Since the spawning will invoke any scripts on that new instance,
+                // we need a way to restore the state
+                dmScript::GetInstance(L);
+                int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+                dmGameObject::HInstance instance = CompFactorySpawn(world, component, collection,
+                                                                index, id, position, rotation, scale, properties);
+
+                lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+                dmScript::SetInstance(L);
+                dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
+
+                if (instance != 0)
+                {
+                    dmScript::PushHash(L, id);
+                }
+                else
+                {
+                    lua_pushnil(L);
+                }
             }
         }
-        else
-        {
-            dmLogError("factory.create can not create gameobject since the buffer is full.");
-            lua_pushnil(L);
-        }
+
+        dmGameObject::PropertyContainerDestroy(properties);
 
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -369,12 +387,12 @@ namespace dmGameSystem
      *
      * @name factory.set_prototype
      * @param [url] [type:string|hash|url] the factory component
-     * @param [prototype] [type:string|nil] the path to the new prototype, or nil
+     * @param [prototype] [type:string|nil] the path to the new prototype, or `nil`
      *
      * @note
      *   - Requires the factory to have the "Dynamic Prototype" set
      *   - Cannot be set when the state is COMP_FACTORY_STATUS_LOADING
-     *   - Setting the prototype to "nil" will revert back to the original prototype.
+     *   - Setting the prototype to `nil` will revert back to the original prototype.
      *
      * @examples
      *
@@ -391,11 +409,11 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         dmMessage::URL url;
-        FactoryWorld* world;
-        FactoryComponent* component;
-        dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, (void**)&world, (void**)&component, &url);
+        HFactoryWorld world;
+        HFactoryComponent component;
+        dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, &url);
 
-        if(!CompFactoryIsDynamicPrototype(component))
+        if(!CompFactoryIsDynamicPrototype(world, component))
         {
             return luaL_error(L, "Cannot set prototype to a factory that doesn't have dynamic prototype set: '%s:%s#%s'",
                                         dmMessage::GetSocketName(url.m_Socket),
@@ -403,16 +421,10 @@ namespace dmGameSystem
                                         dmHashReverseSafe64(url.m_Fragment));
         }
 
-        if (dmGameSystem::CompFactoryIsLoading(component))
+        if (dmGameSystem::CompFactoryIsLoading(world, component))
         {
             return luaL_error(L, "Cannot set prototype while factory is loading");
         }
-
-        dmResource::HFactory factory = CompFactoryGetResourceFactory(world);
-        FactoryResource* default_resource = CompFactoryGetDefaultResource(component);
-        FactoryResource* custom_resource = CompFactoryGetCustomResource(component);
-        FactoryResource* new_resource = 0;
-        FactoryResource* old_resource = custom_resource;
 
         const char* path = 0;
         if (!lua_isnil(L, 2))
@@ -421,7 +433,7 @@ namespace dmGameSystem
 
             // check that the path is a .goc
             const char* ext = dmResource::GetExtFromPath(path);
-            if (strcmp(ext, ".goc") != 0)
+            if (!ext || strcmp(ext, ".goc") != 0)
             {
                 return luaL_error(L, "Trying to set '%s' as prototype to '%s:%s#%s'. Only .goc resources are allowed",
                                         path,
@@ -430,6 +442,12 @@ namespace dmGameSystem
                                         dmHashReverseSafe64(url.m_Fragment));
             }
         }
+
+        dmResource::HFactory factory = CompFactoryGetResourceFactory(world);
+        HFactoryResource default_resource = CompFactoryGetDefaultResource(world, component);
+        HFactoryResource custom_resource = CompFactoryGetCustomResource(world, component);
+        HFactoryResource new_resource = 0;
+        HFactoryResource old_resource = custom_resource;
 
         if (path == 0 || strcmp(path, default_resource->m_PrototypePath) == 0) // We want to reset to the default prototype
         {
@@ -450,7 +468,7 @@ namespace dmGameSystem
             }
         }
 
-        CompFactorySetResource(component, new_resource);
+        CompFactorySetResource(world, component, new_resource);
 
         if (old_resource)
         {

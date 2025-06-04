@@ -8,11 +8,12 @@ def configure(conf):
 def build(bld):
     resource = bld.stlib(features = 'cxx ddf',
                          includes = '. ../proto',
-                         source = bld.path.ant_glob('*.cpp'),
+                         source = bld.path.ant_glob('*.cpp') + bld.path.ant_glob('providers/*.cpp'),
                          protoc_includes = '../proto',
                          proto_gen_py = True,
                          target = 'resource')
 
+    resource.source.append('async/load_queue.cpp');
     if 'web' in bld.env.PLATFORM:
          resource.source.append('async/load_queue_sync.cpp');
     else:
@@ -20,7 +21,7 @@ def build(bld):
 
     if bld.env.PLATFORM in ('armv7-android','arm64-android'):
         resource.source.append('mount/mount_android.cpp');
-    elif bld.env.PLATFORM in ('x86_64-linux','x86_64-macos','arm64-ios','x86_64-ios'):
+    elif bld.env.PLATFORM in ('x86_64-linux','x86_64-macos','arm64-macos','arm64-ios','x86_64-ios'):
         resource.source.append('mount/mount_mmap.cpp');
     else:
         resource.source.append('mount/mount_generic.cpp');
@@ -38,6 +39,12 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/resource', 'resource.h')
     bld.install_files('${PREFIX}/include/resource', 'resource_archive.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_chunk_cache.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_manifest.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_mounts.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_util.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_verify.h')
+    bld.install_files('${PREFIX}/include/resource/providers', 'providers/provider.h')
     bld.install_files('${PREFIX}/lib/python', 'waf_resource.py')
     bld.install_files('${PREFIX}/bin', 'arcc.py')
 

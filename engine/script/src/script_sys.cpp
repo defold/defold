@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,7 +16,22 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include <errno.h>
+#if !defined(DM_NO_ERRNO)
+    #if defined(__linux__) || defined(__MACH__)
+    #  include <sys/errno.h>
+    #elif defined(_WIN32)
+    #  include <errno.h>
+    #elif defined(__EMSCRIPTEN__)
+    #  include <unistd.h>
+    #else
+    #  include <errno.h>
+    #endif
+#endif
+
+#ifdef _WIN32
+#include <direct.h>
+#include <malloc.h>
+#endif
 
 #include <dlib/dstrings.h>
 #include <dlib/sys.h>
@@ -61,6 +76,7 @@ union SaveLoadBuffer
      * @document
      * @name System
      * @namespace sys
+     * @language Lua
      */
 
     char* Sys_SetupTableSerializationBuffer(int required_size)
@@ -68,7 +84,7 @@ union SaveLoadBuffer
         if (required_size > MAX_BUFFER_SIZE)
         {
             char* buffer = 0;
-            dmMemory::Result r = dmMemory::AlignedMalloc((void**)&buffer, 16, required_size);
+            dmMemory::AlignedMalloc((void**)&buffer, 16, required_size);
             return buffer;
         }
         else
@@ -113,7 +129,7 @@ union SaveLoadBuffer
      * ```
      */
 
-    int Sys_Save(lua_State* L)
+    static int Sys_Save(lua_State* L)
     {
         const char* filename = luaL_checkstring(L, 1);
 
@@ -146,9 +162,14 @@ union SaveLoadBuffer
         if (!file)
         {
             Sys_FreeTableSerializationBuffer(buffer);
+
+        #if defined(DM_NO_ERRNO)
+            return luaL_error(L, "Could not open the file %s", tmp_filename);
+        #else
             char errmsg[128] = {};
             dmStrError(errmsg, sizeof(errmsg), errno);
             return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
+        #endif
         }
 
         bool result = fwrite(buffer, 1, n_used, file) == n_used;
@@ -158,10 +179,17 @@ union SaveLoadBuffer
         if (!result)
         {
             dmSys::Unlink(tmp_filename);
+
+        #if defined(DM_NO_ERRNO)
             return luaL_error(L, "Could not write to the file %s.", filename);
+        #else
+            char errmsg[128] = {};
+            dmStrError(errmsg, sizeof(errmsg), errno);
+            return luaL_error(L, "Could not write to the file %s, reason: %s.", filename, errmsg);
+        #endif
         }
 
-        if (dmSys::RenameFile(filename, tmp_filename) != dmSys::RESULT_OK)
+        if (dmSys::Rename(filename, tmp_filename) != dmSys::RESULT_OK)
         {
             return luaL_error(L, "Could not rename %s to the file %s.", tmp_filename, filename);
         }
@@ -212,7 +240,7 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_Load(lua_State* L)
+    static int Sys_Load(lua_State* L)
     {
         const char* filename = luaL_checkstring(L, 1);
         FILE* file = fopen(filename, "rb");
@@ -244,6 +272,65 @@ union SaveLoadBuffer
         return 1;
     }
 
+    /*# check if a path exists
+     * Check if a path exists
+     * Good for checking if a file exists before loading a large file
+     *
+     * @name sys.exists
+     * @param path [type:string] path to check
+     * @return result [type:bool] `true` if the path exists, `false` otherwise
+     * @examples
+     *
+     * Load data but return nil if path didn't exist
+     *
+     * ```lua
+     * if not sys.exists(path) then
+     *     return nil
+     * end
+     * return sys.load(path) -- returns {} if it failed
+     * ```
+     */
+    static int Sys_Exists(lua_State* L)
+    {
+        const char* path = luaL_checkstring(L, 1);
+        bool result = dmSys::Exists(path);
+        lua_pushboolean(L, result);
+        return 1;
+    }
+
+    /*# create a path to the host device for unit testing
+     * Create a path to the host device for unit testing
+     * Useful for saving logs etc during development
+     *
+     * @note Only enabled in debug builds. In release builds returns the string unchanged
+     * @name sys.get_host_path
+     * @param filename [type:string] file to read from
+     * @return host_path [type:string] the path prefixed with the proper host mount
+     * @examples
+     *
+     * Save data on the host
+     *
+     * ```lua
+     * local host_path = sys.get_host_path("logs/test.txt")
+     * sys.save(host_path, mytable)
+     * ```
+     *
+     * Load data from the host
+     *
+     * ```lua
+     * local host_path = sys.get_host_path("logs/test.txt")
+     * local table = sys.load(host_path)
+     * ```
+     */
+    static int Sys_GetHostPath(lua_State* L)
+    {
+        const char* path = luaL_checkstring(L, 1);
+        char host_path[DMPATH_MAX_PATH];
+        dmSys::GetHostFileName(host_path, sizeof(host_path), path);
+        lua_pushstring(L, host_path);
+        return 1;
+    }
+
     /*# gets the save-file path
      * The save-file path is operating system specific and is typically located under the user's home directory.
      *
@@ -255,14 +342,31 @@ union SaveLoadBuffer
      * @return path [type:string] path to save-file
      * @examples
      *
-     * Find a path where we can store data (the example path is on the macOS platform):
+     * Find a path where we can store data:
      *
      * ```lua
      * local my_file_path = sys.get_save_file("my_game", "my_file")
-     * print(my_file_path) --> /Users/my_users/Library/Application Support/my_game/my_file
+     * -- macOS: /Users/foobar/Library/Application Support/my_game/my_file
+     * print(my_file_path) --> /Users/foobar/Library/Application Support/my_game/my_file
+     *
+     * -- Windows: C:\Users\foobar\AppData\Roaming\my_game\my_file
+     * print(my_file_path) --> C:\Users\foobar\AppData\Roaming\my_game\my_file
+     *
+     * -- Linux: $XDG_DATA_HOME/my_game/my_file or /home/foobar/.my_game/my_file
+     * -- Linux: Defaults to /home/foobar/.local/share/my_game/my_file if neither exist.
+     * print(my_file_path) --> /home/foobar/.local/share/my_game/my_file
+     *
+     * -- Android package name: com.foobar.packagename
+     * print(my_file_path) --> /data/data/0/com.foobar.packagename/files/my_file
+     *
+     * -- iOS: /var/mobile/Containers/Data/Application/123456AB-78CD-90DE-12345678ABCD/my_game/my_file
+     * print(my_file_path) --> /var/containers/Bundle/Applications/123456AB-78CD-90DE-12345678ABCD/my_game.app
+     *
+     * -- HTML5 path inside the IndexedDB: /data/.my_game/my_file or /.my_game/my_file
+     * print(my_file_path) --> /data/.my_game/my_file
      * ```
      */
-    int Sys_GetSaveFile(lua_State* L)
+    static int Sys_GetSaveFile(lua_State* L)
     {
         const char* application_id = luaL_checkstring(L, 1);
 
@@ -319,7 +423,7 @@ union SaveLoadBuffer
      * print(application_path) --> http://www.foobar.com/my_game
      * ```
      */
-    int Sys_GetApplicationPath(lua_State* L)
+    static int Sys_GetApplicationPath(lua_State* L)
     {
         char application_path[4096 + 2]; // Linux PATH_MAX is defined to 4096. Windows MAX_PATH is 260.
         dmSys::Result r = dmSys::GetApplicationPath(application_path, sizeof(application_path));
@@ -505,7 +609,7 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_OpenURL(lua_State* L)
+    static int Sys_OpenURL(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1)
         int top = lua_gettop(L);
@@ -537,7 +641,7 @@ union SaveLoadBuffer
      *
      * Loads a custom resource. Specify the full filename of the resource that you want
      * to load. When loaded, the file data is returned as a string.
-     * If loading fails, the function returns nil plus the error message.
+     * If loading fails, the function returns `nil` plus the error message.
      *
      * In order for the engine to include custom resources in the build process, you need
      * to specify them in the "custom_resources" key in your "game.project" settings file.
@@ -549,8 +653,8 @@ union SaveLoadBuffer
      *
      * @name sys.load_resource
      * @param filename [type:string] resource to load, full path
-     * @return data [type:string] loaded data, or `nil` if the resource could not be loaded
-     * @return error [type:string] the error message, or `nil` if no error occurred
+     * @return data [type:string|nil] loaded data, or `nil` if the resource could not be loaded
+     * @return error [type:string|nil] the error message, or `nil` if no error occurred
      * @examples
      *
      * ```lua
@@ -565,7 +669,7 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_LoadResource(lua_State* L)
+    static int Sys_LoadResource(lua_State* L)
     {
         int top = lua_gettop(L);
         const char* filename = luaL_checkstring(L, 1);
@@ -731,7 +835,7 @@ union SaveLoadBuffer
      * gui.set_text(gui.get_node("version"), version_str)
      * ```
      */
-    int Sys_GetEngineInfo(lua_State* L)
+    static int Sys_GetEngineInfo(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -800,7 +904,7 @@ union SaveLoadBuffer
      * ...
      * ```
      */
-    int Sys_GetApplicationInfo(lua_State* L)
+    static int Sys_GetApplicationInfo(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -863,7 +967,7 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_GetIfaddrs(lua_State* L)
+    static int Sys_GetIfaddrs(lua_State* L)
     {
         int top = lua_gettop(L);
         const uint32_t max_count = 16;
@@ -898,11 +1002,11 @@ union SaveLoadBuffer
 
             if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV4)
             {
-                lua_pushstring(L, "ipv4");
+                lua_pushliteral(L, "ipv4");
             }
             else if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV6)
             {
-                lua_pushstring(L, "ipv6");
+                lua_pushliteral(L, "ipv6");
             }
             else
             {
@@ -924,7 +1028,7 @@ union SaveLoadBuffer
             }
             else if (IsAndroidMarshmallowOrAbove()) // Marshmallow and above should return const value MAC address (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
             {
-                lua_pushstring(L, "02:00:00:00:00:00");
+                lua_pushliteral(L, "02:00:00:00:00:00");
             }
             else
             {
@@ -985,7 +1089,7 @@ union SaveLoadBuffer
      *end
      * ```
      */
-    int Sys_SetErrorHandler(lua_State* L)
+    static int Sys_SetErrorHandler(lua_State* L)
     {
         int top = lua_gettop(L);
         luaL_checktype(L, 1, LUA_TFUNCTION);
@@ -1115,12 +1219,12 @@ union SaveLoadBuffer
     * project root.
     *
     * @name sys.reboot
-    * @param arg1 [type:string] argument 1
-    * @param arg2 [type:string] argument 2
-    * @param arg3 [type:string] argument 3
-    * @param arg4 [type:string] argument 4
-    * @param arg5 [type:string] argument 5
-    * @param arg6 [type:string] argument 6
+    * @param [arg1] [type:string] argument 1
+    * @param [arg2] [type:string] argument 2
+    * @param [arg3] [type:string] argument 3
+    * @param [arg4] [type:string] argument 4
+    * @param [arg5] [type:string] argument 5
+    * @param [arg6] [type:string] argument 6
     * @examples
     *
     * How to reboot engine with a specific bootstrap collection.
@@ -1337,7 +1441,7 @@ union SaveLoadBuffer
             g_DebuggerLightweightHook = 0;
         }
         g_DebuggerLightweightHook = dmScript::Ref(L, LUA_REGISTRYINDEX);
-        
+
         lua_sethook(L1, Sys_DebuggerLightweightHook, LUA_MASKCALL, 0);
         return 0;
     }
@@ -1346,6 +1450,8 @@ union SaveLoadBuffer
     {
         {"save", Sys_Save},
         {"load", Sys_Load},
+        {"exists", Sys_Exists},
+        {"get_host_path", Sys_GetHostPath},
         {"get_save_file", Sys_GetSaveFile},
         {"get_config", Sys_GetConfigString}, // deprecated
         {"get_config_string", Sys_GetConfigString},

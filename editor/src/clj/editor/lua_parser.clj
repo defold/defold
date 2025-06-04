@@ -1,18 +1,19 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.lua-parser
+  (:refer-clojure :exclude [parse-boolean])
   (:require [clj-antlr.core :as antlr]
             [clojure.java.io :as io]
             [clojure.set :as set]
@@ -192,14 +193,40 @@
                 (when-some [function-name (matching-pred string? (nth var-suffix-node 2))]
                   [module-name function-name arg-exps])))))))))
 
+(defn- deep-search-node [node target-node-type]
+  "Recursively searches for the first occurrence of a specific target node type in the given node tree."
+  (when (seq? node)
+    (or
+      ;; If we find the target node type, return it
+      (when (= target-node-type (first node)) node)
+      ;; Otherwise, recursively search its children
+      (some #(deep-search-node % target-node-type) (rest node)))))
+
+(defn- match-and-extract-args
+  "Checks if the function name matches and extracts argument expressions (:explist) if found."
+  [function-name node check-fn]
+  (when (check-fn)
+    (let [name-and-args-node (deep-search-node node :nameAndArgs)]
+      (when (some? name-and-args-node)
+        (parse-arg-exps name-and-args-node)))))
+
 (defn- matching-functioncall
+  "Searches the node tree recursively for a function call matching the given module-name and function-name.
+   Returns parsed argument expressions (:explist) if found."
   ([function-name node]
    (matching-functioncall nil function-name node))
   ([module-name function-name node]
-   (when-some [[parsed-module-name parsed-function-name parsed-arg-exps] (parse-functioncall node)]
-     (when (and (= module-name parsed-module-name)
-                (= function-name parsed-function-name))
-       parsed-arg-exps))))
+   (when-some [var-or-exp-node (matching-type :varOrExp (second node))]
+     (when-some [var-node (deep-search-node var-or-exp-node :var)]
+       (if module-name
+         ;; If module-name is specified, ensure the :var matches the module-name
+         (when (= module-name (second var-node))
+           (when-some [varsuffix-node (deep-search-node var-node :varSuffix)]
+             (match-and-extract-args function-name node
+                                     #(= function-name (nth varsuffix-node 2)))))
+         ;; If module-name is not specified, compare the :var directly with function-name
+         (match-and-extract-args function-name node
+                                 #(= function-name (second var-node))))))))
 
 (defn- matching-args [parse-fns arg-exps]
   (when (= (count parse-fns) (count arg-exps))

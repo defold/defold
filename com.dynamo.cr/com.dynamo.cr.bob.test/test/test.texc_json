@@ -1,0 +1,21 @@
+{
+    "name": "TestCompressor",
+    "presets": [
+        {
+            "name": "PresetOne",
+            "args": {
+                "test_int": 7,
+                "test_float": 42.0,
+                "test_string": "test_preset_one"
+            }
+        },
+        {
+            "name": "PresetTwo",
+            "args": {
+                "test_int": 1337,
+                "test_float": 999.0,
+                "test_string": "test_preset_two"
+            }
+        }
+    ]
+}

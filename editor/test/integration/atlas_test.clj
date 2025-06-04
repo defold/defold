@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,7 +26,7 @@
 (deftest valid-fps
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/graphics/atlas.atlas")
-          anim (:node-id (test-util/outline node-id [2]))]
+          anim (:node-id (test-util/outline node-id [0]))]
       (is (nil? (test-util/prop-error anim :fps)))
       (test-util/prop! anim :fps -1)
       (is (g/error? (test-util/prop-error anim :fps))))))
@@ -45,6 +45,18 @@
       (is (= ["ball_anim"
               "block_anim"
               "pow_anim"]
+             animation-ids-in-ddf)))))
+
+(deftest rename-anim
+  (test-util/with-loaded-project "test/resources/image_project"
+    (let [atlas (project/get-resource-node project "/main/rename.atlas")
+          ddf-texture-set (g/node-value atlas :texture-set)
+          animation-ids-in-ddf (into #{}
+                                     (map :id)
+                                     (:animations ddf-texture-set))]
+      (is (= #{"ball"
+               "diamond_dogs"
+               "test_anim"}
              animation-ids-in-ddf)))))
 
 (deftest sprite-trim-mode-image-io-error

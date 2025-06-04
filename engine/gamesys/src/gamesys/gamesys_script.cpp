@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -30,12 +30,13 @@
 #include "scripts/script_factory.h"
 #include "scripts/script_collection_factory.h"
 #include "scripts/script_resource.h"
-#include "scripts/script_model.h"
 #include "scripts/script_window.h"
 #include "scripts/script_collectionproxy.h"
 #include "scripts/script_buffer.h"
+#include "scripts/script_sys_gamesys.h"
+#include "scripts/script_camera.h"
+
 #include "components/comp_gui.h"
-#include <liveupdate/liveupdate.h>
 
 #include <dmsdk/gamesys/script.h>
 #include <gameobject/script.h>
@@ -102,11 +103,11 @@ namespace dmScript {
         return instance ? dmGameObject::GetCollection(instance) : 0;
     }
 
-    void GetComponentFromLua(lua_State* L, int index, const char* component_type, void** out_world, void** component, dmMessage::URL* url)
+    void GetComponentFromLua(lua_State* L, int index, const char* component_type, dmGameObject::HComponentWorld* out_world, dmGameObject::HComponent* component, dmMessage::URL* url)
     {
         dmGameObject::HInstance instance = CheckGOInstance(L, index);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
-        GetComponentUserDataFromLua(L, index, collection, component_type, (uintptr_t*)component, url, out_world);
+        dmGameObject::GetComponentFromLua(L, index, collection, component_type, component, url, out_world);
     }
 }
 
@@ -129,6 +130,7 @@ namespace dmGameSystem
         bool result = true;
 
         ScriptBufferRegister(context);
+        ScriptCameraRegister(context);
         ScriptLabelRegister(context);
         ScriptParticleFXRegister(context);
         ScriptTileMapRegister(context);
@@ -138,9 +140,9 @@ namespace dmGameSystem
         ScriptSpriteRegister(context);
         ScriptSoundRegister(context);
         ScriptResourceRegister(context);
-        ScriptModelRegister(context);
         ScriptWindowRegister(context);
         ScriptCollectionProxyRegister(context);
+        ScriptSysGameSysRegister(context);
 
         assert(top == lua_gettop(L));
         return result;
@@ -153,6 +155,12 @@ namespace dmGameSystem
         ScriptPhysicsFinalize(context);
         ScriptResourceFinalize(context);
         ScriptWindowFinalize(context);
+        ScriptSysGameSysFinalize(context);
+    }
+
+    void UpdateScriptLibs(const ScriptLibContext& context)
+    {
+        ScriptSysGameSysUpdate(context);
     }
 
     dmGameObject::HInstance CheckGoInstance(lua_State* L) {

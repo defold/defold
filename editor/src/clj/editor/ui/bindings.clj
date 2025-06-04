@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,15 +16,16 @@
   (:refer-clojure :exclude [= and constantly empty? if-not map nil? not not= or some? when when-not])
   (:require [clojure.core :as core]
             [clojure.string :as string]
-            [editor.ui :as ui])
-  (:import (javafx.beans InvalidationListener Observable)
-           (javafx.beans.value ChangeListener ObservableBooleanValue ObservableObjectValue ObservableStringValue ObservableValue)
-           (javafx.beans.binding Bindings BooleanBinding ObjectBinding)
-           (javafx.beans.property Property SimpleObjectProperty)
-           (javafx.collections ObservableList ObservableMap ObservableSet)
-           (javafx.css Styleable)
-           (javafx.scene Node)
-           (javafx.scene.control SelectionModel)))
+            [editor.ui :as ui]
+            [util.fn :as fn])
+  (:import [javafx.beans InvalidationListener Observable]
+           [javafx.beans.binding Bindings BooleanBinding ObjectBinding]
+           [javafx.beans.property Property SimpleObjectProperty]
+           [javafx.beans.value ChangeListener ObservableBooleanValue ObservableObjectValue ObservableStringValue ObservableValue]
+           [javafx.collections ObservableList ObservableMap ObservableSet]
+           [javafx.css Styleable]
+           [javafx.scene Node]
+           [javafx.scene.control SelectionModel]))
 
 (set! *warn-on-reflection* true)
 
@@ -42,7 +43,7 @@
 
 (defn =
   (^BooleanBinding [_op]
-   (Bindings/createBooleanBinding (core/constantly true) no-dependencies))
+   (Bindings/createBooleanBinding fn/constantly-true no-dependencies))
   (^BooleanBinding [op1 op2 & rest]
    (let [ops (into [op1 op2] rest)]
      (Bindings/createBooleanBinding #(apply core/= (core/map unpack-observable-value ops))

@@ -61,10 +61,12 @@ Run the script (hostsystem is any of darwin/linux/windows):
 and it will output a package (depending on hostsystem):
 
 ```
-	_tmpdir/darwin/android-sdk-darwin-android-33.tar.gz
-	_tmpdir/linux/android-sdk-linux-android-33.tar.gz
-	_tmpdir/windows/android-sdk-windows-android-33.tar.gz
+	_tmpdir/darwin/android-sdk-darwin-android-35.tar.gz
+	_tmpdir/linux/android-sdk-linux-android-35.tar.gz
+	_tmpdir/windows/android-sdk-windows-android-35.tar.gz
 ```
+
+An alternative approach could be using GitHub Actions. See *Package Android SDKs* (`pack-android-sdks.yml`).  
 
 #### Tools
 
@@ -82,7 +84,7 @@ And repackage into a tar file:
 
 ### Prerequisites
 
-This script cannot download the sdk's by itself, but instead relies on the user having downloaded the [XCode 12.5](https://developer.apple.com/services-account/download?path=/Developer_Tools/Xcode_12.5/Xcode_12.5.xip) on the local machine
+This script cannot download the sdk's by itself, but instead relies on the user having installed XCode on the local machine. Download and install Xcode from the App Store or https://developer.apple.com/services-account/download?path=/Developer_Tools/Xcode_16.2/Xcode_16.2.xip. Make sure to use the version listed in [sdk.py](https://github.com/defold/defold/blob/dev/build_tools/sdk.py).
 
 ### Packaging
 
@@ -90,12 +92,12 @@ Run the script
 
 	./scripts/package/package_xcode_and_sdks.sh
 
-and it will output files in `local_sdks`:
+and it will output files in `local_sdks` (version depends on which is the current recommended version):
 
-	./local_sdks/MacOSX11.3.sdk.tar.gz
-	./local_sdks/XcodeDefault12.5.xctoolchain.tar.gz
-	./local_sdks/iPhoneOS14.5.sdk.tar.gz
-	./local_sdks/iPhoneSimulator14.5.sdk.tar.gz
+	./local_sdks/MacOSX15.2.sdk.tar.gz
+	./local_sdks/XcodeDefault16.2.xctoolchain.darwin.tar.gz
+	./local_sdks/iPhoneOS18.2.sdk.tar.gz
+	./local_sdks/iPhoneSimulator18.2.sdk.tar.gz
 
 ## Windows
 

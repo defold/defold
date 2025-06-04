@@ -6,8 +6,12 @@
 /**/tasks.xml
 /**/misc.xml
 /**/usage.statistics.xml
+/**/vcs.xml
 /**/dictionaries
 /**/shelf
+
+# AWS User-specific
+/**/aws.xml
 
 # Generated files
 /**/contentModel.xml
@@ -30,17 +34,19 @@
 # since they will be recreated, and may cause churn.  Uncomment if using
 # auto-import.
 # This also applies to Cursive, since this will be managed by the Leiningen project.
+/artifacts
+/compiler.xml
+/jarRepositories.xml
 /modules.xml
-/*.iml
 /modules
+/*.iml
 
 # Cursive Clojure plugin
 /replstate.xml
+/repl-commands.xml
 
 # Editor-based Rest Client
 /httpRequests
 
 # Android studio 3.1+ serialized cache file
 /caches/build_file_checksums.ser
-
-repl-commands.xml

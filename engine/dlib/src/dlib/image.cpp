@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -35,7 +35,7 @@
 
 namespace dmImage
 {
-    void Premultiply(uint8_t* buffer, int width, int height)
+    static void PremultiplyRGBA(uint8_t* buffer, int width, int height)
     {
         for (int y = 0; y < height; ++y) {
             for (int x = 0; x < width; ++x) {
@@ -51,11 +51,47 @@ namespace dmImage
         }
     }
 
-    Result Load(const void* buffer, uint32_t buffer_size, bool premult, Image* image)
+    static void PremultiplyLuminance(uint8_t* buffer, int width, int height)
+    {
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                int index     = (y * width + x) * 2;
+                uint32_t a    = buffer[index + 1];
+                uint32_t r    = (buffer[index] * a + 255) >> 8;
+                buffer[index] = r;
+            }
+        }
+    }
+
+    HImage NewImage(const void* buffer, uint32_t buffer_size, bool premult)
+    {
+        Image* image = new Image();
+
+        if (Load(buffer, buffer_size, premult, false, image) != RESULT_OK)
+        {
+            delete image;
+            return 0;
+        }
+
+        return (HImage) image;
+    }
+
+    void DeleteImage(Image* image)
+    {
+        Free(image);
+        delete image;
+    }
+
+    Result Load(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, Image* image)
     {
         int x, y, comp;
 
+        stbi_set_flip_vertically_on_load(flip_vertically);
+
         unsigned char* ret = stbi_load_from_memory((const stbi_uc*) buffer, (int) buffer_size, &x, &y, &comp, 0);
+
+        // Reset to default state
+        stbi_set_flip_vertically_on_load(0);
 
         if (ret) {
             Image i;
@@ -66,17 +102,20 @@ namespace dmImage
                 i.m_Type = TYPE_LUMINANCE;
                 break;
             case 2:
-                // Luminance + alpha. Convert to luminance
-                i.m_Type = TYPE_LUMINANCE;
-                ret = stbi__convert_format(ret, 2, 1, x, y);
+                i.m_Type = TYPE_LUMINANCE_ALPHA;
+                if (premult)
+                {
+                    PremultiplyLuminance(ret, x, y);
+                }
                 break;
             case 3:
                 i.m_Type = TYPE_RGB;
                 break;
             case 4:
                 i.m_Type = TYPE_RGBA;
-                if (premult) {
-                    Premultiply(ret, x, y);
+                if (premult)
+                {
+                    PremultiplyRGBA(ret, x, y);
                 }
                 break;
             default:
@@ -99,18 +138,25 @@ namespace dmImage
         memset(image, 0, sizeof(*image));
     }
 
-    uint32_t BytesPerPixel(Type type)
+    Type GetType(HImage image)
     {
-        switch (type)
-        {
-        case dmImage::TYPE_RGB:
-            return 3;
-        case dmImage::TYPE_RGBA:
-            return 4;
-        case dmImage::TYPE_LUMINANCE:
-            return 1;
-        }
-        return 0;
+        return image->m_Type;
     }
+
+    uint32_t GetWidth(HImage image)
+    {
+        return image->m_Width;
+    }
+
+    uint32_t GetHeight(HImage image)
+    {
+        return image->m_Height;
+    }
+
+    const void* GetData(HImage image)
+    {
+        return image->m_Buffer;
+    }
+
 }
 

@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,13 +13,15 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.command-requests
-  (:require [clojure.data.json :as json]
+  (:require [cljfx.api :as fx]
+            [clojure.data.json :as json]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.disk :as disk]
+            [editor.future :as future]
             [editor.ui :as ui]
             [service.log :as log]
-            [util.http-util :as http-util]))
+            [util.http-server :as http-server]))
 
 (set! *warn-on-reflection* true)
 
@@ -29,135 +31,139 @@
   ;; Notable exclusions:
   ;; :save-all, :quit, anything that would open a modal dialog.
   {:asset-portal
-   {:ui-handler :asset-portal
+   {:ui-handler :help.open-asset-portal
     :help "Open the Asset Portal in a web browser."}
 
    :build
-   {:ui-handler :build
+   {:ui-handler :project.build
     :help "Build and run the project."
     :resource-sync true}
 
    :build-html5
-   {:ui-handler :build-html5
+   {:ui-handler :project.build-html5
     :help "Build the project for HTML5 and open it in a web browser."
     :resource-sync true}
 
    :debugger-break
-   {:ui-handler :break
+   {:ui-handler :debugger.break
     :help "Break into the debugger."}
 
    :debugger-continue
-   {:ui-handler :continue
+   {:ui-handler :debugger.continue
     :help "Resume execution in the debugger."}
 
    :debugger-detach
-   {:ui-handler :detach-debugger
+   {:ui-handler :debugger.detach
     :help "Detach the debugger from the running project."}
 
    :debugger-start
-   {:ui-handler :start-debugger
+   {:ui-handler :debugger.start
     :help "Start the project with the debugger, or attach the debugger to the running project."
     :resource-sync true}
 
    :debugger-step-into
-   {:ui-handler :step-into
+   {:ui-handler :debugger.step-into
     :help "Step into the current expression in the debugger."}
 
    :debugger-step-out
-   {:ui-handler :step-out
+   {:ui-handler :debugger.step-out
     :help "Step out of the current expression in the debugger."}
 
    :debugger-step-over
-   {:ui-handler :step-over
+   {:ui-handler :debugger.step-over
     :help "Step over the current expression in the debugger."}
 
    :debugger-stop
-   {:ui-handler :stop-debugger
+   {:ui-handler :debugger.stop
     :help "Stop the debugger and the running project."}
 
    :documentation
-   {:ui-handler :documentation
+   {:ui-handler :help.open-documentation
     :help "Open the Defold documentation in a web browser."}
 
    :donate-page
-   {:ui-handler :donate
+   {:ui-handler :help.open-donations
     :help "Open the Donate to Defold page in a web browser."}
 
    :editor-logs
-   {:ui-handler :show-logs
+   {:ui-handler :help.open-logs
     :help "Show the directory containing the editor logs."}
 
    :engine-profiler
-   {:ui-handler :engine-profile-show
+   {:ui-handler :run.open-profiler
     :help "Open the Engine Profiler in a web browser."}
 
+   :engine-resource-profiler
+   {:ui-handler :run.open-resource-profiler
+    :help "Open the Engine Resource Profiler in a web browser."}
+
    :fetch-libraries
-   {:ui-handler :fetch-libraries
+   {:ui-handler :project.fetch-libraries
     :help "Download the latest version of the project library dependencies."
     :resource-sync true}
 
    :hot-reload
-   {:ui-handler :hot-reload
+   {:ui-handler :run.hot-reload
     :help "Hot-reload all modified files into the running project."
     :resource-sync true}
 
    :issues
-   {:ui-handler :search-issues
+   {:ui-handler :help.open-issues
     :help "Open the Defold Issue Tracker in a web browser."}
 
    :rebuild
-   {:ui-handler :rebuild
+   {:ui-handler :project.clean-build
     :help "Rebuild and run the project."
     :resource-sync true}
 
    :rebundle
-   {:ui-handler :rebundle
+   {:ui-handler :project.rebundle
     :help "Re-bundle the project using the previous Bundle dialog settings."
     :resource-sync true}
 
    :reload-extensions
-   {:ui-handler :reload-extensions
+   {:ui-handler :project.reload-editor-scripts
     :help "Reload editor extensions."
     :resource-sync true}
 
    :reload-stylesheets
-   {:ui-handler :reload-stylesheet
+   {:ui-handler :dev.reload-css
     :help "Reload editor stylesheets."}
 
    :report-issue
-   {:ui-handler :report-issue
+   {:ui-handler :help.report-issue
     :help "Open the Report Issue page in a web browser."}
 
    :report-suggestion
-   {:ui-handler :report-suggestion
+   {:ui-handler :help.report-suggestion
     :help "Open the Report Suggestion page in a web browser."}
 
    :show-build-errors
-   {:ui-handler :show-build-errors
+   {:ui-handler :window.show-build-errors
     :help "Show the Build Errors tab."}
 
    :show-console
-   {:ui-handler :show-console
+   {:ui-handler :window.show-console
     :help "Show the Console tab."}
 
    :show-curve-editor
-   {:ui-handler :show-curve-editor
+   {:ui-handler :window.show-curve-editor
     :help "Show the Curve Editor tab."}
 
    :support-forum
-   {:ui-handler :support-forum
+   {:ui-handler :help.open-forum
     :help "Open the Defold Support Forum in a web browser."}
 
    :toggle-pane-bottom
-   {:ui-handler :toggle-pane-bottom
+   {:ui-handler :window.toggle-bottom-pane
     :help "Toggle visibility of the bottom editor pane."}
 
    :toggle-pane-left
-   {:ui-handler :toggle-pane-left
+   {:ui-handler :window.toggle-left-pane
     :help "Toggle visibility of the left editor pane."}
 
    :toggle-pane-right
-   {:ui-handler :toggle-pane-right
+   {:ui-handler :window.toggle-right-pane
     :help "Toggle visibility of the right editor pane."}})
 
 (def ^:private api-response
@@ -180,90 +186,52 @@
                                  (json/write-str help))))
                   (string/join ",\n"))
              "\n}\n")]
-    (http-util/make-json-response help-json-string)))
-
-(def ^:private command-accepted-response http-util/accepted-response)
-(def ^:private command-not-allowed-response http-util/forbidden-response)
-(def ^:private command-not-supported-response http-util/not-found-response)
-
-(defn- parse-command [request]
-  (let [url-string (:url request)
-        method-string (:method request)]
-    (case url-string
-      ("/command" "/command/") (if (= "GET" method-string)
-                                 ::api
-                                 ::only-get-allowed)
-      (try
-        (let [command (keyword (subs url-string 9))]
-          (if (= "POST" method-string)
-            command
-            ::only-post-allowed))
-        (catch Exception error
-          (log/error :msg "Failed to parse command request"
-                     :request request
-                     :exception error)
-          ::bad-request)))))
+    (http-server/response 200 {"content-type" (http-server/ext->content-type "json")} help-json-string)))
 
 (defn- resolve-ui-handler-ctx [ui-node ui-handler user-data]
   {:pre [(ui/node? ui-node)
          (keyword? ui-handler)
          (map? user-data)]}
-  (ui/run-now
-    (let [command-contexts (ui/node-contexts ui-node true)]
-      (ui/resolve-handler-ctx command-contexts ui-handler user-data))))
+  @(fx/on-fx-thread
+     (let [command-contexts (ui/node-contexts ui-node true)]
+       (ui/resolve-handler-ctx command-contexts ui-handler user-data))))
 
-(defn- handle-request! [request ui-node render-reload-progress!]
-  (let [command (parse-command request)]
-    (case command
-      ::api api-response
-      ::bad-request http-util/bad-request-response
-      ::only-get-allowed http-util/only-get-allowed-response
-      ::only-post-allowed http-util/only-post-allowed-response
-      (let [command-info (some-> command supported-commands)]
-        (if (nil? command-info)
-          command-not-supported-response
-          (let [ui-handler (:ui-handler command-info)
-                ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler {})]
-            (case ui-handler-ctx
-              (::ui/not-active ::ui/not-enabled) command-not-allowed-response
-              (let [{:keys [changes-view workspace]} (:env (second ui-handler-ctx))
-                    log-failure! (fn log-failure! [error]
-                                   (log/error :msg "Failed to handle command request"
-                                              :request request
-                                              :exception error))]
-                (assert (g/node-id? changes-view))
-                (assert (g/node-id? workspace))
-                (log/info :msg "Processing request"
-                          :command command)
-                (if-not (:resource-sync command-info)
-                  (try
-                    (ui/run-now
-                      (ui/execute-handler-ctx ui-handler-ctx)
-                      command-accepted-response)
-                    (catch Exception error
-                      (log-failure! error)
-                      http-util/internal-server-error-response))
-                  (fn request-handler-continuation [post-response!]
-                    {:pre [(fn? post-response!)]}
-                    (disk/async-reload!
-                      render-reload-progress! workspace [] changes-view
-                      (fn async-reload-continuation [success]
-                        ;; This callback is executed on the ui thread.
-                        (if success
-                          (try
-                            (ui/execute-handler-ctx ui-handler-ctx)
-                            (post-response! command-accepted-response)
-                            (catch Exception error
-                              (log-failure! error)
-                              (post-response! http-util/internal-server-error-response)))
-                          (do
-                            ;; Explicitly refresh the UI after the reload, since
-                            ;; the ui-handler will not have done so on failure.
-                            (ui/user-data! (ui/scene ui-node) ::ui/refresh-requested? true)
-                            (post-response! http-util/internal-server-error-response)))))))))))))))
-
-(defn make-request-handler [ui-node render-reload-progress!]
-  {:pre [(ui/node? ui-node)
-         (fn? render-reload-progress!)]}
-  (fn request-handler [request]
-    (handle-request! request ui-node render-reload-progress!)))
+(defn router [ui-node render-reload-progress!]
+  {"/command" {"GET" (constantly api-response)}
+   "/command/{command}"
+   {"POST" (bound-fn [request]
+             (let [command (-> request :path-params :command keyword)]
+               (if-let [{:keys [ui-handler resource-sync]} (supported-commands command)]
+                 (let [ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler {})]
+                   (case ui-handler-ctx
+                     (::ui/not-active ::ui/not-enabled) http-server/forbidden
+                     (let [{:keys [changes-view workspace]} (:env (second ui-handler-ctx))
+                           result-future (future/make)
+                           execute-command!
+                           (bound-fn execute-command! []
+                             (try
+                               (ui/execute-handler-ctx ui-handler-ctx)
+                               (future/complete! result-future http-server/accepted)
+                               (catch Exception error
+                                 (log/error :msg "Failed to handle command request"
+                                            :request request
+                                            :exception error)
+                                 (future/complete! result-future http-server/internal-server-error))))]
+                       (assert (g/node-id? changes-view))
+                       (assert (g/node-id? workspace))
+                       (log/info :msg "Processing request" :command command)
+                       (if-not resource-sync
+                         (ui/run-later (execute-command!))
+                         (disk/async-reload!
+                           render-reload-progress! workspace [] changes-view
+                           (fn async-reload-continuation [success]
+                             ;; This callback is executed on the ui thread.
+                             (if success
+                               (execute-command!)
+                               (do
+                                 ;; Explicitly refresh the UI after the reload, since
+                                 ;; the ui-handler will not have done so on failure.
+                                 (ui/user-data! (ui/scene ui-node) ::ui/refresh-requested? true)
+                                 (future/complete! result-future http-server/internal-server-error))))))
+                       result-future)))
+                 http-server/not-found)))}})

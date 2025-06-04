@@ -1,20 +1,19 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.reload-test
-  (:require [clojure.java.io :as io]
-            [clojure.set :as set]
+  (:require [clojure.set :as set]
             [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
@@ -33,11 +32,14 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :refer [do-until-new-mtime spit-until-new-mtime touch-until-new-mtime undo-stack with-clean-system]])
+            [support.test-support :refer [do-until-new-mtime spit-until-new-mtime touch-until-new-mtime undo-stack with-clean-system]]
+            [util.fn :as fn])
   (:import [java.awt.image BufferedImage]
            [java.io File]
            [javax.imageio ImageIO]
            [org.apache.commons.io FilenameUtils]))
+
+(set! *warn-on-reflection* true)
 
 (def ^:private reload-project-path "test/resources/reload_project")
 
@@ -122,8 +124,8 @@
 (defn- touch-file
   ([workspace name]
    (touch-file workspace name true))
-  ([workspace name sync?]
-   (let [f (File. (workspace/project-path workspace) name)]
+  ([workspace ^String name sync?]
+   (let [f (File. (workspace/project-directory workspace) name)]
      (fs/create-parent-directories! f)
      (touch-until-new-mtime f))
    (when sync?
@@ -134,43 +136,43 @@
     (touch-file workspace name false))
   (sync! workspace))
 
-(defn- write-file [workspace name content]
-  (let [f (File. (workspace/project-path workspace) name)]
+(defn- write-file [workspace ^String name content]
+  (let [f (File. (workspace/project-directory workspace) name)]
     (fs/create-parent-directories! f)
     (spit-until-new-mtime f content))
   (sync! workspace))
 
 (defn- read-file [workspace name]
-  (slurp (str (workspace/project-path workspace) name)))
+  (slurp (str (workspace/project-directory workspace) name)))
 
 (defn- add-file [workspace name]
   (write-file workspace name (template workspace name)))
 
-(defn- delete-file [workspace name]
-  (let [f (File. (workspace/project-path workspace) name)]
+(defn- delete-file [workspace ^String name]
+  (let [f (File. (workspace/project-directory workspace) name)]
     (fs/delete-file! f))
   (sync! workspace))
 
 (defn- copy-file [workspace name new-name]
-  (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
+  (let [[f new-f] (mapv #(File. (workspace/project-directory workspace) ^String %) [name new-name])]
     (fs/copy-file! f new-f))
   (sync! workspace))
 
 (defn- copy-directory [workspace name new-name]
-  (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
+  (let [[f new-f] (mapv #(File. (workspace/project-directory workspace) ^String %) [name new-name])]
     (fs/copy-directory! f new-f))
   (sync! workspace))
 
 (defn- move-file [workspace name new-name]
-  (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
+  (let [[f new-f] (mapv #(File. (workspace/project-directory workspace) ^String %) [name new-name])]
     (fs/move-file! f new-f)
     (sync! workspace [[f new-f]])))
 
-(defn- add-img [workspace name width height]
+(defn- add-img [workspace ^String name width height]
   (let [img (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
-        type (FilenameUtils/getExtension name)
-        f (File. (workspace/project-path workspace) name)]
-    (do-until-new-mtime (fn [f] (ImageIO/write img type f)) f)
+        type (resource/filename->type-ext name)
+        f (File. (workspace/project-directory workspace) name)]
+    (do-until-new-mtime (fn [^File f] (ImageIO/write img type f)) f)
     (sync! workspace)))
 
 (defn- has-undo? [project]
@@ -247,9 +249,8 @@
                           invalidated-node ((g/node-value project :nodes-by-resource-path) img-path)]
                       (is (nil? node))
                       (is (= initial-node invalidated-node))
-                      (is (= nil (g/node-value invalidated-node :_output-jammers)))
-                      ;; as above, undo count should be unchanged - just invalidate the outputs of the resource node
-                      (is (= undo-count (count (undo-stack (g/node-id->graph-id project)))))
+                      ;; the node corresponding to the deleted resource should be marked defective.
+                      (is (seq (keys (g/node-value invalidated-node :_output-jammers))))
                       ;; TODO - fix node pollution
                       (log/without-logging
                         (is (g/error? (g/node-value atlas-node-id :anim-data)))))))))))))))
@@ -265,7 +266,7 @@
               (g/transact
                 (g/set-property node :name "new_name"))
               (is (has-undo? project))
-              (disk/async-save! progress/null-render-progress! progress/null-render-progress! project nil
+              (disk/async-save! progress/null-render-progress! progress/null-render-progress! project/dirty-save-data project nil
                                 (fn [successful?]
                                   (when (is successful?)
                                     (sync! workspace)
@@ -535,7 +536,7 @@
              ["/graphics/pow.png" "/graphics/ball.png"]))
 
       (let [graphics-dir-resource (workspace/find-resource workspace "/graphics")]
-        (asset-browser/rename graphics-dir-resource "images"))
+        (asset-browser/rename [graphics-dir-resource] "images"))
 
       (let [images>pow (project/get-resource-node project "/images/pow.png")
             images>pow-resource (resource images>pow)]
@@ -545,9 +546,9 @@
         (is (= initial-graph-nodes (graph-nodes project)))
 
         ;; actual test
-        (workspace/set-project-dependencies! workspace [imagelib1-uri])
+        (workspace/set-project-dependencies! workspace [{:uri imagelib1-uri}])
         (let [images-dir-resource (workspace/find-resource workspace "/images")]
-          (asset-browser/rename images-dir-resource "graphics"))
+          (asset-browser/rename [images-dir-resource] "graphics"))
 
         ;; The move of /images back to /graphics enabled the load of imagelib1, creating the following move cases:
         ;; /images/ball.png -> /graphics/ball.png: removed, added
@@ -587,9 +588,9 @@
         (is (= (map g/override-original game_object>main-go-scripts)
                [scripts>main]))
 
-        (workspace/set-project-dependencies! workspace [scriptlib-uri])
+        (workspace/set-project-dependencies! workspace [{:uri scriptlib-uri}])
         (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
-          (asset-browser/rename scripts-dir-resource "project_scripts"))
+          (asset-browser/rename [scripts-dir-resource] "project_scripts"))
 
         ;; the move of /scripts enabled the load of scriptlib, creating the move case:
         ;; /scripts/main.script -> /project_scripts/main.script: changed, added
@@ -622,10 +623,10 @@
             images>pow-resource (resource images>pow)
             image>ball (project/get-resource-node project "/images/ball.png")
             initial-graph-nodes (graph-nodes project)]
-        (workspace/set-project-dependencies! workspace [imagelib1-uri])
+        (workspace/set-project-dependencies! workspace [{:uri imagelib1-uri}])
         (binding [dialogs/make-resolve-file-conflicts-dialog (fn [src-dest-pairs] :overwrite)]
           (let [images-dir-resource (workspace/find-resource workspace "/images")]
-            (asset-browser/rename images-dir-resource "graphics")))
+            (asset-browser/rename [images-dir-resource] "graphics")))
 
         ;; The move of /images overwriting /graphics enabled the load of imagelib1, creating the following move cases:
         ;; /images/ball.png -> /graphics/ball.png: removed, changed
@@ -661,10 +662,10 @@
             initial-graph-nodes (graph-nodes project)]
         (is (= (map g/override-original game_object>main-scripts) [scripts>main]))
 
-        (workspace/set-project-dependencies! workspace [scriptlib-uri]) ; /scripts/main.script
+        (workspace/set-project-dependencies! workspace [{:uri scriptlib-uri}]) ; /scripts/main.script
         (binding [dialogs/make-resolve-file-conflicts-dialog (fn [src-dest-pairs] :overwrite)]
           (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
-            (asset-browser/rename scripts-dir-resource "main")))
+            (asset-browser/rename [scripts-dir-resource] "main")))
 
         ;; the move of /scripts overwriting /main enabled the load of scriptlib, creating move case:
         ;; /scripts/main.script -> /main/main.script: changed, changed
@@ -692,7 +693,7 @@
     (let [[workspace project] (setup-scratch world)
           graphics>ball (project/get-resource-node project "/graphics/ball.png")
           nodes-by-path (g/node-value project :nodes-by-resource-path)]
-      (asset-browser/rename (resource graphics>ball) "Ball.png")
+      (asset-browser/rename [(resource graphics>ball)] "Ball")
       (testing "Resource node :resource updated"
         (is (= (resource/proj-path (g/node-value graphics>ball :resource)) "/graphics/Ball.png")))
       (testing "Resource node map updated"
@@ -706,7 +707,7 @@
       (touch-file workspace "/graphics/.dotfile")
       (let [graphics-dir-resource (workspace/find-resource workspace "/graphics")]
         ;; This used to throw: java.lang.AssertionError: Assert failed: move of unknown resource "/graphics/.dotfile"
-        (asset-browser/rename graphics-dir-resource "whatever")))))
+        (asset-browser/rename [graphics-dir-resource] "whatever")))))
 
 (deftest move-external-removed-added-replacing-deleted
   ;; We used to end up with two resource nodes referring to the same resource (/graphics/ball.png)
@@ -752,7 +753,7 @@
 
 (defn- gui-node [scene id]
   (let [nodes (into {} (map (fn [o] [(:label o) (:node-id o)])
-                            (tree-seq (constantly true) :children (g/node-value scene :node-outline))))]
+                            (tree-seq fn/constantly-true :children (g/node-value scene :node-outline))))]
     (nodes id)))
 
 (deftest gui-templates
@@ -814,7 +815,7 @@
             paths (map resource/proj-path all-files)]
         (bulk-change workspace
                      (touch-files workspace paths))
-        (let [internal-paths (map resource/proj-path (filter (fn [r] (not (:stateless? (resource/resource-type r)))) all-files))
+        (let [internal-paths (map resource/proj-path (filter resource/stateful? all-files))
               saved-paths (set (map (fn [s] (resource/proj-path (:resource s))) (g/node-value project :save-data)))
               missing (filter #(not (contains? saved-paths %)) internal-paths)]
           ;; If some editable resource is missing from the save data, it means

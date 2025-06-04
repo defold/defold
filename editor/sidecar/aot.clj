@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2025 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,23 +20,15 @@
             [clojure.tools.namespace.find :as find]
             [clojure.tools.namespace.track :as track]))
 
-(def excluded-sources-by-build-type
-  {"release" ["src/clj/dev.clj"
-              "src/clj/prof.clj"]})
-
 (defn all-sources-tracker
   [build-type srcdirs]
-  (let [excluded-files (into #{}
-                             (map io/file)
-                             (excluded-sources-by-build-type build-type))]
-    (reduce
-      (fn [tracker dir]
-        (->> dir
-             find/find-clojure-sources-in-dir
-             (remove excluded-files)
-             (file/add-files tracker)))
-      (track/tracker)
-      srcdirs)))
+  (reduce
+    (fn [tracker dir]
+      (->> dir
+           (find/find-clojure-sources-in-dir)
+           (file/add-files tracker)))
+    (track/tracker)
+    srcdirs))
 
 (defn sorted-deps
   [tracker]
@@ -93,16 +85,16 @@
 (defn compile-clj
   [namespaces]
   (binding [*compiler-options* (build->compiler-options build-type default-compiler-options)]
-    (println "Using build profile " build-type)
-    (println "Compiler options: " *compiler-options*)
+    (println "Using build profile:" build-type)
+    (println "Compiler options:" *compiler-options*)
     (doseq [n namespaces]
-      (println "Compiling " n)
+      (println "Compiling" n)
       (compile n))))
 
 (defn -main [& args]
   (defonce force-toolkit-init (javafx.application.Platform/startup (fn [])))
   (let [order (compile-order srcdirs build-type)]
-    (println "Compiling in order " order)
+    (println "Compiling in order" order)
     (compile-clj order))
   (println "Done compiling")
   (System/exit 0))

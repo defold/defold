@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,6 +25,52 @@
 namespace dmGraphics
 {
     static VkDebugUtilsMessengerEXT g_vk_debug_callback_handle = 0x0;
+
+    static void GetExtensions(dmArray<VkExtensionProperties>& extensions)
+    {
+        uint32_t count = 0;
+        VkResult result = vkEnumerateInstanceExtensionProperties(0, &count, 0);
+        if (result != VK_SUCCESS) {
+            dmLogInfo("vkEnumerateInstanceExtensionProperties (%d) failed: %d", __LINE__, result);
+            return;
+        }
+
+        extensions.SetCapacity(count);
+        extensions.SetSize(count);
+
+        // Get the extensions
+        result = vkEnumerateInstanceExtensionProperties(0, &count, extensions.Begin());
+        if (result != VK_SUCCESS) {
+            dmLogInfo("vkEnumerateInstanceExtensionProperties (%d) failed: %d", __LINE__, result);
+            return;
+        }
+    }
+
+    static bool IsSupported(const dmArray<VkExtensionProperties>& extensions, const char* name)
+    {
+        for (uint32_t i = 0; i < extensions.Size(); ++i)
+        {
+            const VkExtensionProperties& extension = extensions[i];
+            if (strcmp(extension.extensionName, name) == 0)
+                return true;
+        }
+        return false;
+    }
+
+    static bool AddIfSupported(const dmArray<VkExtensionProperties>& supported_extensions, const char* extension, dmArray<const char*>& extensions)
+    {
+        if (!IsSupported(supported_extensions, extension))
+        {
+            dmLogDebug("%s was not supported", extension);
+            return false;
+        }
+
+        if (extensions.Full())
+            extensions.OffsetCapacity(4);
+        extensions.Push(extension);
+        return true;
+    }
+
 
     // This functions is invoked by the vulkan layer whenever
     // it has something to say, which can be info, warnings, errors and such.
@@ -52,49 +98,18 @@ namespace dmGraphics
         return VK_FALSE;
     }
 
-    static bool ValidateRequiredExtensions(const char** extensionNames, const uint8_t extensionCount)
+    static bool ValidateRequiredExtensions(const dmArray<VkExtensionProperties>& extensions, const dmArray<const char*>& required_extensions)
     {
-        uint32_t vk_extension_count              = 0;
-        VkExtensionProperties* vk_extension_list = 0;
-
-        if (vkEnumerateInstanceExtensionProperties(NULL, &vk_extension_count, NULL) != VK_SUCCESS)
+        bool result = true;
+        for (uint32_t i = 0; i < required_extensions.Size(); ++i)
         {
-            return false;
-        }
-
-        vk_extension_list = new VkExtensionProperties[vk_extension_count];
-
-        if (vkEnumerateInstanceExtensionProperties(NULL, &vk_extension_count, vk_extension_list) != VK_SUCCESS)
-        {
-            delete[] vk_extension_list;
-            return false;
-        }
-
-        uint16_t extensions_found = 0;
-
-        for (uint32_t req_ext = 0; req_ext < extensionCount; req_ext++)
-        {
-            uint16_t extensions_found_save = extensions_found;
-            const char* req_ext_name = extensionNames[req_ext];
-            for (uint32_t vk_ext = 0; vk_ext < vk_extension_count; vk_ext++)
+            if (!IsSupported(extensions, required_extensions[i]))
             {
-                const char* vk_ext_name = vk_extension_list[vk_ext].extensionName;
-                if (strcmp(req_ext_name, vk_ext_name) == 0)
-                {
-                    extensions_found++;
-                    break;
-                }
-            }
-
-            if (extensions_found_save == extensions_found)
-            {
-                dmLogError("Vulkan instance extension '%s' is not supported.", req_ext_name);
+                dmLogError("Vulkan instance extension '%s' is not supported", required_extensions[i]);
+                result = false;
             }
         }
-
-        delete[] vk_extension_list;
-
-        return extensions_found == extensionCount;
+        return result;
     }
 
     static bool GetValidationSupport(const char** validationLayers, const uint16_t validationLayersCount)
@@ -135,6 +150,14 @@ namespace dmGraphics
         }
 
          delete[] vk_layer_properties;
+
+
+    #ifdef __MACH__
+        if (!all_layers_found)
+        {
+            dmLogError("Vulkan validation layers have been requested, but none was found. OSX requires that the engine has been built with the '--with-vulkan-validation' build switch.");
+        }
+    #endif
 
          return all_layers_found;
     }
@@ -183,18 +206,34 @@ namespace dmGraphics
         }
 
         int32_t enabled_layer_count = 0;
+        dmArray<VkExtensionProperties> extensions;
+        GetExtensions(extensions);
 
-        if (validationLayerCount > 0 && GetValidationSupport(validationLayers, validationLayerCount))
+        AddIfSupported(extensions, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, vk_required_extensions);
+        AddIfSupported(extensions, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME, vk_required_extensions); // VK_EXT_fragment_shader_interlock
+
+    #ifdef __MACH__
+        static const char* VK_EXT_metal_objects_str = "VK_EXT_metal_objects";
+        AddIfSupported(extensions, VK_EXT_metal_objects_str, vk_required_extensions);
+    #else
+        static const char* VK_KHR_portability_enumeration_str = "VK_KHR_portability_enumeration";
+        AddIfSupported(extensions, VK_KHR_portability_enumeration_str, vk_required_extensions);
+    #endif
+
+        if (validationLayerCount > 0)
         {
-            enabled_layer_count = validationLayerCount;
-
-            for (uint16_t i=0; i < validationLayerExtensionCount; ++i)
+            if (GetValidationSupport(validationLayers, validationLayerCount))
             {
-                vk_required_extensions.Push(validationLayerExtensions[i]);
+                enabled_layer_count = validationLayerCount;
+
+                for (uint16_t i=0; i < validationLayerExtensionCount; ++i)
+                {
+                    AddIfSupported(extensions, validationLayerExtensions[i], vk_required_extensions);
+                }
             }
         }
 
-        if (!ValidateRequiredExtensions(vk_required_extensions.Begin(), vk_required_extensions.Size()))
+        if (!ValidateRequiredExtensions(extensions, vk_required_extensions))
         {
             return VK_ERROR_EXTENSION_NOT_PRESENT;
         }
@@ -206,6 +245,7 @@ namespace dmGraphics
         vk_instance_create_info.ppEnabledExtensionNames = vk_required_extensions.Begin();
         vk_instance_create_info.enabledLayerCount       = enabled_layer_count;
         vk_instance_create_info.ppEnabledLayerNames     = validationLayers;
+        vk_instance_create_info.flags                   = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 
         VkResult res = vkCreateInstance(&vk_instance_create_info, 0, vkInstanceOut);
         if (res != VK_SUCCESS)

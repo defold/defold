@@ -20,10 +20,8 @@ def build(bld):
                        target = 'script')
 
     if 'web' in bld.env.PLATFORM:
-        script.source = remove_from_node_list(script.source, 'script_http.cpp')
         script.source = remove_from_node_list(script.source, 'script_html5.cpp')
     else:
-        script.source = remove_from_node_list(script.source, 'script_http_js.cpp')
         script.source = remove_from_node_list(script.source, 'script_html5_js.cpp')
 
     # luabitop
@@ -55,9 +53,24 @@ def build(bld):
 
     bld.add_group()
 
-    apidoc_extract_task(bld, ['script.cpp','script_bitop.cpp','script_hash.cpp','script_html5_js.cpp','script_http.cpp','script_image.cpp','script_json.cpp','script_msg.cpp','script_sys.cpp','script_timer.cpp','script_vmath.cpp','script_zlib.cpp','luasocket/luasocket.doc_h','script/sys_ddf.proto'])
+    apidoc_extract_task(bld,[
+        'script.cpp',
+        'script_bitop.cpp',
+        'script_hash.cpp',
+        'script_html5_js.cpp',
+        'script_json.cpp',
+        'script_msg.cpp',
+        'script_sys.cpp',
+        'script_timer.cpp',
+        'script_vmath.cpp',
+        'script_zlib.cpp',
+        'script_graphics.cpp',
+        'script_types.cpp',
+        'luasocket/luasocket.doc_h',
+        'script/sys_ddf.proto'])
 
     bld.install_files('${PREFIX}/include/script', 'script.h')
+    bld.install_files('${PREFIX}/include/script', 'http_service.h')
 
     # for #imports to work for other projects
     # ..first for python
@@ -67,11 +80,11 @@ def build(bld):
          target = '__init__.py',
          shell = True)
 
-    bld.install_files('${PREFIX}/share/script', 'script/lua_source_ddf.proto script/ddf_script.proto')
-    bld.install_files('${PREFIX}/share/proto/script', 'script/ddf_script.proto script/sys_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto/script', 'script/ddf_script.proto script/sys_ddf.proto script/lua_source_ddf.proto')
     bld.install_files('${PREFIX}/lib/python/script', '__init__.py')
 
     if 'web' in bld.env.PLATFORM:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env.PLATFORM, '../lib/js/library_script.js', postpone = False)
 
-    bld.recurse('test')
+    if not waflib.Options.options.skip_build_tests:
+        bld.recurse('test')
