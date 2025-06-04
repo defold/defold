@@ -318,6 +318,7 @@ namespace dmGameObject
 
     void DeleteCollections(HRegister regist)
     {
+        DM_MUTEX_SCOPED_LOCK(regist->m_Mutex);
         uint32_t collection_count = regist->m_Collections.Size();
         for (uint32_t i = 0; i < collection_count; ++i)
         {
@@ -332,6 +333,7 @@ namespace dmGameObject
 
     HCollection GetCollectionByHash(HRegister regist, dmhash_t socket_name)
     {
+        DM_MUTEX_SCOPED_LOCK(regist->m_Mutex);
         uint32_t collection_count = regist->m_Collections.Size();
         for (uint32_t i = 0; i < collection_count; ++i)
         {
@@ -2853,6 +2855,7 @@ namespace dmGameObject
 
         bool result = true;
 
+        DM_MUTEX_SCOPED_LOCK(reg->m_Mutex);
         uint32_t collection_count = reg->m_Collections.Size();
         uint32_t i = 0;
         while (i < collection_count)
