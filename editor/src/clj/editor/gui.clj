@@ -2777,22 +2777,17 @@
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-(defn- attach-particlefx-resource
-  ([self particlefx-resources-node particlefx-resource]
-   (attach-particlefx-resource self particlefx-resources-node particlefx-resource false))
-  ([self particlefx-resources-node particlefx-resource internal?]
-   (concat
-    (g/connect particlefx-resource :_node-id self :nodes)
+(defn- attach-particlefx-resource [self particlefx-resources-node particlefx-resource]
+  (concat
+    (g/connect particlefx-resource :_node-id particlefx-resources-node :nodes)
     (g/connect particlefx-resource :particlefx-infos self :particlefx-infos)
-    (when (not internal?)
-      (concat
-       (g/connect particlefx-resource :name                      self :particlefx-resource-names)
-       (g/connect particlefx-resource :dep-build-targets         self :dep-build-targets)
-       (g/connect particlefx-resource :pb-msg                    self :particlefx-resource-msgs)
-       (g/connect particlefx-resource :build-errors particlefx-resources-node :build-errors)
-       (g/connect particlefx-resource :node-outline particlefx-resources-node :child-outlines)
-       (g/connect particlefx-resource :name         particlefx-resources-node :names)
-       (g/connect particlefx-resources-node :name-counts particlefx-resource :name-counts))))))
+    (g/connect particlefx-resource :name self :particlefx-resource-names)
+    (g/connect particlefx-resource :dep-build-targets self :dep-build-targets)
+    (g/connect particlefx-resource :pb-msg self :particlefx-resource-msgs)
+    (g/connect particlefx-resource :build-errors particlefx-resources-node :build-errors)
+    (g/connect particlefx-resource :node-outline particlefx-resources-node :child-outlines)
+    (g/connect particlefx-resource :name particlefx-resources-node :names)
+    (g/connect particlefx-resources-node :name-counts particlefx-resource :name-counts)))
 
 (defn add-particlefx-resource [scene particlefx-resources-node resource name]
   (g/make-nodes (g/node-id->graph-id scene) [node [ParticleFXResource :name name :particlefx resource]]
@@ -2804,6 +2799,7 @@
    (partial add-particlefx-resource scene parent)))
 
 (g/defnode ParticleFXResources
+  (inherits core/Scope)
   (inherits outline/OutlineNode)
   (input names g/Str :array)
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
@@ -3733,15 +3729,12 @@
           (g/make-nodes graph-id [material [MaterialNode :name (:name materials-desc) :material resource]]
             (attach-material self materials-node material))))
 
-      (g/make-nodes graph-id [particlefx-resources-node ParticleFXResources
-                              no-particlefx-resource [ParticleFXResource
-                                                      :name ""]]
-                    (g/connect particlefx-resources-node :_node-id self :particlefx-resources-node) ; for the tests :/
+      (g/make-nodes graph-id [particlefx-resources-node ParticleFXResources]
+                    (g/connect particlefx-resources-node :_node-id self :particlefx-resources-node)
                     (g/connect particlefx-resources-node :_node-id self :nodes)
                     (g/connect particlefx-resources-node :build-errors self :build-errors)
                     (g/connect particlefx-resources-node :node-outline self :child-outlines)
                     (g/connect particlefx-resources-node :add-handler-info self :handler-infos)
-                    (attach-particlefx-resource self particlefx-resources-node no-particlefx-resource true)
                     (let [prop-keys (g/declared-property-labels ParticleFXResource)]
                       (for [particlefx-desc (:particlefxs scene)
                             :let [particlefx-desc (select-keys particlefx-desc prop-keys)]]
@@ -3828,8 +3821,11 @@
                         (attach-layout self layouts-node layout))))
       custom-data)))
 
-(defn- attach-gui-scene-layer [{:keys [basis]} scene-node layer-node]
-  (attach-layer scene-node (gui-attachment/scene-node->layers-node basis scene-node) layer-node))
+(defn- attach-to-gui-scene-txs [{:keys [basis]} attach-fn scene-container-node-fn scene-node item-node]
+  (attach-fn scene-node (scene-container-node-fn basis scene-node) item-node))
+
+(defn- attach-to-gui-scene-fn [scene-container-node-fn attach-fn]
+  (partial g/expand-ec attach-to-gui-scene-txs attach-fn scene-container-node-fn))
 
 (defn- gui-scene-layers-getter [scene-node {:keys [basis] :as evaluation-context}]
   (let [layer-nodes (attachment/nodes-getter (gui-attachment/scene-node->layers-node basis scene-node) evaluation-context)]
@@ -3840,20 +3836,25 @@
 
 (attachment/register!
   GuiSceneNode :layers
-  :add {LayerNode (partial g/expand-ec attach-gui-scene-layer)}
+  :add {LayerNode (attach-to-gui-scene-fn gui-attachment/scene-node->layers-node attach-layer)}
   :get gui-scene-layers-getter
   :reorder reorder-gui-scene-layers)
-
-(defn- attach-gui-scene-material [{:keys [basis]} scene-node material-node]
-  (attach-material scene-node (gui-attachment/scene-node->materials-node basis scene-node) material-node))
 
 (defn- gui-scene-materials-getter [scene-node {:keys [basis] :as evaluation-context}]
   (attachment/nodes-getter (gui-attachment/scene-node->materials-node basis scene-node) evaluation-context))
 
 (attachment/register!
   GuiSceneNode :materials
-  :add {MaterialNode (partial g/expand-ec attach-gui-scene-material)}
+  :add {MaterialNode (attach-to-gui-scene-fn gui-attachment/scene-node->materials-node attach-material)}
   :get gui-scene-materials-getter)
+
+(defn- gui-scene-particlefxs-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (attachment/nodes-getter (gui-attachment/scene-node->particlefx-resources-node basis scene-node) evaluation-context))
+
+(attachment/register!
+  GuiSceneNode :particlefxs
+  :add {ParticleFXResource (attach-to-gui-scene-fn gui-attachment/scene-node->particlefx-resources-node attach-particlefx-resource)}
+  :get gui-scene-particlefxs-getter)
 
 (def default-pb-read-node-color (protobuf/default Gui$NodeDesc :color))
 (def default-pb-read-node-alpha (protobuf/default Gui$NodeDesc :alpha))

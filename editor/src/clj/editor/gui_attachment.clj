@@ -20,11 +20,17 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(defn- scene-input-node [basis scene-node input]
+  (gt/source-id ((g/explicit-arcs-by-target basis scene-node input) 0)))
+
 (defn scene-node->layers-node [basis scene-node]
-  (gt/source-id ((g/explicit-arcs-by-target basis scene-node :layers-node) 0)))
+  (scene-input-node basis scene-node :layers-node))
 
 (defn scene-node->materials-node [basis scene-node]
-  (gt/source-id ((g/explicit-arcs-by-target basis scene-node :materials-node) 0)))
+  (scene-input-node basis scene-node :materials-node))
+
+(defn scene-node->particlefx-resources-node [basis scene-node]
+  (scene-input-node basis scene-node :particlefx-resources-node))
 
 (defn next-child-index [parent-node evaluation-context]
   (->> (g/node-value parent-node :child-indices evaluation-context)
