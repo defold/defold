@@ -115,22 +115,19 @@ TEST_F(LuaTableTest, AttemptReadUnsupportedVersion)
     int result = lua_cpcall(L, ReadUnsupportedVersion, 0x0);
     ASSERT_NE(0, result);
     char str[256];
-    dmSnPrintf(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", 818192, 4);
+    dmSnPrintf(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", 818192, 5);
     ASSERT_STREQ(str, lua_tostring(L, -1));
     // pop error message
     lua_pop(L, 1);
 }
 
-TEST_F(LuaTableTest, VerifyCosTableOriginal)
+TEST_F(LuaTableTest, DeprecatedVersion0)
 {
     int result = lua_cpcall(L, ReadCosTableDataOriginal, 0x0);
-    ASSERT_EQ(0, result);
-}
+    ASSERT_EQ(LUA_ERRRUN, result);
 
-TEST_F(LuaTableTest, VerifySinTableOriginal)
-{
-    int result = lua_cpcall(L, ReadSinTableDataOriginal, 0x0);
-    ASSERT_EQ(0, result);
+    result = lua_cpcall(L, ReadSinTableDataOriginal, 0x0);
+    ASSERT_EQ(LUA_ERRRUN, result);
 }
 
 
@@ -412,6 +409,38 @@ TEST_F(LuaTableTest, NestedTableSizeCheck)
 
     // b = {}
     lua_setfield(L, -2, "b");
+
+    uint32_t calculated_table_size = dmScript::CheckTableSize(L, -1);
+    uint32_t actual_table_size = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
+
+    lua_pop(L, 1);
+
+    ASSERT_EQ(calculated_table_size, actual_table_size);
+}
+
+TEST_F(LuaTableTest, KeyTypesTableSizeCheck)
+{
+    // create table
+    lua_newtable(L);
+
+    // string key
+    lua_pushnumber(L, 1234);
+    lua_setfield(L, -2, "foo");
+
+    // hash key
+    dmScript::PushHash(L, dmHashString64("key1"));
+    lua_pushnumber(L, 1234);
+    lua_settable(L, -3);
+
+    // number key
+    lua_pushnumber(L, 128);
+    lua_pushnumber(L, 1234);
+    lua_settable(L, -3);
+
+    // negative, bigger number key
+    lua_pushnumber(L, -123456789);
+    lua_pushnumber(L, 1234);
+    lua_settable(L, -3);
 
     uint32_t calculated_table_size = dmScript::CheckTableSize(L, -1);
     uint32_t actual_table_size = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
@@ -845,12 +874,20 @@ TEST_F(LuaTableTest, MixedKeys)
     lua_pushnumber(L, 3);
     lua_settable(L, -3);
 
-    lua_pushnumber(L, 2);
+    dmScript::PushHash(L, dmHashString64("key2"));
     lua_pushnumber(L, 4);
     lua_settable(L, -3);
 
-    lua_pushstring(L, "key2");
+    lua_pushnumber(L, 2);
     lua_pushnumber(L, 5);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "key3");
+    lua_pushnumber(L, 6);
+    lua_settable(L, -3);
+
+    dmScript::PushHash(L, dmHashString64("key4"));
+    lua_pushnumber(L, 7);
     lua_settable(L, -3);
 
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
@@ -871,16 +908,28 @@ TEST_F(LuaTableTest, MixedKeys)
     ASSERT_EQ(3, lua_tonumber(L, -1));
     lua_pop(L, 1);
 
-    lua_pushnumber(L, 2);
+    dmScript::PushHash(L, dmHashString64("key2"));
     lua_gettable(L, -2);
     ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
     ASSERT_EQ(4, lua_tonumber(L, -1));
     lua_pop(L, 1);
 
-    lua_pushstring(L, "key2");
+    lua_pushnumber(L, 2);
     lua_gettable(L, -2);
     ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
     ASSERT_EQ(5, lua_tonumber(L, -1));
+    lua_pop(L, 1);
+
+    lua_pushstring(L, "key3");
+    lua_gettable(L, -2);
+    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
+    ASSERT_EQ(6, lua_tonumber(L, -1));
+    lua_pop(L, 1);
+
+    dmScript::PushHash(L, dmHashString64("key4"));
+    lua_gettable(L, -2);
+    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
+    ASSERT_EQ(7, lua_tonumber(L, -1));
     lua_pop(L, 1);
 
     lua_pop(L, 1);

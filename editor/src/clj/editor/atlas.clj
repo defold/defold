@@ -527,7 +527,7 @@
 
 (attachment/register!
   AtlasAnimation :images
-  :add {:node-type AtlasImage :tx-attach-fn attach-image-to-animation}
+  :add {AtlasImage attach-image-to-animation}
   :get get-animation-images)
 
 (g/defnk produce-save-value [margin inner-padding extrude-borders max-page-size img-ddf anim-ddf rename-patterns]
@@ -927,22 +927,15 @@
                                                               child-build-errors
                                                               own-build-errors))))
 
-(defn- get-nodes-by-type [child-node-type]
-  (fn get-children-nodes-by-type [node evaluation-context]
-    (let [basis (:basis evaluation-context)]
-      (coll/transfer (g/explicit-arcs-by-target basis node :nodes) []
-        (map gt/source-id)
-        (filter #(= child-node-type (g/node-type* basis %)))))))
-
 (attachment/register!
   AtlasNode :animations
-  :add {:node-type AtlasAnimation :tx-attach-fn attach-animation-to-atlas}
-  :get (get-nodes-by-type AtlasAnimation))
+  :add {AtlasAnimation attach-animation-to-atlas}
+  :get (attachment/nodes-by-type-getter AtlasAnimation))
 
 (attachment/register!
   AtlasNode :images
-  :add {:node-type AtlasImage :tx-attach-fn attach-image-to-atlas}
-  :get (get-nodes-by-type AtlasImage))
+  :add {AtlasImage attach-image-to-atlas}
+  :get (attachment/nodes-by-type-getter AtlasImage))
 
 (defn- make-image-nodes
   [attach-fn parent image-msgs]

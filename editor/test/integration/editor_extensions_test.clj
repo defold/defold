@@ -1119,15 +1119,12 @@ GET /test/resources/test.json as json => 200
                             :properties
                             vals
                             (map #(assoc % :outline outline)))))
-             (keep (fn [{:keys [outline key edit-type] :as p}]
+             (run! (fn [{:keys [outline key] :as p}]
                      (let [{:keys [node-id]} outline
                            ext-key (string/replace (name key) \- \_)]
-                       (when-not (contains? #{:editor.properties.CurveSpread :editor.properties.Curve} (:k (:type edit-type)))
-                         (is (some? (graph/ext-value-getter node-id ext-key ec)))
-                         (when-not (properties/read-only? p)
-                           (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))
-             dorun)))))
-
+                       (is (some? (graph/ext-value-getter node-id ext-key ec)))
+                       (when-not (properties/read-only? p)
+                         (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))))))
 
 (def ^:private expected-tilemap-test-output
   "new => {
@@ -1292,6 +1289,43 @@ After transaction (add 2 layers):
 Transaction: clear tilemap
 After transaction (clear):
   layers: 0
+Particlefx initial state:
+  emitters: 0
+  modifiers: 0
+Transaction: add emitter and modifier
+After transaction (add emitter and modifier):
+  emitters: 1
+    emitter: emitter
+    modifiers: 2
+      modifier: modifier-type-vortex
+      modifier: modifier-type-drag
+  modifiers: 1
+    modifier: modifier-type-acceleration
+Transaction: clear particlefx
+After transaction (clear):
+  emitters: 0
+  modifiers: 0
+Collision object initial state:
+  shapes: 0
+Transaction: add 3 shapes
+After transaction (add 3 shapes):
+  shapes: 3
+  - id: box
+    type: shape-type-box
+    dimensions: 20 20 20
+  - id: sphere
+    type: shape-type-sphere
+    diameter: 20
+  - id: capsule
+    type: shape-type-capsule
+    diameter: 20
+    height: 40
+Transaction: clear
+After transaction (clear):
+  shapes: 0
+Expected errors:
+  missing type => type is required
+  wrong type => box is not shape-type-box, shape-type-capsule or shape-type-sphere
 ")
 
 (deftest attachment-properties-test
@@ -1323,3 +1357,53 @@ Expected errors:
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
       (expect-script-output expected-resources-as-nodes-test-output out))))
+
+(def ^:private expected-particlefx-test-output
+  "Initial state:
+emitters: 0
+After setup:
+emitters: 1
+  type: emitter-type-circle
+  blend mode: blend-mode-add
+  spawn rate: {0, 100, 1, 0}
+  initial red: {0, 0.5, 1, 0}
+  initial green: {0, 0.8, 1, 0}
+  initial blue: {0, 1, 1, 0}
+  initial alpha: {0, 0.2, 1, 0}
+  life alpha: {0, 0, 0.1, 0.995} {0.2, 1, 1, 0} {1, 0, 1, 0}
+  modifiers: 1
+    type: modifier-type-acceleration
+    magnitude: {0, 1, 1, 0}
+    rotation: {0, 0, -180}
+Expected errors:
+  empty points => {points = {}} does not satisfy any of its requirements:
+    - {points = {}} is not a number
+    - {} needs at least 1 element
+  x outside of range => {points = {{y = 1, tx = 1, x = -1, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = -1, ty = 0}}} is not a number
+    - -1 is not between 0 and 1
+  tx outside of range => {points = {{y = 1, tx = -0.5, x = 0, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = -0.5, x = 0, ty = 0}}} is not a number
+    - -0.5 is not between 0 and 1
+  ty outside of range => {points = {{y = 1, tx = 1, x = 0, ty = 2}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = 0, ty = 2}}} is not a number
+    - 2 is not between -1 and 1
+  xs not from 0 to 1 (upper) => {points = {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0.5, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0.5, ty = 0}}} is not a number
+    - {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0.5, ty = 0}} does not increase xs monotonically from 0 to 1
+  xs not from 0 to 1 (lower) => {points = {{y = 1, tx = 1, x = 0.5, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = 0.5, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}}} is not a number
+    - {{y = 1, tx = 1, x = 0.5, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}} does not increase xs monotonically from 0 to 1
+  xs not from 0 to 1 (duplicates) => {points = {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}}} is not a number
+    - {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}} does not increase xs monotonically from 0 to 1
+After clear:
+emitters: 0
+")
+
+(deftest particlefx-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/particlefx_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-particlefx-test-output out))))

@@ -82,6 +82,7 @@ def build(bld):
     if 'arm64-nx64' in bld.env.PLATFORM:
         source_files = remove_files(source_files, ['condition_variable.cpp',
                                                     'mutex_posix.cpp',
+                                                    'mutex_empty.cpp',
                                                     'sys_posix.cpp',
                                                     'socket_posix.cpp',
                                                     'time.cpp'])
@@ -90,6 +91,7 @@ def build(bld):
         source_files = remove_files(source_files, ['condition_variable.cpp',
                                                     'file_descriptor_posix.cpp',
                                                     'mutex_posix.cpp',
+                                                    'mutex_empty.cpp',
                                                     'socket_posix.cpp',
                                                     'thread_posix.cpp',
                                                     'sys_posix.cpp'])
@@ -98,9 +100,14 @@ def build(bld):
         source_files = remove_files(source_files, ['time_posix.cpp'])
         source_files = remove_files(source_files, ['thread_posix.cpp'])
         source_files = remove_files(source_files, ['mutex_posix.cpp'])
+        source_files = remove_files(source_files, ['mutex_empty.cpp'])
     else:
         source_files = remove_files(source_files, ['thread_win32.cpp'])
         source_files = remove_files(source_files, ['mutex_win32.cpp'])
+        if bld.env.PLATFORM in ('wasm-web', 'js-web'):
+            source_files = remove_files(source_files, ['mutex_posix.cpp'])
+        else:
+            source_files = remove_files(source_files, ['mutex_empty.cpp'])
 
     if build_util.get_target_os() in ['macos', 'ios']:
         source_files = remove_files(source_files, ['time_posix.cpp'])
@@ -416,6 +423,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_posix.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_empty.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/object_pool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/opaque_handle_container.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/path.h')

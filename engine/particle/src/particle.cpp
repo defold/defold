@@ -200,7 +200,18 @@ namespace dmParticle
         uint32_t seed = original_seed;
         emitter->m_Duration = dmMath::Max(0.0f, emitter_ddf->m_Duration + dmMath::Rand11(&seed) * emitter_ddf->m_DurationSpread);
         emitter->m_StartDelay = emitter_ddf->m_StartDelay + dmMath::Rand11(&seed) * emitter_ddf->m_StartDelaySpread;
-        emitter->m_SpawnRateSpread = dmMath::Rand11(&seed) * ((dmParticleDDF::Emitter::Property&)emitter_ddf->m_Properties[EMITTER_KEY_SPAWN_RATE]).m_Spread;
+
+        float spawn_rate_spread = 0.0f;
+        for (uint32_t i = 0; i < emitter_ddf->m_Properties.m_Count; ++i)
+        {
+            const dmParticleDDF::Emitter::Property& property = emitter_ddf->m_Properties[i];
+            if (property.m_Key == EMITTER_KEY_SPAWN_RATE)
+            {
+                spawn_rate_spread = dmMath::Rand11(&seed) * property.m_Spread;
+                break;
+            }
+        }
+        emitter->m_SpawnRateSpread = spawn_rate_spread;
     }
 
     static void ResetEmitter(Emitter* emitter);
