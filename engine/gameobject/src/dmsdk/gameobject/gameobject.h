@@ -536,7 +536,7 @@ namespace dmGameObject
      * @param socket_name [type: dmhash_t] Socket name
      * @return collection [type: dmGameObject::HCollection] The collection the specified instance belongs to
      */
-    HCollection GetCollectionByHash(HRegister register, dmhash_t socket_name);
+    HCollection GetCollectionByHash(HRegister regist, dmhash_t socket_name);
 
     /*#
      * Create a new gameobject instance
