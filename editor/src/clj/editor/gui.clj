@@ -1566,13 +1566,12 @@
   (output anim-data g/Any
           (g/fnk [costly-gui-scene-info texture]
             (let [texture-infos (:texture-infos costly-gui-scene-info)
-                  texture-info (or (get texture-infos texture)
-                                   (get texture-infos ""))]
+                  texture-info (get texture-infos texture)]
               (:anim-data texture-info))))
   (output gpu-texture TextureLifecycle (g/fnk [costly-gui-scene-info texture]
                                          (let [texture-gpu-textures (:texture-gpu-textures costly-gui-scene-info)]
                                            (or (get texture-gpu-textures texture)
-                                               (get texture-gpu-textures "")))))
+                                               @texture/white-pixel))))
   (output size types/Vec3 (g/fnk [manual-size size-mode texture texture-size]
                             (if (or (= :size-mode-manual size-mode)
                                     (coll/empty? texture))
@@ -2157,15 +2156,6 @@
   [_ evaluation-context node-id old-name new-name]
   (update-basic-gui-resource-reference evaluation-context node-id :particlefx old-name new-name))
 
-;; This InternalTextureNode is a drop-in replacement for TextureNode below.
-;; It can be used in place of TextureNode when you already have a gpu-texture.
-(g/defnode InternalTextureNode
-  (property name g/Str)
-  (property gpu-texture TextureLifecycle)
-  (output texture-infos GuiResourceTextureInfos (g/fnk [name] (sorted-map name {})))
-  (output texture-page-counts GuiResourcePageCounts (g/fnk [name] {name nil})) ; Use a nil texture-page-count to disable validation against the material page count.
-  (output texture-gpu-textures GuiResourceTextures (g/fnk [name gpu-texture] {name gpu-texture})))
-
 (g/defnk produce-texture-gpu-textures [_node-id texture-names gpu-texture default-tex-params samplers]
   ;; If the referenced texture-resource is missing, we don't return an entry.
   ;; This will cause every usage to fall back on the no-texture entry for "".
@@ -2556,25 +2546,20 @@
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-(defn- attach-texture
-  ([self textures-node texture]
-   (attach-texture self textures-node texture false))
-  ([self textures-node texture internal?]
-   (concat
-     (g/connect texture :_node-id self :nodes)
-     (g/connect texture :texture-gpu-textures self :texture-gpu-textures)
-     (g/connect texture :texture-infos self :texture-infos)
-     (when (not internal?)
-       (concat
-         (g/connect texture :dep-build-targets self :dep-build-targets)
-         (g/connect texture :pb-msg self :texture-msgs)
-         (g/connect texture :build-errors textures-node :build-errors)
-         (g/connect texture :node-outline textures-node :child-outlines)
-         (g/connect texture :texture-page-counts textures-node :texture-page-counts)
-         (g/connect texture :name textures-node :names)
-         (g/connect textures-node :name-counts texture :name-counts)
-         (g/connect self :samplers texture :samplers)
-         (g/connect self :default-tex-params texture :default-tex-params))))))
+(defn- attach-texture [self textures-node texture]
+  (concat
+    (g/connect texture :_node-id textures-node :nodes)
+    (g/connect texture :texture-gpu-textures self :texture-gpu-textures)
+    (g/connect texture :texture-infos self :texture-infos)
+    (g/connect texture :dep-build-targets self :dep-build-targets)
+    (g/connect texture :pb-msg self :texture-msgs)
+    (g/connect texture :build-errors textures-node :build-errors)
+    (g/connect texture :node-outline textures-node :child-outlines)
+    (g/connect texture :texture-page-counts textures-node :texture-page-counts)
+    (g/connect texture :name textures-node :names)
+    (g/connect textures-node :name-counts texture :name-counts)
+    (g/connect self :samplers texture :samplers)
+    (g/connect self :default-tex-params texture :default-tex-params)))
 
 (defn add-texture [scene textures-node resource name]
   (g/make-nodes (g/node-id->graph-id scene) [node [TextureNode :name name :texture resource]]
@@ -2586,6 +2571,7 @@
    (partial add-texture scene parent)))
 
 (g/defnode TexturesNode
+  (inherits core/Scope)
   (inherits outline/OutlineNode)
   (input names g/Str :array)
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
@@ -3700,18 +3686,14 @@
                                                     :name (:name font-desc)
                                                     :font (resolve-resource (:font font-desc))]]
                                     (attach-font self fonts-node font))))
-      (g/make-nodes graph-id [textures-node TexturesNode
-                              no-texture [InternalTextureNode
-                                          :name ""
-                                          :gpu-texture @texture/white-pixel]]
+      (g/make-nodes graph-id [textures-node TexturesNode]
                     (g/connect textures-node :texture-page-counts self :texture-page-counts)
-                    (g/connect textures-node :_node-id self :textures-node) ; for the tests :/
+                    (g/connect textures-node :_node-id self :textures-node)
                     (g/connect textures-node :_node-id self :nodes)
                     (g/connect textures-node :build-errors self :build-errors)
                     (g/connect textures-node :node-outline self :child-outlines)
                     (g/connect textures-node :add-handler-info self :handler-infos)
                     (g/connect textures-node :texture-resource-names self :texture-resource-names)
-                    (attach-texture self textures-node no-texture true)
                     (for [texture-desc (:textures scene)
                           :let [resource (resolve-resource (:texture texture-desc))]]
                       (g/make-nodes graph-id [texture [TextureNode :name (:name texture-desc) :texture resource]]
@@ -3855,6 +3837,14 @@
   GuiSceneNode :particlefxs
   :add {ParticleFXResource (attach-to-gui-scene-fn gui-attachment/scene-node->particlefx-resources-node attach-particlefx-resource)}
   :get gui-scene-particlefxs-getter)
+
+(defn- gui-scene-texture-nodes-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (attachment/nodes-getter (gui-attachment/scene-node->textures-node basis scene-node) evaluation-context))
+
+(attachment/register!
+  GuiSceneNode :textures
+  :add {TextureNode (attach-to-gui-scene-fn gui-attachment/scene-node->textures-node attach-texture)}
+  :get gui-scene-texture-nodes-getter)
 
 (def default-pb-read-node-color (protobuf/default Gui$NodeDesc :color))
 (def default-pb-read-node-alpha (protobuf/default Gui$NodeDesc :alpha))

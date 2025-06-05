@@ -1330,6 +1330,7 @@ GUI initial state:
   layers: 0
   materials: 0
   particlefxs: 0
+  textures: 0
 Transaction: edit GUI
 After transaction (edit):
   layers: 2
@@ -1344,6 +1345,9 @@ After transaction (edit):
     particlefx: particlefx
     particlefx: test /test.particlefx
     particlefx: particlefx1
+  textures: 2
+    texture: test /test.tilesource
+    texture: test1 /test.atlas
 can reorder layers: true
 Transaction: reorder
 After transaction (reorder):
@@ -1359,6 +1363,9 @@ After transaction (reorder):
     particlefx: particlefx
     particlefx: test /test.particlefx
     particlefx: particlefx1
+  textures: 2
+    texture: test /test.tilesource
+    texture: test1 /test.atlas
 Expected reorder errors:
   undefined property => GuiSceneNode does not define \"not-a-property\"
   reorder not defined => CollisionObjectNode does not support \"shapes\" reordering
@@ -1370,6 +1377,7 @@ After transaction (clear):
   layers: 0
   materials: 0
   particlefxs: 0
+  textures: 0
 ")
 
 (deftest attachment-properties-test

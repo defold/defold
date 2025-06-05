@@ -128,6 +128,13 @@ local function print_gui(gui)
         local particlefx_res = editor.get(particlefx, "particlefx")
         print(("    particlefx: %s%s"):format(editor.get(particlefx, "name"), particlefx_res and " " .. particlefx_res or ""))
     end
+    local textures = editor.get(gui, "textures")
+    print(("  textures: %s"):format(#textures))
+    for i = 1, #textures do
+        local texture = textures[i]
+        local texture_res = editor.get(texture, "texture")
+        print(("    texture: %s%s"):format(editor.get(texture, "name"), texture_res and " " .. texture_res or ""))
+    end
 end
 
 function M.get_commands()
@@ -332,6 +339,8 @@ function M.get_commands()
                     editor.tx.add(gui, "particlefxs", {}),
                     editor.tx.add(gui, "particlefxs", {particlefx = "/test.particlefx"}),
                     editor.tx.add(gui, "particlefxs", {}),
+                    editor.tx.add(gui, "textures", {texture = "/test.tilesource"}),
+                    editor.tx.add(gui, "textures", {texture = "/test.atlas"})
                 })
 
                 print("After transaction (edit):")
@@ -356,7 +365,8 @@ function M.get_commands()
                 editor.transact({
                     editor.tx.clear(gui, "layers"),
                     editor.tx.clear(gui, "materials"),
-                    editor.tx.clear(gui, "particlefxs")
+                    editor.tx.clear(gui, "particlefxs"),
+                    editor.tx.clear(gui, "textures")
                 })
 
                 print("After transaction (clear):")

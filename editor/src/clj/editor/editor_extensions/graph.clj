@@ -488,32 +488,33 @@
             "name" (rt/->lua (id/gen "layer" (g/node-value layers-node :name-counts evaluation-context))))
           (attachment->set-tx-steps child-node-id rt project evaluation-context)))))
 
+(defn- gen-gui-component-name [attachment resource-key container-node-fn rt parent-node-id evaluation-context]
+  (rt/->lua
+    (id/gen
+      (if-let [lua-material-str (get attachment resource-key)]
+        (FilenameUtils/getBaseName (rt/->clj rt coerce/string lua-material-str))
+        resource-key)
+      (-> evaluation-context
+          :basis
+          (container-node-fn parent-node-id)
+          (g/node-value :name-counts evaluation-context)))))
+
 (defmethod init-attachment :editor.gui/MaterialNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
   (-> attachment
       (util/provide-defaults
-        "name" (rt/->lua
-                 (id/gen
-                   (if-let [lua-material-str (get attachment "material")]
-                     (FilenameUtils/getBaseName (rt/->clj rt coerce/string lua-material-str))
-                     "material")
-                   (-> evaluation-context
-                       :basis
-                       (gui-attachment/scene-node->materials-node parent-node-id)
-                       (g/node-value :name-counts evaluation-context)))))
+        "name" (gen-gui-component-name attachment "material" gui-attachment/scene-node->materials-node rt parent-node-id evaluation-context))
       (attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
 (defmethod init-attachment :editor.gui/ParticleFXResource [evaluation-context rt project parent-node-id _ child-node-id attachment]
   (-> attachment
       (util/provide-defaults
-        "name" (rt/->lua
-                 (id/gen
-                   (if-let [lua-particlefx-str (get attachment "particlefx")]
-                     (FilenameUtils/getBaseName (rt/->clj rt coerce/string lua-particlefx-str))
-                     "particlefx")
-                   (-> evaluation-context
-                       :basis
-                       (gui-attachment/scene-node->particlefx-resources-node parent-node-id)
-                       (g/node-value :name-counts evaluation-context)))))
+        "name" (gen-gui-component-name attachment "particlefx" gui-attachment/scene-node->particlefx-resources-node rt parent-node-id evaluation-context))
+      (attachment->set-tx-steps child-node-id rt project evaluation-context)))
+
+(defmethod init-attachment :editor.gui/TextureNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
+  (-> attachment
+      (util/provide-defaults
+        "name" (gen-gui-component-name attachment "texture" gui-attachment/scene-node->textures-node rt parent-node-id evaluation-context))
       (attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
 (def ^:private attachment-coercer (coerce/map-of coerce/string coerce/untouched))
