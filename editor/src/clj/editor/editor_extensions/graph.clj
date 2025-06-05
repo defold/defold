@@ -25,6 +25,7 @@
             [editor.editor-extensions.node-types :as node-types]
             [editor.editor-extensions.tile-map :as tile-map]
             [editor.game-project :as game-project]
+            [editor.gui-attachment :as gui-attachment]
             [editor.id :as id]
             [editor.outline :as outline]
             [editor.properties :as properties]
@@ -477,6 +478,15 @@
           "height" default-capsule-height)
         (attachment->set-tx-steps child-node-id rt project evaluation-context))))
 
+(defmethod init-attachment :editor.gui/LayerNode [evaluation-context rt project parent-node-id _child-node-type child-node-id attachment]
+  (let [layers-node (gui-attachment/scene-node->layers-node (:basis evaluation-context) parent-node-id)]
+    (concat
+      (g/set-property child-node-id :child-index (gui-attachment/next-child-index layers-node evaluation-context))
+      (-> attachment
+          (util/provide-defaults
+            "name" (rt/->lua (id/gen "layer" (g/node-value layers-node :name-counts evaluation-context))))
+          (attachment->set-tx-steps child-node-id rt project evaluation-context)))))
+
 (def ^:private attachment-coercer (coerce/map-of coerce/string coerce/untouched))
 (def ^:private attachments-coercer (coerce/vector-of attachment-coercer))
 
@@ -572,5 +582,41 @@
       (-> (attachment/remove node-id list-kw child-node-id)
           (with-meta {:type :transaction-step})
           (rt/wrap-userdata "editor.tx.remove(...)")))))
+
+(def ^:private can-reorder-args-coercer
+  (coerce/regex :node node-id-or-path-coercer :property coerce/string))
+
+(defn make-ext-can-reorder-fn [project]
+  (rt/varargs-lua-fn ext-can-reorder [{:keys [rt evaluation-context]} varargs]
+    (let [{:keys [node property]} (rt/->clj rt can-reorder-args-coercer varargs)
+          node-id-or-resource (resolve-node-id-or-path node project evaluation-context)]
+      (and (not (resource/resource? node-id-or-resource))
+           (attachment/reorderable?
+             (g/node-type* (:basis evaluation-context) node-id-or-resource)
+             (property->prop-kw property))))))
+
+(def ^:private reorder-args-coercer
+  (coerce/regex :node node-id-or-path-coercer
+                :property coerce/string
+                :children (coerce/vector-of node-id-or-path-coercer)))
+
+(defn make-ext-reorder-fn [project]
+  (rt/varargs-lua-fn ext-reorder [{:keys [rt evaluation-context]} varargs]
+    (let [{:keys [node property children]} (rt/->clj rt reorder-args-coercer varargs)
+          node-id (node-id-or-path->node-id node project evaluation-context)
+          node-type (g/node-type* (:basis evaluation-context) node-id)
+          list-kw (property->prop-kw property)
+          reordered-child-node-ids (mapv #(node-id-or-path->node-id % project evaluation-context) children)]
+      (when-not (attachment/defines? node-type list-kw)
+        (throw (LuaError. (format "%s does not define \"%s\"" (name (:k node-type)) property))))
+      (when-not (attachment/reorderable? node-type list-kw)
+        (throw (LuaError. (format "%s does not support \"%s\" reordering" (name (:k node-type)) property))))
+      (let [current-child-node-set (set ((attachment/getter node-type list-kw) node-id evaluation-context))]
+        (when (or (not (every? current-child-node-set reordered-child-node-ids))
+                  (not (= (count current-child-node-set) (count reordered-child-node-ids))))
+          (throw (LuaError. "Reordered child nodes are not the same as current child nodes"))))
+      (-> (attachment/reorder node-id list-kw reordered-child-node-ids)
+          (with-meta {:type :transaction-step})
+          (rt/wrap-userdata "editor.tx.reorder(...)")))))
 
 ;; endregion
