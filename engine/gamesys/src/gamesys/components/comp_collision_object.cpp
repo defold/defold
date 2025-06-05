@@ -616,7 +616,7 @@ namespace dmGameSystem
             bool event_supported_a = SupportsEvent(component_a, EVENT_MASK_COLLISION);
             bool event_supported_b = SupportsEvent(component_b, EVENT_MASK_COLLISION);
             if (!event_supported_a && event_supported_a == event_supported_b)
-                return false; // Neither supported this event
+                return true; // Neither supported this event
 
             cud->m_Count += 1;
 
@@ -689,7 +689,7 @@ namespace dmGameSystem
             bool event_supported_a = SupportsEvent(component_a, EVENT_MASK_CONTACT);
             bool event_supported_b = SupportsEvent(component_b, EVENT_MASK_CONTACT);
             if (!event_supported_a && event_supported_a == event_supported_b)
-                return false; // Neither supported this event
+                return true; // Neither supported this event
 
             cud->m_Count += 1;
 
