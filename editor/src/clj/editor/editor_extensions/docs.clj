@@ -40,7 +40,8 @@
                              :doc "Resource path (starting with <code>/</code>)"}
         transaction-step-param {:name "tx"
                                 :types ["transaction_step"]
-                                :doc "A transaction step"}]
+                                :doc "A transaction step"}
+        boolean-ret-param {:name "value" :types ["boolean"] :doc ""}]
     (vec
       (e/concat
         [{:name "editor"
@@ -56,24 +57,23 @@
          {:name "editor.can_get"
           :type :function
           :parameters [node-param property-param]
-          :returnvalues [{:name "value"
-                          :types ["boolean"]
-                          :doc ""}]
+          :returnvalues [boolean-ret-param]
           :description "Check if you can get this property so `editor.get()` won't throw an error"}
          {:name "editor.can_add"
           :type :function
           :parameters [node-param property-param]
-          :returnvalues [{:name "value"
-                          :types ["boolean"]
-                          :doc ""}]
+          :returnvalues [boolean-ret-param]
           :description "Check if `editor.tx.add()` (as well as `editor.tx.clear()` and `editor.tx.remove()`) transaction with this property won't throw an error"}
          {:name "editor.can_set"
           :type :function
           :parameters [node-param property-param]
-          :returnvalues [{:name "value"
-                          :types ["boolean"]
-                          :doc ""}]
+          :returnvalues [boolean-ret-param]
           :description "Check if `editor.tx.set()` transaction with this property won't throw an error"}
+         {:name "editor.can_reorder"
+          :type :function
+          :parameters [node-param property-param]
+          :returnvalues [boolean-ret-param]
+          :description "Check if `editor.tx.reorder()` transaction with this property won't throw an error"}
          {:name "editor.command"
           :type :function
           :description "Create an editor command"
@@ -296,6 +296,11 @@ editor.command({
           :parameters [node-param property-param (assoc node-param :name "child_node")]
           :returnvalues [transaction-step-param]
           :description "Create a transaction step that will remove a child node from the node's list property when transacted with `editor.transact()`."}
+         {:name "editor.tx.reorder"
+          :type :function
+          :parameters [node-param property-param {:name "child_nodes" :types ["table"] :doc "array of child nodes (the same as returned by <code>editor.get(node, property)</code>) in new order"}]
+          :returnvalues [transaction-step-param]
+          :description "Create a transaction step that reorders child nodes in a node list defined by the property if supported (see <code>editor.can_reorder()</code>)"}
          {:name "editor.version"
           :type :variable
           :description "A string, version name of Defold"}

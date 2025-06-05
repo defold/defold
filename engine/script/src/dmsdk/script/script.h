@@ -425,7 +425,7 @@ namespace dmScript
      * Push a hash value onto the supplied lua state, will increase the stack by 1.
      * @name PushHash
      * @param L [type:lua_State*] Lua state
-     * @param hash [tyoe: dmhash_t] Hash value to push
+     * @param hash [type: dmhash_t] Hash value to push
      */
     void PushHash(lua_State* L, dmhash_t hash);
 

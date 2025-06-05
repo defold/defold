@@ -1,7 +1,7 @@
 // Generated, do not edit!
-// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/extension and cmd=/Users/mathiaswesterdahl/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mathiaswesterdahl/work/defold/engine/extension/sdk_gen.json
+// Generated with cwd=/Users/agulev/projects/defold/engine/extension and cmd=/Users/agulev/projects/defold/scripts/dmsdk/gen_sdk.py -i /Users/agulev/projects/defold/engine/extension/sdk_gen.json
 
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -91,6 +91,21 @@ namespace dmExtension
         CALLBACK_POST_RENDER,
     };
 
+    /*# engine exit code
+     * Engine exit code.
+     * @enum
+     * @name AppExitCode
+     * @language C++
+     * @member  EXTENSION_APP_EXIT_CODE_NONE
+     * @member  EXTENSION_APP_EXIT_CODE_REBOOT
+     * @member  EXTENSION_APP_EXIT_CODE_EXIT
+     */
+    enum AppExitCode {
+        APP_EXIT_CODE_NONE = 0,
+        APP_EXIT_CODE_REBOOT = 1,
+        APP_EXIT_CODE_EXIT = -1,
+    };
+
     /*#
         * Generated from [ref:ExtensionAppParams]
         */
@@ -121,6 +136,111 @@ namespace dmExtension
      * @return  [type:ExtensionResult] 
      */
     typedef FExtensionCallback FCallback;
+
+    /*# 
+     * Initializes an extension app params struct
+     * NOTE: this is an opaque struct, do not use it's members directly!
+     * @name AppParamsInitialize
+     * @language C++
+     * @param app_params [type:ExtensionAppParams*] the params
+     */
+    void AppParamsInitialize(AppParams * app_params);
+
+    /*# 
+     * Finalizes an extension app params struct (deallocates internal memory)
+     * @name AppParamsFinalize
+     * @language C++
+     * @param app_params [type:ExtensionAppParams*] the params
+     */
+    void AppParamsFinalize(AppParams * params);
+
+    /*# 
+     * Initializes an extension params struct
+     * NOTE: this is an opaque struct, do not use it's members directly!
+     * @name ParamsInitialize
+     * @language C++
+     * @param app_params [type:ExtensionParams*] the params
+     */
+    void ParamsInitialize(Params * app_params);
+
+    /*# 
+     * Finalizes an extension  params struct (deallocates internal memory)
+     * @name ParamsFinalize
+     * @language C++
+     * @param app_params [type:ExtensionParams*] the params
+     */
+    void ParamsFinalize(Params * params);
+
+    /*# 
+     * Sets a context using a specified name
+     * @name AppParamsSetContext
+     * @language C++
+     * @param params [type:ExtensionAppParams] the params
+     * @param name [type:const char*] the context name
+     * @param context [type:void*] the context
+     * @return result [type:int] 0 if successful
+     */
+    int AppParamsSetContext(AppParams * params, const char * name, void * context);
+
+    /*# 
+     * Gets a context using a specified name
+     * @name AppParamsGetContextByName
+     * @language C++
+     * @param params [type:ExtensionAppParams] the params
+     * @param name [type:const char*] the context name
+     * @return context [type:void*] The context, if it exists
+     */
+    void * AppParamsGetContextByName(AppParams * params, const char * name);
+
+    /*# 
+     * Gets a context using a specified name hash
+     * @name AppParamsGetContext
+     * @language C++
+     * @param params [type:ExtensionAppParams] the params
+     * @param name_hash [type:dmhash_t] the context name hash
+     * @return context [type:void*] The context, if it exists
+     */
+    void * AppParamsGetContext(AppParams * params, dmhash_t name_hash);
+
+    /*# get the app exit code
+     * get the app exit code
+     * @name AppParamsGetAppExitCode
+     * @language C++
+     * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
+     * @return code [type:ExtensionAppExitCode] engine exit code
+     */
+    AppExitCode AppParamsGetAppExitCode(AppParams * app_params);
+
+    /*# 
+     * Sets a context using a specified name
+     * @name ParamsSetContext
+     * @language C++
+     * @param params [type:ExtensionAppParams] the params
+     * @param name [type:const char*] the context name
+     * @param context [type:void*] the context
+     * @return result [type:int] 0 if successful
+     */
+    int ParamsSetContext(Params * params, const char * name, void * context);
+
+    /*# 
+     * Gets a context using a specified name
+     * @name ParamsGetContextByName
+     * @language C++
+     * @param params [type:ExtensionParams] the params
+     * @param name [type:const char*] the context name
+     * @return context [type:void*] The context, if it exists
+     */
+    void * ParamsGetContextByName(Params * params, const char * name);
+
+    /*# 
+     * Gets a context using a specified name hash
+     * @name ParamsGetContext
+     * @language C++
+     * @param params [type:ExtensionParams] the params
+     * @param name_hash [type:dmhash_t] the context name hash
+     * @return context [type:void*] The context, if it exists
+     */
+    void * ParamsGetContext(Params * params, dmhash_t name_hash);
 
     /*#
         * Generated from [ref:ExtensionRegisterCallback]
@@ -222,6 +342,16 @@ namespace dmExtension
  * @member  EXTENSION_CALLBACK_POST_RENDER
  */
 
+/*# engine exit code
+ * Engine exit code.
+ * @enum
+ * @name ExtensionAppExitCode
+ * @language C
+ * @member  EXTENSION_APP_EXIT_CODE_NONE
+ * @member  EXTENSION_APP_EXIT_CODE_REBOOT
+ * @member  EXTENSION_APP_EXIT_CODE_EXIT
+ */
+
 /*# 
  * The global parameters avalable when registering and unregistering an extensioin
  * @struct
@@ -230,6 +360,100 @@ namespace dmExtension
  * @member m_ConfigFile [type:HConfigFile] The game project settings (including overrides and plugins)
  * @member m_ResourceFactory [type:HResourceFactory] The game resource factory / repository
  * @member m_L [type:lua_State*] The Lua state.
+ */
+
+/*# 
+ * Initializes an extension app params struct
+ * NOTE: this is an opaque struct, do not use it's members directly!
+ * @name ExtensionAppParamsInitialize
+ * @language C
+ * @param app_params [type:ExtensionAppParams*] the params
+ */
+
+/*# 
+ * Finalizes an extension app params struct (deallocates internal memory)
+ * @name ExtensionAppParamsFinalize
+ * @language C
+ * @param app_params [type:ExtensionAppParams*] the params
+ */
+
+/*# 
+ * Initializes an extension params struct
+ * NOTE: this is an opaque struct, do not use it's members directly!
+ * @name ExtensionParamsInitialize
+ * @language C
+ * @param app_params [type:ExtensionParams*] the params
+ */
+
+/*# 
+ * Finalizes an extension  params struct (deallocates internal memory)
+ * @name ExtensionParamsFinalize
+ * @language C
+ * @param app_params [type:ExtensionParams*] the params
+ */
+
+/*# 
+ * Sets a context using a specified name
+ * @name ExtensionAppParamsSetContext
+ * @language C
+ * @param params [type:ExtensionAppParams] the params
+ * @param name [type:const char*] the context name
+ * @param context [type:void*] the context
+ * @return result [type:int] 0 if successful
+ */
+
+/*# 
+ * Gets a context using a specified name
+ * @name ExtensionAppParamsGetContextByName
+ * @language C
+ * @param params [type:ExtensionAppParams] the params
+ * @param name [type:const char*] the context name
+ * @return context [type:void*] The context, if it exists
+ */
+
+/*# 
+ * Gets a context using a specified name hash
+ * @name ExtensionAppParamsGetContext
+ * @language C
+ * @param params [type:ExtensionAppParams] the params
+ * @param name_hash [type:dmhash_t] the context name hash
+ * @return context [type:void*] The context, if it exists
+ */
+
+/*# get the app exit code
+ * get the app exit code
+ * @name ExtensionAppParamsGetAppExitCode
+ * @language C
+ * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
+ * @return code [type:ExtensionAppExitCode] engine exit code
+ */
+
+/*# 
+ * Sets a context using a specified name
+ * @name ExtensionParamsSetContext
+ * @language C
+ * @param params [type:ExtensionAppParams] the params
+ * @param name [type:const char*] the context name
+ * @param context [type:void*] the context
+ * @return result [type:int] 0 if successful
+ */
+
+/*# 
+ * Gets a context using a specified name
+ * @name ExtensionParamsGetContextByName
+ * @language C
+ * @param params [type:ExtensionParams] the params
+ * @param name [type:const char*] the context name
+ * @return context [type:void*] The context, if it exists
+ */
+
+/*# 
+ * Gets a context using a specified name hash
+ * @name ExtensionParamsGetContext
+ * @language C
+ * @param params [type:ExtensionParams] the params
+ * @param name_hash [type:dmhash_t] the context name hash
+ * @return context [type:void*] The context, if it exists
  */
 
 /*# 

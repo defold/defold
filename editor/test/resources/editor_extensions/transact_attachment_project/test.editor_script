@@ -87,6 +87,42 @@ local function print_particlefx_contents(particlefx)
     end
 end
 
+local function print_collision_object(collision)
+    local shapes = editor.get(collision, "shapes")
+    print(("  shapes: %s"):format(#shapes))
+    for i = 1, #shapes do
+        local shape = shapes[i]
+        print(("  - id: %s"):format(editor.get(shape, "id")))
+        local type = editor.get(shape, "type")
+        print(("    type: %s"):format(type))
+        if type == "shape-type-sphere" then
+            print(("    diameter: %s"):format(editor.get(shape, "diameter")))
+        elseif type == "shape-type-box" then
+            local x,y,z = table.unpack(editor.get(shape, "dimensions"))
+            print(("    dimensions: %s %s %s"):format(x, y, z))
+        elseif type == "shape-type-capsule" then
+            print(("    diameter: %s"):format(editor.get(shape, "diameter")))
+            print(("    height: %s"):format(editor.get(shape, "height")))
+        end
+    end
+end
+
+local function print_gui(gui)
+    local layers = editor.get(gui, "layers")
+    print(("  layers: %s"):format(#layers))
+    for i = 1, #layers do
+        local layer = layers[i]
+        print(("    layer: %s"):format(editor.get(layer, "name")))
+    end
+    local materials = editor.get(gui, "materials")
+    print(("  materials: %s"):format(#materials))
+    for i = 1, #materials do
+        local material = materials[i]
+        local material_res = editor.get(material, "material")
+        print(("    material: %s%s"):format(editor.get(material, "name"), material_res and " " .. material_res or ""))
+    end
+end
+
 function M.get_commands()
     return {
         editor.command({
@@ -239,6 +275,81 @@ function M.get_commands()
 
                 print("After transaction (clear):")
                 print_particlefx_contents(pfx)
+
+                local collision = "/test.collisionobject"
+                
+                print("Collision object initial state:")
+                print_collision_object(collision)
+
+                print("Transaction: add 3 shapes")
+                editor.transact({
+                    editor.tx.add(collision, "shapes", {
+                        id = "box",
+                        type = "shape-type-box"
+                    }),
+                    editor.tx.add(collision, "shapes", {
+                        id = "sphere",
+                        type = "shape-type-sphere"
+                    }),
+                    editor.tx.add(collision, "shapes", {
+                        id = "capsule",
+                        type = "shape-type-capsule"
+                    })
+                })
+
+                print("After transaction (add 3 shapes):")
+                print_collision_object(collision)
+
+                print("Transaction: clear")
+                editor.transact({editor.tx.clear(collision, "shapes")})
+
+                print("After transaction (clear):")
+                print_collision_object(collision)
+
+                print("Expected errors:")
+                expect_error("missing type", editor.tx.add, collision, "shapes", {})
+                expect_error("wrong type", editor.tx.add, collision, "shapes", {type = "box"})
+
+                local gui = "/test.gui"
+                print("GUI initial state:")
+                print_gui(gui)
+
+                print("Transaction: edit GUI")
+                editor.transact({
+                    editor.tx.add(gui, "layers", {name = "bg"}),
+                    editor.tx.add(gui, "layers", {name = "fg"}),
+                    editor.tx.add(gui, "materials", {}),
+                    editor.tx.add(gui, "materials", {material = "/test.material"}),
+                    editor.tx.add(gui, "materials", {material = "/test.material"}),
+                    editor.tx.add(gui, "materials", {}),
+                })
+
+                print("After transaction (edit):")
+                print_gui(gui)
+
+                print(("can reorder layers: %s"):format(tostring(editor.can_reorder(gui, "layers"))))
+                local bg_layer, fg_layer = table.unpack(editor.get(gui, "layers"))
+                print("Transaction: reorder")
+                editor.transact({
+                    editor.tx.reorder(gui, "layers", {fg_layer, bg_layer})
+                })
+                print("After transaction (reorder):")
+                print_gui(gui)
+                print("Expected reorder errors:")
+                expect_error("undefined property", editor.tx.reorder, gui, "not-a-property", {})
+                expect_error("reorder not defined", editor.tx.reorder, collision, "shapes", {})
+                expect_error("duplicates", editor.tx.reorder, gui, "layers", {fg_layer, fg_layer, bg_layer})
+                expect_error("missing children", editor.tx.reorder, gui, "layers", {fg_layer})
+                expect_error("wrong child nodes", editor.tx.reorder, gui, "layers", {fg_layer, gui})
+
+                print("Transaction: clear GUI")
+                editor.transact({
+                    editor.tx.clear(gui, "layers"),
+                    editor.tx.clear(gui, "materials"),
+                })
+
+                print("After transaction (clear):")
+                print_gui(gui)
             end
         })
     }

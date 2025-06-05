@@ -17,6 +17,7 @@
             [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.attachment :as attachment]
             [editor.build-target :as bt]
             [editor.colors :as colors]
             [editor.core :as core]
@@ -30,6 +31,7 @@
             [editor.gl.vertex :as vtx]
             [editor.gl.vertex2 :as vtx2]
             [editor.graph-util :as gu]
+            [editor.gui-attachment :as gui-attachment]
             [editor.gui-clipping :as clipping]
             [editor.handler :as handler]
             [editor.id :as id]
@@ -460,19 +462,16 @@
      :else
      (core/scope basis node))))
 
-(defn- next-child-index [child-indices]
-  (inc (reduce max -1 (map second child-indices))))
-
 (defn- gen-gui-node-attach-fn [type]
   (fn [target source]
-    (let [node-tree (node->node-tree target)
-          taken-ids (g/node-value node-tree :id-counts)
-          child-indices (g/node-value target :child-indices)
-          next-index (next-child-index child-indices)]
-      (concat
-        (g/update-property source :id id/resolve taken-ids)
-        (g/set-property source :child-index next-index)
-        (attach-gui-node node-tree target source type)))))
+    (g/with-auto-evaluation-context evaluation-context
+      (let [node-tree (node->node-tree (:basis evaluation-context) target)
+            taken-ids (g/node-value node-tree :id-counts evaluation-context)
+            next-index (gui-attachment/next-child-index target evaluation-context)]
+        (concat
+          (g/update-property source :id id/resolve taken-ids)
+          (g/set-property source :child-index next-index)
+          (attach-gui-node node-tree target source type))))))
 
 ;; SDK api
 (defn gen-outline-node-tx-attach-fn
@@ -1322,8 +1321,6 @@
                                (validate-material-resource _node-id material-infos material)))))
 
   (output visual-base-node-msg g/Any produce-visual-base-node-msg)
-  (output gui-scene g/Any (g/fnk [_node-id]
-                                 (node->gui-scene _node-id)))
   (output material-shader ShaderLifecycle (g/fnk [costly-gui-scene-info material]
                                             (let [material-shaders (:material-shaders costly-gui-scene-info)]
                                               (or (get material-shaders material)
@@ -2607,22 +2604,17 @@
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-(defn- attach-material
-  ([self materials-node material]
-   (attach-material self materials-node material false))
-  ([self materials-node material internal?]
-   (concat
-     (g/connect material :_node-id self :nodes)
-     (g/connect material :material-shaders self :material-shaders)
-     (when (not internal?)
-       (concat
-         (g/connect material :material-infos self :material-infos)
-         (g/connect material :dep-build-targets self :dep-build-targets)
-         (g/connect material :pb-msg self :material-msgs)
-         (g/connect material :build-errors materials-node :build-errors)
-         (g/connect material :node-outline materials-node :child-outlines)
-         (g/connect material :name materials-node :names)
-         (g/connect materials-node :name-counts material :name-counts))))))
+(defn- attach-material [self materials-node material]
+  (concat
+    (g/connect material :_node-id materials-node :nodes)
+    (g/connect material :material-shaders self :material-shaders)
+    (g/connect material :material-infos self :material-infos)
+    (g/connect material :dep-build-targets self :dep-build-targets)
+    (g/connect material :pb-msg self :material-msgs)
+    (g/connect material :build-errors materials-node :build-errors)
+    (g/connect material :node-outline materials-node :child-outlines)
+    (g/connect material :name materials-node :names)
+    (g/connect materials-node :name-counts material :name-counts)))
 
 (defn add-material [scene materials-node resource name]
   (g/make-nodes (g/node-id->graph-id scene) [node [MaterialNode :name name :material resource]]
@@ -2634,6 +2626,7 @@
     (partial add-material scene parent)))
 
 (g/defnode MaterialsNode
+  (inherits core/Scope)
   (inherits outline/OutlineNode)
   (input names g/Str :array)
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
@@ -2691,36 +2684,31 @@
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 (defn- attach-layer
-  ([self layers-node layer]
-   (attach-layer self layers-node layer false))
   ;; Self is not used here but added to conform all attach-*** functions
-  ([_self layers-node layer internal?]
-   (concat
+  [_self layers-node layer]
+  (concat
     (g/connect layer :_node-id layers-node :nodes)
-    (when (not internal?)
-      (concat
-       (g/connect layer :pb-msg layers-node :layer-msgs)
-       (g/connect layer :build-errors layers-node :build-errors)
-       (g/connect layer :node-outline layers-node :child-outlines)
-       (g/connect layer :node-id+child-index layers-node :child-indices)
-       (g/connect layer :name+child-index layers-node :indexed-layer-names)
-       (g/connect layers-node :name-counts layer :name-counts))))))
+    (g/connect layer :pb-msg layers-node :layer-msgs)
+    (g/connect layer :build-errors layers-node :build-errors)
+    (g/connect layer :node-outline layers-node :child-outlines)
+    (g/connect layer :node-id+child-index layers-node :child-indices)
+    (g/connect layer :name+child-index layers-node :indexed-layer-names)
+    (g/connect layers-node :name-counts layer :name-counts)))
 
-(defn add-layer [project scene parent name child-index select-fn]
+(defn add-layer [scene parent name child-index select-fn]
   (g/make-nodes (g/node-id->graph-id scene) [node [LayerNode :name name :child-index child-index]]
-    ;; Self is not used when attaching layers
-    (attach-layer nil parent node)
+    (attach-layer scene parent node)
     (when select-fn
       (select-fn [node]))))
 
-(defn- add-layer-handler [project {:keys [scene parent]} select-fn]
-  (let [name (id/gen "layer" (g/node-value parent :name-counts))
-        child-indices (g/node-value parent :child-indices)
-        next-index (next-child-index child-indices)]
-    (g/transact
-     (concat
-      (g/operation-label "Add Layer")
-      (add-layer project scene parent name next-index select-fn)))))
+(defn- add-layer-handler [_project {:keys [scene parent]} select-fn]
+  (g/transact
+    (g/with-auto-evaluation-context evaluation-context
+      (let [name (id/gen "layer" (g/node-value parent :name-counts evaluation-context))
+            next-index (gui-attachment/next-child-index parent evaluation-context)]
+        (concat
+          (g/operation-label "Add Layer")
+          (add-layer scene parent name next-index select-fn))))))
 
 (g/defnode LayersNode
   (inherits core/Scope)
@@ -3476,27 +3464,27 @@
   (get-in tx-entry [:node :_node-id]))
 
 (defn add-gui-node-with-props! [scene parent node-type custom-type props select-fn]
-  (let [node-tree (g/node-value scene :node-tree)
-        id (or (:id props)
-               (id/resolve (subs (name node-type) 5)
-                           (g/node-value node-tree :id-counts)))
-        def-node-type (get-registered-node-type-cls node-type custom-type)
-        child-indices (g/node-value parent :child-indices)
-        next-index (next-child-index child-indices)
-        node-properties (assoc props
-                          :id id
-                          :child-index next-index
-                          :custom-type custom-type
-                          :type node-type)]
-    (-> (concat
-          (g/operation-label "Add Gui Node")
-          (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type node-properties]]
-            (attach-gui-node node-tree parent gui-node node-type)
-            (when select-fn
-              (select-fn [gui-node]))))
-        g/transact
-        g/tx-nodes-added
-        first)))
+  (-> (g/with-auto-evaluation-context evaluation-context
+        (let [node-tree (g/node-value scene :node-tree evaluation-context)
+              id (or (:id props)
+                     (id/resolve (subs (name node-type) 5)
+                                 (g/node-value node-tree :id-counts evaluation-context)))
+              def-node-type (get-registered-node-type-cls node-type custom-type)
+              next-index (gui-attachment/next-child-index parent evaluation-context)
+              node-properties (assoc props
+                                :id id
+                                :child-index next-index
+                                :custom-type custom-type
+                                :type node-type)]
+          (concat
+            (g/operation-label "Add Gui Node")
+            (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type node-properties]]
+              (attach-gui-node node-tree parent gui-node node-type)
+              (when select-fn
+                (select-fn [gui-node]))))))
+      g/transact
+      g/tx-nodes-added
+      first))
 
 (defn add-gui-node! [project scene parent node-type custom-type select-fn]
   ;; TODO: The project argument is unused. Remove.
@@ -3762,10 +3750,8 @@
                                                                      :particlefx (resolve-resource (:particlefx particlefx-desc))]]
                                       (attach-particlefx-resource self particlefx-resources-node particlefx-resource)))))
 
-      (g/make-nodes graph-id [layers-node LayersNode
-                              no-layer [LayerNode
-                                        :name ""]]
-                    (g/connect layers-node :_node-id self :layers-node) ; for the tests :/
+      (g/make-nodes graph-id [layers-node LayersNode]
+                    (g/connect layers-node :_node-id self :layers-node)
                     (g/connect layers-node :_node-id self :nodes)
                     (g/connect layers-node :layer-msgs self :layer-msgs)
                     (g/connect layers-node :layer-names self :layer-names)
@@ -3773,7 +3759,6 @@
                     (g/connect layers-node :build-errors self :build-errors)
                     (g/connect layers-node :node-outline self :child-outlines)
                     (g/connect layers-node :add-handler-info self :handler-infos)
-                    (attach-layer self layers-node no-layer true)
                     (loop [[layer-desc & more] (:layers scene)
                            tx-data []
                            child-index 0]
@@ -3842,6 +3827,33 @@
                       (g/make-nodes graph-id [layout [LayoutNode (dissoc layout-desc :nodes)]]
                         (attach-layout self layouts-node layout))))
       custom-data)))
+
+(defn- attach-gui-scene-layer [{:keys [basis]} scene-node layer-node]
+  (attach-layer scene-node (gui-attachment/scene-node->layers-node basis scene-node) layer-node))
+
+(defn- gui-scene-layers-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (let [layer-nodes (attachment/nodes-getter (gui-attachment/scene-node->layers-node basis scene-node) evaluation-context)]
+    (vec (sort-by #(g/raw-property-value basis % :child-index) layer-nodes))))
+
+(defn- reorder-gui-scene-layers [reordered-layer-node-ids]
+  (coll/mapcat-indexed #(g/set-property %2 :child-index %1) reordered-layer-node-ids))
+
+(attachment/register!
+  GuiSceneNode :layers
+  :add {LayerNode (partial g/expand-ec attach-gui-scene-layer)}
+  :get gui-scene-layers-getter
+  :reorder reorder-gui-scene-layers)
+
+(defn- attach-gui-scene-material [{:keys [basis]} scene-node material-node]
+  (attach-material scene-node (gui-attachment/scene-node->materials-node basis scene-node) material-node))
+
+(defn- gui-scene-materials-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (attachment/nodes-getter (gui-attachment/scene-node->materials-node basis scene-node) evaluation-context))
+
+(attachment/register!
+  GuiSceneNode :materials
+  :add {MaterialNode (partial g/expand-ec attach-gui-scene-material)}
+  :get gui-scene-materials-getter)
 
 (def default-pb-read-node-color (protobuf/default Gui$NodeDesc :color))
 (def default-pb-read-node-alpha (protobuf/default Gui$NodeDesc :alpha))

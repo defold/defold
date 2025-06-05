@@ -1305,6 +1305,61 @@ Transaction: clear particlefx
 After transaction (clear):
   emitters: 0
   modifiers: 0
+Collision object initial state:
+  shapes: 0
+Transaction: add 3 shapes
+After transaction (add 3 shapes):
+  shapes: 3
+  - id: box
+    type: shape-type-box
+    dimensions: 20 20 20
+  - id: sphere
+    type: shape-type-sphere
+    diameter: 20
+  - id: capsule
+    type: shape-type-capsule
+    diameter: 20
+    height: 40
+Transaction: clear
+After transaction (clear):
+  shapes: 0
+Expected errors:
+  missing type => type is required
+  wrong type => box is not shape-type-box, shape-type-capsule or shape-type-sphere
+GUI initial state:
+  layers: 0
+  materials: 0
+Transaction: edit GUI
+After transaction (edit):
+  layers: 2
+    layer: bg
+    layer: fg
+  materials: 4
+    material: material
+    material: test /test.material
+    material: test1 /test.material
+    material: material1
+can reorder layers: true
+Transaction: reorder
+After transaction (reorder):
+  layers: 2
+    layer: fg
+    layer: bg
+  materials: 4
+    material: material
+    material: test /test.material
+    material: test1 /test.material
+    material: material1
+Expected reorder errors:
+  undefined property => GuiSceneNode does not define \"not-a-property\"
+  reorder not defined => CollisionObjectNode does not support \"shapes\" reordering
+  duplicates => Reordered child nodes are not the same as current child nodes
+  missing children => Reordered child nodes are not the same as current child nodes
+  wrong child nodes => Reordered child nodes are not the same as current child nodes
+Transaction: clear GUI
+After transaction (clear):
+  layers: 0
+  materials: 0
 ")
 
 (deftest attachment-properties-test
