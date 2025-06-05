@@ -22,6 +22,7 @@
 #include <dlib/memory.h>
 
 #include "../script.h"
+#include "../script_private.h"
 #include "test_script.h"
 #include "test_script_private.h"
 #include "test/test_ddf.h"
@@ -660,6 +661,10 @@ TEST_F(LuaTableTest, TSTRING) // binary strings (def2821)
     (void) buffer_used;
     lua_pop(L, 1);
 
+    dmScript::TableHeader header;
+    (void) dmScript::ReadHeader(g_Buf, header);
+    ASSERT_EQ(header.m_Version, 4); // TABLE_VERSION_BASE
+
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
     lua_getfield(L, -1, "key1");
@@ -696,6 +701,10 @@ TEST_F(LuaTableTest, Vector3)
     (void) buffer_used;
     lua_pop(L, 1);
 
+    dmScript::TableHeader header;
+    (void) dmScript::ReadHeader(g_Buf, header);
+    ASSERT_EQ(header.m_Version, 4); // TABLE_VERSION_BASE
+
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
     lua_getfield(L, -1, "v");
@@ -723,6 +732,10 @@ TEST_F(LuaTableTest, Vector4)
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
+
+    dmScript::TableHeader header;
+    (void) dmScript::ReadHeader(g_Buf, header);
+    ASSERT_EQ(header.m_Version, 4); // TABLE_VERSION_BASE
 
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
@@ -753,6 +766,10 @@ TEST_F(LuaTableTest, Quat)
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
+
+    dmScript::TableHeader header;
+    (void) dmScript::ReadHeader(g_Buf, header);
+    ASSERT_EQ(header.m_Version, 4); // TABLE_VERSION_BASE
 
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
@@ -788,6 +805,10 @@ TEST_F(LuaTableTest, Matrix4)
     (void) buffer_used;
     lua_pop(L, 1);
 
+    dmScript::TableHeader header;
+    (void) dmScript::ReadHeader(g_Buf, header);
+    ASSERT_EQ(header.m_Version, 4); // TABLE_VERSION_BASE
+
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
     lua_getfield(L, -1, "v");
@@ -819,6 +840,10 @@ TEST_F(LuaTableTest, Hash)
     (void) buffer_used;
     lua_pop(L, 1);
 
+    dmScript::TableHeader header;
+    (void) dmScript::ReadHeader(g_Buf, header);
+    ASSERT_EQ(header.m_Version, 4); // TABLE_VERSION_HASH_KEYS_ADDED
+
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
     lua_getfield(L, -1, "h");
@@ -828,6 +853,44 @@ TEST_F(LuaTableTest, Hash)
     lua_pop(L, 1);
 
     lua_pop(L, 1);
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(LuaTableTest, Hashkey)
+{
+    int top = lua_gettop(L);
+
+    // Create table
+    lua_newtable(L);
+
+    dmhash_t hash = dmHashString64("key1");
+    dmScript::PushHash(L, hash);   // key
+    lua_pushnumber(L, 1234);       // value
+    lua_settable(L, -3);           // table[key] = 1234
+
+    // Serialize table into buffer
+    uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
+    (void) buffer_used;
+
+    lua_pop(L, 1); // pop the original table
+
+    // Deserialize table from buffer
+    dmScript::TableHeader header;
+    (void) dmScript::ReadHeader(g_Buf, header);
+    ASSERT_EQ(header.m_Version, 5); // TABLE_VERSION_HASH_KEYS_ADDED
+
+    dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
+    ASSERT_TRUE(lua_istable(L, -1));
+
+    // Push hash key and get the value back
+    dmScript::PushHash(L, hash);
+    lua_gettable(L, -2); // value = table[hash]
+
+    ASSERT_TRUE(lua_isnumber(L, -1));
+    ASSERT_EQ(lua_tonumber(L, -1), 1234);
+
+    lua_pop(L, 2); // pop value and table
 
     ASSERT_EQ(top, lua_gettop(L));
 }
@@ -848,6 +911,10 @@ TEST_F(LuaTableTest, URL)
     uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
+
+    dmScript::TableHeader header;
+    (void) dmScript::ReadHeader(g_Buf, header);
+    ASSERT_EQ(header.m_Version, 4); // TABLE_VERSION_BASE
 
     dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
