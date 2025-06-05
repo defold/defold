@@ -20,6 +20,13 @@
 typedef struct lua_State lua_State;
 namespace dmGameObject
 {
+    /*#
+     * Creates a property container from a lua table
+     * @name PropertyContainerCreateFromLua
+     * @param L [type: lua_State*] The lua state
+     * @param index [type: int] The lua stack index of the lua table
+     * @return container [type: HPropertyContainer] The property container
+     */
     HPropertyContainer PropertyContainerCreateFromLua(lua_State* L, int index);
 }
 
