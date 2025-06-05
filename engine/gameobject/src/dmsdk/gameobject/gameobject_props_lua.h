@@ -23,4 +23,4 @@ namespace dmGameObject
     HPropertyContainer PropertyContainerCreateFromLua(lua_State* L, int index);
 }
 
-#endif // GAMEOBJECT_PROPS_DDF_H
+#endif // DMSDK_GAMEOBJECT_PROPS_LUA_H

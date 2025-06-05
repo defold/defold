@@ -24,4 +24,4 @@ namespace dmGameObject
     void LuaPushVar(lua_State* L, const PropertyVar& var);
 }
 
-#endif // GAMEOBJECT_PROPS_DDF_H
+#endif // GAMEOBJECT_PROPS_LUA_H
