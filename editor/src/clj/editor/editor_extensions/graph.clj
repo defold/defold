@@ -591,7 +591,7 @@
     (let [{:keys [node property]} (rt/->clj rt can-reorder-args-coercer varargs)
           node-id-or-resource (resolve-node-id-or-path node project evaluation-context)]
       (and (not (resource/resource? node-id-or-resource))
-           (attachment/reorder?
+           (attachment/reorderable?
              (g/node-type* (:basis evaluation-context) node-id-or-resource)
              (property->prop-kw property))))))
 
@@ -609,7 +609,7 @@
           reordered-child-node-ids (mapv #(node-id-or-path->node-id % project evaluation-context) children)]
       (when-not (attachment/defines? node-type list-kw)
         (throw (LuaError. (format "%s does not define \"%s\"" (name (:k node-type)) property))))
-      (when-not (attachment/reorder? node-type list-kw)
+      (when-not (attachment/reorderable? node-type list-kw)
         (throw (LuaError. (format "%s does not support \"%s\" reordering" (name (:k node-type)) property))))
       (let [current-child-node-set (set ((attachment/getter node-type list-kw) node-id evaluation-context))]
         (when (or (not (every? current-child-node-set reordered-child-node-ids))

@@ -119,7 +119,7 @@
   [node-type list-kw]
   (-> @state-atom :add (get node-type) (contains? list-kw)))
 
-(defn reorder?
+(defn reorderable?
   "Checks if a node type allows reordering of a list-kw list"
   [node-type list-kw]
   (-> @state-atom :reorder (get node-type) (contains? list-kw)))
@@ -189,7 +189,7 @@
 
   The implementation will assert that the supplied child node ids are the same
   node ids as defined by [[getter]]. It will also assert that the container
-  node-id defines reorder of a list identified by list-kw (see [[reorder?]])"
+  node-id defines reorder of a list identified by list-kw (see [[reorderable?]])"
   [node-id list-kw reordered-child-node-ids]
   (g/expand-ec reorder-tx node-id list-kw reordered-child-node-ids))
 
