@@ -39,24 +39,24 @@ namespace dmScript
     const uint32_t TABLE_VERSION_CURRENT = 5;
 
     /*
-     * Original table serialization format:
+     * Version 0:
+     *    Written without a header. Original table serialization format:
      *
-     * uint16_t   count
+     *      uint16_t   count
      *
-     * char   key_type (LUA_TSTRING, LUA_TNUMBER or LUA_THASH)
-     * char   value_type (LUA_TXXX)
-     * T      key (null terminated string or uint16_t)
-     * T      value
+     *      char   key_type (LUA_TSTRING or LUA_TNUMBER)
+     *      char   value_type (LUA_TXXX)
+     *      T      key (null terminated string or uint16_t)
+     *      T      value
      *
-     * char   key_type (LUA_TSTRING, LUA_TNUMBER or LUA_THASH)
-     * char   value_type (LUA_TXXX)
-     * T      key (null terminated string or uint16_t)
-     * T      value
-     * ...
-     * if value is of type Vector3, Vector4, Quat, Matrix4 or Hash i.e. LUA_TUSERDATA, the first byte in value is the SubType
+     *      char   key_type (LUA_TSTRING or LUA_TNUMBER)
+     *      char   value_type (LUA_TXXX)
+     *      T      key (null terminated string or uint16_t)
+     *      T      value
+     *      ...
+     *      if value is of type Vector3, Vector4, Quat, Matrix4 or Hash i.e. LUA_TUSERDATA, the first byte in value is the SubType
      *
-     *    Version 1 table serialization format:
-     *
+     * Version 1:
      *    Adds a header block to the table at the head of the input, containing a magic identifier
      *    and version information. Keys of type LUA_TNUMBER use a variable length encoding, with continuation
      *    between bytes signaled by the MSB.
@@ -78,17 +78,17 @@ namespace dmScript
      *    since a typical key will fit within a single byte of data. Numerical values when used elsewhere are essentially random
      *    and so we cannot guarantee that this encoding method will yield smaller data in such cases.
      *
-     *    Version 2:
+     * Version 2:
      *    Adds support for binary strings.
      *
-     *    Version 3:
-     *    Adds support for negative numeric keys. Always writes four bytes.
+     * Version 3:
+     *    Adds support for negative numeric keys (type LUA_TNEGATIVENUMBER). Always writes four bytes.
      *
-     *    Version 4:
+     * Version 4:
      *    Adds support for more than 65535 keys in a table.
      * 
-     *    Version 5:
-     *    Adds support for hash userdata type as keys.
+     * Version 5:
+     *    Adds support for hash userdata (type LUA_THASH) as keys.
      */
 
     struct TableHeader
