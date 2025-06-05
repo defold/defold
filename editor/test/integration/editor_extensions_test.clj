@@ -1333,6 +1333,7 @@ GUI initial state:
   textures: 0
   layouts: 0
   spine scenes: 0
+  fonts: 0
 Transaction: edit GUI
 After transaction (edit):
   layers: 2
@@ -1358,6 +1359,10 @@ After transaction (edit):
     spine scene: explicit name
     spine scene: template /defold-spine/assets/template/template.spinescene
     spine scene: spine_scene1
+  fonts: 3
+    font: test /test.font
+    font: font
+    font: font1
 can reorder layers: true
 Transaction: reorder
 After transaction (reorder):
@@ -1384,6 +1389,10 @@ After transaction (reorder):
     spine scene: explicit name
     spine scene: template /defold-spine/assets/template/template.spinescene
     spine scene: spine_scene1
+  fonts: 3
+    font: test /test.font
+    font: font
+    font: font1
 Expected reorder errors:
   undefined property => GuiSceneNode does not define \"not-a-property\"
   reorder not defined => CollisionObjectNode does not support \"shapes\" reordering
@@ -1402,6 +1411,7 @@ After transaction (clear):
   textures: 0
   layouts: 0
   spine scenes: 0
+  fonts: 0
 ")
 
 (deftest attachment-properties-test

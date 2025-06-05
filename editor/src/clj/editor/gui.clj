@@ -4048,8 +4048,18 @@
 (defn- gui-scene-layouts-getter [scene-node {:keys [basis] :as evaluation-context}]
   (attachment/nodes-getter (gui-attachment/scene-node->layouts-node basis scene-node) evaluation-context))
 
+(defn- gui-scene-font-nodes-getter [scene-node {:keys [basis]}]
+  (let [fonts-node (gui-attachment/scene-node->fonts-node basis scene-node)]
+    ;; NOTE: we use :names instead of :nodes to get a list of fonts because it
+    ;; excludes the internal fallback font
+    (mapv gt/source-id (g/explicit-arcs-by-target basis fonts-node :names))))
+
 (defn register-resource-types [workspace]
   (concat
+    (attachment/register
+      workspace GuiSceneNode :fonts
+      :add {FontNode (attach-to-gui-scene-fn gui-attachment/scene-node->fonts-node attach-font)}
+      :get gui-scene-font-nodes-getter)
     (attachment/register
       workspace GuiSceneNode :layers
       :add {LayerNode (attach-to-gui-scene-fn gui-attachment/scene-node->layers-node attach-layer)}
