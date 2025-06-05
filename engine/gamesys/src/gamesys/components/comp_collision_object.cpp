@@ -552,8 +552,8 @@ namespace dmGameSystem
 
         bool event_supported_a = SupportsEvent(component_a, EVENT_MASK_TRIGGER);
         bool event_supported_b = SupportsEvent(component_b, EVENT_MASK_TRIGGER);
-        if (!event_supported_a && event_supported_a == event_supported_b)
-            return; // Neither supported this event
+        if (!event_supported_a && !event_supported_b)
+            return; // We early out because neither supported this event
 
         dmGameObject::HInstance instance_a = component_a->m_Instance;
         dmGameObject::HInstance instance_b = component_b->m_Instance;
@@ -615,8 +615,8 @@ namespace dmGameSystem
 
             bool event_supported_a = SupportsEvent(component_a, EVENT_MASK_COLLISION);
             bool event_supported_b = SupportsEvent(component_b, EVENT_MASK_COLLISION);
-            if (!event_supported_a && event_supported_a == event_supported_b)
-                return true; // Neither supported this event
+            if (!event_supported_a && !event_supported_b)
+                return true; // We early out because neither supported this event
 
             cud->m_Count += 1;
 
@@ -688,8 +688,8 @@ namespace dmGameSystem
 
             bool event_supported_a = SupportsEvent(component_a, EVENT_MASK_CONTACT);
             bool event_supported_b = SupportsEvent(component_b, EVENT_MASK_CONTACT);
-            if (!event_supported_a && event_supported_a == event_supported_b)
-                return true; // Neither supported this event
+            if (!event_supported_a && !event_supported_b)
+                return true; // We early out because neither supported this event
 
             cud->m_Count += 1;
 
