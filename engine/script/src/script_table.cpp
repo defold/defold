@@ -37,6 +37,8 @@ namespace dmScript
 {
     const int TABLE_MAGIC = 0x42544448;
     const uint32_t TABLE_VERSION_CURRENT = 5;
+    const uint32_t TABLE_VERSION_BASE = 4;
+    const uint32_t TABLE_VERSION_HASH_KEYS_ADDED = TABLE_VERSION_CURRENT;
 
     /*
      * Version 0:
@@ -90,16 +92,6 @@ namespace dmScript
      * Version 5:
      *    Adds support for hash userdata (type LUA_THASH) as keys.
      */
-
-    struct TableHeader
-    {
-        uint32_t m_Magic;
-        uint32_t m_Version;
-
-        TableHeader() : m_Magic(0), m_Version(0)
-        {
-        }
-    };
 
     static bool EncodeMSB(uint32_t value, char*& buffer, const char* buffer_end)
     {
@@ -462,7 +454,7 @@ namespace dmScript
         return size;
     }
 
-    uint32_t DoCheckTable(lua_State* L, const TableHeader& header, const char* original_buffer, char* buffer, uint32_t buffer_size, int index, dmArray<const void*>& table_stack)
+    uint32_t DoCheckTable(lua_State* L, TableHeader& header, const char* original_buffer, char* buffer, uint32_t buffer_size, int index, dmArray<const void*>& table_stack)
     {
         int top = lua_gettop(L);
         (void)top;
@@ -528,6 +520,7 @@ namespace dmScript
             }
             else if (key_hash)
             {
+                header.m_Version = TABLE_VERSION_HASH_KEYS_ADDED;
                 (*buffer++) = (char) LUA_THASH;
                 (*buffer++) = (char) value_type;
             
@@ -751,7 +744,7 @@ namespace dmScript
 
             TableHeader* header = (TableHeader*)buffer;
             header->m_Magic = TABLE_MAGIC;
-            header->m_Version = TABLE_VERSION_CURRENT;
+            header->m_Version = TABLE_VERSION_BASE;
             buffer += sizeof(TableHeader);
             buffer_size -= (buffer - original_buffer);
 
@@ -763,7 +756,7 @@ namespace dmScript
         }
     }
 
-    static const char* ReadHeader(const char* buffer, TableHeader& header)
+    const char* ReadHeader(const char* buffer, TableHeader& header)
     {
         TableHeader* buffered_header = (TableHeader*)buffer;
         if (TABLE_MAGIC == buffered_header->m_Magic) {
