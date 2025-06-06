@@ -206,7 +206,8 @@ void DebugFont(HFont hfont, float scale, const char* text)
 {
     int indent = 0;
 
-    printf("DebugFont: '%s'\n", GetPath(hfont));
+    FontType type = GetType(hfont);
+    printf("DebugFont: '%s' type: %d\n", GetPath(hfont), type);
 
     Indent(indent+1); printf("ascent:   %.3f\n", GetAscent(hfont, scale));
     Indent(indent+1); printf("descent:  %.3f\n", GetDescent(hfont, scale));
@@ -214,10 +215,8 @@ void DebugFont(HFont hfont, float scale, const char* text)
     printf("\n");
 
     GlyphOptions options;
-    memset(&options, 0, sizeof(options));
-
     options.m_Scale = scale;
-    options.m_GenerateImage = false;
+    options.m_GenerateImage = true;
 
     const char* cursor = text;
     uint32_t codepoint = 0;
@@ -226,6 +225,18 @@ void DebugFont(HFont hfont, float scale, const char* text)
         dmFont::Glyph glyph;
         dmFont::GetGlyph(hfont, codepoint, &options, &glyph);
         dmFont::DebugGlyph(&glyph, indent+2);
+
+        if (options.m_GenerateImage && type == FONT_TYPE_STBTTF)
+        {
+            if(glyph.m_Bitmap.m_Data)
+            {
+                Indent((indent+3)); printf("Bitmap: %u x %u x %u  flags: %u\n",
+                                            glyph.m_Bitmap.m_Width, glyph.m_Bitmap.m_Height, glyph.m_Bitmap.m_Channels, glyph.m_Bitmap.m_Flags);
+                DebugPrintBitmap(glyph.m_Bitmap.m_Data, glyph.m_Bitmap.m_Width, glyph.m_Bitmap.m_Height);
+            }
+        }
+
+        dmFont::FreeGlyph(hfont, &glyph);
     }
 }
 

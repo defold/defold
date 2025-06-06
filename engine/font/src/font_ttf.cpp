@@ -148,8 +148,8 @@ FontResult GetGlyphTTF(HFont hfont, uint32_t codepoint, const GlyphOptions* opti
     stbtt_GetGlyphBox(info, glyph_index, &x0, &y0, &x1, &y1);
 
     float scale = options->m_Scale;
-    int padding = options->m_StbttPadding;
-    int on_edge_value = options->m_StbttOnEdgeValue;
+    int padding = options->m_StbttSDFPadding;
+    int on_edge_value = options->m_StbttSDFOnEdgeValue;
 
     int ascent = 0;
     int descent = 0;

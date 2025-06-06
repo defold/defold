@@ -61,15 +61,19 @@ namespace dmFont
     /*#
      * Represents a glyph.
      * If there's an associated image, it is of size width * height * channels.
+     *
+     * @note The baseline of a glyph bitmap is calculated: `base = glyph.bitmap.height - glyph.ascent`
+     *
      * @struct
      * @name Glyph
+     * @member m_Bitmap [type: GlyphBitmap] The bitmap data of the glyph.
+     * @member m_Codepoint [type: uint32_t] The unicode code point
      * @member m_Width [type: float] The glyph bounding width
      * @member m_Height [type: float] The glyph bounding height
      * @member m_Advance [type: float] The advance step of the glyph (in pixels)
      * @member m_LeftBearing [type: float] The left bearing of the glyph (in pixels)
      * @member m_Ascent [type: float] The ascent of the glyph. (in pixels)
      * @member m_Descent [type: float] The descent of the glyph. Positive! (in pixels)
-     * @member m_Bitmap [type: GlyphBitmap] The bitmap data of the glyph.
      */
     struct Glyph
     {
@@ -112,8 +116,16 @@ namespace dmFont
         bool  m_GenerateImage;
 
         // stbtt options (see stbtt_GetGlyphSDF)
-        int   m_StbttPadding;
-        int   m_StbttOnEdgeValue;
+        int   m_StbttSDFPadding;
+        int   m_StbttSDFOnEdgeValue;
+
+        GlyphOptions()
+        : m_Scale(1.0f)
+        , m_GenerateImage(false)
+        , m_StbttSDFPadding(3)
+        , m_StbttSDFOnEdgeValue(190)
+        {
+        }
     };
 
     FontResult GetGlyph(HFont font, uint32_t codepoint, GlyphOptions* options, Glyph* glyph);

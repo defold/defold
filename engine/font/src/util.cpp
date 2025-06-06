@@ -19,6 +19,22 @@
 namespace dmFont
 {
 
+void DebugPrintBitmap(uint8_t* bitmap, int w, int h)
+{
+    printf("--------------------------------------------\n");
+    for (int j=0; j < h; ++j)
+    {
+        putchar('|');
+        for (int i=0; i < w; ++i)
+        {
+            putchar(" .:ioVM@"[bitmap[j*w+i]>>5]);
+        }
+        putchar('|');
+        putchar('\n');
+    }
+    printf("--------------------------------------------\n");
+}
+
 void* ReadFile(const char* path, uint32_t* file_size)
 {
     FILE* file = fopen(path, "rb");

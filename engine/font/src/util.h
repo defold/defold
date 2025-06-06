@@ -19,6 +19,8 @@
 
 namespace dmFont
 {
+    void DebugPrintBitmap(uint8_t* bitmap, int w, int h);
+
     void* ReadFile(const char* path, uint32_t* file_size);
 }
 
