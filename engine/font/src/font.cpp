@@ -14,8 +14,11 @@
 
 #include <assert.h>
 #include <string.h>
+#include <stdio.h>
 
-#include <dlib/log.h>
+#include <dmsdk/dlib/dstrings.h>
+#include <dmsdk/dlib/log.h>
+#include <dmsdk/dlib/utf8.h>
 
 #include "util.h"
 #include "font.h"
@@ -32,54 +35,75 @@ static inline Font* ToFont(HFont hfont)
 
 void DestroyFont(HFont hfont)
 {
+    assert(hfont);
     Font* font = ToFont(hfont);
-    if (font->m_Type == FONT_TYPE_STBTTF)
+    const char* path = font->m_Path; // Keep it alive during destruction (for better debugging)
+
+    switch(font->m_Type)
     {
-        DestroyFontTTF(font);
+    case FONT_TYPE_STBTTF:  DestroyFontTTF(font); break;
+    default:                assert(false && "Unsupported font type");
     }
-    else
-    {
-        assert(false && "Unsupported font type");
-    }
+    free((void*)path);
 }
 
-static bool IsTTF(const char* path)
+static FontType GetFontType(const char* path)
 {
     const char* ext = strrchr(path, '.');
     if (!ext)
-        return false;
+        return FONT_TYPE_UNKNOWN;
 
-    return strcmp(ext, ".ttf") == 0 || strcmp(ext, ".TTF") == 0;
+    if (strcmp(ext, ".ttf") == 0 || strcmp(ext, ".TTF") == 0)
+        return FONT_TYPE_STBTTF;
+
+    return FONT_TYPE_UNKNOWN;
+}
+
+HFont LoadFontFromMemory(const char* path, void* data, uint32_t data_size)
+{
+    Font* font = 0;
+
+    FontType type = GetFontType(path);
+    switch(type)
+    {
+    case FONT_TYPE_STBTTF:  font = LoadFontFromMemoryTTF(path, data, data_size, false); break;
+    default:
+        {
+            const char* ext = strrchr(path, '.');
+            dmLogError("Unsupported file type: '%s'", ext?ext:"");
+            return 0;
+        }
+    }
+
+    if (font)
+    {
+        font->m_Type = type;
+        font->m_Path = strdup(path);
+    }
+
+    return font;
 }
 
 HFont LoadFontFromPath(const char* path)
 {
     uint32_t data_size;
     void* data = ReadFile(path, &data_size); // we pass the ownership to the font implementation
-
-    if (IsTTF(path))
+    if (!data)
     {
-        return LoadFontFromMemoryTTF(path, data, data_size, false);
+        return 0;
     }
 
-    const char* ext = strrchr(path, '.');
-    dmLogError("Unsupported file type: '%s'", ext?ext:"");
-    return 0;
+    Font* font = LoadFontFromMemory(path, data, data_size);
+    if (!font)
+    {
+        free((void*)data);
+        return 0;
+    }
+    return font;
 }
 
-HFont LoadFontFromMemory(const char* path, void* data, uint32_t data_size)
+uint32_t GetResourceSize(HFont font)
 {
-    if (IsTTF(path))
-        return LoadFontFromMemoryTTF(path, data, data_size, false);
-
-    const char* ext = strrchr(path, '.');
-    dmLogError("Unsupported file type: '%s'", ext?ext:"");
-    return 0;
-}
-
-uint32_t GetResourceSize(HFont hfont)
-{
-    Font* font = ToFont(hfont);
     switch (font->m_Type)
     {
     case FONT_TYPE_STBTTF: return GetResourceSizeTTF(font);
@@ -87,9 +111,8 @@ uint32_t GetResourceSize(HFont hfont)
     }
 }
 
-float GetPixelScaleFromSize(HFont hfont, float size)
+float GetPixelScaleFromSize(HFont font, float size)
 {
-    Font* font = ToFont(hfont);
     switch (font->m_Type)
     {
     case FONT_TYPE_STBTTF: return GetPixelScaleFromSizeTTF(font, size);
@@ -97,13 +120,112 @@ float GetPixelScaleFromSize(HFont hfont, float size)
     }
 }
 
-FontResult GetGlyph(HFont hfont, uint32_t codepoint, float scale, Glyph* glyph)
+float GetAscent(HFont font, float scale)
 {
-    Font* font = ToFont(hfont);
     switch (font->m_Type)
     {
-    case FONT_TYPE_STBTTF: return GetGlyphTTF(font, codepoint, scale, glyph);
+    case FONT_TYPE_STBTTF: return GetAscentTTF(font, scale);
+    default: assert(false && "Unsupported font type"); return 0;
+    }
+}
+
+float GetDescent(HFont font, float scale)
+{
+    switch (font->m_Type)
+    {
+    case FONT_TYPE_STBTTF: return GetDescentTTF(font, scale);
+    default: assert(false && "Unsupported font type"); return 0;
+    }
+}
+
+float GetLineGap(HFont font, float scale)
+{
+    switch (font->m_Type)
+    {
+    case FONT_TYPE_STBTTF: return GetLineGapTTF(font, scale);
+    default: assert(false && "Unsupported font type"); return 0;
+    }
+}
+
+
+
+FontResult GetGlyph(HFont font, uint32_t codepoint, GlyphOptions* options, Glyph* glyph)
+{
+    switch (font->m_Type)
+    {
+    case FONT_TYPE_STBTTF: return GetGlyphTTF(font, codepoint, options, glyph);
     default: assert(false && "Unsupported font type"); return RESULT_ERROR;
+    }
+}
+
+FontResult FreeGlyph(HFont font, Glyph* glyph)
+{
+    switch (font->m_Type)
+    {
+    case FONT_TYPE_STBTTF: return FreeGlyphTTF(font, glyph);
+    default: assert(false && "Unsupported font type"); return RESULT_ERROR;
+    }
+}
+
+FontType GetType(HFont font)
+{
+    assert(font);
+    return font->m_Type;
+}
+
+const char* GetPath(HFont font)
+{
+    assert(font);
+    return font->m_Path;
+}
+
+static void Indent(int indent)
+{
+    for (int i = 0; i < indent; ++i)
+    {
+        printf("  ");
+    }
+}
+
+void DebugGlyph(Glyph* glyph, int indent)
+{
+    char utf8[16];
+    uint32_t len = dmUtf8::ToUtf8(glyph->m_Codepoint, utf8);
+    utf8[len] = 0;
+
+    Indent(indent);   printf("glyph: '%s' 0x%0X\n", utf8, glyph->m_Codepoint);
+    Indent(indent+1); printf("width:    %.3f\n", glyph->m_Width);
+    Indent(indent+1); printf("height:   %.3f\n", glyph->m_Height);
+    Indent(indent+1); printf("advance:  %.3f\n", glyph->m_Advance);
+    Indent(indent+1); printf("lbearing: %.3f\n", glyph->m_LeftBearing);
+    Indent(indent+1); printf("ascent:   %.3f\n", glyph->m_Ascent);
+    Indent(indent+1); printf("descent:  %.3f\n", glyph->m_Descent);
+}
+
+void DebugFont(HFont hfont, float scale, const char* text)
+{
+    int indent = 0;
+
+    printf("DebugFont: '%s'\n", GetPath(hfont));
+
+    Indent(indent+1); printf("ascent:   %.3f\n", GetAscent(hfont, scale));
+    Indent(indent+1); printf("descent:  %.3f\n", GetDescent(hfont, scale));
+    Indent(indent+1); printf("line gap: %.3f\n", GetLineGap(hfont, scale));
+    printf("\n");
+
+    GlyphOptions options;
+    memset(&options, 0, sizeof(options));
+
+    options.m_Scale = scale;
+    options.m_GenerateImage = false;
+
+    const char* cursor = text;
+    uint32_t codepoint = 0;
+    while ((codepoint = dmUtf8::NextChar(&cursor)))
+    {
+        dmFont::Glyph glyph;
+        dmFont::GetGlyph(hfont, codepoint, &options, &glyph);
+        dmFont::DebugGlyph(&glyph, indent+2);
     }
 }
 

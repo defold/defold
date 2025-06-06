@@ -24,6 +24,7 @@
 // #include <dlib/memory.h>
 // #include <dlib/dstrings.h>
 // #include <dlib/sys.h>
+#include <dlib/log.h>
 #include <dlib/testutil.h>
 
 TEST(Simple, LoadTTF)
@@ -33,11 +34,60 @@ TEST(Simple, LoadTTF)
 
     dmFont::HFont font = dmFont::LoadFontFromPath(path);
     ASSERT_NE((dmFont::HFont)0, font);
+
+    dmFont::DestroyFont(font);
+}
+
+static int TestStandalone(const char* path, float size, const char* text)
+{
+    dmFont::HFont font = dmFont::LoadFontFromPath(path);
+    if (!font)
+    {
+        dmLogError("Failed to load font '%s'", path);
+        return 1;
+    }
+
+    float scale = dmFont::GetPixelScaleFromSize(font, size);
+    dmFont::DebugFont(font, scale, text);
+
+    dmFont::DestroyFont(font);
+    return 0;
 }
 
 int main(int argc, char **argv)
 {
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+
+    if (argc > 1 && (strstr(argv[1], ".ttf") != 0 ||
+                     strstr(argv[1], ".otf") != 0))
+    {
+        const char* path = argv[1];
+        const char* text = "abcABC123åäö!\"";
+        float size = 1.0f;
+
+        if (argc > 2)
+        {
+            text = argv[2];
+        }
+
+        if (argc > 3)
+        {
+            int nresult = sscanf(argv[3], "%f", &size);
+            if (nresult != 1)
+            {
+                dmLogError("Failed to parse size: '%s'", argv[3]);
+                return 1;
+            }
+        }
+        int ret = TestStandalone(path, size, text);
+        dmLog::LogFinalize();
+        return ret;
+    }
+
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
+
+    dmLog::LogFinalize();
     return ret;
 }

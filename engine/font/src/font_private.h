@@ -20,14 +20,10 @@
 namespace dmFont
 {
 
-enum FontType
-{
-    FONT_TYPE_STBTTF
-};
-
 struct Font
 {
     FontType m_Type;
+    const char* m_Path;
 };
 
 } // namespace

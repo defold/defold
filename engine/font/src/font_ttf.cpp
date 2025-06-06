@@ -14,6 +14,10 @@
 
 #include <stdlib.h> // free
 
+// Making sure we can guarantuee the functions
+#define STBTT_malloc(x,u)  ((void)(u),malloc(x))
+#define STBTT_free(x,u)    ((void)(u),free(x))
+
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
@@ -24,7 +28,7 @@ namespace dmFont
 
 struct TTFFont
 {
-    dmFont::Font m_Base;
+    dmFont::Font    m_Base;
 
     stbtt_fontinfo  m_Font;
     const char*     m_Path;
@@ -49,7 +53,6 @@ void DestroyFontTTF(HFont hfont)
     {
         free((void*)font->m_Data);
     }
-    free((void*)font->m_Path);
     free((void*)font);
 }
 
@@ -57,7 +60,6 @@ static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buff
 {
     TTFFont* font = new TTFFont;
     memset(font, 0, sizeof(*font));
-    font->m_Base.m_Type = FONT_TYPE_STBTTF;
 
     if (allocate)
     {
@@ -76,7 +78,7 @@ static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buff
     if (!result)
     {
         dmLogError("Failed to load font from '%s'", path);
-        DestroyFontTTF(font);
+        DestroyFontTTF((HFont)font);
         delete font;
         return 0;
     }
@@ -104,8 +106,98 @@ float GetPixelScaleFromSizeTTF(HFont hfont, uint32_t size)
     return stbtt_ScaleForPixelHeight(&font->m_Font, (int)size);
 }
 
-FontResult GetGlyphTTF(HFont font, uint32_t codepoint, float scale, Glyph* glyph)
+float GetAscentTTF(HFont hfont, float scale)
 {
+    TTFFont* font = ToFont(hfont);
+    return font->m_Ascent * scale;
+}
+
+float GetDescentTTF(HFont hfont, float scale)
+{
+    TTFFont* font = ToFont(hfont);
+    return font->m_Descent * scale;
+}
+
+float GetLineGapTTF(HFont hfont, float scale)
+{
+    TTFFont* font = ToFont(hfont);
+    return font->m_LineGap * scale;
+}
+
+FontResult FreeGlyphTTF(HFont hfont, Glyph* glyph)
+{
+    (void)hfont;
+    stbtt_FreeSDF(glyph->m_Bitmap.m_Data, 0);
+    return RESULT_OK;
+}
+
+FontResult GetGlyphTTF(HFont hfont, uint32_t codepoint, const GlyphOptions* options, Glyph* glyph)
+{
+    TTFFont* font = ToFont(hfont);
+
+    memset(glyph, 0, sizeof(*glyph));
+    glyph->m_Codepoint = codepoint;
+
+    stbtt_fontinfo* info = &font->m_Font;
+    int glyph_index = stbtt_FindGlyphIndex(info, (int)codepoint);
+
+    int advx, lsb;
+    stbtt_GetGlyphHMetrics(info, glyph_index, &advx, &lsb);
+
+    int x0, y0, x1, y1;
+    stbtt_GetGlyphBox(info, glyph_index, &x0, &y0, &x1, &y1);
+
+    float scale = options->m_Scale;
+    int padding = options->m_StbttPadding;
+    int on_edge_value = options->m_StbttOnEdgeValue;
+
+    int ascent = 0;
+    int descent = 0;
+    int srcw = 0;
+    int srch = 0;
+    int offsetx = 0;
+    int offsety = 0;
+
+    if (options->m_GenerateImage)
+    {
+        float pixel_dist_scale = (float)on_edge_value/(float)padding;
+
+        glyph->m_Bitmap.m_Data = stbtt_GetGlyphSDF(info, scale, glyph_index, padding, on_edge_value, pixel_dist_scale,
+                                                   &srcw, &srch, &offsetx, &offsety);
+
+        if (glyph->m_Bitmap.m_Data)
+        {
+            glyph->m_Bitmap.m_Flags = dmFont::GLYPH_BM_FLAG_NONE;
+            glyph->m_Bitmap.m_Width = srcw;
+            glyph->m_Bitmap.m_Height = srch;
+            glyph->m_Bitmap.m_Channels = 1;
+
+            // We don't call stbtt_FreeSDF(src, 0);
+            // But instead let the user call FreeGlyphTTF()
+
+            ascent = -offsety;
+            descent = srch - ascent;
+        }
+    }
+
+    // The dimensions of the visible area
+    if (x0 != x1 && y0 != y1)
+    {
+        // Only modify non empty glyphs (from stbtt_GetGlyphSDF())
+        x0 -= padding;
+        y0 -= padding;
+        x1 += padding;
+        y1 += padding;
+    }
+
+
+    glyph->m_Width = (x1 - x0) * scale;
+    glyph->m_Height = (y1 - y0) * scale;
+    glyph->m_Advance = advx*scale;;
+    glyph->m_LeftBearing = lsb*scale;
+    glyph->m_Ascent = ascent;
+    glyph->m_Descent = descent;
+
     return RESULT_OK;
 }
 

@@ -23,9 +23,17 @@ namespace dmFont
 {
     HFont       LoadFontFromMemoryTTF(const char* name, const void* data, uint32_t data_size, bool allocate);
     void        DestroyFontTTF(HFont font);
+
     uint32_t    GetResourceSizeTTF(HFont font);
+
     float       GetPixelScaleFromSizeTTF(HFont hfont, uint32_t size);
-    FontResult  GetGlyphTTF(HFont font, uint32_t codepoint, float scale, Glyph* glyph);
+    float       GetAscentTTF(HFont hfont, float scale);
+    float       GetDescentTTF(HFont hfont, float scale);
+    float       GetLineGapTTF(HFont hfont, float scale);
+
+    FontResult  GetGlyphTTF(HFont hfont, uint32_t codepoint, const GlyphOptions* options, Glyph* glyph);
+    FontResult  FreeGlyphTTF(HFont hfont, Glyph* glyph);
+
 } // namespace
 
 #endif // DM_FONT_TTF_H
