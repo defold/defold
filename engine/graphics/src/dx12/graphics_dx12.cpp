@@ -77,13 +77,6 @@ namespace dmGraphics
         m_Height                  = params.m_Height;
         m_UseValidationLayers     = params.m_UseValidationLayers;
 
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
-
         assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
     }
 
@@ -182,6 +175,10 @@ namespace dmGraphics
         ID3DBlob* signature;
         ID3DBlob* error;
         HRESULT hr = D3D12SerializeRootSignature(desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error);
+        if (FAILED(hr))
+        {
+            dmLogError("Unable to create root signature, error: \n%s", error->GetBufferPointer());
+        }
         CHECK_HR_ERROR(hr);
 
         hr = context->m_Device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&program->m_RootSignature));
@@ -363,6 +360,131 @@ namespace dmGraphics
         context->m_CommandList->SetDescriptorHeaps(DM_ARRAY_SIZE(heaps), heaps);
     }
 
+    static DXGI_FORMAT GetDXGIFormatFromTextureFormat(TextureFormat format)
+    {
+        switch (format)
+        {
+            case TEXTURE_FORMAT_LUMINANCE:               return DXGI_FORMAT_R8_UNORM;
+            case TEXTURE_FORMAT_LUMINANCE_ALPHA:         return DXGI_FORMAT_R8G8_UNORM;
+            case TEXTURE_FORMAT_RGB:                     return DXGI_FORMAT_R8G8B8A8_UNORM; // No native RGB8
+            case TEXTURE_FORMAT_RGBA:                    return DXGI_FORMAT_R8G8B8A8_UNORM;
+            case TEXTURE_FORMAT_RGB_16BPP:               return DXGI_FORMAT_B5G6R5_UNORM;
+            case TEXTURE_FORMAT_RGBA_16BPP:              return DXGI_FORMAT_B5G5R5A1_UNORM;
+            case TEXTURE_FORMAT_DEPTH:                   return DXGI_FORMAT_D32_FLOAT;
+            case TEXTURE_FORMAT_STENCIL:                 return DXGI_FORMAT_D24_UNORM_S8_UINT;
+
+            // Compressed formats
+            case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:        return DXGI_FORMAT_UNKNOWN; // Not supported in DX
+            case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:        return DXGI_FORMAT_UNKNOWN;
+            case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:       return DXGI_FORMAT_UNKNOWN;
+            case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:       return DXGI_FORMAT_UNKNOWN;
+            case TEXTURE_FORMAT_RGB_ETC1:                return DXGI_FORMAT_UNKNOWN;
+            case TEXTURE_FORMAT_R_ETC2:                  return DXGI_FORMAT_UNKNOWN;
+            case TEXTURE_FORMAT_RG_ETC2:                 return DXGI_FORMAT_UNKNOWN;
+            case TEXTURE_FORMAT_RGBA_ETC2:               return DXGI_FORMAT_UNKNOWN;
+            case TEXTURE_FORMAT_RGBA_ASTC_4x4:           return DXGI_FORMAT_UNKNOWN;
+
+            case TEXTURE_FORMAT_RGB_BC1:                 return DXGI_FORMAT_BC1_UNORM;
+            case TEXTURE_FORMAT_RGBA_BC3:                return DXGI_FORMAT_BC3_UNORM;
+            case TEXTURE_FORMAT_R_BC4:                   return DXGI_FORMAT_BC4_UNORM; // Or BC4_SNORM
+            case TEXTURE_FORMAT_RG_BC5:                  return DXGI_FORMAT_BC5_UNORM; // Or BC5_SNORM
+            case TEXTURE_FORMAT_RGBA_BC7:                return DXGI_FORMAT_BC7_UNORM;
+
+            // Floating-point formats
+            case TEXTURE_FORMAT_RGB16F:                  return DXGI_FORMAT_R16G16B16A16_FLOAT; // No native RGB16F
+            case TEXTURE_FORMAT_RGB32F:                  return DXGI_FORMAT_R32G32B32_FLOAT;
+            case TEXTURE_FORMAT_RGBA16F:                 return DXGI_FORMAT_R16G16B16A16_FLOAT;
+            case TEXTURE_FORMAT_RGBA32F:                 return DXGI_FORMAT_R32G32B32A32_FLOAT;
+            case TEXTURE_FORMAT_R16F:                    return DXGI_FORMAT_R16_FLOAT;
+            case TEXTURE_FORMAT_RG16F:                   return DXGI_FORMAT_R16G16_FLOAT;
+            case TEXTURE_FORMAT_R32F:                    return DXGI_FORMAT_R32_FLOAT;
+            case TEXTURE_FORMAT_RG32F:                   return DXGI_FORMAT_R32G32_FLOAT;
+
+            // Integer formats
+            case TEXTURE_FORMAT_RGBA32UI:                return DXGI_FORMAT_R32G32B32A32_UINT;
+            case TEXTURE_FORMAT_BGRA8U:                  return DXGI_FORMAT_B8G8R8A8_UNORM;
+            case TEXTURE_FORMAT_R32UI:                   return DXGI_FORMAT_R32_UINT;
+        }
+
+        assert(0);
+
+        return (DXGI_FORMAT) -1;
+    }
+
+    static void SetupSupportedTextureFormats(DX12Context* context)
+    {
+        // TODO: Compression
+        /*
+        if (context->m_PhysicalDevice.m_Features.textureCompressionETC2)
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ETC2;
+        }
+
+        if (context->m_PhysicalDevice.m_Features.textureCompressionBC)
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_BC1;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC3;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_BC7;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R_BC4;
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG_BC5;
+        }
+
+        if (context->m_PhysicalDevice.m_Features.textureCompressionASTC_LDR)
+        {
+            context->m_ASTCSupport = 1;
+        }
+        */
+
+        // Same as vulkan (we should merge checks for types somehow, so we make sure to test all formats)
+        TextureFormat texture_formats[] = { TEXTURE_FORMAT_LUMINANCE,
+                                            TEXTURE_FORMAT_LUMINANCE_ALPHA,
+                                            TEXTURE_FORMAT_RGBA,
+
+                                            // Float formats
+                                            TEXTURE_FORMAT_RGB16F,
+                                            TEXTURE_FORMAT_RGB32F,
+                                            TEXTURE_FORMAT_RGBA16F,
+                                            TEXTURE_FORMAT_RGBA32F,
+                                            TEXTURE_FORMAT_R16F,
+                                            TEXTURE_FORMAT_RG16F,
+                                            TEXTURE_FORMAT_R32F,
+                                            TEXTURE_FORMAT_RG32F,
+
+                                            // Misc formats
+                                            TEXTURE_FORMAT_RGBA32UI,
+                                            TEXTURE_FORMAT_R32UI,
+                                            TEXTURE_FORMAT_RGB_16BPP,
+                                            TEXTURE_FORMAT_RGBA_16BPP,
+                                        };
+
+        // RGB isn't supported as a texture format, but we still need to supply it to the engine
+        // Later when a texture is created, we will convert it internally to RGBA.
+        context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
+
+        // https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkImageCreateInfo.html
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(texture_formats); ++i)
+        {
+            TextureFormat texture_format = texture_formats[i];
+            DXGI_FORMAT dxgi_format      = GetDXGIFormatFromTextureFormat(texture_format);
+
+            D3D12_FEATURE_DATA_FORMAT_SUPPORT query = {};
+            query.Format = dxgi_format;
+
+            HRESULT hr = context->m_Device->CheckFeatureSupport(
+                D3D12_FEATURE_FORMAT_SUPPORT,
+                &query,
+                sizeof(query)
+            );
+
+            if (SUCCEEDED(hr))
+            {
+                // TODO: Check for more fine-grained support, i.e "query.Support1 & D3D12_FORMAT_SUPPORT1_TEXTURE2D"
+                context->m_TextureFormatSupport |= 1 << texture_format;
+            }
+        }
+    }
+
     static bool MultiSamplingCountSupported(ID3D12Device* device, DXGI_FORMAT format, uint32_t requested_count)
     {
         D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS query = {};
@@ -463,6 +585,8 @@ namespace dmGraphics
         context->m_SwapChain = static_cast<IDXGISwapChain3*>(swap_chain_tmp);
 
         context->m_MSAASampleCount = GetClosestMultiSamplingCount(context->m_Device, color_format, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_SAMPLE_COUNT));
+
+        SetupSupportedTextureFormats(context);
 
         ////// MOVE THIS?
         D3D12_DESCRIPTOR_HEAP_DESC sampler_heap_desc = {};
@@ -1586,54 +1710,6 @@ namespace dmGraphics
         return D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
     }
 
-    static DXGI_FORMAT GetDXGIFormatFromTextureFormat(TextureFormat format)
-    {
-        switch(format)
-        {
-            case TEXTURE_FORMAT_LUMINANCE:         return DXGI_FORMAT_R8_UNORM;
-            case TEXTURE_FORMAT_LUMINANCE_ALPHA:   return DXGI_FORMAT_R8G8_UNORM;
-            case TEXTURE_FORMAT_RGB:               return DXGI_FORMAT_UNKNOWN; // Unsupported?
-            case TEXTURE_FORMAT_RGBA:              return DXGI_FORMAT_R8G8B8A8_UNORM;
-            case TEXTURE_FORMAT_RGB_16BPP:         return DXGI_FORMAT_UNKNOWN; // Unsupported
-            case TEXTURE_FORMAT_RGBA_16BPP:        return DXGI_FORMAT_R16G16B16A16_UNORM;
-            /*
-            TEXTURE_FORMAT_DEPTH:             return ;
-            TEXTURE_FORMAT_STENCIL:           return ;
-            TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:  return ;
-            TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:  return ;
-            TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1: return ;
-            TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1: return ;
-            TEXTURE_FORMAT_RGB_ETC1:          return ;
-            TEXTURE_FORMAT_R_ETC2:            return ;
-            TEXTURE_FORMAT_RG_ETC2:           return ;
-            TEXTURE_FORMAT_RGBA_ETC2:         return ;
-            TEXTURE_FORMAT_RGBA_ASTC_4x4:     return ;
-            TEXTURE_FORMAT_RGB_BC1: return ;
-            TEXTURE_FORMAT_RGBA_BC3: return ;
-            TEXTURE_FORMAT_R_BC4: return ;
-            TEXTURE_FORMAT_RG_BC5: return ;
-            TEXTURE_FORMAT_RGBA_BC7: return ;
-            // Floating point texture formats
-            TEXTURE_FORMAT_RGB16F: return ;
-            TEXTURE_FORMAT_RGB32F: return ;
-            TEXTURE_FORMAT_RGBA16F: return ;
-            TEXTURE_FORMAT_RGBA32F: return ;
-            TEXTURE_FORMAT_R16F: return ;
-            TEXTURE_FORMAT_RG16F: return ;
-            TEXTURE_FORMAT_R32F: return ;
-            TEXTURE_FORMAT_RG32F: return ;
-            // Internal formats (not exposed via script APIs)
-            TEXTURE_FORMAT_RGBA32UI: return ;
-            TEXTURE_FORMAT_BGRA8U: return ;
-            TEXTURE_FORMAT_R32UI: return ;
-            */
-        }
-
-        assert(0);
-
-        return (DXGI_FORMAT) -1;
-    }
-
 
     static inline DXGI_FORMAT GetDXGIFormat(Type type, uint16_t size, bool normalized)
     {
@@ -2006,8 +2082,7 @@ namespace dmGraphics
     {
         DX12ShaderProgram* program = context->m_CurrentProgram;
 
-        uint32_t texture_unit_start = program->m_UniformBufferCount;
-        uint32_t ubo_ix = 0;
+        uint32_t ix = 0;
 
         for (int set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
         {
@@ -2022,17 +2097,16 @@ namespace dmGraphics
                 {
                     case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
                     {
-                        uint32_t ix          = texture_unit_start + pgm_res.m_Res->m_Binding;
                         DX12Texture* texture = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, context->m_CurrentTextures[pgm_res.m_TextureUnit]);
 
                         if (pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
                         {
                             const DX12TextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
-                            frame_resources.m_ScratchBuffer.AllocateSampler(context, pipeline_type, sampler, ix);
+                            frame_resources.m_ScratchBuffer.AllocateSampler(context, pipeline_type, sampler, ix++);
                         }
                         else
                         {
-                            frame_resources.m_ScratchBuffer.AllocateTexture2D(context, pipeline_type, texture, ix);
+                            frame_resources.m_ScratchBuffer.AllocateTexture2D(context, pipeline_type, texture, ix++);
 
                             // Transition all mipmaps into pixel read state
                             for (int i = 0; i < texture->m_MipMapCount; ++i)
@@ -2052,9 +2126,8 @@ namespace dmGraphics
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         const uint32_t uniform_size_nonalign = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
-                        void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, pipeline_type, ubo_ix, uniform_size_nonalign);
+                        void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, pipeline_type, ix++, uniform_size_nonalign);
                         memcpy(gpu_mapped_memory, &program->m_UniformData[pgm_res.m_DataOffset], uniform_size_nonalign);
-                        ubo_ix++;
                     } break;
                     case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
                     default: continue;
@@ -2196,8 +2269,9 @@ namespace dmGraphics
                 const ShaderResourceBinding& texture_shader_res = texture_resources[shader_pgm_res.m_Res->m_BindingInfo.m_SamplerTextureIndex];
                 const ProgramResourceBinding& texture_pgm_res   = program->m_BaseProgram.m_ResourceBindings[texture_shader_res.m_Set][texture_shader_res.m_Binding];
                 shader_pgm_res.m_TextureUnit                    = texture_pgm_res.m_TextureUnit;
-            #if 0 // Debug
-                dmLogInfo("Resolving sampler at %d, %d to texture unit %d", shader_res.m_Set, shader_res.m_Binding, shader_pgm_res.m_TextureUnit);
+                shader_pgm_res.m_Res->m_Binding                        = texture_pgm_res.m_Res->m_Binding;
+            #if 1 // Debug
+                dmLogInfo("Resolving sampler at %d, %d to texture unit %d and binding to %d", shader_res.m_Set, shader_res.m_Binding, shader_pgm_res.m_TextureUnit, shader_pgm_res.m_Res->m_Binding);
             #endif
             }
         }
@@ -2267,6 +2341,8 @@ namespace dmGraphics
 
         CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
 
+        dmLogInfo("-----------------");
+
         bool is_compute = (ddf_cp != NULL);
 
         if (is_compute)
@@ -2274,7 +2350,7 @@ namespace dmGraphics
             program->m_ComputeModule = new DX12ShaderModule();
             memset(program->m_ComputeModule, 0, sizeof(DX12ShaderModule));
 
-            dmLogInfo("Source: %s", ddf_cp->m_Source.m_Data);
+            dmLogInfo("COMPUTE: %s", ddf_cp->m_Source.m_Data);
 
             HRESULT hr = CreateShaderModule(context, "cs_5_0", ddf_cp->m_Source.m_Data, ddf_cp->m_Source.m_Count, program->m_ComputeModule);
             CHECK_HR_ERROR(hr);
@@ -2289,8 +2365,12 @@ namespace dmGraphics
             memset(program->m_VertexModule, 0, sizeof(DX12ShaderModule));
             memset(program->m_FragmentModule, 0, sizeof(DX12ShaderModule));
 
+            dmLogInfo("VX SHader:\n %s", ddf_vp->m_Source.m_Data);
+
             HRESULT hr = CreateShaderModule(context, "vs_5_0", ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count, program->m_VertexModule);
             CHECK_HR_ERROR(hr);
+
+            dmLogInfo("FS SHader:\n %s", ddf_fp->m_Source.m_Data);
 
             hr = CreateShaderModule(context, "ps_5_0", ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count, program->m_FragmentModule);
             CHECK_HR_ERROR(hr);
@@ -2306,41 +2386,98 @@ namespace dmGraphics
         root_parameter_descs.SetSize(root_parameter_descs.Capacity());
 
         uint32_t texture_unit_start = program->m_UniformBufferCount;
-        uint32_t ubo_ix = 0;
+        uint32_t ix = 0;
 
         for (int set = 0; set < program->m_BaseProgram.m_MaxSet; ++set) {
             for (int binding = 0; binding < program->m_BaseProgram.m_MaxBinding; ++binding) {
                 ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
-                if (!pgm_res.m_Res) continue;
+
+                if (!pgm_res.m_Res)
+                    continue;
 
                 D3D12_SHADER_VISIBILITY visibility = GetShaderVisibilityFromStage(pgm_res.m_StageFlags);
 
-                switch (pgm_res.m_Res->m_BindingFamily) {
-                    case ShaderResourceBinding::BINDING_FAMILY_TEXTURE: {
-                        uint32_t ix = texture_unit_start + pgm_res.m_Res->m_Binding;
-
-                        if (pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER) {
-                            uint32_t sampler_binding = pgm_res.m_TextureUnit;
-                            CD3DX12_DESCRIPTOR_RANGE sampler_range(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, sampler_binding);
+                switch (pgm_res.m_Res->m_BindingFamily)
+                {
+                    case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                    {
+                        if (pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+                        {
+                            CD3DX12_DESCRIPTOR_RANGE sampler_range(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, pgm_res.m_Res->m_Binding);
                             root_parameter_descs[ix].InitAsDescriptorTable(1, &sampler_range, visibility);
-                        } else {
+                        }
+                        // UAVs
+                        else if (pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_IMAGE2D || 
+                                 pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_UIMAGE2D)
+                        {
+                            CD3DX12_DESCRIPTOR_RANGE uav_range(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, pgm_res.m_Res->m_Binding);
+                            root_parameter_descs[ix].InitAsDescriptorTable(1, &uav_range, visibility);
+                        }
+                        else
+                        {
                             CD3DX12_DESCRIPTOR_RANGE srv_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, pgm_res.m_Res->m_Binding);
                             root_parameter_descs[ix].InitAsDescriptorTable(1, &srv_range, visibility);
                         }
+
+                        ix++;
                     } break;
 
-                    case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER: {
-                        root_parameter_descs[ubo_ix].InitAsConstantBufferView(pgm_res.m_Res->m_Binding, 0, visibility);
-                        ubo_ix++;
+                    case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+                    {
+                        root_parameter_descs[ix].InitAsConstantBufferView(pgm_res.m_Res->m_Binding, 0, visibility);
+                        ix++;
                     } break;
 
-                    case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER: {
+                    case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                    {
                         // Optional: Add UAV support if needed
                         assert(0 && "Storage buffer not implemented.");
                     } break;
 
                     default: continue;
                 }
+            }
+        }
+
+        for (uint32_t i = 0; i < root_parameter_descs.Size(); ++i) {
+            const auto& param = root_parameter_descs[i];
+            printf("Root parameter [%u]: ", i);
+
+            switch (param.ParameterType) {
+                case D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE:
+                    printf("DESCRIPTOR_TABLE, visibility=%d\n", param.ShaderVisibility);
+                    for (UINT j = 0; j < param.DescriptorTable.NumDescriptorRanges; ++j) {
+                        const auto& range = param.DescriptorTable.pDescriptorRanges[j];
+                        const char* range_type_str = "UNKNOWN";
+                        switch (range.RangeType) {
+                            case D3D12_DESCRIPTOR_RANGE_TYPE_SRV: range_type_str = "SRV"; break;
+                            case D3D12_DESCRIPTOR_RANGE_TYPE_UAV: range_type_str = "UAV"; break;
+                            case D3D12_DESCRIPTOR_RANGE_TYPE_CBV: range_type_str = "CBV"; break;
+                            case D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER: range_type_str = "SAMPLER"; break;
+                        }
+                        printf("  Range [%u]: type=%s, base_register=t/u/b/s%u, num_descriptors=%u\n",
+                               j, range_type_str, range.BaseShaderRegister, range.NumDescriptors);
+                    }
+                    break;
+
+                case D3D12_ROOT_PARAMETER_TYPE_CBV:
+                    printf("CBV, shader_register=b%u, visibility=%d\n",
+                           param.Descriptor.ShaderRegister, param.ShaderVisibility);
+                    break;
+
+                case D3D12_ROOT_PARAMETER_TYPE_SRV:
+                    printf("SRV, shader_register=t%u, visibility=%d\n",
+                           param.Descriptor.ShaderRegister, param.ShaderVisibility);
+                    break;
+
+                case D3D12_ROOT_PARAMETER_TYPE_UAV:
+                    printf("UAV, shader_register=u%u, visibility=%d\n",
+                           param.Descriptor.ShaderRegister, param.ShaderVisibility);
+                    break;
+
+                default:
+                    printf("UNKNOWN PARAMETER TYPE\n");
+                    break;
             }
         }
 
@@ -2924,40 +3061,6 @@ namespace dmGraphics
         DX12SetTextureParamsInternal(g_DX12Context, tex, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
 
-    /*
-    case TEXTURE_FORMAT_LUMINANCE:          return VK_FORMAT_R8_UNORM;
-    case TEXTURE_FORMAT_LUMINANCE_ALPHA:    return VK_FORMAT_R8G8_UNORM;
-    case TEXTURE_FORMAT_RGB:                return VK_FORMAT_R8G8B8_UNORM;
-    case TEXTURE_FORMAT_RGBA:               return VK_FORMAT_R8G8B8A8_UNORM;
-    case TEXTURE_FORMAT_RGB_16BPP:          return VK_FORMAT_R5G6B5_UNORM_PACK16;
-    case TEXTURE_FORMAT_RGBA_16BPP:         return VK_FORMAT_R4G4B4A4_UNORM_PACK16;
-    case TEXTURE_FORMAT_DEPTH:              return VK_FORMAT_UNDEFINED;
-    case TEXTURE_FORMAT_STENCIL:            return VK_FORMAT_UNDEFINED;
-    case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   return VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG;
-    case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   return VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG;
-    case dTEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  return VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG;
-    case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  return VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG;
-    case TEXTURE_FORMAT_RGB_ETC1:           return VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
-    case TEXTURE_FORMAT_RGBA_ETC2:          return VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
-    case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return VK_FORMAT_ASTC_4x4_UNORM_BLOCK;
-    case TEXTURE_FORMAT_RGB_BC1:            return VK_FORMAT_BC1_RGB_UNORM_BLOCK;
-    case TEXTURE_FORMAT_RGBA_BC3:           return VK_FORMAT_BC3_UNORM_BLOCK;
-    case TEXTURE_FORMAT_RGBA_BC7:           return VK_FORMAT_BC7_UNORM_BLOCK;
-    case TEXTURE_FORMAT_R_BC4:              return VK_FORMAT_BC4_UNORM_BLOCK;
-    case TEXTURE_FORMAT_RG_BC5:             return VK_FORMAT_BC5_UNORM_BLOCK;
-    case TEXTURE_FORMAT_RGB16F:             return VK_FORMAT_R16G16B16_SFLOAT;
-    case TEXTURE_FORMAT_RGB32F:             return VK_FORMAT_R32G32B32_SFLOAT;
-    case TEXTURE_FORMAT_RGBA16F:            return VK_FORMAT_R16G16B16A16_SFLOAT;
-    case TEXTURE_FORMAT_RGBA32F:            return VK_FORMAT_R32G32B32A32_SFLOAT;
-    case TEXTURE_FORMAT_R16F:               return VK_FORMAT_R16_SFLOAT;
-    case TEXTURE_FORMAT_RG16F:              return VK_FORMAT_R16G16_SFLOAT;
-    case TEXTURE_FORMAT_R32F:               return VK_FORMAT_R32_SFLOAT;
-    case TEXTURE_FORMAT_RG32F:              return VK_FORMAT_R32G32_SFLOAT;
-    case TEXTURE_FORMAT_RGBA32UI:           return VK_FORMAT_R32G32B32A32_UINT;
-    case TEXTURE_FORMAT_BGRA8U:             return VK_FORMAT_B8G8R8A8_UNORM;
-    case TEXTURE_FORMAT_R32UI:              return VK_FORMAT_R32_UINT;
-    default:                                return VK_FORMAT_UNDEFINED;
-        */
     static void DX12SetTexture(HTexture texture, const TextureParams& params)
     {
         // Same as graphics_opengl.cpp

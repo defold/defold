@@ -28,6 +28,7 @@ import com.dynamo.bob.pipeline.ShadercJni;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.MurmurHash;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
@@ -457,9 +458,64 @@ public class ShaderCompilePipeline {
 
             // If we are cross-compiling a compute shader to HLSL, we need to inject an extra resource into the reflection,
             // because there is no gl_NumWorkGroups equivalent in HLSL
-            if (result.hLSLNumWorkGroupsId != 0xff)
+            if (result.hLSLNumWorkGroupsId >= 0)
             {
-                
+                // This is what the generated cbuffer looks like:
+                //
+                // cbuffer SPIRV_Cross_NumWorkgroups : register(b3)
+                // {
+                //     uint3 SPIRV_Cross_NumWorkgroups_1_count : packoffset(c0);
+                // };
+
+                /*
+                public static class ResourceType {
+                    public BaseType baseType = BaseType.BASE_TYPE_UNKNOWN;
+                    public DimensionType dimensionType = DimensionType.DIMENSION_TYPE_1D;
+                    public ImageStorageType imageStorageType = ImageStorageType.IMAGE_STORAGE_TYPE_UNKNOWN;
+                    public ImageAccessQualifier imageAccessQualifier = ImageAccessQualifier.IMAGE_ACCESS_QUALIFIER_READ_ONLY;
+                    public BaseType imageBaseType = BaseType.BASE_TYPE_UNKNOWN;
+                    public int typeIndex = 0;
+                    public int vectorSize = 0;
+                    public int columnCount = 0;
+                    public int arraySize = 0;
+                    public boolean useTypeIndex = false;
+                    public boolean imageIsArrayed = false;
+                    public boolean imageIsStorage = false;
+                };
+                */
+
+                Shaderc.ResourceType type = new Shaderc.ResourceType();
+                type.useTypeIndex = true;
+
+                // type.typeIndex = TODO
+
+                /*
+                public static class ResourceMember {
+                    public String name;
+                    public long nameHash = 0;
+                    public ResourceType type;
+                    public int offset = 0;
+                };
+                public static class ResourceTypeInfo {
+                    public String name;
+                    public long nameHash = 0;
+                    public ResourceMember[] members;
+                };
+                */
+
+                Shaderc.ShaderResource hLSLNumWorkGroupsId = new Shaderc.ShaderResource();
+                hLSLNumWorkGroupsId.name             = "SPIRV_Cross_NumWorkgroups";
+                hLSLNumWorkGroupsId.nameHash         = MurmurHash.hash64(hLSLNumWorkGroupsId.name);
+                hLSLNumWorkGroupsId.instanceName     = null;
+                hLSLNumWorkGroupsId.blockSize        = 12; // uint3 == 3 x uint32
+                hLSLNumWorkGroupsId.binding          = result.hLSLNumWorkGroupsId;
+                hLSLNumWorkGroupsId.set              = 0;
+                hLSLNumWorkGroupsId.stageFlags       = (byte) Shaderc.ShaderStage.SHADER_STAGE_COMPUTE.getValue();
+                hLSLNumWorkGroupsId.type             = type;
+
+                module.spirvReflector.addUBO(hLSLNumWorkGroupsId);
+
+                System.out.println("HLSL GROUP ID: " + result.hLSLNumWorkGroupsId);
             }
 
             return bytes;
