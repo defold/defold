@@ -51,6 +51,8 @@ import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.TreeSet;
@@ -1123,23 +1125,43 @@ public class Fontc {
                 ImageIO.write(previewImage, "png", new File(outfile + "_preview.png"));
             }
 
-            // Write glyph bank next to the output .fontc file
-            String glyphBankOutputPath             = outfile.replace(".fontc", ".glyph_bankc");
-            FileOutputStream glyphBankOutputStream = new FileOutputStream(glyphBankOutputPath);
-            fontc.getGlyphBank().writeTo(glyphBankOutputStream);
-
-            // Construct the project-relative path based from the input font file
-            Path basedirAbsolutePath   = Paths.get(basedir).toAbsolutePath();
-            Path glyphBankProjectPath  = Paths.get(fontInput.getAbsolutePath().replace(".font", ".glyph_bankc"));
-            Path glyphBankRelativePath = basedirAbsolutePath.relativize(glyphBankProjectPath);
-            String glyphBankProjectStr = "/" + glyphBankRelativePath.toString().replace("\\","/");
-
-            // Write fontmap file
-            FileOutputStream fontMapOutputStream = new FileOutputStream(outfile);
+            Path basedirAbsolutePath = Paths.get(basedir).toAbsolutePath();
 
             FontMap.Builder fontMapBuilder = FontMap.newBuilder();
             fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
-            fontMapBuilder.setGlyphBank(glyphBankProjectStr);
+
+            if (!fontDesc.getDynamic())
+            {
+                // Construct the project-relative path based from the input font file
+                Path glyphBankProjectPath  = Paths.get(fontInput.getAbsolutePath().replace(".font", ".glyph_bankc"));
+                Path glyphBankRelativePath = basedirAbsolutePath.relativize(glyphBankProjectPath);
+                String glyphBankProjectStr = "/" + glyphBankRelativePath.toString().replace("\\","/");
+
+                fontMapBuilder.setGlyphBank(glyphBankProjectStr);
+
+                // Write glyph bank next to the output .fontc file
+                String glyphBankOutputPath             = outfile.replace(".fontc", ".glyph_bankc");
+                FileOutputStream glyphBankOutputStream = new FileOutputStream(glyphBankOutputPath);
+                fontc.getGlyphBank().writeTo(glyphBankOutputStream);
+            }
+            else
+            {
+                if (fontDesc.getOutputFormat() != FontTextureFormat.TYPE_DISTANCE_FIELD) {
+                    System.err.printf("Dynamic fonts currently only support distance fields! '%s'\n", fontInput);
+                    System.exit(1);
+                }
+
+                fontMapBuilder.setFont(fontDesc.getFont());
+
+                File src = new File(fontInputFile);
+
+                Path fontProjectPath  = Paths.get(fontInput.getAbsolutePath());
+                Path ttfRelativePath = basedirAbsolutePath.relativize(fontProjectPath.getParent());
+
+                File outFontc = new File(outfile);
+                File dst = new File(outFontc.getParent(), src.getName());
+                Files.copy(src.toPath(), dst.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
 
             fontMapBuilder.setSize(fontDesc.getSize());
             fontMapBuilder.setAntialias(fontDesc.getAntialias());
@@ -1151,9 +1173,13 @@ public class Fontc {
             fontMapBuilder.setOutlineAlpha(fontDesc.getOutlineAlpha());
             fontMapBuilder.setOutlineWidth(fontDesc.getOutlineWidth());
             fontMapBuilder.setLayerMask(GetFontMapLayerMask(fontDesc));
+            fontMapBuilder.setDynamic(fontDesc.getDynamic());
 
             fontMapBuilder.setOutputFormat(fontDesc.getOutputFormat());
             fontMapBuilder.setRenderMode(fontDesc.getRenderMode());
+
+            // Write fontmap file
+            FileOutputStream fontMapOutputStream = new FileOutputStream(outfile);
 
             fontMapBuilder.build().writeTo(fontMapOutputStream);
 
