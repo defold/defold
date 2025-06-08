@@ -62,13 +62,13 @@ namespace dmFont
      * GlyphBitmapFlags
      * @enum
      * @name GlyphBitmapFlags
-     * @member GLYPH_BM_FLAG_NONE = 0
-     * @member GLYPH_BM_FLAG_RLE_COMRESSION = 1
+     * @member GLYPH_BM_FLAG_COMPRESSION_NONE = 0
+     * @member GLYPH_BM_FLAG_COMPRESSION_DEFLATE = 1
      */
     enum GlyphBitmapFlags
     {
-        GLYPH_BM_FLAG_NONE = 0,
-        GLYPH_BM_FLAG_RLE_COMRESSION = 1,
+        GLYPH_BM_FLAG_COMPRESSION_NONE = 0,
+        GLYPH_BM_FLAG_COMPRESSION_DEFLATE = 1,
     };
 
     /*#

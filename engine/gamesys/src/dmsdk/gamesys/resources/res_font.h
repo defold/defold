@@ -17,6 +17,7 @@
 
 #include <dmsdk/resource/resource.h>
 #include <render/font_ddf.h>
+#include <dmsdk/font/font.h>
 #include <dmsdk/render/render.h>
 
 namespace dmGameSystem
@@ -92,8 +93,8 @@ namespace dmGameSystem
      */
     enum FontGlyphCompression
     {
-        FONT_GLYPH_COMPRESSION_NONE = 0,
-        FONT_GLYPH_COMPRESSION_DEFLATE = 1,
+        FONT_GLYPH_COMPRESSION_NONE = dmFont::GLYPH_BM_FLAG_COMPRESSION_NONE,
+        FONT_GLYPH_COMPRESSION_DEFLATE = dmFont::GLYPH_BM_FLAG_COMPRESSION_DEFLATE,
     };
 
     static const uint32_t WHITESPACE_TAB               = 0x09;      // '\t'

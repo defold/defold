@@ -132,6 +132,7 @@ namespace dmFontView
             window_params.m_Height           = 540;
             window_params.m_Title            = "FontView";
             window_params.m_ContextAlphabits = 8;
+            window_params.m_GraphicsApi      = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
 
             dmPlatform::OpenWindow(context->m_Window, window_params);
 
@@ -197,8 +198,11 @@ namespace dmFontView
 
     void Finalize(Context* context)
     {
-        dmHID::Final(context->m_HidContext);
-        dmHID::DeleteContext(context->m_HidContext);
+        if (context->m_HidContext)
+        {
+            dmHID::Final(context->m_HidContext);
+            dmHID::DeleteContext(context->m_HidContext);
+        }
 
         if (context->m_Factory)
         {
@@ -207,9 +211,13 @@ namespace dmFontView
         }
         if (context->m_RenderContext)
             dmRender::DeleteRenderContext(context->m_RenderContext, 0);
-        dmGraphics::DeleteContext(context->m_GraphicsContext);
+        if (context->m_GraphicsContext)
+            dmGraphics::DeleteContext(context->m_GraphicsContext);
 
-        dmPlatform::CloseWindow(context->m_Window);
-        dmPlatform::DeleteWindow(context->m_Window);
+        if (context->m_Window)
+        {
+            dmPlatform::CloseWindow(context->m_Window);
+            dmPlatform::DeleteWindow(context->m_Window);
+        }
     }
 }

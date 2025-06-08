@@ -242,16 +242,10 @@ namespace dmGameSystem
     // Api for the font renderer
     static dmRender::FontGlyph* GetDynamicGlyph(uint32_t codepoint, FontResource* resource)
     {
-        if (!resource->m_DynamicGlyphs.Empty())
-        {
-            DynamicGlyph** dynglyphp = resource->m_DynamicGlyphs.Get(codepoint);
-            if (dynglyphp)
-                return &(*dynglyphp)->m_Glyph;
-            return 0;
-        }
-
-        dmRender::FontGlyph** glyphp = resource->m_Glyphs.Get(codepoint);
-        return glyphp ? *glyphp : 0;
+        DynamicGlyph** dynglyphp = resource->m_DynamicGlyphs.Get(codepoint);
+        if (dynglyphp)
+            return &(*dynglyphp)->m_Glyph;
+        return 0;
     }
 
     // Api for the font renderer
@@ -395,6 +389,7 @@ namespace dmGameSystem
             result = dmResource::Get(factory, ddf->m_Font, (void**) &font_map->m_TTFResource);
             if (result != dmResource::RESULT_OK)
             {
+                dmLogError("Failed to find font '%s': %d\n", ddf->m_Font, result);
                 ReleaseResources(factory, font_map);
                 return result;
             }
@@ -429,7 +424,7 @@ namespace dmGameSystem
         params->m_SdfShadow          = ddf->m_SdfShadow;
     }
 
-    static void SetupParamsForDynamiFont(dmRenderDDF::FontMap* ddf, const char* filename, dmRender::FontMapParams* params)
+    static void SetupParamsForDynamicFont(dmRenderDDF::FontMap* ddf, const char* filename, dmRender::FontMapParams* params)
     {
         if (ddf->m_ShadowBlur > 0.0f && ddf->m_ShadowAlpha > 0.0f) {
             params->m_GlyphChannels = 3;
@@ -469,8 +464,9 @@ namespace dmGameSystem
     {
         dmRender::FontMapParams params;
         SetupParamsBase(ddf, path, &params);
+
         if (ddf->m_Dynamic)
-            SetupParamsForDynamiFont(ddf, path, &params);
+            SetupParamsForDynamicFont(ddf, path, &params);
         else
             SetupParamsForGlyphBank(ddf, path, font_map->m_GlyphBankResource->m_DDF, &params);
 
@@ -499,54 +495,6 @@ namespace dmGameSystem
         dmRender::SetFontMapUserData(font_map->m_FontMap, (void*)font_map);
         return dmResource::RESULT_OK;
     }
-
-    // static dmResource::Result CreateFontDynamic(dmRender::HRenderContext context,
-    //                                 dmRenderDDF::FontMap* ddf, const char* path, FontResource* font_map)
-    // {
-    //     if (ddf->m_OutputFormat != dmRenderDDF::TYPE_DISTANCE_FIELD)
-    //     {
-    //         dmLogError("Currently only distance field fonts are supported: %s", path);
-    //         return dmResource::RESULT_NOT_SUPPORTED;
-    //     }
-
-    //     dmResource::Result r = CreateFont(context, ddf, font_map, path);
-    //     if (r != dmResource::RESULT_OK)
-    //     {
-    //         return r;
-    //     }
-
-    //     // // Prewarm cache
-    //     // font_map->m_Jobs = dmResource::GetJobThread(factory);
-    //     // // Use the default ttf resource for prewarming
-    //     // //PrewarmDynamicGlyphs(resource, ttfresource, ddf->m_AllChars, ddf->m_Characters);
-
-    //     // AddFontRange(font_map, 0, 0xFFFFFFFF, font_map->m_TTFResource); // Add the default font/range
-
-    //     return dmResource::RESULT_OK;
-    // }
-
-    // static dmResource::Result CreateFontWithGlyphBank(dmRender::HRenderContext context,
-    //                                 dmRenderDDF::FontMap* ddf, const char* path, FontResource* font_map)
-    // {
-    //     dmResource::Result r = CreateFont(context, ddf, font_map, path);
-    //     if (r != dmResource::RESULT_OK)
-    //     {
-    //         return r;
-    //     }
-
-    //     // Add all glyphs into a lookup table
-    //     dmRenderDDF::GlyphBank* glyph_bank = font_map->m_GlyphBankResource->m_DDF;
-    //     uint32_t glyph_count = glyph_bank->m_Glyphs.m_Count;
-    //     font_map->m_Glyphs.Clear();
-    //     font_map->m_Glyphs.OffsetCapacity(dmMath::Max(1U, glyph_count));
-    //     for (uint32_t i = 0; i < glyph_count; ++i)
-    //     {
-    //         dmRenderDDF::GlyphBank::Glyph* glyph = &glyph_bank->m_Glyphs[i];
-    //         font_map->m_Glyphs.Put(glyph->m_Character, glyph);
-    //     }
-
-    //     return dmResource::RESULT_OK;
-    // }
 
     static dmResource::Result PostCreateFont(dmResource::HFactory factory, const char* path, FontResource* font_map)
     {

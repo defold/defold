@@ -167,7 +167,7 @@ FontResult GetGlyphTTF(HFont hfont, uint32_t codepoint, const GlyphOptions* opti
 
         if (glyph->m_Bitmap.m_Data)
         {
-            glyph->m_Bitmap.m_Flags = dmFont::GLYPH_BM_FLAG_NONE;
+            glyph->m_Bitmap.m_Flags = dmFont::GLYPH_BM_FLAG_COMPRESSION_NONE;
             glyph->m_Bitmap.m_Width = srcw;
             glyph->m_Bitmap.m_Height = srch;
             glyph->m_Bitmap.m_Channels = 1;

@@ -1673,7 +1673,7 @@ TEST_F(FontTest, GlyphBankTest)
 
 TEST_F(FontTest, DynamicGlyph)
 {
-    const char path_font[] = "/font/glyph_bank_test_1.fontc";
+    const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
     dmGameSystem::FontResource* font;
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font, (void**) &font));
@@ -1685,14 +1685,7 @@ TEST_F(FontTest, DynamicGlyph)
 
     {
         dmRender::FontGlyph* glyph = dmRender::GetGlyph(font_map, codepoint);
-        ASSERT_NE((void*)0, glyph);
-
-        ASSERT_EQ(codepoint, glyph->m_Character);
-        ASSERT_EQ(14U, glyph->m_Width);
-        ASSERT_EQ(13U, glyph->m_Ascent);
-        ASSERT_EQ(2U, glyph->m_Descent);
-        ASSERT_EQ(0.0f, glyph->m_LeftBearing);
-        ASSERT_EQ(8.0f, glyph->m_Advance);
+        ASSERT_EQ((void*)0, glyph);
     }
 
     // Add a new glyph
@@ -1720,7 +1713,7 @@ TEST_F(FontTest, DynamicGlyph)
     }
 
     {
-        uint32_t glyph_data_compression; // E.g. FONT_MAP_GLYPH_COMPRESSION_NONE;
+        uint32_t glyph_data_compression; // E.g. FONT_GLYPH_COMPRESSION_NONE;
         uint32_t glyph_data_size = 0;
         uint32_t glyph_image_width = 0;
         uint32_t glyph_image_height = 0;
@@ -1731,14 +1724,14 @@ TEST_F(FontTest, DynamicGlyph)
         dmRender::FontGlyph* glyph = dmRender::GetGlyph(font_map, codepoint);
         ASSERT_NE((void*)0, glyph);
 
-        ASSERT_EQ(0U, glyph_data_compression);
+        ASSERT_EQ((uint32_t)dmRender::FONT_GLYPH_COMPRESSION_NONE, glyph_data_compression);
         ASSERT_EQ(data_size-1, glyph_data_size);
         ASSERT_EQ(8U, glyph_image_width);
         ASSERT_EQ(9U, glyph_image_height);
         ASSERT_EQ(3U, glyph_image_channels);
 
         ASSERT_EQ(codepoint, glyph->m_Character);
-        ASSERT_EQ(1U + glyph_padding * 2, glyph->m_Width);
+        ASSERT_EQ(1U, glyph->m_Width);
         ASSERT_EQ(8U, glyph->m_ImageWidth);
         ASSERT_EQ(4.0f, glyph->m_Advance);
         ASSERT_EQ(5.0f, glyph->m_LeftBearing);
