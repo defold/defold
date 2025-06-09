@@ -1749,10 +1749,6 @@ namespace dmGameObject
                 {
                     return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64Alloc(&hash_ctx, dmGameObject::GetIdentifier(todelete)));
                 }
-                if (todelete->m_Generated)
-                {
-                    dmScript::ReleaseHash(L, todelete->m_Identifier);
-                }
                 dmGameObject::Delete(hcollection, todelete, recursive);
             }
             else
@@ -1871,10 +1867,6 @@ namespace dmGameObject
         {
             DM_HASH_REVERSE_MEM(hash_ctx, 256);
             return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64Alloc(&hash_ctx, dmGameObject::GetIdentifier(instance)));
-        }
-        if (instance->m_Generated)
-        {
-            dmScript::ReleaseHash(L, instance->m_Identifier);
         }
         dmGameObject::HCollection collection = instance->m_Collection->m_HCollection;
         dmGameObject::Delete(collection, instance, recursive);

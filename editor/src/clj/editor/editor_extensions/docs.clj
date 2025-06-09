@@ -40,7 +40,8 @@
                              :doc "Resource path (starting with <code>/</code>)"}
         transaction-step-param {:name "tx"
                                 :types ["transaction_step"]
-                                :doc "A transaction step"}]
+                                :doc "A transaction step"}
+        boolean-ret-param {:name "value" :types ["boolean"] :doc ""}]
     (vec
       (e/concat
         [{:name "editor"
@@ -56,24 +57,23 @@
          {:name "editor.can_get"
           :type :function
           :parameters [node-param property-param]
-          :returnvalues [{:name "value"
-                          :types ["boolean"]
-                          :doc ""}]
+          :returnvalues [boolean-ret-param]
           :description "Check if you can get this property so `editor.get()` won't throw an error"}
          {:name "editor.can_add"
           :type :function
           :parameters [node-param property-param]
-          :returnvalues [{:name "value"
-                          :types ["boolean"]
-                          :doc ""}]
+          :returnvalues [boolean-ret-param]
           :description "Check if `editor.tx.add()` (as well as `editor.tx.clear()` and `editor.tx.remove()`) transaction with this property won't throw an error"}
          {:name "editor.can_set"
           :type :function
           :parameters [node-param property-param]
-          :returnvalues [{:name "value"
-                          :types ["boolean"]
-                          :doc ""}]
+          :returnvalues [boolean-ret-param]
           :description "Check if `editor.tx.set()` transaction with this property won't throw an error"}
+         {:name "editor.can_reorder"
+          :type :function
+          :parameters [node-param property-param]
+          :returnvalues [boolean-ret-param]
+          :description "Check if `editor.tx.reorder()` transaction with this property won't throw an error"}
          {:name "editor.command"
           :type :function
           :description "Create an editor command"
@@ -296,6 +296,11 @@ editor.command({
           :parameters [node-param property-param (assoc node-param :name "child_node")]
           :returnvalues [transaction-step-param]
           :description "Create a transaction step that will remove a child node from the node's list property when transacted with `editor.transact()`."}
+         {:name "editor.tx.reorder"
+          :type :function
+          :parameters [node-param property-param {:name "child_nodes" :types ["table"] :doc "array of child nodes (the same as returned by <code>editor.get(node, property)</code>) in new order"}]
+          :returnvalues [transaction-step-param]
+          :description "Create a transaction step that reorders child nodes in a node list defined by the property if supported (see <code>editor.can_reorder()</code>)"}
          {:name "editor.version"
           :type :variable
           :description "A string, version name of Defold"}
@@ -710,6 +715,74 @@ http.server.route(
                                                                           {:name "build_report" :types ["boolean"]}
                                                                           {:name "liveupdate" :types ["boolean"]}
                                                                           {:name "contentless" :types ["boolean"]}]))}]}])
+        (let [tiles-param {:name "tiles" :types ["tiles"] :doc "unbounded 2d grid of tiles"}
+              x-param {:name "x" :types ["integer"] :doc "x coordinate of a tile"}
+              y-param {:name "y" :types ["integer"] :doc "y coordinate of a tile"}
+              tile-doc "1-indexed tile index of a tilemap's tilesource"
+              info-doc (str "full tile information table with the following keys:"
+                            (lua-completion/args-doc-html
+                              [{:name "index" :types ["integer"] :doc tile-doc}
+                               {:name "h_flip" :types ["boolean"] :doc "horizontal flip"}
+                               {:name "v_flip" :types ["boolean"] :doc "vertical flip"}
+                               {:name "rotate_90" :types ["boolean"] :doc "whether the tile is rotated 90 degrees clockwise"}]))
+              tile-param {:name "tile_index" :types ["integer"] :doc tile-doc}
+              info-param {:name "info" :types ["table"] :doc info-doc}]
+          [{:name "tilemap"
+            :type :module
+            :description "Module for manipulating tilemaps"}
+           {:name "tilemap.tiles"
+            :type :module
+            :description "Module for manipulating tiles on a tilemap layer"}
+           {:name "tilemap.tiles.new"
+            :type :function
+            :description "Create a new unbounded 2d grid data structure for storing tilemap layer tiles"
+            :parameters []
+            :returnvalues [tiles-param]}
+           {:name "tilemap.tiles.get_tile"
+            :type :function
+            :description "Get a tile index at a particular coordinate"
+            :parameters [tiles-param x-param y-param]
+            :returnvalues [tile-param]}
+           {:name "tilemap.tiles.get_info"
+            :type :function
+            :description "Get full information from a tile at a particular coordinate"
+            :parameters [tiles-param x-param y-param]
+            :returnvalues [info-param]}
+           {:name "tilemap.tiles.iterator"
+            :type :function
+            :description "Create an iterator over all tiles in a tiles data structure\n\nWhen iterating using for loop, each iteration returns x, y and tile index of a tile in a tile map"
+            :parameters [tiles-param]
+            :returnvalues [{:name "iter" :types ["function"] :doc "iterator"}]
+            :examples "Iterate over all tiles in a tile map:
+```
+local layers = editor.get(\"/level.tilemap\", \"layers\")
+for i = 1, #layers do
+  local tiles = editor.get(layers[i], \"tiles\")
+  for x, y, i in tilemap.tiles.iterator(tiles) do
+    print(x, y, i)
+  end
+end
+```"}
+           {:name "tilemap.tiles.clear"
+            :type :function
+            :description "Remove all tiles"
+            :parameters [tiles-param]
+            :returnvalues [tiles-param]}
+           {:name "tilemap.tiles.set"
+            :type :function
+            :description "Set a tile at a particular coordinate"
+            :parameters [tiles-param
+                         x-param
+                         y-param
+                         {:name "tile_or_info"
+                          :types ["integer" "table"]
+                          :doc (str "Either " tile-doc " or " info-doc)}]
+            :returnvalues [tiles-param]}
+           {:name "tilemap.tiles.remove"
+            :type :function
+            :description "Remove a tile at a particular coordinate"
+            :parameters [tiles-param x-param y-param]
+            :returnvalues [tiles-param]}])
         [{:name "zip"
           :type :module
           :description "Module for manipulating zip archives"}

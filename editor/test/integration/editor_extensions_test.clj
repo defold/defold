@@ -865,14 +865,18 @@ nesting:
         (or (@hash->stable-id s)
             ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
 
+(defn- expect-script-output [expected actual]
+  (let [actual (normalize-pprint-output (str actual))]
+    (let [output-matches-expectation (= expected actual)]
+      (when-not output-matches-expectation
+        (is output-matches-expectation (string/join "\n" (diff/make-diff-output-lines actual expected 3)))))))
+
 (deftest pprint-test
   (test-util/with-loaded-project "test/resources/editor_extensions/pprint-test"
     (let [out (StringBuilder.)]
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
-      (let [actual (normalize-pprint-output (str out))]
-        (is (= actual expected-pprint-output)
-            (string/join "\n" (diff/make-diff-output-lines actual expected-pprint-output 3)))))))
+      (expect-script-output expected-pprint-output out))))
 
 (def expected-http-test-output
   "GET http://localhost:23000 => error (ConnectException)
@@ -912,9 +916,7 @@ POST http://localhost:23456/echo hello world! as string => 200
         (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
         ;; See test.editor_script: the test invokes http.request with various options and prints results
         (run-edit-menu-test-command!)
-        (let [actual (normalize-pprint-output (str out))]
-          (is (= actual expected-http-test-output)
-              (string/join "\n" (diff/make-diff-output-lines actual expected-http-test-output 3))))
+        (expect-script-output expected-http-test-output out)
         (finally
           (http-server/stop! server 0))))))
 
@@ -1101,9 +1103,7 @@ GET /test/resources/test.json as json => 200
                                 :display-output! #(doto out (.append %2) (.append \newline))
                                 :web-server server)
         (run-edit-menu-test-command!)
-        (let [actual (normalize-pprint-output (.toString out))]
-          (is (= expected-http-server-test-output actual)
-              (string/join "\n" (diff/make-diff-output-lines actual expected-http-server-test-output 3))))))))
+        (expect-script-output expected-http-server-test-output out)))))
 
 (deftest property-availability-test
   (test-util/with-loaded-project "test/resources/editor_extensions/property_availability_project"
@@ -1119,14 +1119,71 @@ GET /test/resources/test.json as json => 200
                             :properties
                             vals
                             (map #(assoc % :outline outline)))))
-             (keep (fn [{:keys [outline key edit-type] :as p}]
+             (run! (fn [{:keys [outline key] :as p}]
                      (let [{:keys [node-id]} outline
                            ext-key (string/replace (name key) \- \_)]
-                       (when-not (contains? #{:editor.properties.CurveSpread :editor.properties.Curve} (:k (:type edit-type)))
-                         (is (some? (graph/ext-value-getter node-id ext-key ec)))
-                         (when-not (properties/read-only? p)
-                           (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))
-             dorun)))))
+                       (is (some? (graph/ext-value-getter node-id ext-key ec)))
+                       (when-not (properties/read-only? p)
+                         (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))))))
+
+(def ^:private expected-tilemap-test-output
+  "new => {
+}
+fill 3x3 => {
+  [1, 1] = 2
+  [2, 1] = 2
+  [3, 1] = 2
+  [1, 2] = 2
+  [2, 2] = 2
+  [3, 2] = 2
+  [1, 3] = 2
+  [2, 3] = 2
+  [3, 3] = 2
+}
+remove center => {
+  [1, 1] = 2
+  [2, 1] = 2
+  [3, 1] = 2
+  [1, 2] = 2
+  [3, 2] = 2
+  [1, 3] = 2
+  [2, 3] = 2
+  [3, 3] = 2
+}
+clear => {
+}
+set using table => {
+  [8, 8] = 1
+}
+get tile: 1
+get info:
+  h_flip: true
+  index: 1
+  v_flip: true
+  rotate_90: true
+non-existent tile: nil
+non-existent info: nil
+negative keys => {
+  [-100, -100] = 1
+  [8, 8] = 1
+}
+create a layer with tiles...
+tiles from the graph => {
+  [-100, -100] = 1
+  [8, 8] = 1
+}
+set layer tiles to new value...
+new tiles from the graph => {
+  [8, 8] = 2
+}
+")
+
+(deftest tile-map-editing-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/tilemap_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-tilemap-test-output out))))
 
 (def ^:private expected-attachment-test-output
   "Atlas initial state:
@@ -1208,6 +1265,131 @@ After transaction (clear):
   animations: 0
   collision groups: 0
   tile collision groups: 0
+Tilemap initial state:
+  layers: 0
+Transaction: add 2 layers
+After transaction (add 2 layers):
+  layers: 2
+    layer: background
+    tiles: {
+      [1, 1] = 1
+      [2, 1] = 2
+      [3, 1] = 3
+      [1, 2] = 2
+      [2, 2] = 2
+      [3, 2] = 3
+      [1, 3] = 3
+      [2, 3] = 3
+      [3, 3] = 3
+    }
+    layer: items
+    tiles: {
+      [2, 2] = 3
+    }
+Transaction: clear tilemap
+After transaction (clear):
+  layers: 0
+Particlefx initial state:
+  emitters: 0
+  modifiers: 0
+Transaction: add emitter and modifier
+After transaction (add emitter and modifier):
+  emitters: 1
+    emitter: emitter
+    modifiers: 2
+      modifier: modifier-type-vortex
+      modifier: modifier-type-drag
+  modifiers: 1
+    modifier: modifier-type-acceleration
+Transaction: clear particlefx
+After transaction (clear):
+  emitters: 0
+  modifiers: 0
+Collision object initial state:
+  shapes: 0
+Transaction: add 3 shapes
+After transaction (add 3 shapes):
+  shapes: 3
+  - id: box
+    type: shape-type-box
+    dimensions: 20 20 20
+  - id: sphere
+    type: shape-type-sphere
+    diameter: 20
+  - id: capsule
+    type: shape-type-capsule
+    diameter: 20
+    height: 40
+Transaction: clear
+After transaction (clear):
+  shapes: 0
+Expected errors:
+  missing type => type is required
+  wrong type => box is not shape-type-box, shape-type-capsule or shape-type-sphere
+GUI initial state:
+  layers: 0
+  materials: 0
+  particlefxs: 0
+  textures: 0
+  layouts: 0
+Transaction: edit GUI
+After transaction (edit):
+  layers: 2
+    layer: bg
+    layer: fg
+  materials: 4
+    material: material
+    material: test /test.material
+    material: test1 /test.material
+    material: material1
+  particlefxs: 3
+    particlefx: particlefx
+    particlefx: test /test.particlefx
+    particlefx: particlefx1
+  textures: 2
+    texture: test /test.tilesource
+    texture: test1 /test.atlas
+  layouts: 2
+    layout: Landscape
+    layout: Portrait
+can reorder layers: true
+Transaction: reorder
+After transaction (reorder):
+  layers: 2
+    layer: fg
+    layer: bg
+  materials: 4
+    material: material
+    material: test /test.material
+    material: test1 /test.material
+    material: material1
+  particlefxs: 3
+    particlefx: particlefx
+    particlefx: test /test.particlefx
+    particlefx: particlefx1
+  textures: 2
+    texture: test /test.tilesource
+    texture: test1 /test.atlas
+  layouts: 2
+    layout: Landscape
+    layout: Portrait
+Expected reorder errors:
+  undefined property => GuiSceneNode does not define \"not-a-property\"
+  reorder not defined => CollisionObjectNode does not support \"shapes\" reordering
+  duplicates => Reordered child nodes are not the same as current child nodes
+  missing children => Reordered child nodes are not the same as current child nodes
+  wrong child nodes => Reordered child nodes are not the same as current child nodes
+Transaction: clear GUI
+Expected layout errors:
+  no name => layout name is required
+  unknown profile => \"Not a profile\" is not \"Landscape\" or \"Portrait\"
+  duplicates => \"Landscape\" is not \"Portrait\"
+After transaction (clear):
+  layers: 0
+  materials: 0
+  particlefxs: 0
+  textures: 0
+  layouts: 0
 ")
 
 (deftest attachment-properties-test
@@ -1215,9 +1397,7 @@ After transaction (clear):
     (let [out (StringBuilder.)]
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
-      (let [actual (.toString out)]
-        (is (= expected-attachment-test-output actual)
-            (string/join "\n" (diff/make-diff-output-lines actual expected-attachment-test-output 3)))))))
+      (expect-script-output expected-attachment-test-output out))))
 
 (def ^:private expected-resources-as-nodes-test-output
   "Directory read:
@@ -1240,6 +1420,54 @@ Expected errors:
     (let [out (StringBuilder.)]
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
-      (let [actual (.toString out)]
-        (is (= expected-resources-as-nodes-test-output actual)
-            (string/join "\n" (diff/make-diff-output-lines actual expected-resources-as-nodes-test-output 3)))))))
+      (expect-script-output expected-resources-as-nodes-test-output out))))
+
+(def ^:private expected-particlefx-test-output
+  "Initial state:
+emitters: 0
+After setup:
+emitters: 1
+  type: emitter-type-circle
+  blend mode: blend-mode-add
+  spawn rate: {0, 100, 1, 0}
+  initial red: {0, 0.5, 1, 0}
+  initial green: {0, 0.8, 1, 0}
+  initial blue: {0, 1, 1, 0}
+  initial alpha: {0, 0.2, 1, 0}
+  life alpha: {0, 0, 0.1, 0.995} {0.2, 1, 1, 0} {1, 0, 1, 0}
+  modifiers: 1
+    type: modifier-type-acceleration
+    magnitude: {0, 1, 1, 0}
+    rotation: {0, 0, -180}
+Expected errors:
+  empty points => {points = {}} does not satisfy any of its requirements:
+    - {points = {}} is not a number
+    - {} needs at least 1 element
+  x outside of range => {points = {{y = 1, tx = 1, x = -1, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = -1, ty = 0}}} is not a number
+    - -1 is not between 0 and 1
+  tx outside of range => {points = {{y = 1, tx = -0.5, x = 0, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = -0.5, x = 0, ty = 0}}} is not a number
+    - -0.5 is not between 0 and 1
+  ty outside of range => {points = {{y = 1, tx = 1, x = 0, ty = 2}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = 0, ty = 2}}} is not a number
+    - 2 is not between -1 and 1
+  xs not from 0 to 1 (upper) => {points = {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0.5, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0.5, ty = 0}}} is not a number
+    - {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0.5, ty = 0}} does not increase xs monotonically from 0 to 1
+  xs not from 0 to 1 (lower) => {points = {{y = 1, tx = 1, x = 0.5, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = 0.5, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}}} is not a number
+    - {{y = 1, tx = 1, x = 0.5, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}} does not increase xs monotonically from 0 to 1
+  xs not from 0 to 1 (duplicates) => {points = {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}}} is not a number
+    - {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}} does not increase xs monotonically from 0 to 1
+After clear:
+emitters: 0
+")
+
+(deftest particlefx-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/particlefx_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-particlefx-test-output out))))
