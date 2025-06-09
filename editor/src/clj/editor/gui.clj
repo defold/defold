@@ -3846,6 +3846,17 @@
   :add {TextureNode (attach-to-gui-scene-fn gui-attachment/scene-node->textures-node attach-texture)}
   :get gui-scene-texture-nodes-getter)
 
+(defn- gui-scene-font-nodes-getter [scene-node {:keys [basis]}]
+  (let [fonts-node (gui-attachment/scene-node->fonts-node basis scene-node)]
+    ;; NOTE: we use :names instead of :nodes to get a list of fonts because it
+    ;; excludes the internal fallback font
+    (mapv gt/source-id (g/explicit-arcs-by-target basis fonts-node :names))))
+
+(attachment/register!
+  GuiSceneNode :fonts
+  :add {FontNode (attach-to-gui-scene-fn gui-attachment/scene-node->fonts-node attach-font)}
+  :get gui-scene-font-nodes-getter)
+
 (def default-pb-read-node-color (protobuf/default Gui$NodeDesc :color))
 (def default-pb-read-node-alpha (protobuf/default Gui$NodeDesc :alpha))
 (assert (= (float 1.0) default-pb-read-node-alpha))

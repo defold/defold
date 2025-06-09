@@ -135,6 +135,13 @@ local function print_gui(gui)
         local texture_res = editor.get(texture, "texture")
         print(("    texture: %s%s"):format(editor.get(texture, "name"), texture_res and " " .. texture_res or ""))
     end
+    local fonts = editor.get(gui, "fonts")
+    print(("  fonts: %s"):format(#fonts))
+    for i = 1, #fonts do
+        local font = fonts[i]
+        local font_res = editor.get(font, "font")
+        print(("    font: %s%s"):format(editor.get(font, "name"), font_res and " " .. font_res or ""))
+    end
 end
 
 function M.get_commands()
@@ -340,7 +347,10 @@ function M.get_commands()
                     editor.tx.add(gui, "particlefxs", {particlefx = "/test.particlefx"}),
                     editor.tx.add(gui, "particlefxs", {}),
                     editor.tx.add(gui, "textures", {texture = "/test.tilesource"}),
-                    editor.tx.add(gui, "textures", {texture = "/test.atlas"})
+                    editor.tx.add(gui, "textures", {texture = "/test.atlas"}),
+                    editor.tx.add(gui, "fonts", {font = "/test.font"}),
+                    editor.tx.add(gui, "fonts", {}),
+                    editor.tx.add(gui, "fonts", {})
                 })
 
                 print("After transaction (edit):")
@@ -366,7 +376,8 @@ function M.get_commands()
                     editor.tx.clear(gui, "layers"),
                     editor.tx.clear(gui, "materials"),
                     editor.tx.clear(gui, "particlefxs"),
-                    editor.tx.clear(gui, "textures")
+                    editor.tx.clear(gui, "textures"),
+                    editor.tx.clear(gui, "fonts")
                 })
 
                 print("After transaction (clear):")
