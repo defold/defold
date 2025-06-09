@@ -1382,6 +1382,8 @@ Expected reorder errors:
 Transaction: clear GUI
 Expected layout errors:
   no name => layout name is required
+  unknown profile => \"Not a profile\" is not \"Landscape\" or \"Portrait\"
+  duplicates => \"Landscape\" is not \"Portrait\"
 After transaction (clear):
   layers: 0
   materials: 0

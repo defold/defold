@@ -381,6 +381,11 @@ function M.get_commands()
 
                 print("Expected layout errors:")
                 expect_error("no name", editor.transact, {editor.tx.add(gui, "layouts", {})})
+                expect_error("unknown profile", editor.transact, {editor.tx.add(gui, "layouts", {name = "Not a profile"})})
+                expect_error("duplicates", editor.transact, {
+                    editor.tx.add(gui, "layouts", {name = "Landscape"}),
+                    editor.tx.add(gui, "layouts", {name = "Landscape"})
+                })
 
                 print("After transaction (clear):")
                 print_gui(gui)

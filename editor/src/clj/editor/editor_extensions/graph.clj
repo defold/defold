@@ -517,10 +517,10 @@
         "name" (gen-gui-component-name attachment "texture" gui-attachment/scene-node->textures-node rt parent-node-id evaluation-context))
       (attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
-(defmethod init-attachment :editor.gui/LayoutNode [evaluation-context rt project _ _ child-node-id attachment]
+(defmethod init-attachment :editor.gui/LayoutNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
   (if-let [lua-name (get attachment "name")]
     (concat
-      (g/set-property child-node-id :name (rt/->clj rt coerce/string lua-name))
+      (g/set-property child-node-id :name (rt/->clj rt (apply coerce/enum (g/node-value parent-node-id :unused-display-profiles evaluation-context)) lua-name))
       (-> attachment
           (dissoc "name")
           (attachment->set-tx-steps child-node-id rt project evaluation-context)))
