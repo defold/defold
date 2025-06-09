@@ -616,6 +616,11 @@ namespace dmGui
         HTextureSource res = scene->m_NewTextureResourceCallback(scene, path, width, height, type, data);
         free(data);
 
+        if (!res)
+        {
+            return RESULT_OUT_OF_RESOURCES;
+        }
+
         uint32_t buffer_size_mb = expected_buffer_size / 1024.0 / 1024.0;
         DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, buffer_size_mb);
 
