@@ -135,6 +135,12 @@ local function print_gui(gui)
         local texture_res = editor.get(texture, "texture")
         print(("    texture: %s%s"):format(editor.get(texture, "name"), texture_res and " " .. texture_res or ""))
     end
+    local layouts = editor.get(gui, "layouts")
+    print(("  layouts: %s"):format(#layouts))
+    for i = 1, #layouts do
+        local layout = layouts[i]
+        print(("    layout: %s"):format(editor.get(layout, "name")))
+    end
 end
 
 function M.get_commands()
@@ -332,6 +338,8 @@ function M.get_commands()
                 editor.transact({
                     editor.tx.add(gui, "layers", {name = "bg"}),
                     editor.tx.add(gui, "layers", {name = "fg"}),
+                    editor.tx.add(gui, "layouts", {name = "Landscape"}),
+                    editor.tx.add(gui, "layouts", {name = "Portrait"}),
                     editor.tx.add(gui, "materials", {}),
                     editor.tx.add(gui, "materials", {material = "/test.material"}),
                     editor.tx.add(gui, "materials", {material = "/test.material"}),
@@ -354,6 +362,7 @@ function M.get_commands()
                 })
                 print("After transaction (reorder):")
                 print_gui(gui)
+                
                 print("Expected reorder errors:")
                 expect_error("undefined property", editor.tx.reorder, gui, "not-a-property", {})
                 expect_error("reorder not defined", editor.tx.reorder, collision, "shapes", {})
@@ -364,10 +373,14 @@ function M.get_commands()
                 print("Transaction: clear GUI")
                 editor.transact({
                     editor.tx.clear(gui, "layers"),
+                    editor.tx.clear(gui, "layouts"),
                     editor.tx.clear(gui, "materials"),
                     editor.tx.clear(gui, "particlefxs"),
                     editor.tx.clear(gui, "textures")
                 })
+
+                print("Expected layout errors:")
+                expect_error("no name", editor.transact, {editor.tx.add(gui, "layouts", {})})
 
                 print("After transaction (clear):")
                 print_gui(gui)

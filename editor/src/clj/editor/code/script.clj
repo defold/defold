@@ -75,7 +75,7 @@
               (cond
                 escaped (recur (inc i) token in-quote false skip-rest last-non-space tokens)
                 (= ch \\) (recur (inc i) token in-quote true skip-rest last-non-space tokens)
-                (= ch in-quote) (recur (inc i) token nil false skip-rest last-non-space tokens)
+                (= ch (.charValue ^Character in-quote)) (recur (inc i) token nil false skip-rest last-non-space tokens)
                 :else (recur (inc i) token in-quote false skip-rest last-non-space tokens))
 
               ;; Inline comment
