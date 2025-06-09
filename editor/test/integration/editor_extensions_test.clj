@@ -1331,6 +1331,7 @@ GUI initial state:
   materials: 0
   particlefxs: 0
   textures: 0
+  layouts: 0
 Transaction: edit GUI
 After transaction (edit):
   layers: 2
@@ -1348,6 +1349,9 @@ After transaction (edit):
   textures: 2
     texture: test /test.tilesource
     texture: test1 /test.atlas
+  layouts: 2
+    layout: Landscape
+    layout: Portrait
 can reorder layers: true
 Transaction: reorder
 After transaction (reorder):
@@ -1366,6 +1370,9 @@ After transaction (reorder):
   textures: 2
     texture: test /test.tilesource
     texture: test1 /test.atlas
+  layouts: 2
+    layout: Landscape
+    layout: Portrait
 Expected reorder errors:
   undefined property => GuiSceneNode does not define \"not-a-property\"
   reorder not defined => CollisionObjectNode does not support \"shapes\" reordering
@@ -1373,11 +1380,16 @@ Expected reorder errors:
   missing children => Reordered child nodes are not the same as current child nodes
   wrong child nodes => Reordered child nodes are not the same as current child nodes
 Transaction: clear GUI
+Expected layout errors:
+  no name => layout name is required
+  unknown profile => \"Not a profile\" is not \"Landscape\" or \"Portrait\"
+  duplicates => \"Landscape\" is not \"Portrait\"
 After transaction (clear):
   layers: 0
   materials: 0
   particlefxs: 0
   textures: 0
+  layouts: 0
 ")
 
 (deftest attachment-properties-test

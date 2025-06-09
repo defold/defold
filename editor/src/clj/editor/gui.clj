@@ -2726,13 +2726,13 @@
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-(defn- attach-layout [self layouts-node layout]
+(defn- attach-layout [_self layouts-node layout]
   (concat
    (g/connect layout :build-errors layouts-node :build-errors)
    (g/connect layout :node-outline layouts-node :child-outlines)
    (g/connect layout :name layouts-node :names)
    (g/connect layouts-node :name-counts layout :name-counts)
-   (g/connect layout :_node-id self :nodes)))
+   (g/connect layout :_node-id layouts-node :nodes)))
 
 (defn add-layout-handler [project {:keys [scene parent display-profile]} select-fn]
   (g/transact
@@ -2744,6 +2744,7 @@
                     (select-fn [node]))))))
 
 (g/defnode LayoutsNode
+  (inherits core/Scope)
   (inherits outline/OutlineNode)
   (input names g/Str :array)
   (output names GuiResourceNames :cached (g/fnk [names] (into (sorted-set) names)))
@@ -3791,7 +3792,7 @@
                                  (inc child-index)))
                         all-tx-data)))
       (g/make-nodes graph-id [layouts-node LayoutsNode]
-                    (g/connect layouts-node :_node-id self :layouts-node) ; for the tests :/
+                    (g/connect layouts-node :_node-id self :layouts-node)
                     (g/connect layouts-node :_node-id self :nodes)
                     (g/connect self :unused-display-profiles layouts-node :unused-display-profiles)
                     (g/connect layouts-node :names self :layout-names)
@@ -3845,6 +3846,14 @@
   GuiSceneNode :textures
   :add {TextureNode (attach-to-gui-scene-fn gui-attachment/scene-node->textures-node attach-texture)}
   :get gui-scene-texture-nodes-getter)
+
+(defn- gui-scene-layouts-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (attachment/nodes-getter (gui-attachment/scene-node->layouts-node basis scene-node) evaluation-context))
+
+(attachment/register!
+  GuiSceneNode :layouts
+  :add {LayoutNode (attach-to-gui-scene-fn gui-attachment/scene-node->layouts-node attach-layout)}
+  :get gui-scene-layouts-getter)
 
 (def default-pb-read-node-color (protobuf/default Gui$NodeDesc :color))
 (def default-pb-read-node-alpha (protobuf/default Gui$NodeDesc :alpha))
