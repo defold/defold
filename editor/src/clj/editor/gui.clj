@@ -3804,57 +3804,6 @@
                         (attach-layout self layouts-node layout))))
       custom-data)))
 
-(defn- attach-to-gui-scene-txs [{:keys [basis]} attach-fn scene-container-node-fn scene-node item-node]
-  (attach-fn scene-node (scene-container-node-fn basis scene-node) item-node))
-
-(defn- attach-to-gui-scene-fn [scene-container-node-fn attach-fn]
-  (partial g/expand-ec attach-to-gui-scene-txs attach-fn scene-container-node-fn))
-
-(defn- gui-scene-layers-getter [scene-node {:keys [basis] :as evaluation-context}]
-  (let [layer-nodes (attachment/nodes-getter (gui-attachment/scene-node->layers-node basis scene-node) evaluation-context)]
-    (vec (sort-by #(g/raw-property-value basis % :child-index) layer-nodes))))
-
-(defn- reorder-gui-scene-layers [reordered-layer-node-ids]
-  (coll/mapcat-indexed #(g/set-property %2 :child-index %1) reordered-layer-node-ids))
-
-(attachment/register!
-  GuiSceneNode :layers
-  :add {LayerNode (attach-to-gui-scene-fn gui-attachment/scene-node->layers-node attach-layer)}
-  :get gui-scene-layers-getter
-  :reorder reorder-gui-scene-layers)
-
-(defn- gui-scene-materials-getter [scene-node {:keys [basis] :as evaluation-context}]
-  (attachment/nodes-getter (gui-attachment/scene-node->materials-node basis scene-node) evaluation-context))
-
-(attachment/register!
-  GuiSceneNode :materials
-  :add {MaterialNode (attach-to-gui-scene-fn gui-attachment/scene-node->materials-node attach-material)}
-  :get gui-scene-materials-getter)
-
-(defn- gui-scene-particlefxs-getter [scene-node {:keys [basis] :as evaluation-context}]
-  (attachment/nodes-getter (gui-attachment/scene-node->particlefx-resources-node basis scene-node) evaluation-context))
-
-(attachment/register!
-  GuiSceneNode :particlefxs
-  :add {ParticleFXResource (attach-to-gui-scene-fn gui-attachment/scene-node->particlefx-resources-node attach-particlefx-resource)}
-  :get gui-scene-particlefxs-getter)
-
-(defn- gui-scene-texture-nodes-getter [scene-node {:keys [basis] :as evaluation-context}]
-  (attachment/nodes-getter (gui-attachment/scene-node->textures-node basis scene-node) evaluation-context))
-
-(attachment/register!
-  GuiSceneNode :textures
-  :add {TextureNode (attach-to-gui-scene-fn gui-attachment/scene-node->textures-node attach-texture)}
-  :get gui-scene-texture-nodes-getter)
-
-(defn- gui-scene-layouts-getter [scene-node {:keys [basis] :as evaluation-context}]
-  (attachment/nodes-getter (gui-attachment/scene-node->layouts-node basis scene-node) evaluation-context))
-
-(attachment/register!
-  GuiSceneNode :layouts
-  :add {LayoutNode (attach-to-gui-scene-fn gui-attachment/scene-node->layouts-node attach-layout)}
-  :get gui-scene-layouts-getter)
-
 (def default-pb-read-node-color (protobuf/default Gui$NodeDesc :color))
 (def default-pb-read-node-alpha (protobuf/default Gui$NodeDesc :alpha))
 (assert (= (float 1.0) default-pb-read-node-alpha))
@@ -4008,8 +3957,56 @@
         :view-opts {:scene {:grid true
                             :drop-fn handle-drop}}))))
 
+
+(defn- attach-to-gui-scene-txs [{:keys [basis]} attach-fn scene-container-node-fn scene-node item-node]
+  (attach-fn scene-node (scene-container-node-fn basis scene-node) item-node))
+
+(defn- attach-to-gui-scene-fn [scene-container-node-fn attach-fn]
+  (partial g/expand-ec attach-to-gui-scene-txs attach-fn scene-container-node-fn))
+
+(defn- gui-scene-layers-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (let [layer-nodes (attachment/nodes-getter (gui-attachment/scene-node->layers-node basis scene-node) evaluation-context)]
+    (vec (sort-by #(g/raw-property-value basis % :child-index) layer-nodes))))
+
+(defn- reorder-gui-scene-layers [reordered-layer-node-ids]
+  (coll/mapcat-indexed #(g/set-property %2 :child-index %1) reordered-layer-node-ids))
+
+(defn- gui-scene-materials-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (attachment/nodes-getter (gui-attachment/scene-node->materials-node basis scene-node) evaluation-context))
+
+(defn- gui-scene-particlefxs-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (attachment/nodes-getter (gui-attachment/scene-node->particlefx-resources-node basis scene-node) evaluation-context))
+
+(defn- gui-scene-texture-nodes-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (attachment/nodes-getter (gui-attachment/scene-node->textures-node basis scene-node) evaluation-context))
+
+(defn- gui-scene-layouts-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (attachment/nodes-getter (gui-attachment/scene-node->layouts-node basis scene-node) evaluation-context))
+
 (defn register-resource-types [workspace]
-  (register workspace pb-def))
+  (concat
+    (attachment/register
+      workspace GuiSceneNode :layers
+      :add {LayerNode (attach-to-gui-scene-fn gui-attachment/scene-node->layers-node attach-layer)}
+      :get gui-scene-layers-getter
+      :reorder reorder-gui-scene-layers)
+    (attachment/register
+      workspace GuiSceneNode :layouts
+      :add {LayoutNode (attach-to-gui-scene-fn gui-attachment/scene-node->layouts-node attach-layout)}
+      :get gui-scene-layouts-getter)
+    (attachment/register
+      workspace GuiSceneNode :materials
+      :add {MaterialNode (attach-to-gui-scene-fn gui-attachment/scene-node->materials-node attach-material)}
+      :get gui-scene-materials-getter)
+    (attachment/register
+      workspace GuiSceneNode :particlefxs
+      :add {ParticleFXResource (attach-to-gui-scene-fn gui-attachment/scene-node->particlefx-resources-node attach-particlefx-resource)}
+      :get gui-scene-particlefxs-getter)
+    (attachment/register
+      workspace GuiSceneNode :textures
+      :add {TextureNode (attach-to-gui-scene-fn gui-attachment/scene-node->textures-node attach-texture)}
+      :get gui-scene-texture-nodes-getter)
+    (register workspace pb-def)))
 
 (defn- move-child-node!
   [node-id offset]

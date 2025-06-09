@@ -1122,7 +1122,7 @@ GET /test/resources/test.json as json => 200
              (run! (fn [{:keys [outline key] :as p}]
                      (let [{:keys [node-id]} outline
                            ext-key (string/replace (name key) \- \_)]
-                       (is (some? (graph/ext-value-getter node-id ext-key ec)))
+                       (is (some? (graph/ext-value-getter node-id ext-key project ec)))
                        (when-not (properties/read-only? p)
                          (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))))))
 
@@ -1332,6 +1332,7 @@ GUI initial state:
   particlefxs: 0
   textures: 0
   layouts: 0
+  spine scenes: 0
 Transaction: edit GUI
 After transaction (edit):
   layers: 2
@@ -1352,6 +1353,11 @@ After transaction (edit):
   layouts: 2
     layout: Landscape
     layout: Portrait
+  spine scenes: 4
+    spine scene: spine_scene
+    spine scene: explicit name
+    spine scene: template /defold-spine/assets/template/template.spinescene
+    spine scene: spine_scene1
 can reorder layers: true
 Transaction: reorder
 After transaction (reorder):
@@ -1373,6 +1379,11 @@ After transaction (reorder):
   layouts: 2
     layout: Landscape
     layout: Portrait
+  spine scenes: 4
+    spine scene: spine_scene
+    spine scene: explicit name
+    spine scene: template /defold-spine/assets/template/template.spinescene
+    spine scene: spine_scene1
 Expected reorder errors:
   undefined property => GuiSceneNode does not define \"not-a-property\"
   reorder not defined => CollisionObjectNode does not support \"shapes\" reordering
@@ -1390,6 +1401,7 @@ After transaction (clear):
   particlefxs: 0
   textures: 0
   layouts: 0
+  spine scenes: 0
 ")
 
 (deftest attachment-properties-test

@@ -601,6 +601,7 @@
   [f & args]
   (it/expand f args))
 
+;; SDK api
 (defn expand-ec
   "Call the specified function when reaching the transaction step with an
   in-transaction evaluation context as a first argument and apply the
