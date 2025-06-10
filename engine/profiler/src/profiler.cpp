@@ -857,6 +857,7 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 
     dmProfile::Options options;
     options.m_Port = g_ProfilerPort;
+    options.m_EnablePerformanceTimeline = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.performance_timeline_enabled", 0);
     options.m_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.sleep_between_server_updates", 0);
     if (!dmProfile::IsInitialized())
     {
