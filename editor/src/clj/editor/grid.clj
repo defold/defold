@@ -35,6 +35,7 @@
            [javafx.scene Parent]
            [javafx.scene.control Label Slider TextField ToggleButton ToggleGroup PopupControl]
            [javafx.scene.layout HBox Priority Region StackPane VBox]
+           [javafx.scene.paint Color]
            [java.nio ByteBuffer ByteOrder DoubleBuffer]
            [javax.vecmath Matrix3d Point3d Vector4d]))
 
@@ -89,17 +90,17 @@
   [^GL2 gl ^AABB aabb options]
   (let [{:keys [axes-colors active-plane]} options]
     (when-not (= active-plane :x)
-      (gl/gl-color gl (if (:x axes-colors) (colors/hex-color->color (:x axes-colors)) x-axis-color))
+      (gl/gl-color gl (or (:x axes-colors) x-axis-color))
       (gl/gl-vertex-3d gl (-> aabb types/min-p .x) 0.0 0.0)
       (gl/gl-vertex-3d gl (-> aabb types/max-p .x) 0.0 0.0))
     
     (when-not (= active-plane :y)
-      (gl/gl-color gl (if (:y axes-colors) (colors/hex-color->color (:y axes-colors)) y-axis-color))
+      (gl/gl-color gl (or (:y axes-colors) y-axis-color))
       (gl/gl-vertex-3d gl 0.0 (-> aabb types/min-p .y) 0.0)
       (gl/gl-vertex-3d gl 0.0 (-> aabb types/max-p .y) 0.0))
 
     (when-not (= active-plane :z)
-      (gl/gl-color gl (if (:z axes-colors) (colors/hex-color->color (:z axes-colors)) z-axis-color))
+      (gl/gl-color gl (or (:z axes-colors) z-axis-color))
       (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/min-p .z))
       (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/max-p .z)))))
 
@@ -122,7 +123,7 @@
                  u-size (get size-map u-axis-key)
                  v-size (get size-map v-axis-key)]]
        (do
-         (gl/gl-color gl (colors/alpha (colors/hex-color->color color) alpha))
+         (gl/gl-color gl (colors/alpha color alpha))
          (render-grid gl fixed-axis u-size v-size (nth (:aabbs grids) grid-index)))))))
 
 (defn render-scaled-grids
@@ -181,8 +182,8 @@
   (let [exp (Math/log10 extent)]
     (- 1.0 (- exp (Math/floor exp)))))
 
-(defn small-grid-axis-size [extent size] (* size 0.1 (Math/pow 10 (dec (Math/floor (Math/log10 extent))))))
-(defn large-grid-axis-size [extent size] (* size 0.1 (Math/pow 10      (Math/floor (Math/log10 extent)))))
+(defn small-grid-axis-size [extent ^double size] (* size 0.1 (Math/pow 10 (dec (Math/floor (Math/log10 extent))))))
+(defn large-grid-axis-size [extent ^double size] (* size 0.1 (Math/pow 10      (Math/floor (Math/log10 extent)))))
 
 (defn grid-snap-down [^double a ^double sz] (* sz (Math/floor (/ a sz))))
 (defn grid-snap-up   [^double a ^double sz] (* sz (Math/ceil  (/ a sz))))
@@ -191,7 +192,7 @@
   [size auto-scale extent grid-axis-size-fn]
   (into {}
         (map (fn [[k ^double v]]
-               [k (max v (cond->> v auto-scale (grid-axis-size-fn extent)))])
+               [k (max v (cond->> v auto-scale ^double (grid-axis-size-fn extent)))])
              size)))
 
 (defn snap-out-to-grid
@@ -252,7 +253,7 @@
   [app-view prefs option]
   (let [prefs-path (conj grid-prefs-path option)
         value (prefs/get prefs prefs-path)
-        slider (Slider. 0.0 0.5 value)
+        slider (Slider. 0.0 1.0 value)
         label (doto (Label. "Opacity")
                 (.setPrefWidth 70))]
     (ui/observe
@@ -292,14 +293,19 @@
   [app-view prefs option]
   (let [prefs-path (conj grid-prefs-path option)
         text-field (TextField.)
-        color (prefs/get prefs prefs-path)
+        [r g b a] (prefs/get prefs prefs-path)
+        color (->> (Color. r g b a) (.toString) nnext (drop-last 2) (apply str "#"))
         label (doto (Label. "Color")
                 (HBox/setHgrow Priority/ALWAYS)
                 (.setPrefWidth 83))
         cancel-fn (fn [_] (ui/text! text-field color))
-        update-fn (fn [_] (when-let [value (.getText text-field)]
-                            (prefs/set! prefs prefs-path value)
-                            (invalidate-grids! app-view)))]
+        update-fn (fn [_] (try
+                            (if-let [value (some-> (.getText text-field) colors/hex-color->color)]
+                              (do (prefs/set! prefs prefs-path value)
+                                  (invalidate-grids! app-view))
+                              (cancel-fn nil))
+                            (catch Exception _e
+                              (cancel-fn nil))))]
     (doto text-field
       (ui/text! color)
       (ui/on-action! update-fn)
@@ -313,9 +319,15 @@
         label (Label. (string/upper-case (name axis)))
         size-val (str (get (prefs/get prefs prefs-path) axis))
         cancel-fn (fn [_] (ui/text! text-field size-val))
-        update-fn (fn [_] (when-let [value (some-> (.getText text-field) Integer/parseInt)]
-                            (prefs/set! prefs (conj prefs-path axis) value)
-                            (invalidate-grids! app-view)))]
+        update-fn (fn [_] (try
+                            (let [value (some-> (.getText text-field) Integer/parseInt)]
+                              (if (pos? value)
+                                (do (prefs/set! prefs (conj prefs-path axis) value)
+                                    (ui/text! text-field (str value))
+                                    (invalidate-grids! app-view))
+                                (cancel-fn nil)))
+                            (catch Exception _e
+                              (cancel-fn nil))))]
     (doto text-field
       (ui/text! size-val)
       (ui/on-action! update-fn)

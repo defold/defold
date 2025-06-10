@@ -222,8 +222,10 @@
                                          :z {:type :integer :default 10}}}
                                  :active-plane {:type :keyword :default :z}
                                  :auto-scale {:type :boolean :default true}
-                                 :opacity {:type :number :default 0.1}
-                                 :color {:type :string :default "#ffffff"}}}}}
+                                 :opacity {:type :number :default 0.5}
+                                 :color {:type :tuple
+                                         :items [{:type :number} {:type :number} {:type :number} {:type :number}]
+                                         :default [0.5 0.5 0.5 1.0]}}}}}
     :dev {:type :object
           :properties
           {:custom-engine {:type :any

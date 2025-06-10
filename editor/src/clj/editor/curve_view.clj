@@ -591,10 +591,10 @@
 (g/defnode CurveGrid
   (inherits grid/Grid)
   (output options g/Any (g/constantly {:active-plane :z
-                                       :color "#ffffff"
-                                       :axes-colors {:x "#ffffff"
-                                                     :y "#ffffff"
-                                                     :z "#ffffff"}
+                                       :color [1.0 1.0 1.0 1.0]
+                                       :axes-colors {:x [1.0 1.0 1.0 1.0]
+                                                     :y [1.0 1.0 1.0 1.0]
+                                                     :z [1.0 1.0 1.0 1.0]}
                                        :opacity 0.1
                                        :size {:x 10
                                               :y 10
