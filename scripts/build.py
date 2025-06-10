@@ -116,7 +116,7 @@ PACKAGES_ALL=[
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
     "jctest-0.10.2",
     "vulkan-v1.4.307",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -131,7 +131,7 @@ PACKAGES_IOS_X86_64=[
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -142,7 +142,7 @@ PACKAGES_IOS_64=[
     "bullet-2.77",
     "moltenvk-1474891",
     "glfw-2.7.1",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -161,7 +161,7 @@ PACKAGES_MACOS_X86_64=[
     "glfw-3.4",
     "tint-22b958",
     "astcenc-8b0aa01",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -179,7 +179,7 @@ PACKAGES_MACOS_ARM64=[
     "glfw-3.4",
     "tint-22b958",
     "astcenc-8b0aa01",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -190,7 +190,7 @@ PACKAGES_WIN32=[
     "bullet-2.77",
     "vulkan-v1.4.307",
     "glfw-3.4",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -209,7 +209,7 @@ PACKAGES_WIN32_64=[
     "tint-22b958",
     "astcenc-8b0aa01",
     "directx-headers-1.611.0",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -227,7 +227,7 @@ PACKAGES_LINUX_X86_64=[
     "tint-7bd151a780",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "astcenc-8b0aa01",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -244,7 +244,7 @@ PACKAGES_LINUX_ARM64=[
     "glfw-3.4",
     "tint-7bd151a780",
     "astcenc-8b0aa01",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -256,7 +256,7 @@ PACKAGES_ANDROID=[
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
@@ -269,7 +269,7 @@ PACKAGES_ANDROID_64=[
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
@@ -278,7 +278,7 @@ PACKAGES_EMSCRIPTEN=[
     "protobuf-3.20.1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -629,7 +629,6 @@ class Configuration(object):
         if self.package_path is None:
             print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
             sys.exit(1)
-
 
     def install_ext(self):
         def make_package_path(root, platform, package):
