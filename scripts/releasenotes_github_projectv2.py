@@ -21,6 +21,8 @@ sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "
 import optparse
 import github
 import json
+import time
+import subprocess
 
 token = None
 
@@ -28,22 +30,36 @@ TYPE_BREAKING_CHANGE = "BREAKING CHANGE"
 TYPE_FIX = "FIX"
 TYPE_NEW = "NEW"
 
-# https://docs.github.com/en/graphql/overview/explorer
-QUERY_CLOSED_ISSUES = r"""
+
+QUERY_ISSUE = r"""
 {
   organization(login: "defold") {
-    id
-    projectV2(number: %s) {
-      id
-      title
-      items(first: 100) {
-        nodes {
-          content {
-            ... on Issue {
-              id
-              closed
-              title
-              bodyText
+    repository(name: "defold") {
+      issue(number: %s) {
+        id
+        closed
+        title
+        number
+        body
+        url
+        author {
+          login
+        }
+        labels(first: 10) {
+          nodes {
+            name
+          }
+        }
+        timelineItems(first: 250) {
+          nodes {
+            __typename
+            ... on CrossReferencedEvent {
+              source {
+                ... on PullRequest {
+                  number
+                  merged
+                }
+              }
             }
           }
         }
@@ -53,10 +69,66 @@ QUERY_CLOSED_ISSUES = r"""
 }
 """
 
+
+QUERY_PULLREQUEST = r"""
+{
+  organization(login: "defold") {
+    repository(name: "defold") {
+      pullRequest(number: %s) {
+        id
+        merged
+        title
+        number
+        body
+        url
+        baseRefName
+        headRefName
+        author {
+          login
+        }
+        labels(first: 10) {
+          nodes {
+            name
+          }
+        }
+        closingIssuesReferences(first: 10) {
+            nodes {
+                number
+            }
+        }
+        timelineItems(first: 250) {
+          nodes {
+            __typename
+            ... on MergedEvent {
+              commit {
+                  oid
+              }
+              mergeRefName
+            }
+            ... on ReferencedEvent {
+              commit {
+                  oid
+              }
+            }
+            ... on CrossReferencedEvent {
+              source {
+                ... on Issue {
+                  number
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+# https://docs.github.com/en/graphql/overview/explorer
 QUERY_PROJECT_ISSUES_AND_PRS = r"""
 {
   organization(login: "defold") {
-    id
     projectV2(number: %s) {
       id
       title
@@ -65,84 +137,12 @@ QUERY_PROJECT_ISSUES_AND_PRS = r"""
           type
           content {
             ... on Issue {
-              id
               closed
-              title
               number
-              body
-              url
-              author {
-                login
-              }
-              labels(first: 10) {
-                nodes {
-                  name
-                }
-              }
-              timelineItems(first: 100) {
-                nodes {
-                  ... on CrossReferencedEvent {
-                    source {
-                      ... on PullRequest {
-                        id
-                        body
-                        number
-                        merged
-                        title
-                        url
-                        author {
-                          login
-                        }
-                        labels(first: 10) {
-                          nodes {
-                            name
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
             }
             ... on PullRequest {
-              id
               merged
-              title
               number
-              body
-              url
-              author {
-                login
-              }
-              labels(first: 10) {
-                nodes {
-                  name
-                }
-              }
-              timelineItems(first: 100) {
-                nodes {
-                  ... on CrossReferencedEvent {
-                    source {
-                      ... on Issue {
-                        id
-                        body
-                        number
-                        closed
-                        title
-                        url
-                        author {
-                          login
-                        }
-                        labels(first: 10) {
-                          nodes {
-                            name
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
             }
           }
         }
@@ -169,31 +169,43 @@ QUERY_PROJECT_NUMBER = r"""
 def pprint(d):
     print(json.dumps(d, indent=4, sort_keys=True))
 
+def red(s, **kwargs): print("\033[31m{}\033[00m" .format(s), **kwargs)
+def green(s, **kwargs): print("\033[32m{}\033[00m" .format(s), **kwargs)
+def yellow(s, **kwargs): print("\033[33m{}\033[00m" .format(s), **kwargs)
+
 def _print_errors(response):
     for error in response['errors']:
         print(error['message'])
 
-def get_project(name):
-    query = QUERY_PROJECT_NUMBER % name
+def github_query(query):
     response = github.query(query, token)
     if 'errors' in response:
         _print_errors(response)
         sys.exit(1)
-    return response["data"]["organization"]["projectsV2"]["nodes"][0]
+    return response["data"]
+
+def get_project(name):
+    data = github_query(QUERY_PROJECT_NUMBER % name)
+    return data["organization"]["projectsV2"]["nodes"][0]
+
+def get_issue(number):
+    data = github_query(QUERY_ISSUE % number)
+    return data["organization"]["repository"]["issue"]
+
+def get_pullrequest(number):
+    data = github_query(QUERY_PULLREQUEST % number)
+    return data["organization"]["repository"]["pullRequest"]
 
 def get_issues_and_prs(project):
-    query = QUERY_PROJECT_ISSUES_AND_PRS % project.get("number")
-    response = github.query(query, token)
-    if 'errors' in response:
-        _print_errors(response)
-        sys.exit(1)
-    response = response["data"]["organization"]["projectV2"]["items"]["nodes"]
-    return response
+    data = github_query(QUERY_PROJECT_ISSUES_AND_PRS % project.get("number"))
+    return data["organization"]["projectV2"]["items"]["nodes"]
 
-def get_labels(issue_or_pr):
+def get_labels(*args):
     labels = []
-    for l in issue_or_pr["labels"]["nodes"]:
-        labels.append(l["name"])
+    for item in args:
+        for label in item["labels"]["nodes"]:
+            if not label["name"] in labels:
+                labels.append(label["name"])
     return labels
 
 def get_issue_type_from_labels(labels):
@@ -207,15 +219,56 @@ def get_issue_type_from_labels(labels):
         return TYPE_NEW
     return TYPE_FIX
 
+def get_closing_issue(pr):
+    for node in reversed(pr["closingIssuesReferences"]["nodes"]):
+        issue_number = node["number"]
+        return get_issue(issue_number)
+    return pr
+
 def get_closing_pr(issue):
-    closing_pr = None
     # an issue may reference multiple merged items on the
     # timeline - pick the last one! (ie newest)
-    for t in issue["timelineItems"]["nodes"]:
-        if t and "source" in t and t["source"]:
-            if t["source"].get("merged") == True:
-                closing_pr = t["source"]
-    return closing_pr
+    for node in reversed(issue["timelineItems"]["nodes"]):
+        if not node["__typename"] == "CrossReferencedEvent":
+            continue
+        if node["source"].get("merged") == True:
+            closing_number = node["source"]["number"]
+            return get_pullrequest(closing_number)
+    return issue
+
+def find_merge_commit(pr):
+    commit = None
+    for node in pr["timelineItems"]["nodes"]:
+        if not node["__typename"] == "MergedEvent":
+            continue
+        if "commit" in node:
+            commit = node["commit"]["oid"]
+            break
+    return commit
+
+def find_reference_commits(pr):
+    commits = []
+    for node in pr["timelineItems"]["nodes"]:
+        if not node["__typename"] == "ReferencedEvent":
+            continue
+        if "commit" in node:
+            commits.append(node["commit"]["oid"])
+    return commits
+
+def get_commit_branches(commit):
+    result = subprocess.run(["git", "branch", "--contains", commit], capture_output = True)
+    out = result.stdout.decode('utf-8')
+    if result.returncode == 0:
+        return [line.replace("*", "").strip() for line in out.splitlines()]
+    print(out)
+    sys.exit(result.returncode)
+
+def check_commit_branches(commit, branches):
+    result = get_commit_branches(commit)
+    for branch in branches:
+        if not branch in result:
+            return False
+    return True
 
 def issue_to_markdown(issue, hide_details = True, title_only = False):
     if title_only:
@@ -230,55 +283,63 @@ def issue_to_markdown(issue, hide_details = True, title_only = False):
 
     return md
 
+
 def parse_github_project(version):
     project = get_project(version)
     if not project:
         print("Unable to find GitHub project for version %s" % version)
         return None
 
+
+    print("Parsing GitHub project for version %s" % version)
     issues = []
-    merged = get_issues_and_prs(project)
-    for m in merged:
-        content = m.get("content")
+    items = get_issues_and_prs(project)
+    for item in items:
+        content = item.get("content")
         if not content:
             continue
 
-        # if content.get("number") != 1234: continue
-        # if content.get("number") != 9376: continue
+        # if content.get("number") != 10678: continue
+        # pprint(content)
+        # pprint(item)
 
-        is_issue = m.get("type") == "ISSUE"
-        is_pr = m.get("type") == "PULL_REQUEST"
-        if is_issue and content.get("closed") == False:
-            continue
-        if is_pr and content.get("merged") == False:
-            continue
-        issue_labels = get_labels(content)
-        if "skip release notes" in issue_labels:
+        print("  %s #%s - " % (item.get("type"), content.get("number")), end = "")
+        if content.get("merged", False) == False and content.get("closed", False) == False:
+            yellow("IGNORED (not closed/merged)")
             continue
 
-        if is_issue:
-            closing_pr = get_closing_pr(content)
-            if closing_pr:
-                # print("Issue #%d '%s' was closed by #%d '%s'" % (content.get("number"), content.get("title"), closing_pr.get("number"), closing_pr.get("title")))
-                content = closing_pr
-                # merge labels skipping duplicates
-                for label in get_labels(content):
-                    if not label in issue_labels:
-                        issue_labels.append(label)
+        issue = None
+        pr = None
+        if item.get("type") == "ISSUE":
+            issue = get_issue(content.get("number"))
+            pr = get_closing_pr(issue)
+        elif item.get("type") == "PULL_REQUEST":
+            pr = get_pullrequest(content.get("number"))
+            issue = get_closing_issue(pr)
 
+        labels = get_labels(issue, pr)
 
-        issue_type = get_issue_type_from_labels(issue_labels)
+        # skip release notes if label is set
+        if "skip release notes" in labels:
+            yellow("IGNORED (skip release notes)")
+            continue
+
+        # Make sure to ignore duplicates
+        for existing_issue in issues:
+            if existing_issue.get("number") == issue.get("number"):
+                yellow("IGNORED (duplicate issue)")
+                continue
 
         entry = {
-            "title": content.get("title"),
-            "body": content.get("body"),
-            "url": content.get("url"),
-            "number": content.get("number"),
-            "author": content.get("author").get("login"),
-            "labels": issue_labels,
-            "is_pr": is_pr,
-            "is_issue": is_issue,
-            "type": issue_type
+            "title": pr.get("title"),
+            "body": pr.get("body"),
+            "url": pr.get("url"),
+            "number": issue.get("number"),
+            "author": pr.get("author").get("login"),
+            "labels": labels,
+            "type": get_issue_type_from_labels(labels),
+            "mergecommit": find_merge_commit(pr),
+            "referencecommits": find_reference_commits(pr),
         }
         # strip from match to end of file
         entry["body"] = re.sub("## PR checklist.*", "", entry["body"], flags=re.DOTALL).strip()
@@ -310,17 +371,42 @@ def parse_github_project(version):
         entry["body"] = re.sub("User-facing changes.", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("### User-facing changes", "", entry["body"], flags=re.IGNORECASE).strip()
 
-        # Make sure to ignore duplicates
-        duplicate = False
-        for issue in issues:
-            if issue.get("number") == entry.get("number"):
-                duplicate = True
-                break
-
-        if not duplicate:
-            issues.append(entry)
+        issues.append(entry)
+        green("OK")
 
     return issues
+
+def check_issue_commits(issues):
+    print("Checking commits")
+    for issue in issues:
+        print("  Checking #%s %s (%s)" % (issue["number"], issue["title"], issue["url"]))
+        print("    Merge commit     ", end = "")
+        if issue.get("mergecommit") != None:
+            branches = get_commit_branches(issue["mergecommit"])
+            if "dev" in branches and "beta" in branches:
+                green("dev+beta OK (%s)" % (issue["mergecommit"]))
+                continue
+            if "dev" in branches:
+                yellow("dev OK (%s)" % (issue["mergecommit"]))
+            elif "beta" in branches:
+                yellow("beta OK (%s)" % (issue["mergecommit"]))
+            else:
+                red("dev+beta NOT OK (%s)" % (issue["mergecommit"]))
+        else:
+            red("NOT OK (missing merge commit)")
+
+        for referencecommit in issue.get("referencecommits"):
+            print("    Reference commit ", end = "")
+            branches = get_commit_branches(referencecommit)
+            if "dev" in branches and "beta" in branches:
+                green("dev+beta OK (%s)" % (referencecommit))
+                break
+            if "dev" in branches:
+                yellow("dev OK (%s)" % (referencecommit))
+            elif "beta" in branches:
+                yellow("beta OK (%s)" % (referencecommit))
+            else:
+                red("dev+beta NOT OK (%s)" % (referencecommit))
 
 
 def generate_markdown(version, issues, hide_details = False):
@@ -355,6 +441,7 @@ def generate_markdown(version, issues, hide_details = False):
 def generate_json(version, issues):
     output = {
         "version": version,
+        "timestamp": time.time(),
         "issues": issues
     }
 
@@ -369,6 +456,7 @@ def generate(version, hide_details = False):
     if issues is None:
         return
     
+    check_issue_commits(issues)
     generate_markdown(version, issues, hide_details)
     generate_json(version, issues)
 
