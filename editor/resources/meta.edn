@@ -85,7 +85,7 @@
    :path ["engine" "fixed_update_frequency"]}
   {:type :number,
    :help "If the time step is too large, it will be capped to this max value (seconds)",
-   :default 0.5,
+   :default 0.033333,
    :path ["engine" "max_time_step"]}
   {:type :integer,
    :help
