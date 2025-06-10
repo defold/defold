@@ -11,7 +11,7 @@ def build(bld):
                 target = 'test_platform')
 
 
-    if bld.env.PLATFORM not in ['js-web', 'wasm-web']:
+    if bld.env.PLATFORM not in ['js-web', 'wasm-web', 'wasm_pthread-web']:
         if platform_supports_feature(bld.env.PLATFORM, "opengl", None):
             use_libs = ["TESTMAIN", "APP", "DDF", "DLIB", "PROFILE_NULL", "DMGLFW", "OPENGL", "platform"]
 

@@ -32,12 +32,64 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private docs
-  ["base" "bit" "buffer" "b2d" "b2d.body" "builtins" "camera" "collectionfactory"
-   "collectionproxy" "coroutine" "crash" "debug" "factory" "go" "gui" "graphics"
-   "html5" "http" "image" "io" "json" "label" "liveupdate" "math" "model" "msg"
-   "os" "package" "particlefx" "physics" "profiler" "render" "resource"
-   "socket" "sound" "sprite" "string" "sys" "table" "tilemap" "timer" "vmath"
-   "window" "zlib" "types"])
+  [
+  "gameobject_script.cpp"
+  "gui_script.cpp"
+  "lua_base.doc_h"
+  "lua_coroutine.doc_h"
+  "lua_debug.doc_h"
+  "lua_io.doc_h"
+  "lua_math.doc_h"
+  "lua_os.doc_h"
+  "lua_package.doc_h"
+  "lua_string.doc_h"
+  "lua_table.doc_h"
+  "luasocket-luasocket.doc_h"
+  "profiler.cpp"
+  "proto-gameobject-gameobject_ddf.proto"
+  "proto-gamesys-camera_ddf.proto"
+  "proto-gamesys-gui_ddf.proto"
+  "proto-gamesys-label_ddf.proto"
+  "proto-gamesys-model_ddf.proto"
+  "proto-gamesys-physics_ddf.proto"
+  "proto-gamesys-sprite_ddf.proto"
+  "proto-render-render_ddf.proto"
+  "render-render_script.cpp"
+  "render-render_script_camera.cpp"
+  "script-sys_ddf.proto"
+  "script.cpp"
+  "script_bitop.cpp"
+  "script_crash.cpp"
+  "script_graphics.cpp"
+  "script_hash.cpp"
+  "script_html5_js.cpp"
+  "script_json.cpp"
+  "script_liveupdate.h"
+  "script_msg.cpp"
+  "script_sys.cpp"
+  "script_timer.cpp"
+  "script_types.cpp"
+  "script_vmath.cpp"
+  "script_zlib.cpp"
+  "scripts-box2d-script_box2d.cpp"
+  "scripts-box2d-script_box2d_body.cpp"
+  "scripts-script_buffer.cpp"
+  "scripts-script_camera.cpp"
+  "scripts-script_collection_factory.cpp"
+  "scripts-script_collectionproxy.cpp"
+  "scripts-script_factory.cpp"
+  "scripts-script_http.cpp"
+  "scripts-script_image.cpp"
+  "scripts-script_label.cpp"
+  "scripts-script_model.cpp"
+  "scripts-script_particlefx.cpp"
+  "scripts-script_physics.cpp"
+  "scripts-script_resource.cpp"
+  "scripts-script_sound.cpp"
+  "scripts-script_sprite.cpp"
+  "scripts-script_sys_gamesys.cpp"
+  "scripts-script_tilemap.cpp"
+  "scripts-script_window.cpp" ])
 
 (defn- sdoc-path [doc]
   (format "doc/%s_doc.sdoc" doc))
@@ -133,7 +185,7 @@
 (def base-globals
   (into #{"coroutine" "package" "string" "table" "math" "io" "file" "os" "debug"}
         (map :name)
-        (load-sdoc "base")))
+        (load-sdoc "lua_base.doc_h")))
 
 (defn extract-globals-from-completions [completions]
   (into #{}

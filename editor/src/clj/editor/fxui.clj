@@ -40,6 +40,7 @@
             [editor.future :as future]
             [editor.os :as os]
             [editor.ui :as ui]
+            [editor.util :as util]
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [clojure.lang MultiFn]
@@ -339,20 +340,6 @@
     (delete [_ component opts]
       (fx.lifecycle/delete lifecycle (:child component) opts))))
 
-(defmacro provide-single-default [m k v]
-  `(let [m# ~m
-         k# ~k]
-     (if (contains? m# k#)
-       m#
-       (assoc m# k# ~v))))
-
-(defmacro provide-defaults
-  "Like assoc, but does nothing if key is already in this map. Evaluates values
-  only when key is not present"
-  [m & kvs]
-  `(-> ~m
-       ~@(map #(cons `provide-single-default %) (partition 2 kvs))))
-
 (defn mount-renderer-and-await-result!
   "Mounts `renderer` and blocks current thread until `state-atom`'s value
   receives a `::result` key"
@@ -450,7 +437,7 @@
                         :else
                         {:fx/type ext-value
                          :value owner}))
-        (provide-defaults
+        (util/provide-defaults
           :resizable false
           :style :decorated
           :modality (if (nil? owner) :application-modal :window-modal)))))
@@ -487,7 +474,7 @@
   (-> props
       (assoc :fx/type fx.label/lifecycle)
       (dissoc :variant)
-      (provide-defaults :wrap-text true)
+      (util/provide-defaults :wrap-text true)
       (add-style-classes (case variant
                            :label "label"
                            :header "header"))))
@@ -679,11 +666,11 @@
                         :icon/zip "M32,9.2c0-0.6-0.2-1.2-0.7-1.6l-5.9-5.9C25,1.2,24.4,1,23.8,1L4.3,1C3.6,1,3,1.6,3,2.3l0,30.4C3,33.4,3.6,34,4.3,34l26.4,0c0.7,0,1.3-0.6,1.3-1.3L32,9.2zM30.7,33L4.3,33C4.1,33,4,32.9,4,32.7L4,2.3C4,2.1,4.1,2,4.3,2l19.5,0c0.3,0,0.7,0.1,0.9,0.4l5.9,5.9C30.8,8.5,31,8.9,31,9.2l0,23.5C31,32.9,30.9,33,30.7,33zM29.5,9.5c0,0.3-0.2,0.5-0.5,0.5l-4.9,0C23.5,10,23,9.5,23,8.9L23,4c0-0.3,0.2-0.5,0.5-0.5S24,3.7,24,4l0,4.9C24,9,24,9,24.1,9L29,9C29.3,9,29.5,9.2,29.5,9.5zM18,13.5c0,0.3-0.2,0.5-0.5,0.5S17,13.8,17,13.5s0.2-0.5,0.5-0.5S18,13.2,18,13.5zM18,11.5c0,0.3-0.2,0.5-0.5,0.5S17,11.8,17,11.5s0.2-0.5,0.5-0.5S18,11.2,18,11.5zM18,9.5c0,0.3-0.2,0.5-0.5,0.5S17,9.8,17,9.5C17,9.2,17.2,9,17.5,9S18,9.2,18,9.5zM18,7.5c0,0.3-0.2,0.5-0.5,0.5S17,7.8,17,7.5S17.2,7,17.5,7S18,7.2,18,7.5zM18,5.5c0,0.3-0.2,0.5-0.5,0.5S17,5.8,17,5.5C17,5.2,17.2,5,17.5,5S18,5.2,18,5.5zM18,3.5c0,0.3-0.2,0.5-0.5,0.5S17,3.8,17,3.5S17.2,3,17.5,3S18,3.2,18,3.5zM15.9,12.6c0-0.3,0.2-0.5,0.5-0.5s0.5,0.2,0.5,0.5s-0.2,0.5-0.5,0.5S15.9,12.9,15.9,12.6zM15.9,10.6c0-0.3,0.2-0.5,0.5-0.5s0.5,0.2,0.5,0.5s-0.2,0.5-0.5,0.5S15.9,10.9,15.9,10.6zM15.9,8.6c0-0.3,0.2-0.5,0.5-0.5S17,8.2,17,8.6c0,0.3-0.2,0.5-0.5,0.5S15.9,8.9,15.9,8.6zM15.9,6.6c0-0.3,0.2-0.5,0.5-0.5S17,6.2,17,6.6s-0.2,0.5-0.5,0.5S15.9,6.9,15.9,6.6zM15.9,4.6c0-0.3,0.2-0.5,0.5-0.5S17,4.2,17,4.6c0,0.3-0.2,0.5-0.5,0.5S15.9,4.9,15.9,4.6zM16,27.5c0,0.3-0.2,0.5-0.5,0.5h-3c-0.2,0-0.4-0.1-0.4-0.3s-0.1-0.4,0-0.5l2.4-3.2h-2c-0.3,0-0.5-0.2-0.5-0.5s0.2-0.5,0.5-0.5h3c0.2,0,0.4,0.1,0.4,0.3s0.1,0.4,0,0.5L13.5,27h2C15.8,27,16,27.2,16,27.5zM18,23.5v4c0,0.3-0.2,0.5-0.5,0.5S17,27.8,17,27.5v-4c0-0.3,0.2-0.5,0.5-0.5S18,23.2,18,23.5zM21.5,23h-2c-0.3,0-0.5,0.2-0.5,0.5v4c0,0.3,0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5V26h1.5c0.8,0,1.5-0.7,1.5-1.5S22.3,23,21.5,23zM21.5,25H20v-1h1.5c0.3,0,0.5,0.2,0.5,0.5S21.8,25,21.5,25zM11,27.5c0,0.3-0.2,0.5-0.5,0.5S10,27.8,10,27.5c0-0.3,0.2-0.5,0.5-0.5S11,27.2,11,27.5zM18,15.5v2.9c0,0.3-0.2,0.5-0.5,0.5h-0.9c-0.3,0-0.5-0.2-0.5-0.5v-2.9c0-0.3,0.2-0.5,0.5-0.5h0.9C17.8,15,18,15.2,18,15.5z"
                         :icon/zip-hover "M31.4,29.6c0.2,0.2,0.2,0.5,0,0.7l-3.5,3.5c0,0-0.1,0.1-0.2,0.1c-0.1,0-0.1,0-0.2,0s-0.1,0-0.2,0c-0.1,0-0.1-0.1-0.2-0.1l-3.5-3.5c-0.2-0.2-0.2-0.5,0-0.7s0.5-0.2,0.7,0l2.7,2.7v-6.8c0-0.3,0.2-0.5,0.5-0.5s0.5,0.2,0.5,0.5v6.8l2.7-2.7C30.9,29.4,31.2,29.4,31.4,29.6zM32,9.2c0-0.6-0.2-1.2-0.7-1.6l-5.9-5.9C25,1.2,24.4,1,23.8,1L4.3,1C3.6,1,3,1.6,3,2.3l0,30.4C3,33.4,3.6,34,4.3,34h19.2c0.3,0,0.5-0.2,0.5-0.5c0-0.3-0.2-0.5-0.5-0.5H4.3C4.1,33,4,32.9,4,32.7L4,2.3C4,2.1,4.1,2,4.3,2l19.5,0c0.3,0,0.7,0.1,0.9,0.4l5.9,5.9C30.8,8.5,31,8.9,31,9.2l0,18.3c0,0.3,0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5L32,9.2zM29,10c0.3,0,0.5-0.2,0.5-0.5C29.5,9.2,29.3,9,29,9l-4.9,0C24,9,24,9,24,8.9L24,4c0-0.3-0.2-0.5-0.5-0.5S23,3.7,23,4l0,4.9c0,0.6,0.5,1.1,1.1,1.1L29,10zM17.5,13c-0.3,0-0.5,0.2-0.5,0.5s0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5S17.8,13,17.5,13zM17.5,11c-0.3,0-0.5,0.2-0.5,0.5s0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5S17.8,11,17.5,11zM17.5,9C17.2,9,17,9.2,17,9.5c0,0.3,0.2,0.5,0.5,0.5S18,9.8,18,9.5C18,9.2,17.8,9,17.5,9zM17.5,7C17.2,7,17,7.2,17,7.5s0.2,0.5,0.5,0.5S18,7.8,18,7.5S17.8,7,17.5,7zM17.5,5C17.2,5,17,5.2,17,5.5c0,0.3,0.2,0.5,0.5,0.5S18,5.8,18,5.5C18,5.2,17.8,5,17.5,5zM17.5,3C17.2,3,17,3.2,17,3.5s0.2,0.5,0.5,0.5S18,3.8,18,3.5S17.8,3,17.5,3zM16.5,13.1c0.3,0,0.5-0.2,0.5-0.5S16.8,12,16.5,12s-0.5,0.2-0.5,0.5S16.2,13.1,16.5,13.1zM16.5,11.1c0.3,0,0.5-0.2,0.5-0.5S16.8,10,16.5,10s-0.5,0.2-0.5,0.5S16.2,11.1,16.5,11.1zM16.5,9.1c0.3,0,0.5-0.2,0.5-0.5C17,8.2,16.8,8,16.5,8s-0.5,0.2-0.5,0.5C15.9,8.9,16.2,9.1,16.5,9.1zM16.5,7.1c0.3,0,0.5-0.2,0.5-0.5S16.8,6,16.5,6s-0.5,0.2-0.5,0.5S16.2,7.1,16.5,7.1zM16.5,5.1c0.3,0,0.5-0.2,0.5-0.5C17,4.2,16.8,4,16.5,4s-0.5,0.2-0.5,0.5C15.9,4.9,16.2,5.1,16.5,5.1zM12.1,27.7c0.1,0.2,0.3,0.3,0.4,0.3h3c0.3,0,0.5-0.2,0.5-0.5S15.8,27,15.5,27h-2l2.4-3.2c0.1-0.2,0.1-0.4,0-0.5S15.7,23,15.5,23h-3c-0.3,0-0.5,0.2-0.5,0.5s0.2,0.5,0.5,0.5h2l-2.4,3.2C12,27.4,12,27.6,12.1,27.7zM17,23.5v4c0,0.3,0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5v-4c0-0.3-0.2-0.5-0.5-0.5S17,23.2,17,23.5zM21.5,23c0.8,0,1.5,0.7,1.5,1.5S22.3,26,21.5,26H20v1.5c0,0.3-0.2,0.5-0.5,0.5S19,27.8,19,27.5v-4c0-0.3,0.2-0.5,0.5-0.5H21.5zM21.5,24H20v1h1.5c0.3,0,0.5-0.2,0.5-0.5S21.8,24,21.5,24zM10,27.5c0,0.3,0.2,0.5,0.5,0.5s0.5-0.2,0.5-0.5c0-0.3-0.2-0.5-0.5-0.5S10,27.2,10,27.5zM18,15.5c0-0.3-0.2-0.5-0.5-0.5h-0.9c-0.3,0-0.5,0.2-0.5,0.5v2.9c0,0.3,0.2,0.5,0.5,0.5h0.9c0.3,0,0.5-0.2,0.5-0.5V15.5z"))
       (dissoc :type)
-      (provide-defaults :fill (case type
-                                :icon/circle-check "#65c647"
-                                (:icon/triangle-error :icon/triangle-sad) "#e32f44"
-                                :icon/triangle-warning "#e6b711"
-                                "#9fb0be"))))
+      (util/provide-defaults :fill (case type
+                                     :icon/circle-check "#65c647"
+                                     (:icon/triangle-error :icon/triangle-sad) "#e32f44"
+                                     :icon/triangle-warning "#e6b711"
+                                     "#9fb0be"))))
 
 (def ^:private ^{:arglists '([props])} resolve-grid-spacing
   (let [spacing->style-class (coll/pair-map-by identity #(str "ext-grid-spacing-" (name %)) (:spacing ui-docs/enums))]
@@ -810,7 +797,7 @@
   (-> props
       (assoc :fx/type fx.label/lifecycle)
       (prepend-style-classes "label" "ext-label")
-      (provide-defaults
+      (util/provide-defaults
         :alignment :top-left
         :min-width :use-pref-size
         :min-height :use-pref-size
@@ -837,7 +824,7 @@
   (-> props
       (assoc :fx/type fx.check-box/lifecycle)
       (prepend-style-classes "check-box" "ext-check-box")
-      (provide-defaults
+      (util/provide-defaults
         :mnemonic-parsing false
         :min-width :use-pref-size
         :min-height :use-pref-size
@@ -1048,7 +1035,7 @@
                     (assoc :fx/type fx.scroll-pane/lifecycle)
                     (dissoc :content)
                     (prepend-style-classes "ext-scroll-pane")
-                    (provide-defaults :fit-to-width true))}})
+                    (util/provide-defaults :fit-to-width true))}})
 
 (defmacro defc
   "Define a composed component
@@ -1096,7 +1083,7 @@
   (-> props
       (assoc :fx/type fx.label/lifecycle)
       (prepend-style-classes "label")
-      (provide-defaults
+      (util/provide-defaults
         :max-width Double/MAX_VALUE
         :max-height Double/MAX_VALUE
         :wrap-text true)

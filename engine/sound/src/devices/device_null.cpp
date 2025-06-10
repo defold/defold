@@ -26,7 +26,7 @@ namespace dmDeviceNull
     {
     }
 
-    dmSound::Result DeviceNullQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
+    dmSound::Result DeviceNullQueue(dmSound::HDevice device, const void* samples, uint32_t sample_count)
     {
         return dmSound::RESULT_OK;
     }

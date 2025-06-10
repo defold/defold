@@ -533,7 +533,7 @@ namespace dmGraphics
 
     float            VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr);
     uint8_t*         WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type);
-    uint8_t*         WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, const WriteAttributeParams& params);
+    uint8_t*         WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, uint32_t vertex_count, const WriteAttributeParams& params);
 
     // Uniforms
     uint32_t         GetUniformCount(HProgram prog);
@@ -575,6 +575,7 @@ namespace dmGraphics
     TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
 
     uint32_t GetTextureFormatBitsPerPixel(TextureFormat format);
+    uint8_t     GetTexturePageCount(HTexture texture);
 
     // Calculating mipmap info helpers
     uint16_t    GetMipmapSize(uint16_t size_0, uint8_t mipmap);
@@ -671,6 +672,7 @@ namespace dmGraphics
         return type == TYPE_SAMPLER_2D ||
                type == TYPE_SAMPLER_2D_ARRAY ||
                type == TYPE_TEXTURE_2D ||
+               type == TYPE_TEXTURE_2D_ARRAY ||
                type == TYPE_IMAGE_2D ||
 
                type == TYPE_SAMPLER_3D ||

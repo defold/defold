@@ -633,6 +633,7 @@ namespace dmGameSystem
  * @document
  * @name b2d.body
  * @namespace b2d.body
+ * @language Lua
  */
 
 /*# Static (immovable) body

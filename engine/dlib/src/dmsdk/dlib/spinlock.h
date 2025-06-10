@@ -23,6 +23,7 @@
  * @name Spinlock
  * @namespace dmSpinlock
  * @path engine/dlib/src/dmsdk/dlib/spinlock.h
+ * @language C++
  */
 
 #include <dmsdk/dlib/spinlocktypes.h>

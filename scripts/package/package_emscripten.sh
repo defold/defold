@@ -16,7 +16,7 @@
 
 set -e
 
-VERSION=3.1.65
+VERSION=4.0.6
 URL=https://github.com/emscripten-core/emsdk/archive/${VERSION}.tar.gz
 PLATFORM=`uname`
 PLATFORM="$(tr [A-Z] [a-z] <<< "$PLATFORM")"

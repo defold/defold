@@ -14,11 +14,13 @@
 
 (ns editor.buffers
   (:require [util.num :as num])
-  (:import [com.google.protobuf ByteString]
-           [java.nio Buffer ByteBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]
+  (:import [clojure.lang Murmur3 Util]
+           [com.google.protobuf ByteString]
+           [java.nio Buffer ByteBuffer CharBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]
            [java.nio.charset StandardCharsets]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn slurp-bytes
   ^bytes [^ByteBuffer buff]
@@ -44,20 +46,53 @@
 (defprotocol ByteStringCoding
   (byte-pack [source] "Return a Protocol Buffer compatible ByteString from the given source."))
 
-(defn- new-buffer [s] (ByteBuffer/allocateDirect s))
+(defonce ^:private native-java-nio-byte-order (ByteOrder/nativeOrder))
 
-(defn new-byte-buffer ^ByteBuffer [& dims] (new-buffer (reduce * 1 dims)))
+(defn- byte-order->java-nio-byte-order
+  ^ByteOrder [byte-order]
+  (case byte-order
+    :byte-order/native native-java-nio-byte-order
+    :byte-order/big-endian ByteOrder/BIG_ENDIAN
+    :byte-order/little-endian ByteOrder/LITTLE_ENDIAN))
+
+(defn new-byte-buffer
+  ^ByteBuffer [byte-size byte-order]
+  (let [java-nio-byte-order (byte-order->java-nio-byte-order byte-order)]
+    (doto (ByteBuffer/allocateDirect byte-size)
+      (.order java-nio-byte-order))))
 
 (defn wrap-byte-array
-  ^ByteBuffer [byte-array]
-  (ByteBuffer/wrap byte-array))
+  ^ByteBuffer [^bytes byte-array byte-order]
+  (let [java-nio-byte-order (byte-order->java-nio-byte-order byte-order)]
+    (doto (ByteBuffer/wrap byte-array)
+      (.order java-nio-byte-order))))
 
-(defn byte-order ^ByteBuffer [order ^ByteBuffer b] (.order b order))
-(def ^ByteBuffer little-endian (partial byte-order ByteOrder/LITTLE_ENDIAN))
-(def ^ByteBuffer big-endian    (partial byte-order ByteOrder/BIG_ENDIAN))
-(def ^ByteBuffer native-order  (partial byte-order (ByteOrder/nativeOrder)))
+(defprotocol HasByteOrder
+  "Annoyingly, there is no method on the Buffer interface to retrieve the byte
+  order. However, they all have one."
+  (byte-order ^ByteOrder [buffer] "Returns the java.nio.ByteOrder of the buffer."))
 
-(defn as-int-buffer ^IntBuffer [^ByteBuffer b] (.asIntBuffer b))
+(extend-protocol HasByteOrder
+  ByteBuffer
+  (byte-order [buffer] (.order buffer))
+
+  CharBuffer
+  (byte-order [buffer] (.order buffer))
+
+  DoubleBuffer
+  (byte-order [buffer] (.order buffer))
+
+  FloatBuffer
+  (byte-order [buffer] (.order buffer))
+
+  IntBuffer
+  (byte-order [buffer] (.order buffer))
+
+  LongBuffer
+  (byte-order [buffer] (.order buffer))
+
+  ShortBuffer
+  (byte-order [buffer] (.order buffer)))
 
 (defn copy-buffer ^ByteBuffer [^ByteBuffer b]
   (let [sz      (.capacity b)
@@ -126,11 +161,52 @@
   ^long [buffer]
   (condp instance? buffer
     ByteBuffer Byte/BYTES
+    CharBuffer Character/BYTES
     DoubleBuffer Double/BYTES
     FloatBuffer Float/BYTES
     IntBuffer Integer/BYTES
     LongBuffer Long/BYTES
     ShortBuffer Short/BYTES))
+
+(defn total-byte-size
+  ^long [^Buffer buffer]
+  (* (item-byte-size buffer) (.limit buffer)))
+
+(defn topology-hash
+  ^long [^Buffer buffer]
+  (-> (hash (class buffer))
+      (Util/hashCombine (.hashCode (byte-order buffer)))
+      (Util/hashCombine (Murmur3/hashLong (total-byte-size buffer)))))
+
+(defn topology-equals? [^Buffer a ^Buffer b]
+  (and (= (class a) (class b))
+       (= (byte-order a) (byte-order b))
+       (= (total-byte-size a) (total-byte-size b))))
+
+(defn- byte-order-rank
+  ^long [^ByteOrder byte-order]
+  ;; We use rank 0 for BIG_ENDIAN since the order of a newly-created byte buffer
+  ;; is always BIG_ENDIAN. Thus, LITTLE_ENDIAN deviates from the default and
+  ;; should have a non-zero value.
+  (condp = byte-order
+    ByteOrder/BIG_ENDIAN 0
+    ByteOrder/LITTLE_ENDIAN 1))
+
+(defn- byte-order-comparison
+  ^long [^ByteOrder a ^ByteOrder b]
+  (Long/compare (byte-order-rank a)
+                (byte-order-rank b)))
+
+(defn topology-comparison
+  ^long [^Buffer a ^Buffer b]
+  (if (or (nil? a) (nil? b))
+    (compare a b)
+    (if (not= (class a) (class b))
+      (throw (ClassCastException. (str (.getName (class a)) " cannot be compared to " (.getName (class b)))))
+      (let [byte-order-comparison (byte-order-comparison (byte-order a) (byte-order b))]
+        (if-not (zero? byte-order-comparison)
+          byte-order-comparison
+          (compare (total-byte-size a) (total-byte-size b)))))))
 
 (defn blit!
   ^ByteBuffer [^ByteBuffer buffer ^long byte-offset ^bytes bytes]

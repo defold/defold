@@ -52,6 +52,8 @@
 
 #include <dmsdk/gamesys/render_constants.h>
 
+#include <sound/sound.h>
+
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
@@ -420,7 +422,17 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     ///////////////////////////////////////////////////////////////////////////////////////////
-    // Test 10: create texture async
+    // Test 10: create 3d texture
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 11: create 2d array texture
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 12: create texture async
     ///////////////////////////////////////////////////////////////////////////////////////////
     dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
     null_context->m_UseAsyncTextureLoad   = 1;
@@ -1059,6 +1071,9 @@ TEST_F(SoundTest, LuaCallback)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
+    // Update sound system once to ensure state updates etc.
+    dmSound::Update();
+
     // Allow for one more update for messages to go through
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -1693,6 +1708,7 @@ TEST_F(FontTest, DynamicGlyph)
     // Add a new glyph
     const char* data = "Test Image Data";
     uint32_t data_size = strlen(data) + 2;
+    uint32_t glyph_padding = 2; // see the glyph bank for the actual number
     {
         uint8_t* mem = (uint8_t*)malloc(strlen(data) + 2);
         memcpy(mem+1, data, data_size-1);
@@ -1706,6 +1722,8 @@ TEST_F(FontTest, DynamicGlyph)
         new_glyph.m_LeftBearing = 5;
         new_glyph.m_Ascent = 6;
         new_glyph.m_Descent = 7;
+        new_glyph.m_ImageWidth = 8;
+        new_glyph.m_ImageHeight = 9;
 
         dmResource::Result r = dmGameSystem::ResFontAddGlyph(font, codepoint, &new_glyph, mem, data_size);
         ASSERT_EQ(dmResource::RESULT_OK, r);
@@ -1725,12 +1743,13 @@ TEST_F(FontTest, DynamicGlyph)
 
         ASSERT_EQ(0U, glyph_data_compression);
         ASSERT_EQ(data_size-1, glyph_data_size);
-        ASSERT_EQ(1U, glyph_image_width);
-        ASSERT_EQ(2U, glyph_image_height);
+        ASSERT_EQ(8U, glyph_image_width);
+        ASSERT_EQ(9U, glyph_image_height);
         ASSERT_EQ(3U, glyph_image_channels);
 
         ASSERT_EQ(codepoint, glyph->m_Character);
-        ASSERT_EQ(1U, glyph->m_Width);
+        ASSERT_EQ(1U + glyph_padding * 2, glyph->m_Width);
+        ASSERT_EQ(8U, glyph->m_ImageWidth);
         ASSERT_EQ(4.0f, glyph->m_Advance);
         ASSERT_EQ(5.0f, glyph->m_LeftBearing);
         ASSERT_EQ(6U, glyph->m_Ascent);
@@ -2050,6 +2069,35 @@ TEST_P(FactoryTest, Test)
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
     }
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_P(FactoryTest, IdHashTest)
+{
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    // Spawn the game object with the script we want to call
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmhash_t go_hash = dmHashString64("/go");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/factory/factory_hash_test.goc", go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
 
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
@@ -3304,7 +3352,7 @@ TEST_F(ComponentTest, DispatchBuffersInstancingTest)
         ASSERT_EQ(instance_stride_a, dmGraphics::GetVertexDeclarationStride(inst_decl_a));
         ASSERT_EQ(instance_stride_b, dmGraphics::GetVertexDeclarationStride(inst_decl_b));
 
-        // TODO: Ideally we should test the actual result of the dispatch here, but there are 
+        // TODO: Ideally we should test the actual result of the dispatch here, but there are
         //       currently limitations in how the content is generated via waf_gamesys.
         //       Right now all rig scenes will be referencing a skeleton, which isn't compatible
         //       with local spaced models.
@@ -4972,7 +5020,7 @@ TEST_F(MaterialTest, CustomVertexAttributes)
     //      attribute vec4 position;
     //      attribute vec3 normal;
     //      attribute vec2 texcoord0;
-    //      attribute vec4 color; 
+    //      attribute vec4 color;
 
     dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
     ASSERT_EQ(4, attribute_count);
@@ -5687,7 +5735,7 @@ TEST_F(ShaderTest, ComputeResource)
 
     // Note: texture_a is a storage texture, so we only have two actual samplers here:
     ASSERT_EQ(2, compute_program_res->m_NumTextures);
-    
+
     dmRender::Sampler* sampler_tex_b = dmRender::GetComputeProgramSampler(compute_program, 0);
     dmRender::Sampler* sampler_tex_c = dmRender::GetComputeProgramSampler(compute_program, 1);
 

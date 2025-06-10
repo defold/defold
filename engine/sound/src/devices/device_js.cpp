@@ -27,11 +27,8 @@ extern "C" {
     // Implementation in library_sound.js
     int dmDeviceJSOpen(int buffers);
     int dmGetDeviceSampleRate(int device);
-    void dmDeviceJSQueue(int device, const int16_t* samples, uint32_t sample_count);
+    void dmDeviceJSQueue(int device, const float* samples, uint32_t sample_count);
     int dmDeviceJSFreeBufferSlots(int device);
-
-    // Implementation in library_sys.js
-    bool dmGetSIMDCapability();
 }
 
 
@@ -69,7 +66,7 @@ namespace dmDeviceJS
         delete (JSDevice*)(device);
     }
 
-    dmSound::Result DeviceJSQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
+    dmSound::Result DeviceJSQueue(dmSound::HDevice device, const void* samples, uint32_t sample_count)
     {
         assert(device);
         JSDevice *dev = (JSDevice*) device;
@@ -77,7 +74,7 @@ namespace dmDeviceJS
         {
             return dmSound::RESULT_INIT_ERROR;
         }
-        dmDeviceJSQueue(dev->devId, samples, sample_count);
+        dmDeviceJSQueue(dev->devId, (const float*)samples, sample_count);
         return dmSound::RESULT_OK;
     }
 
@@ -95,7 +92,9 @@ namespace dmDeviceJS
         JSDevice *dev = (JSDevice*) device;
         info->m_MixRate = dmGetDeviceSampleRate(dev->devId);
 
-        info->m_DSPImplementation = dmGetSIMDCapability() ? dmSound::DSPIMPL_TYPE_WASM_SIMD128 : dmSound::DSPIMPL_TYPE_CPU;
+        info->m_UseNonInterleaved = 1;
+        info->m_UseFloats = 1;
+        info->m_UseNormalized = 1;
     }
 
     void DeviceJSStart(dmSound::HDevice device)

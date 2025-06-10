@@ -187,6 +187,7 @@ static WebGPUTexture* WebGPUNewTextureInternal(const TextureCreationParams& para
     if (params.m_UsageHintBits & TEXTURE_USAGE_FLAG_COLOR)
         texture->m_UsageFlags |= WGPUTextureUsage_RenderAttachment;
     texture->m_UsageHintFlags = params.m_UsageHintBits;
+    texture->m_PageCount      = params.m_LayerCount;
 
     if (params.m_OriginalWidth == 0)
     {
@@ -451,7 +452,8 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
     { //must recreate texture
         if (params.m_SubUpdate)
         {
-            dmLogError("Cannot receate texture for subdata %d vs %d", texture->m_GraphicsFormat, params.m_Format);
+            if (params.m_Format != TEXTURE_FORMAT_RGB || texture->m_GraphicsFormat != TEXTURE_FORMAT_RGBA) // this will transcode
+                dmLogError("Cannot handle subdata format changing %d vs %d", texture->m_GraphicsFormat, params.m_Format);
         }
         else
         {
@@ -3098,6 +3100,13 @@ static uint32_t WebGPUGetTextureUsageHintFlags(HTexture _texture)
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
     return texture->m_UsageHintFlags;
+}
+
+static uint8_t WebGPUGetTexturePageCount(HTexture _texture)
+{
+    TRACE_CALL;
+    WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
+    return texture->m_PageCount;
 }
 
 static bool WebGPUIsContextFeatureSupported(HContext _context, ContextFeature feature)

@@ -146,6 +146,7 @@ namespace dmGameSystem
  * @document
  * @name b2d
  * @namespace b2d
+ * @language Lua
  */
 
 /*# Get the Box2D world from the current collection

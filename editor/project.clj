@@ -28,7 +28,7 @@
                      [org.clojure/tools.cli                       "0.3.5"]
                      [org.clojure/tools.macro                     "0.1.5"]
                      [org.clojure/tools.namespace                 "1.2.0"]
-                     [org.clojure/data.int-map                    "0.2.4"]
+                     [org.clojure/data.int-map                    "1.3.0"]
                      [org.clojure/data.json                       "2.5.0"]
                      [com.cognitect/transit-clj                   "0.8.285"]
                      [prismatic/schema                            "1.1.9"]
@@ -163,7 +163,9 @@
                       ;; hide warnings about illegal reflective access by clojure
                       "--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED"
                       ;; used in editor.scene$read_to_buffered_image
-                      "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"]
+                      "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"
+                      ;; "-XX:MaxJavaStackTraceDepth=1073741823"
+                      ]
   :main ^:skip-aot   com.defold.editor.Main
 
   :uberjar-exclusions [#"^natives/"]

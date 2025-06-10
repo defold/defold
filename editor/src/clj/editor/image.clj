@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.image
-  (:require [clojure.string :as str]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.gl :as gl]
             [editor.gl.texture :as texture]
@@ -32,11 +31,9 @@
 
 (def exts ["jpg" "png"])
 
-(defn image-path?
-  [path]
-  (->> exts
-       (some (partial str/ends-with? (str/lower-case path)))
-       boolean))
+(defn image-resource?
+  [resource]
+  (boolean (some #{(resource/type-ext resource)} exts)))
 
 (defn- build-texture [resource _dep-resources user-data]
   (let [{:keys [content-generator texture-profile compress?]} user-data

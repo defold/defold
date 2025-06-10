@@ -27,6 +27,7 @@
  * @document
  * @name Graphics
  * @namespace dmGraphics
+ * @language C++
  */
 
 namespace dmGraphics
@@ -639,7 +640,7 @@ namespace dmGraphics
         , m_Width(0)
         , m_Height(0)
         , m_Depth(0)
-        , m_LayerCount(0)
+        , m_LayerCount(1)
         , m_MipMap(0)
         , m_SubUpdate(false)
         {}
@@ -661,7 +662,7 @@ namespace dmGraphics
         uint16_t m_Width;
         uint16_t m_Height;
         uint16_t m_Depth;
-        uint16_t m_LayerCount; // For array texture, this is slice count
+        uint8_t m_LayerCount; // For array texture, this is page count
         uint8_t  m_MipMap    : 7;
         uint8_t  m_SubUpdate : 1;
     };

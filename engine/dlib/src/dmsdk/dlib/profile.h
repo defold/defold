@@ -22,6 +22,7 @@
  * @name Profile
  * @namespace dmProfile
  * @path engine/dlib/src/dmsdk/dlib/profile.h
+ * @language C++
  */
 
 #include <stdint.h>
@@ -502,34 +503,27 @@ typedef uint64_t dmProfileIdx;
 // Private
 #define DM_PROFILE_PROPERTY_INVALID_IDX 0xFFFFFFFF
 
-dmProfileIdx dmProfileCreatePropertyGroup(const char* name, const char* desc, dmProfileIdx* parent);
-dmProfileIdx dmProfileCreatePropertyBool(const char* name, const char* desc, int value, uint32_t flags, dmProfileIdx* parent);
-dmProfileIdx dmProfileCreatePropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, dmProfileIdx* parent);
-dmProfileIdx dmProfileCreatePropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, dmProfileIdx* parent);
-dmProfileIdx dmProfileCreatePropertyF32(const char* name, const char* desc, float value, uint32_t flags, dmProfileIdx* parent);
-dmProfileIdx dmProfileCreatePropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, dmProfileIdx* parent);
-dmProfileIdx dmProfileCreatePropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, dmProfileIdx* parent);
-dmProfileIdx dmProfileCreatePropertyF64(const char* name, const char* desc, double value, uint32_t flags, dmProfileIdx* parent);
+dmProfileIdx dmProfileCreatePropertyGroup(const char* name, const char* desc, dmProfileIdx* (*parent)());
 
-void dmProfilePropertySetBool(dmProfileIdx idx, int v);
-void dmProfilePropertySetS32(dmProfileIdx idx, int32_t v);
-void dmProfilePropertySetU32(dmProfileIdx idx, uint32_t v);
-void dmProfilePropertySetF32(dmProfileIdx idx, float v);
-void dmProfilePropertySetS64(dmProfileIdx idx, int64_t v);
-void dmProfilePropertySetU64(dmProfileIdx idx, uint64_t v);
-void dmProfilePropertySetF64(dmProfileIdx idx, double v);
-
-void dmProfilePropertyAddS32(dmProfileIdx idx, int32_t v);
-void dmProfilePropertyAddU32(dmProfileIdx idx, uint32_t v);
-void dmProfilePropertyAddF32(dmProfileIdx idx, float v);
-void dmProfilePropertyAddS64(dmProfileIdx idx, int64_t v);
-void dmProfilePropertyAddU64(dmProfileIdx idx, uint64_t v);
-void dmProfilePropertyAddF64(dmProfileIdx idx, double v);
+#define DM_PROPERTY_TYPE(stype, type) \
+    dmProfileIdx dmProfileCreateProperty##stype(const char* name, const char* desc, type value, uint32_t flags, dmProfileIdx* (*parent)()); \
+    void dmProfilePropertySet##stype(dmProfileIdx idx, type v); \
+    static inline void dmProfilePropertySet##stype(dmProfileIdx* (*idx)(), type v) { dmProfilePropertySet##stype(*idx(), v); } \
+    void dmProfilePropertyAdd##stype(dmProfileIdx idx, type v); \
+    static inline void dmProfilePropertyAdd##stype(dmProfileIdx* (*idx)(), type v) { dmProfilePropertyAdd##stype(*idx(), v); }
+DM_PROPERTY_TYPE(Bool, int);
+DM_PROPERTY_TYPE(S32, int32_t);
+DM_PROPERTY_TYPE(U32, uint32_t);
+DM_PROPERTY_TYPE(F32, float);
+DM_PROPERTY_TYPE(S64, int64_t);
+DM_PROPERTY_TYPE(U64, uint64_t);
+DM_PROPERTY_TYPE(F64, double);
+#undef DM_PROPERTY_TYPE
 
 void dmProfilePropertyReset(dmProfileIdx idx);
 
 // Public
-#define DM_PROPERTY_EXTERN(name) extern dmProfileIdx name;
+#define DM_PROPERTY_EXTERN(name) extern dmProfileIdx *name()
 
 enum ProfilePropertyFlags
 {
@@ -594,14 +588,14 @@ enum ProfilePropertyFlags
     #define DM_PROFILE_TEXT(format, ...)              dmProfile::LogText(format, __VA_ARGS__)
 
     // The profiler property api
-    #define DM_PROPERTY_GROUP(name, desc, parent)                       dmProfileIdx name = dmProfileCreatePropertyGroup(#name, desc, parent)
-    #define DM_PROPERTY_BOOL(name, default_value, flags, desc, parent)  dmProfileIdx name = dmProfileCreatePropertyBool(#name, desc, default_value, flags, parent)
-    #define DM_PROPERTY_S32(name, default_value, flags, desc, parent)   dmProfileIdx name = dmProfileCreatePropertyS32(#name, desc, default_value, flags, parent)
-    #define DM_PROPERTY_U32(name, default_value, flags, desc, parent)   dmProfileIdx name = dmProfileCreatePropertyU32(#name, desc, default_value, flags, parent)
-    #define DM_PROPERTY_F32(name, default_value, flags, desc, parent)   dmProfileIdx name = dmProfileCreatePropertyF32(#name, desc, default_value, flags, parent)
-    #define DM_PROPERTY_S64(name, default_value, flags, desc, parent)   dmProfileIdx name = dmProfileCreatePropertyS64(#name, desc, default_value, flags, parent)
-    #define DM_PROPERTY_U64(name, default_value, flags, desc, parent)   dmProfileIdx name = dmProfileCreatePropertyU64(#name, desc, default_value, flags, parent)
-    #define DM_PROPERTY_F64(name, default_value, flags, desc, parent)   dmProfileIdx name = dmProfileCreatePropertyF64(#name, desc, default_value, flags, parent)
+    #define DM_PROPERTY_GROUP(name, desc, parent)                      dmProfileIdx *name() { static dmProfileIdx n = dmProfileCreatePropertyGroup(#name, desc, parent); return &n; } static dmProfileIdx *name##_p = name()
+    #define DM_PROPERTY_BOOL(name, default_value, flags, desc, parent) dmProfileIdx *name() { static dmProfileIdx n = dmProfileCreatePropertyBool(#name, desc, default_value, flags, parent); return &n; } static dmProfileIdx *name##_p = name()
+    #define DM_PROPERTY_S32(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static dmProfileIdx n = dmProfileCreatePropertyS32(#name, desc, default_value, flags, parent); return &n; } static dmProfileIdx *name##_p = name()
+    #define DM_PROPERTY_U32(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static dmProfileIdx n = dmProfileCreatePropertyU32(#name, desc, default_value, flags, parent); return &n; } static dmProfileIdx *name##_p = name()
+    #define DM_PROPERTY_F32(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static dmProfileIdx n = dmProfileCreatePropertyF32(#name, desc, default_value, flags, parent); return &n; } static dmProfileIdx *name##_p = name()
+    #define DM_PROPERTY_S64(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static dmProfileIdx n = dmProfileCreatePropertyS64(#name, desc, default_value, flags, parent); return &n; } static dmProfileIdx *name##_p = name()
+    #define DM_PROPERTY_U64(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static dmProfileIdx n = dmProfileCreatePropertyU64(#name, desc, default_value, flags, parent); return &n; } static dmProfileIdx *name##_p = name()
+    #define DM_PROPERTY_F64(name, default_value, flags, desc, parent)  dmProfileIdx *name() { static dmProfileIdx n = dmProfileCreatePropertyF64(#name, desc, default_value, flags, parent); return &n; } static dmProfileIdx *name##_p = name()
 
     // Set properties to the given value
     #define DM_PROPERTY_SET_BOOL(name, set_value)   dmProfilePropertySetBool(name, set_value)
@@ -655,7 +649,7 @@ namespace dmProfile
         ProfileScope* m_ScopeInfo;
 
         inline ProfileScopeHelper(const char* name, uint64_t* name_hash, ProfileScope* info)
-        : m_Valid(0)
+            : m_ScopeInfo(info), m_Valid(0)
         {
             if (name)
             {

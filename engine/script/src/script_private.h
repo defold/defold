@@ -78,7 +78,20 @@ namespace dmScript
         dmArray<HScriptExtension>   m_ScriptExtensions;
         lua_State*                  m_LuaState;
         int                         m_ContextTableRef;
+        int                         m_ContextWeakTableRef;
     };
+
+    struct TableHeader
+    {
+        uint32_t m_Magic;
+        uint32_t m_Version;
+
+        TableHeader() : m_Magic(0), m_Version(0)
+        {
+        }
+    };
+
+    const char* ReadHeader(const char* buffer, TableHeader& header);
 
     HContext GetScriptContext(lua_State* L);
 

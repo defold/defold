@@ -51,6 +51,7 @@ message SpriteDesc
  * @document
  * @name Sprite
  * @namespace sprite
+ * @language Lua
  */
 
 /*# play a sprite animation

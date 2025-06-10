@@ -34,8 +34,8 @@
  *
  * @document
  * @name Array
- * @namespace dmArray
  * @path engine/dlib/src/dmsdk/dlib/array.h
+ * @language C++
  */
 
 /**

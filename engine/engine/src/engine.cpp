@@ -112,6 +112,15 @@ namespace dmEngine
 
     dmEngineService::HEngineService g_EngineService = 0;
 
+    static ExtensionAppExitCode GetAppExitStatusFromAction(int action)
+    {
+        switch(action) {
+        case dmEngine::RunResult::REBOOT:   return EXTENSION_APP_EXIT_CODE_REBOOT;
+        case dmEngine::RunResult::EXIT:     return EXTENSION_APP_EXIT_CODE_EXIT;
+        default:                            return EXTENSION_APP_EXIT_CODE_NONE;
+        }
+    }
+
     struct ScopedExtensionAppParams
     {
         ExtensionAppParams m_AppParams;
@@ -119,6 +128,7 @@ namespace dmEngine
         {
             ExtensionAppParamsInitialize(&m_AppParams);
             m_AppParams.m_ConfigFile = engine->m_Config;
+            m_AppParams.m_ExitStatus = GetAppExitStatusFromAction(engine->m_RunResult.m_Action);
             ExtensionAppParamsSetContext(&m_AppParams, "config", engine->m_Config);
             dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
             ExtensionAppParamsSetContext(&m_AppParams, "webserver", webserver);
@@ -1073,8 +1083,7 @@ namespace dmEngine
 #endif
 
         engine->m_FixedUpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "engine.fixed_update_frequency", 60);
-        engine->m_MaxTimeStep = dmConfigFile::GetFloat(engine->m_Config, "engine.max_time_step", 0.5);
-
+        engine->m_MaxTimeStep = dmConfigFile::GetFloat(engine->m_Config, "engine.max_time_step", 1.0f / 30);
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
 
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0));
@@ -1191,7 +1200,7 @@ namespace dmEngine
 
         dmSound::InitializeParams sound_params;
         sound_params.m_OutputDevice = "default";
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
         sound_params.m_UseThread = false;
 #else
         sound_params.m_UseThread = dmConfigFile::GetInt(engine->m_Config, "sound.use_thread", 1) != 0;
@@ -1733,6 +1742,13 @@ bail:
         return memcount;
     }
 
+    static void Exit(HEngine engine, int32_t code)
+    {
+        engine->m_Alive = false;
+        engine->m_RunResult.m_ExitCode = code;
+        engine->m_RunResult.m_Action = dmEngine::RunResult::EXIT;
+    }
+
     static void StepFrame(HEngine engine, float dt)
     {
         uint64_t frame_start = dmTime::GetMonotonicTime();
@@ -1857,7 +1873,7 @@ bail:
 
                 if (esc_pressed || !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_OPENED))
                 {
-                    engine->m_Alive = false;
+                    Exit(engine, 0);
                     return;
                 }
 
@@ -2095,13 +2111,6 @@ bail:
     {
         HEngine engine = (HEngine)context;
         return engine->m_Alive;
-    }
-
-    static void Exit(HEngine engine, int32_t code)
-    {
-        engine->m_Alive = false;
-        engine->m_RunResult.m_ExitCode = code;
-        engine->m_RunResult.m_Action = dmEngine::RunResult::EXIT;
     }
 
     static void Reboot(HEngine engine, dmSystemDDF::Reboot* reboot)
@@ -2429,7 +2438,6 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
 void dmEngineDestroy(dmEngine::HEngine engine)
 {
     engine->m_RunResult.Free();
-
     Delete(engine);
 }
 

@@ -16,7 +16,6 @@
   (:require [dynamo.graph :as g]
             [editor.buffers :as buffers]
             [editor.geom :as geom]
-            [editor.gl.shader :as shader]
             [editor.gl.vertex2 :as vtx]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -32,7 +31,6 @@
   (:import [com.dynamo.bob.pipeline GraphicsUtil]
            [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType]
            [com.google.protobuf ByteString]
-           [com.jogamp.opengl GL2]
            [editor.gl.vertex2 VertexBuffer]
            [java.nio ByteBuffer]
            [javax.vecmath Matrix4d]))
@@ -738,32 +736,37 @@
       vector-type-value
       vector-type-container)))
 
-(defn shader-bound-attributes [^GL2 gl shader material-attribute-infos manufactured-attribute-keys default-coordinate-space]
-  {:pre [(coordinate-space? default-coordinate-space)]}
-  (let [shader-attribute-infos (shader/attribute-infos shader gl)
-        shader-bound-attribute? (comp boolean shader-attribute-infos :name)
-        declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
+(defn shader-bound-attributes [shader-attribute-infos-by-name material-attribute-infos manufactured-attribute-keys default-coordinate-space]
+  {:pre [(or (nil? shader-attribute-infos-by-name) (map? shader-attribute-infos-by-name))
+         (seqable? material-attribute-infos)
+         (coordinate-space? default-coordinate-space)]}
+  (let [shader-bound-attribute-info?
+        (comp boolean shader-attribute-infos-by-name :name)
+
+        declared-material-attribute-key?
+        (coll/transfer material-attribute-infos #{}
+          (map :name-key))
 
         manufactured-attribute-infos
-        (eduction
+        (coll/transfer manufactured-attribute-keys :eduction
           (remove declared-material-attribute-key?)
           (map attribute-key->default-attribute-info)
           (map (fn [attribute-info]
                  (cond-> attribute-info
                          (= :default (:coordinate-space attribute-info))
-                         (assoc :coordinate-space default-coordinate-space))))
-          manufactured-attribute-keys)
+                         (assoc :coordinate-space default-coordinate-space)))))
 
-        ensure-correct-vector-type-fn (fn [attribute-info]
-                                        (let [shader-attribute-info (get shader-attribute-infos (:name attribute-info))
-                                              shader-attribute-vector-type (shader-uniform-type->vector-type (:type shader-attribute-info))
-                                              compatible-vector-type (compatible-vector-type (:vector-type attribute-info) shader-attribute-vector-type)]
-                                          (assoc attribute-info :vector-type compatible-vector-type)))
+        ensure-compatible-vector-type
+        (fn ensure-correct-vector-type [attribute-info]
+          (let [shader-attribute-info (get shader-attribute-infos-by-name (:name attribute-info))
+                shader-attribute-vector-type (shader-uniform-type->vector-type (:type shader-attribute-info))]
+            (update attribute-info :vector-type compatible-vector-type shader-attribute-vector-type)))]
 
-        filtered-attribute-infos (filterv shader-bound-attribute?
-                                          (concat manufactured-attribute-infos
-                                                  material-attribute-infos))]
-    (mapv ensure-correct-vector-type-fn filtered-attribute-infos)))
+    ;; TODO(instancing): This needs to separate the attribute-infos into per-vertex and per-instance attributes.
+    (coll/transfer [manufactured-attribute-infos material-attribute-infos] []
+      cat
+      (filter shader-bound-attribute-info?)
+      (map ensure-compatible-vector-type))))
 
 (defn vertex-attribute-overrides->save-values [vertex-attribute-overrides material-attribute-infos]
   (let [declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
@@ -1001,7 +1004,8 @@
       (geom/as-array)
       (convert-double-values :semantic-type-none :vector-type-mat4 vector-type))) ; Semantic type does not matter for this.
 
-(defn put-attributes! [^VertexBuffer vbuf renderable-datas]
+(defn put-attributes!
+  ^VertexBuffer [^VertexBuffer vbuf renderable-datas]
   (let [vertex-description (.vertex-description vbuf)
         ^long vertex-byte-stride (:size vertex-description)
         ^ByteBuffer buf (.buf vbuf)
@@ -1042,7 +1046,8 @@
             (fn mesh-data-exists? [semantic-type ^long channel]
               (case semantic-type
                 :semantic-type-position
-                (some? (:position-data renderable-data))
+                (and (zero? channel)
+                     (some? (:position-data renderable-data)))
 
                 :semantic-type-texcoord
                 (some? (get-in texcoord-datas [channel :uv-data]))
@@ -1055,17 +1060,20 @@
                      (some? (:color-data renderable-data)))
 
                 :semantic-type-normal
-                (some? (:normal-data renderable-data))
+                (and (zero? channel)
+                     (some? (:normal-data renderable-data)))
 
                 :semantic-type-tangent
                 (and (zero? channel)
                      (some? (:tangent-data renderable-data)))
 
                 :semantic-type-world-matrix
-                (some? (:has-semantic-type-world-matrix renderable-data))
+                (and (zero? channel)
+                     (boolean (:has-semantic-type-world-matrix renderable-data)))
 
                 :semantic-type-normal-matrix
-                (some? (:has-semantic-type-normal-matrix renderable-data))
+                (and (zero? channel)
+                     (boolean (:has-semantic-type-normal-matrix renderable-data)))
 
                 false))))]
 

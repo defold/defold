@@ -82,7 +82,7 @@ public class ShaderProgramBuilder extends Builder {
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.ModuleBundle.load(input);
         for (String path : modules.getModules()) {
             IResource moduleInput = this.project.getResource(path);
-
+            taskBuilder.addInput(moduleInput);
             // Parse source for includes and add the include-nodes as inputs/dependencies to the shader
             String source = new String(moduleInput.getContent(), StandardCharsets.UTF_8);
 
