@@ -750,40 +750,45 @@ namespace dmSys
 #endif
     }
 
-#if (defined(__linux__) && !defined(__ANDROID__)) || defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__)
+    void GetSystemInfo(SystemInfo* info)
+    {
+        memset(info, 0, sizeof(*info));
+
+        dmStrlCpy(info->m_SystemName, "HTML5", sizeof(info->m_SystemName));
+
+        const char* default_lang = "en_US";
+        info->m_UserAgent = dmSysGetUserAgent(); // transfer ownership to SystemInfo struct
+        const char* const lang = dmSysGetUserPreferredLanguage(default_lang);
+        FillLanguageTerritory(lang, info);
+        FillTimeZone(info);
+
+        free((void*)lang);
+    }
+
+    void GetSecureInfo(SystemInfo* info)
+    {
+    }
+
+#elif defined(__linux__) && !defined(__ANDROID__)
     void GetSystemInfo(SystemInfo* info)
     {
         memset(info, 0, sizeof(*info));
         struct utsname uts;
-#if !defined(__EMSCRIPTEN__)
         uname(&uts);
-#endif
 
-#if defined(__EMSCRIPTEN__)
-        dmStrlCpy(info->m_SystemName, "HTML5", sizeof(info->m_SystemName));
-#else
         dmStrlCpy(info->m_SystemName, "Linux", sizeof(info->m_SystemName));
-#endif
         dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
-        info->m_DeviceModel[0] = '\0';
 
         const char* default_lang = "en_US";
-#if defined(__EMSCRIPTEN__)
-        info->m_UserAgent = dmSysGetUserAgent(); // transfer ownership to SystemInfo struct
-        const char* const lang = dmSysGetUserPreferredLanguage(default_lang);
-#else
         const char* lang = getenv("LANG");
-        if (!lang) {
+        if (!lang)
+        {
             dmLogWarning("Variable LANG not set");
             lang = default_lang;
         }
-#endif
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
-
-#if defined(__EMSCRIPTEN__)
-        free((void*)lang);
-#endif
     }
 
     void GetSecureInfo(SystemInfo* info)
