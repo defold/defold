@@ -5,6 +5,7 @@
 var LibraryDmProfile = {
     $DefoldProfiler: {
         threads: new Map(),
+        enablePerformanceTimelineTimeline: false,
         getThread: function(thread_id) {
             let thread = this.threads.get(thread_id);
             if(!thread) {
@@ -17,9 +18,10 @@ var LibraryDmProfile = {
             return thread;
         }
     },
-    dmProfileJSInit: function() {
+    dmProfileJSInit: function(enablePerformanceTimeline) {
         if(typeof performance === 'undefined')
             return false;
+        DefoldProfiler.enablePerformanceTimeline = enablePerformanceTimeline;
         return true;
     },
     dmProfileJSReset: function(thread_id) {
@@ -56,7 +58,8 @@ var LibraryDmProfile = {
             for(let c = thread.rootProperty.firstChild; c; c = c.nextSibling)
                 addToProperties(c, properties);
         }
-        performance.mark("frame", { detail: properties });
+        if(DefoldProfiler.enablePerformanceTimeline)
+            performance.mark("frame", { detail: properties });
     },
     dmProfileJSBeginMark: function(thread_id, name) {
         const thread = DefoldProfiler.getThread(thread_id);
@@ -77,10 +80,12 @@ var LibraryDmProfile = {
                 mark.parent.firstChild = mark.parent.lastChild = mark;
             thread.marks.set(mark.idx, mark);
         }
-        if(performance.beginMeasure)
-            performance.beginMeasure(mark.nameStr);
-        else
+        if(DefoldProfiler.enablePerformanceTimeline) {
+            if(performance.beginMeasure)
+                performance.beginMeasure(mark.nameStr);
+        } else {
             mark.begins.push(performance.now());
+        }
         thread.currentMark = mark;
         return mark.idx;
     },
@@ -89,10 +94,16 @@ var LibraryDmProfile = {
         const mark = thread.currentMark;
         if(!mark || mark == thread.rootMark)
             return true;
-        if(performance.endMeasure)
-            performance.endMeasure(mark.nameStr);
-        else
-            mark.measures.push(performance.measure(mark.nameStr, { start: mark.begins.pop() }));
+        if(DefoldProfiler.enablePerformanceTimeline) {
+            if(performance.endMeasure) {
+                performance.endMeasure(mark.nameStr);
+            } else {
+                mark.measures.push(performance.measure(mark.nameStr, { start: mark.begins.pop() }));
+            }
+        } else {
+            const startTime = mark.begins.pop(), endTime = performance.now();
+            mark.measures.push({ startTime, endTime, duration: endTime - startTime });
+        }
         thread.currentMark = mark.parent;
         return thread.currentMark === thread.rootMark;
     },
