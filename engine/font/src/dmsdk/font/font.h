@@ -35,11 +35,13 @@ namespace dmFont
      * @enum
      * @name FontResult
      * @member RESULT_OK
+     * @member RESULT_NOT_SUPPORTED
      * @member RESULT_ERROR
      */
     enum FontResult
     {
         RESULT_OK,
+        RESULT_NOT_SUPPORTED,
         RESULT_ERROR,
     };
 

@@ -140,6 +140,10 @@ FontResult GetGlyphTTF(HFont hfont, uint32_t codepoint, const GlyphOptions* opti
 
     stbtt_fontinfo* info = &font->m_Font;
     int glyph_index = stbtt_FindGlyphIndex(info, (int)codepoint);
+    if (!glyph_index)
+    {
+        return RESULT_NOT_SUPPORTED;
+    }
 
     int advx, lsb;
     stbtt_GetGlyphHMetrics(info, glyph_index, &advx, &lsb);
