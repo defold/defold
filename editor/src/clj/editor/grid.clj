@@ -344,16 +344,37 @@
                 (mapcat identity))
           axes)))
 
+(defn- reset-button
+  [app-view prefs ^PopupControl popup]
+  (let [button (doto (javafx.scene.control.Button. "Reset to defaults")
+                 (.setPrefWidth Double/MAX_VALUE)
+                 (ui/add-style! "reset-button"))
+        reset-fn (fn [_]
+                   (doseq [path [[:size :x]
+                                 [:size :y]
+                                 [:size :z]
+                                 [:active-plane]
+                                 [:opacity]
+                                 [:color]]]
+                     (let [path (into grid-prefs-path path)]
+                       (prefs/set! prefs path (:default (prefs/schema prefs path)))))
+                   (invalidate-grids! app-view)
+                   (.hide popup))]
+    (ui/on-action! button reset-fn)
+    button))
+
 (defn- settings
-  [app-view prefs]
+  [app-view prefs popup]
   (let [scene-view-id (g/node-value app-view :active-view)
         grid (g/node-value scene-view-id :grid)
-        options (g/node-value grid :options)]
+        options (g/node-value grid :options)
+        reset-btn (reset-button app-view prefs popup)]
     (->> [:size :active-plane :color :opacity]
          (e/remove (partial contains? options))
          (reduce (fn [rows option]
                    (conj rows (doto (HBox. 5 (ui/node-array (settings-row app-view prefs option)))
-                                (.setAlignment Pos/CENTER)))) []))))
+                                (.setAlignment Pos/CENTER))))
+                 [reset-btn]))))
 
 (defn- pref-popup-position
   ^Point2D [^Parent container]
@@ -367,7 +388,7 @@
           anchor ^Point2D (pref-popup-position (.getParent owner))]
       (ui/children! region [(doto (Region.)
                               (ui/add-style! "popup-shadow"))
-                            (doto (VBox. 10 (ui/node-array (settings app-view prefs)))
+                            (doto (VBox. 10 (ui/node-array (settings app-view prefs popup)))
                               (ui/add-style! "grid-settings"))])
       (ui/user-data! owner ::popup popup)
       (ui/on-closed! popup (fn [_] (ui/user-data! owner ::popup nil)))
