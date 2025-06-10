@@ -603,10 +603,10 @@ namespace dmGraphics
         , m_Width(0)
         , m_Height(0)
         , m_Depth(1)
-        , m_LayerCount(1)
         , m_OriginalWidth(0)
         , m_OriginalHeight(0)
         , m_OriginalDepth(1)
+        , m_LayerCount(1)
         , m_MipMapCount(1)
         , m_UsageHintBits(TEXTURE_USAGE_FLAG_SAMPLE)
         {}
@@ -615,10 +615,10 @@ namespace dmGraphics
         uint16_t    m_Width;
         uint16_t    m_Height;
         uint16_t    m_Depth;
-        uint16_t    m_LayerCount;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
         uint16_t    m_OriginalDepth;
+        uint8_t     m_LayerCount;
         uint8_t     m_MipMapCount;
         uint8_t     m_UsageHintBits;
     };
