@@ -155,12 +155,13 @@
         m (Matrix3d. nx         ny         nz
                      (.x plane1) (.y plane1) (.z plane1)
                      (.x plane2) (.y plane2) (.z plane2))
-        v (Point3d. 0.0 (- (.w plane1)) (- (.w plane2)))]
-    (try
-      (.invert m)
-      (.transform m v)
-      v
-      (catch Exception _ (Point3d. 0.0 0.0 0.0)))))
+        v (Point3d. 0.0 (- (.w plane1)) (- (.w plane2)))
+        det (.determinant m)]
+    (if (< (Math/abs det) 1e-10)
+      (Point3d. 0.0 0.0 0.0)
+      (do (.invert m)
+          (.transform m v)
+          v))))
 
 (defn frustum-projection-aabb
   [planes perp-axis]
