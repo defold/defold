@@ -496,6 +496,16 @@ namespace dmGui
         return AddTexture(scene, scene->m_Textures, texture_name_hash, texture_source, texture_type, original_width, original_height, (dmImage::Type) -1);
     }
 
+    Result AddDynamicTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
+    {
+        TextureInfo* t = scene->m_DynamicTextures.Get(texture_name_hash);
+        if (t)
+        {
+            scene->m_DeleteTextureResourceCallback(scene, texture_name_hash, t->m_TextureSource);
+        }
+        return AddTexture(scene, scene->m_DynamicTextures, texture_name_hash, texture_source, texture_type, original_width, original_height, (dmImage::Type) -1);
+    }
+
     static void UnassignTexture(HScene scene, dmhash_t texture_name_hash)
     {
         uint32_t n = scene->m_Nodes.Size();
@@ -539,9 +549,15 @@ namespace dmGui
         }
     }
 
+    static inline TextureInfo* GetTextureInfo(HScene scene, dmhash_t texture_id)
+    {
+        TextureInfo* texture_info = scene->m_DynamicTextures.Get(texture_id);
+        return texture_info ? texture_info : scene->m_Textures.Get(texture_id);
+    }
+
     HTextureSource GetTexture(HScene scene, dmhash_t texture_name_hash)
     {
-        TextureInfo* textureInfo = scene->m_Textures.Get(texture_name_hash);
+        TextureInfo* textureInfo = GetTextureInfo(scene, texture_name_hash);
         if (!textureInfo)
         {
             return 0;
@@ -3045,12 +3061,6 @@ namespace dmGui
     Result SetNodeMaterial(HScene scene, HNode node, const char* material_id)
     {
         return SetNodeMaterial(scene, node, dmHashString64(material_id));
-    }
-
-    static inline TextureInfo* GetTextureInfo(HScene scene, dmhash_t texture_id)
-    {
-        TextureInfo* texture_info = scene->m_Textures.Get(texture_id);
-        return texture_info ? texture_info : scene->m_DynamicTextures.Get(texture_id);
     }
 
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id)
