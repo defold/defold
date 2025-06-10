@@ -33,7 +33,7 @@
            [java.util List]
            [javafx.geometry HPos Point2D Pos VPos]
            [javafx.scene Parent]
-           [javafx.scene.control Label Separator Slider TextField ToggleButton ToggleGroup PopupControl]
+           [javafx.scene.control Label Slider TextField ToggleButton ToggleGroup PopupControl]
            [javafx.scene.layout HBox Priority Region StackPane VBox]
            [java.nio ByteBuffer ByteOrder DoubleBuffer]
            [javax.vecmath Matrix3d Point3d Vector4d]))
@@ -51,8 +51,8 @@
 
 (defn- make-grid-vertex-buffer [_1 _2]
   (-> (ByteBuffer/allocateDirect (* 3 8))
-    (.order (ByteOrder/nativeOrder))
-    (.asDoubleBuffer)))
+      (.order (ByteOrder/nativeOrder))
+      (.asDoubleBuffer)))
 
 (defn- ignore-grid-vertex-buffer [_1 _2 _3] nil)
 
@@ -198,7 +198,7 @@
         extent (geom/as-array (geom/aabb-extent aabb))
         _ (aset-double extent perp-axis Double/POSITIVE_INFINITY)
         smallest-extent (reduce min extent)
-        first-grid-ratio (grid-ratio smallest-extent) 
+        first-grid-ratio (grid-ratio smallest-extent)
         grid-size-small (into {} (map (fn [[k ^double v]] [k (cond->> v auto-scale (small-grid-size smallest-extent))]) size))
         grid-size-large (when auto-scale (into {} (map (fn [[k ^double v]] [k (large-grid-size smallest-extent v)]) size)))]
     {:ratios [first-grid-ratio (- 1.0 ^double first-grid-ratio)]
@@ -213,7 +213,7 @@
   (input camera Camera)
 
   (output options g/Any (g/constantly nil))
-  (output merged-options g/Any (g/fnk [prefs options] 
+  (output merged-options g/Any (g/fnk [prefs options]
                                  (cond-> (if prefs (prefs/get prefs grid-prefs-path) {})
                                    options (merge options))))
   (output grids g/Any :cached update-grids)
@@ -296,10 +296,10 @@
 (defmethod settings-row :size
   [app-view prefs option]
   (let [prefs-path (conj grid-prefs-path option)]
-    (->> axes
-         (mapv (partial axis-group app-view prefs prefs-path))
-         (flatten)
-         (vec))))
+    (into []
+          (comp (map (partial axis-group app-view prefs prefs-path))
+                (mapcat identity))
+          axes)))
 
 (defn- settings
   [app-view prefs]
