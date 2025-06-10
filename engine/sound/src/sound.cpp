@@ -233,22 +233,6 @@ namespace dmSound
         float* GetDecoderBufferBase(uint8_t channel) const { assert(channel < SOUND_MAX_DECODE_CHANNELS); return (float*)((uintptr_t)m_DecoderOutput[channel] + SOUND_MAX_HISTORY * sizeof(float)); }
     };
 
-    // Since using threads is optional, we want to make it easy to switch on/off the mutex behavior
-    struct OptionalScopedMutexLock
-    {
-        OptionalScopedMutexLock(dmMutex::HMutex mutex) : m_Mutex(mutex) {
-            if (m_Mutex)
-                dmMutex::Lock(m_Mutex);
-        }
-        ~OptionalScopedMutexLock() {
-            if (m_Mutex)
-                dmMutex::Unlock(m_Mutex);
-        }
-
-        dmMutex::HMutex m_Mutex;
-    };
-    #define DM_MUTEX_OPTIONAL_SCOPED_LOCK(mutex) OptionalScopedMutexLock SCOPED_LOCK_PASTE2(lock, __LINE__)(mutex);
-
     SoundSystem* g_SoundSystem = 0;
 
     DeviceType* g_FirstDevice = 0;
@@ -1310,6 +1294,10 @@ namespace dmSound
 
         // Compute how many input samples we will need to produce the requested output samples
         uint64_t delta = (uint64_t)(((float)(info.m_Rate << RESAMPLE_FRACTION_BITS) / sound->m_MixRate) * instance->m_Speed);
+        if (delta == 0) {
+            // very low speed settings can get the delta to be zero due to precision limits - we skip the mixing as resulting rates are also (alsmost) inaudibly low as a result
+            return;
+        }
         uint32_t mixed_instance_frame_count = (uint32_t)((instance->m_FrameFraction + mix_context->m_FrameCount * delta + ((1UL << RESAMPLE_FRACTION_BITS) - 1)) >> RESAMPLE_FRACTION_BITS) + SOUND_MAX_FUTURE;
 
         // Compute initial amount of samples in temp buffer once we restore per instance state prior to actual mixing

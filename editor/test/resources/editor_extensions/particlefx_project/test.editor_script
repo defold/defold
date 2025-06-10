@@ -1,0 +1,141 @@
+local M = {}
+
+local function round3(num)
+    local mult = 10^3
+    return math.floor(num * mult + 0.5) / mult
+end
+
+local function curve_to_string(tbl)
+    local pts = {}
+    for i, v in ipairs(tbl.points) do
+        local x, y, tx, ty = v.x, v.y, v.tx, v.ty
+        pts[#pts+1] = "{" .. x .. ", " .. y .. ", " .. round3(tx) .. ", " .. round3(ty) .. "}"
+    end
+    return table.concat(pts, " ")
+   
+end
+
+local function print_pfx(pfx)
+    local emitters = editor.get(pfx, "emitters")
+    print("emitters: " .. #emitters)
+    for i = 1, #emitters do
+        local emitter = emitters[i]
+        print("  type: " .. editor.get(emitter, "type"))
+        print("  blend mode: " .. editor.get(emitter, "blend_mode"))
+        print("  spawn rate: " .. curve_to_string(editor.get(emitter, "emitter_key_spawn_rate")))
+        print("  initial red: " .. curve_to_string(editor.get(emitter, "emitter_key_particle_red")))
+        print("  initial green: " .. curve_to_string(editor.get(emitter, "emitter_key_particle_green")))
+        print("  initial blue: " .. curve_to_string(editor.get(emitter, "emitter_key_particle_blue")))
+        print("  initial alpha: " .. curve_to_string(editor.get(emitter, "emitter_key_particle_alpha")))
+        print("  life alpha: " .. curve_to_string(editor.get(emitter, "particle_key_alpha")))
+        local modifiers = editor.get(emitter, "modifiers")
+        print("  modifiers: " .. #modifiers)
+        for j = 1, #modifiers do
+            local modifier = modifiers[j]
+            print("    type: " .. editor.get(modifier, "type"))
+            print("    magnitude: " .. curve_to_string(editor.get(modifier, "magnitude")))
+            local rot = editor.get(modifier, "rotation")
+            print("    rotation: {" .. rot[1] .. ", " .. rot[2] .. ", " .. rot[3] .. "}")
+        end
+    end
+end
+
+local function split_lines(str)
+    local lines = {}
+    for line in str:gmatch("[^\r\n]+") do
+        table.insert(lines, line)
+    end
+    return lines
+end
+
+local function expect_error(initial_message, fn, ...)
+    local success, message = pcall(fn, ...)
+    if success then
+        print(("  %s => ??? unexpected success ???"):format(initial_message))
+    else
+        local lines = split_lines(message)
+        print(("  %s => %s"):format(initial_message, lines[1]))
+        for i = 2, #lines do
+            print("    " .. lines[i])
+        end
+    end
+end
+
+function M.get_commands()
+    return {
+        editor.command({
+            label = "Test",
+            locations = {"Edit"},
+            id = "defold.test",
+            run = function()
+                local pfx = "/test.particlefx"
+                
+                print("Initial state:")
+                print_pfx(pfx)
+                
+                editor.transact({
+                    editor.tx.add(pfx, "emitters", {
+                        type = "emitter-type-circle",
+                        blend_mode = "blend-mode-add",
+                        emitter_key_spawn_rate = 100,
+                        emitter_key_particle_red = 0.5,
+                        emitter_key_particle_green = 0.8,
+                        emitter_key_particle_alpha = 0.2,
+                        particle_key_alpha = {
+                            points = {
+                                {x = 0, y = 0, tx = 0.1, ty = 1},
+                                {x = 0.2, y = 1, tx = 1, ty = 0},
+                                {x = 1, y = 0, tx = 1, ty = 0}
+                            }
+                        },
+                        modifiers = {
+                            {
+                                type = "modifier-type-acceleration",
+                                magnitude = 1,
+                                rotation = {0,0,-180}
+                            }
+                        }
+                    })
+                })
+
+                print("After setup:")
+                print_pfx(pfx)
+
+                print("Expected errors:")
+                local emitter = editor.get(pfx, "emitters")[1]
+                expect_error("empty points", editor.tx.set, emitter, "particle_key_alpha", { points = {}})
+                expect_error("x outside of range", editor.tx.set, emitter, "particle_key_alpha", { points = {
+                    {x = -1, y = 1, tx = 1, ty = 0}
+                }})
+                expect_error("tx outside of range", editor.tx.set, emitter, "particle_key_alpha", { points = {
+                    {x = 0, y = 1, tx = -0.5, ty = 0}
+                }})
+                expect_error("ty outside of range", editor.tx.set, emitter, "particle_key_alpha", { points = {
+                    {x = 0, y = 1, tx = 1, ty = 2}
+                }})
+                expect_error("xs not from 0 to 1 (upper)", editor.tx.set, emitter, "particle_key_alpha", { points = {
+                    {x = 0, y = 1, tx = 1, ty = 0},
+                    {x = 0.5, y = 1, tx = 1, ty = 0}
+                }})
+                expect_error("xs not from 0 to 1 (lower)", editor.tx.set, emitter, "particle_key_alpha", { points = {
+                    {x = 0.5, y = 1, tx = 1, ty = 0},
+                    {x = 1, y = 1, tx = 1, ty = 0}
+                }})
+                expect_error("xs not from 0 to 1 (duplicates)", editor.tx.set, emitter, "particle_key_alpha", { points = {
+                    {x = 0, y = 1, tx = 1, ty = 0},
+                    {x = 0, y = 1, tx = 1, ty = 0},
+                    {x = 1, y = 1, tx = 1, ty = 0}
+                }})
+
+                editor.transact({
+                    editor.tx.clear(pfx, "emitters")
+                })
+
+                print("After clear:")
+                print_pfx(pfx)
+            end
+        })
+    }
+end
+
+return M

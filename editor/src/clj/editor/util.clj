@@ -18,13 +18,6 @@
 
 (set! *warn-on-reflection* true)
 
-(defmacro spy
-  [& body]
-  `(let [ret# (try ~@body (catch Throwable t# (prn t#) (throw t#)))]
-     (prn ret#)
-     ret#))
-
-
 ;; See http://mattryall.net/blog/2009/02/the-infamous-turkish-locale-bug
 
 (defn lower-case*
@@ -179,3 +172,17 @@
           (assoc m k new-child)))
       m)
     (dissoc m k)))
+
+(defmacro provide-single-default [m k v]
+  `(let [m# ~m
+         k# ~k]
+     (if (contains? m# k#)
+       m#
+       (assoc m# k# ~v))))
+
+(defmacro provide-defaults
+  "Like assoc, but does nothing if key is already in this map. Evaluates values
+  only when key is not present"
+  [m & kvs]
+  `(-> ~m
+       ~@(map #(cons `provide-single-default %) (partition 2 kvs))))

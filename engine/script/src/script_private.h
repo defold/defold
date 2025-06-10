@@ -81,6 +81,18 @@ namespace dmScript
         int                         m_ContextWeakTableRef;
     };
 
+    struct TableHeader
+    {
+        uint32_t m_Magic;
+        uint32_t m_Version;
+
+        TableHeader() : m_Magic(0), m_Version(0)
+        {
+        }
+    };
+
+    const char* ReadHeader(const char* buffer, TableHeader& header);
+
     HContext GetScriptContext(lua_State* L);
 
     bool ResolvePath(lua_State* L, const char* path, uint32_t path_size, dmhash_t& out_hash);

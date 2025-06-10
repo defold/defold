@@ -48,7 +48,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -740,9 +739,13 @@ public class Fontc {
 
         for (int i = 0; i < include_glyph_count; i++) {
             Glyph glyph = glyphs.get(i);
+            // The Defold generator clips the SDF image but the stb generator does not.
+            // So, we need to have a width, and an image width, in order to handle the different values at runtime
+            int width = glyph.width + (glyph.width > 0 ? padding * 2 : 0);
             GlyphBank.Glyph.Builder glyphBuilder = GlyphBank.Glyph.newBuilder()
                 .setCharacter(glyph.c)
-                .setWidth(glyph.width + (glyph.width > 0 ? padding * 2 : 0))
+                .setWidth(width)
+                .setImageWidth(width)
                 .setAdvance(glyph.advance)
                 .setLeftBearing(glyph.leftBearing)
                 .setAscent(glyph.ascent + padding)
