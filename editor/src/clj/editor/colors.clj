@@ -52,7 +52,6 @@
 
 (def input-background (hex-color->color "#292a2f"))
 (def scene-background input-background)
-(def scene-grid defold-white)
 (def scene-grid-x-axis (alpha defold-red 0.4))
 (def scene-grid-y-axis (alpha defold-green 0.4))
 (def scene-grid-z-axis (alpha defold-blue 0.4))
