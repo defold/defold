@@ -174,11 +174,18 @@
   (let [exp (Math/log10 extent)]
     (- 1.0 (- exp (Math/floor exp)))))
 
-(defn small-grid-size [extent size] (* size 0.1 (Math/pow 10 (dec (Math/floor (Math/log10 extent))))))
-(defn large-grid-size [extent size] (* size 0.1 (Math/pow 10      (Math/floor (Math/log10 extent)))))
+(defn small-grid-axis-size [extent size] (* size 0.1 (Math/pow 10 (dec (Math/floor (Math/log10 extent))))))
+(defn large-grid-axis-size [extent size] (* size 0.1 (Math/pow 10      (Math/floor (Math/log10 extent)))))
 
 (defn grid-snap-down [^double a ^double sz] (* sz (Math/floor (/ a sz))))
 (defn grid-snap-up   [^double a ^double sz] (* sz (Math/ceil  (/ a sz))))
+
+(defn grid-size
+  [size auto-scale extent grid-axis-size-fn]
+  (into {}
+        (map (fn [[k ^double v]]
+               [k (max v (cond->> v auto-scale (grid-axis-size-fn extent)))])
+             size)))
 
 (defn snap-out-to-grid
   [^AABB aabb size]
@@ -200,8 +207,8 @@
         _ (aset-double extent perp-axis Double/POSITIVE_INFINITY)
         smallest-extent (reduce min extent)
         first-grid-ratio (grid-ratio smallest-extent)
-        grid-size-small (into {} (map (fn [[k ^double v]] [k (cond->> v auto-scale (small-grid-size smallest-extent))]) size))
-        grid-size-large (when auto-scale (into {} (map (fn [[k ^double v]] [k (large-grid-size smallest-extent v)]) size)))]
+        grid-size-small (grid-size size auto-scale smallest-extent small-grid-axis-size)
+        grid-size-large (when auto-scale (grid-size size auto-scale smallest-extent large-grid-axis-size))]
     {:ratios [first-grid-ratio (- 1.0 ^double first-grid-ratio)]
      :sizes [grid-size-small grid-size-large]
      :aabbs [(snap-out-to-grid aabb grid-size-small)
