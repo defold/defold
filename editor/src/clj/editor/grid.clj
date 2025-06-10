@@ -193,6 +193,7 @@
   [camera merged-options]
   (let [{:keys [size active-plane auto-scale]} merged-options
         frustum-planes (c/viewproj-frustum-planes camera)
+        active-plane (if (c/mode-2d? camera) :z active-plane)
         perp-axis (.indexOf axes active-plane)
         aabb (frustum-projection-aabb frustum-planes perp-axis)
         extent (geom/as-array (geom/aabb-extent aabb))
@@ -273,24 +274,33 @@
         color (prefs/get prefs prefs-path)
         label (doto (Label. "Color")
                 (HBox/setHgrow Priority/ALWAYS)
-                (.setPrefWidth 83))]
+                (.setPrefWidth 83))
+        cancel-fn (fn [_] (ui/text! text-field color))
+        update-fn (fn [_] (when-let [value (.getText text-field)]
+                            (prefs/set! prefs prefs-path value)
+                            (invalidate-grids! app-view)))]
     (doto text-field
       (ui/text! color)
-      (ui/on-action! (fn [_] (when-let [value (.getText text-field)]
-                               (prefs/set! prefs prefs-path value)
-                               (invalidate-grids! app-view)))))
+      (ui/on-action! update-fn)
+      (ui/on-cancel! cancel-fn)
+      (ui/auto-commit! update-fn))
     [label text-field]))
 
 (defn- axis-group
   [app-view prefs prefs-path axis]
   (let [text-field (TextField.)
         label (Label. (string/upper-case (name axis)))
-        size-val (get (prefs/get prefs prefs-path) axis)]
+        size-val (str (get (prefs/get prefs prefs-path) axis))
+        cancel-fn (fn [_] (ui/text! text-field size-val))
+        update-fn (fn [_] (when-let [value (some-> (.getText text-field) Integer/parseInt)]
+                            (prefs/set! prefs (conj prefs-path axis) value)
+                            (invalidate-grids! app-view)))]
     (doto text-field
-      (ui/text! (str size-val))
-      (ui/on-action! (fn [_] (when-let [value (some-> (.getText text-field) Integer/parseInt)]
-                               (prefs/set! prefs (conj prefs-path axis) value)
-                               (invalidate-grids! app-view)))))
+      (ui/text! size-val)
+      (ui/on-action! update-fn)
+      (ui/on-cancel! cancel-fn)
+      (ui/auto-commit! update-fn))
+
     [label text-field]))
 
 (defmethod settings-row :size
