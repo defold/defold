@@ -102,7 +102,7 @@
   (let [{:keys [^double opacity color auto-scale]} options]
     (doall
      (for [grid-index (range (if auto-scale 2 1))
-           :let [^double fixed-axis (:perp-axis grids)
+           :let [^double fixed-axis (:plane grids)
                  ^double ratio (nth (:ratios grids) grid-index)
                  alpha (cond-> opacity
                          auto-scale
@@ -148,10 +148,10 @@
                         :options merged-options}}]})
 
 (defn frustum-plane-projection
-  [^Vector4d plane1 ^Vector4d plane2 perp-axis]
-  (let [nx (if (= perp-axis 0) 1.0 0.0)
-        ny (if (= perp-axis 1) 1.0 0.0)
-        nz (if (= perp-axis 2) 1.0 0.0)
+  [^Vector4d plane1 ^Vector4d plane2 plane]
+  (let [nx (if (= plane 0) 1.0 0.0)
+        ny (if (= plane 1) 1.0 0.0)
+        nz (if (= plane 2) 1.0 0.0)
         m (Matrix3d. nx         ny         nz
                      (.x plane1) (.y plane1) (.z plane1)
                      (.x plane2) (.y plane2) (.z plane2))
@@ -164,12 +164,12 @@
           v))))
 
 (defn frustum-projection-aabb
-  [planes perp-axis]
+  [planes plane]
   (-> geom/null-aabb
-      (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 2) perp-axis))
-      (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 3) perp-axis))
-      (geom/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 2) perp-axis))
-      (geom/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 3) perp-axis))))
+      (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 2) plane))
+      (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 3) plane))
+      (geom/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 2) plane))
+      (geom/aabb-incorporate (frustum-plane-projection (nth planes 1) (nth planes 3) plane))))
 
 (defn grid-ratio [extent]
   (let [exp (Math/log10 extent)]
@@ -202,10 +202,10 @@
   (let [{:keys [size active-plane auto-scale]} merged-options
         frustum-planes (c/viewproj-frustum-planes camera)
         active-plane (if (c/mode-2d? camera) :z active-plane)
-        perp-axis (.indexOf axes active-plane)
-        aabb (frustum-projection-aabb frustum-planes perp-axis)
+        plane (.indexOf axes active-plane)
+        aabb (frustum-projection-aabb frustum-planes plane)
         extent (geom/as-array (geom/aabb-extent aabb))
-        _ (aset-double extent perp-axis Double/POSITIVE_INFINITY)
+        _ (aset-double extent plane Double/POSITIVE_INFINITY)
         smallest-extent (reduce min extent)
         first-grid-ratio (grid-ratio smallest-extent)
         grid-size-small (grid-size size auto-scale smallest-extent small-grid-axis-size)
@@ -214,7 +214,7 @@
      :sizes [grid-size-small grid-size-large]
      :aabbs [(snap-out-to-grid aabb grid-size-small)
              (snap-out-to-grid aabb grid-size-large)]
-     :perp-axis perp-axis}))
+     :plane plane}))
 
 (g/defnode Grid
   (property prefs g/Any)
