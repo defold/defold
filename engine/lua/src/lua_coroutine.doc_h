@@ -12,6 +12,7 @@
  * @document
  * @name Coroutine
  * @namespace coroutine
+ * @language Lua
  */
 
 /*# creates a new coroutine thread

@@ -27,6 +27,7 @@ namespace dmConditionVariable
      * @name Condition Variable
      * @namespace dmConditionVariable
      * @path engine/dlib/src/dmsdk/dlib/condition_variable.h
+     * @language C++
      */
 
     /*# HConditionVariable type definition

@@ -54,7 +54,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     local_libs = 'dlib mbedtls zip'.split()
 
-    if bld.env.PLATFORM in ('js-web','wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+    if bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
         local_libs += ['profile_null','remotery_null']
     else:
         local_libs += ['profile','remotery']
@@ -123,9 +123,10 @@ def build(bld):
 
     skip_http = False
     skip_threads = False
-    if bld.env.PLATFORM in ('js-web', 'wasm-web'):
-        skip_threads = True
+    if bld.env.PLATFORM in ('js-web', 'wasm-web', 'wasm_pthread-web'):
         skip_http = True
+        if bld.env in ('js-web', 'wasm-web'):
+            skip_threads = True
 
     create_test(bld, 'test_memory')
 

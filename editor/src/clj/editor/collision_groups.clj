@@ -14,10 +14,7 @@
 
 (ns editor.collision-groups
   "Manages allocation of stable and limited ids to collision-groups."
-  (:require
-   [clojure.set :as set]
-   [dynamo.graph :as g]
-   [editor.colors :as colors]))
+  (:require [editor.colors :as colors]))
 
 (def MAX-GROUPS 16)
 

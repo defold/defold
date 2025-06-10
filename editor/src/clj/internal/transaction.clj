@@ -145,6 +145,19 @@
     :target-id target-id
     :target-label target-label}])
 
+(defn expand
+  [fn args]
+  [{:type :expand
+    :fn fn
+    :args args}])
+
+(defn expand-ec
+  [fn args]
+  [{:type :expand
+    :fn fn
+    :args args
+    :inject-evaluation-context true}])
+
 (defn disconnect
   "*transaction step* - The reverse of [[connect]]. Creates a
   transaction step disconnecting a source node and label
@@ -734,6 +747,18 @@
 (defmethod metrics-key :callback
   [_]
   nil)
+
+(defmethod perform :expand [ctx {:keys [fn args inject-evaluation-context]}]
+  (apply-tx
+    ctx
+    (if inject-evaluation-context
+      (let [basis (:basis ctx)
+            tx-data-context (:tx-data-context ctx)
+            evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})]
+        (apply fn evaluation-context args))
+      (apply fn args))))
+
+(defmethod metrics-key :expand [_] nil)
 
 (defn- ctx-disconnect-single [ctx target target-id target-label]
   (if (= :one (in/input-cardinality (gt/node-type target) target-label))

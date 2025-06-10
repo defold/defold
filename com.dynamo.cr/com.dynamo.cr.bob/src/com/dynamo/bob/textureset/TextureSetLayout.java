@@ -229,7 +229,7 @@ public class TextureSetLayout {
 
         @Override
         public String toString() {
-            return String.format("Rect: x/y: %d, %d  w/h: %d, %d  p: %d, %d  r: %d  id: %s", rect.x, rect.y, rect.width, rect.height, pivot.x, pivot.y, rotated?1:0, id);
+            return String.format("Rect: x/y: %d, %d  w/h: %d, %d  p: %f, %f  r: %d  id: %s", rect.x, rect.y, rect.width, rect.height, pivot.x, pivot.y, rotated?1:0, id);
         }
     }
 

@@ -40,6 +40,13 @@ local function test(self)
             gui.set_font(self.text_node, "system_font_BIG")
         end)
 
+    -- Add font with another name using gui.set()
+    gui.set(msg.url(), "fonts", self.font_resource, {key = "new_font_name"})
+    assert_not_error(function()
+            gui.set_font(self.text_node, "new_font_name")
+        end)
+    assert_exit(self.font_resource == gui.get_font_resource(gui.get_font(self.text_node)), "Error when setting font using `gui.set()`")
+
     msg.post("#prop_guiscript", "test_done")
 end
 

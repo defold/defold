@@ -23,6 +23,7 @@
  * @name Resource
  * @namespace dmResource
  * @path engine/resource/src/dmsdk/resource/resource.hpp
+ * @language C++
  */
 
 #include <stdint.h>
@@ -87,6 +88,7 @@ namespace dmResource
 
    /*#
     * Returns the canonical path hash of a resource
+    * @name GetPath
     * @param factory [type: dmResource::HFactory] Factory handle
     * @param resource Resource
     * @param hash Returned hash
@@ -113,6 +115,7 @@ namespace dmResource
    void RegisterResourceDecryptionFunction(FDecryptResource decrypt_resource);
    /*#
     * Function called when a resource has been reloaded.
+    * @name RegisterResourceReloadedCallback
     * @param params Parameters
     * @see RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT
     * @see ResourceRegisterReloadedCallback

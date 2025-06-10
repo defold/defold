@@ -19,6 +19,7 @@
  * @document
  * @name Resource
  * @path engine/resource/src/dmsdk/resource/resource.h
+ * @language C++
  */
 
 /////////////////////////////////////////////////////////////

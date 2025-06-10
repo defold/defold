@@ -21,6 +21,7 @@
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
+            [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.math :as math]
@@ -38,6 +39,7 @@
             [schema.core :as s]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Physics$CollisionObjectDesc Physics$CollisionObjectType Physics$CollisionShape$Shape]
+           [com.jogamp.opengl GL2]
            [javax.vecmath Matrix4d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -140,6 +142,8 @@
 (def ^:private render-lines-uniform-scale (wrap-uniform-scale scene-shapes/render-lines))
 
 (def ^:private render-triangles-uniform-scale (wrap-uniform-scale scene-shapes/render-triangles))
+
+(def ^:private render-points-uniform-scale (wrap-uniform-scale scene-shapes/render-points))
 
 (g/defnk produce-sphere-shape-scene
   [_node-id transform diameter color node-outline-key project-physics-type]
@@ -409,12 +413,57 @@
                   (outline/gen-node-outline-keys (map (comp shape-type-label :shape-type)
                                                       shapes)))))))
 
+(defn convex-hull-scene
+  [_node-id convex-shape-data color project-physics-type]
+  (when (and (= (:shape-type convex-shape-data) :type-hull)
+             (not-empty (:data convex-shape-data)))
+    (let [points (partition 3 (:data convex-shape-data))
+          [min-coords max-coords] (reduce (fn [[min-point max-point] point]
+                                            [(mapv min min-point point) (mapv max max-point point)])
+                                          [(repeat Double/MAX_VALUE) (repeat Double/MIN_VALUE)]
+                                          points)
+          aabb (geom/coords->aabb max-coords min-coords)
+          vbuf (vtx/flip! (reduce (fn [vb [x y z]] (scene-shapes/pos-vtx-put! vb x y z 0.0))
+                                  (scene-shapes/->pos-vtx (count points) :static)
+                                  points))]
+      (if (= "2D" project-physics-type)
+        {:node-id _node-id
+         :node-outline-key "2D Convex Hull"
+         :aabb aabb
+         :renderable {:render-fn render-triangles-uniform-scale
+                      :tags #{:collision-shape}
+                      :passes [pass/transparent pass/selection]
+                      :user-data {:color color
+                                  :double-sided true
+                                  :geometry {:primitive-type GL2/GL_POLYGON
+                                             :vbuf vbuf}}}
+         :children [{:node-id _node-id
+                     :aabb aabb
+                     :renderable {:render-fn render-lines-uniform-scale
+                                  :tags #{:collision-shape :outline}
+                                  :passes [pass/outline]
+                                  :user-data {:color color
+                                              :geometry {:primitive-type GL2/GL_LINE_LOOP
+                                                         :vbuf vbuf}}}}]}
+        {:node-id _node-id
+         :node-outline-key "3D Convex Hull"
+         :aabb aabb
+         :renderable {:render-fn render-points-uniform-scale
+                      :tags #{:collision-shape :outline}
+                      :passes [pass/outline]
+                      :user-data {:color color
+                                  :point-size 3.0
+                                  :geometry {:primitive-type GL2/GL_POINTS
+                                             :vbuf vbuf}}}}))))
+
 (g/defnk produce-scene
-  [_node-id child-scenes]
+  [_node-id child-scenes convex-shape-data collision-group-color project-physics-type]
   {:node-id _node-id
    :aabb geom/null-aabb
    :renderable {:passes [pass/selection]}
-   :children child-scenes})
+   :children (if convex-shape-data
+               [(convex-hull-scene _node-id convex-shape-data collision-group-color project-physics-type)]
+               child-scenes)})
 
 (defn- make-embedded-collision-shape [shapes]
   (loop [idx 0
@@ -555,13 +604,15 @@
   (input dep-build-targets g/Any :array)
   (input collision-groups-data g/Any)
   (input project-settings g/Any)
+  (input convex-shape-data g/Any)
 
   (property collision-shape resource/Resource ; Nil is valid default.
             (value (gu/passthrough collision-shape-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :collision-shape-resource]
-                                            [:build-targets :dep-build-targets])))
+                                            [:build-targets :dep-build-targets]
+                                            [:save-value :convex-shape-data])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"convexshape" "tilemap"}}))
             (dynamic error (g/fnk [_node-id collision-shape shapes]
                              (or (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")

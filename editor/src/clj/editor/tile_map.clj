@@ -13,9 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.tile-map
-  ;; switch to released version once https://dev.clojure.org/jira/browse/DIMAP-15 has been fixed
-  (:require [clojure.data.int-map-fixed :as int-map]
+  (:require [clojure.data.int-map :as int-map]
             [dynamo.graph :as g]
+            [editor.attachment :as attachment]
             [editor.build-target :as bt]
             [editor.core :as core]
             [editor.defold-project :as project]
@@ -27,6 +27,7 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.id :as id]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -36,13 +37,16 @@
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
+            [editor.tile-map-common :as tile-map-common]
             [editor.tile-map-grid :as tile-map-grid]
             [editor.tile-source :as tile-source]
             [editor.validation :as validation]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [internal.graph.types :as gt])
   (:import [com.dynamo.gamesys.proto Tile$TileCell Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
+           [editor.tile_map_common Tile]
            [editor.types AABB]
            [javax.vecmath Matrix4d Point3d Vector3d]))
 
@@ -79,17 +83,11 @@
 
 ;; manipulating cells
 
-(defrecord Tile [^long x ^long y ^long tile ^boolean h-flip ^boolean v-flip ^boolean rotate90])
-
-(defn cell-index ^long [^long x ^long y]
-  (bit-or (bit-shift-left y Integer/SIZE)
-          (bit-and x 0xFFFFFFFF)))
-
 (defn paint-cell!
   [cell-map x y tile h-flip v-flip rotate90]
   (if tile
-    (assoc! cell-map (cell-index x y) (->Tile x y tile h-flip v-flip rotate90))
-    (dissoc! cell-map (cell-index x y))))
+    (assoc! cell-map (tile-map-common/cell-index x y) (tile-map-common/->Tile x y tile h-flip v-flip rotate90))
+    (dissoc! cell-map (tile-map-common/cell-index x y))))
 
 (defn make-cell-map
   [cells]
@@ -125,7 +123,7 @@
            cell-map (transient cell-map)]
       (if (< y y1)
         (if (< x x1)
-          (recur (inc x) y (dissoc! cell-map (cell-index x y)))
+          (recur (inc x) y (dissoc! cell-map (tile-map-common/cell-index x y)))
           (recur x0 (inc y) cell-map))
         (persistent! cell-map)))))
 
@@ -149,7 +147,7 @@
      :height h
      :tiles (vec (for [y (range y0 y1)
                        x (range x0 x1)]
-                   (get cell-map (cell-index x y))))}))
+                   (get cell-map (tile-map-common/cell-index x y))))}))
 
 (defn palette-x [n tiles-per-row]
   (mod n tiles-per-row))
@@ -435,7 +433,7 @@
               u1 (aget uvs (if (.h-flip tile) 0 2))
               v1 (aget uvs (if (.v-flip tile) 1 3))]
           (recur it
-            (if (.rotate90 tile)
+                 (if (.rotate90 tile)
                    (-> vbuf
                        (pos-uv-vtx-put! x0 y1 0 u0 v1)
                        (pos-uv-vtx-put! x1 y1 0 u0 v0)
@@ -522,6 +520,7 @@
 
   (property id g/Str) ; Required protobuf field.
   (property z g/Num ; Required protobuf field.
+            (default protobuf/float-zero) ; Default for nodes constructed by editor scripts
             (dynamic error (validation/prop-error-fnk :warning validation/prop-1-1? z)))
 
   (property visible g/Bool (default (protobuf/int->boolean (protobuf/default Tile$TileLayer :is-visible))))
@@ -726,6 +725,10 @@
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
+(attachment/register!
+  TileMapNode :layers
+  :add {:node-type LayerNode :tx-attach-fn attach-layer-node}
+  :get attachment/nodes-getter)
 
 ;;--------------------------------------------------------------------
 ;; tool
@@ -1436,15 +1439,6 @@
       (some-> (selection->layer selection)
         core/scope)))
 
-(defn- gen-unique-name
-  [basename existing-names]
-  (let [existing-names (set existing-names)]
-    (loop [postfix 0]
-      (let [name (if (= postfix 0) basename (str basename postfix))]
-        (if (existing-names name)
-          (recur (inc postfix))
-          name)))))
-
 (defn- make-new-layer
   [id]
   (protobuf/make-map-without-defaults Tile$TileLayer
@@ -1453,8 +1447,7 @@
 
 (defn- add-layer-handler
   [tile-map-node]
-  (let [layer-ids (set (g/node-value tile-map-node :layer-ids))
-        layer-id (gen-unique-name "layer" layer-ids)]
+  (let [layer-id (id/gen "layer" (g/node-value tile-map-node :layer-ids))]
     (g/transact
      (concat
       (g/operation-label "Add layer")

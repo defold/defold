@@ -595,6 +595,19 @@
   [f & args]
   (it/callback-ec f args))
 
+(defn expand
+  "Call the specified function when reaching the transaction step and apply the
+  returned transaction steps in the same transaction"
+  [f & args]
+  (it/expand f args))
+
+(defn expand-ec
+  "Call the specified function when reaching the transaction step with an
+  in-transaction evaluation context as a first argument and apply the
+  returned transaction steps in the same transaction"
+  [f & args]
+  (it/expand-ec f args))
+
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
    Takes effect when a transaction is applied.

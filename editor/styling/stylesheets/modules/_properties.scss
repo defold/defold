@@ -12,11 +12,37 @@
         }
     }
 
-    .label.draggable {
-        -fx-cursor: h-resize;
+    .overlay-action-pane {
+        -fx-background-color: transparent;
 
-        &:hover {
-            -fx-text-fill: -df-text-selected;
+        .action-button {
+            -fx-max-width: 24px;
+            -fx-min-width: 24px;
+            -fx-background-radius: 0;
+            -fx-border-radius: 0;
+            -fx-background-color: transparent;
+            -fx-border-color: transparent;
+            visibility: hidden;
+
+            &:hover {
+                visibility: visible;
+
+                .image-view {
+                    -fx-effect: innershadow(gaussian, -df-text-selected, 20, 1.0, 0, 0);
+                }
+            }
+
+            &.active {
+                visibility: visible;
+
+                .image-view {
+                    -fx-effect: innershadow(gaussian, -df-defold-blue-light, 20, 1.0, 0, 0);
+                }
+            }
+        }
+
+        &:hover .action-button {
+            visibility: visible;
         }
     }
 }

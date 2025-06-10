@@ -73,7 +73,7 @@ public abstract class LuaBuilder extends Builder {
 
     private static Logger logger = Logger.getLogger(LuaBuilder.class.getName());
 
-    private static ArrayList<Platform> LUA51_PLATFORMS = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
+    private static ArrayList<Platform> LUA51_PLATFORMS = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb, Platform.WasmPthreadWeb));
     private static boolean useLua51;
     private static String luaJITExePath;
 

@@ -12,6 +12,7 @@
  * @document
  * @name Io
  * @namespace io
+ * @language Lua
  */
 
 /*# closes a file

@@ -259,12 +259,16 @@ var FileLoader = {
 
 
 var EngineLoader = {
-    {{#DEFOLD_ARCHIVE_SHA1}}arc_sha1: "{{DEFOLD_ARCHIVE_SHA1}}",{{/DEFOLD_ARCHIVE_SHA1}}
-    {{#DEFOLD_WASM_SHA1}}wasm_sha1: "{{DEFOLD_WASM_SHA1}}",{{/DEFOLD_WASM_SHA1}}
+    arc_sha1: "{{DEFOLD_ARCHIVE_SHA1}}",
+    wasm_sha1: "{{DEFOLD_WASM_SHA1}}",
     wasm_size: {{ DEFOLD_WASM_SIZE }},
-    {{#DEFOLD_WASMJS_SHA1}}wasmjs_sha1: "{{DEFOLD_WASMJS_SHA1}}",{{/DEFOLD_WASMJS_SHA1}}
+    wasmjs_sha1: "{{DEFOLD_WASMJS_SHA1}}",
     wasmjs_size: {{ DEFOLD_WASMJS_SIZE }},
-    {{#ASMJS_SHA1}}asmjs_sha1: "{{ASMJS_SHA1}}",{{/ASMJS_SHA1}}
+    wasm_pthread_sha1: "{{DEFOLD_WASM_PTHREAD_SHA1}}",
+    wasm_pthread_size: {{ DEFOLD_WASM_PTHREAD_SIZE }},
+    wasmjs_pthread_sha1: "{{DEFOLD_WASMJS_PTHREAD_SHA1}}",
+    wasmjs_pthread_size: {{ DEFOLD_WASMJS_PTHREAD_SIZE }},
+    asmjs_sha1: "{{ASMJS_SHA1}}",
     asmjs_size: {{ ASMJS_SIZE }},
     wasm_instantiate_progress: 0,
 
@@ -272,6 +276,42 @@ var EngineLoader = {
 
     updateWasmInstantiateProgress: function(totalDownloadedSize) {
         EngineLoader.wasm_instantiate_progress = totalDownloadedSize * 0.1;
+    },
+
+    getWasmSize: function() {
+        if (Module['isWASMPthreadSupported'])
+            return EngineLoader.wasm_pthread_size;
+        return EngineLoader.wasm_size;
+    },
+
+    getWasmJSSize: function() {
+        if (Module['isWASMPthreadSupported'])
+            return EngineLoader.wasmjs_pthread_size;
+        return EngineLoader.wasmjs_size;
+    },
+
+    getWasmSha1: function() {
+        if (Module['isWASMPthreadSupported'])
+            return EngineLoader.wasm_pthread_sha1;
+        return EngineLoader.wasm_sha1;
+    },
+
+    getWasmJSSha1: function() {
+        if (Module['isWASMPthreadSupported'])
+            return EngineLoader.wasmjs_pthread_sha1;
+        return EngineLoader.wasmjs_sha1;
+    },
+
+    getWasmName: function(exeName) {
+        if (Module['isWASMPthreadSupported'])
+            return exeName + '_pthread.wasm';
+        return exeName + '.wasm';
+    },
+
+    getWasmJSName: function(exeName) {
+        if (Module['isWASMPthreadSupported'])
+            return exeName + '_pthread_wasm.js';
+        return exeName + '_wasm.js';
     },
 
     // load and instantiate .wasm file using XMLHttpRequest
@@ -282,14 +322,14 @@ var EngineLoader = {
             },
             function(error) { throw error; },
             async function(wasm) {
-                if (wasm.byteLength != EngineLoader.wasm_size) {
-                   console.warn("Unexpected wasm size: " + wasm.byteLength + ", expected: " + EngineLoader.wasm_size);
+                if (wasm.byteLength != EngineLoader.getWasmSize()) {
+                   console.warn("Unexpected wasm size: " + wasm.byteLength + ", expected: " + EngineLoader.getWasmSize());
                 }
-                if (EngineLoader.wasm_sha1) {
+                if (EngineLoader.getWasmSha1()) {
                     const digest = await window.crypto.subtle.digest("SHA-1", wasm);
                     const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-                    if (sha1 != EngineLoader.wasm_sha1) {
-                        const error = new Error("Unexpected wasm sha1: " + sha1 + ", expected: " + EngineLoader.wasm_sha1);
+                    if (sha1 != EngineLoader.getWasmSha1()) {
+                        const error = new Error("Unexpected wasm sha1: " + sha1 + ", expected: " + EngineLoader.getWasmSha1());
                         if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
                            CUSTOM_PARAMETERS["start_error"](error);
                         }
@@ -298,7 +338,7 @@ var EngineLoader = {
                 }
                 var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
                     Module.instance = output.instance;
-                    successCallback(output.instance);
+                    successCallback(output.instance, output.module);
                 }).catch(function(e) {
                     console.log('wasm instantiation failed! ' + e);
                     if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
@@ -338,7 +378,7 @@ var EngineLoader = {
         WebAssembly.instantiateStreaming(fetchFn(src), imports).then(function(output) {
             ProgressUpdater.updateCurrent(EngineLoader.wasm_instantiate_progress);
             Module.instance = output.instance;
-            successCallback(output.instance);
+            successCallback(output.instance, output.module);
         }).catch(function(e) {
             console.log('wasm streaming instantiation failed! ' + e);
             console.log('Fallback to wasm loading');
@@ -363,14 +403,15 @@ var EngineLoader = {
                 callback(imports);
             }
             if (EngineLoader.stream_wasm && (typeof WebAssembly.instantiateStreaming === "function")) {
-                EngineLoader.streamAndInstantiateWasmAsync(exeName + ".wasm", imports, successCallback);
+                EngineLoader.streamAndInstantiateWasmAsync(EngineLoader.getWasmName(exeName), imports, successCallback);
             }
             else {
-                EngineLoader.loadAndInstantiateWasmAsync(exeName + ".wasm", imports, successCallback);
+                EngineLoader.loadAndInstantiateWasmAsync(EngineLoader.getWasmName(exeName), imports, successCallback);
             }
             return {}; // Compiling asynchronously, no exports.
         };
-        EngineLoader.loadAndRunScriptAsync(exeName + '_wasm.js', EngineLoader.wasmjs_size, EngineLoader.wasmjs_sha1);
+
+        EngineLoader.loadAndRunScriptAsync(EngineLoader.getWasmJSName(exeName), EngineLoader.getWasmJSSize(), EngineLoader.getWasmJSSha1());
     },
 
     loadAsmJsAsync: function(exeName) {
@@ -400,9 +441,17 @@ var EngineLoader = {
                         }
                     }
                 }
-           var tag = document.createElement("script");
-                tag.text = response;
-                document.body.appendChild(tag);
+                const blob = new Blob([response], { type: 'text/javascript' });
+                const blobUrl = URL.createObjectURL(blob);
+
+                Module["mainScriptUrlOrBlob"] = blobUrl;
+
+                const script = document.createElement('script');
+                script.src = blobUrl;
+                script.type = "text/javascript";
+                //TODO: Clean up the blob URL when no need anymore
+                // URL.revokeObjectURL(blobUrl);
+                document.body.appendChild(script);
             },
             function(loadedDelta, currentAttempt){
                 ProgressUpdater.updateCurrent(-loadedDelta);
@@ -557,7 +606,7 @@ var GameArchiveLoader = {
         var isWASMSupported = Module['isWASMSupported'];
         if (isWASMSupported) {
             EngineLoader.loadWasmAsync(exeName);
-            totalSize += EngineLoader.wasm_size + EngineLoader.wasmjs_size;
+            totalSize += EngineLoader.getWasmSize() + EngineLoader.getWasmJSSize();
         } else {
             EngineLoader.loadAsmJsAsync(exeName);
             totalSize += EngineLoader.asmjs_size;
@@ -1261,12 +1310,20 @@ Module['onRuntimeInitialized'] = function() {
     Module.runApp("canvas");
 };
 
+Module["isWASMPthreadSupported"] = {{DEFOLD_HAS_WASM_PTHREAD_ENGINE}} 
+    && ((typeof window === 'undefined') || window.isSecureContext && window.crossOriginIsolated)
+    && typeof SharedArrayBuffer !== 'undefined';
+
 Module["locateFile"] = function(path, scriptDirectory)
 {
     // dmengine*.wasm is hardcoded in the built JS loader for WASM,
     // we need to replace it here with the correct project name.
     if (path == "dmengine.wasm" || path == "dmengine_release.wasm" || path == "dmengine_headless.wasm") {
-        path = "{{exe-name}}.wasm";
+        if (Module['isWASMPthreadSupported']) {
+            path = "{{exe-name}}_pthread.wasm";
+        } else {
+            path = "{{exe-name}}.wasm";
+        }
     }
     return scriptDirectory + path;
 };

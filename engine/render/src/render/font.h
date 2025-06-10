@@ -33,8 +33,10 @@ namespace dmRender
     {
         float m_MaxAscent;
         float m_MaxDescent;
-        uint32_t m_MaxWidth;   // The widest one in terms of texels
-        uint32_t m_MaxHeight;  // The tallest one in terms of texels
+        float m_MaxWidth;           // The widest glyph
+        float m_MaxHeight;          // The tallest glyph
+        uint16_t m_ImageMaxWidth;   // The widest glyph (in texels)
+        uint16_t m_ImageMaxHeight;  // The tallest glyph (in texels)
     };
 
     typedef dmRenderDDF::GlyphBank::Glyph FontGlyph;
@@ -147,6 +149,8 @@ namespace dmRender
      */
     HFontMap NewFontMap(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params);
 
+    void SetFontMapLineHeight(HFontMap font_map, float max_ascent, float max_descent);
+    void GetFontMapLineHeight(HFontMap font_map, float* max_ascent, float* max_descent);
     void SetFontMapCacheSize(HFontMap font_map, uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent);
     void GetFontMapCacheSize(HFontMap font_map, uint32_t* cell_width, uint32_t* cell_height, uint32_t* max_ascent);
 

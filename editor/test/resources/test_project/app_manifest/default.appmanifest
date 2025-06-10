@@ -36,6 +36,15 @@ platforms:
             libs: []
             linkFlags: []
 
+    wasm_pthread-web:
+        context:
+            excludeLibs: []
+            excludeJsLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            linkFlags: []
+
     x86-win32:
         context:
             excludeLibs: []

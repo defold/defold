@@ -480,28 +480,28 @@ static rmtProperty* GetPropertyFromIdx(dmProfileIdx idx)
     if (!prop) \
         return;
 
-static void SetupProperty(rmtProperty* prop, const char* name, const char* desc, uint32_t flags, dmProfileIdx* parentidx)
+static void SetupProperty(rmtProperty* prop, const char* name, const char* desc, uint32_t flags, dmProfileIdx* (*parent)())
 {
     memset(prop, 0, sizeof(rmtProperty));
     prop->initialised    = RMT_FALSE;
     prop->flags          = (flags == PROFILE_PROPERTY_FRAME_RESET) ? RMT_PropertyFlags_FrameReset : RMT_PropertyFlags_NoFlags;
     prop->name           = name;
     prop->description    = desc;
-    prop->parent         = parentidx ? GetPropertyFromIdx(*parentidx) : 0;
+    prop->parent         = parent ? GetPropertyFromIdx(*parent()) : 0;
 }
 
-dmProfileIdx dmProfileCreatePropertyGroup(const char* name, const char* desc, dmProfileIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyGroup(const char* name, const char* desc, dmProfileIdx* (*parent)())
 {
     ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, name, desc, RMT_PropertyFlags_NoFlags, parentidx);
+    SetupProperty(prop, name, desc, RMT_PropertyFlags_NoFlags, parent);
     prop->type = RMT_PropertyType_rmtGroup;
     return idx;
 }
 
-dmProfileIdx dmProfileCreatePropertyBool(const char* name, const char* desc, int value, uint32_t flags, dmProfileIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyBool(const char* name, const char* desc, int value, uint32_t flags, dmProfileIdx* (*parent)())
 {
     ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, name, desc, flags, parentidx);
+    SetupProperty(prop, name, desc, flags, parent);
     prop->type           = RMT_PropertyType_rmtBool;
     prop->value          = rmtPropertyValue::MakeBool((rmtBool)value);
     prop->lastFrameValue = prop->value;
@@ -509,10 +509,10 @@ dmProfileIdx dmProfileCreatePropertyBool(const char* name, const char* desc, int
     return idx;
 }
 
-dmProfileIdx dmProfileCreatePropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, dmProfileIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, dmProfileIdx* (*parent)())
 {
     ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, name, desc, flags, parentidx);
+    SetupProperty(prop, name, desc, flags, parent);
     prop->type           = RMT_PropertyType_rmtS32;
     prop->value          = rmtPropertyValue::MakeS32(value);
     prop->lastFrameValue = prop->value;
@@ -520,10 +520,10 @@ dmProfileIdx dmProfileCreatePropertyS32(const char* name, const char* desc, int3
     return idx;
 }
 
-dmProfileIdx dmProfileCreatePropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, dmProfileIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, dmProfileIdx* (*parent)())
 {
     ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, name, desc, flags, parentidx);
+    SetupProperty(prop, name, desc, flags, parent);
     prop->type           = RMT_PropertyType_rmtU32;
     prop->value          = rmtPropertyValue::MakeU32(value);
     prop->lastFrameValue = prop->value;
@@ -531,10 +531,10 @@ dmProfileIdx dmProfileCreatePropertyU32(const char* name, const char* desc, uint
     return idx;
 }
 
-dmProfileIdx dmProfileCreatePropertyF32(const char* name, const char* desc, float value, uint32_t flags, dmProfileIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyF32(const char* name, const char* desc, float value, uint32_t flags, dmProfileIdx* (*parent)())
 {
     ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, name, desc, flags, parentidx);
+    SetupProperty(prop, name, desc, flags, parent);
     prop->type           = RMT_PropertyType_rmtF32;
     prop->value          = rmtPropertyValue::MakeF32(value);
     prop->lastFrameValue = prop->value;
@@ -542,10 +542,10 @@ dmProfileIdx dmProfileCreatePropertyF32(const char* name, const char* desc, floa
     return idx;
 }
 
-dmProfileIdx dmProfileCreatePropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, dmProfileIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, dmProfileIdx* (*parent)())
 {
     ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, name, desc, flags, parentidx);
+    SetupProperty(prop, name, desc, flags, parent);
     prop->type           = RMT_PropertyType_rmtS64;
     prop->value          = rmtPropertyValue::MakeS64(value);
     prop->lastFrameValue = prop->value;
@@ -553,10 +553,10 @@ dmProfileIdx dmProfileCreatePropertyS64(const char* name, const char* desc, int6
     return idx;
 }
 
-dmProfileIdx dmProfileCreatePropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, dmProfileIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, dmProfileIdx* (*parent)())
 {
     ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, name, desc, flags, parentidx);
+    SetupProperty(prop, name, desc, flags, parent);
     prop->type           = RMT_PropertyType_rmtU64;
     prop->value          = rmtPropertyValue::MakeU64(value);
     prop->lastFrameValue = prop->value;
@@ -564,10 +564,10 @@ dmProfileIdx dmProfileCreatePropertyU64(const char* name, const char* desc, uint
     return idx;
 }
 
-dmProfileIdx dmProfileCreatePropertyF64(const char* name, const char* desc, double value, uint32_t flags, dmProfileIdx* parentidx)
+dmProfileIdx dmProfileCreatePropertyF64(const char* name, const char* desc, double value, uint32_t flags, dmProfileIdx* (*parent)())
 {
     ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, name, desc, flags, parentidx);
+    SetupProperty(prop, name, desc, flags, parent);
     prop->type           = RMT_PropertyType_rmtF64;
     prop->value          = rmtPropertyValue::MakeF64(value);
     prop->lastFrameValue = prop->value;

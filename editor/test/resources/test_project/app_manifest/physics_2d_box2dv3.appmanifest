@@ -96,3 +96,11 @@ platforms:
             libs: [physics_2d, box2d, script_box2d]
             linkFlags: []
             excludeJslibs: []
+    wasm_pthread-web:
+        context:
+            excludeLibs: [physics, box2d_defold, script_box2d_defold]
+            excludeSymbols: []
+            symbols: []
+            libs: [physics_2d, box2d, script_box2d]
+            linkFlags: []
+            excludeJslibs: []

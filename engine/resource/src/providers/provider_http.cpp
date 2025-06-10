@@ -117,6 +117,7 @@ static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_cod
 
     archive->m_HttpBuffer.PushArray((const char*) content_data, content_data_size);
     archive->m_HttpTotalBytesStreamed += content_data_size;
+    archive->m_HttpContentLength = content_length;
 }
 
 static dmHttpClient::Result HttpWriteHeaders(dmHttpClient::HResponse response, void* user_data)

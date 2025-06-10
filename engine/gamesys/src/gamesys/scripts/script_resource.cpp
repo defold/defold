@@ -51,6 +51,7 @@ namespace dmGameSystem
  * @document
  * @name Resource
  * @namespace resource
+ * @language Lua
  */
 
 /*# reference to material resource
@@ -570,6 +571,7 @@ static float CheckTableNumber(lua_State* L, int index, const char* name, float d
 static inline bool IsTextureFormatSupported(dmGraphics::TextureType type)
 {
     return type == dmGraphics::TEXTURE_TYPE_2D ||
+           type == dmGraphics::TEXTURE_TYPE_2D_ARRAY ||
            type == dmGraphics::TEXTURE_TYPE_3D ||
            type == dmGraphics::TEXTURE_TYPE_CUBE_MAP ||
            type == dmGraphics::TEXTURE_TYPE_IMAGE_2D ||
@@ -601,11 +603,11 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     int depth                        = CheckTableInteger(L, 2, "depth", 1);
     uint32_t max_mipmaps             = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
     uint32_t usage_flags             = (uint32_t) CheckTableInteger(L, 2, "flags", dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE);
-    uint32_t layer_count             = 1; // TODO
+    uint8_t page_count               = (uint8_t) CheckTableInteger(L, 2, "page_count", 1);
 
-    if (width < 1 || height < 1 || depth < 1)
+    if (width < 1 || height < 1 || depth < 1 || page_count < 1)
     {
-        return luaL_error(L, "Unable to create texture, width, height and depth must be larger than 0");
+        return luaL_error(L, "Unable to create texture, width, height, depth and page count must be larger than 0");
     }
 
     if (!IsTextureFormatSupported(type))
@@ -668,7 +670,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     params->m_Width           = width;
     params->m_Height          = height;
     params->m_Depth           = depth;
-    params->m_LayerCount      = layer_count;
+    params->m_LayerCount      = page_count;
     params->m_MaxMipMaps      = max_mipmaps;
     params->m_Type            = type;
     params->m_Format          = format;
@@ -898,6 +900,20 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *     msg.post("@render:", "add_textures", { t_volume })
  * end
  * ```
+ *
+ *
+ * @examples
+ * How to create 512x512 texture array with 5 pages.
+ *
+ * ```lua
+ * 		local new_tex = resource.create_texture("/runtime/example_array.texturec", {
+ * 			type = graphics.TEXTURE_TYPE_2D_ARRAY,
+ * 			width = 512,
+ * 			height = 512,
+ * 			page_count = 5,
+ * 			format = graphics.TEXTURE_FORMAT_RGB,
+ * 		})
+ * ```
  */
 static int CreateTexture(lua_State* L)
 {
@@ -934,7 +950,7 @@ static int CreateTexture(lua_State* L)
  *
  * @name resource.create_texture_async
  *
- * @param path [type:string] The path to the resource.
+ * @param path [type:string|hash] The path to the resource.
  * @param table [type:table] A table containing info about how to create the texture. Supported entries:
  * `type`
  * : [type:number] The texture type. Supported values:
@@ -1314,6 +1330,9 @@ static int ReleaseResource(lua_State* L)
  * `z`
  * : [type:number] optional z offset of the texture (in pixels). Only applies to 3D textures
  *
+ * `page`
+ * : [type:number] optional slice of the array texture. Only applies to 2D texture arrays. Zero-based
+ *
  * `mipmap`
  * : [type:number] optional mipmap to upload the data to
  *
@@ -1444,6 +1463,25 @@ static int ReleaseResource(lua_State* L)
  *     -- use the "resource.create_texture" function.
  *     resource.set_texture("/my_3d_texture.texturec", t_args, tbuffer)
  * end
+ *
+ *
+ * @examples
+ * Update texture 2nd array page with loaded texture from png
+ *
+ * ```lua
+ * 	-- new_tex is resource handle of texture which was created via resource.create_resource
+ *	local tex_path = "/bundle_resources/page_02.png"
+ *	local data = sys.load_resource(tex_path)
+ *	local buf = image.load_buffer(data)
+ *	resource.set_texture(new_tex, {
+ *		type = graphics.TEXTURE_TYPE_2D_ARRAY,
+ *		width = buf.width,
+ *		height = buf.height,
+ *		page = 1,
+ *		format = graphics.TEXTURE_FORMAT_RGB
+ *	}, buf.buffer)
+ *	go.set("#mesh", "texture0", new_tex)
+ * ```
  */
 static int SetTexture(lua_State* L)
 {
@@ -1460,6 +1498,7 @@ static int SetTexture(lua_State* L)
     uint32_t height                  = (uint32_t) CheckTableInteger(L, 2, "height");
     uint32_t depth                   = (uint32_t) CheckTableInteger(L, 2, "depth", 1);
     uint32_t mipmap                  = (uint32_t) CheckTableInteger(L, 2, "mipmap", 0);
+    int32_t page                     = (int32_t)  CheckTableInteger(L, 2, "page", DEFAULT_INT_NOT_SET);
     int32_t x                        = (int32_t)  CheckTableInteger(L, 2, "x", DEFAULT_INT_NOT_SET);
     int32_t y                        = (int32_t)  CheckTableInteger(L, 2, "y", DEFAULT_INT_NOT_SET);
     int32_t z                        = (int32_t)  CheckTableInteger(L, 2, "z", DEFAULT_INT_NOT_SET);
@@ -1469,7 +1508,6 @@ static int SetTexture(lua_State* L)
         return luaL_error(L, "Unable to set texture, unsupported texture format '%s'.", dmGraphics::GetTextureFormatLiteral(format));
     }
 
-    // TODO: Texture arrays
     if (!IsTextureFormatSupported(type))
     {
         return luaL_error(L, "Unable to set texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
@@ -1482,10 +1520,11 @@ static int SetTexture(lua_State* L)
 
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
 
-    bool sub_update = x != DEFAULT_INT_NOT_SET || y != DEFAULT_INT_NOT_SET || z != DEFAULT_INT_NOT_SET;
+    bool sub_update = x != DEFAULT_INT_NOT_SET || y != DEFAULT_INT_NOT_SET || z != DEFAULT_INT_NOT_SET || page != DEFAULT_INT_NOT_SET;
     x               = dmMath::Max(0, x);
     y               = dmMath::Max(0, y);
     z               = dmMath::Max(0, z);
+    page            = dmMath::Max(0, page);
 
     dmScript::LuaHBuffer* lua_buffer = dmScript::CheckBuffer(L, 3);
     dmBuffer::HBuffer buffer_handle  = dmGameSystem::UnpackLuaBuffer(lua_buffer);
@@ -1507,6 +1546,7 @@ static int SetTexture(lua_State* L)
     params.m_X                      = x;
     params.m_Y                      = y;
     params.m_Z                      = z;
+    params.m_Slice                  = page;
     params.m_MipMap                 = mipmap;
     params.m_SubUpdate              = sub_update;
 
@@ -1540,7 +1580,10 @@ static int SetTexture(lua_State* L)
  * : [type:integer] height of the texture
  *
  * `depth`
- * : [type:integer] depth of the texture (i.e 1 for a 2D texture, 6 for a cube map, number of slices for an array texture and the actual depth of a 3D texture)
+ * : [type:integer] depth of the texture (i.e 1 for a 2D texture, 6 for a cube map, the actual depth of a 3D texture)
+ *
+ * `page_count`
+ * : [type:integer] number of pages of the texture array. For 2D texture value is 1. For cube map - 6
  *
  * `mipmaps`
  * : [type:integer] number of mipmaps of the texture
@@ -1581,6 +1624,7 @@ static int SetTexture(lua_State* L)
  *     --      height = 128,
  *     --      depth = 1
  *     --      mipmaps = 1,
+ *     --      page_count = 1,
  *     --      type = graphics.TEXTURE_TYPE_2D,
  *     --      flags = graphics.TEXTURE_USAGE_FLAG_SAMPLE
  *     -- }
@@ -1608,6 +1652,7 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
     uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(texture_handle);
     dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture_handle);
     uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(texture_handle);
+    uint8_t  page_count                  = dmGraphics::GetTexturePageCount(texture_handle);
 
     lua_pushnumber(L, texture_handle);
     lua_setfield(L, -2, "handle");
@@ -1626,6 +1671,9 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
 
     lua_pushinteger(L, texture_flags);
     lua_setfield(L, -2, "flags");
+
+    lua_pushinteger(L, page_count);
+    lua_setfield(L, -2, "page_count");
 
     // JG: We use depth to indicate the sides of a cube map, but the actual texture depth is 1,
     //     since it's not a 3D texture. This is a technicality that should't matter for now at least.

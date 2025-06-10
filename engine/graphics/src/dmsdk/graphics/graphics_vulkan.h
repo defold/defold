@@ -25,6 +25,7 @@
  * @document
  * @name Graphics Vulkan
  * @namespace dmGraphics
+ * @language C++
  */
 
 namespace dmGraphics

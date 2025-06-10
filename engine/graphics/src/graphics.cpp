@@ -869,7 +869,7 @@ namespace dmGraphics
         ps.m_WriteDepth               = 1;
         ps.m_PrimtiveType             = PRIMITIVE_TRIANGLES;
         ps.m_DepthTestEnabled         = 1;
-        ps.m_DepthTestFunc            = COMPARE_FUNC_LEQUAL;
+        ps.m_DepthTestFunc            = COMPARE_FUNC_LESS;
         ps.m_BlendEnabled             = 0;
         ps.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
         ps.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
@@ -1887,6 +1887,10 @@ namespace dmGraphics
     uint32_t GetTextureUsageHintFlags(HTexture texture)
     {
         return g_functions.m_GetTextureUsageHintFlags(texture);
+    }
+    uint8_t GetTexturePageCount(HTexture texture)
+    {
+        return g_functions.m_GetTexturePageCount(texture);
     }
     bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
     {
