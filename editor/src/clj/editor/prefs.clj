@@ -221,7 +221,6 @@
                                          :y {:type :integer :default 10}
                                          :z {:type :integer :default 10}}}
                                  :active-plane {:type :keyword :default :z}
-                                 :auto-scale {:type :boolean :default true}
                                  :opacity {:type :number :default 0.25}
                                  :color {:type :tuple
                                          :items [{:type :number} {:type :number} {:type :number} {:type :number}]

@@ -226,6 +226,9 @@
 (g/defnk produce-merged-options
   [prefs camera options]
   (cond-> (if prefs (prefs/get prefs grid-prefs-path) {})
+    :always
+    (assoc :auto-scale true)
+
     options
     (merge options)
   
