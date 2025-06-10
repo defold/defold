@@ -330,6 +330,13 @@ var LibraryGLFW = {
             GLFW.buttons &= ~(1 << 0);
         }
 
+        // Audio is blocked by default in browsers until a user performs an interaction,
+        // so we need to try to resume on mouse button down/up and touch start/end.
+        // We must also check that the sound device hasn't been stripped
+        if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
+          DefoldSoundDevice.TryResumeAudio();
+        }
+
         event.preventDefault();
     },
 
@@ -404,9 +411,7 @@ var LibraryGLFW = {
           GLFW.fillTouch(touch.identifier, canvasX, canvasY, GLFW.GLFW_PHASE_BEGAN);
         }
 
-        // Audio is blocked by default in browsers until a user performs an interaction,
-        // so we need to try to resume it here (on mouse button down and touch start).
-        // We must also check that the sound device hasn't been stripped
+        // Resume audio on user interaction (see explanation in touchWasFinished).
         if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
           DefoldSoundDevice.TryResumeAudio();
         }
@@ -422,9 +427,7 @@ var LibraryGLFW = {
       GLFW.buttons |= (1 << event['button']);
       GLFW.onMouseButtonChanged(event, 1);// GLFW_PRESS
 
-      // Audio is blocked by default in browsers until a user performs an interaction,
-      // so we need to try to resume it here (on mouse button down and touch start).
-      // We must also check that the sound device hasn't been stripped
+      // Resume audio on user interaction (see explanation in touchWasFinished).
       if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
         DefoldSoundDevice.TryResumeAudio();
       }
@@ -435,6 +438,11 @@ var LibraryGLFW = {
 
       GLFW.buttons &= ~(1 << event['button']);
       GLFW.onMouseButtonChanged(event, 0);// GLFW_RELEASE
+
+      // Resume audio on user interaction (see explanation in touchWasFinished).
+      if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
+        DefoldSoundDevice.TryResumeAudio();
+      }
     },
 
     onMouseWheel: function(event) {

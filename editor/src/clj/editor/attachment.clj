@@ -22,10 +22,12 @@
 (defonce ^:private state-atom
   ;; :add -> type -> list-kw -> type -> tx-attach-fn
   ;; :get -> type -> list-kw -> get-fn
+  ;; :reorder -> type -> list-kw -> reorder-fn
   ;;
   ;; tx-attach-fn: fn of parent-node, child-node -> txs
   ;; get-fn: fn of node, evaluation-context -> vector of nodes
-  (atom {:add {} :get {}}))
+  ;; reorder-fn: fn of reordered-nodes -> txs
+  (atom {:add {} :get {} :reorder {}}))
 
 (defn register!
   "Register a semantical list of child components
@@ -35,20 +37,25 @@
     list-kw      name of the node component list
 
   Kv-args (at least one is required):
-    :add    a map that defines how new items are added to the list;
-            where keys are child node types used for constructing new nodes, and
-            values are attach functions, i.e. functions of parent-node-id
-            (container) and child-node-id (item) that should return transaction
-            steps that connect the child node into the parent
-    :get    a function that defines how to read a list of children, will receive
-            2 args: parent-node-id (container) and evaluation-context; should
-            return a vector of node ids"
-  [node-type list-kw & {:keys [add get]}]
-  {:pre [(or (ifn? get) (map? add))]}
+    :add        a map that defines how new items are added to the list; where
+                keys are child node types used for constructing new nodes, and
+                values are attach functions, i.e. functions of parent-node-id
+                (container) and child-node-id (item) that should return
+                transaction steps that connect the child node into the parent
+    :get        a function that defines how to read a list of children, will
+                receive 2 args: parent-node-id (container) and
+                evaluation-context; should return a vector of node ids
+    :reorder    a function that defines how to reorder a list of children, will
+                receive 1 arg: reordered-node-ids (vector of item node ids,
+                validated to be the same node ids as those returned by :get);
+                should return transaction steps that set the new order"
+  [node-type list-kw & {:keys [add get reorder]}]
+  {:pre [(or (ifn? get) (map? add) (ifn? reorder))]}
   (swap! state-atom (fn [s]
                       (cond-> s
                               add (update :add update node-type update list-kw merge add)
-                              get (update :get update node-type assoc list-kw get))))
+                              get (update :get update node-type assoc list-kw get)
+                              reorder (update :reorder update node-type assoc list-kw reorder))))
   nil)
 
 (defn add-impl [current-state parent-node-type parent-node-id attachment-tree init-fn]
@@ -112,6 +119,11 @@
   [node-type list-kw]
   (-> @state-atom :add (get node-type) (contains? list-kw)))
 
+(defn reorderable?
+  "Checks if a node type allows reordering of a list-kw list"
+  [node-type list-kw]
+  (-> @state-atom :reorder (get node-type) (contains? list-kw)))
+
 (defn child-node-types
   "Returns defined child node-types for a parent node-type's list-kw
 
@@ -160,6 +172,26 @@
   node-id defines a list identified by list-kw (see [[defines?]])"
   [node-id list-kw child-node-id]
   (g/expand-ec remove-tx node-id list-kw child-node-id))
+
+(defn- reorder-tx [evaluation-context node-id list-kw reordered-child-node-ids]
+  (let [basis (:basis evaluation-context)
+        node-type (g/node-type* basis node-id)
+        get-fn (getter node-type list-kw)
+        children-set (set (get-fn node-id evaluation-context))
+        reorder-fn (-> @state-atom :reorder (get node-type) (get list-kw))]
+    (assert (every? children-set reordered-child-node-ids))
+    (assert (= (count children-set) (count reordered-child-node-ids))) ;; no duplicates
+    (assert reorder-fn)
+    (reorder-fn reordered-child-node-ids)))
+
+(defn reorder
+  "Create transaction steps for reordering a list of children
+
+  The implementation will assert that the supplied child node ids are the same
+  node ids as defined by [[getter]]. It will also assert that the container
+  node-id defines reorder of a list identified by list-kw (see [[reorderable?]])"
+  [node-id list-kw reordered-child-node-ids]
+  (g/expand-ec reorder-tx node-id list-kw reordered-child-node-ids))
 
 (defn nodes-by-type-getter
   "Create a node list getter using a type filter over the :nodes output

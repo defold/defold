@@ -1326,6 +1326,70 @@ After transaction (clear):
 Expected errors:
   missing type => type is required
   wrong type => box is not shape-type-box, shape-type-capsule or shape-type-sphere
+GUI initial state:
+  layers: 0
+  materials: 0
+  particlefxs: 0
+  textures: 0
+  layouts: 0
+Transaction: edit GUI
+After transaction (edit):
+  layers: 2
+    layer: bg
+    layer: fg
+  materials: 4
+    material: material
+    material: test /test.material
+    material: test1 /test.material
+    material: material1
+  particlefxs: 3
+    particlefx: particlefx
+    particlefx: test /test.particlefx
+    particlefx: particlefx1
+  textures: 2
+    texture: test /test.tilesource
+    texture: test1 /test.atlas
+  layouts: 2
+    layout: Landscape
+    layout: Portrait
+can reorder layers: true
+Transaction: reorder
+After transaction (reorder):
+  layers: 2
+    layer: fg
+    layer: bg
+  materials: 4
+    material: material
+    material: test /test.material
+    material: test1 /test.material
+    material: material1
+  particlefxs: 3
+    particlefx: particlefx
+    particlefx: test /test.particlefx
+    particlefx: particlefx1
+  textures: 2
+    texture: test /test.tilesource
+    texture: test1 /test.atlas
+  layouts: 2
+    layout: Landscape
+    layout: Portrait
+Expected reorder errors:
+  undefined property => GuiSceneNode does not define \"not-a-property\"
+  reorder not defined => CollisionObjectNode does not support \"shapes\" reordering
+  duplicates => Reordered child nodes are not the same as current child nodes
+  missing children => Reordered child nodes are not the same as current child nodes
+  wrong child nodes => Reordered child nodes are not the same as current child nodes
+Transaction: clear GUI
+Expected layout errors:
+  no name => layout name is required
+  unknown profile => \"Not a profile\" is not \"Landscape\" or \"Portrait\"
+  duplicates => \"Landscape\" is not \"Portrait\"
+After transaction (clear):
+  layers: 0
+  materials: 0
+  particlefxs: 0
+  textures: 0
+  layouts: 0
 ")
 
 (deftest attachment-properties-test

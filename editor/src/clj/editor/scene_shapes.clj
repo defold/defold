@@ -315,3 +315,28 @@
       (gl/gl-draw-arrays gl primitive-type 0 point-count)
       (when-not double-sided
         (gl/gl-disable gl GL2/GL_CULL_FACE)))))
+
+(defn render-points [^GL2 gl render-args renderables _num-renderables]
+  (let [{:keys [selected user-data world-transform]} (first renderables)
+        {:keys [color geometry ^double point-size]} user-data
+        {:keys [primitive-type vbuf]} geometry
+        color (float-array (or (colors/selection-color selected)
+                               (colors/alpha color 1.0)))
+        render-args (merge render-args
+                           (math/derive-render-transforms
+                            world-transform
+                            (:view render-args)
+                            (:projection render-args)
+                            (:texture render-args)))
+        point-count (:point-count user-data (count vbuf))
+        point-scale (:point-scale user-data no-point-scale)
+        point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
+        request-id (System/identityHashCode vbuf)
+        vertex-binding (vtx/use-with request-id vbuf shader)]
+    (gl/with-gl-bindings gl render-args [shader vertex-binding]
+      (.glPointSize gl point-size)
+      (shader/set-uniform shader gl "point_scale" point-scale)
+      (shader/set-uniform shader gl "point_offset_by_w" point-offset-by-w)
+      (shader/set-uniform shader gl "color" color)
+      (gl/gl-draw-arrays gl primitive-type 0 point-count)
+      (.glPointSize gl 1.0))))
