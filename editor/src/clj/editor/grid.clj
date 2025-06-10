@@ -136,7 +136,7 @@
       (render-grid-sizes dir grids options)
       (render-primary-axes (apply geom/aabb-union (:aabbs grids)) options))))
 
-(g/defnk grid-renderable
+(g/defnk produce-renderable
   [camera grids merged-options]
   {pass/infinity-grid ; Grid lines stretching to infinity. Not depth-clipped to frustum.
    [{:world-transform geom/Identity4d
@@ -203,11 +203,10 @@
                           (grid-snap-up (-> aabb types/max-p .y) (:y size))
                           (grid-snap-up (-> aabb types/max-p .z) (:z size)))))
 
-(g/defnk update-grids
+(g/defnk produce-grids
   [camera merged-options]
   (let [{:keys [size active-plane auto-scale]} merged-options
         frustum-planes (c/viewproj-frustum-planes camera)
-        active-plane (if (c/mode-2d? camera) :z active-plane)
         plane (.indexOf axes active-plane)
         aabb (frustum-projection-aabb frustum-planes plane)
         extent (geom/as-array (geom/aabb-extent aabb))
@@ -223,17 +222,24 @@
               (conj (snap-out-to-grid aabb grid-size-large)))
      :plane plane}))
 
+(g/defnk produce-merged-options
+  [prefs camera options]
+  (cond-> (if prefs (prefs/get prefs grid-prefs-path) {})
+    options
+    (merge options)
+  
+    (c/mode-2d? camera)
+    (assoc :active-plane :z)))
+
 (g/defnode Grid
   (property prefs g/Any)
 
   (input camera Camera)
 
   (output options g/Any (g/constantly nil))
-  (output merged-options g/Any (g/fnk [prefs options]
-                                 (cond-> (if prefs (prefs/get prefs grid-prefs-path) {})
-                                   options (merge options))))
-  (output grids g/Any :cached update-grids)
-  (output renderable pass/RenderData :cached grid-renderable))
+  (output merged-options g/Any produce-merged-options)
+  (output grids g/Any :cached produce-grids)
+  (output renderable pass/RenderData :cached produce-renderable))
 
 (defn- invalidate-grids! [app-view]
   (let [scene-view-id (g/node-value app-view :active-view)
