@@ -86,16 +86,22 @@
     (render-grid-axis gl vertex v-axis v-min v-max v-size u-axis u-min u-max)))
 
 (defn render-primary-axes
-  [^GL2 gl ^AABB aabb colors]
-  (gl/gl-color gl (if (:x colors) (colors/hex-color->color (:x colors)) x-axis-color))
-  (gl/gl-vertex-3d gl (-> aabb types/min-p .x) 0.0 0.0)
-  (gl/gl-vertex-3d gl (-> aabb types/max-p .x) 0.0 0.0)
-  (gl/gl-color gl (if (:y colors) (colors/hex-color->color (:y colors)) y-axis-color))
-  (gl/gl-vertex-3d gl 0.0 (-> aabb types/min-p .y) 0.0)
-  (gl/gl-vertex-3d gl 0.0 (-> aabb types/max-p .y) 0.0)
-  (gl/gl-color gl (if (:z colors) (colors/hex-color->color (:z colors)) z-axis-color))
-  (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/min-p .z))
-  (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/max-p .z)))
+  [^GL2 gl ^AABB aabb options]
+  (let [{:keys [axes-colors active-plane]} options]
+    (when-not (= active-plane :x)
+      (gl/gl-color gl (if (:x axes-colors) (colors/hex-color->color (:x axes-colors)) x-axis-color))
+      (gl/gl-vertex-3d gl (-> aabb types/min-p .x) 0.0 0.0)
+      (gl/gl-vertex-3d gl (-> aabb types/max-p .x) 0.0 0.0))
+    
+    (when-not (= active-plane :y)
+      (gl/gl-color gl (if (:y axes-colors) (colors/hex-color->color (:y axes-colors)) y-axis-color))
+      (gl/gl-vertex-3d gl 0.0 (-> aabb types/min-p .y) 0.0)
+      (gl/gl-vertex-3d gl 0.0 (-> aabb types/max-p .y) 0.0))
+
+    (when-not (= active-plane :z)
+      (gl/gl-color gl (if (:z axes-colors) (colors/hex-color->color (:z axes-colors)) z-axis-color))
+      (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/min-p .z))
+      (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/max-p .z)))))
 
 (defn render-grid-sizes
   [^GL2 gl ^doubles dir grids options]
@@ -128,7 +134,7 @@
         _ (.getRow view-matrix 2 dir)]
     (gl/gl-lines gl
       (render-grid-sizes dir grids options)
-      (render-primary-axes (apply geom/aabb-union (:aabbs grids)) (:axes-colors options)))))
+      (render-primary-axes (apply geom/aabb-union (:aabbs grids)) options))))
 
 (g/defnk grid-renderable
   [camera grids merged-options]
