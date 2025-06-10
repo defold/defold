@@ -105,7 +105,7 @@ namespace dmGraphics
 
     VkCommandBuffer VulkanGetCurrentFrameCommandBuffer(HContext context);
 
-    // bool VulkanCreateDescriptorPool(VkDevice vk_device, uint16_t max_descriptors, VkDescriptorPool* vk_descriptor_pool_out);
+    bool VulkanCreateDescriptorPool(VkDevice vk_device, uint16_t max_descriptors, VkDescriptorPool* vk_descriptor_pool_out);
 }
 
 #endif // DMSDK_GRAPHICS_VULKAN_H
