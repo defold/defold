@@ -203,6 +203,21 @@ namespace dmGraphics
      * @member TEXTURE_FORMAT_R32F
      * @member TEXTURE_FORMAT_RG32F
      * @member TEXTURE_FORMAT_RGBA32UI
+     * @member TEXTURE_FORMAT_BGRA8U
+     * @member TEXTURE_FORMAT_R32UI
+     * @member TEXTURE_FORMAT_RGBA_ASTC_5X4
+     * @member TEXTURE_FORMAT_RGBA_ASTC_5X5
+     * @member TEXTURE_FORMAT_RGBA_ASTC_6X5
+     * @member TEXTURE_FORMAT_RGBA_ASTC_6X6
+     * @member TEXTURE_FORMAT_RGBA_ASTC_8X5
+     * @member TEXTURE_FORMAT_RGBA_ASTC_8X6
+     * @member TEXTURE_FORMAT_RGBA_ASTC_8X8
+     * @member TEXTURE_FORMAT_RGBA_ASTC_10X5
+     * @member TEXTURE_FORMAT_RGBA_ASTC_10X6
+     * @member TEXTURE_FORMAT_RGBA_ASTC_10X8
+     * @member TEXTURE_FORMAT_RGBA_ASTC_10X10
+     * member TEXTURE_FORMAT_RGBA_ASTC_12X10
+     * @member TEXTURE_FORMAT_RGBA_ASTC_12X12
      * @member TEXTURE_FORMAT_COUNT
      */
     enum TextureFormat
@@ -225,7 +240,6 @@ namespace dmGraphics
         TEXTURE_FORMAT_RG_ETC2              = 14,
         TEXTURE_FORMAT_RGBA_ETC2            = 15,
         TEXTURE_FORMAT_RGBA_ASTC_4x4        = 16,
-        TEXTURE_FORMAT_RGBA_ASTC_4X4        = 16,
         TEXTURE_FORMAT_RGB_BC1              = 17,
         TEXTURE_FORMAT_RGBA_BC3             = 18,
         TEXTURE_FORMAT_R_BC4                = 19,
@@ -266,9 +280,9 @@ namespace dmGraphics
     /*#
      * Get the attachment texture from a render target. Returns zero if no such attachment texture exists.
      * @name GetRenderTargetAttachment
-     * @param render_target [type: dmGraphics::HRenderTarget] the render target
-     * @param attachment_type [type: dmGraphics::RenderTargetAttachment] the attachment to get
-     * @return attachment [type: dmGraphics::HTexture] the attachment texture
+     * @param render_target [type:dmGraphics::HRenderTarget] the render target
+     * @param attachment_type [type:dmGraphics::RenderTargetAttachment] the attachment to get
+     * @return attachment [type:dmGraphics::HTexture] the attachment texture
      */
     HTexture GetRenderTargetAttachment(HRenderTarget render_target, RenderTargetAttachment attachment_type);
 
@@ -276,9 +290,9 @@ namespace dmGraphics
      * Get the native graphics API texture object from an engine texture handle. This depends on the graphics backend and is not
      * guaranteed to be implemented on the currently running adapter.
      * @name GetTextureHandle
-     * @param texture [type: dmGraphics::HTexture] the texture handle
-     * @param out_handle [type: void**] a pointer to where the raw object should be stored
-     * @return handle_result [type: dmGraphics::HandleResult] the result of the query
+     * @param texture [type:dmGraphics::HTexture] the texture handle
+     * @param out_handle [type:void**] a pointer to where the raw object should be stored
+     * @return handle_result [type:dmGraphics::HandleResult] the result of the query
      */
     HandleResult GetTextureHandle(HTexture texture, void** out_handle);
 
@@ -500,7 +514,7 @@ namespace dmGraphics
     };
 
     /*#
-     * Adapter family
+     * Graphics adapter family
      * @enum
      * @name AdapterFamily
      * @member ADAPTER_FAMILY_NONE
@@ -595,7 +609,20 @@ namespace dmGraphics
         TEXTURE_WRAP_REPEAT          = 3,
     };    
 
-
+    /*#
+     * 
+     * @struct
+     * @name TextureCreationParams
+     * @member m_Type [type:dmGraphics::TextureType] texture type
+     * @member m_Width [type:uint16_t]
+     * @member m_Height [type:uint16_t]
+     * @member m_OriginalWidth [type:uint16_t]
+     * @member m_OriginalHeight [type:uint16_t]
+     * @member m_OriginalDepth [type:uint16_t]
+     * @member m_LayerCount [type:uint8_t]
+     * @member m_MipMapCount [type:uint8_t]
+     * @member m_UsageHintBits [type:uint8_t]
+     */
     struct TextureCreationParams
     {
         TextureCreationParams()
@@ -623,6 +650,28 @@ namespace dmGraphics
         uint8_t     m_UsageHintBits;
     };
 
+    /*#
+     * 
+     * @struct
+     * @name TextureParams
+     * @member m_Data [type:const void*]
+     * @member m_DataSize [type:uint32_t]
+     * @member m_Format [type:dmGraphics::TextureFormat]
+     * @member m_MinFilter [type:dmGraphics::TextureFilter]
+     * @member m_MagFilter [type:dmGraphics::TextureFilter]
+     * @member m_UWrap [type:dmGraphics::TextureWrap]
+     * @member m_VWrap [type:dmGraphics::TextureWrap]
+     * @member m_X [type:uint32_t]
+     * @member m_Y [type:uint32_t]
+     * @member m_Z [type:uint32_t]
+     * @member m_Slice [type:uint32_t]
+     * @member m_Width [type:uint16_t]
+     * @member m_Height [type:uint16_t]
+     * @member m_Depth [type:uint16_t]
+     * @member m_LayerCount [type:uint8_t]
+     * @member m_MipMap [type:uint8_t] Only 7 bit available
+     * @member m_SubUpdate [type:uint8_t]
+     */
     struct TextureParams
     {
         TextureParams()
@@ -640,7 +689,7 @@ namespace dmGraphics
         , m_Width(0)
         , m_Height(0)
         , m_Depth(0)
-        , m_LayerCount(1)
+        , m_LayerCount(0)
         , m_MipMap(0)
         , m_SubUpdate(false)
         {}
@@ -662,7 +711,7 @@ namespace dmGraphics
         uint16_t m_Width;
         uint16_t m_Height;
         uint16_t m_Depth;
-        uint8_t m_LayerCount; // For array texture, this is page count
+        uint8_t  m_LayerCount; // For array texture, this is page count
         uint8_t  m_MipMap    : 7;
         uint8_t  m_SubUpdate : 1;
     };
@@ -671,8 +720,8 @@ namespace dmGraphics
      * Create new vertex stream declaration. A stream declaration contains a list of vertex streams
      * that should be used to create a vertex declaration from.
      * @name NewVertexStreamDeclaration
-     * @param context [type: dmGraphics::HContext] the context
-     * @return declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex declaration
+     * @param context [type:dmGraphics::HContext] the context
+     * @return declaration [type:dmGraphics::HVertexStreamDeclaration] the vertex declaration
      */
     HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context);
 
@@ -680,47 +729,47 @@ namespace dmGraphics
      * Create new vertex stream declaration. A stream declaration contains a list of vertex streams
      * that should be used to create a vertex declaration from.
      * @name NewVertexStreamDeclaration
-     * @param context [type: dmGraphics::HContext] the context
-     * @param step_function [type: dmGraphics::VertexStepFunction] the vertex step function to use
-     * @return declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex declaration
+     * @param context [type:dmGraphics::HContext] the context
+     * @param step_function [type:dmGraphics::VertexStepFunction] the vertex step function to use
+     * @return declaration [type:dmGraphics::HVertexStreamDeclaration] the vertex declaration
      */
     HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context, VertexStepFunction step_function);
 
     /*#
      * Adds a stream to a stream declaration
      * @name AddVertexStream
-     * @param context [type: dmGraphics::HContext] the context
-     * @param name [type: const char*] the name of the stream
-     * @param size [type: uint32_t] the size of the stream, i.e number of components
-     * @param type [type: dmGraphics::Type] the data type of the stream
-     * @param normalize [type: bool] true if the stream should be normalized in the 0..1 range
+     * @param context [type:dmGraphics::HContext] the context
+     * @param name [type:const char*] the name of the stream
+     * @param size [type:uint32_t] the size of the stream, i.e number of components
+     * @param type [type:dmGraphics::Type] the data type of the stream
+     * @param normalize [type:bool] true if the stream should be normalized in the 0..1 range
      */
     void AddVertexStream(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, Type type, bool normalize);
 
     /*#
      * Adds a stream to a stream declaration
      * @name AddVertexStream
-     * @param context [type: dmGraphics::HContext] the context
-     * @param name_hash [type: uint64_t] the name hash of the stream
-     * @param size [type: uint32_t] the size of the stream, i.e number of components
-     * @param type [type: dmGraphics::Type] the data type of the stream
-     * @param normalize [type: bool] true if the stream should be normalized in the 0..1 range
+     * @param context [type:dmGraphics::HContext] the context
+     * @param name_hash [type:uint64_t] the name hash of the stream
+     * @param size [type:uint32_t] the size of the stream, i.e number of components
+     * @param type [type:dmGraphics::Type] the data type of the stream
+     * @param normalize [type:bool] true if the stream should be normalized in the 0..1 range
      */
     void AddVertexStream(HVertexStreamDeclaration stream_declaration, uint64_t name_hash, uint32_t size, Type type, bool normalize);
 
     /*#
      * Delete vertex stream declaration
      * @name DeleteVertexStreamDeclaration
-     * @param stream_declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex stream declaration
+     * @param stream_declaration [type:dmGraphics::HVertexStreamDeclaration] the vertex stream declaration
      */
     void DeleteVertexStreamDeclaration(HVertexStreamDeclaration stream_declaration);
 
     /*#
      * Create new vertex declaration from a vertex stream declaration
      * @name NewVertexDeclaration
-     * @param context [type: dmGraphics::HContext] the context
-     * @param stream_declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex stream declaration
-     * @return declaration [type: dmGraphics::HVertexDeclaration] the vertex declaration
+     * @param context [type:dmGraphics::HContext] the context
+     * @param stream_declaration [type:dmGraphics::HVertexStreamDeclaration] the vertex stream declaration
+     * @return declaration [type:dmGraphics::HVertexDeclaration] the vertex declaration
      */
     HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration);
 
@@ -728,25 +777,25 @@ namespace dmGraphics
      * Create new vertex declaration from a vertex stream declaration and an explicit stride value,
      * where the stride is the number of bytes between each consecutive vertex in a vertex buffer
      * @name NewVertexDeclaration
-     * @param context [type: dmGraphics::HContext] the context
-     * @param stream_declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex stream declaration
-     * @param stride [type: uint32_t] the stride between the start of each vertex (in bytes)
-     * @return declaration [type: dmGraphics::HVertexDeclaration] the vertex declaration
+     * @param context [type:dmGraphics::HContext] the context
+     * @param stream_declaration [type:dmGraphics::HVertexStreamDeclaration] the vertex stream declaration
+     * @param stride [type:uint32_t] the stride between the start of each vertex (in bytes)
+     * @return declaration [type:dmGraphics::HVertexDeclaration] the vertex declaration
      */
     HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride);
 
     /*#
      * Delete vertex declaration
      * @name DeleteVertexDeclaration
-     * @param vertex_declaration [type: dmGraphics::HVertexDeclaration] the vertex declaration
+     * @param vertex_declaration [type:dmGraphics::HVertexDeclaration] the vertex declaration
      */
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration);
 
     /*#
      * Get the physical offset into the vertex data for a particular stream
      * @name GetVertexStreamOffset
-     * @param vertex_declaration [type: dmGraphics::HVertexDeclaration] the vertex declaration
-     * @param name_hash [type: uint64_t] the name hash of the vertex stream (as passed into AddVertexStream())
+     * @param vertex_declaration [type:dmGraphics::HVertexDeclaration] the vertex declaration
+     * @param name_hash [type:uint64_t] the name hash of the vertex stream (as passed into AddVertexStream())
      * @return Offset in bytes into the vertex or INVALID_STREAM_OFFSET if not found
      */
     uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, uint64_t name_hash);
@@ -754,46 +803,46 @@ namespace dmGraphics
     /*#
      * Create new vertex buffer with initial data
      * @name NewVertexBuffer
-     * @param context [type: dmGraphics::HContext] the context
-     * @param size [type: uint32_t] the size of the buffer (in bytes). May be 0
-     * @param data [type: void*] the data
-     * @param buffer_usage [type: dmGraphics::BufferUsage] the usage
-     * @return buffer [type: dmGraphics::HVertexBuffer] the vertex buffer
+     * @param context [type:dmGraphics::HContext] the context
+     * @param size [type:uint32_t] the size of the buffer (in bytes). May be 0
+     * @param data [type:void*] the data
+     * @param buffer_usage [type:dmGraphics::BufferUsage] the usage
+     * @return buffer [type:dmGraphics::HVertexBuffer] the vertex buffer
      */
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
 
     /*#
      * Delete vertex buffer
      * @name DeleteVertexBuffer
-     * @param buffer [type: dmGraphics::HVertexBuffer] the buffer
+     * @param buffer [type:dmGraphics::HVertexBuffer] the buffer
      */
     void DeleteVertexBuffer(HVertexBuffer buffer);
 
     /*#
      * Set vertex buffer data
      * @name SetVertexBufferData
-     * @param buffer [type: dmGraphics::HVertexBuffer] the buffer
-     * @param size [type: uint32_t] the size of the buffer (in bytes). May be 0
-     * @param data [type: void*] the data
-     * @param buffer_usage [type: dmGraphics::BufferUsage] the usage
+     * @param buffer [type:dmGraphics::HVertexBuffer] the buffer
+     * @param size [type:uint32_t] the size of the buffer (in bytes). May be 0
+     * @param data [type:void*] the data
+     * @param buffer_usage [type:dmGraphics::BufferUsage] the usage
      */
     void SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
 
     /*#
      * Set subset of vertex buffer data
      * @name SetVertexBufferSubData
-     * @param buffer [type: dmGraphics::HVertexBuffer] the buffer
-     * @param offset [type: uint32_t] the offset into the desination buffer (in bytes)
-     * @param size [type: uint32_t] the size of the buffer (in bytes). May be 0
-     * @param data [type: void*] the data
+     * @param buffer [type:dmGraphics::HVertexBuffer] the buffer
+     * @param offset [type:uint32_t] the offset into the desination buffer (in bytes)
+     * @param size [type:uint32_t] the size of the buffer (in bytes). May be 0
+     * @param data [type:void*] the data
      */
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
 
     /*#
      * Get the max number of vertices allowed by the system in a vertex buffer
      * @name GetMaxElementsVertices
-     * @param context [type: dmGraphics::HContext] the context
-     * @return count [type: uint32_t] the count
+     * @param context [type:dmGraphics::HContext] the context
+     * @return count [type:uint32_t] the count
      */
     uint32_t GetMaxElementsVertices(HContext context);
 
@@ -801,55 +850,55 @@ namespace dmGraphics
      * Create new index buffer with initial data
      * @note The caller need to track if the indices are 16 or 32 bit.
      * @name NewIndexBuffer
-     * @param context [type: dmGraphics::HContext] the context
-     * @param size [type: uint32_t] the size of the buffer (in bytes). May be 0
-     * @param data [type: void*] the data
-     * @param buffer_usage [type: dmGraphics::BufferUsage] the usage
-     * @return buffer [type: dmGraphics::HIndexBuffer] the index buffer
+     * @param context [type:dmGraphics::HContext] the context
+     * @param size [type:uint32_t] the size of the buffer (in bytes). May be 0
+     * @param data [type:void*] the data
+     * @param buffer_usage [type:dmGraphics::BufferUsage] the usage
+     * @return buffer [type:dmGraphics::HIndexBuffer] the index buffer
      */
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
 
     /*#
      * Delete the index buffer
      * @name DeleteIndexBuffer
-     * @param buffer [type: dmGraphics::HIndexBuffer] the index buffer
+     * @param buffer [type:dmGraphics::HIndexBuffer] the index buffer
      */
     void DeleteIndexBuffer(HIndexBuffer buffer);
 
     /*#
      * Set index buffer data
      * @name SetIndexBufferData
-     * @param buffer [type: dmGraphics::HIndexBuffer] the buffer
-     * @param size [type: uint32_t] the size of the buffer (in bytes). May be 0
-     * @param data [type: void*] the data
-     * @param buffer_usage [type: dmGraphics::BufferUsage] the usage
+     * @param buffer [type:dmGraphics::HIndexBuffer] the buffer
+     * @param size [type:uint32_t] the size of the buffer (in bytes). May be 0
+     * @param data [type:void*] the data
+     * @param buffer_usage [type:dmGraphics::BufferUsage] the usage
      */
     void SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
 
     /*#
      * Set subset of index buffer data
      * @name SetIndexBufferSubData
-     * @param buffer [type: dmGraphics::HVertexBuffer] the buffer
-     * @param offset [type: uint32_t] the offset into the desination buffer (in bytes)
-     * @param size [type: uint32_t] the size of the buffer (in bytes). May be 0
-     * @param data [type: void*] the data
+     * @param buffer [type:dmGraphics::HVertexBuffer] the buffer
+     * @param offset [type:uint32_t] the offset into the desination buffer (in bytes)
+     * @param size [type:uint32_t] the size of the buffer (in bytes). May be 0
+     * @param data [type:void*] the data
      */
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
 
     /*#
      * Check if the index format is supported
      * @name IsIndexBufferFormatSupported
-     * @param context [type: dmGraphics::HContext] the context
-     * @param format [type: dmGraphics::IndexBufferFormat] the format
-     * @param result [type: bool] true if the format is supoprted
+     * @param context [type:dmGraphics::HContext] the context
+     * @param format [type:dmGraphics::IndexBufferFormat] the format
+     * @param result [type:bool] true if the format is supoprted
      */
     bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format);
 
     /*#
      * Get the max number of indices allowed by the system in an index buffer
      * @name GetMaxElementsIndices
-     * @param context [type: dmGraphics::HContext] the context
-     * @return count [type: uint32_t] the count
+     * @param context [type:dmGraphics::HContext] the context
+     * @return count [type:uint32_t] the count
      */
     uint32_t GetMaxElementsIndices(HContext context);
 
@@ -864,7 +913,7 @@ namespace dmGraphics
     /*# check if a specific texture format is supported
      * @name IsTextureFormatSupported
      * @param context [type:dmGraphics::HContext] the context
-     * @param format [type:TextureFormat] the texture format.
+     * @param format [type:dmGraphics::TextureFormat] the texture format.
      * @return result [type:bool] true if the texture format was supported
      */
     bool IsTextureFormatSupported(HContext context, TextureFormat format);
@@ -911,7 +960,7 @@ namespace dmGraphics
     /*#
      * Get installed graphics adapter family
      * @name GetInstalledAdapterFamily
-     * @return family [type:AdapterFamily] Installed adapter family
+     * @return family [type:dmGraphics::AdapterFamily] Installed adapter family
      */
     AdapterFamily GetInstalledAdapterFamily();
 
@@ -919,15 +968,15 @@ namespace dmGraphics
      * Create new texture
      * @name NewTexture
      * @param context [type:HContext] Graphics context
-     * @param params [type:const TextureCreationParams&] Creation parameters
-     * @return texture_handle [type:HTexture] Opaque texture handle
+     * @param params [type:const dmGraphics::TextureCreationParams&] Creation parameters
+     * @return texture_handle [type:dmGraphics::HTexture] Opaque texture handle
      */
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
 
     /*#
      * Delete texture
      * @name DeleteTexture
-     * @param texture [type:HTexture] Texture handle
+     * @param texture [type:dmGraphics::HTexture] Texture handle
      */
     void DeleteTexture(HTexture texture);
 
@@ -935,15 +984,16 @@ namespace dmGraphics
      * Set texture data. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
      * 6 mip-maps are present contiguously in memory with stride m_DataSize
      * @name SetTexture
-     * @param texture [type:HTexture] Texture handle
-     * @param params [type: const TextureParams&]
+     * @param texture [type:dmGraphics::HTexture] Texture handle
+     * @param params [type:const dmGraphics::TextureParams&]
      */
     void SetTexture(HTexture texture, const TextureParams& params);
 
     /*#
      * Function called when a texture has been set asynchronously
+     * @typedef
      * @name SetTextureAsyncCallback
-     * @param texture [type:HTexture] Texture handle
+     * @param texture [type:dmGraphics::HTexture] Texture handle
      * @param user_data [type:void*] User data that will be passed to the SetTextureAsyncCallback
      */
     typedef void (*SetTextureAsyncCallback)(HTexture texture, void* user_data);
@@ -952,9 +1002,9 @@ namespace dmGraphics
      * Set texture data asynchronously. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
      * 6 mip-maps are present contiguously in memory with stride m_DataSize
      * @name SetTextureAsync
-     * @param texture [type:HTexture] Texture handle
-     * @param params [type:const TextureParams&] Texture parameters. Texture will be recreated if parameters differ from creation parameters
-     * @param callback [type:SetTextureAsyncCallback] Completion callback
+     * @param texture [type:dmGraphics::HTexture] Texture handle
+     * @param params [type:const dmGraphics::TextureParams&] Texture parameters. Texture will be recreated if parameters differ from creation parameters
+     * @param callback [type:dmGraphics::SetTextureAsyncCallback] Completion callback
      * @param user_data [type:void*] User data that will be passed to completion callback
      */
     void SetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
@@ -962,76 +1012,134 @@ namespace dmGraphics
     /*#
      * Set texture parameters
      * @name SetTextureParams
-     * @param texture [type:HTexture] Texture handle
-     * @param min_filter [type:TextureFilter]
-     * @param mag_filter [type:TextureFilter]
-     * @param uwrap [type:TextureWrap]
-     * @param vwrap [type:TextureWrap]
+     * @param texture [type:dmGraphics::HTexture] Texture handle
+     * @param min_filter [type:dmGraphics::TextureFilter]
+     * @param mag_filter [type:dmGraphics::TextureFilter]
+     * @param uwrap [type:dmGraphics::TextureWrap]
+     * @param vwrap [type:dmGraphics::TextureWrap]
      * @param max_anisotropy [type:float]
      */
-    void        SetTextureParams(HTexture texture, TextureFilter min_filter, TextureFilter mag_filter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
+    void SetTextureParams(HTexture texture, TextureFilter min_filter, TextureFilter mag_filter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
 
     /*#
      * @name GetTextureResourceSize
-     * @param texture [type:HTexture] Texture handle
+     * @param texture [type:dmGraphics::HTexture] Texture handle
      * @return data_size [type:uint32_t] Resource data size in bytes
      */ 
-    uint32_t    GetTextureResourceSize(HTexture texture);
+    uint32_t GetTextureResourceSize(HTexture texture);
 
     /*#
      * Get texture's width
      * @name GetTextureWidth
-     * @param texture [type:HTexture] Texture handle
+     * @param texture [type:dmGraphics::HTexture] Texture handle
      * @return width [type:uint16_t] Texture's width
      */
-    uint16_t    GetTextureWidth(HTexture texture);
+    uint16_t GetTextureWidth(HTexture texture);
 
     /*#
      * Get texture's height
      * @name GetTextureHeight
-     * @param texture [type:HTexture] Texture handle
+     * @param texture [type:dmGraphics::HTexture] Texture handle
      * @return height [type:uint16_t] Texture's height
      */
-    uint16_t    GetTextureHeight(HTexture texture);
+    uint16_t GetTextureHeight(HTexture texture);
 
     /*#
      * Get texture's depth
      * @name GetTextureDepth
-     * @param texture [type:HTexture] texture handle
+     * @param texture [type:dmGraphics::HTexture] texture handle
      * @return depth [type:uint16_t] Texture's depth
      */
-    uint16_t    GetTextureDepth(HTexture texture);
+    uint16_t GetTextureDepth(HTexture texture);
 
     /*#
      * @name GetOriginalTextureWidth
-     * @param texture [type:HTexture] Texture handle
+     * @param texture [type:dmGraphics::HTexture] Texture handle
      * @return original_width [type:uin16_t] Texture's original width
      */
-    uint16_t    GetOriginalTextureWidth(HTexture texture);
+    uint16_t GetOriginalTextureWidth(HTexture texture);
 
     /*#
      * @name GetOriginalTextureHeight
+     * @param texture [type:dmGraphics::HTexture]
+     * @return original_height [type:uint16_t]
      */
-    uint16_t    GetOriginalTextureHeight(HTexture texture);
-    uint8_t     GetTextureMipmapCount(HTexture texture);
-    TextureType GetTextureType(HTexture texture);
-    uint8_t     GetNumTextureHandles(HTexture texture);
-    uint32_t    GetTextureUsageHintFlags(HTexture texture);
+    uint16_t GetOriginalTextureHeight(HTexture texture);
 
-    /**
+    /*#
+     * @name GetTextureMipmapCount
+     * @param texture [type:dmGraphics::HTexture]
+     * @return count [type:uint8_t]
+     */
+    uint8_t GetTextureMipmapCount(HTexture texture);
+
+    /*#
+     * @name GetTextureType
+     * @param texture [type:HTexture]
+     * @return type [type:dmGraphics::TextureType]
+     */
+    TextureType GetTextureType(HTexture texture);
+
+    /*#
+     * @name GetNumTextureHandles
+     * @param texture [type:dmGraphics::HTexture]
+     * @return handles_amount [type:uint8_t]
+     */
+    uint8_t GetNumTextureHandles(HTexture texture);
+
+    /*#
+     * @name GetTextureUsageHintFlags
+     * @param texture [type:dmGraphics::HTexture]
+     * @return flags [type:uint32_t]
+     */
+    uint32_t GetTextureUsageHintFlags(HTexture texture);
+
+    /*#
      * Get status of texture.
      *
      * @name GetTextureStatusFlags
-     * @param texture HTexture
-     * @return  TextureStatusFlags enumerated status bit flags
+     * @param texture [type:dmGraphics::HTexture]
+     * @return flags [type:dmGraphics::TextureStatusFlags] enumerated status bit flags
      */
-    uint32_t    GetTextureStatusFlags(HTexture texture);
-    void        EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
-    void        DisableTexture(HContext context, uint32_t unit, HTexture texture);
+    uint32_t GetTextureStatusFlags(HTexture texture);
 
+    /*#
+     * @name EnableTexture
+     * @param context [type:dmGraphics::HContext]
+     * @param unit [type: uint32_t]
+     * @param id_index [type:uint8_t]
+     * @param texture [type:dmGraphics::HTexture]
+     */
+    void EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
+
+    /*#
+     * @name DisableTexture
+     * @param context [type:dmGraphics::HContext]
+     * @param unit [type:uint32_t]
+     * @param texture [type:dmGraphics::HTexture]
+     */
+    void DisableTexture(HContext context, uint32_t unit, HTexture texture);
+
+    /*#
+     * @name GetTextureTypeLiteral
+     * @param texture_type [type:dmGraphics::TextureType]
+     * @return literal_type [type:const char*]
+     */
     const char* GetTextureTypeLiteral(TextureType texture_type);
+
+    /*#
+     * @name GetTextureFormatLiteral
+     * @param format [type:dmGraphics::TextureFormat]
+     * @return literal_format [type:const char*]
+     */
     const char* GetTextureFormatLiteral(TextureFormat format);
-    uint32_t    GetMaxTextureSize(HContext context);
+
+    /*#
+     * @name GetMaxTextureSize
+     * @param context [type:dmGraphics::HContext]
+     * @return max_texture_size [type:uint32_t]
+     */
+    uint32_t GetMaxTextureSize(HContext context);
 }
 
 #endif // DMSDK_GRAPHICS_H
