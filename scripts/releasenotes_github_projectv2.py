@@ -23,6 +23,7 @@ import github
 import json
 import time
 import subprocess
+import math
 
 token = None
 
@@ -377,36 +378,46 @@ def parse_github_project(version):
     return issues
 
 def check_issue_commits(issues):
-    print("Checking commits")
+    print("Checking issue commits for dev and beta presence")
+    merge_count = 0
+    reference_count = 0
+    missing_count = 0
     for issue in issues:
-        print("  Checking #%s %s (%s)" % (issue["number"], issue["title"], issue["url"]))
-        print("    Merge commit     ", end = "")
+        dev_ok = False
+        beta_ok = False
+        print("  Checking #%s '%s' (%s)" % (issue["number"], issue["title"], issue["url"]))
         if issue.get("mergecommit") != None:
             branches = get_commit_branches(issue["mergecommit"])
-            if "dev" in branches and "beta" in branches:
-                green("dev+beta OK (%s)" % (issue["mergecommit"]))
-                continue
             if "dev" in branches:
-                yellow("dev OK (%s)" % (issue["mergecommit"]))
-            elif "beta" in branches:
-                yellow("beta OK (%s)" % (issue["mergecommit"]))
-            else:
-                red("dev+beta NOT OK (%s)" % (issue["mergecommit"]))
-        else:
-            red("NOT OK (missing merge commit)")
+                green("    dev  OK via merge commit (%s)" % (issue["mergecommit"]))
+                dev_ok = True
+                merge_count = merge_count + 0.5
+            if "beta" in branches:
+                green("    beta OK via merge commit (%s)" % (issue["mergecommit"]))
+                beta_ok = True
+                merge_count = merge_count + 0.5
 
         for referencecommit in issue.get("referencecommits"):
-            print("    Reference commit ", end = "")
+            if dev_ok and beta_ok: break
             branches = get_commit_branches(referencecommit)
-            if "dev" in branches and "beta" in branches:
-                green("dev+beta OK (%s)" % (referencecommit))
-                break
-            if "dev" in branches:
-                yellow("dev OK (%s)" % (referencecommit))
-            elif "beta" in branches:
-                yellow("beta OK (%s)" % (referencecommit))
-            else:
-                red("dev+beta NOT OK (%s)" % (referencecommit))
+            if not dev_ok and "dev" in branches:
+                yellow("    dev  OK via reference commit (%s)" % referencecommit)
+                dev_ok = True
+                reference_count = reference_count + 0.5
+            if not beta_ok and "beta" in branches:
+                yellow("    beta OK via reference commit (%s)" % referencecommit)
+                beta_ok = True
+                reference_count = reference_count + 0.5
+
+        if not dev_ok or not beta_ok:
+            red("    Missing from dev and/or beta")
+            missing_count = missing_count + 1
+
+    print("Summary")
+    green("  %d issue(s) present on dev+beta via merge commits" % math.floor(merge_count))
+    yellow("  %d issue(s) present on dev+beta via reference commits" % math.ceil(reference_count))
+    red("  %d issue(s) not present on dev+beta" % missing_count)
+
 
 
 def generate_markdown(version, issues, hide_details = False):
