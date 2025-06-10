@@ -501,6 +501,11 @@ namespace dmGui
         TextureInfo* t = scene->m_DynamicTextures.Get(texture_name_hash);
         if (t)
         {
+            if (t->m_ImageType != -1)
+            {
+                uint32_t buffer_size_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel(t->m_ImageType);
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size_mb);
+            }
             scene->m_DeleteTextureResourceCallback(scene, texture_name_hash, t->m_TextureSource);
         }
         return AddTexture(scene, scene->m_DynamicTextures, texture_name_hash, texture_source, texture_type, original_width, original_height, (dmImage::Type) -1);
