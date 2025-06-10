@@ -4663,7 +4663,7 @@ bail:
         return context->m_Instance;
     }
 
-    uint16_t VulkanGetQueueFamily(HContext _context)
+    uint16_t VulkanGetGraphicsQueueFamily(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
         return context->m_SwapChain->m_QueueFamily.m_GraphicsQueueIx;

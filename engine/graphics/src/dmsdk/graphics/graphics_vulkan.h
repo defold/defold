@@ -82,11 +82,11 @@ namespace dmGraphics
 
     /*#
      * Get Vulkan queue family. Only available when using Mac/iOS.
-     * @name VulkanGetQueueFamily
+     * @name VulkanGetGraphicsQueueFamily
      * @param context [type:dmGraphics::HContext] the Vulkan context
-     * return family [type: uint16_t] ???????????
+     * return family [type: uint16_t] graphics queue family
      */
-    uint16_t VulkanGetQueueFamily(HContext context);
+    uint16_t VulkanGetGraphicsQueueFamily(HContext context);
 
     /*#
      * Get Vulkan graphics queue handle. Only available when using Mac/iOS.
@@ -104,8 +104,24 @@ namespace dmGraphics
      */
     VkRenderPass VulkanGetRenderPass(HContext context);
 
+    /*#
+     * Get Vulkan command buffer which used at the current frame. Only available when using Mac/iOS.
+     * @name VulkanGetCurrentFrameCommandBuffer
+     * @param context [type:dmGraphics::HContext] the Vulkan context
+     * @return command_buffer [type:VkCommandBuffer] the Vulkan command buffer
+     */
     VkCommandBuffer VulkanGetCurrentFrameCommandBuffer(HContext context);
 
+    /*#
+     * Create Vulkan descriptor pool. No need to deallocate descripto pool manualy 
+     * because it will be deallocated automatically when context will be destroyed.
+     * Only available when using Mac/iOS.
+     * @name VulkanCreateDescriptorPool
+     * @param vk_device [type:VkDevice] the Vulkan device handle
+     * @param max_descriptors [type:uint16_t] maximum size of allocated pool
+     * @param vk_descriptor_pool_out [type:VkDescriptorPool*] result Vulkan descriptor pool
+     * @return result [type:bool] true if creation was successful. Otherwise returns false
+     */
     bool VulkanCreateDescriptorPool(VkDevice vk_device, uint16_t max_descriptors, VkDescriptorPool* vk_descriptor_pool_out);
 }
 
