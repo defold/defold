@@ -40,6 +40,7 @@ jobs:
           wayland-protocols
     - name: Build Box2D
       run: |
+        ./scripts/build.py shell
         cd external/box2d
         PREFIX=$DYNAMO_HOME waf configure
         waf install
