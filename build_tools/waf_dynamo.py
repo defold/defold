@@ -1027,12 +1027,12 @@ def export_symbols(self):
         return
 
     exported_symbols = self.path.find_or_declare('__exported_symbols_%d.cpp' % self.idx)
+    if not exported_symbols.exists():
+        task = self.create_task('create_export_symbols')
+        task.exported_symbols = self.exported_symbols
+        task.set_outputs([exported_symbols])
 
-    task = self.create_task('create_export_symbols')
-    task.exported_symbols = self.exported_symbols
-    task.set_outputs([exported_symbols])
-
-    # Add exported symbols as a dependancy to this task
+    # Add exported symbols as a dependency to this task
     if type(self.source) == str:
         sources = []
         for x in self.source.split(' '):
@@ -1670,6 +1670,7 @@ def extract_symbols(self):
 
     archive = link_output.change_ext('.dSYM.zip')
     ziptask = self.create_task('DSYMZIP')
+    ziptask.always_run = True
     ziptask.set_inputs(dsymtask.outputs[0])
     ziptask.set_outputs(archive)
 
