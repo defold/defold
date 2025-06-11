@@ -1231,16 +1231,11 @@
     AtlasAnimation (->> (image-resources->image-msgs image-resources)
                         (make-image-nodes-in-animation parent))))
 
-(defn- parent-animation-or-atlas
-  [selection]
-  (or (first (handler/adapt-every selection AtlasAnimation))
-      (some #(core/scope-of-type % AtlasAnimation) selection)
-      (some #(core/scope-of-type % AtlasNode) selection)
-      (first (handler/adapt-every selection AtlasNode))))
-
 (defn- handle-drop
   [root-id selection _workspace _world-pos resources]
-  (let [parent (or (parent-animation-or-atlas selection) root-id)]
+  (let [parent (or (handler/adapt-single selection AtlasAnimation)
+                   (some #(core/scope-of-type % AtlasAnimation) selection)
+                   root-id)]
     (->> resources
          (e/filter image/image-resource?)
          (create-dropped-images parent))))
