@@ -1025,24 +1025,67 @@
        (every? property-transfer?
                property-transfers)))
 
+(defn- transfer-overrides-context?
+  "Returns true if the supplied value is a transfer-overrides-context."
+  [{:keys [override-transfer-type]}]
+  (override-transfer-type? override-transfer-type))
+
+(defmulti transfer-overrides-context
+  "Given a source-node-id, an override-transfer-type, and an evaluation-context,
+  return a transfer-overrides-context map that will be fed into the
+  transfer-overrides-target-properties multimethod for the target node-type. The
+  :override-transfer-type will be assoc:ed into the map before it is supplied to
+  the transfer-overrides-target-properties multimethod."
+  (fn [source-node-id _override-transfer-type evaluation-context]
+    (g/node-type-kw (:basis evaluation-context) source-node-id)))
+
+(defmethod transfer-overrides-context :default
+  [_source-node-id _override-transfer-type _evaluation-context]
+  nil)
+
+(defn- make-transfer-overrides-context
+  [source-node-id override-transfer-type evaluation-context]
+  {:pre [(g/node-id? source-node-id)
+         (override-transfer-type? override-transfer-type)
+         (g/evaluation-context? evaluation-context)]
+   :post [(transfer-overrides-context? %)]}
+  (-> source-node-id
+      (transfer-overrides-context override-transfer-type evaluation-context)
+      (assoc :override-transfer-type override-transfer-type)))
+
+(defmulti transfer-overrides-target-properties
+  "Given a target-node-id, a transfer-overrides-context map, and an
+  evaluation-context, return a map of prop-infos by prop-kw. This is the same
+  structure that the _properties output will produce for its :properties. The
+  transfer-overrides-context map is whatever the transfer-overrides-context
+  multimethod returns for your node-type, with the :override-transfer-type
+  assoc:ed in."
+  (fn [target-node-id _transfer-overrides-context evaluation-context]
+    (g/node-type-kw (:basis evaluation-context) target-node-id)))
+
+(defmethod transfer-overrides-target-properties :default
+  [target-node-id _transfer-overrides-context evaluation-context]
+  (:properties (g/node-value target-node-id :_properties evaluation-context)))
+
 (defn- transfer-overrides-plan
   "Returns a transfer-overrides-plan for transferring the transferred-properties
   obtained from a source-node-id to the specified target-node-ids. The
   transferred-properties should be obtained by supplying the source-node-id to
   the transferred-properties function."
-  [override-transfer-type transferred-properties target-node-ids evaluation-context]
-  {:pre [(override-transfer-type? override-transfer-type)
+  [transfer-overrides-context transferred-properties target-node-ids evaluation-context]
+  {:pre [(transfer-overrides-context? transfer-overrides-context)
          (or (nil? transferred-properties)
              (map? transferred-properties))]
    :post [(transfer-overrides-plan? %)]}
   (when (and (coll/not-empty transferred-properties)
              (coll/not-empty target-node-ids))
     (let [basis (:basis evaluation-context)
+          override-transfer-type (:override-transfer-type transfer-overrides-context)
 
           target-node-id+target-prop-infos-by-prop-kw
           (mapv (fn [target-node-id]
-                  (pair target-node-id
-                        (:properties (g/node-value target-node-id :_properties evaluation-context))))
+                  (let [target-prop-infos-by-prop-kw (transfer-overrides-target-properties target-node-id transfer-overrides-context evaluation-context)]
+                    (pair target-node-id target-prop-infos-by-prop-kw)))
                 target-node-ids)
 
           property-transfers
@@ -1091,6 +1134,7 @@
                       :source-value (:value source-prop-info)
                       :targets property-transfer-targets}))))]
 
+      (assert (override-transfer-type? override-transfer-type))
       {:override-transfer-type override-transfer-type
        :property-transfers property-transfers})))
 
@@ -1243,20 +1287,16 @@
   consider for transfer or supply :all to include all overridden properties.
   Returns nil if no properties match the criteria. Otherwise, returns
   a transfer-overrides-plan."
-  [source-node-id source-prop-kws evaluation-context]
+  [source-node-id source-prop-kws {:keys [basis] :as evaluation-context}]
   (when-let [transferred-properties (transferred-properties source-node-id source-prop-kws evaluation-context)]
-    (let [basis (:basis evaluation-context)
-
-          original-node-ids
-          (iterate #(g/override-original basis %)
-                   (g/override-original basis source-node-id))]
-
-      (coll/not-empty
+    (when-let [original-node-id (g/override-original basis source-node-id)]
+      (let [transfer-overrides-context (make-transfer-overrides-context source-node-id :pull-up-overrides evaluation-context)
+            original-node-ids (iterate #(g/override-original basis %) original-node-id)]
         (coll/transfer
           original-node-ids []
           (take-while some?)
           (map (fn [original-node-id]
-                 (transfer-overrides-plan :pull-up-overrides transferred-properties [original-node-id] evaluation-context))))))))
+                 (transfer-overrides-plan transfer-overrides-context transferred-properties [original-node-id] evaluation-context))))))))
 
 (defn push-down-overrides-plan-alternatives
   "Returns a series of transfer-overrides-plans for transferring overridden
@@ -1271,5 +1311,6 @@
   ;; nodes may vary between the individual override-chains.
   (when-let [override-node-ids (coll/not-empty (g/overrides basis source-node-id))]
     (when-let [transferred-properties (transferred-properties source-node-id source-prop-kws evaluation-context)]
-      (let [transfer-overrides-plan (transfer-overrides-plan :push-down-overrides transferred-properties override-node-ids evaluation-context)]
+      (let [transfer-overrides-context (make-transfer-overrides-context source-node-id :push-down-overrides evaluation-context)
+            transfer-overrides-plan (transfer-overrides-plan transfer-overrides-context transferred-properties override-node-ids evaluation-context)]
         [transfer-overrides-plan]))))

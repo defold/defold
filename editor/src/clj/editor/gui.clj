@@ -857,29 +857,37 @@
         update current-layout
         assoc prop-kw new-value))))
 
-(defn layout-property-edit-type-set-impl [changes-fn prop-kw evaluation-context node-id old-value new-value]
-  (let [trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info evaluation-context)
-        current-layout (:current-layout trivial-gui-scene-info)
-        changes (if (nil? changes-fn)
+(defn- layout-property-changes-tx-data [layout-name node-id changes]
+  {:pre [(string? layout-name)]}
+  (if (str/blank? layout-name)
+    (coll/transfer changes []
+      (mapcat (fn [[prop-kw value]]
+                (if (nil? value)
+                  (g/clear-property node-id prop-kw)
+                  (g/set-property node-id prop-kw value)))))
+    (g/update-property
+      node-id :layout->prop->override
+      update layout-name
+      (fn [prop->override]
+        (reduce-kv (fn [prop->override prop-kw new-value]
+                     (if (nil? new-value)
+                       (dissoc prop->override prop-kw)
+                       (assoc prop->override prop-kw new-value)))
+                   prop->override
+                   changes)))))
+
+(defn- layout-property-edit-type-set-in-specific-layout
+  [layout-name changes-fn prop-kw evaluation-context node-id old-value new-value]
+  (let [changes (if (nil? changes-fn)
                   {prop-kw new-value}
                   (changes-fn evaluation-context node-id prop-kw old-value new-value))]
-    (if (str/blank? current-layout)
-      (into []
-            (mapcat (fn [[prop-kw value]]
-                      (if (nil? value)
-                        (g/clear-property node-id prop-kw)
-                        (g/set-property node-id prop-kw value))))
-            changes)
-      (g/update-property
-        node-id :layout->prop->override
-        update current-layout
-        (fn [prop->override]
-          (reduce-kv (fn [prop->override prop-kw new-value]
-                       (if (nil? new-value)
-                         (dissoc prop->override prop-kw)
-                         (assoc prop->override prop-kw new-value)))
-                     prop->override
-                     changes))))))
+    (layout-property-changes-tx-data layout-name node-id changes)))
+
+(defn layout-property-edit-type-set-in-current-layout
+  [changes-fn prop-kw evaluation-context node-id old-value new-value]
+  (let [trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info evaluation-context)
+        current-layout (:current-layout trivial-gui-scene-info)]
+    (layout-property-edit-type-set-in-specific-layout current-layout changes-fn prop-kw evaluation-context node-id old-value new-value)))
 
 (defn basic-layout-property-edit-type-clear-fn [node-id prop-kw]
   (let [trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info)
@@ -911,17 +919,19 @@
 (defmacro wrap-layout-property-edit-type
   ([prop-sym edit-type-form]
    {:pre [(symbol? prop-sym)]}
-   (let [edit-type-set-fn-form `(fn/partial layout-property-edit-type-set-impl nil ~(keyword prop-sym))]
+   (let [edit-type-set-fn-form `(fn/partial layout-property-edit-type-set-in-current-layout nil ~(keyword prop-sym))]
      `(assoc ~edit-type-form
         :set-fn ~edit-type-set-fn-form
         :clear-fn basic-layout-property-edit-type-clear-fn)))
   ([prop-sym edit-type-form changes-fn-form]
-   {:pre [(symbol? prop-sym)]}
-   (let [edit-type-set-fn-form `(fn/partial layout-property-edit-type-set-impl ~changes-fn-form ~(keyword prop-sym))
+   {:pre [(symbol? prop-sym)
+          (symbol? changes-fn-form)]}
+   (let [edit-type-set-fn-form `(fn/partial layout-property-edit-type-set-in-current-layout ~changes-fn-form ~(keyword prop-sym))
          edit-type-clear-fn-form `(fn/partial layout-property-edit-type-clear-impl ~changes-fn-form)]
      `(assoc ~edit-type-form
         :set-fn ~edit-type-set-fn-form
-        :clear-fn ~edit-type-clear-fn-form))))
+        :clear-fn ~edit-type-clear-fn-form
+        :changes-fn ~changes-fn-form))))
 
 ;; SDK api
 (defmacro layout-property-edit-type
@@ -1096,7 +1106,7 @@
   (output node-overrides g/Any :cached (g/fnk [node-overrides id _overridden-properties]
                                          (into {id _overridden-properties}
                                                node-overrides)))
-  (output layout->prop->value g/Any
+  (output layout->prop->value g/Any :cached
           (g/fnk [^:unsafe _evaluation-context _this layout->prop->override trivial-gui-scene-info]
             ;; All layout-property-setters explicitly invalidate this output, so
             ;; it is safe to extract properties from _this here.
@@ -1245,6 +1255,30 @@
 
 (defmethod scene-tools/manip-scale ::GuiNode [evaluation-context node-id delta]
   (update-layout-property evaluation-context node-id :scale scene/apply-scale-delta delta))
+
+(defmethod properties/transfer-overrides-context ::GuiNode
+  [source-node-id _override-transfer-type evaluation-context]
+  (let [trivial-gui-scene-info (g/node-value source-node-id :trivial-gui-scene-info evaluation-context)
+        layout-name (or (:current-layout trivial-gui-scene-info) "")]
+    {:layout-name layout-name}))
+
+(defmethod properties/transfer-overrides-target-properties ::GuiNode
+  [target-node-id {:keys [layout-name] :as _transfer-overrides-context} evaluation-context]
+  {:pre [(string? layout-name)]}
+  (let [layout->prop->value (g/node-value target-node-id :layout->prop->value evaluation-context)
+        prop-kw->prop-info (:properties (g/node-value target-node-id :_declared-properties evaluation-context))
+        prop-kw->value (get layout->prop->value layout-name)]
+    (coll/transfer prop-kw->prop-info {}
+      (map (fn [[prop-kw prop-info]]
+             (let [value (get prop-kw->value prop-kw)
+                   edit-type (:edit-type prop-info)
+                   changes-fn (:changes-fn edit-type)
+                   set-fn (fn/partial layout-property-edit-type-set-in-specific-layout layout-name changes-fn prop-kw)]
+               (pair prop-kw
+                     {:node-id (or (:node-id prop-info) target-node-id)
+                      :prop-kw (or (:prop-kw prop-info) prop-kw)
+                      :edit-type (assoc edit-type :set-fn set-fn)
+                      :value value})))))))
 
 ;; SDK api
 (defmethod update-gui-resource-reference [::GuiNode :layer]
