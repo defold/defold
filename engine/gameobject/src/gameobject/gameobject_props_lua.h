@@ -22,6 +22,8 @@ namespace dmGameObject
 {
     PropertyResult LuaToVar(lua_State* L, int index, PropertyVar& out_var);
     void LuaPushVar(lua_State* L, const PropertyVar& var);
+
+    HPropertyContainer PropertyContainerCreateFromLua(lua_State* L, int index);
 }
 
 #endif // GAMEOBJECT_PROPS_LUA_H
