@@ -16,7 +16,7 @@
 #define GAMEOBJECT_PROPS_LUA_H
 
 #include "gameobject_props.h"
-#include <dmsdk/gameobject/gameobject_props_lua.h>
+#include <dmsdk/gameobject/script.h>
 
 namespace dmGameObject
 {
