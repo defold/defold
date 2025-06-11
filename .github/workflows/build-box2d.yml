@@ -41,9 +41,8 @@ jobs:
     - name: Build Box2D
       run: |
         ./scripts/build.py shell
-        cd external/box2d
-        PREFIX=$DYNAMO_HOME waf configure
-        waf install
+        ./scripts/build.py install_waf
+        (cd external/box2d && PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }} && waf install)
     - name: Check artifact existence
       run: |
         if [ ! -f external/box2d/build/Box2D/box2d-3.1.0-${{ matrix.platform }}.tar.gz ]; then
