@@ -822,48 +822,30 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
     (collection-string-data/string-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
 
-(defn- relative-dropped-pos
-  [world-pos parent]
-  (if parent
-    (if-let [parent-transform (g/maybe-node-value parent :transform)]
-      (let [parent-world-pos (math/translation parent-transform)
-            relative-pos (math/subtract-vector world-pos parent-world-pos)]
-        (recur relative-pos (core/scope parent)))
-      (recur world-pos (core/scope parent)))
-    world-pos))
-
 (defn- add-dropped-resource
-  [selection collection world-pos [id resource]]
+  [collection transform-props [id resource]]
   (let [ext (resource/type-ext resource)]
     (case ext
       "go"
-      (let [go-node (selection->game-object-instance selection)
-            parent (or go-node collection)
-            collection (if go-node
-                         (core/scope-of-type go-node CollectionNode)
-                         collection)
-            world-pos (relative-dropped-pos world-pos parent)
-            transform-props {:position (types/Point3d->Vec3 world-pos)}]
-        (make-ref-go collection resource id transform-props parent nil nil))
+      (make-ref-go collection resource id transform-props collection nil nil)
 
       "collection"
       (when-not (contains-resource? (project/get-project collection) collection resource)
-        (let [world-pos (relative-dropped-pos world-pos collection)
-              transform-props {:position (types/Point3d->Vec3 world-pos)}]
-          (make-collection-instance collection resource id transform-props nil nil)))
+        (make-collection-instance collection resource id transform-props nil nil))
 
       nil)))
 
 (defn- handle-drop
   [selection _workspace world-pos resources]
-  (when-let [collection (or (selection->collection selection)
+  (when-let [collection (or (first (handler/adapt-every selection CollectionNode))
                             (some #(core/scope-of-type % CollectionNode) selection))]
-    (let [taken-ids (g/node-value collection :ids)
+    (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
+          taken-ids (g/node-value collection :ids)
           supported-exts #{"go" "collection"}]
       (->> resources
            (e/filter (comp (partial contains? supported-exts) resource/type-ext))
            (outline/name-resource-pairs taken-ids)
-           (mapv (partial add-dropped-resource selection collection world-pos))))))
+           (mapv (partial add-dropped-resource collection transform-props))))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
