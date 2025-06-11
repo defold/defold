@@ -24,20 +24,6 @@ jobs:
       uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
       with:
         python-version: 3.13
-    - name: Install dependencies
-      run: ci/ci.sh install --platform=${{ matrix.platform }}
-    - name: Install linux dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libxrandr-dev \
-          libxinerama-dev \
-          libxcursor-dev \
-          libxi-dev \
-          libxext-dev \
-          libwayland-dev \
-          libxkbcommon-dev \
-          wayland-protocols
     - name: Build Box2D
       run: |
         ./scripts/build.py --save-env-path=ci/env.sh save_env
