@@ -40,7 +40,7 @@ jobs:
         cd external/box2d
         PREFIX=$DYNAMO_HOME waf configure
         waf install
-    - name: Check artifact existence and list folder
+    - name: Check artifact existence
       run: |
         if [ ! -f external/box2d/build/Box2D/box2d-3.1.0-${{ matrix.platform }}.tar.gz ]; then
           echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
