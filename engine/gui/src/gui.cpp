@@ -471,13 +471,8 @@ namespace dmGui
         return scene->m_UserData;
     }
 
-    static Result AddTexture(HScene scene, dmHashTable64<TextureInfo>& info_array, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height, dmImage::Type image_type)
+    static void UpdateTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type)
     {
-        if (info_array.Full())
-            return RESULT_OUT_OF_RESOURCES;
-
-        info_array.Put(texture_name_hash, TextureInfo(texture_source, texture_type, original_width, original_height, image_type));
-
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
@@ -488,6 +483,16 @@ namespace dmGui
                 nodes[i].m_Node.m_TextureType = texture_type;
             }
         }
+    }
+
+    static Result AddTexture(HScene scene, dmHashTable64<TextureInfo>& info_array, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height, dmImage::Type image_type)
+    {
+        if (info_array.Full())
+            return RESULT_OUT_OF_RESOURCES;
+
+        info_array.Put(texture_name_hash, TextureInfo(texture_source, texture_type, original_width, original_height, image_type));
+        UpdateTexture(scene, texture_name_hash, texture_source, texture_type);
+
         return RESULT_OK;
     }
 
@@ -661,7 +666,15 @@ namespace dmGui
 
         scene->m_DeleteTextureResourceCallback(scene, texture_hash, t->m_TextureSource);
         scene->m_DynamicTextures.Erase(texture_hash);
-        UnassignTexture(scene, texture_hash);
+        t = scene->m_Textures.Get(texture_hash);
+        if (t)
+        {
+            UpdateTexture(scene, texture_hash, t->m_TextureSource, t->m_TextureSourceType);
+        }
+        else
+        {
+            UnassignTexture(scene, texture_hash);
+        }
 
         return RESULT_OK;
     }
