@@ -665,30 +665,6 @@
    (assert target-id)
    (it/disconnect-sources basis target-id target-label)))
 
-(defn set-property
-  "Creates transaction steps to assign a value to a node property. Additional
-  options may be supplied in a map. You must call the transact function on the
-  return value to see the effects.
-
-  Example:
-  `(transact (set-property node-id :opacity 0.5 {:force true}))`"
-  ([node-id property-label value]
-   (it/set-property node-id property-label value nil))
-  ([node-id property-label value opts]
-   (it/set-property node-id property-label value opts)))
-
-(defn set-property!
-  "Creates transaction steps to assign a value to a node property, then executes
-  them in a transaction. Returns the result of the transaction, (tx-result).
-  Additional options may be supplied in a map.
-
-  Example:
-  `(set-property node-id :opacity 0.5 {:force true})`"
-  ([node-id property-label value]
-   (transact (set-property node-id property-label value)))
-  ([node-id property-label value opts]
-   (transact (set-property node-id property-label value opts))))
-
 (defn set-properties
   "Creates transaction steps to assign multiple values to a node's properties.
   You must call the transact function on the return value to see the effects.
@@ -707,6 +683,34 @@
   (tx-result)"
   [node-id & kvs]
   (transact (apply set-properties node-id kvs)))
+
+(defn set-property
+  "Creates transaction steps to assign a value to a node property. Additional
+  options may be supplied in a map. You must call the transact function on the
+  return value to see the effects.
+
+  Example:
+  `(transact (set-property node-id :opacity 0.5 {:force true}))`"
+  ([node-id property-label value]
+   (it/set-property node-id property-label value nil))
+  ([node-id property-label value opts]
+   (it/set-property node-id property-label value opts))
+  ([node-id property-label value another-property-label another-value & more]
+   ;; Deprecated. To set multiple properties at once, use set-properties.
+   ;; Kept for compatibility with editor plugins until we can update them.
+   (apply set-properties node-id property-label value another-property-label another-value more)))
+
+(defn set-property!
+  "Creates transaction steps to assign a value to a node property, then executes
+  them in a transaction. Returns the result of the transaction, (tx-result).
+  Additional options may be supplied in a map.
+
+  Example:
+  `(set-property node-id :opacity 0.5 {:force true})`"
+  ([node-id property-label value]
+   (transact (set-property node-id property-label value)))
+  ([node-id property-label value opts]
+   (transact (set-property node-id property-label value opts))))
 
 (defn update-property
   "Create the transaction step to apply a function to a node's property in a transaction. The
