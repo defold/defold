@@ -1,0 +1,62 @@
+name: Build Box2D
+
+on:
+  workflow_dispatch:
+
+env:
+  DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
+
+jobs:
+  build-linux:
+    strategy:
+      matrix:
+        platform: [x86_64-linux]
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        ref: '${{env.BUILD_BRANCH}}'
+    - name: Install Python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      with:
+        python-version: 3.13
+    - name: Install dependencies
+      run: ci/ci.sh install --platform=${{ matrix.platform }}
+    - name: Install linux dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libxrandr-dev \
+          libxinerama-dev \
+          libxcursor-dev \
+          libxi-dev \
+          libxext-dev \
+          libwayland-dev \
+          libxkbcommon-dev \
+          wayland-protocols
+    - name: Build Box2D
+      run: |
+        cd external/box2d
+        PREFIX=$DYNAMO_HOME waf configure
+        waf install
+    - name: Check artifact existence and list folder
+      run: |
+        if [ ! -f external/box2d/build/Box2D/box2d-3.1.0-${{ matrix.platform }}.tar.gz ]; then
+          echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
+          ls -lh external/box2d/build/Box2D || echo "Directory missing"
+        fi
+    - name: Archive results (common)
+      uses: actions/upload-artifact@v4
+      with:
+        name: box2d-3.1.0-common.tar.gz
+        path: external/box2d/build/Box2D/box2d-3.1.0-common.tar.gz
+        if-no-files-found: error
+        retention-days: 1
+    - name: Archive results (platform-specific)
+      uses: actions/upload-artifact@v4
+      with:
+        name: box2d-3.1.0-${{ matrix.platform }}.tar.gz
+        path: external/box2d/build/Box2D/box2d-3.1.0-${{ matrix.platform }}.tar.gz
+        if-no-files-found: error
+        retention-days: 1
