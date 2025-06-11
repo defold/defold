@@ -835,16 +835,14 @@
       nil)))
 
 (defn- handle-drop
-  [selection _workspace world-pos resources]
-  (when-let [collection (or (first (handler/adapt-every selection CollectionNode))
-                            (some #(core/scope-of-type % CollectionNode) selection))]
-    (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
-          taken-ids (g/node-value collection :ids)
-          supported-exts #{"go" "collection"}]
-      (->> resources
-           (e/filter (comp (partial contains? supported-exts) resource/type-ext))
-           (outline/name-resource-pairs taken-ids)
-           (mapv (partial add-dropped-resource collection transform-props))))))
+  [root-id _selection _workspace world-pos resources]
+  (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
+        taken-ids (g/node-value root-id :ids)
+        supported-exts #{"go" "collection"}]
+    (->> resources
+         (e/filter (comp (partial contains? supported-exts) resource/type-ext))
+         (outline/name-resource-pairs taken-ids)
+         (mapv (partial add-dropped-resource root-id transform-props)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

@@ -1239,8 +1239,8 @@
       (first (handler/adapt-every selection AtlasNode))))
 
 (defn- handle-drop
-  [selection _workspace _world-pos resources]
-  (when-let [parent (parent-animation-or-atlas selection)]
+  [root-id selection _workspace _world-pos resources]
+  (let [parent (or (parent-animation-or-atlas selection) root-id)]
     (->> resources
          (e/filter image/image-resource?)
          (create-dropped-images parent))))
