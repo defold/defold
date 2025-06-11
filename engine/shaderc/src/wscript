@@ -30,6 +30,9 @@ def configure(conf):
                      java_outdir    = make_path('./java'),
                      jni_outdir     = make_path('./jni'))
 
+    if conf.env.PLATFORM in ('x86_64-win32', 'win32'):
+        conf.env.append_value('LINKFLAGS', ['d3dcompiler.lib', 'uuid.lib', 'dxcompiler.lib', 'D3D12.lib', 'DXGI.lib'])
+
 def build(bld):
     # We only need this library in the editor and bob
     if not bld.env.IS_TARGET_DESKTOP:
@@ -43,16 +46,23 @@ def build(bld):
         if not 'jni' in x.name:
             shaderc_sources_no_jni.append(x)
 
+    shaderc_defines = []
+
+    if bld.env.PLATFORM in ('x86_64-win32', 'win32'):
+        shaderc_defines.append('DM_BINARY_HLSL_SUPPORTED')
+
     # really only used for the unit tests
     shader = bld.stlib(features = 'c cxx',
                       includes = ['.', './shader'],
+                      defines = shaderc_defines,
                       source = shaderc_sources_no_jni,
                       target = 'shaderc')
 
     # Used by bob.jar + editor
     shaderc_shared = bld(features = 'c cxx cshlib skip_asan extract_symbols',
                        includes = ['.', './shader', './jni'],
-                       uselib = 'DLIB_NOASAN APP PROFILE_NULL_NOASAN JNI_NOASAN JDK SPIRV_CROSS',
+                       defines = shaderc_defines,
+                       uselib = ['DLIB_NOASAN', 'APP', 'PROFILE_NULL_NOASAN','JNI_NOASAN','JDK', 'SPIRV_CROSS'],
                        source = shaderc_sources + bld.path.ant_glob("jni/*.cpp"),
                        target = 'shaderc_shared')
 
