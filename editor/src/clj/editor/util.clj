@@ -180,6 +180,7 @@
        m#
        (assoc m# k# ~v))))
 
+;; SDK api
 (defmacro provide-defaults
   "Like assoc, but does nothing if key is already in this map. Evaluates values
   only when key is not present"

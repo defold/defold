@@ -141,6 +141,13 @@ local function print_gui(gui)
         local layout = layouts[i]
         print(("    layout: %s"):format(editor.get(layout, "name")))
     end
+    local spine_scenes = editor.get(gui, "spine_scenes")
+    print(("  spine scenes: %s"):format(#spine_scenes))
+    for i = 1, #spine_scenes do
+        local spine_scene = spine_scenes[i]
+        local spine_scene_res = editor.get(spine_scene, "spine_scene")
+        print(("    spine scene: %s%s"):format(editor.get(spine_scene, "name"), spine_scene_res and " " .. spine_scene_res or ""))
+    end
 end
 
 function M.get_commands()
@@ -347,6 +354,10 @@ function M.get_commands()
                     editor.tx.add(gui, "particlefxs", {}),
                     editor.tx.add(gui, "particlefxs", {particlefx = "/test.particlefx"}),
                     editor.tx.add(gui, "particlefxs", {}),
+                    editor.tx.add(gui, "spine_scenes", {}),
+                    editor.tx.add(gui, "spine_scenes", {name = "explicit name"}),
+                    editor.tx.add(gui, "spine_scenes", {spine_scene = "/defold-spine/assets/template/template.spinescene"}),
+                    editor.tx.add(gui, "spine_scenes", {}),
                     editor.tx.add(gui, "textures", {texture = "/test.tilesource"}),
                     editor.tx.add(gui, "textures", {texture = "/test.atlas"})
                 })
@@ -376,6 +387,7 @@ function M.get_commands()
                     editor.tx.clear(gui, "layouts"),
                     editor.tx.clear(gui, "materials"),
                     editor.tx.clear(gui, "particlefxs"),
+                    editor.tx.clear(gui, "spine_scenes"),
                     editor.tx.clear(gui, "textures")
                 })
 

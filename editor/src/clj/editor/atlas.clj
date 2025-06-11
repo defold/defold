@@ -521,15 +521,6 @@
                                                  child-build-errors
                                                  own-build-errors))))
 
-(defn- get-animation-images [animation evaluation-context]
-  (let [child->order (g/node-value animation :child->order evaluation-context)]
-    (vec (sort-by child->order (keys child->order)))))
-
-(attachment/register!
-  AtlasAnimation :images
-  :add {AtlasImage attach-image-to-animation}
-  :get get-animation-images)
-
 (g/defnk produce-save-value [margin inner-padding extrude-borders max-page-size img-ddf anim-ddf rename-patterns]
   (protobuf/make-map-without-defaults AtlasProto$Atlas
     :margin margin
@@ -927,16 +918,6 @@
                                                               child-build-errors
                                                               own-build-errors))))
 
-(attachment/register!
-  AtlasNode :animations
-  :add {AtlasAnimation attach-animation-to-atlas}
-  :get (attachment/nodes-by-type-getter AtlasAnimation))
-
-(attachment/register!
-  AtlasNode :images
-  :add {AtlasImage attach-image-to-atlas}
-  :get (attachment/nodes-by-type-getter AtlasImage))
-
 (defn- make-image-nodes
   [attach-fn parent image-msgs]
   (let [graph-id (g/node-id->graph-id parent)]
@@ -1302,16 +1283,33 @@
   (output input-handler Runnable :cached (g/constantly handle-input))
   (output info-text g/Str (g/constantly nil)))
 
+(defn- get-animation-images [animation evaluation-context]
+  (let [child->order (g/node-value animation :child->order evaluation-context)]
+    (vec (sort-by child->order (keys child->order)))))
+
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext "atlas"
-    :label "Atlas"
-    :build-ext "a.texturesetc"
-    :node-type AtlasNode
-    :ddf-type AtlasProto$Atlas
-    :load-fn load-atlas
-    :icon atlas-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:drop-fn handle-drop
-                        :tool-controller AtlasToolController}}))
+  (concat
+    (attachment/register
+      workspace AtlasAnimation :images
+      :add {AtlasImage attach-image-to-animation}
+      :get get-animation-images)
+    (attachment/register
+      workspace AtlasNode :animations
+      :add {AtlasAnimation attach-animation-to-atlas}
+      :get (attachment/nodes-by-type-getter AtlasAnimation))
+    (attachment/register
+      workspace AtlasNode :images
+      :add {AtlasImage attach-image-to-atlas}
+      :get (attachment/nodes-by-type-getter AtlasImage))
+    (resource-node/register-ddf-resource-type workspace
+      :ext "atlas"
+      :label "Atlas"
+      :build-ext "a.texturesetc"
+      :node-type AtlasNode
+      :ddf-type AtlasProto$Atlas
+      :load-fn load-atlas
+      :icon atlas-icon
+      :icon-class :design
+      :view-types [:scene :text]
+      :view-opts {:scene {:drop-fn handle-drop
+                          :tool-controller AtlasToolController}})))

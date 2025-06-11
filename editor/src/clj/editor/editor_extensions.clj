@@ -129,7 +129,7 @@
     (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
           node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)
-          getter (graph/ext-value-getter node-id-or-resource property evaluation-context)]
+          getter (graph/ext-value-getter node-id-or-resource property project evaluation-context)]
       (if getter
         (getter)
         (throw (LuaError. (str (if (resource/resource? node-id-or-resource)
@@ -144,7 +144,7 @@
     (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
           node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)]
-      (some? (graph/ext-value-getter node-id-or-resource property evaluation-context)))))
+      (some? (graph/ext-value-getter node-id-or-resource property project evaluation-context)))))
 
 (defn- make-ext-can-set-fn [project]
   (rt/lua-fn ext-can-set [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
