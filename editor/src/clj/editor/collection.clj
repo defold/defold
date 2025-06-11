@@ -26,7 +26,6 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.id :as id]
-            [editor.math :as math]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
