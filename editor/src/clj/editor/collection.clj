@@ -26,6 +26,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.id :as id]
+            [editor.math :as math]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -821,8 +822,18 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
     (collection-string-data/string-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
 
+(defn- relative-dropped-pos
+  [world-pos parent]
+  (if parent
+    (if-let [parent-transform (g/maybe-node-value parent :transform)]
+      (let [parent-world-pos (math/translation parent-transform)
+            relative-pos (math/subtract-vector world-pos parent-world-pos)]
+        (recur relative-pos (core/scope parent)))
+      (recur world-pos (core/scope parent)))
+    world-pos))
+
 (defn- add-dropped-resource
-  [selection collection transform-props [id resource]]
+  [selection collection world-pos [id resource]]
   (let [ext (resource/type-ext resource)]
     (case ext
       "go"
@@ -830,12 +841,16 @@
             parent (or go-node collection)
             collection (if go-node
                          (core/scope-of-type go-node CollectionNode)
-                         collection)]
+                         collection)
+            world-pos (relative-dropped-pos world-pos parent)
+            transform-props {:position (types/Point3d->Vec3 world-pos)}]
         (make-ref-go collection resource id transform-props parent nil nil))
 
       "collection"
       (when-not (contains-resource? (project/get-project collection) collection resource)
-        (make-collection-instance collection resource id transform-props nil nil))
+        (let [world-pos (relative-dropped-pos world-pos collection)
+              transform-props {:position (types/Point3d->Vec3 world-pos)}]
+          (make-collection-instance collection resource id transform-props nil nil)))
 
       nil)))
 
@@ -843,13 +858,12 @@
   [selection _workspace world-pos resources]
   (when-let [collection (or (selection->collection selection)
                             (some #(core/scope-of-type % CollectionNode) selection))]
-    (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
-          taken-ids (g/node-value collection :ids)
+    (let [taken-ids (g/node-value collection :ids)
           supported-exts #{"go" "collection"}]
       (->> resources
            (e/filter (comp (partial contains? supported-exts) resource/type-ext))
            (outline/name-resource-pairs taken-ids)
-           (mapv (partial add-dropped-resource selection collection transform-props))))))
+           (mapv (partial add-dropped-resource selection collection world-pos))))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
