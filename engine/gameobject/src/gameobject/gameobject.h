@@ -128,16 +128,18 @@ namespace dmGameObject
      *
      * @param collection Gameobject collection to spawn into
      * @param collection_desc Description data of collections
-     * @param property_buffers Serialized property buffers hashtable (key: game object identifier, value: property buffer)
+     * @param id_prefix Identifier prefix, must start with a forward slash (/) and must be unique within the collection. Pass nullptr to use the default identifier (e.g. /collection1, /collection2 etc.).
+     * @param property_containers Serialized property buffers hashtable (key: game object identifier, value: property buffer)
      * @param position Position for the root object
      * @param rotation Rotation for the root object
      * @param scale Scale of the root object
      * @param instances Hash table to be filled with instance identifier mapping.
-     * return true on success
+     * @return RESULT_OK on success
      */
-    bool SpawnFromCollection(HCollection collection, HCollectionDesc collection_desc, InstancePropertyBuffers *property_buffers,
+    Result SpawnFromCollection(HCollection collection, HCollectionDesc collection_desc, const char* id_prefix, 
+                             InstancePropertyContainers *property_containers,
                              const Point3& position, const Quat& rotation, const Vector3& scale,
-                             InstanceIdMap *instances);
+                             InstanceIdMap *out_instances);
 
     /**
      * Delete all gameobject instances in the collection

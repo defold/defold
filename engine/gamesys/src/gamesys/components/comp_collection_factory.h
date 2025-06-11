@@ -15,9 +15,9 @@
 #ifndef DM_GAMESYS_COLLECTION_FACTORY_H
 #define DM_GAMESYS_COLLECTION_FACTORY_H
 
-#include <gameobject/component.h>
-//#include <resource/resource.h>
 #include <dmsdk/gamesys/components/comp_collection_factory.h>
+#include <gameobject/component.h>
+
 namespace dmGameSystem
 {
     dmGameObject::CreateResult CompCollectionFactoryNewWorld(const dmGameObject::ComponentNewWorldParams& params);

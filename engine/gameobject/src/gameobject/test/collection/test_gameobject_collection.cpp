@@ -188,10 +188,10 @@ static bool Spawn(dmResource::HFactory factory, dmGameObject::HCollection collec
         dmLogError("Failed to parse collection [%s]", path);
         return false;
     }
-    bool result = dmGameObject::SpawnFromCollection(collection, desc, property_buffers, position, rotation, scale, instances);
+    Result result = dmGameObject::SpawnFromCollection(collection, desc, nullptr, property_buffers, position, rotation, scale, instances);
     dmDDF::FreeMessage(desc);
     free(msg);
-    return result;
+    return result == RESULT_OK;
 }
 
 TEST_F(CollectionTest, Collection)
@@ -249,7 +249,7 @@ TEST_F(CollectionTest, CollectionSpawning)
     for (int i=0;i!=10;i++)
     {
         dmGameObject::InstanceIdMap output;
-        dmGameObject::InstancePropertyBuffers props;
+        dmGameObject::InstancePropertyContainers props;
 
         bool result = Spawn(m_Factory, coll, "/root1.collectionc", &props, pos, rot, scale, &output);
         ASSERT_TRUE(result);
@@ -283,7 +283,7 @@ TEST_F(CollectionTest, CollectionSpawningToFail)
     for (int i=0;i<50;i++)
     {
         dmGameObject::InstanceIdMap output;
-        dmGameObject::InstancePropertyBuffers props;
+        dmGameObject::InstancePropertyContainers props;
         bool result = Spawn(m_Factory, coll, "/root1.collectionc", &props, pos, rot, scale, &output);
         if (!result)
         {

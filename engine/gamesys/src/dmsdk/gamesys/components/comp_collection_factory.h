@@ -18,14 +18,18 @@
 #include <stdint.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/vmath.h>
-#include <dmsdk/dlib/hashtable.h>
+#include <dmsdk/gameobject/gameobject.h>
 
-namespace dmGameObject
-{
-    typedef struct CollectionHandle* HCollection;
-    typedef dmHashTable<dmhash_t, HPropertyContainer> InstancePropertyBuffers;
-    typedef dmHashTable<dmhash_t, dmhash_t> InstanceIdMap;
-}
+/*# Collection factory component functions
+ *
+ * API for spawning collections from a collection factory component.
+ *
+ * @document
+ * @name Collection factory
+ * @namespace dmGameSystem
+ * @path engine/gamesys/src/dmsdk/gamesys/components/comp_collection_factory.h
+ * @language C++
+ */
 
 namespace dmGameSystem
 {
@@ -48,9 +52,24 @@ namespace dmGameSystem
     bool                        CompCollectionFactoryIsLoading(CollectionFactoryComponent* component);
     bool                        CompCollectionFactoryIsDynamicPrototype(CollectionFactoryComponent* component);
 
+    /*# 
+     * Spawns a collection of gameobjects in a collection using a collection factory component.
+     * @name CompCollectionFactorySpawn
+     * @param world [type: HCollectionFactoryWorld] Collection factory world
+     * @param component [type: HCollectionFactoryComponent] Collection factory component
+     * @param collection [type: HCollection] Gameobject collection
+     * @param id_prefix [type: const char*] Prefix for the spawned instance identifiers. Must start with a forward slash (/). Must be unique within the collection. Pass nullptr to use the default identifier (e.g. /collection1, /collection2 etc.).
+     * @param position [type: dmVMath::Point3] Position of the spawned objects
+     * @param rotation [type: dmVMath::Quat] Rotation of the spawned objects
+     * @param scale [type: dmVMath::Vector3] Scale of the spawned objects
+     * @param properties [type: dmGameObject::InstancePropertyContainers] Property containers with override properties
+     * @param out_instances [type: dmGameObject::InstanceIdMap] A map with the spawned instance id's
+     * @return result [type: dmGameObject::Result] Result of the operation
+     */
     dmGameObject::Result CompCollectionFactorySpawn(HCollectionFactoryWorld world, HCollectionFactoryComponent component, dmGameObject::HCollection collection,
+                                    const char* id_prefix, 
                                     const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
-                                    dmGameObject::InstancePropertyBuffers* properties, dmGameObject::InstanceIdMap* out_instances);
+                                    dmGameObject::InstancePropertyContainers* properties, dmGameObject::InstanceIdMap* out_instances);
 }
 
 #endif // DMSDK_GAMESYS_COLLECTION_FACTORY_H
