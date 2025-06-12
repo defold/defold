@@ -296,6 +296,20 @@ public class ArchiveBuilder {
         TimeProfiler.stop();
     }
 
+    // URL → url_hash ───> Manifest: url_hash → data_hash
+    //                                            ↓
+    //                    Archive Index: binary search over sorted array of data_hashes
+    //                                            ↓
+    //                    Archive Index: if found, use index to get Entry from parallel EntryData array
+    //                                            ↓
+    //                    EntryData = { offset, size, compressed_size, flags }
+    //                                            ↓
+    //                    Read bytes from .arcd (using offset via fseek or mmap)
+    //                                            ↓
+    //                    Optionally decompress and/or decrypt
+    //                                            ↓
+    //                    → Final in-memory resource ready for use
+    //
     public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources) throws IOException, CompileExceptionError {
         // create the executor service to write entries in parallel
         int nThreads = project.getMaxCpuThreads();
