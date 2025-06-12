@@ -87,7 +87,7 @@ namespace dmGameSystem
             dmDDF::FreeMessage(resource->m_DDF);
     }
 
-    static void AddFontRange(FontResource* resource, uint32_t range_start, uint32_t range_end, TTFResource* ttfresource)
+    static void AddFontRange(FontResource* resource, TTFResource* ttfresource, uint32_t range_start, uint32_t range_end)
     {
         if (resource->m_Ranges.Full())
             resource->m_Ranges.OffsetCapacity(4);
@@ -99,7 +99,21 @@ namespace dmGameSystem
         resource->m_Ranges.Push(range);
     }
 
-    static TTFResource* GetFontFromCodePoint(FontResource* resource, uint32_t codepoint, uint32_t range_end)
+    static void RemoveFontRange(FontResource* font, TTFResource* ttf)
+    {
+        for (uint32_t i = 0; i < font->m_Ranges.Size();)
+        {
+            GlyphRange* range = &font->m_Ranges[i];
+            ++i;
+            if (range->m_TTFResource == ttf)
+            {
+                --i;
+                font->m_Ranges.EraseSwap(i);
+            }
+        }
+    }
+
+    static TTFResource* GetTTFFromCodePoint(FontResource* resource, uint32_t codepoint)
     {
         uint32_t size = resource->m_Ranges.Size();
         GlyphRange* ranges = resource->m_Ranges.Begin();
@@ -397,20 +411,12 @@ namespace dmGameSystem
             SetupParamsForGlyphBank(ddf, path, font_map->m_GlyphBankResource->m_DDF, &params);
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(context);
-        // if (font_map->m_FontMap == 0)
-        // {
         font_map->m_FontMap = dmRender::NewFontMap(context, graphics_context, params);
         if (!font_map->m_FontMap)
         {
             dmLogError("Failed creating resource '%s'", path);
             return dmResource::RESULT_INVALID_DATA;
         }
-        // }
-        // else
-        // {
-        //     dmRender::SetFontMap(font_map->m_FontMap, context, graphics_context, params);
-        //     ReleaseResources(factory, font_map);
-        // }
 
         font_map->m_DDF               = ddf;
         font_map->m_CacheCellPadding  = params.m_CacheCellPadding;
@@ -422,7 +428,7 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    static dmResource::Result PostCreateFont(dmResource::HFactory factory, const char* path, FontResource* font_map)
+    static dmResource::Result PrewarmFont(dmResource::HFactory factory, const char* path, FontResource* font_map)
     {
         if (font_map->m_IsDynamic)
         {
@@ -430,8 +436,9 @@ namespace dmGameSystem
             font_map->m_Jobs = dmResource::GetJobThread(factory);
             // Use the default ttf resource for prewarming
             //PrewarmDynamicGlyphs(resource, ttfresource, ddf->m_AllChars, ddf->m_Characters);
+            // add a PostCreate function to poll for completion (or return PENDING)
 
-            AddFontRange(font_map, 0, 0xFFFFFFFF, font_map->m_TTFResource); // Add the default font/range
+            AddFontRange(font_map, font_map->m_TTFResource, 0, 0xFFFFFFFF); // Add the default font/range
         }
         else
         {
@@ -499,7 +506,7 @@ namespace dmGameSystem
             return r;
         }
 
-        PostCreateFont(params->m_Factory, path, font_map);
+        PrewarmFont(params->m_Factory, path, font_map);
 
         dmResource::SetResource(params->m_Resource, font_map);
         dmResource::SetResourceSize(params->m_Resource, GetResourceSize(font_map));
@@ -546,7 +553,7 @@ namespace dmGameSystem
         // Copy the resources
         resource_font_map->Swap(tmp_font_map);
         // Setup the helper structs again
-        PostCreateFont(params->m_Factory, path, resource_font_map);
+        PrewarmFont(params->m_Factory, path, resource_font_map);
         DeleteFontResource(params->m_Factory, tmp_font_map);
 
         dmResource::SetResourceSize(params->m_Resource, GetResourceSize(resource_font_map));
@@ -665,6 +672,58 @@ namespace dmGameSystem
         DynamicGlyph* glyph = *glyphp;
         free((void*)glyph->m_Data);
         delete glyph;
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResFontAddGlyphSource(dmResource::HFactory factory, dmhash_t fontc_hash, dmhash_t ttf_hash, uint32_t codepoint_min, uint32_t codepoint_max)
+    {
+        dmGameSystem::FontResource* font;
+        dmResource::Result r = dmResource::Get(factory, fontc_hash, (void**)&font);
+        if (dmResource::RESULT_OK != r)
+        {
+            dmLogError("Failed to get font '%s': %d", dmHashReverseSafe64(fontc_hash), r);
+            return dmResource::RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        dmGameSystem::TTFResource* ttf;
+        r = dmResource::Get(factory, ttf_hash, (void**)&ttf);
+        if (dmResource::RESULT_OK != r)
+        {
+            dmResource::Release(factory, font);
+            dmLogError("Failed to get ttf '%s': %d", dmHashReverseSafe64(ttf_hash), r);
+            return dmResource::RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        // We leave the IncRef'd ttf resource as we store it in our internal structure
+        AddFontRange(font, ttf, codepoint_min, codepoint_max);
+
+        dmResource::Release(factory, font);
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResFontRemoveGlyphSource(dmResource::HFactory factory, dmhash_t fontc_hash, dmhash_t ttf_hash)
+    {
+        dmGameSystem::FontResource* font;
+        dmResource::Result r = dmResource::Get(factory, fontc_hash, (void**)&font);
+        if (dmResource::RESULT_OK != r)
+        {
+            dmLogError("Failed to get font '%s': %d", dmHashReverseSafe64(fontc_hash), r);
+            return dmResource::RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        dmGameSystem::TTFResource* ttf;
+        r = dmResource::Get(factory, ttf_hash, (void**)&ttf);
+        if (dmResource::RESULT_OK != r)
+        {
+            dmResource::Release(factory, font);
+            dmLogError("Failed to get ttf '%s': %d", dmHashReverseSafe64(ttf_hash), r);
+            return dmResource::RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        RemoveFontRange(font, ttf);
+
+        dmResource::Release(factory, ttf);
+        dmResource::Release(factory, font);
         return dmResource::RESULT_OK;
     }
 

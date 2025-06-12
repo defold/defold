@@ -37,36 +37,47 @@ struct CallbackContext
     int                        m_Request;
 };
 
+/*#
+ * Adds a ttf resource to a .fontc file
+ *
+ * @name font.add_source
+ * @param fontc [type:string,hash] The path to the .fontc resource
+ * @param ttf [type:string,hash] The path to the .ttf resource
+ * @param codepoint_min [type:integer] The minimum codepoint range (inclusive)
+ * @param codepoint_max [type:integer] The maximum codepoint range (inclusive)
+ */
+static int AddSource(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
 
-// static int AddSource(lua_State* L)
-// {
-//     DM_LUA_STACK_CHECK(L, 0);
+    dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
+    dmhash_t ttf_path_hash = dmScript::CheckHashOrString(L, 2);
+    int codepoint_min = luaL_checkinteger(L, 3);
+    int codepoint_max = luaL_checkinteger(L, 4);
 
-//     dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
-//     dmhash_t ttf_path_hash = dmScript::CheckHashOrString(L, 2);
+    dmResource::Result r = dmGameSystem::ResFontAddGlyphSource(g_ResourceFactory, fontc_path_hash, ttf_path_hash, codepoint_min, codepoint_max);
+    if (dmResource::RESULT_OK != r)
+    {
+        return DM_LUA_ERROR("Failed to add glyph source '%s' for font '%s'", dmHashReverseSafe64(ttf_path_hash), dmHashReverseSafe64(fontc_path_hash));
+    }
 
+    return 0;
+}
 
-//     if ()
-//     const char* text = luaL_checkstring(L, 2);
+static int RemoveSource(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
 
-//     dmGameSystem::FontResource* resource;
-//     dmResource::Result r = dmResource::Get(g_ResourceFactory, fontc_path_hash, (void**)&resource);
-//     if (dmResource::RESULT_OK != r)
-//     {
-//         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
-//     }
+    dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
+    dmhash_t ttf_path_hash = dmScript::CheckHashOrString(L, 2);
 
-//     if (!dmGameSystem::FontGenRemoveGlyphs(resource, text))
-//     {
-//         dmResource::Release(g_ResourceFactory, resource);
-//         return DM_LUA_ERROR("Failed to remove glyphs from font %s", dmHashReverseSafe64(fontc_path_hash));
-//     }
-
-//     dmResource::Release(g_ResourceFactory, resource);
-//     return 0;
-// }
-
-
+    dmResource::Result r = dmGameSystem::ResFontRemoveGlyphSource(g_ResourceFactory, fontc_path_hash, ttf_path_hash);
+    if (dmResource::RESULT_OK != r)
+    {
+        return DM_LUA_ERROR("Failed to remove glyph source '%s' from font '%s'", dmHashReverseSafe64(ttf_path_hash), dmHashReverseSafe64(fontc_path_hash));
+    }
+    return 0;
+}
 
 static void AddGlyphsCallback(void* _ctx, int result, const char* errmsg)
 {
@@ -223,8 +234,8 @@ static int RemoveGlyphs(lua_State* L)
 // Functions exposed to Lua
 static const luaL_reg Module_methods[] =
 {
-    // {"add_source", AddSource},
-    // {"remove_source", RemoveSource},
+    {"add_source", AddSource},
+    {"remove_source", RemoveSource},
 
     {"add_glyphs", AddGlyphs},
     {"remove_glyphs", RemoveGlyphs},
