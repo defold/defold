@@ -240,6 +240,9 @@ jobs:
         sudo apt-get install -y --no-install-recommends libc6-dev-i386
         sudo apt-get install -y --no-install-recommends gcc-multilib
 
+    - name: Install dependencies
+      run: ci/ci.sh install --platform=${{ matrix.platform }}
+
     - name: Build Box2D
       env:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
@@ -252,6 +255,7 @@ jobs:
         cd external/box2d
         PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
         waf install
+        
     - name: Check artifact existence
       run: |
         if [ ! -f external/box2d/build/Box2D/box2d-3.1.0-${{ matrix.platform }}.tar.gz ]; then
