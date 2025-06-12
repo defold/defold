@@ -623,6 +623,10 @@ def default_flags(self):
             #if int(opt_level) >= 3:
             #    emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ] #, "WebGPUNewContext(dmGraphics::ContextParams const&)"]' ]
 
+        if with_pthread:
+            # sound needs this to startup its thread with no deadlock
+            emflags_link += ['PTHREAD_POOL_SIZE=1']
+
         flags = []
         linkflags = []
         if 'wasm' == target_arch:

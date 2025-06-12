@@ -15,14 +15,17 @@
 #include <stdint.h>
 #include <dlib/array.h>
 #include <dlib/atomic.h>
+#include <dlib/condition_variable.h>
 #include <dlib/hashtable.h>
 #include <dlib/index_pool.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/mutex.h>
 #include <dlib/profile.h>
 #include <dlib/time.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/profile.h>
+#include <dmsdk/dlib/thread.h>
 
 #include "sound.h"
 #include "sound_codec.h"
@@ -74,6 +77,21 @@
 namespace dmSound
 {
     using namespace dmVMath;
+
+    // Since using threads is optional, we want to make it easy to switch on/off the mutex behavior
+    struct OptionalScopedMutexLock
+    {
+        OptionalScopedMutexLock(dmMutex::HMutex mutex) : m_Mutex(mutex) {
+            if (m_Mutex)
+                dmMutex::Lock(m_Mutex);
+        }
+        ~OptionalScopedMutexLock() {
+            if (m_Mutex)
+                dmMutex::Unlock(m_Mutex);
+        }
+        dmMutex::HMutex m_Mutex;
+    };
+    #define DM_MUTEX_OPTIONAL_SCOPED_LOCK(mutex) OptionalScopedMutexLock SCOPED_LOCK_PASTE2(lock, __LINE__)(mutex);
 
     struct SoundDataCallbacks
     {
@@ -130,6 +148,12 @@ namespace dmSound
     struct SoundSystem
     {
         dmSoundCodec::HCodecContext   m_CodecContext;
+
+        dmMutex::HMutex          m_Mutex;
+        dmConditionVariable::HConditionVariable m_CondVar;
+        dmThread::Thread        m_Thread;
+        int32_atomic_t          m_IsRunning;
+        int32_atomic_t          m_Status;
 
         ALCcontext*             m_AlContext;
         ALCdevice*              m_AlDevice;
@@ -251,42 +275,24 @@ namespace dmSound
         return index;
     }
 
-    Result Initialize(dmConfigFile::HConfig config, const InitializeParams* params)
+    struct ThreadArgs {
+        SoundSystem* m_Sound;
+        float    m_MasterGain;
+        uint32_t m_MaxSoundData;
+        uint32_t m_MaxSources;
+        uint32_t m_MaxInstances;
+        uint32_t m_MaxBuffers;
+    };
+
+    static Result InitializeInternal(SoundSystem* sound, ThreadArgs* args)
     {
-        Result r = PlatformInitialize(config, params);
-        if (r != RESULT_OK) {
-            return r;
-        }
+        float    master_gain = args->m_MasterGain;
+        uint32_t max_sound_data = args->m_MaxSoundData;
+        uint32_t max_sources = args->m_MaxSources;
+        uint32_t max_instances = args->m_MaxInstances;
+        uint32_t max_buffers = args->m_MaxBuffers;
 
-        float    master_gain = params->m_MasterGain;
-        uint32_t max_sound_data = params->m_MaxSoundData;
-        uint32_t max_sources = params->m_MaxSources;
-        uint32_t max_instances = params->m_MaxInstances;
-        uint32_t max_buffers = params->m_MaxBuffers;
-
-        if (config)
-        {
-            master_gain = dmConfigFile::GetFloat(config, "sound.gain", 1.0f);
-            max_sound_data = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_data", (int32_t) max_sound_data);
-            max_sources = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_sources", (int32_t) max_sources);
-            max_instances = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_instances", (int32_t) max_instances);
-            max_buffers = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_buffers", (int32_t) max_buffers);
-        }
-
-        uint32_t min_buffers = max_sources * 2;
-        if (max_buffers < min_buffers) {
-            max_buffers = min_buffers;
-            dmLogWarning("invalid setting for sound.max_sound_buffers; using a minimum value of %u", min_buffers);
-        }
-
-        g_SoundSystem = new SoundSystem();
-        SoundSystem* sound = g_SoundSystem;
-        sound->m_HasWindowFocus = true; // Assume we startup with the window focused
-        dmSoundCodec::NewCodecContextParams codec_params;
-        codec_params.m_MaxDecoders = params->m_MaxInstances;
-        sound->m_CodecContext = dmSoundCodec::New(&codec_params);
-
-        r = sound->initOpenal();
+        Result r = sound->initOpenal();
         if (r != RESULT_OK) {
             return r;
         }
@@ -409,15 +415,144 @@ namespace dmSound
         return r;
     }
 
+    #if SOUND_WASM_SUPPORT_THREADS
+    static Result UpdateInternal(SoundSystem* sound);
+
+    static void SoundThreadEmscriptenCallback(void *ctx)
+    {
+        SoundSystem* sound = (SoundSystem*)ctx;
+
+        if (!dmAtomicGet32(&sound->m_IsRunning)) {
+            emscripten_cancel_main_loop();
+            return;
+        }
+
+        Result result = UpdateInternal(sound);
+        dmAtomicStore32(&sound->m_Status, (int)result);
+    }
+
+    static void SoundThread(void* _args)
+    {
+        ThreadArgs* args = (ThreadArgs*)_args;
+        SoundSystem* sound = args->m_Sound;
+
+        dmMutex::Lock(sound->m_Mutex);
+        Result result = InitializeInternal(sound, args);
+        if (result == RESULT_OK)
+        {
+            dmAtomicStore32(&sound->m_Status, (int)result);
+
+            dmConditionVariable::Signal(sound->m_CondVar);
+            dmMutex::Unlock(sound->m_Mutex);
+
+            emscripten_set_main_loop_arg(SoundThreadEmscriptenCallback, sound, 1000 / 16, 1);   // roughly '60fps'
+
+            dmMutex::Lock(sound->m_Mutex);
+            result = sound->finalizeOpenal();
+        }
+
+        dmAtomicStore32(&sound->m_Status, (int)result);
+        dmConditionVariable::Signal(sound->m_CondVar);
+        dmMutex::Unlock(sound->m_Mutex);
+    }
+    #endif
+
+    Result Initialize(dmConfigFile::HConfig config, const InitializeParams* params)
+    {
+        Result r = PlatformInitialize(config, params);
+        if (r != RESULT_OK) {
+            return r;
+        }
+
+        g_SoundSystem = new SoundSystem();
+        SoundSystem* sound = g_SoundSystem;
+        sound->m_HasWindowFocus = true; // Assume we startup with the window focused
+        dmSoundCodec::NewCodecContextParams codec_params;
+        codec_params.m_MaxDecoders = params->m_MaxInstances;
+        sound->m_CodecContext = dmSoundCodec::New(&codec_params);
+
+        float    master_gain = params->m_MasterGain;
+        uint32_t max_sound_data = params->m_MaxSoundData;
+        uint32_t max_sources = params->m_MaxSources;
+        uint32_t max_instances = params->m_MaxInstances;
+        uint32_t max_buffers = params->m_MaxBuffers;
+
+        if (config)
+        {
+            master_gain = dmConfigFile::GetFloat(config, "sound.gain", 1.0f);
+            max_sound_data = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_data", (int32_t) max_sound_data);
+            max_sources = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_sources", (int32_t) max_sources);
+            max_instances = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_instances", (int32_t) max_instances);
+            max_buffers = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_buffers", (int32_t) max_buffers);
+        }
+
+        uint32_t min_buffers = max_sources * 2;
+        if (max_buffers < min_buffers) {
+            max_buffers = min_buffers;
+            dmLogWarning("invalid setting for sound.max_sound_buffers; using a minimum value of %u", min_buffers);
+        }
+
+        ThreadArgs args = {
+            sound,
+            master_gain,
+            max_sound_data,
+            max_sources,
+            max_instances,
+            max_buffers
+        };
+
+        dmAtomicStore32(&sound->m_IsRunning, 1);
+        dmAtomicStore32(&sound->m_Status, (int)RESULT_NOTHING_TO_PLAY);
+
+        sound->m_Mutex = 0;
+        sound->m_CondVar = 0;
+        sound->m_Thread = 0;
+
+#if SOUND_WASM_SUPPORT_THREADS
+        if (params->m_UseThread) {
+            dmLogInfo("sound updates on worker thread");
+
+            sound->m_Mutex = dmMutex::New();
+            sound->m_CondVar = dmConditionVariable::New();
+
+            dmMutex::Lock(sound->m_Mutex);
+
+            sound->m_Thread = dmThread::New(SoundThread, 0x20000, &args, "sound");
+            dmConditionVariable::Wait(sound->m_CondVar, sound->m_Mutex);
+
+            dmMutex::Unlock(sound->m_Mutex);
+
+            r = (Result)dmAtomicGet32(&sound->m_Status);
+        }
+        else
+#endif
+        {
+            dmLogInfo("sound updates on main thread");
+            r = InitializeInternal(sound, &args);
+        }
+
+        return r;
+    }
+
     Result Finalize()
     {
         SoundSystem* sound = g_SoundSystem;
         if (!sound)
             return RESULT_OK;
 
-        Result result = sound->finalizeOpenal();
-        if (result != RESULT_OK) {
-            return result;
+        dmAtomicStore32(&sound->m_IsRunning, 0);
+
+        Result result;
+        if (sound->m_Thread == 0) {
+            result = sound->finalizeOpenal();
+            if (result != RESULT_OK) {
+                return result;
+            }
+        } else {
+            dmThread::Join(sound->m_Thread);
+            dmMutex::Delete(sound->m_Mutex);
+            dmConditionVariable::Delete(sound->m_CondVar);
+            result = (Result)dmAtomicGet32(&sound->m_Status);
         }
 
         PlatformFinalize();
@@ -669,6 +804,7 @@ namespace dmSound
     Result DeleteSoundInstance(HSoundInstance sound_instance)
     {
         SoundSystem* sound = g_SoundSystem;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
 
         if (IsPlaying(sound_instance))
         {
@@ -704,6 +840,7 @@ namespace dmSound
 
     Result SetInstanceGroup(HSoundInstance instance, const char* group_name)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
         dmhash_t group_hash = dmHashString64(group_name);
         return SetInstanceGroup(instance, group_hash);
     }
@@ -711,6 +848,7 @@ namespace dmSound
     Result SetInstanceGroup(HSoundInstance instance, dmhash_t group_hash)
     {
         SoundSystem* sound = g_SoundSystem;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
         int* index = sound->m_GroupMap.Get(group_hash);
         if (!index) {
             return RESULT_NO_SUCH_GROUP;
@@ -721,6 +859,7 @@ namespace dmSound
 
     Result AddGroup(const char* group)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
         int index = GetOrCreateGroup(group);
         if (index == -1) {
             return RESULT_OUT_OF_GROUPS;
@@ -731,6 +870,7 @@ namespace dmSound
     Result SetGroupGain(dmhash_t group_hash, float gain)
     {
         SoundSystem* sound = g_SoundSystem;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
         int* index = sound->m_GroupMap.Get(group_hash);
         if (!index) {
             return RESULT_NO_SUCH_GROUP;
@@ -744,6 +884,7 @@ namespace dmSound
     Result GetGroupGain(dmhash_t group_hash, float* gain)
     {
         SoundSystem* sound = g_SoundSystem;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
         int* index = sound->m_GroupMap.Get(group_hash);
         if (!index) {
             return RESULT_NO_SUCH_GROUP;
@@ -757,6 +898,7 @@ namespace dmSound
     Result GetGroupHashes(uint32_t* count, dmhash_t* buffer)
     {
         SoundSystem* sound = g_SoundSystem;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
         uint32_t size = sound->m_GroupMap.Size();
         assert(*count >= size);
         for (uint32_t i = 0; i < size; ++i)
@@ -935,6 +1077,7 @@ namespace dmSound
     Result Play(HSoundInstance sound_instance)
     {
         SoundSystem* sound = g_SoundSystem;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
         if (sound_instance->m_Playing) {
             return RESULT_OK;
         }
@@ -975,6 +1118,7 @@ namespace dmSound
     Result Stop(HSoundInstance sound_instance)
     {
         SoundSystem* sound = g_SoundSystem;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
         sound_instance->m_Playing = 0;
         dmSoundCodec::Reset(g_SoundSystem->m_CodecContext, sound_instance->m_Decoder);
         if (sound_instance->m_SourceIndex != 0xffff) {
@@ -1000,6 +1144,7 @@ namespace dmSound
     {
         if (!g_SoundSystem)
             return RESULT_OK;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
         sound_instance->m_Playing = (uint8_t)!pause;
         return RESULT_OK;
     }
@@ -1016,11 +1161,13 @@ namespace dmSound
     bool IsPlaying(HSoundInstance sound_instance)
     {
         // until we reclaim the source, we aren't finished playing
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
         return sound_instance->m_SourceIndex != 0xffff;
     }
 
     Result SetLooping(HSoundInstance sound_instance, bool looping, int8_t loopcounter)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
         sound_instance->m_Looping = (uint32_t) looping;
         sound_instance->m_Loopcounter = loopcounter;
         return RESULT_OK;
@@ -1028,6 +1175,7 @@ namespace dmSound
 
     Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const Vector4& value)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
         sound_instance->m_Parameters[parameter] = value.getX();
         return RESULT_OK;
     }
@@ -1041,6 +1189,8 @@ namespace dmSound
             // We can't play sounds when Audio was interrupted by OS event (Phone call, Alarm etc)
             return RESULT_OK;
         }
+
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(sound->m_Mutex);
 
         // feed buffers for active streams
         uint16_t i = 0;
@@ -1103,7 +1253,7 @@ namespace dmSound
                     instance.m_BufferCount = 0;
                 }
             }
-            
+
             if (instance.m_Playing || instance.m_BufferCount) {
                 // wait until we're finished playing and get through all queued buffers
                 ++i;
@@ -1120,7 +1270,7 @@ namespace dmSound
     {
         DM_PROFILE("Sound");
         SoundSystem* sound = g_SoundSystem;
-        if (!sound)
+        if (!sound || sound->m_Thread != 0)
             return RESULT_OK;
 
         return UpdateInternal(sound);
