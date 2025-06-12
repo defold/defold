@@ -241,6 +241,9 @@ jobs:
         sudo apt-get install -y --no-install-recommends gcc-multilib
 
     - name: Build Box2D
+      env:
+        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
       run: |
         ./scripts/build.py --save-env-path=ci/env.sh save_env
         source ci/env.sh
