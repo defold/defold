@@ -1467,7 +1467,7 @@
                             (catch Throwable error
                               (reset! process-events? false)
                               (error-reporting/report-exception! error)))))
-        simulate-mouse-on-modifier-keys! (fn [e]
+        simulate-mouse-on-modifier-keys! (fn [^KeyEvent e]
                                            (when (and @process-events? (.isEmpty (.getText e)))
                                              (when-let [last-action (ui/user-data parent ::last-mouse-action)]
                                                (let [updated-action (assoc last-action
