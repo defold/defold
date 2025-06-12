@@ -179,3 +179,42 @@ jobs:
         path: external/box2d/build/Box2D/box2d-3.1.0-${{ matrix.platform }}.tar.gz
         if-no-files-found: error
         retention-days: 1
+
+  build-ios:
+    strategy:
+      matrix:
+        arch: [arm64-ios, x86_64-ios]
+    runs-on: macOS-14
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        ref: '${{env.BUILD_BRANCH}}'
+    - name: Install Python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      with:
+        python-version: 3.13
+    - name: Install dependencies
+      run: ci/ci.sh install --platform=${{ matrix.platform }}
+    - name: Build Box2D
+      run: |
+        ./scripts/build.py --save-env-path=ci/env.sh save_env
+        source ci/env.sh
+        echo "DYNAMO_HOME=$DYNAMO_HOME"
+        ./scripts/build.py install_waf
+        cd external/box2d
+        PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
+        waf install
+    - name: Check artifact existence
+      run: |
+        if [ ! -f external/box2d/build/Box2D/box2d-3.1.0-${{ matrix.platform }}.tar.gz ]; then
+          echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
+          ls -lh external/box2d/build/Box2D || echo "Directory missing"
+        fi
+    - name: Archive results (platform-specific)
+      uses: actions/upload-artifact@v4
+      with:
+        name: box2d-3.1.0-${{ matrix.platform }}.tar.gz
+        path: external/box2d/build/Box2D/box2d-3.1.0-${{ matrix.platform }}.tar.gz
+        if-no-files-found: error
+        retention-days: 1
