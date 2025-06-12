@@ -1416,7 +1416,7 @@ namespace dmGameObject
             if (r != dmGameObject::RESULT_OK)
             {
                 result = r;
-                if (r == dmGameObject::RESULT_IDENTIFIER_IN_USE)
+                if (r == RESULT_IDENTIFIER_IN_USE)
                 {
                     dmLogError("Unable to set identifier %s%s. Identifier already in use.", id_prefix ? id_prefix : root_path, instance_desc.m_Id);
                 }
@@ -1514,8 +1514,8 @@ namespace dmGameObject
             assert(instance_id);
 
             dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, *instance_id);
-            bool r = dmGameObject::CreateComponents(collection, instance);
-            if (r) {
+            bool success = dmGameObject::CreateComponents(collection, instance);
+            if (success) {
                 created.Push(instance);
                 // Set properties
                 uint32_t component_instance_data_index = 0;
@@ -1660,7 +1660,7 @@ namespace dmGameObject
     }
 
     Result SpawnFromCollection(HCollection hcollection, HCollectionDesc collection_desc, const char* id_prefix, 
-        InstancePropertyContainers *property_buffers,
+        InstancePropertyContainers *property_containers,
         const Point3& position, const Quat& rotation, const Vector3& scale,
         InstanceIdMap *out_instances)
     {
@@ -1669,7 +1669,7 @@ namespace dmGameObject
         transform.SetRotation(rotation);
         transform.SetScale(scale);
 
-        return CollectionSpawnFromDescInternal(hcollection->m_Collection, (dmGameObjectDDF::CollectionDesc*)collection_desc, id_prefix, property_buffers, out_instances, transform);
+        return CollectionSpawnFromDescInternal(hcollection->m_Collection, (dmGameObjectDDF::CollectionDesc*)collection_desc, id_prefix, property_containers, out_instances, transform);
     }
 
     HInstance Spawn(HCollection hcollection, HPrototype proto, const char* prototype_name, dmhash_t id, HPropertyContainer property_container, const Point3& position, const Quat& rotation, const Vector3& scale)
