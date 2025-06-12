@@ -183,7 +183,7 @@ jobs:
   build-ios:
     strategy:
       matrix:
-        arch: [arm64-ios, x86_64-ios]
+        platform: [arm64-ios, x86_64-ios]
     runs-on: macOS-14
     steps:
     - name: Checkout repo
