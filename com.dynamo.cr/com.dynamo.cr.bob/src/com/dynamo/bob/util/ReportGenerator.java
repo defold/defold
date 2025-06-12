@@ -149,9 +149,11 @@ public class ReportGenerator {
     private void parseArchiveBuilder(ArchiveBuilder archiveBuilder) {
         List<ArchiveEntry> includedEntries = archiveBuilder.getIncludedEntries();
         List<ArchiveEntry> excludedEntries = archiveBuilder.getExcludedEntries();
+        int padding = archiveBuilder.getResourcePadding();
 
         for (ArchiveEntry archiveEntry : includedEntries) {
             long compressedSize = archiveEntry.isCompressed() ? archiveEntry.getCompressedSize() : archiveEntry.getSize();
+            compressedSize = (compressedSize + padding - 1) & ~(padding - 1);
             boolean encrypted = archiveEntry.isEncrypted();
             boolean excluded = false;
 

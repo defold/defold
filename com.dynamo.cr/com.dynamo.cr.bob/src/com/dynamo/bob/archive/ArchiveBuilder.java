@@ -92,6 +92,10 @@ public class ArchiveBuilder {
         Arrays.fill(archiveEntryPadding, (byte)0xED);
     }
 
+    public int getResourcePadding() {
+        return resourcePadding;
+    }
+
     private void add(String fileName, boolean compress, boolean encrypt, boolean isLiveUpdate) throws IOException {
         ArchiveEntry e = new ArchiveEntry(root, fileName, compress, encrypt, isLiveUpdate);
         if (lookup.add(e.getRelativeFilename())) {
