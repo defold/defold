@@ -57,7 +57,7 @@ namespace dmGameSystem
      * @name CompCollectionFactorySpawn
      * @param world [type: HCollectionFactoryWorld] Collection factory world
      * @param component [type: HCollectionFactoryComponent] Collection factory component
-     * @param collection [type: HCollection] Gameobject collection
+     * @param collection [type: HCollection] Gameobject collection to spawn into
      * @param id_prefix [type: const char*] Prefix for the spawned instance identifiers. Must start with a forward slash (/). Must be unique within the collection. Pass nullptr to use the default identifier (e.g. /collection1, /collection2 etc.).
      * @param position [type: dmVMath::Point3] Position of the spawned objects
      * @param rotation [type: dmVMath::Quat] Rotation of the spawned objects
