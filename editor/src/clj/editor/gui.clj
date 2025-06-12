@@ -844,19 +844,11 @@
         (persistent!
           (reduce dissoc! node-properties stripped-prop-kws))))))
 
-(defn- update-layout-property [evaluation-context node-id prop-kw update-fn & args]
-  (let [old-value (g/node-value node-id prop-kw evaluation-context)
-        new-value (apply update-fn old-value args)
-        trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info evaluation-context)
-        current-layout (:current-layout trivial-gui-scene-info)]
-    (if (str/blank? current-layout)
-      (g/set-property node-id prop-kw new-value)
-      (g/update-property
-        node-id :layout->prop->override
-        update current-layout
-        assoc prop-kw new-value))))
-
-(defn- layout-property-changes-tx-data [layout-name node-id changes]
+(defn- layout-property-changes-tx-data
+  "Takes changes returned by a changes-fn associated with a layout property
+  and returns the transaction steps that perform those changes to the specified
+  layout in the GuiNode."
+  [layout-name node-id changes]
   {:pre [(string? layout-name)]}
   (if (str/blank? layout-name)
     (coll/transfer changes []
@@ -868,12 +860,41 @@
       node-id :layout->prop->override
       update layout-name
       (fn [prop->override]
-        (reduce-kv (fn [prop->override prop-kw new-value]
-                     (if (nil? new-value)
-                       (dissoc prop->override prop-kw)
-                       (assoc prop->override prop-kw new-value)))
-                   prop->override
-                   changes)))))
+        (coll/not-empty
+          (reduce-kv (fn [prop->override prop-kw new-value]
+                       (if (nil? new-value)
+                         (dissoc prop->override prop-kw)
+                         (assoc prop->override prop-kw new-value)))
+                     prop->override
+                     changes))))))
+
+(defn- layout-property-clears-tx-data
+  "Takes a sequence of prop-kws, possibly based on the return value of a
+  changes-fn, and returns the transaction steps that will clear overrides for
+  those properties."
+  [layout-name node-id cleared-prop-kws]
+  (when (coll/not-empty cleared-prop-kws)
+    (if (str/blank? layout-name)
+      (coll/mapcat
+        #(g/clear-property node-id %)
+        cleared-prop-kws)
+      (g/update-property
+        node-id :layout->prop->override
+        update layout-name
+        (fn [prop->override]
+          (coll/not-empty
+            (apply dissoc prop->override cleared-prop-kws)))))))
+
+(defn- prop->value-for-specific-layout
+  [node-id layout-name evaluation-context]
+  (let [layout->prop->value (g/node-value node-id :layout->prop->value evaluation-context)
+        prop->value (get layout->prop->value layout-name ::not-found)]
+    (when (= ::not-found prop->value)
+      (throw (ex-info (format "Layout '%s' does not exist in the scene." layout-name)
+                      {:node-id node-id
+                       :layout-name layout-name
+                       :layout-name-candidates (vec (sort (keys layout->prop->value)))})))
+    prop->value))
 
 (defn- layout-property-edit-type-set-in-specific-layout
   [layout-name changes-fn prop-kw evaluation-context node-id old-value new-value]
@@ -888,31 +909,67 @@
         current-layout (:current-layout trivial-gui-scene-info)]
     (layout-property-edit-type-set-in-specific-layout current-layout changes-fn prop-kw evaluation-context node-id old-value new-value)))
 
-(defn basic-layout-property-edit-type-clear-fn [node-id prop-kw]
+(defn layout-property-edit-type-clear-in-specific-layout
+  [layout-name changes-fn node-id prop-kw]
+  (let [cleared-prop-kws
+        (if (nil? changes-fn)
+          [prop-kw]
+          (g/with-auto-evaluation-context evaluation-context
+            (keys (changes-fn evaluation-context node-id prop-kw nil nil))))]
+    (layout-property-clears-tx-data layout-name node-id cleared-prop-kws)))
+
+(defn layout-property-edit-type-clear-in-current-layout
+  [changes-fn node-id prop-kw]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info evaluation-context)
+          current-layout (:current-layout trivial-gui-scene-info)
+
+          cleared-prop-kws
+          (if (nil? changes-fn)
+            [prop-kw]
+            (keys (changes-fn evaluation-context node-id prop-kw nil nil)))]
+
+      (layout-property-clears-tx-data current-layout node-id cleared-prop-kws))))
+
+(defn basic-layout-property-clear-in-current-layout
+  [node-id prop-kw]
   (let [trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info)
         current-layout (:current-layout trivial-gui-scene-info)]
-    (if (str/blank? current-layout)
-      (g/clear-property node-id prop-kw)
-      (g/update-property node-id :layout->prop->override eutil/dissoc-in [current-layout prop-kw]))))
+    (layout-property-clears-tx-data current-layout node-id [prop-kw])))
 
-(defn layout-property-edit-type-clear-impl [changes-fn node-id prop-kw]
-  (let [[current-layout cleared-prop-kws]
-        (g/with-auto-evaluation-context evaluation-context
-          (let [trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info evaluation-context)
-                current-layout (:current-layout trivial-gui-scene-info)
-                cleared-prop-kws (keys (changes-fn evaluation-context node-id prop-kw nil nil))]
-            (pair current-layout cleared-prop-kws)))]
-    (when (coll/not-empty cleared-prop-kws)
-      (if (str/blank? current-layout)
-        (coll/mapcat
-          #(g/clear-property node-id %)
-          cleared-prop-kws)
-        (g/update-property
-          node-id :layout->prop->override
-          update current-layout
-          (fn [prop->override]
-            (coll/not-empty
-              (apply dissoc prop->override cleared-prop-kws))))))))
+(defn- basic-layout-property-update-in-current-layout
+  [evaluation-context node-id prop-kw update-fn & args]
+  (let [old-value (g/node-value node-id prop-kw evaluation-context)
+        new-value (apply update-fn old-value args)
+        trivial-gui-scene-info (g/valid-node-value node-id :trivial-gui-scene-info evaluation-context)
+        current-layout (:current-layout trivial-gui-scene-info)]
+    (layout-property-changes-tx-data current-layout node-id {prop-kw new-value})))
+
+(defn- layout-property-set-in-specific-layout
+  "Uses the changes-fn associated with each property to create a series of
+  transaction steps that will set or clear properties on a GuiNode in a
+  specific layout. Nil is not a valid value for a layout property, but nil
+  values can be used to clear overrides on specific properties."
+  [evaluation-context layout-name node-id & prop-kws-and-values]
+  {:pre [(string? layout-name)]}
+  (let [kv-count (count prop-kws-and-values)]
+    (when (pos? kv-count)
+      (assert (even? kv-count))
+      (let [basis (:basis evaluation-context)
+            node (g/node-by-id basis node-id)
+            prop->value-delay (delay (prop->value-for-specific-layout node-id layout-name evaluation-context))
+
+            changes
+            (coll/transfer prop-kws-and-values {}
+              (partition-all 2)
+              (mapcat (fn [[prop-kw new-value]]
+                        (if-let [changes-fn (:changes-fn (g/node-property-dynamic node prop-kw :edit-type evaluation-context))]
+                          (let [old-value (get @prop->value-delay prop-kw)]
+                            (changes-fn evaluation-context node-id prop-kw old-value new-value))
+                          {prop-kw new-value}))))]
+
+        (coll/not-empty
+          (layout-property-changes-tx-data layout-name node-id changes))))))
 
 ;; SDK api
 (defmacro wrap-layout-property-edit-type
@@ -921,12 +978,12 @@
    (let [edit-type-set-fn-form `(fn/partial layout-property-edit-type-set-in-current-layout nil ~(keyword prop-sym))]
      `(assoc ~edit-type-form
         :set-fn ~edit-type-set-fn-form
-        :clear-fn basic-layout-property-edit-type-clear-fn)))
+        :clear-fn basic-layout-property-clear-in-current-layout)))
   ([prop-sym edit-type-form changes-fn-form]
    {:pre [(symbol? prop-sym)
           (symbol? changes-fn-form)]}
    (let [edit-type-set-fn-form `(fn/partial layout-property-edit-type-set-in-current-layout ~changes-fn-form ~(keyword prop-sym))
-         edit-type-clear-fn-form `(fn/partial layout-property-edit-type-clear-impl ~changes-fn-form)]
+         edit-type-clear-fn-form `(fn/partial layout-property-edit-type-clear-in-current-layout ~changes-fn-form)]
      `(assoc ~edit-type-form
         :set-fn ~edit-type-set-fn-form
         :clear-fn ~edit-type-clear-fn-form
@@ -1247,13 +1304,13 @@
   (g/node-value node-id :id evaluation-context))
 
 (defmethod scene-tools/manip-move ::GuiNode [evaluation-context node-id delta]
-  (update-layout-property evaluation-context node-id :position scene/apply-move-delta delta))
+  (basic-layout-property-update-in-current-layout evaluation-context node-id :position scene/apply-move-delta delta))
 
 (defmethod scene-tools/manip-rotate ::GuiNode [evaluation-context node-id delta]
-  (update-layout-property evaluation-context node-id :rotation scene/apply-rotate-delta delta))
+  (basic-layout-property-update-in-current-layout evaluation-context node-id :rotation scene/apply-rotate-delta delta))
 
 (defmethod scene-tools/manip-scale ::GuiNode [evaluation-context node-id delta]
-  (update-layout-property evaluation-context node-id :scale scene/apply-scale-delta delta))
+  (basic-layout-property-update-in-current-layout evaluation-context node-id :scale scene/apply-scale-delta delta))
 
 (defmethod properties/transfer-overrides-context ::GuiNode
   [source-node-id _override-transfer-type evaluation-context]
@@ -1266,18 +1323,25 @@
   {:pre [(string? layout-name)]}
   (let [layout->prop->value (g/node-value target-node-id :layout->prop->value evaluation-context)
         prop-kw->prop-info (:properties (g/node-value target-node-id :_declared-properties evaluation-context))
-        prop-kw->value (get layout->prop->value layout-name)]
-    (coll/transfer prop-kw->prop-info {}
-      (map (fn [[prop-kw prop-info]]
-             (let [value (get prop-kw->value prop-kw)
-                   edit-type (:edit-type prop-info)
-                   changes-fn (:changes-fn edit-type)
-                   set-fn (fn/partial layout-property-edit-type-set-in-specific-layout layout-name changes-fn prop-kw)]
-               (pair prop-kw
-                     {:node-id (or (:node-id prop-info) target-node-id)
-                      :prop-kw (or (:prop-kw prop-info) prop-kw)
-                      :edit-type (assoc edit-type :set-fn set-fn)
-                      :value value})))))))
+        prop-kw->value (get layout->prop->value layout-name ::not-found)]
+    ;; We don't return any target properties if the layout does not exist in the
+    ;; target node. Otherwise, we would have to create the layout in the target
+    ;; gui scene, which might be confusing?
+    (when (not= ::not-found prop-kw->value)
+      (coll/transfer prop-kw->prop-info {}
+        (map (fn [[prop-kw prop-info]]
+               (let [value (get prop-kw->value prop-kw)
+                     edit-type (:edit-type prop-info)
+                     changes-fn (:changes-fn edit-type)
+                     set-fn (fn/partial layout-property-edit-type-set-in-specific-layout layout-name changes-fn prop-kw)
+                     clear-fn (fn/partial layout-property-edit-type-clear-in-specific-layout layout-name changes-fn)]
+                 (pair prop-kw
+                       {:node-id (or (:node-id prop-info) target-node-id)
+                        :prop-kw (or (:prop-kw prop-info) prop-kw)
+                        :value value
+                        :edit-type (assoc edit-type
+                                     :set-fn set-fn
+                                     :clear-fn clear-fn)}))))))))
 
 ;; SDK api
 (defmethod update-gui-resource-reference [::GuiNode :layer]
