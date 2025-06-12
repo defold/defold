@@ -487,7 +487,7 @@ static void DeviceLoopbackStop(dmSound::HDevice device)
 
 }
 
-#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundTestLoopingTest, Loopcount)
 {
     TestParams params = GetParam();
@@ -591,7 +591,7 @@ static double GenAndMixTone(uint64_t pos, float tone_frq, float sample_rate, flo
     return a;
 }
 
-#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundVerifyTest, Mix)
 {
     TestParams params = GetParam();
@@ -841,7 +841,7 @@ TestParams("loopback",
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyTest, dmSoundVerifyTest, jc_test_values_in(params_verify_test));
 
 
-#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundTestGroupRampTest, GroupRamp)
 {
     TestParams params = GetParam();
@@ -912,7 +912,7 @@ const TestParams params_group_ramp_test[] = {
 INSTANTIATE_TEST_CASE_P(dmSoundTestGroupRampTest, dmSoundTestGroupRampTest, jc_test_values_in(params_group_ramp_test));
 #endif
 
-#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundTestSpeedTest, Speed)
 {
     TestParams params = GetParam();
@@ -1049,7 +1049,7 @@ const TestParams params_speed_test[] = {
 INSTANTIATE_TEST_CASE_P(dmSoundTestSpeedTest, dmSoundTestSpeedTest, jc_test_values_in(params_speed_test));
 #endif
 
-#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundVerifyOggTest, Mix)
 {
     TestParams params = GetParam();
@@ -1249,7 +1249,7 @@ const TestParams params_verify_ogg_test[] = {TestParams("loopback",
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_values_in(params_verify_ogg_test));
 #endif
 
-#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundVerifyOpusTest, Mix)
 {
     TestParams params = GetParam();
@@ -1449,7 +1449,7 @@ const TestParams params_verify_opus_test[] = {TestParams("loopback",
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyOpusTest, dmSoundVerifyOpusTest, jc_test_values_in(params_verify_opus_test));
 #endif
 
-#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundVerifyAdpcmTest, Mix)
 {
     TestParams params = GetParam();
@@ -1649,7 +1649,7 @@ const TestParams params_verify_adpcm_test[] = {TestParams("loopback",
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyAdpcmTest, dmSoundVerifyAdpcmTest, jc_test_values_in(params_verify_adpcm_test));
 #endif
 
-#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundTestPlayTest, Play)
 {
 
@@ -1873,7 +1873,7 @@ const TestParams params_test_play_speed_test[] = {
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlaySpeedTest, dmSoundTestPlaySpeedTest, jc_test_values_in(params_test_play_speed_test));
 #endif
 
-#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundVerifyWavTest, Mix)
 {
     TestParams params = GetParam();
@@ -1918,7 +1918,7 @@ const TestParams params_verify_wav_test[] = {TestParams("loopback",
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyWavTest, dmSoundVerifyWavTest, jc_test_values_in(params_verify_wav_test));
 #endif
 
-#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !(defined(WIN32) || defined(__MACH__)))
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundMixerTest, Mixer)
 {
     TestParams2 params = GetParam();

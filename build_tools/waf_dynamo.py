@@ -580,7 +580,8 @@ def default_flags(self):
         # -lsupc++
         self.env.append_value('LINKFLAGS', [
                 '-isysroot=%s' % sysroot,
-                '-static-libstdc++'] + getAndroidLinkFlags(target_arch))
+                '-static-libstdc++',
+                '-Wl,--build-id=uuid'] + getAndroidLinkFlags(target_arch))
     elif TargetOS.WEB == target_os:
 
         emflags_compile = ['DISABLE_EXCEPTION_CATCHING=1']
@@ -2033,7 +2034,7 @@ def detect(conf):
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
     if TargetOS.WEB == target_os:
-        conf.env['STLIB_PROFILE'] = ['profile_js']
+        conf.env['STLIB_PROFILE'] = ['profile_basic']
     else:
         conf.env['STLIB_PROFILE'] = ['profile', 'remotery']
     conf.env['STLIB_PROFILE_NULL'] = ['profile_null', 'remotery_null']

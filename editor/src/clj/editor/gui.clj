@@ -17,6 +17,7 @@
             [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.attachment :as attachment]
             [editor.build-target :as bt]
             [editor.colors :as colors]
             [editor.core :as core]
@@ -30,6 +31,7 @@
             [editor.gl.vertex :as vtx]
             [editor.gl.vertex2 :as vtx2]
             [editor.graph-util :as gu]
+            [editor.gui-attachment :as gui-attachment]
             [editor.gui-clipping :as clipping]
             [editor.handler :as handler]
             [editor.id :as id]
@@ -461,19 +463,16 @@
      :else
      (core/scope basis node))))
 
-(defn- next-child-index [child-indices]
-  (inc (reduce max -1 (map second child-indices))))
-
 (defn- gen-gui-node-attach-fn [type]
   (fn [target source]
-    (let [node-tree (node->node-tree target)
-          taken-ids (g/node-value node-tree :id-counts)
-          child-indices (g/node-value target :child-indices)
-          next-index (next-child-index child-indices)]
-      (concat
-        (g/update-property source :id id/resolve taken-ids)
-        (g/set-property source :child-index next-index)
-        (attach-gui-node node-tree target source type)))))
+    (g/with-auto-evaluation-context evaluation-context
+      (let [node-tree (node->node-tree (:basis evaluation-context) target)
+            taken-ids (g/node-value node-tree :id-counts evaluation-context)
+            next-index (gui-attachment/next-child-index target evaluation-context)]
+        (concat
+          (g/update-property source :id id/resolve taken-ids)
+          (g/set-property source :child-index next-index)
+          (attach-gui-node node-tree target source type))))))
 
 ;; SDK api
 (defn gen-outline-node-tx-attach-fn
@@ -1357,8 +1356,6 @@
                                (validate-material-resource _node-id material-infos material)))))
 
   (output visual-base-node-msg g/Any produce-visual-base-node-msg)
-  (output gui-scene g/Any (g/fnk [_node-id]
-                                 (node->gui-scene _node-id)))
   (output material-shader ShaderLifecycle (g/fnk [costly-gui-scene-info material]
                                             (let [material-shaders (:material-shaders costly-gui-scene-info)]
                                               (or (get material-shaders material)
@@ -1604,13 +1601,12 @@
   (output anim-data g/Any
           (g/fnk [costly-gui-scene-info texture]
             (let [texture-infos (:texture-infos costly-gui-scene-info)
-                  texture-info (or (get texture-infos texture)
-                                   (get texture-infos ""))]
+                  texture-info (get texture-infos texture)]
               (:anim-data texture-info))))
   (output gpu-texture TextureLifecycle (g/fnk [costly-gui-scene-info texture]
                                          (let [texture-gpu-textures (:texture-gpu-textures costly-gui-scene-info)]
                                            (or (get texture-gpu-textures texture)
-                                               (get texture-gpu-textures "")))))
+                                               @texture/white-pixel))))
   (output size types/Vec3 (g/fnk [manual-size size-mode texture texture-size]
                             (if (or (= :size-mode-manual size-mode)
                                     (coll/empty? texture))
@@ -2195,15 +2191,6 @@
   [_ evaluation-context node-id old-name new-name]
   (update-basic-gui-resource-reference evaluation-context node-id :particlefx old-name new-name))
 
-;; This InternalTextureNode is a drop-in replacement for TextureNode below.
-;; It can be used in place of TextureNode when you already have a gpu-texture.
-(g/defnode InternalTextureNode
-  (property name g/Str)
-  (property gpu-texture TextureLifecycle)
-  (output texture-infos GuiResourceTextureInfos (g/fnk [name] (sorted-map name {})))
-  (output texture-page-counts GuiResourcePageCounts (g/fnk [name] {name nil})) ; Use a nil texture-page-count to disable validation against the material page count.
-  (output texture-gpu-textures GuiResourceTextures (g/fnk [name gpu-texture] {name gpu-texture})))
-
 (g/defnk produce-texture-gpu-textures [_node-id texture-names gpu-texture default-tex-params samplers]
   ;; If the referenced texture-resource is missing, we don't return an entry.
   ;; This will cause every usage to fall back on the no-texture entry for "".
@@ -2594,25 +2581,20 @@
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-(defn- attach-texture
-  ([self textures-node texture]
-   (attach-texture self textures-node texture false))
-  ([self textures-node texture internal?]
-   (concat
-     (g/connect texture :_node-id self :nodes)
-     (g/connect texture :texture-gpu-textures self :texture-gpu-textures)
-     (g/connect texture :texture-infos self :texture-infos)
-     (when (not internal?)
-       (concat
-         (g/connect texture :dep-build-targets self :dep-build-targets)
-         (g/connect texture :pb-msg self :texture-msgs)
-         (g/connect texture :build-errors textures-node :build-errors)
-         (g/connect texture :node-outline textures-node :child-outlines)
-         (g/connect texture :texture-page-counts textures-node :texture-page-counts)
-         (g/connect texture :name textures-node :names)
-         (g/connect textures-node :name-counts texture :name-counts)
-         (g/connect self :samplers texture :samplers)
-         (g/connect self :default-tex-params texture :default-tex-params))))))
+(defn- attach-texture [self textures-node texture]
+  (concat
+    (g/connect texture :_node-id textures-node :nodes)
+    (g/connect texture :texture-gpu-textures self :texture-gpu-textures)
+    (g/connect texture :texture-infos self :texture-infos)
+    (g/connect texture :dep-build-targets self :dep-build-targets)
+    (g/connect texture :pb-msg self :texture-msgs)
+    (g/connect texture :build-errors textures-node :build-errors)
+    (g/connect texture :node-outline textures-node :child-outlines)
+    (g/connect texture :texture-page-counts textures-node :texture-page-counts)
+    (g/connect texture :name textures-node :names)
+    (g/connect textures-node :name-counts texture :name-counts)
+    (g/connect self :samplers texture :samplers)
+    (g/connect self :default-tex-params texture :default-tex-params)))
 
 (defn add-texture [scene textures-node resource name]
   (g/make-nodes (g/node-id->graph-id scene) [node [TextureNode :name name :texture resource]]
@@ -2624,6 +2606,7 @@
    (partial add-texture scene parent)))
 
 (g/defnode TexturesNode
+  (inherits core/Scope)
   (inherits outline/OutlineNode)
   (input names g/Str :array)
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
@@ -2642,22 +2625,17 @@
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-(defn- attach-material
-  ([self materials-node material]
-   (attach-material self materials-node material false))
-  ([self materials-node material internal?]
-   (concat
-     (g/connect material :_node-id self :nodes)
-     (g/connect material :material-shaders self :material-shaders)
-     (when (not internal?)
-       (concat
-         (g/connect material :material-infos self :material-infos)
-         (g/connect material :dep-build-targets self :dep-build-targets)
-         (g/connect material :pb-msg self :material-msgs)
-         (g/connect material :build-errors materials-node :build-errors)
-         (g/connect material :node-outline materials-node :child-outlines)
-         (g/connect material :name materials-node :names)
-         (g/connect materials-node :name-counts material :name-counts))))))
+(defn- attach-material [self materials-node material]
+  (concat
+    (g/connect material :_node-id materials-node :nodes)
+    (g/connect material :material-shaders self :material-shaders)
+    (g/connect material :material-infos self :material-infos)
+    (g/connect material :dep-build-targets self :dep-build-targets)
+    (g/connect material :pb-msg self :material-msgs)
+    (g/connect material :build-errors materials-node :build-errors)
+    (g/connect material :node-outline materials-node :child-outlines)
+    (g/connect material :name materials-node :names)
+    (g/connect materials-node :name-counts material :name-counts)))
 
 (defn add-material [scene materials-node resource name]
   (g/make-nodes (g/node-id->graph-id scene) [node [MaterialNode :name name :material resource]]
@@ -2669,6 +2647,7 @@
     (partial add-material scene parent)))
 
 (g/defnode MaterialsNode
+  (inherits core/Scope)
   (inherits outline/OutlineNode)
   (input names g/Str :array)
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
@@ -2726,36 +2705,31 @@
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 (defn- attach-layer
-  ([self layers-node layer]
-   (attach-layer self layers-node layer false))
   ;; Self is not used here but added to conform all attach-*** functions
-  ([_self layers-node layer internal?]
-   (concat
+  [_self layers-node layer]
+  (concat
     (g/connect layer :_node-id layers-node :nodes)
-    (when (not internal?)
-      (concat
-       (g/connect layer :pb-msg layers-node :layer-msgs)
-       (g/connect layer :build-errors layers-node :build-errors)
-       (g/connect layer :node-outline layers-node :child-outlines)
-       (g/connect layer :node-id+child-index layers-node :child-indices)
-       (g/connect layer :name+child-index layers-node :indexed-layer-names)
-       (g/connect layers-node :name-counts layer :name-counts))))))
+    (g/connect layer :pb-msg layers-node :layer-msgs)
+    (g/connect layer :build-errors layers-node :build-errors)
+    (g/connect layer :node-outline layers-node :child-outlines)
+    (g/connect layer :node-id+child-index layers-node :child-indices)
+    (g/connect layer :name+child-index layers-node :indexed-layer-names)
+    (g/connect layers-node :name-counts layer :name-counts)))
 
-(defn add-layer [project scene parent name child-index select-fn]
+(defn add-layer [scene parent name child-index select-fn]
   (g/make-nodes (g/node-id->graph-id scene) [node [LayerNode :name name :child-index child-index]]
-    ;; Self is not used when attaching layers
-    (attach-layer nil parent node)
+    (attach-layer scene parent node)
     (when select-fn
       (select-fn [node]))))
 
-(defn- add-layer-handler [project {:keys [scene parent]} select-fn]
-  (let [name (id/gen "layer" (g/node-value parent :name-counts))
-        child-indices (g/node-value parent :child-indices)
-        next-index (next-child-index child-indices)]
-    (g/transact
-     (concat
-      (g/operation-label "Add Layer")
-      (add-layer project scene parent name next-index select-fn)))))
+(defn- add-layer-handler [_project {:keys [scene parent]} select-fn]
+  (g/transact
+    (g/with-auto-evaluation-context evaluation-context
+      (let [name (id/gen "layer" (g/node-value parent :name-counts evaluation-context))
+            next-index (gui-attachment/next-child-index parent evaluation-context)]
+        (concat
+          (g/operation-label "Add Layer")
+          (add-layer scene parent name next-index select-fn))))))
 
 (g/defnode LayersNode
   (inherits core/Scope)
@@ -2787,13 +2761,13 @@
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-(defn- attach-layout [self layouts-node layout]
+(defn- attach-layout [_self layouts-node layout]
   (concat
    (g/connect layout :build-errors layouts-node :build-errors)
    (g/connect layout :node-outline layouts-node :child-outlines)
    (g/connect layout :name layouts-node :names)
    (g/connect layouts-node :name-counts layout :name-counts)
-   (g/connect layout :_node-id self :nodes)))
+   (g/connect layout :_node-id layouts-node :nodes)))
 
 (defn add-layout-handler [project {:keys [scene parent display-profile]} select-fn]
   (g/transact
@@ -2805,6 +2779,7 @@
                     (select-fn [node]))))))
 
 (g/defnode LayoutsNode
+  (inherits core/Scope)
   (inherits outline/OutlineNode)
   (input names g/Str :array)
   (output names GuiResourceNames :cached (g/fnk [names] (into (sorted-set) names)))
@@ -2824,22 +2799,17 @@
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-(defn- attach-particlefx-resource
-  ([self particlefx-resources-node particlefx-resource]
-   (attach-particlefx-resource self particlefx-resources-node particlefx-resource false))
-  ([self particlefx-resources-node particlefx-resource internal?]
-   (concat
-    (g/connect particlefx-resource :_node-id self :nodes)
+(defn- attach-particlefx-resource [self particlefx-resources-node particlefx-resource]
+  (concat
+    (g/connect particlefx-resource :_node-id particlefx-resources-node :nodes)
     (g/connect particlefx-resource :particlefx-infos self :particlefx-infos)
-    (when (not internal?)
-      (concat
-       (g/connect particlefx-resource :name                      self :particlefx-resource-names)
-       (g/connect particlefx-resource :dep-build-targets         self :dep-build-targets)
-       (g/connect particlefx-resource :pb-msg                    self :particlefx-resource-msgs)
-       (g/connect particlefx-resource :build-errors particlefx-resources-node :build-errors)
-       (g/connect particlefx-resource :node-outline particlefx-resources-node :child-outlines)
-       (g/connect particlefx-resource :name         particlefx-resources-node :names)
-       (g/connect particlefx-resources-node :name-counts particlefx-resource :name-counts))))))
+    (g/connect particlefx-resource :name self :particlefx-resource-names)
+    (g/connect particlefx-resource :dep-build-targets self :dep-build-targets)
+    (g/connect particlefx-resource :pb-msg self :particlefx-resource-msgs)
+    (g/connect particlefx-resource :build-errors particlefx-resources-node :build-errors)
+    (g/connect particlefx-resource :node-outline particlefx-resources-node :child-outlines)
+    (g/connect particlefx-resource :name particlefx-resources-node :names)
+    (g/connect particlefx-resources-node :name-counts particlefx-resource :name-counts)))
 
 (defn add-particlefx-resource [scene particlefx-resources-node resource name]
   (g/make-nodes (g/node-id->graph-id scene) [node [ParticleFXResource :name name :particlefx resource]]
@@ -2851,6 +2821,7 @@
    (partial add-particlefx-resource scene parent)))
 
 (g/defnode ParticleFXResources
+  (inherits core/Scope)
   (inherits outline/OutlineNode)
   (input names g/Str :array)
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
@@ -3511,27 +3482,27 @@
   (get-in tx-entry [:node :_node-id]))
 
 (defn add-gui-node-with-props! [scene parent node-type custom-type props select-fn]
-  (let [node-tree (g/node-value scene :node-tree)
-        id (or (:id props)
-               (id/resolve (subs (name node-type) 5)
-                           (g/node-value node-tree :id-counts)))
-        def-node-type (get-registered-node-type-cls node-type custom-type)
-        child-indices (g/node-value parent :child-indices)
-        next-index (next-child-index child-indices)
-        node-properties (assoc props
-                          :id id
-                          :child-index next-index
-                          :custom-type custom-type
-                          :type node-type)]
-    (-> (concat
-          (g/operation-label "Add Gui Node")
-          (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type node-properties]]
-            (attach-gui-node node-tree parent gui-node node-type)
-            (when select-fn
-              (select-fn [gui-node]))))
-        g/transact
-        g/tx-nodes-added
-        first)))
+  (-> (g/with-auto-evaluation-context evaluation-context
+        (let [node-tree (g/node-value scene :node-tree evaluation-context)
+              id (or (:id props)
+                     (id/resolve (subs (name node-type) 5)
+                                 (g/node-value node-tree :id-counts evaluation-context)))
+              def-node-type (get-registered-node-type-cls node-type custom-type)
+              next-index (gui-attachment/next-child-index parent evaluation-context)
+              node-properties (assoc props
+                                :id id
+                                :child-index next-index
+                                :custom-type custom-type
+                                :type node-type)]
+          (concat
+            (g/operation-label "Add Gui Node")
+            (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type node-properties]]
+              (attach-gui-node node-tree parent gui-node node-type)
+              (when select-fn
+                (select-fn [gui-node]))))))
+      g/transact
+      g/tx-nodes-added
+      first))
 
 (defn add-gui-node! [project scene parent node-type custom-type select-fn]
   ;; TODO: The project argument is unused. Remove.
@@ -3751,18 +3722,14 @@
                                                     :name (:name font-desc)
                                                     :font (resolve-resource (:font font-desc))]]
                                     (attach-font self fonts-node font))))
-      (g/make-nodes graph-id [textures-node TexturesNode
-                              no-texture [InternalTextureNode
-                                          :name ""
-                                          :gpu-texture @texture/white-pixel]]
+      (g/make-nodes graph-id [textures-node TexturesNode]
                     (g/connect textures-node :texture-page-counts self :texture-page-counts)
-                    (g/connect textures-node :_node-id self :textures-node) ; for the tests :/
+                    (g/connect textures-node :_node-id self :textures-node)
                     (g/connect textures-node :_node-id self :nodes)
                     (g/connect textures-node :build-errors self :build-errors)
                     (g/connect textures-node :node-outline self :child-outlines)
                     (g/connect textures-node :add-handler-info self :handler-infos)
                     (g/connect textures-node :texture-resource-names self :texture-resource-names)
-                    (attach-texture self textures-node no-texture true)
                     (for [texture-desc (:textures scene)
                           :let [resource (resolve-resource (:texture texture-desc))]]
                       (g/make-nodes graph-id [texture [TextureNode :name (:name texture-desc) :texture resource]]
@@ -3780,15 +3747,12 @@
           (g/make-nodes graph-id [material [MaterialNode :name (:name materials-desc) :material resource]]
             (attach-material self materials-node material))))
 
-      (g/make-nodes graph-id [particlefx-resources-node ParticleFXResources
-                              no-particlefx-resource [ParticleFXResource
-                                                      :name ""]]
-                    (g/connect particlefx-resources-node :_node-id self :particlefx-resources-node) ; for the tests :/
+      (g/make-nodes graph-id [particlefx-resources-node ParticleFXResources]
+                    (g/connect particlefx-resources-node :_node-id self :particlefx-resources-node)
                     (g/connect particlefx-resources-node :_node-id self :nodes)
                     (g/connect particlefx-resources-node :build-errors self :build-errors)
                     (g/connect particlefx-resources-node :node-outline self :child-outlines)
                     (g/connect particlefx-resources-node :add-handler-info self :handler-infos)
-                    (attach-particlefx-resource self particlefx-resources-node no-particlefx-resource true)
                     (let [prop-keys (g/declared-property-labels ParticleFXResource)]
                       (for [particlefx-desc (:particlefxs scene)
                             :let [particlefx-desc (select-keys particlefx-desc prop-keys)]]
@@ -3797,10 +3761,8 @@
                                                                      :particlefx (resolve-resource (:particlefx particlefx-desc))]]
                                       (attach-particlefx-resource self particlefx-resources-node particlefx-resource)))))
 
-      (g/make-nodes graph-id [layers-node LayersNode
-                              no-layer [LayerNode
-                                        :name ""]]
-                    (g/connect layers-node :_node-id self :layers-node) ; for the tests :/
+      (g/make-nodes graph-id [layers-node LayersNode]
+                    (g/connect layers-node :_node-id self :layers-node)
                     (g/connect layers-node :_node-id self :nodes)
                     (g/connect layers-node :layer-msgs self :layer-msgs)
                     (g/connect layers-node :layer-names self :layer-names)
@@ -3808,7 +3770,6 @@
                     (g/connect layers-node :build-errors self :build-errors)
                     (g/connect layers-node :node-outline self :child-outlines)
                     (g/connect layers-node :add-handler-info self :handler-infos)
-                    (attach-layer self layers-node no-layer true)
                     (loop [[layer-desc & more] (:layers scene)
                            tx-data []
                            child-index 0]
@@ -3866,7 +3827,7 @@
                                  (inc child-index)))
                         all-tx-data)))
       (g/make-nodes graph-id [layouts-node LayoutsNode]
-                    (g/connect layouts-node :_node-id self :layouts-node) ; for the tests :/
+                    (g/connect layouts-node :_node-id self :layouts-node)
                     (g/connect layouts-node :_node-id self :nodes)
                     (g/connect self :unused-display-profiles layouts-node :unused-display-profiles)
                     (g/connect layouts-node :names self :layout-names)
@@ -4031,8 +3992,56 @@
         :view-opts {:scene {:grid true
                             :drop-fn handle-drop}}))))
 
+
+(defn- attach-to-gui-scene-txs [{:keys [basis]} attach-fn scene-container-node-fn scene-node item-node]
+  (attach-fn scene-node (scene-container-node-fn basis scene-node) item-node))
+
+(defn- attach-to-gui-scene-fn [scene-container-node-fn attach-fn]
+  (partial g/expand-ec attach-to-gui-scene-txs attach-fn scene-container-node-fn))
+
+(defn- gui-scene-layers-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (let [layer-nodes (attachment/nodes-getter (gui-attachment/scene-node->layers-node basis scene-node) evaluation-context)]
+    (vec (sort-by #(g/raw-property-value basis % :child-index) layer-nodes))))
+
+(defn- reorder-gui-scene-layers [reordered-layer-node-ids]
+  (coll/mapcat-indexed #(g/set-property %2 :child-index %1) reordered-layer-node-ids))
+
+(defn- gui-scene-materials-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (attachment/nodes-getter (gui-attachment/scene-node->materials-node basis scene-node) evaluation-context))
+
+(defn- gui-scene-particlefxs-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (attachment/nodes-getter (gui-attachment/scene-node->particlefx-resources-node basis scene-node) evaluation-context))
+
+(defn- gui-scene-texture-nodes-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (attachment/nodes-getter (gui-attachment/scene-node->textures-node basis scene-node) evaluation-context))
+
+(defn- gui-scene-layouts-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (attachment/nodes-getter (gui-attachment/scene-node->layouts-node basis scene-node) evaluation-context))
+
 (defn register-resource-types [workspace]
-  (register workspace pb-def))
+  (concat
+    (attachment/register
+      workspace GuiSceneNode :layers
+      :add {LayerNode (attach-to-gui-scene-fn gui-attachment/scene-node->layers-node attach-layer)}
+      :get gui-scene-layers-getter
+      :reorder reorder-gui-scene-layers)
+    (attachment/register
+      workspace GuiSceneNode :layouts
+      :add {LayoutNode (attach-to-gui-scene-fn gui-attachment/scene-node->layouts-node attach-layout)}
+      :get gui-scene-layouts-getter)
+    (attachment/register
+      workspace GuiSceneNode :materials
+      :add {MaterialNode (attach-to-gui-scene-fn gui-attachment/scene-node->materials-node attach-material)}
+      :get gui-scene-materials-getter)
+    (attachment/register
+      workspace GuiSceneNode :particlefxs
+      :add {ParticleFXResource (attach-to-gui-scene-fn gui-attachment/scene-node->particlefx-resources-node attach-particlefx-resource)}
+      :get gui-scene-particlefxs-getter)
+    (attachment/register
+      workspace GuiSceneNode :textures
+      :add {TextureNode (attach-to-gui-scene-fn gui-attachment/scene-node->textures-node attach-texture)}
+      :get gui-scene-texture-nodes-getter)
+    (register workspace pb-def)))
 
 (defn- move-child-node!
   [node-id offset]

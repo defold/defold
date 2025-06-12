@@ -233,22 +233,6 @@ namespace dmSound
         float* GetDecoderBufferBase(uint8_t channel) const { assert(channel < SOUND_MAX_DECODE_CHANNELS); return (float*)((uintptr_t)m_DecoderOutput[channel] + SOUND_MAX_HISTORY * sizeof(float)); }
     };
 
-    // Since using threads is optional, we want to make it easy to switch on/off the mutex behavior
-    struct OptionalScopedMutexLock
-    {
-        OptionalScopedMutexLock(dmMutex::HMutex mutex) : m_Mutex(mutex) {
-            if (m_Mutex)
-                dmMutex::Lock(m_Mutex);
-        }
-        ~OptionalScopedMutexLock() {
-            if (m_Mutex)
-                dmMutex::Unlock(m_Mutex);
-        }
-
-        dmMutex::HMutex m_Mutex;
-    };
-    #define DM_MUTEX_OPTIONAL_SCOPED_LOCK(mutex) OptionalScopedMutexLock SCOPED_LOCK_PASTE2(lock, __LINE__)(mutex);
-
     SoundSystem* g_SoundSystem = 0;
 
     DeviceType* g_FirstDevice = 0;

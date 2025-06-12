@@ -1911,7 +1911,11 @@
               (assoc :regions regions')))))
 
 (defn- begins-indentation? [grammar ^String line]
-  (and (some? line) (some? (some-> grammar :indent :begin (re-find line)))))
+  (when (some? line)
+    (let [begin? (:begin (:indent grammar))]
+      (cond
+        (fn? begin?) (begin? line)
+        :else (re-find begin? line)))))
 
 (defn- ends-indentation? [grammar ^String line]
   (and (some? line) (some? (some-> grammar :indent :end (re-find line)))))
@@ -2603,7 +2607,7 @@
                                   :from-doc-x (x->doc-x layout x)
                                   :from-doc-y (y->doc-y layout y))}))
 
-(defn- in-gutter? [^LayoutInfo layout x]
+(defn in-gutter? [^LayoutInfo layout x]
   (and (< ^double x (.x ^Rect (.canvas layout)))
        (> ^double x (+ (.x ^Rect (.line-numbers layout)) (.w ^Rect (.line-numbers layout))))))
 
@@ -2693,7 +2697,14 @@
     (cond
       (in-gutter? layout x)
       (when-let [clicked-row (y->existing-row layout lines y)]
-        (edit-breakpoint lines regions clicked-row)))
+        (edit-breakpoint lines regions clicked-row))
+
+      (not (some-> (.minimap layout) (rect-contains? x y)))
+      (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))]
+        ;; Move cursor when we are outside of the current selection.
+        (when-not (some #(cursor-range-contains? % mouse-cursor) cursor-ranges)
+          {:cursor-ranges [(Cursor->CursorRange mouse-cursor)]})))
+
     :back
     nil
     :forward

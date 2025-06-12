@@ -731,17 +731,6 @@
                     (g/error-fatal (format "the total height ('Tile Height' + 'Tile Margin') is greater than the 'Image' height (%d vs %d)"
                                            total-h h)))))))))
 
-(attachment/register!
-  TileSourceNode :animations
-  :add {TileAnimationNode attach-animation-node}
-  :get (attachment/nodes-by-type-getter TileAnimationNode))
-
-(attachment/register!
-  TileSourceNode :collision-groups
-  :add {CollisionGroupNode attach-collision-group-node}
-  :get (attachment/nodes-by-type-getter CollisionGroupNode))
-
-
 ;;--------------------------------------------------------------------
 ;; tool
 
@@ -1042,14 +1031,23 @@
     ((:action user-data) (selection->tile-source selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext ["tilesource" "tileset"]
-    :label "Tile Source"
-    :build-ext "t.texturesetc"
-    :node-type TileSourceNode
-    :ddf-type Tile$TileSet
-    :load-fn load-tile-source
-    :icon tile-source-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:tool-controller ToolController}}))
+  (concat
+    (attachment/register
+      workspace TileSourceNode :animations
+      :add {TileAnimationNode attach-animation-node}
+      :get (attachment/nodes-by-type-getter TileAnimationNode))
+    (attachment/register
+      workspace TileSourceNode :collision-groups
+      :add {CollisionGroupNode attach-collision-group-node}
+      :get (attachment/nodes-by-type-getter CollisionGroupNode))
+    (resource-node/register-ddf-resource-type workspace
+      :ext ["tilesource" "tileset"]
+      :label "Tile Source"
+      :build-ext "t.texturesetc"
+      :node-type TileSourceNode
+      :ddf-type Tile$TileSet
+      :load-fn load-tile-source
+      :icon tile-source-icon
+      :icon-class :design
+      :view-types [:scene :text]
+      :view-opts {:scene {:tool-controller ToolController}})))

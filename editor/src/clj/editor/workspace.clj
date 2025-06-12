@@ -895,6 +895,15 @@ ordinary paths."
   (property editable-proj-path? g/Any)
   (property unloaded-proj-path? g/Any)
   (property resource-kind-extensions g/Any (default {:atlas ["atlas" "tilesource"]}))
+  ;; See editor.attachment ns
+  ;; :add -> type -> list-kw -> type -> tx-attach-fn
+  ;; :get -> type -> list-kw -> get-fn
+  ;; :reorder -> type -> list-kw -> reorder-fn
+  ;;
+  ;; tx-attach-fn: fn of parent-node, child-node -> txs
+  ;; get-fn: fn of node, evaluation-context -> vector of nodes
+  ;; reorder-fn: fn of reordered-nodes -> txs
+  (property node-attachments g/Any (default {:add {} :get {} :reorder {}}))
 
   (input code-preprocessors g/NodeID :cascade-delete)
   (input notifications g/NodeID :cascade-delete)
@@ -904,6 +913,10 @@ ordinary paths."
   (output resource-list g/Any :cached produce-resource-list)
   (output resource-map g/Any :cached produce-resource-map))
 
+(defn node-attachments [basis workspace]
+  (g/raw-property-value basis workspace :node-attachments))
+
+;; SDK api
 (defn register-resource-kind-extension [workspace resource-kind extension]
   (g/update-property
     workspace :resource-kind-extensions

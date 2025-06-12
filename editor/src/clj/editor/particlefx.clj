@@ -948,11 +948,6 @@
   (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos vertex-attribute-overrides]
                                                  (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos 0 vertex-attribute-overrides))))
 
-(attachment/register!
-  EmitterNode :modifiers
-  :add {ModifierNode attach-modifier}
-  :get attachment/nodes-getter)
-
 (defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)
         pb  (reduce (fn [pb [label resource]]
@@ -1085,16 +1080,6 @@
                              :tx-attach-fn (fn [self-id child-id]
                                              (attach-modifier self-id child-id true))}]})))
   (output fetch-anim-fn Runnable :cached (g/fnk [emitter-sim-data] (fn [index] (get emitter-sim-data index)))))
-
-(attachment/register!
-  ParticleFXNode :emitters
-  :add {EmitterNode attach-emitter}
-  :get (attachment/nodes-by-type-getter EmitterNode))
-
-(attachment/register!
-  ParticleFXNode :modifiers
-  :add {ModifierNode attach-modifier}
-  :get (attachment/nodes-by-type-getter ModifierNode))
 
 (defn- make-modifier
   [parent-id modifier node-outline-key]
@@ -1303,19 +1288,32 @@
       (protobuf/sanitize-repeated :modifiers sanitize-modifier)))
 
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext particlefx-ext
-    :label "Particle FX"
-    :node-type ParticleFXNode
-    :ddf-type Particle$ParticleFX
-    :load-fn load-particle-fx
-    :sanitize-fn sanitize-particle-fx
-    :icon particle-fx-icon
-    :icon-class :design
-    :tags #{:component :non-embeddable}
-    :tag-opts {:component {:transform-properties #{:position :rotation}}}
-    :view-types [:scene :text]
-    :view-opts {:scene {:grid true}}))
+  (concat
+    (attachment/register
+      workspace EmitterNode :modifiers
+      :add {ModifierNode attach-modifier}
+      :get attachment/nodes-getter)
+    (attachment/register
+      workspace ParticleFXNode :emitters
+      :add {EmitterNode attach-emitter}
+      :get (attachment/nodes-by-type-getter EmitterNode))
+    (attachment/register
+      workspace ParticleFXNode :modifiers
+      :add {ModifierNode attach-modifier}
+      :get (attachment/nodes-by-type-getter ModifierNode))
+    (resource-node/register-ddf-resource-type workspace
+      :ext particlefx-ext
+      :label "Particle FX"
+      :node-type ParticleFXNode
+      :ddf-type Particle$ParticleFX
+      :load-fn load-particle-fx
+      :sanitize-fn sanitize-particle-fx
+      :icon particle-fx-icon
+      :icon-class :design
+      :tags #{:component :non-embeddable}
+      :tag-opts {:component {:transform-properties #{:position :rotation}}}
+      :view-types [:scene :text]
+      :view-opts {:scene {:grid true}})))
 
 (defn- make-pfx-sim [_ data]
   (let [[max-emitter-count max-particle-count rt-pb-data world-transform] data]

@@ -748,12 +748,20 @@
       (throw e))))
 
 (defn- make-launched-log-sink [launched-target on-service-url-found]
-  (let [initial-output (atom "")]
+  (let [initial-output (atom "")
+        version-line (atom nil)
+        updated-target (atom nil)]
     (fn [line]
       (when (< (count @initial-output) 5000)
         (swap! initial-output str line "\n")
         (when-let [target-info (engine/parse-launched-target-info @initial-output)]
-          (targets/update-launched-target! launched-target target-info on-service-url-found)))
+          (let [result-target (targets/update-launched-target! launched-target target-info)]
+            (reset! updated-target result-target)))
+        (when (not @version-line)
+          (when-let [engine-version-line (engine/parse-engine-version-line line)]
+            (reset! version-line engine-version-line))))
+      (when (and @updated-target (= @version-line line))
+        (on-service-url-found @updated-target))
       (when (console/current-stream? (:log-stream launched-target))
         (console/append-console-line! line)))))
 
