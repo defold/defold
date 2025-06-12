@@ -1174,16 +1174,17 @@ namespace dmGameObject
     }
 
     // Supplied 'proto' will be released after this function is done.
-    static HInstance SpawnInternal(Collection* collection, Prototype *proto, const char *prototype_name, dmhash_t id, HPropertyContainer property_container, const Point3& position, const Quat& rotation, const Vector3& scale)
+    Result SpawnInternal(HCollection hcollection, HPrototype proto, const char *prototype_name, dmhash_t id, HPropertyContainer property_container, const Point3& position, const Quat& rotation, const Vector3& scale, HInstance* out_instance)
     {
+        Collection* collection = hcollection->m_Collection;
         if (collection->m_ToBeDeleted) {
-            dmLogWarning("Spawning is not allowed when the collection is being deleted.");
-            return 0;
+            dmLogWarning("Spawning is not allowed in the given collection because it is being deleted.");
+            return RESULT_INVALID_OPERATION;
         }
 
         HInstance instance = dmGameObject::NewInstance(collection, proto, prototype_name);
         if (instance == 0) {
-            return 0;
+            return RESULT_OUT_OF_RESOURCES;
         }
 
         dmResource::IncRef(collection->m_Factory, proto);
@@ -1197,37 +1198,50 @@ namespace dmGameObject
         dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, ID_SEPARATOR, strlen(ID_SEPARATOR));
 
         Result result = SetIdentifier(collection, instance, id);
-        if (result == RESULT_IDENTIFIER_IN_USE)
-        {
-            dmLogError("The identifier '%s' is already in use.", dmHashReverseSafe64(id));
-            UndoNewInstance(collection, instance);
-            return 0;
+        if (result != RESULT_OK) {
+            if (result == RESULT_IDENTIFIER_IN_USE)
+            {
+                dmLogError("The identifier '%s' is already in use.", dmHashReverseSafe64(id));
+                UndoNewInstance(collection, instance);
+                return result;
+            }
+            else
+            {
+                // the other non-ok result for SetIdentifier can only be RESULT_IDENTIFIER_ALREADY_SET, which means we can still continue here
+                result = RESULT_OK;
+            }
         }
 
         bool success = CreateComponents(collection, instance);
         if (!success) {
             ReleaseIdentifier(collection, instance);
             UndoNewInstance(collection, instance);
-            return 0;
+            return RESULT_UNABLE_TO_CREATE_COMPONENTS;
         }
 
         success = SetScriptPropertiesFromBuffer(instance, prototype_name, property_container);
-
-        if (success && !InitInstance(collection, instance))
+        
+        if (!success) {
+            result = RESULT_INVALID_PROPERTIES;
+        }
+        else if (!InitInstance(collection, instance))
         {
             dmLogError("Could not initialize when spawning %s.", prototype_name);
             success = false;
+            result = RESULT_UNABLE_TO_INIT_INSTANCE;
         }
 
         if (success) {
             AddToUpdate(collection, instance);
             instance->m_Generated = 1;
-        } else {
+            *out_instance = instance;
+        }
+        else
+        {
             Delete(collection, instance, false);
-            return 0;
         }
 
-        return instance;
+        return result;
     }
 
     static void Unlink(Collection* collection, Instance* instance)
@@ -1679,10 +1693,11 @@ namespace dmGameObject
             return 0x0;
         }
 
-        HInstance instance = SpawnInternal(hcollection->m_Collection, proto, prototype_name, id, property_container, position, rotation, scale);
-
-        if (instance == 0) {
+        HInstance instance;
+        Result result = SpawnInternal(hcollection, proto, prototype_name, id, property_container, position, rotation, scale, &instance);
+        if (result != RESULT_OK) {
             dmLogError("Could not spawn an instance of prototype %s.", prototype_name);
+            return 0x0;
         }
 
         return instance;

@@ -122,6 +122,22 @@ namespace dmGameObject
     void ReleaseInstanceIndex(uint32_t index, HCollection collection);
 
     /**
+     * Spawns a new game object instance.
+     * @param collection Collection to spawn into
+     * @param proto Prototype
+     * @param prototype_name Name of the prototype
+     * @param id Identifier for the new instance, must be unique within the collection
+     * @param property_container Properties that should be set on the new instance
+     * @param position Position
+     * @param rotation Rotation
+     * @param scale Scale
+     * @param out_instance Output parameter for the new instance
+     * @return RESULT_OK on success
+     */
+    Result SpawnInternal(HCollection collection, HPrototype proto, const char *prototype_name, dmhash_t id, 
+                        HPropertyContainer property_container, const Point3& position, const Quat& rotation, const Vector3& scale, HInstance* out_instance);
+
+    /**
      * Spawns a collection into an existing one, from a collection definition resource. Script properties
      * can be overridden by passing property buffers through the property_buffers hashtable. An empty game
      * object is created under which all spawned children are placed.
