@@ -156,6 +156,7 @@ jobs:
       run: |
         python ./scripts/build.py --save-env-path=ci/env.sh save_env
         ORIG_PATH="$PATH"
+        # souring env.sh nukes path to python for some reason, so we save it and restore it later
         source ci/env.sh
         export PATH="$ORIG_PATH:$DYNAMO_HOME/ext/bin"
         echo "DYNAMO_HOME=$DYNAMO_HOME"
