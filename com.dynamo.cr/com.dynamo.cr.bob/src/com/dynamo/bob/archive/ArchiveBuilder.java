@@ -296,6 +296,7 @@ public class ArchiveBuilder {
         TimeProfiler.stop();
     }
 
+    // The flow of how a resource is found in the archive:
     // URL → url_hash ───> Manifest: url_hash → data_hash
     //                                            ↓
     //                    Archive Index: binary search over sorted array of data_hashes
