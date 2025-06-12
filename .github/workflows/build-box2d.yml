@@ -157,7 +157,7 @@ jobs:
         python ./scripts/build.py --save-env-path=ci/env.sh save_env
         ORIG_PATH="$PATH"
         source ci/env.sh
-        export PATH="$ORIG_PATH"
+        export PATH="$ORIG_PATH:$DYNAMO_HOME/ext/bin"
         echo "DYNAMO_HOME=$DYNAMO_HOME"
         python ./scripts/build.py install_waf
         cd external/box2d
