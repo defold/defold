@@ -153,7 +153,7 @@ public class ReportGenerator {
 
         for (ArchiveEntry archiveEntry : includedEntries) {
             long compressedSize = archiveEntry.isCompressed() ? archiveEntry.getCompressedSize() : archiveEntry.getSize();
-            compressedSize = (compressedSize + padding - 1) & ~(padding - 1);
+            compressedSize = ((compressedSize + padding - 1) / padding) * padding;
             boolean encrypted = archiveEntry.isEncrypted();
             boolean excluded = false;
 
