@@ -3930,10 +3930,8 @@
       nil)))
 
 (defn- handle-drop
-  [selection workspace _world-pos resources]
-  (when-let [scene (some-> selection first resource-node/owner-resource-node-id)]
-    (mapv (partial add-dropped-resource scene workspace)
-          resources)))
+  [root-id _selection workspace _world-pos resources]
+  (mapv (partial add-dropped-resource root-id workspace) resources))
 
 (defn- register [workspace def]
   (let [ext (:ext def)
