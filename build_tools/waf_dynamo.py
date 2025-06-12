@@ -270,10 +270,10 @@ def apidoc_extract_task(bld, src):
                     if not comment_language:
                         print("Missing @language in %s, assuming C++" % (resource_path))
                         comment_str = comment_str + "* @language C++\n"
-                    
+
                     if namespace:
                         default_namespace = namespace
-                
+
                 if not namespace:
                     namespace = default_namespace
                     comment["namespace"] = default_namespace
@@ -619,8 +619,9 @@ def default_flags(self):
             emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
             # This is needed so long as we have to use sleep to make initialization
             emflags_link += ['ASYNCIFY']
-            if int(opt_level) >= 3:
-                emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
+            #TEMP-HACK: make asyncify be active for indirects to allow -gseparate-dwarf / -g3 usage without crash around webGPU initialization
+            #if int(opt_level) >= 3:
+            #    emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ] #, "WebGPUNewContext(dmGraphics::ContextParams const&)"]' ]
 
         flags = []
         linkflags = []
