@@ -154,10 +154,10 @@ jobs:
       shell: bash
     - name: Build Box2D
       run: |
-        ./scripts/build.py --save-env-path=ci/env.sh save_env
+        python3 ./scripts/build.py --save-env-path=ci/env.sh save_env
         source ci/env.sh
         echo "DYNAMO_HOME=$DYNAMO_HOME"
-        python ./scripts/build.py install_waf
+        python3 ./scripts/build.py install_waf
         cd external/box2d
         PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
         waf install
