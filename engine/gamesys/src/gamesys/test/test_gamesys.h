@@ -539,22 +539,14 @@ void GamesysTest<T>::SetUp()
     m_Register = dmGameObject::NewRegister();
     dmGameObject::Initialize(m_Register, m_ScriptContext);
 
-    m_Contexts.SetCapacity(7,16);
-    m_Contexts.Put(dmHashString64("goc"), m_Register);
-    m_Contexts.Put(dmHashString64("collectionc"), m_Register);
-    m_Contexts.Put(dmHashString64("scriptc"), m_ScriptContext);
-    m_Contexts.Put(dmHashString64("luac"), &m_ModuleContext);
-    m_Contexts.Put(dmHashString64("guic"), m_GuiContext);
-    m_Contexts.Put(dmHashString64("gui_scriptc"), m_ScriptContext);
-
-    dmResource::RegisterTypes(m_Factory, &m_Contexts);
-
     dmConfigFile::LoadFromBuffer(0, 0, 0, 0, &m_Config);
 
     ExtensionAppParamsInitialize(&m_AppParams);
     ExtensionParamsInitialize(&m_Params);
 
     m_Params.m_L = dmScript::GetLuaState(m_ScriptContext);
+    m_Params.m_ResourceFactory = m_Factory;
+    m_Params.m_ConfigFile = m_Config;
     ExtensionParamsSetContext(&m_Params, "lua", dmScript::GetLuaState(m_ScriptContext));
     ExtensionParamsSetContext(&m_Params, "config", m_Config);
 
@@ -648,6 +640,17 @@ void GamesysTest<T>::SetUp()
     m_ModelContext.m_MaxModelCount = 128;
 
     dmBuffer::NewContext(); // ???
+
+    m_Contexts.OffsetCapacity(16);
+    m_Contexts.Put(dmHashString64("goc"), m_Register);
+    m_Contexts.Put(dmHashString64("collectionc"), m_Register);
+    m_Contexts.Put(dmHashString64("scriptc"), m_ScriptContext);
+    m_Contexts.Put(dmHashString64("luac"), &m_ModuleContext);
+    m_Contexts.Put(dmHashString64("guic"), m_GuiContext);
+    m_Contexts.Put(dmHashString64("gui_scriptc"), m_ScriptContext);
+    m_Contexts.Put(dmHashString64("fontc"), m_RenderContext);
+
+    dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
     dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_InputContext, physics_context);
     ASSERT_EQ(dmResource::RESULT_OK, r);

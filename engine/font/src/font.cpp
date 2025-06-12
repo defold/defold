@@ -59,14 +59,14 @@ static FontType GetFontType(const char* path)
     return FONT_TYPE_UNKNOWN;
 }
 
-HFont LoadFontFromMemory(const char* path, void* data, uint32_t data_size)
+HFont LoadFontFromMemory(const char* path, void* data, uint32_t data_size, bool allocate)
 {
     Font* font = 0;
 
     FontType type = GetFontType(path);
     switch(type)
     {
-    case FONT_TYPE_STBTTF:  font = LoadFontFromMemoryTTF(path, data, data_size, false); break;
+    case FONT_TYPE_STBTTF:  font = LoadFontFromMemoryTTF(path, data, data_size, allocate); break;
     default:
         {
             const char* ext = strrchr(path, '.');
@@ -93,7 +93,7 @@ HFont LoadFontFromPath(const char* path)
         return 0;
     }
 
-    Font* font = LoadFontFromMemory(path, data, data_size);
+    Font* font = LoadFontFromMemory(path, data, data_size, false);
     if (!font)
     {
         free((void*)data);

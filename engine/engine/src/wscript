@@ -61,11 +61,18 @@ def build(bld):
     resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua',
                              'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript',
                              'ResourceTypeOgg', 'ResourceTypeOpus', 'ResourceTypeWav',
+                             'ResourceTypeFont',
                              'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable', 'ResourceProviderZip']
     component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh', 'ComponentTypeSound']
 
     exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt', 'LiveUpdateExt',
                         'ScriptBox2DExt', 'ScriptImageExt', 'ScriptModelExt', 'ScriptTypesExt', 'ScriptHttp']
+
+
+    # feature? "fontgen"
+    exported_symbols.append('ResourceTypeTTF')
+    exported_symbols.append('ScriptFont')
+    additional_libs.append('FONT')
 
     # Add stb_vorbis and/or tremolo depending on platform
     if bld.env['PLATFORM'] in ('arm64-nx64', 'win32', 'x86_64-win32', 'js-web', 'wasm-web', 'wasm_pthread-web'):
@@ -94,10 +101,6 @@ def build(bld):
         sound_lib = 'SOUND OPENAL'
 
     sound_lib = sound_lib.split()
-
-    additional_libs.append('FONTGEN')
-    exported_symbols.append('ResourceTypeTTF')
-    exported_symbols.append('ScriptFontgenExt')
 
     dynamo_home = os.getenv('DYNAMO_HOME')
 

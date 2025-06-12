@@ -10,7 +10,7 @@ def build(bld):
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     bld.stlib(features = 'cxx',
-                includes = ['.'],
+                includes = ['.', '..'],
                 target   = 'font',
                 defines  = [],
                 source   = bld.path.ant_glob(['*.cpp']))

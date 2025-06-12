@@ -86,11 +86,11 @@ namespace dmFont
      */
     struct GlyphBitmap
     {
+        uint8_t*    m_Data;
         uint16_t    m_Width;
         uint16_t    m_Height;
         uint8_t     m_Channels;
         uint8_t     m_Flags;
-        uint8_t*    m_Data;
     };
 
     /*#
@@ -141,9 +141,10 @@ namespace dmFont
      * @param name [type: const char*] The name of the resource. For easier debugging
      * @param data [type: void*] The raw data
      * @param data_size [type: uint32_t] The length of the data (in bytes)
+     * @param allocate [type: bool] If true, the font may allocate a copy of the data (if needed)
      * @return font [type: dmFont::HFont] The loaded font, or null if it failed to load.
      */
-    HFont LoadFontFromMemory(const char* name, void* data, uint32_t data_size);
+    HFont LoadFontFromMemory(const char* name, void* data, uint32_t data_size, bool allocate);
 
     /*#
      * Destroys a loaded font
@@ -231,7 +232,7 @@ namespace dmFont
         bool  m_GenerateImage;
 
         // stbtt options (see stbtt_GetGlyphSDF)
-        int   m_StbttSDFPadding;
+        float m_StbttSDFPadding;
         int   m_StbttSDFOnEdgeValue;
 
         GlyphOptions()

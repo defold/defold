@@ -14,20 +14,19 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <dmsdk/dlib/hash.h>
+#include <dmsdk/extension/extension.h>
 
-namespace dmFontGen
+namespace dmGameSystem
 {
-    /*
-     * Outputs a w*h single channel bitmap to stdout
-     */
-    void DebugPrintBitmap(uint8_t* bitmap, int w, int h);
+    struct FontResource;
 
-    // Copy the source image into the target image
-    // Can handle cases where the target texel is outside of the destination
-    // Transparent source texels are ignored
-    void CopyRGBA(uint8_t* dest, int dest_width, int dest_height, int dest_channels,
-                            const uint8_t* source, int source_width, int source_height, int source_channels,
-                            int dest_x, int dest_y, int rotation);
+    dmExtension::Result FontGenInitialize(dmExtension::Params* params);
+    dmExtension::Result FontGenFinalize(dmExtension::Params* params);
+    dmExtension::Result FontGenUpdate(dmExtension::Params* params);
 
+    // Scripting
+    typedef void (*FGlyphCallback)(void* cbk_ctx, int result, const char* errmsg);
+    bool FontGenAddGlyphs(FontResource* resource, const char* text, FGlyphCallback cbk, void* cbk_ctx);
+    bool FontGenRemoveGlyphs(FontResource* resource, const char* text);
 }

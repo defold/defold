@@ -29,7 +29,6 @@
 #include "resources/res_particlefx.h"
 #include "resources/res_texture.h"
 #include "resources/res_shader_program.h"
-#include "resources/res_font.h"
 #include "resources/res_model.h"
 #include "resources/res_buffer.h"
 #include "resources/res_mesh.h"
@@ -98,7 +97,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("particlefxc", 0, ResParticleFXPreload, ResParticleFXCreate, 0, ResParticleFXDestroy, ResParticleFXRecreate);
         REGISTER_RESOURCE_TYPE("texturec", graphics_context, ResTexturePreload, ResTextureCreate, ResTexturePostCreate, ResTextureDestroy, ResTextureRecreate);
         REGISTER_RESOURCE_TYPE("spc", graphics_context, ResShaderProgramPreload, ResShaderProgramCreate, 0, ResShaderProgramDestroy, ResShaderProgramRecreate);
-        REGISTER_RESOURCE_TYPE("fontc", render_context, ResFontPreload, ResFontCreate, 0, ResFontDestroy, ResFontRecreate);
+        // fontc: res_font.cpp
         REGISTER_RESOURCE_TYPE("bufferc", graphics_context, ResBufferPreload, ResBufferCreate, 0, ResBufferDestroy, ResBufferRecreate);
         REGISTER_RESOURCE_TYPE("meshc", graphics_context, ResMeshPreload, ResMeshCreate, 0, ResMeshDestroy, ResMeshRecreate);
         REGISTER_RESOURCE_TYPE("modelc", graphics_context, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate);

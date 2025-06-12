@@ -15,7 +15,6 @@
 #ifndef DMSDK_FONT_RES_FONT_H
 #define DMSDK_FONT_RES_FONT_H
 
-#include <stdint.h>
 #include <dmsdk/gamesys/resources/res_font.h>
 #include <dmsdk/font/font.h>
 

@@ -40,6 +40,8 @@ namespace dmGameSystem
      */
     struct FontResource;
 
+    struct TTFResource;
+
     /*#
      * Used to retrieve the information of a font.
      * @typedef
@@ -124,10 +126,18 @@ namespace dmGameSystem
 
     /*#
      * @name ResFontGetHandle
-     * @param font [type: FontResource*] The font resource to modify
+     * @param font [type: FontResource*] The font resource
      * @return result [type: dmRender::HFont] Handle to a font if successful. 0 otherwise.
      */
     dmRender::HFont ResFontGetHandle(FontResource* font);
+
+    /*#
+     * @name ResFontGetResourceFromCodepoint
+     * @param font [type: FontResource*] The font resource
+     * @param codepoint [type: uint32_t] The codepoint to query
+     * @return ttfresource [type: TTFResource*] The ttfresource if successful. 0 otherwise.
+     */
+    TTFResource* ResFontGetResourceFromCodepoint(FontResource* resource, uint32_t codepoint);
 
     /*#
      * @name ResFontGetInfo
@@ -136,47 +146,6 @@ namespace dmGameSystem
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
     dmResource::Result ResFontGetInfo(FontResource* font, FontInfo* info);
-
-    /*#
-     * Set the font line height, by specifying the max ascent and descent
-     * @name ResFontSetLineHeight
-     * @param font [type: FontResource*] The font resource to modify
-     * @param max_ascent [type: float] The max distance above the base line of any glyph
-     * @param max_descent [type: float] The max distance below the base line of any glyph
-     * @return result [type: dmResource::Result] RESULT_OK if successful
-     */
-    dmResource::Result ResFontSetLineHeight(FontResource* font, float max_ascent, float max_descent);
-
-    /*#
-     * Get the font line height (max_ascent + max_descent)
-     * @name ResFontGetLineHeight
-     * @param font [type: FontResource*] The font resource to modify
-     * @param max_ascent [type: float*] The max distance above the base line of any glyph
-     * @param max_descent [type: float*] The max distance below the base line of any glyph
-     * @return result [type: dmResource::Result] RESULT_OK if successful
-     */
-    dmResource::Result ResFontGetLineHeight(FontResource* font, float* max_ascent, float* max_descent);
-
-    /*#
-     * Resets the glyph cache and sets the cell size.
-     * @name ResFontSetCacheCellSize
-     * @param font [type: FontResource*] The font resource to modify
-     * @param cell_width [type: uint32_t] The width of a glyph cache cell
-     * @param cell_height [type: uint32_t] The height of a glyph cache cell
-     * @param max_ascent [type: uint32_t] The height of a glyph cache cell
-     * @return result [type: dmResource::Result] RESULT_OK if successful
-     */
-    dmResource::Result ResFontSetCacheCellSize(FontResource* font, uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent);
-
-    /*#
-     * @name ResFontGetCacheCellSize
-     * @param font [type: FontResource*] The font resource to modify
-     * @param width [type: uint32_t*] The cache cell width
-     * @param height [type: uint32_t*] The cache cell height
-     * @param max_ascent [type: uint32_t*] The distance from the top of the cell to the baseline.
-     * @return result [type: dmResource::Result] RESULT_OK if successful
-     */
-    dmResource::Result ResFontGetCacheCellSize(FontResource* font, uint32_t* width, uint32_t* height, uint32_t* max_ascent);
 
     /*#
      * @name ResFontHasGlyph
@@ -203,6 +172,28 @@ namespace dmGameSystem
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
     dmResource::Result ResFontRemoveGlyph(FontResource* font, uint32_t codepoint);
+
+    /*# add a new glyph range
+     * Add a new glyph range
+     * @note Does not check if
+     * @name ResFontAddGlyphSource
+     * @param font [type: FontResource*] The font resource
+     * @param ttf [type: TTFResource*] The ttf resource
+     * @param codepoint_min [type: uint32_t] The glyph minimum codepoint (inclusive)
+     * @param codepoint_max [type: uint32_t] The glyph maximum codepoint (inclusive)
+     * @return result [type: dmResource::Result] RESULT_OK if successful
+     */
+    dmResource::Result ResFontAddGlyphSource(FontResource* font, TTFResource* ttf, uint32_t codepoint_min, uint32_t codepoint_max);
+
+    /*# removes all glyph ranges associated with a ttfresource
+     * Removes all glyph ranges associated with a ttfresource
+     *
+     * @name ResFontRemoveGlyphSource
+     * @param font [type: FontResource*] The font resource
+     * @param ttf [type: TTFResource*] The ttf resource
+     * @return result [type: dmResource::Result] RESULT_OK if successful
+     */
+    dmResource::Result ResFontRemoveGlyphSource(FontResource* font, TTFResource* ttf);
 
     void   ResFontDebugPrint(FontResource* font);
 }

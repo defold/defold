@@ -75,9 +75,11 @@ def build(bld):
                         'ResourceTypeOpus',
                         'ResourceTypeScript',
                         'ResourceTypeTTF',
+                        'ResourceTypeFont',
                         'ResourceTypeWav',
                         'GraphicsAdapterNull',
                         'ScriptImageExt',
+                        'ScriptFont',
                         'ScriptHttp']
 
     embed_source = ['resource/booster_on_sfx.wav', 'resource/layer_guitar_a.ogg']
