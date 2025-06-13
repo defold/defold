@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/message.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/hid/hid.h>
@@ -102,6 +103,20 @@ namespace dmGameObject
     typedef void* HComponent;
 
     /*#
+     * Used for mapping instance ids from a collection definition to newly spawned instances
+     * @typedef
+     * @name InstanceIdMap
+     */
+    typedef dmHashTable<dmhash_t, dmhash_t> InstanceIdMap;
+
+    /*#
+     * Contains property containers for game objects to be spawned
+     * @typedef
+     * @name InstancePropertyContainers
+     */
+    typedef dmHashTable<dmhash_t, HPropertyContainer> InstancePropertyContainers;
+
+    /*#
      * Opaque handle to internal representation of a component instance
      * @typedef
      * @name HComponentInternal
@@ -148,6 +163,12 @@ namespace dmGameObject
      * @member dmGameObject::RESULT_INVALID_OPERATION
      * @member dmGameObject::RESULT_RESOURCE_TYPE_NOT_FOUND
      * @member dmGameObject::RESULT_BUFFER_OVERFLOW
+     * @member dmGameObject::RESULT_IDENTIFIER_INVALID
+     * @member dmGameObject::RESULT_RESOURCE_ERROR
+     * @member dmGameObject::RESULT_CHILD_NOT_FOUND
+     * @member dmGameObject::RESULT_INVALID_PROPERTIES
+     * @member dmGameObject::RESULT_UNABLE_TO_CREATE_COMPONENTS
+     * @member dmGameObject::RESULT_UNABLE_TO_INIT_INSTANCE
      * @member dmGameObject::RESULT_UNKNOWN_ERROR
      */
     enum Result
@@ -162,6 +183,12 @@ namespace dmGameObject
         RESULT_INVALID_OPERATION = -7,      //!< RESULT_INVALID_OPERATION
         RESULT_RESOURCE_TYPE_NOT_FOUND = -8,    //!< RESULT_COMPONENT_TYPE_NOT_FOUND
         RESULT_BUFFER_OVERFLOW = -9,        //!< RESULT_BUFFER_OVERFLOW
+        RESULT_IDENTIFIER_INVALID = -10,    //!< RESULT_IDENTIFIER_INVALID
+        RESULT_RESOURCE_ERROR = -11,       //!< RESULT_RESOURCE_ERROR
+        RESULT_CHILD_NOT_FOUND = -12,     //!< RESULT_CHILD_NOT_FOUND
+        RESULT_INVALID_PROPERTIES = -13,   //!< RESULT_INVALID_PROPERTIES
+        RESULT_UNABLE_TO_CREATE_COMPONENTS = -14,   //!< RESULT_UNABLE_TO_CREATE_COMPONENTS
+        RESULT_UNABLE_TO_INIT_INSTANCE = -15,   //!< RESULT_UNABLE_TO_INIT_INSTANCE
         RESULT_UNKNOWN_ERROR = -1000,       //!< RESULT_UNKNOWN_ERROR
     };
 

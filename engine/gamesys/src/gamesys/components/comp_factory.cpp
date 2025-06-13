@@ -484,5 +484,44 @@ namespace dmGameSystem
         return instance;
     }
 
+    dmGameObject::Result CompFactorySpawn(HFactoryWorld world, HFactoryComponent component, dmGameObject::HCollection collection, dmhash_t id,
+                                                const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
+                                                dmGameObject::HPropertyContainer properties, dmGameObject::HInstance* out_instance)
+    {
+        uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
+        if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
+        {
+            dmLogWarning("Gameobject buffer is full. See `collection.max_instances` in game.project.");
+            return dmGameObject::RESULT_OUT_OF_RESOURCES;
+        }
+
+        if (!id)
+        {
+            id = dmGameObject::CreateInstanceId();
+        }
+      
+        dmGameObject::HPrototype prototype = CompFactoryGetPrototype(world, component);
+        if (prototype == 0x0) {
+            dmLogError("Unable to find the prototype specified in the factory component.");
+            return dmGameObject::RESULT_RESOURCE_ERROR;
+        }
+        const char* path = CompFactoryGetPrototypePath(world, component);
+
+        dmGameObject::Result result = dmGameObject::SpawnInternal(collection, prototype, path, id, properties, position, rotation, scale, out_instance);
+        if (result != dmGameObject::RESULT_OK) {
+            dmLogError("Could not spawn an instance of prototype %s.", path);
+            return result;
+        }
+
+        if (*out_instance != 0x0)
+        {
+            dmGameObject::AssignInstanceIndex(index, *out_instance);
+        }
+        else
+        {
+            dmGameObject::ReleaseInstanceIndex(index, collection);
+        }
+        return result;
+    }
 
 }
