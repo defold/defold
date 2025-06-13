@@ -92,6 +92,10 @@ public class ArchiveBuilder {
         Arrays.fill(archiveEntryPadding, (byte)0xED);
     }
 
+    public int getResourcePadding() {
+        return resourcePadding;
+    }
+
     private void add(String fileName, boolean compress, boolean encrypt, boolean isLiveUpdate) throws IOException {
         ArchiveEntry e = new ArchiveEntry(root, fileName, compress, encrypt, isLiveUpdate);
         if (lookup.add(e.getRelativeFilename())) {
@@ -151,7 +155,6 @@ public class ArchiveBuilder {
         publisher.publish(entry, buffer);
     }
 
-
     public List<ArchiveEntry> getExcludedEntries() {
         return excludedEntries;
     }
@@ -159,7 +162,7 @@ public class ArchiveBuilder {
         return includedEntries;
     }
 
-    private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, List<String> excludedResources) throws IOException, CompileExceptionError {
+    private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, List<String> excludedResources, ConcurrentHashMap<String, ArchiveEntry> writtenIntoArcd) throws IOException, CompileExceptionError {
         byte[] buffer = this.loadResourceData(entry.getFilename());
 
         int resourceEntryFlags = 0;
@@ -184,7 +187,6 @@ public class ArchiveBuilder {
             resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
         }
 
-        // Add entry to manifest
         String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
 
         // Calculate hash digest values for resource
@@ -214,12 +216,18 @@ public class ArchiveBuilder {
             }
             resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
         } else {
-            // synchronize on the archive data file so that multiple threads
-            // do not write to it at the same time
-            synchronized (archiveData) {
-                alignBuffer(archiveData, this.resourcePadding);
-                entry.setResourceOffset((int) archiveData.getFilePointer());
-                archiveData.write(buffer, 0, buffer.length);
+            ArchiveEntry previousValue = writtenIntoArcd.putIfAbsent(hexDigest, entry);
+            if (previousValue == null) {
+                // synchronize on the archive data file so that multiple threads
+                // do not write to it at the same time
+                synchronized (archiveData) {
+                    alignBuffer(archiveData, this.resourcePadding);
+                    entry.setResourceOffset((int) archiveData.getFilePointer());
+                    archiveData.write(buffer, 0, buffer.length);
+                }
+            }
+            else {
+                entry.setDuplicatedDataBlob(true);
             }
             resourceEntryFlags |= ResourceEntryFlag.BUNDLED.getNumber();
         }
@@ -229,7 +237,7 @@ public class ArchiveBuilder {
         }
     }
 
-    private void writeArchiveIndex(RandomAccessFile archiveIndex) throws IOException {
+    private void writeArchiveIndex(RandomAccessFile archiveIndex, List<ArchiveEntry> archiveEntries) throws IOException {
         TimeProfiler.start("writeArchiveIndex");
 
         // INDEX
@@ -244,11 +252,11 @@ public class ArchiveBuilder {
 
         int archiveIndexHeaderOffset = (int) archiveIndex.getFilePointer();
 
-        Collections.sort(entries); // Since it has a hash, it sorts on hash
+        Collections.sort(archiveEntries); // Since it has a hash, it sorts on hash
 
         // Write sorted hashes to index file
         int hashOffset = (int) archiveIndex.getFilePointer();
-        for(ArchiveEntry entry : entries) {
+        for(ArchiveEntry entry : archiveEntries) {
             archiveIndex.write(entry.getHash());
         }
 
@@ -256,8 +264,8 @@ public class ArchiveBuilder {
         int entryOffset = (int) archiveIndex.getFilePointer();
         alignBuffer(archiveIndex, 4);
 
-        ByteBuffer indexBuffer = ByteBuffer.allocate(4 * 4 * entries.size());
-        for (ArchiveEntry entry : entries) {
+        ByteBuffer indexBuffer = ByteBuffer.allocate(4 * 4 * archiveEntries.size());
+        for (ArchiveEntry entry : archiveEntries) {
             indexBuffer.putInt(entry.getResourceOffset());
             indexBuffer.putInt(entry.getSize());
             indexBuffer.putInt(entry.getCompressedSize());
@@ -283,7 +291,7 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(VERSION);
         archiveIndex.writeInt(0); // Pad
         archiveIndex.writeLong(0); // UserData
-        archiveIndex.writeInt(entries.size());
+        archiveIndex.writeInt(archiveEntries.size());
         archiveIndex.writeInt(entryOffset);
         archiveIndex.writeInt(hashOffset);
         archiveIndex.writeInt(ManifestBuilder.CryptographicOperations.getHashSize(manifestBuilder.getResourceHashAlgorithm()));
@@ -292,6 +300,21 @@ public class ArchiveBuilder {
         TimeProfiler.stop();
     }
 
+    // The flow of how a resource is found in the archive:
+    // URL → url_hash ───> Manifest: url_hash → data_hash
+    //                                            ↓
+    //                    Archive Index: binary search over sorted array of data_hashes
+    //                                            ↓
+    //                    Archive Index: if found, use index to get Entry from parallel EntryData array
+    //                                            ↓
+    //                    EntryData = { offset, size, compressed_size, flags }
+    //                                            ↓
+    //                    Read bytes from .arcd (using offset via fseek or mmap)
+    //                                            ↓
+    //                    Optionally decompress and/or decrypt
+    //                                            ↓
+    //                    → Final in-memory resource ready for use
+    //
     public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources) throws IOException, CompileExceptionError {
         // create the executor service to write entries in parallel
         int nThreads = project.getMaxCpuThreads();
@@ -304,6 +327,7 @@ public class ArchiveBuilder {
 
         excludedEntries = new ArrayList<>(entries.size());
         includedEntries = new ArrayList<>(entries.size());
+        ConcurrentHashMap<String, ArchiveEntry> writtenIntoArcd = new ConcurrentHashMap<>();
 
         // create archive entry write tasks
         List<Future<ArchiveEntry>> futures = new ArrayList<>(entries.size());
@@ -323,7 +347,7 @@ public class ArchiveBuilder {
                 executorService = multiThreadedExecutorService;
             }
             Future<ArchiveEntry> future = executorService.submit(() -> {
-                writeArchiveEntry(archiveData, entry, excludedResources);
+                writeArchiveEntry(archiveData, entry, excludedResources, writtenIntoArcd);
                 return entry;
             });
             futures.add(future);
@@ -344,7 +368,8 @@ public class ArchiveBuilder {
             archiveData.close();
         }
 
-        writeArchiveIndex(archiveIndex);
+        entries = new ArrayList<ArchiveEntry>(writtenIntoArcd.values());
+        writeArchiveIndex(archiveIndex, entries);
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {

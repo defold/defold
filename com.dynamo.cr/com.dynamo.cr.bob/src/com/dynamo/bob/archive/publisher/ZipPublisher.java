@@ -149,6 +149,7 @@ public class ZipPublisher extends Publisher {
         entries.put(archiveEntryName, entry);
         synchronized (zipEntries) {
             if (!zipEntries.add(zipEntryName)) {
+                entry.setDuplicatedDataBlob(true);
                 return;
             }
         }

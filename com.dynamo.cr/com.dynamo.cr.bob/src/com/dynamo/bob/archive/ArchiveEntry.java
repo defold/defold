@@ -34,6 +34,7 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
     private String hexDigest;
     private byte[] hash = null;
     private byte[] header = new byte[0];
+    private boolean duplicatedDataBlob;
 
     public ArchiveEntry(String fileName) throws IOException {
         this.fileName = fileName;
@@ -215,5 +216,13 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
     @Override
     public String toString() {
         return getClass().getName() + " " + this.fileName + ":" + this.hexDigest;
+    }
+
+    public void setDuplicatedDataBlob(boolean b) {
+        this.duplicatedDataBlob = b;
+    }
+
+    public boolean isDuplicatedDataBlob() {
+        return duplicatedDataBlob;
     }
 }
