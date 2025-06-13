@@ -822,16 +822,11 @@
     (collection-string-data/string-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
 
 (defn- add-dropped-resource
-  [selection collection transform-props [id resource]]
+  [collection transform-props [id resource]]
   (let [ext (resource/type-ext resource)]
     (case ext
       "go"
-      (let [go-node (selection->game-object-instance selection)
-            parent (or go-node collection)
-            collection (if go-node
-                         (core/scope-of-type go-node CollectionNode)
-                         collection)]
-        (make-ref-go collection resource id transform-props parent nil nil))
+      (make-ref-go collection resource id transform-props collection nil nil)
 
       "collection"
       (when-not (contains-resource? (project/get-project collection) collection resource)
@@ -840,16 +835,14 @@
       nil)))
 
 (defn- handle-drop
-  [selection _workspace world-pos resources]
-  (when-let [collection (or (selection->collection selection)
-                            (some #(core/scope-of-type % CollectionNode) selection))]
-    (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
-          taken-ids (g/node-value collection :ids)
-          supported-exts #{"go" "collection"}]
-      (->> resources
-           (e/filter (comp (partial contains? supported-exts) resource/type-ext))
-           (outline/name-resource-pairs taken-ids)
-           (mapv (partial add-dropped-resource selection collection transform-props))))))
+  [root-id _selection _workspace world-pos resources]
+  (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
+        taken-ids (g/node-value root-id :ids)
+        supported-exts #{"go" "collection"}]
+    (->> resources
+         (e/filter (comp (partial contains? supported-exts) resource/type-ext))
+         (outline/name-resource-pairs taken-ids)
+         (mapv (partial add-dropped-resource root-id transform-props)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

@@ -16,23 +16,16 @@
   "Extensible definitions for semantical node attachments"
   (:refer-clojure :exclude [remove])
   (:require [dynamo.graph :as g]
+            [editor.workspace :as workspace]
             [internal.graph.types :as gt]
             [util.coll :as coll]))
 
-(defonce ^:private state-atom
-  ;; :add -> type -> list-kw -> type -> tx-attach-fn
-  ;; :get -> type -> list-kw -> get-fn
-  ;; :reorder -> type -> list-kw -> reorder-fn
-  ;;
-  ;; tx-attach-fn: fn of parent-node, child-node -> txs
-  ;; get-fn: fn of node, evaluation-context -> vector of nodes
-  ;; reorder-fn: fn of reordered-nodes -> txs
-  (atom {:add {} :get {} :reorder {}}))
-
-(defn register!
-  "Register a semantical list of child components
+;; SDK api
+(defn register
+  "Create transaction steps that register a semantical list of child components
 
   Args:
+    workspace    the workspace node id
     node-type    container graph node type to extend
     list-kw      name of the node component list
 
@@ -49,14 +42,19 @@
                 receive 1 arg: reordered-node-ids (vector of item node ids,
                 validated to be the same node ids as those returned by :get);
                 should return transaction steps that set the new order"
-  [node-type list-kw & {:keys [add get reorder]}]
-  {:pre [(or (ifn? get) (map? add) (ifn? reorder))]}
-  (swap! state-atom (fn [s]
-                      (cond-> s
-                              add (update :add update node-type update list-kw merge add)
-                              get (update :get update node-type assoc list-kw get)
-                              reorder (update :reorder update node-type assoc list-kw reorder))))
-  nil)
+  [workspace node-type list-kw & {:keys [add get reorder]}]
+  {:pre [(g/node-id? workspace)
+         (g/node-type? node-type)
+         (simple-keyword? list-kw)
+         (or (ifn? get) (map? add) (ifn? reorder))]}
+  (g/update-property
+    workspace
+    :node-attachments
+    (fn [s]
+      (cond-> s
+              add (update :add update node-type update list-kw merge add)
+              get (update :get update node-type assoc list-kw get)
+              reorder (update :reorder update node-type assoc list-kw reorder)))))
 
 (defn add-impl [current-state parent-node-type parent-node-id attachment-tree init-fn]
   (coll/mapcat
@@ -83,6 +81,7 @@
 
   Args:
     basis              graph basis to use when looking up node-id's type
+    workspace          the workspace node id that defines attachments
     node-id            container node id that should be extended
     attachment-tree    a tree that describes several (potentially recursive)
                        additions; a coll of 2-element tuples where first element
@@ -111,18 +110,18 @@
       {:init {:id \"foo-bar\"}
        :add [[:images {:init {:image \"/foo.png\"}}]
              [:images {:init {:image \"/bar.png\"}}]]}]]"
-  [basis node-id attachment-tree init-fn]
-  (add-impl @state-atom (g/node-type* basis node-id) node-id attachment-tree init-fn))
+  [basis workspace node-id attachment-tree init-fn]
+  (add-impl (workspace/node-attachments basis workspace) (g/node-type* basis node-id) node-id attachment-tree init-fn))
 
 (defn defines?
   "Checks if a node-type is extended to define a list-kw list"
-  [node-type list-kw]
-  (-> @state-atom :add (get node-type) (contains? list-kw)))
+  [basis workspace node-type list-kw]
+  (-> basis (workspace/node-attachments workspace) :add (get node-type) (contains? list-kw)))
 
 (defn reorderable?
   "Checks if a node type allows reordering of a list-kw list"
-  [node-type list-kw]
-  (-> @state-atom :reorder (get node-type) (contains? list-kw)))
+  [basis workspace node-type list-kw]
+  (-> basis (workspace/node-attachments workspace) :reorder (get node-type) (contains? list-kw)))
 
 (defn child-node-types
   "Returns defined child node-types for a parent node-type's list-kw
@@ -130,9 +129,9 @@
   Returns a map from child node type to tx-attach-fn
 
   Asserts that it exists. See [[defines?]]"
-  [node-type list-kw]
+  [basis workspace node-type list-kw]
   {:post [(some? %)]}
-  (-> @state-atom :add (get node-type) (get list-kw)))
+  (-> basis (workspace/node-attachments workspace) :add (get node-type) (get list-kw)))
 
 (defn getter
   "Returns a getter function for a container node-type's list-kw
@@ -141,25 +140,25 @@
   vector of child node ids when invoked
 
   Asserts that it exists. See [[defines?]]"
-  [node-type list-kw]
+  [basis workspace node-type list-kw]
   {:post [(some? %)]}
-  (-> @state-atom :get (get node-type) (get list-kw)))
+  (-> basis (workspace/node-attachments workspace) :get (get node-type) (get list-kw)))
 
-(defn- clear-tx [evaluation-context node-id list-kw]
+(defn- clear-tx [evaluation-context workspace node-id list-kw]
   (let [basis (:basis evaluation-context)
-        get-fn (getter (g/node-type* basis node-id) list-kw)]
+        get-fn (getter basis workspace (g/node-type* basis node-id) list-kw)]
     (mapcat
       #(g/delete-node (g/override-root basis %))
       (get-fn node-id evaluation-context))))
 
 (defn clear
   "Create transaction steps for clearing a list of container node-id's list"
-  [node-id list-kw]
-  (g/expand-ec clear-tx node-id list-kw))
+  [workspace node-id list-kw]
+  (g/expand-ec clear-tx workspace node-id list-kw))
 
-(defn- remove-tx [evaluation-context node-id list-kw child-node-id]
+(defn- remove-tx [evaluation-context workspace node-id list-kw child-node-id]
   (let [basis (:basis evaluation-context)
-        get-fn (getter (g/node-type* basis node-id) list-kw)
+        get-fn (getter basis workspace (g/node-type* basis node-id) list-kw)
         children (get-fn node-id evaluation-context)]
     (assert (some #(= child-node-id %) children))
     (g/delete-node (g/override-root basis child-node-id))))
@@ -170,15 +169,15 @@
   The implementation will assert that the child node id actually exists in the
   container as defined by [[getter]]. It will also assert that the container
   node-id defines a list identified by list-kw (see [[defines?]])"
-  [node-id list-kw child-node-id]
-  (g/expand-ec remove-tx node-id list-kw child-node-id))
+  [workspace node-id list-kw child-node-id]
+  (g/expand-ec remove-tx workspace node-id list-kw child-node-id))
 
-(defn- reorder-tx [evaluation-context node-id list-kw reordered-child-node-ids]
+(defn- reorder-tx [evaluation-context workspace node-id list-kw reordered-child-node-ids]
   (let [basis (:basis evaluation-context)
         node-type (g/node-type* basis node-id)
-        get-fn (getter node-type list-kw)
+        get-fn (getter basis workspace node-type list-kw)
         children-set (set (get-fn node-id evaluation-context))
-        reorder-fn (-> @state-atom :reorder (get node-type) (get list-kw))]
+        reorder-fn (-> basis (workspace/node-attachments workspace) :reorder (get node-type) (get list-kw))]
     (assert (every? children-set reordered-child-node-ids))
     (assert (= (count children-set) (count reordered-child-node-ids))) ;; no duplicates
     (assert reorder-fn)
@@ -190,8 +189,8 @@
   The implementation will assert that the supplied child node ids are the same
   node ids as defined by [[getter]]. It will also assert that the container
   node-id defines reorder of a list identified by list-kw (see [[reorderable?]])"
-  [node-id list-kw reordered-child-node-ids]
-  (g/expand-ec reorder-tx node-id list-kw reordered-child-node-ids))
+  [workspace node-id list-kw reordered-child-node-ids]
+  (g/expand-ec reorder-tx workspace node-id list-kw reordered-child-node-ids))
 
 (defn nodes-by-type-getter
   "Create a node list getter using a type filter over the :nodes output
@@ -204,6 +203,7 @@
         (map gt/source-id)
         (filter #(= child-node-type (g/node-type* basis %)))))))
 
+;; SDK api
 (defn nodes-getter
   "node list getter that returns :nodes output
 

@@ -725,11 +725,6 @@
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
-(attachment/register!
-  TileMapNode :layers
-  :add {LayerNode attach-layer-node}
-  :get attachment/nodes-getter)
-
 ;;--------------------------------------------------------------------
 ;; tool
 
@@ -1571,18 +1566,23 @@
    (g/connect resource-node :tile-dimensions grid-node-id :grid-size)))
 
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext ["tilemap" "tilegrid"]
-    :build-ext "tilemapc"
-    :node-type TileMapNode
-    :ddf-type Tile$TileGrid
-    :load-fn load-tile-map
-    :sanitize-fn sanitize-tile-map
-    :icon tile-map-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:grid TileMapGrid
-                        :tool-controller TileMapController}}
-    :tags #{:component :non-embeddable}
-    :tag-opts {:component {:transform-properties #{:position :rotation}}}
-    :label "Tile Map"))
+  (concat
+    (attachment/register
+      workspace TileMapNode :layers
+      :add {LayerNode attach-layer-node}
+      :get attachment/nodes-getter)
+    (resource-node/register-ddf-resource-type workspace
+      :ext ["tilemap" "tilegrid"]
+      :build-ext "tilemapc"
+      :node-type TileMapNode
+      :ddf-type Tile$TileGrid
+      :load-fn load-tile-map
+      :sanitize-fn sanitize-tile-map
+      :icon tile-map-icon
+      :icon-class :design
+      :view-types [:scene :text]
+      :view-opts {:scene {:grid TileMapGrid
+                          :tool-controller TileMapController}}
+      :tags #{:component :non-embeddable}
+      :tag-opts {:component {:transform-properties #{:position :rotation}}}
+      :label "Tile Map")))
