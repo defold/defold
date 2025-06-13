@@ -251,16 +251,18 @@ jobs:
         ./scripts/build.py --save-env-path=ci/env.sh save_env
         source ci/env.sh
         echo "DYNAMO_HOME=$DYNAMO_HOME"
-        
         export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
-        # Set target triple for clang based on platform
+
         if [[ "${{ matrix.platform }}" == "arm64-android" ]]; then
-          export CC=aarch64-linux-android21-clang
-          export CXX=aarch64-linux-android21-clang++
+          export CC="aarch64-linux-android21-clang"
+          export CXX="aarch64-linux-android21-clang++"
         elif [[ "${{ matrix.platform }}" == "armv7-android" ]]; then
-          export CC=armv7a-linux-androideabi21-clang
-          export CXX=armv7a-linux-androideabi21-clang++
+          export CC="armv7a-linux-androideabi21-clang"
+          export CXX="armv7a-linux-androideabi21-clang++"
+          export CFLAGS="-march=armv7-a+neon -mfpu=neon -mfloat-abi=softfp -D__ARM_NEON__"
+          export CXXFLAGS="$CFLAGS"
         fi
+
         ./scripts/build.py install_waf
         cd external/box2d
         PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
