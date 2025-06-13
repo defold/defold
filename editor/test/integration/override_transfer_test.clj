@@ -23,8 +23,7 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-post-ec]]
-            [util.coll :as coll :refer [pair]])
-  (:import [java.lang AutoCloseable]))
+            [util.coll :as coll :refer [pair]]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -40,15 +39,6 @@
     (-> transfer-overrides-plan
         (properties/transfer-overrides-description evaluation-context)
         (string/replace "__" "_")))) ; Revert escaped underscores for readability.
-
-(defn- outline-node-id [project proj-path & outline-labels]
-  (let [resource-node-id (test-util/resource-node project proj-path)]
-    (apply test-util/outline-node-id resource-node-id outline-labels)))
-
-(defn- make-project-graph-reverter
-  ^AutoCloseable [project]
-  (let [project-graph-id (g/node-id->graph-id project)]
-    (test-util/make-graph-reverter project-graph-id)))
 
 (defn- set-gui-layout! [project gui-scene-proj-path layout-name]
   {:pre [(string? layout-name)]}
@@ -121,14 +111,14 @@
 
     (testing "Can't pull up overrides from '/book.go' to '/book.script'."
       (let [transfer-overrides-plans
-            (-> (outline-node-id project "/book.go" "book_script")
+            (-> (test-util/resource-outline-node-id project "/book.go" "book_script")
                 (pull-up-overrides-plan-alternatives :all))]
         (is (empty? transfer-overrides-plans))))
 
     (testing "Pull up overrides from '/shelf.collection' to '/book.go'."
-      (with-open [_ (make-project-graph-reverter project)]
+      (with-open [_ (test-util/make-project-graph-reverter project)]
         (let [transfer-overrides-plans
-              (-> (outline-node-id project "/shelf.collection" "referenced_book" "book_script")
+              (-> (test-util/resource-outline-node-id project "/shelf.collection" "referenced_book" "book_script")
                   (pull-up-overrides-plan-alternatives :all))]
           (is (= ["Pull Up Title Override to Ancestor in '/book.go'"]
                  (mapv transfer-overrides-description transfer-overrides-plans)))
@@ -151,9 +141,9 @@
                  (select-save-values project ["/book.go" "/shelf.collection"]))))))
 
     (testing "Pull up overrides from '/room.collection' to '/shelf.collection'."
-      (with-open [_ (make-project-graph-reverter project)]
+      (with-open [_ (test-util/make-project-graph-reverter project)]
         (let [transfer-overrides-plans
-              (-> (outline-node-id project "/room.collection" "referenced_shelf" "referenced_book" "book_script")
+              (-> (test-util/resource-outline-node-id project "/room.collection" "referenced_shelf" "referenced_book" "book_script")
                   (pull-up-overrides-plan-alternatives :all))]
           (is (= ["Pull Up Title Override to Ancestor in '/shelf.collection'"
                   "Pull Up Title Override to Ancestor in '/book.go'"]
@@ -188,9 +178,9 @@
                  (select-save-values project ["/book.go" "/shelf.collection" "/room.collection"]))))))
 
     (testing "Pull up overrides from '/room.collection' to '/book.go'."
-      (with-open [_ (make-project-graph-reverter project)]
+      (with-open [_ (test-util/make-project-graph-reverter project)]
         (let [transfer-overrides-plans
-              (-> (outline-node-id project "/room.collection" "referenced_shelf" "referenced_book" "book_script")
+              (-> (test-util/resource-outline-node-id project "/room.collection" "referenced_shelf" "referenced_book" "book_script")
                   (pull-up-overrides-plan-alternatives :all))]
           (is (= ["Pull Up Title Override to Ancestor in '/shelf.collection'"
                   "Pull Up Title Override to Ancestor in '/book.go'"]
@@ -264,14 +254,14 @@
 
     (testing "Can't pull up overrides from '/book.gui'."
       (let [transfer-overrides-plans
-            (-> (outline-node-id project "/book.gui" "Nodes" "book_text")
+            (-> (test-util/resource-outline-node-id project "/book.gui" "Nodes" "book_text")
                 (pull-up-overrides-plan-alternatives :all))]
         (is (empty? transfer-overrides-plans))))
 
     (testing "Pull up overrides from '/shelf.gui' to '/book.gui'."
-      (with-open [_ (make-project-graph-reverter project)]
+      (with-open [_ (test-util/make-project-graph-reverter project)]
         (let [transfer-overrides-plans
-              (-> (outline-node-id project "/shelf.gui" "Nodes" "referenced_book" "referenced_book/book_text")
+              (-> (test-util/resource-outline-node-id project "/shelf.gui" "Nodes" "referenced_book" "referenced_book/book_text")
                   (pull-up-overrides-plan-alternatives :all))]
           (is (= ["Pull Up Text Override to 'book_text' in '/book.gui'"]
                  (mapv transfer-overrides-description transfer-overrides-plans)))
@@ -294,9 +284,9 @@
                  (select-save-values project ["/book.gui" "/shelf.gui"]))))))
 
     (testing "Pull up overrides from '/room.gui' to '/shelf.gui'."
-      (with-open [_ (make-project-graph-reverter project)]
+      (with-open [_ (test-util/make-project-graph-reverter project)]
         (let [transfer-overrides-plans
-              (-> (outline-node-id project "/room.gui" "Nodes" "referenced_shelf" "referenced_shelf/referenced_book" "referenced_shelf/referenced_book/book_text")
+              (-> (test-util/resource-outline-node-id project "/room.gui" "Nodes" "referenced_shelf" "referenced_shelf/referenced_book" "referenced_shelf/referenced_book/book_text")
                   (pull-up-overrides-plan-alternatives :all))]
           (is (= ["Pull Up Text Override to 'referenced_book/book_text' in '/shelf.gui'"
                   "Pull Up Text Override to 'book_text' in '/book.gui'"]
@@ -336,9 +326,9 @@
                  (select-save-values project ["/book.gui" "/shelf.gui" "/room.gui"]))))))
 
     (testing "Pull up overrides from '/room.gui' to '/book.gui'."
-      (with-open [_ (make-project-graph-reverter project)]
+      (with-open [_ (test-util/make-project-graph-reverter project)]
         (let [transfer-overrides-plans
-              (-> (outline-node-id project "/room.gui" "Nodes" "referenced_shelf" "referenced_shelf/referenced_book" "referenced_shelf/referenced_book/book_text")
+              (-> (test-util/resource-outline-node-id project "/room.gui" "Nodes" "referenced_shelf" "referenced_shelf/referenced_book" "referenced_shelf/referenced_book/book_text")
                   (pull-up-overrides-plan-alternatives :all))]
           (is (= ["Pull Up Text Override to 'referenced_book/book_text' in '/shelf.gui'"
                   "Pull Up Text Override to 'book_text' in '/book.gui'"]
@@ -442,18 +432,18 @@
           :overridden-fields [gui-text-pb-field-index]}]}]}}
 
     (testing "Can't pull up overrides from layout in '/book.gui'."
-      (with-open [_ (make-project-graph-reverter project)]
+      (with-open [_ (test-util/make-project-graph-reverter project)]
         (set-gui-layout! project "/book.gui" "Landscape")
         (let [transfer-overrides-plans
-              (-> (outline-node-id project "/book.gui" "Nodes" "book_text")
+              (-> (test-util/resource-outline-node-id project "/book.gui" "Nodes" "book_text")
                   (pull-up-overrides-plan-alternatives :all))]
           (is (empty? transfer-overrides-plans)))))
 
     (testing "Pull up overrides from layout in '/shelf.gui' to layout in '/book.gui'."
-      (with-open [_ (make-project-graph-reverter project)]
+      (with-open [_ (test-util/make-project-graph-reverter project)]
         (set-gui-layout! project "/shelf.gui" "Landscape")
         (let [transfer-overrides-plans
-              (-> (outline-node-id project "/shelf.gui" "Nodes" "referenced_book" "referenced_book/book_text")
+              (-> (test-util/resource-outline-node-id project "/shelf.gui" "Nodes" "referenced_book" "referenced_book/book_text")
                   (pull-up-overrides-plan-alternatives :all))]
           (is (= ["Pull Up Text Override to 'book_text' in '/book.gui'"]
                  (mapv transfer-overrides-description transfer-overrides-plans)))
@@ -489,10 +479,10 @@
                  (select-save-values project ["/book.gui" "/shelf.gui"]))))))
 
     (testing "Pull up overrides from layout in '/room.gui' to layout in '/book.gui'."
-      (with-open [_ (make-project-graph-reverter project)]
+      (with-open [_ (test-util/make-project-graph-reverter project)]
         (set-gui-layout! project "/room.gui" "Landscape")
         (let [transfer-overrides-plans
-              (-> (outline-node-id project "/room.gui" "Nodes" "referenced_shelf" "referenced_shelf/referenced_book" "referenced_shelf/referenced_book/book_text")
+              (-> (test-util/resource-outline-node-id project "/room.gui" "Nodes" "referenced_shelf" "referenced_shelf/referenced_book" "referenced_shelf/referenced_book/book_text")
                   (pull-up-overrides-plan-alternatives :all))]
           (is (= ["Pull Up Text Override to 'referenced_book/book_text' in '/shelf.gui'"
                   "Pull Up Text Override to 'book_text' in '/book.gui'"]

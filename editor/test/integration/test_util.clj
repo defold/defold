@@ -821,6 +821,27 @@
   [node-id & outline-labels]
   (:node-id (apply outline-node-info node-id outline-labels)))
 
+(defn resource-outline-node-info
+  "Looks up a resource node in the project, evaluates its :node-outline output,
+  and locates the child element addressed by the supplied path of outline-label
+  strings. Returns the :node-outline info at the resulting path. Throws an
+  exception if the resource does not exist, or the outline-label path does not
+  lead up to a valid node."
+  [project resource-or-proj-path & outline-labels]
+  (if-let [resource-node-id (project/get-resource-node project resource-or-proj-path)]
+    (apply outline-node-info resource-node-id outline-labels)
+    (throw (ex-info (str "Resource node not found: " resource-or-proj-path)
+                    {:project project
+                     :resource-or-proj-path resource-or-proj-path}))))
+
+(defn resource-outline-node-id
+  "Looks up a resource node in the project, evaluates its :node-outline output,
+  and locates the child element addressed by the supplied path of outline-label
+  strings. Returns its node-id. Throws an exception if the resource does not
+  exist, or the outline-label path does not lead up to a valid node."
+  [project resource-or-proj-path & outline-labels]
+  (:node-id (apply resource-outline-node-info project resource-or-proj-path outline-labels)))
+
 (defn outline-copy
   "Return a serialized a data representation of the specified parts of the
   edited scene. The returned value could be placed on the clipboard and later
@@ -979,9 +1000,9 @@
            (prop! ~node-id# ~property# old-value#))))))
 
 (defn make-graph-reverter
-  "Returns an AutoCloseable that reverts the specified graph to
-  the state it was at construction time when its close method
-  is invoked. Suitable for use with the (with-open) macro."
+  "Returns an AutoCloseable that reverts the specified graph to the state it was
+  at construction time when its close method is invoked. Suitable for use with
+  the (with-open) macro."
   ^AutoCloseable [graph-id]
   (let [initial-undo-stack-count (g/undo-stack-count graph-id)]
     (reify AutoCloseable
@@ -990,6 +1011,15 @@
           (when (< initial-undo-stack-count undo-stack-count)
             (g/undo! graph-id)
             (recur (g/undo-stack-count graph-id))))))))
+
+(defn make-project-graph-reverter
+  "Returns an AutoCloseable that reverts the project graph to the state it was
+  at construction time when its close method is invoked. Suitable for use with
+  the (with-open) macro."
+  ^AutoCloseable [project]
+  {:pre [(g/node-instance? project/Project project)]}
+  (let [project-graph-id (g/node-id->graph-id project)]
+    (make-graph-reverter project-graph-id)))
 
 (defn- throw-invalid-component-resource-node-id-exception [basis node-id]
   (throw (ex-info "The specified node cannot be resolved to a component ResourceNode."

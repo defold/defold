@@ -1094,7 +1094,7 @@
                    (let [property-transfer-targets
                          (coll/transfer target-node-id+target-prop-infos-by-prop-kw []
                            (map (fn [[target-node-id target-prop-infos-by-prop-kw]]
-                                  (if-let [target-prop-info (target-prop-infos-by-prop-kw source-prop-kw)]
+                                  (if-let [target-prop-info (get target-prop-infos-by-prop-kw source-prop-kw)]
 
                                     ;; The property exists in the target.
                                     (let [target-node-id (:node-id target-prop-info)
