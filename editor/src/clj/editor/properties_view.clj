@@ -279,6 +279,7 @@
   ([^Node control drag-event-handler is-left-aligned]
    (let [drag-icon (doto (Button. "" (jfx/get-image-view "icons/32/Icons_X_10_scalesides.png" 16))
                      (ui/add-style! "action-button")
+                     (.setFocusTraversable false)
                      (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (drag-event-handler event)))
                      (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-label-press-event! event)))
                      (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-label-release-event! event))))]
