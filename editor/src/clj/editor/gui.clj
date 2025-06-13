@@ -909,7 +909,7 @@
         current-layout (:current-layout trivial-gui-scene-info)]
     (layout-property-edit-type-set-in-specific-layout current-layout changes-fn prop-kw evaluation-context node-id old-value new-value)))
 
-(defn layout-property-edit-type-clear-in-specific-layout
+(defn- layout-property-edit-type-clear-in-specific-layout
   [layout-name changes-fn node-id prop-kw]
   (let [cleared-prop-kws
         (if (nil? changes-fn)

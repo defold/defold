@@ -1600,7 +1600,7 @@
      true)))
 
 (defn node-property-dynamic
-  "Returns the value of a dynamic associated with a specific property on a node."
+  "Returns the value of a dynamic associated with a specific node property."
   [node property-label dynamic-label evaluation-context]
   (let [node-type (node-type node)
         property-def (get (in/all-properties node-type) property-label)
