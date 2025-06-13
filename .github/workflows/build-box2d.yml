@@ -251,11 +251,12 @@ jobs:
         ./scripts/build.py --save-env-path=ci/env.sh save_env
         source ci/env.sh
         echo "DYNAMO_HOME=$DYNAMO_HOME"
+        export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
         ./scripts/build.py install_waf
         cd external/box2d
         PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
         waf install
-        
+
     - name: Check artifact existence
       run: |
         if [ ! -f external/box2d/build/Box2D/box2d-3.1.0-${{ matrix.platform }}.tar.gz ]; then
