@@ -56,7 +56,7 @@
             [lambdaisland.deep-diff2 :as deep-diff]
             [service.log :as log]
             [support.test-support :as test-support]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.diff :as diff]
             [util.fn :as fn]
             [util.http-server :as http-server]
@@ -438,8 +438,15 @@
                                  :as opts}]
    (FakeFileResource. workspace root file children exists? source-type read-only? loaded? content)))
 
-(defn resource-node [project path]
-  (project/get-resource-node project path))
+(defn resource-node
+  "Returns the node-id of the ResourceNode matching the specified Resource or
+  proj-path in the project. Throws an exception if no matching ResourceNode can
+  be found in the project."
+  [project resource-or-proj-path]
+  (or (project/get-resource-node project resource-or-proj-path)
+      (throw (ex-info (str "Resource node not found: " resource-or-proj-path)
+                      {:project project
+                       :resource-or-proj-path resource-or-proj-path}))))
 
 (defn empty-selection? [app-view]
   (let [sel (g/node-value app-view :selected-node-ids)]
@@ -828,11 +835,8 @@
   exception if the resource does not exist, or the outline-label path does not
   lead up to a valid node."
   [project resource-or-proj-path & outline-labels]
-  (if-let [resource-node-id (project/get-resource-node project resource-or-proj-path)]
-    (apply outline-node-info resource-node-id outline-labels)
-    (throw (ex-info (str "Resource node not found: " resource-or-proj-path)
-                    {:project project
-                     :resource-or-proj-path resource-or-proj-path}))))
+  (let [resource-node-id (resource-node project resource-or-proj-path)]
+    (apply outline-node-info resource-node-id outline-labels)))
 
 (defn resource-outline-node-id
   "Looks up a resource node in the project, evaluates its :node-outline output,

@@ -40,10 +40,20 @@
         (properties/transfer-overrides-description evaluation-context)
         (string/replace "__" "_")))) ; Revert escaped underscores for readability.
 
-(defn- set-gui-layout! [project gui-scene-proj-path layout-name]
+(defn- set-gui-layout!
+  [project gui-scene-proj-path layout-name]
   {:pre [(string? layout-name)]}
-  (let [gui-scene (test-util/resource-node project gui-scene-proj-path)]
-    (g/set-property! gui-scene :visible-layout layout-name)))
+  (let [gui-scene (test-util/resource-node project gui-scene-proj-path)
+        layout-names (g/valid-node-value gui-scene :layout-names)]
+    (if (coll/any? #(= layout-name %) layout-names)
+      (g/set-property! gui-scene :visible-layout layout-name)
+      (throw (ex-info (format "Layout '%s' does not exist in Gui Scene '%s'."
+                              layout-name
+                              gui-scene-proj-path)
+                      {:project project
+                       :gui-scene-proj-path gui-scene-proj-path
+                       :layout-name layout-name
+                       :layout-name-candidates (vec (sort layout-names))})))))
 
 (defmulti ^:private simplify-save-value (fn [_save-value ext] ext))
 

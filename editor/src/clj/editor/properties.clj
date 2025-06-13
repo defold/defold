@@ -30,6 +30,7 @@
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
+            [util.defonce :as defonce]
             [util.eduction :as e]
             [util.fn :as fn]
             [util.id-vec :as iv]
@@ -86,7 +87,7 @@
             (conj (num-fn tx))
             (conj (num-fn ty)))))))
 
-(defprotocol Sampler
+(defonce/protocol Sampler
   (sample [this])
   (sample-range [this]))
 
@@ -185,7 +186,7 @@
                      (min min-value value)
                      (max max-value value)))))))))
 
-(defrecord Curve [points]
+(defonce/record Curve [points]
   Sampler
   (sample [this] (second (first (iv/iv-vals points))))
   (sample-range [this] (curve-range this))
@@ -197,7 +198,7 @@
   (t/geom-update [this ids f] (curve-update this ids f))
   (t/geom-transform [this ids transform] (curve-transform this ids transform)))
 
-(defrecord CurveSpread [points ^float spread]
+(defonce/record CurveSpread [points ^float spread]
   Sampler
   (sample [this] (second (first (iv/iv-vals points))))
   (sample-range [this] (let [[^float min ^float max] (curve-range this)]
