@@ -93,7 +93,7 @@
       (gl/gl-color gl (or (:x axes-colors) x-axis-color))
       (gl/gl-vertex-3d gl (-> aabb types/min-p .x) 0.0 0.0)
       (gl/gl-vertex-3d gl (-> aabb types/max-p .x) 0.0 0.0))
-    
+
     (when-not (= active-plane :y)
       (gl/gl-color gl (or (:y axes-colors) y-axis-color))
       (gl/gl-vertex-3d gl 0.0 (-> aabb types/min-p .y) 0.0)
@@ -231,7 +231,7 @@
 
     options
     (merge options)
-  
+
     (c/mode-2d? camera)
     (assoc :active-plane :z)))
 
@@ -350,8 +350,7 @@
 (defn- reset-button
   [app-view prefs ^PopupControl popup]
   (let [button (doto (javafx.scene.control.Button. "Reset to defaults")
-                 (.setPrefWidth Double/MAX_VALUE)
-                 (ui/add-style! "reset-button"))
+                 (.setPrefWidth Double/MAX_VALUE))
         reset-fn (fn [_]
                    (doseq [path [[:size :x]
                                  [:size :y]
