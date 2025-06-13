@@ -173,6 +173,7 @@ static int JobGenerateGlyph(void* context, void* data)
     item->m_Glyph.m_Advance = glyph.m_Advance;
     item->m_Glyph.m_Ascent = glyph.m_Ascent;
     item->m_Glyph.m_Descent = glyph.m_Descent;
+    item->m_Glyph.m_LeftBearing = glyph.m_LeftBearing;
 
     if (!glyph.m_Bitmap.m_Data) // Some glyphs (e.g. ' ') don't have an image, which is ok
     {
