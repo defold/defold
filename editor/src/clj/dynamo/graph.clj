@@ -1581,6 +1581,21 @@
      (property-overridden? basis node-id prop-kw)
      true)))
 
+(defn node-property-dynamic
+  "Returns the value of a dynamic associated with a specific node property."
+  [node property-label dynamic-label evaluation-context]
+  (let [node-type (node-type node)
+        property-def (get (in/all-properties node-type) property-label)
+        _ (assert property-def (format "Property %s not found in node-type %s." property-label (:k node-type)))
+        dynamic-fnk (-> property-def (get :dynamics) (get dynamic-label))
+        _ (assert dynamic-fnk (format "Dynamic %s not found on property %s in node-type %s." dynamic-label property-label (:k node-type)))
+        dynamic-fn (:fn dynamic-fnk)
+        dynamic-args (coll/transfer (:arguments dynamic-fnk) {}
+                       (map (fn [arg-label]
+                              (let [arg-value (in/node-value node arg-label evaluation-context)]
+                                (pair arg-label arg-value)))))]
+    (dynamic-fn dynamic-args)))
+
 (defmulti node-key
   "Used to identify a node uniquely within a scope. This has various uses,
   among them is that we will restore overridden properties during resource sync
