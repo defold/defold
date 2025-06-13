@@ -209,7 +209,6 @@ namespace dmGameSystem
         }
 
         assert(create_params.m_Collection);
-        dmGameObject::AddDynamicResourceHash(create_params.m_Collection, create_params.m_PathHash);
         *resource_out = resource;
         return dmResource::RESULT_OK;
     }
@@ -265,20 +264,5 @@ namespace dmGameSystem
         upload_params.m_UploadSpecificMipmap  = 1;
 
         return dmResource::SetResource(factory, params.m_PathHash, (void*) &recreate_params);
-    }
-
-    dmResource::Result ReleaseDynamicResource(dmResource::HFactory factory, dmGameObject::HCollection collection, dmhash_t path_hash)
-    {
-        HResourceDescriptor rd = dmResource::FindByHash(factory, path_hash);
-        if (!rd)
-        {
-            return dmResource::RESULT_RESOURCE_NOT_FOUND;
-        }
-
-        // This will remove the entry in the collections list of dynamically allocated resource (if it exists),
-        // but we do the actual release here since we allow releasing arbitrary resources now
-        dmGameObject::RemoveDynamicResourceHash(collection, path_hash);
-        dmResource::Release(factory, dmResource::GetResource(rd));
-        return dmResource::RESULT_OK;
     }
 }

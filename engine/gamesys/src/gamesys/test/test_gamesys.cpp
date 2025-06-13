@@ -1583,13 +1583,13 @@ TEST_F(GuiTest, MaxDynamictextures)
 
     dmGui::Scene* scene = gui_comp->m_Scene;
 
-    ASSERT_EQ(256, scene->m_DynamicTextures.Capacity());
+    ASSERT_EQ(32, scene->m_DynamicTextures.Capacity());
     ASSERT_EQ(0, scene->m_DynamicTextures.Size());
 
     // Test 1: create textures
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(256, scene->m_DynamicTextures.Size());
+    ASSERT_EQ(32, scene->m_DynamicTextures.Size());
 
     // Test 2: delete textures
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
