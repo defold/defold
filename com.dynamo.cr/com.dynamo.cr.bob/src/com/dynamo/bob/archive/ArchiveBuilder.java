@@ -237,7 +237,7 @@ public class ArchiveBuilder {
         }
     }
 
-    private void writeArchiveIndex(RandomAccessFile archiveIndex, ArrayList<ArchiveEntry> archiveEntries) throws IOException {
+    private void writeArchiveIndex(RandomAccessFile archiveIndex, List<ArchiveEntry> archiveEntries) throws IOException {
         TimeProfiler.start("writeArchiveIndex");
 
         // INDEX
@@ -368,7 +368,8 @@ public class ArchiveBuilder {
             archiveData.close();
         }
 
-        writeArchiveIndex(archiveIndex, new ArrayList<ArchiveEntry>(writtenIntoArcd.values()));
+        entries = new ArrayList<ArchiveEntry>(writtenIntoArcd.values());
+        writeArchiveIndex(archiveIndex, entries);
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
