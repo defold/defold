@@ -265,7 +265,7 @@ jobs:
 
         ./scripts/build.py install_waf
         cd external/box2d
-        PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
+        PREFIX=$DYNAMO_HOME CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" waf configure --platform=${{ matrix.platform }}
         waf install
 
     - name: Check artifact existence
