@@ -22,6 +22,9 @@
             [editor.colors :as colors]
             [editor.core :as core]
             [editor.defold-project :as project]
+            [editor.editor-extensions.graph :as ext-graph]
+            [editor.editor-extensions.node-types :as node-types]
+            [editor.editor-extensions.runtime :as rt]
             [editor.font :as font]
             [editor.geom :as geom]
             [editor.gl :as gl]
@@ -414,7 +417,7 @@
    [:build-errors :child-build-errors]
    [:template-build-targets :template-build-targets]])
 
-(defn- attach-gui-node [node-tree parent gui-node type]
+(defn- attach-gui-node [node-tree parent gui-node]
   (concat
     (g/connect gui-node :id node-tree :ids)
     (g/connect node-tree :id-counts gui-node :id-counts)
@@ -462,16 +465,15 @@
      :else
      (core/scope basis node))))
 
-(defn- gen-gui-node-attach-fn [type]
-  (fn [target source]
-    (g/with-auto-evaluation-context evaluation-context
-      (let [node-tree (node->node-tree (:basis evaluation-context) target)
-            taken-ids (g/node-value node-tree :id-counts evaluation-context)
-            next-index (gui-attachment/next-child-index target evaluation-context)]
-        (concat
-          (g/update-property source :id id/resolve taken-ids)
-          (g/set-property source :child-index next-index)
-          (attach-gui-node node-tree target source type))))))
+(defn- gui-node-attach-fn [target source]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [node-tree (node->node-tree (:basis evaluation-context) target)
+          taken-ids (g/node-value node-tree :id-counts evaluation-context)
+          next-index (gui-attachment/next-child-index target evaluation-context)]
+      (concat
+        (g/update-property source :id id/resolve taken-ids)
+        (g/set-property source :child-index next-index)
+        (attach-gui-node node-tree target source)))))
 
 ;; SDK api
 (defn gen-outline-node-tx-attach-fn
@@ -1091,7 +1093,7 @@
   (output node-outline-reqs g/Any :cached (g/fnk []
                                             (mapv (fn [type-info]
                                                     {:node-type (:node-cls type-info)
-                                                     :tx-attach-fn (gen-gui-node-attach-fn (:node-type type-info))})
+                                                     :tx-attach-fn gui-node-attach-fn})
                                                   (get-registered-node-type-infos))))
 
   (output node-outline outline/OutlineData :cached
@@ -2558,7 +2560,7 @@
   (output child-scenes g/Any (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
   (output node-outline outline/OutlineData :cached
           (gen-outline-fnk "Nodes" nil 0 true (mapv (fn [type-info] {:node-type (:node-cls type-info)
-                                                                     :tx-attach-fn (gen-gui-node-attach-fn (:node-type type-info))})
+                                                                     :tx-attach-fn gui-node-attach-fn})
                                                     (get-registered-node-type-infos))))
 
   (output scene g/Any (g/fnk [_node-id child-scenes]
@@ -3529,7 +3531,7 @@
           (concat
             (g/operation-label "Add Gui Node")
             (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type node-properties]]
-              (attach-gui-node node-tree parent gui-node node-type)
+              (attach-gui-node node-tree parent gui-node)
               (when select-fn
                 (select-fn [gui-node]))))))
       g/transact
@@ -3851,7 +3853,7 @@
                                               parent-node (if (str/blank? parent)
                                                             node-tree
                                                             (id->node parent))]
-                                          (attach-gui-node node-tree parent-node gui-node (:type node-desc))))
+                                          (attach-gui-node node-tree parent-node gui-node)))
                               node-id (first (map tx-node-id (filter tx-create-node? tx-data)))]
                           (recur more
                                  (assoc id->node (:id node-desc) node-id)
@@ -4054,6 +4056,33 @@
     ;; excludes the internal fallback font
     (mapv gt/source-id (g/explicit-arcs-by-target basis fonts-node :names))))
 
+(defn- gui-scene-nodes-getter [scene-node {:keys [basis] :as evaluation-context}]
+  (attachment/nodes-getter (gui-attachment/scene-node->node-tree basis scene-node) evaluation-context))
+
+(defn- attach-gui-node-to-gui-scene [{:keys [basis]} scene-node gui-node]
+  (let [node-tree (gui-attachment/scene-node->node-tree basis scene-node)]
+    (attach-gui-node node-tree node-tree gui-node)))
+
+(defn- attach-gui-node-to-gui-node [{:keys [basis]} parent-gui-node gui-node]
+  (let [node-tree (node->node-tree basis parent-gui-node)]
+    (attach-gui-node node-tree parent-gui-node gui-node)))
+
+;; SDK api
+(defn register-node-tree-attachment-node-type [workspace node-type]
+  (concat
+    ;; add the node type to gui scene's :nodes list (node tree root)
+    (attachment/register workspace GuiSceneNode :nodes :add {node-type (partial g/expand-ec attach-gui-node-to-gui-scene)})
+    ;; add the node type to gui node's :nodes list (branches)
+    (attachment/register workspace GuiNode :nodes :add {node-type (partial g/expand-ec attach-gui-node-to-gui-node)})
+    ;; make the node type a branch
+    (attachment/alias workspace node-type :nodes GuiNode)))
+
+(node-types/register-node-type-name! BoxNode "gui-node-type-box")
+(node-types/register-node-type-name! PieNode "gui-node-type-pie")
+(node-types/register-node-type-name! TextNode "gui-node-type-text")
+(node-types/register-node-type-name! TemplateNode "gui-node-type-template")
+(node-types/register-node-type-name! ParticleFXNode "gui-node-type-particlefx")
+
 (defn register-resource-types [workspace]
   (concat
     (attachment/register
@@ -4065,14 +4094,23 @@
       :add {LayerNode (attach-to-gui-scene-fn gui-attachment/scene-node->layers-node attach-layer)}
       :get gui-scene-layers-getter
       :reorder reorder-gui-scene-layers)
+    ;; todo define reorder:
     (attachment/register
       workspace GuiSceneNode :layouts
       :add {LayoutNode (attach-to-gui-scene-fn gui-attachment/scene-node->layouts-node attach-layout)}
       :get gui-scene-layouts-getter)
+    ;; todo define reorder:
     (attachment/register
       workspace GuiSceneNode :materials
       :add {MaterialNode (attach-to-gui-scene-fn gui-attachment/scene-node->materials-node attach-material)}
       :get gui-scene-materials-getter)
+    (attachment/register workspace GuiSceneNode :nodes :get gui-scene-nodes-getter)
+    (attachment/register workspace GuiNode :nodes :get attachment/nodes-getter)
+    (register-node-tree-attachment-node-type workspace BoxNode)
+    (register-node-tree-attachment-node-type workspace PieNode)
+    (register-node-tree-attachment-node-type workspace TextNode)
+    (register-node-tree-attachment-node-type workspace TemplateNode)
+    (register-node-tree-attachment-node-type workspace ParticleFXNode)
     (attachment/register
       workspace GuiSceneNode :particlefxs
       :add {ParticleFXResource (attach-to-gui-scene-fn gui-attachment/scene-node->particlefx-resources-node attach-particlefx-resource)}
@@ -4215,27 +4253,82 @@
     :icon particlefx/particle-fx-icon
     :defaults visual-base-node-defaults}])
 
-(defonce ^:private custom-node-type-infos (atom (sorted-map)))
+(def ^:private empty-node-type-registry
+  {;; graph-node-type -> non-deprecated info
+   :node-cls->type-info {}
+   ;; node-type-kw -> custom-type -> info
+   :node-type->custom-type->type-info {}
+   ;; flat list
+   :type-infos []})
+
+(defn- register-node-type-info [state {:keys [node-cls node-type custom-type] :as type-info}]
+  (when-let [old-node-cls (-> state :node-type->custom-type->type-info (get node-type) (get custom-type) :node-cls)]
+    (when-not (= old-node-cls node-cls)
+      (throw (ex-info (format "Plugin GUI node type %s custom-type conflicts with %s." (:name @node-cls) (:name @old-node-cls))
+                      {:custom-type custom-type
+                       :node-cls node-cls
+                       :conflicting-node-cls old-node-cls}))))
+  (-> state
+      (assoc-in [:node-type->custom-type->type-info node-type custom-type] type-info)
+      (update :type-infos conj type-info)
+      (cond-> (not (:deprecated type-info)) (update :node-cls->type-info assoc node-cls type-info))))
+
+(defonce ^:private node-type-info-registry
+  (atom (reduce register-node-type-info empty-node-type-registry base-node-type-infos)))
 
 (defn- get-registered-node-type-infos []
-  (into base-node-type-infos
-        (map val)
-        @custom-node-type-infos))
+  (:type-infos @node-type-info-registry))
 
-(defn- get-registered-node-type-info [node-type custom-type]
-  {:pre [(keyword? node-type)
-         (integer? custom-type)]}
-  (or (some (fn [info]
-              (when (and (= node-type (:node-type info))
-                         (= custom-type (:custom-type info)))
-                info))
-            (get-registered-node-type-infos))
-      (throw (ex-info (format "Unable to locate GUI node type info. Extension not loaded? (node-type=%s, custom-type=%s)"
-                              node-type
-                              custom-type)
-                      {:node-type node-type
-                       :custom-type custom-type
-                       :custom-node-type-infos (vals @custom-node-type-infos)}))))
+(defn- get-registered-node-type-info
+  ([node-cls]
+   {:pre [(g/node-type? node-cls)]}
+   (or (-> @node-type-info-registry
+           :node-cls->type-info
+           (get node-cls))
+       (throw (ex-info (format "Unable to locate GUI node type info. Extension not loaded? (node-cls=%s)" (:k node-cls))
+                       {:node-cls node-cls
+                        :node-type-infos (keys (:node-cls->type-info @node-type-info-registry))}))))
+  ([node-type custom-type]
+   {:pre [(keyword? node-type)
+          (integer? custom-type)]}
+   (or (-> @node-type-info-registry
+           :node-type->custom-type->type-info
+           (get node-type)
+           (get custom-type))
+       (throw (ex-info (format "Unable to locate GUI node type info. Extension not loaded? (node-type=%s, custom-type=%s)"
+                               node-type
+                               custom-type)
+                       {:node-type node-type
+                        :custom-type custom-type
+                        :node-type-infos (:node-type->custom-type->type-info @node-type-info-registry)})))))
+
+(defn- extension-type-name->id [s]
+  (if-let [i (str/last-index-of s \-)]
+    (subs s (inc i))
+    s))
+
+;; TODO: custom TEMPLATE id generator (init-attachment)
+;; TODO: custom template's `template` property setter
+;; TODO: custom layout-specific value setters!
+;; ;; todo refactor ext-get to support layout gui props
+
+(defmethod ext-graph/init-attachment ::GuiNode [{:keys [basis] :as evaluation-context} rt project parent-node-id child-node-type child-node-id attachment]
+  (let [{:keys [node-type custom-type defaults]} (get-registered-node-type-info child-node-type)
+        node-tree-or-gui-node (if (g/node-instance? basis GuiSceneNode parent-node-id)
+                                (gui-attachment/scene-node->node-tree basis parent-node-id)
+                                parent-node-id)
+        props (assoc defaults
+                :child-index (gui-attachment/next-child-index node-tree-or-gui-node evaluation-context)
+                :custom-type custom-type
+                :type node-type)]
+    (concat
+      (apply g/set-property child-node-id (coll/mapcat identity props))
+      (-> attachment
+          (eutil/provide-defaults
+            "id" (rt/->lua
+                   (id/gen (or (some-> (node-types/->name child-node-type) extension-type-name->id) "node")
+                           (g/node-value node-tree-or-gui-node :id-counts evaluation-context))))
+          (ext-graph/attachment->set-tx-steps child-node-id rt project evaluation-context)))))
 
 (defn- get-registered-node-type-cls [node-type custom-type]
   (:node-cls (get-registered-node-type-info node-type custom-type)))
@@ -4259,24 +4352,10 @@
     (throw (ex-info (format "Plugin GUI node type %s does not specify :defaults as a map of {:node-prop default-value}."
                             (:name @node-cls))
                     {:node-cls node-cls})))
-  (swap! custom-node-type-infos update custom-type
-         (fn [old-type-info]
-           (if (nil? old-type-info)
-             type-info
-             (let [old-node-cls (:node-cls old-type-info)
-                   old-node-type-key (:k old-node-cls)
-                   new-node-type-key (:k node-cls)]
-               (if (= old-node-type-key new-node-type-key)
-                 type-info
-                 (throw (ex-info (format "Plugin GUI node type %s custom-type conflicts with %s."
-                                         (:name @node-cls)
-                                         (:name @old-node-cls))
-                                 {:custom-type custom-type
-                                  :node-cls node-cls
-                                  :conflicting-node-cls old-node-cls}))))))))
+  (swap! node-type-info-registry register-node-type-info type-info))
 
 ;; Used by tests
 (defn clear-custom-gui-scene-loaders-and-node-types-for-tests! []
   ;; TODO(save-value-cleanup): These really should be registered with the workspace so they don't pollute integration tests across projects.
   (reset! custom-gui-scene-loaders (sorted-map))
-  (reset! custom-node-type-infos (sorted-map)))
+  (reset! node-type-info-registry (reduce register-node-type-info empty-node-type-registry base-node-type-infos)))

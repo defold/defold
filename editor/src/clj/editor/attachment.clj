@@ -14,11 +14,22 @@
 
 (ns editor.attachment
   "Extensible definitions for semantical node attachments"
-  (:refer-clojure :exclude [remove])
+  (:refer-clojure :exclude [remove alias])
   (:require [dynamo.graph :as g]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
             [util.coll :as coll]))
+
+;; todo refactor ext-get to support layout gui props
+
+(defn- assoc-list-definition [state node-type list-kw {:keys [aliases] :as definition}]
+  (let [state (update state node-type assoc list-kw definition)]
+    (if aliases
+      (let [aliased-definition (-> definition
+                                   (dissoc :aliases)
+                                   (assoc :alias node-type))]
+        (reduce #(update %1 %2 assoc list-kw aliased-definition) state aliases))
+      state)))
 
 ;; SDK api
 (defn register
@@ -51,17 +62,39 @@
     workspace
     :node-attachments
     (fn [s]
-      (cond-> s
-              add (update :add update node-type update list-kw merge add)
-              get (update :get update node-type assoc list-kw get)
-              reorder (update :reorder update node-type assoc list-kw reorder)))))
+      (let [definition (-> s
+                           (clojure.core/get node-type)
+                           list-kw
+                           (cond->
+                             add (update :add coll/merge add)
+                             get (assoc :get get)
+                             reorder (assoc :reorder reorder)))]
+        ;; The first registration has to provide :get
+        ;; Subsequent registrations typically add additional :add fns
+        (assert (contains? definition :get))
+        (assert (not (contains? definition :alias)) "Cannot modify an alias")
+        (assoc-list-definition s node-type list-kw definition)))))
+
+(defn alias
+  "Define a node list as an alias of another node type's list with the same name"
+  [workspace node-type list-kw alias-node-type]
+  {:pre [(not= node-type alias-node-type)]}
+  (g/update-property
+    workspace
+    :node-attachments
+    (fn [s]
+      (let [definition (list-kw (clojure.core/get s alias-node-type))
+            _ (assert definition "Can't alias undefined list")]
+        (assert definition "Can't alias undefined list")
+        (assert (not (contains? definition :alias)) "Can't alias another alias")
+        (assoc-list-definition s alias-node-type list-kw (update definition :aliases coll/conj-set node-type))))))
 
 (defn add-impl [current-state parent-node-type parent-node-id attachment-tree init-fn]
   (coll/mapcat
     (fn [[list-kw {:keys [init add node-type] :as attachment}]]
       (when-not node-type
         (throw (ex-info "node type is required" {:parent-node-type parent-node-id :list-kw list-kw :attachment attachment})))
-      (if-let [node-type->tx-attach-fn (-> current-state :add (get parent-node-type) list-kw)]
+      (if-let [node-type->tx-attach-fn (-> current-state (get parent-node-type) list-kw :add)]
         (let [tx-attach-fn (or (node-type->tx-attach-fn node-type)
                                (throw (ex-info (str (name (:k parent-node-type)) " does not support " (name list-kw) " attachments of type " (name (:k node-type)))
                                                {:parent-node-type parent-node-id :list-kw list-kw :node-type node-type})))
@@ -116,12 +149,12 @@
 (defn defines?
   "Checks if a node-type is extended to define a list-kw list"
   [basis workspace node-type list-kw]
-  (-> basis (workspace/node-attachments workspace) :add (get node-type) (contains? list-kw)))
+  (-> basis (workspace/node-attachments workspace) (get node-type) (contains? list-kw)))
 
 (defn reorderable?
   "Checks if a node type allows reordering of a list-kw list"
   [basis workspace node-type list-kw]
-  (-> basis (workspace/node-attachments workspace) :reorder (get node-type) (contains? list-kw)))
+  (-> basis (workspace/node-attachments workspace) (get node-type) list-kw (contains? :reorder)))
 
 (defn child-node-types
   "Returns defined child node-types for a parent node-type's list-kw
@@ -131,7 +164,7 @@
   Asserts that it exists. See [[defines?]]"
   [basis workspace node-type list-kw]
   {:post [(some? %)]}
-  (-> basis (workspace/node-attachments workspace) :add (get node-type) (get list-kw)))
+  (-> basis (workspace/node-attachments workspace) (get node-type) list-kw :add))
 
 (defn getter
   "Returns a getter function for a container node-type's list-kw
@@ -142,7 +175,7 @@
   Asserts that it exists. See [[defines?]]"
   [basis workspace node-type list-kw]
   {:post [(some? %)]}
-  (-> basis (workspace/node-attachments workspace) :get (get node-type) (get list-kw)))
+  (-> basis (workspace/node-attachments workspace) (get node-type) list-kw :get))
 
 (defn- clear-tx [evaluation-context workspace node-id list-kw]
   (let [basis (:basis evaluation-context)
@@ -177,7 +210,7 @@
         node-type (g/node-type* basis node-id)
         get-fn (getter basis workspace node-type list-kw)
         children-set (set (get-fn node-id evaluation-context))
-        reorder-fn (-> basis (workspace/node-attachments workspace) :reorder (get node-type) (get list-kw))]
+        reorder-fn (-> basis (workspace/node-attachments workspace) (get node-type) list-kw :reorder)]
     (assert (every? children-set reordered-child-node-ids))
     (assert (= (count children-set) (count reordered-child-node-ids))) ;; no duplicates
     (assert reorder-fn)

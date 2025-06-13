@@ -155,6 +155,16 @@ local function print_gui(gui)
         local font_res = editor.get(font, "font")
         print(("    font: %s%s"):format(editor.get(font, "name"), font_res and " " .. font_res or ""))
     end
+    local function print_gui_nodes(nodes, indent)
+        print(("%snodes: %s"):format(indent, #nodes))
+        local child_indent = indent .. "  "
+        for i = 1, #nodes do
+            local node = nodes[i]
+            print(("%s- type: %s"):format(indent, editor.get(node, "type")))
+            print_gui_nodes(editor.get(node, "nodes"), child_indent)
+        end
+    end
+    print_gui_nodes(editor.get(gui, "nodes"), "  ")
 end
 
 function M.get_commands()
@@ -358,6 +368,16 @@ function M.get_commands()
                     editor.tx.add(gui, "materials", {material = "/test.material"}),
                     editor.tx.add(gui, "materials", {material = "/test.material"}),
                     editor.tx.add(gui, "materials", {}),
+                    editor.tx.add(gui, "nodes", {
+                        type = "gui-node-type-box",
+                        nodes = {
+                            {type = "gui-node-type-pie"},
+                            {type = "gui-node-type-text"},
+                            -- {type = "gui-node-type-template"},
+                            {type = "gui-node-type-particlefx"},
+                            {type = "gui-node-type-spine"},
+                        }
+                    }),
                     editor.tx.add(gui, "particlefxs", {}),
                     editor.tx.add(gui, "particlefxs", {particlefx = "/test.particlefx"}),
                     editor.tx.add(gui, "particlefxs", {}),
@@ -396,6 +416,7 @@ function M.get_commands()
                     editor.tx.clear(gui, "layers"),
                     editor.tx.clear(gui, "layouts"),
                     editor.tx.clear(gui, "materials"),
+                    editor.tx.clear(gui, "nodes"),
                     editor.tx.clear(gui, "particlefxs"),
                     editor.tx.clear(gui, "spine_scenes"),
                     editor.tx.clear(gui, "textures"),
