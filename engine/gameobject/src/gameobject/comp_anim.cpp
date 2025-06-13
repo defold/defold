@@ -514,14 +514,18 @@ namespace dmGameObject
                 duration, delay, animation_stopped, userdata1, userdata2, true);
     }
 
-    static uint32_t GetElementCount(PropertyType type)
+    static uint32_t GetElementCount(PropertyType type, dmhash_t* element_ids)
     {
         switch (type)
         {
         case PROPERTY_TYPE_NUMBER:
             return 1;
         case PROPERTY_TYPE_VECTOR3:
+        {
+            if (element_ids[2] == 0)
+                return 2;
             return 3;
+        }
         case PROPERTY_TYPE_VECTOR4:
         case PROPERTY_TYPE_QUAT:
             return 4;
@@ -568,7 +572,7 @@ namespace dmGameObject
                 return PROPERTY_RESULT_TYPE_MISMATCH;
             }
         }
-        uint32_t element_count = GetElementCount(prop_desc.m_Variant.m_Type);
+        uint32_t element_count = GetElementCount(prop_desc.m_Variant.m_Type, prop_desc.m_ElementIds);
         if (element_count == 0)
         {
             return PROPERTY_RESULT_UNSUPPORTED_TYPE;
@@ -625,7 +629,7 @@ namespace dmGameObject
         {
             return prop_result;
         }
-        uint32_t element_count = GetElementCount(prop_desc.m_Variant.m_Type);
+        uint32_t element_count = GetElementCount(prop_desc.m_Variant.m_Type, prop_desc.m_ElementIds);
         if (element_count == 0)
         {
             return PROPERTY_RESULT_UNSUPPORTED_TYPE;
