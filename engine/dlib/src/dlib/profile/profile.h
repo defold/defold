@@ -32,6 +32,7 @@ namespace dmProfile
     {
         uint32_t m_Port;
         uint32_t m_SleepBetweenServerUpdates;
+        bool m_EnablePerformanceTimeline;
     };
 
     /**
