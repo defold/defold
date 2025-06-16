@@ -222,7 +222,7 @@ jobs:
   build-android:
     strategy:
       matrix:
-        platform: [armv7-android]
+        platform: [arm64-android, armv7-android]
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout repo
