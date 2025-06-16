@@ -678,6 +678,7 @@
                        (fn transfer-overrides-plan-menu-item [transfer-overrides-plan evaluation-context]
                          {:fx/type fx.menu-item/lifecycle
                           :text (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+                          :disable (not (properties/can-transfer-overrides? transfer-overrides-plan))
                           :on-action {:event-type :on-transfer-overrides
                                       :transfer-overrides-plan transfer-overrides-plan}})]
                    (g/with-auto-evaluation-context evaluation-context

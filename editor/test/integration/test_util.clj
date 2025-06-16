@@ -1030,6 +1030,14 @@
                   {:node-id node-id
                    :node-type (g/node-type* basis node-id)})))
 
+(defmacro with-changes-reverted
+  "Evaluates the body expressions in a try expression, and reverts any changes
+  to the project graph in the finally clause. Returns the result of the last
+  body expression."
+  [project & body]
+  `(with-open [project-graph-reverter# (make-project-graph-reverter ~project)]
+     ~@body))
+
 (defn- validate-component-resource-node-id
   ([node-id]
    (validate-component-resource-node-id (g/now) node-id))

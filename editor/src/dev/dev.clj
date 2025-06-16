@@ -89,7 +89,7 @@
 
 (namespaces/import-vars
   [util.debug-util stack-trace]
-  [integration.test-util outline-node-id outline-node-info])
+  [integration.test-util outline-node-id outline-node-info resource-outline-node-id resource-outline-node-info])
 
 (defn javafx-tree [obj]
   (jfx/info-tree obj))

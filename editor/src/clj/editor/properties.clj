@@ -1167,18 +1167,42 @@
                                                  :target-node-path (gu/node-debug-label-path target-node-id evaluation-context)}
                                                 property-transfer-target))))))))))))))
 
+(defn transfer-overrides-status
+  "Returns :ok if the supplied transfer-overrides-plan can be executed,
+  otherwise returns a different keyword signaling why we can't proceed with the
+  transfer.
+
+  Return values:
+    :ok
+    Everything appears fine. We should be able to execute the plan.
+
+    :owner-resource-not-editable
+    The owner resource of one of the target nodes is not editable.
+
+    :property-not-found
+    One or more transferred properties do not exist on one of the target nodes."
+  [transfer-overrides-plan]
+  (let [property-transfers (get transfer-overrides-plan :property-transfers ::not-found)]
+    (assert (not= ::not-found property-transfers))
+    (transduce
+      (comp
+        (mapcat :targets)
+        (map :target-status))
+      (fn
+        ([result] result)
+        ([_ target-status]
+         {:pre [(property-transfer-target-status? target-status)]}
+         (case target-status
+           :ok :ok
+           (reduced target-status))))
+      :ok
+      property-transfers)))
+
 (defn can-transfer-overrides?
   "Returns whether the supplied transfer-overrides-plan can be executed.
   Suitable for use with user-interface elements such as menu items."
   [transfer-overrides-plan]
-  (let [property-transfers (get transfer-overrides-plan :property-transfers ::not-found)]
-    (assert (not= ::not-found property-transfers))
-    (->> property-transfers
-         (e/mapcat :targets)
-         (map :target-status)
-         (coll/every? (fn [target-status]
-                        (assert (property-transfer-target-status? target-status))
-                        (= :ok target-status))))))
+  (= :ok (transfer-overrides-status transfer-overrides-plan)))
 
 (defn transfer-overrides-description
   "Given a transfer-overrides-plan, return a user-friendly textual description
@@ -1223,7 +1247,7 @@
               target-proj-path-count (count target-proj-paths)]
           (if (= 1 target-proj-path-count)
             (str "in '" (first target-proj-paths) \')
-            (str "across " (text-util/amount-text target-proj-path-count "Resource"))))]
+            (str "Across " (text-util/amount-text target-proj-path-count "Resource"))))]
 
     (-> (format "%s %s to %s %s"
                 action-text
@@ -1289,8 +1313,8 @@
   Returns nil if no properties match the criteria. Otherwise, returns
   a transfer-overrides-plan."
   [source-node-id source-prop-kws {:keys [basis] :as evaluation-context}]
-  (when-let [transferred-properties (transferred-properties source-node-id source-prop-kws evaluation-context)]
-    (when-let [original-node-id (g/override-original basis source-node-id)]
+  (when-let [original-node-id (g/override-original basis source-node-id)]
+    (when-let [transferred-properties (transferred-properties source-node-id source-prop-kws evaluation-context)]
       (let [transfer-overrides-context (make-transfer-overrides-context source-node-id :pull-up-overrides evaluation-context)
             original-node-ids (iterate #(g/override-original basis %) original-node-id)]
         (coll/transfer
