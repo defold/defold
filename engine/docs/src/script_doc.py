@@ -367,6 +367,74 @@ def is_optional(str):
     return False, str
 
 
+LUA_TYPES = [
+    "string", "number", "boolean", "table", "userdata", "nil", "function", "thread",
+    "vector", "vector3", "vector4", "matrix4", "quaternion", "hash", "url", "node",
+    "constant", "resource",
+    "any", "file",
+    "b2Body", "b2BodyType", "buffer", "bufferstream" ]
+CPP_TYPES = [
+    "string", "float", "double", "long", "int", "bool", "char", "void",
+    "int8_t", "uint8_t", "int16_t", "uint16_t", "int32_atomic_t", "int32_t", "uint32_t", "int64_t", "uint64_t",
+    "size_t",
+    "jobject", "JNIEnv",
+    "lua_State",
+    "dmhash_t", "dmArray", "dmAllocator" ]
+
+def validate_lua_type(t):
+    # function(self, node) -> function
+    if t.startswith("function("):
+        v = t.split("(")
+        t = v[0]
+
+    return (t in LUA_TYPES)
+
+def validate_cpp_type(t, doc):
+    t = t.replace("*", "").replace("&", "").replace("const ", "").replace("unsigned ", "")
+
+    # ignore types with a namespace
+    if "::" in t:
+        return True
+
+    # uint32_t:2 -> uint32_t
+    if ":" in t:
+        v = t.split(":")
+        t = v[0]
+
+    # dmArray<uint8_t> -> dmArray
+    if "<" in t:
+        v = t.split("<")
+        t = v[0]
+
+    # H = opaque handle
+    if t.startswith("H"):
+        return True
+    # F = function typedef
+    if t.startswith("F"):
+        return True
+    # function definition, see configfile.h as an example
+    if t.startswith("function"):
+        return True
+    # varargs
+    if t == "..." or t == "va_list":
+        return True
+    # common template types
+    if t == "T" or t == "KEY":
+        return True
+    # extension macros and similar
+    if t == "symbol":
+        return True
+    # standard C++ types
+    if t in CPP_TYPES:
+        return True
+    # is type defined in the same document?
+    for element in doc.elements:
+        if element.name == t:
+            return True
+
+    # print(doc)
+    return False
+
 def parse_document(doc_str):
     doc = script_doc_ddf_pb2.Document()
     lst = re.findall('/\*#(.*?)\*/', doc_str, re.DOTALL)
@@ -391,6 +459,32 @@ def parse_document(doc_str):
         else:
             doc.info.language = "Lua"
 
+    if doc.info.name != "Editor":
+        print("Validating %s types in %s (%s)" % (doc.info.language, doc.info.name, doc.info.path))
+        errors = []
+        warnings = []
+        if doc.info.language == "Lua":
+            for element in doc.elements:
+                for param in element.parameters:
+                    for t in param.types:
+                        if param.name == "...":
+                            continue
+                        if not validate_lua_type(t):
+                            errors.append("'%s' has unknown type '%s' for parameter '%s'" % (element.name, t, param.name))
+        elif doc.info.language == "C++":
+            for element in doc.elements:
+                for param in element.parameters:
+                    for t in param.types:
+                        if t == "":
+                            warnings.append("'%s' has no type for parameter '%s'" % (element.name, param.name))
+                        elif not validate_cpp_type(t, doc):
+                            errors.append("'%s' has unknown type '%s' for parameter '%s'" % (element.name, t, param.name))
+
+        for warning in warnings:
+            print("WARNING", warning)
+        for err in errors:
+            print("ERROR", err)
+        if len(errors) > 0: sys.exit(1)
     return doc
 
 def message_to_dict(message):
@@ -525,6 +619,10 @@ if __name__ == '__main__':
     for name in args[:-1]:
         with open(name, 'r') as f:
             doc_str += f.read()
+
+    # print(name)
+    # if "render.h.apidoc_" not in name:
+    #     doc_str = ""
 
     output_file = args[-1]
     f = open(output_file, "w")

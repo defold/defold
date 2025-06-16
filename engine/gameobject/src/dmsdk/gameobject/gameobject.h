@@ -623,7 +623,7 @@ namespace dmGameObject
      * Set gameobject instance position
      * @name SetPosition
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @param position [type:dmGameObject::Point3] New Position
+     * @param position [type:dmVMath::Point3] New Position
      */
     void SetPosition(HInstance instance, dmVMath::Point3 position);
 
@@ -639,7 +639,7 @@ namespace dmGameObject
      * Set gameobject instance rotation
      * @name SetRotation
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @param position New Position
+     * @param rotation [type:dmVmath::Quat] New rotation
      */
     void SetRotation(HInstance instance, dmVMath::Quat rotation);
 
@@ -655,7 +655,7 @@ namespace dmGameObject
      * Set gameobject instance uniform scale
      * @name SetScale
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @param scale New uniform scale
+     * @param scale [type:float] New uniform scale
      */
     void SetScale(HInstance instance, float scale);
 
@@ -663,7 +663,7 @@ namespace dmGameObject
      * Set gameobject instance non-uniform scale
      * @name SetScale
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @param scale New uniform scale
+     * @param scale [type:dmVmath::Vector3] New non-uniform scale
      */
     void SetScale(HInstance instance, dmVMath::Vector3 scale);
 
@@ -736,7 +736,7 @@ namespace dmGameObject
      * Instances flagged as bones can have their transforms updated in a batch through SetBoneTransforms.
      * Used for animated skeletons.
      * @name SetBone
-     * @param instance [type: HImstance] Instance
+     * @param instance [type: HInstance] Instance
      * @param bone [type: bool] true if the instance is a bone
      */
     void SetBone(HInstance instance, bool bone);
@@ -744,7 +744,7 @@ namespace dmGameObject
     /*#
      * Check whether the instance is flagged as a bone.
      * @name IsBone
-     * @param instance [type: HImstance] Instance
+     * @param instance [type: HInstance] Instance
      * @return result [type: bool] True if flagged as a bone
      */
     bool IsBone(HInstance instance);
@@ -753,10 +753,10 @@ namespace dmGameObject
      * Set the local transforms recursively of all instances flagged as bones, starting with component with id.
      * The order of the transforms is depth-first.
      * @name SetBoneTransforms
-     * @param instance [type: HImstance] First Instance of the hierarchy to set
+     * @param instance [type: HInstance] First Instance of the hierarchy to set
      * @param component_transform [type: dmTransform::Transform] the transform for component root
-     * @param transforms Array of transforms to set depth-first for the bone instances
-     * @param transform_count Size of the transforms array
+     * @param transforms [type: dmTransform::Transform*]  Array of transforms to set depth-first for the bone instances
+     * @param transform_count [type: uint32_t] Size of the transforms array
      * @return Number of instances found
      */
     uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform& component_transform, dmTransform::Transform* transforms, uint32_t transform_count);
@@ -790,8 +790,8 @@ namespace dmGameObject
     /*#
      * Get the component type index
      * @name GetComponentTypeIndex
-     * @param collection Collection handle
-     * @param type_hash [type:dhmash_t] The hashed name of the registered component type (e.g. dmHashString("guic"))
+     * @param collection [type:HCollection] Collection handle
+     * @param type_hash [type:dmhash_t] The hashed name of the registered component type (e.g. dmHashString("guic"))
      * @return type_index [type:uint32_t] The component type index. 0xFFFFFFFF if not found
      */
     uint32_t GetComponentTypeIndex(HCollection collection, dmhash_t type_hash);
@@ -799,7 +799,7 @@ namespace dmGameObject
     /*#
      * Retrieve the world in the collection connected to the supplied component
      * @name GetWorld
-     * @param collection Collection handle
+     * @param collection [type:HCollection] Collection handle
      * @param component_type_index index of the component type
      * @return world [type:void*] The pointer to the world, 0x0 if not found
      */
@@ -808,8 +808,8 @@ namespace dmGameObject
     /*#
      * Retrieve the context for a component type
      * @name GetContext
-     * @param collection Collection handle
-     * @param component_type_index index of the component type
+     * @param collection [type:HCollection] Collection handle
+     * @param component_type_index [type:uint32_t] index of the component type
      * @return context [type:void*] The pointer to the context, 0x0 if not found
      */
     void* GetContext(HCollection collection, uint32_t component_type_index);

@@ -502,7 +502,7 @@ union SaveLoadBuffer
      *
      * @name sys.get_config_int
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
-     * @param [default_value] [type:integer] (optional) default value to return if the value does not exist
+     * @param [default_value] [type:number] (optional) default value to return if the value does not exist
      * @return value [type:integer] config value as an integer. default_value if the config key does not exist. 0 if no default value was supplied.
      * @examples
      *

@@ -340,7 +340,7 @@ namespace dmLiveUpdate
  * @name liveupdate.add_mount
  * @param name [type:string] Unique name of the mount
  * @param uri [type:string] The uri of the mount, including the scheme. Currently supported schemes are 'zip' and 'archive'.
- * @param priority [type:integer] Priority of mount. Larger priority takes prescedence
+ * @param priority [type:number] Priority of mount. Larger priority takes prescedence
  * @param callback [type:function] Callback after the asynchronous request completed
  *
  * @return result [type:number] The result of the request

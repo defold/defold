@@ -1027,7 +1027,7 @@ static int CreateTexture(lua_State* L)
  *
  * @param buffer [type:buffer] optional buffer of precreated pixel data
  *
- * @return request_id [type:handle] The request id for the async request.
+ * @return request_id [type:number] The request id for the async request.
  *
  * [icon:attention] 3D Textures are currently only supported on OpenGL and Vulkan adapters. To check if your device supports 3D textures, use:
  *
@@ -1567,11 +1567,11 @@ static int SetTexture(lua_State* L)
  *
  * @name resource.get_texture_info
  *
- * @param path [type:hash|string|handle] The path to the resource or a texture handle
+ * @param path [type:hash|string|number] The path to the resource or a texture handle
  * @return table [type:table] A table containing info about the texture:
  *
  * `handle`
- * : [type:handle] the opaque handle to the texture resource
+ * : [type:number] the opaque handle to the texture resource
  *
  * `width`
  * : [type:integer] width of the texture
@@ -1731,17 +1731,14 @@ static int GetTextureInfo(lua_State* L)
  *
  * @name resource.get_render_target_info
  *
- * @param path [type:hash|string|handle] The path to the resource or a render target handle
+ * @param path [type:hash|string|number] The path to the resource or a render target handle
  * @return table [type:table] A table containing info about the render target:
  *
  * `handle`
- * : [type:handle] the opaque handle to the texture resource
+ * : [type:number] the opaque handle to the texture resource
  *
  * 'attachments'
  * : [type:table] a table of attachments, where each attachment contains the following entries:
- *
- * `handle`
- * : [type:handle] the opaque handle to the texture resource
  *
  * `width`
  * : [type:integer] width of the texture

@@ -1099,7 +1099,7 @@ namespace dmRender
      * You cannot delete a render target resource.
      *
      * @name render.delete_render_target
-     * @param render_target [type:render_target] render target to delete
+     * @param render_target [type:number] render target to delete
      * @examples
      *
      * How to delete a render target:
@@ -1133,7 +1133,7 @@ namespace dmRender
      * This function supports render targets created by a render script, or a render target resource.
      *
      * @name render.set_render_target
-     * @param render_target [type:render_target] render target to set. render.RENDER_TARGET_DEFAULT to set the default render target
+     * @param render_target [type:number] render target to set. render.RENDER_TARGET_DEFAULT to set the default render target
      * @param [options] [type:table] optional table with behaviour parameters
      *
      * `transient`
@@ -1222,7 +1222,7 @@ namespace dmRender
      * a subsequent call to render.enable_render_target, render.disable_render_target or render.set_render_target.
      *
      * @name render.enable_render_target
-     * @param render_target [type:render_target] render target to enable
+     * @param render_target [type:number] render target to enable
      *
      * @deprecated Use render.set_render_target() instead
      *
@@ -1274,7 +1274,7 @@ namespace dmRender
      * enabled.
      *
      * @name render.disable_render_target
-     * @param render_target [type:render_target] render target to disable
+     * @param render_target [type:number] render target to disable
      *
      * @deprecated Use render.set_render_target() instead
      *
@@ -1315,7 +1315,7 @@ namespace dmRender
      * either a render script, or from a render target resource.
      *
      * @name render.set_render_target_size
-     * @param render_target [type:render_target] render target to set size for
+     * @param render_target [type:number] render target to set size for
      * @param width [type:number] new render target width
      * @param height [type:number] new render target height
      * @examples
@@ -1355,8 +1355,8 @@ namespace dmRender
      *
      * @name render.enable_texture
      * @param binding [type:number|string|hash] texture binding, either by texture unit, string or hash for the sampler name that the texture should be bound to
-     * @param handle_or_name [type:texture|string|hash] render target or texture handle that should be bound, or a named resource in the "Render Resource" table in the currently assigned .render file
-     * @param [buffer_type] [type:constant] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `graphics.BUFFER_TYPE_COLOR0_BIT`. These values are supported:
+     * @param handle_or_name [type:number|string|hash] render target or texture handle that should be bound, or a named resource in the "Render Resource" table in the currently assigned .render file
+     * @param [buffer_type] [type:number] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `graphics.BUFFER_TYPE_COLOR0_BIT`. These values are supported:
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      *
@@ -1551,8 +1551,8 @@ namespace dmRender
      * Returns the specified buffer width from a render target.
      *
      * @name render.get_render_target_width
-     * @param render_target [type:render_target] render target from which to retrieve the buffer width
-     * @param buffer_type [type:constant] which type of buffer to retrieve the width from
+     * @param render_target [type:number] render target from which to retrieve the buffer width
+     * @param buffer_type [type:number] which type of buffer to retrieve the width from
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      * - `graphics.BUFFER_TYPE_COLOR[x]_BIT` (x: [0..3], if supported!)
@@ -1591,8 +1591,8 @@ namespace dmRender
      * Returns the specified buffer height from a render target.
      *
      * @name render.get_render_target_height
-     * @param render_target [type:render_target] render target from which to retrieve the buffer height
-     * @param buffer_type [type:constant] which type of buffer to retrieve the height from
+     * @param render_target [type:number] render target from which to retrieve the buffer height
+     * @param buffer_type [type:number] which type of buffer to retrieve the height from
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      * - `graphics.BUFFER_TYPE_DEPTH_BIT`
@@ -1706,7 +1706,7 @@ namespace dmRender
      * [ref:go.set] (or [ref:particlefx.set_constant]) on visual components.
      *
      * @name render.draw
-     * @param predicate [type:predicate] predicate to draw for
+     * @param predicate [type:number] predicate to draw for
      * @param [options] [type:table] optional table with properties:
      *
      * `frustum`
@@ -2023,8 +2023,8 @@ namespace dmRender
      * It is also useful for drawing antialiased points and lines in arbitrary order.
      *
      * @name render.set_blend_func
-     * @param source_factor [type:constant] source factor
-     * @param destination_factor [type:constant] destination factor
+     * @param source_factor [type:number] source factor
+     * @param destination_factor [type:number] destination factor
      * @examples
      *
      * Set the blend func to the most common one:
@@ -2194,7 +2194,7 @@ namespace dmRender
     * The depth function is initially set to `graphics.COMPARE_FUNC_LESS`.
     *
     * @name render.set_depth_func
-    * @param func [type:constant] depth test function, see the description for available values
+    * @param func [type:number] depth test function, see the description for available values
     * @examples
     *
     * Enable depth test and set the depth test function to "not equal".
@@ -2259,7 +2259,7 @@ namespace dmRender
     * - `graphics.COMPARE_FUNC_ALWAYS` (always passes)
     *
     * @name render.set_stencil_func
-    * @param func [type:constant] stencil test function, see the description for available values
+    * @param func [type:number] stencil test function, see the description for available values
     * @param ref [type:number] reference value for the stencil test
     * @param mask [type:number] mask that is ANDed with both the reference value and the stored stencil value when the test is done
     * @examples
@@ -2322,9 +2322,9 @@ namespace dmRender
     * The initial value for all operators is `graphics.STENCIL_OP_KEEP`.
     *
     * @name render.set_stencil_op
-    * @param sfail [type:constant] action to take when the stencil test fails
-    * @param dpfail [type:constant] the stencil action when the stencil test passes
-    * @param dppass  [type:constant] the stencil action when both the stencil test and the depth test pass, or when the stencil test passes and either there is no depth buffer or depth testing is not enabled
+    * @param sfail [type:number] action to take when the stencil test fails
+    * @param dpfail [type:number] the stencil action when the stencil test passes
+    * @param dppass  [type:number] the stencil action when both the stencil test and the depth test pass, or when the stencil test passes and either there is no depth buffer or depth testing is not enabled
     * @examples
     *
     * Set the stencil function to never pass and operator to always draw 1's
@@ -2375,7 +2375,7 @@ namespace dmRender
      * `face_type` is `graphics.FACE_TYPE_BACK`.
      *
      * @name render.set_cull_face
-     * @param face_type [type:constant] face type
+     * @param face_type [type:number] face type
      *
      * - `graphics.FACE_TYPE_FRONT`
      * - `graphics.FACE_TYPE_BACK`
@@ -2560,7 +2560,7 @@ namespace dmRender
      *
      * @name render.predicate
      * @param tags [type:table] table of tags that the predicate should match. The tags can be of either hash or string type
-     * @return predicate [type:predicate] new predicate
+     * @return predicate [type:number] new predicate
      * @examples
      *
      * Create a new render predicate containing all visual objects that
@@ -2691,7 +2691,7 @@ namespace dmRender
      * Note that the frustum plane option in render.draw can still be used together with the camera.
      *
      * @name render.set_camera
-     * @param camera [type:url|handle|nil] camera id to use, or nil to reset
+     * @param camera [type:url|number|nil] camera id to use, or nil to reset
      * @param [options] [type:table] optional table with properties:
      *
      * `use_frustum`

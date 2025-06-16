@@ -810,7 +810,7 @@ namespace dmGui
      * @name gui.set
      * @param node [type:node|url] node to set the property for, or msg.url() to the gui itself
      * @param property [type:string|hash|constant] the property to set 
-     * @param value [type:number|vector4|vector3|quat] the property to set
+     * @param value [type:number|vector4|vector3|quaternion] the property to set
      * @param [options] [type:table] optional options table (only applicable for material constants)
      * - `index` [type:integer] index into array property (1 based)
      * - `key` [type:hash] name of internal property
@@ -5533,7 +5533,7 @@ namespace dmGui
      * to set the initial state of the script and gui scene.
      *
      * @name init
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * ```lua
@@ -5551,7 +5551,7 @@ namespace dmGui
      * from this function since the gui component is about to be destroyed.
      *
      * @name final
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * ```lua
@@ -5567,7 +5567,7 @@ namespace dmGui
      * It can be used to perform any kind of gui related tasks, e.g. animating nodes.
      *
      * @name update
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param dt [type:number] the time-step of the frame update
      * @examples
      *
@@ -5620,7 +5620,7 @@ namespace dmGui
      * See the [ref:update] function for examples on how to use this callback-function.
      *
      * @name on_message
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param message_id [type:hash] id of the received message
      * @param message [type:table] a table containing the message data
      */
@@ -5699,7 +5699,7 @@ namespace dmGui
      * `acc_z`     | Accelerometer z value (if present).
      *
      * @name on_input
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
      * @param action [type:table] a table containing the input data, see above for a description
      * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
@@ -5725,7 +5725,7 @@ namespace dmGui
      * </p>
      *
      * @name on_reload
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * ```lua

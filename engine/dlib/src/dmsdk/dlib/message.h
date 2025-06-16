@@ -258,8 +258,8 @@ namespace dmMessage
      * Post a DDF message to a socket. A helper wrapper for Post()'ing a DDF message
      * @note Message data is copied by value
      * @name PostDDF
-     * @tparam TDDFType [type: TDDFType] Must be a DDF type
-     * @param message [type: TDDFType*] Message data reference
+     * @tparam T [type: T] Must be a DDF type
+     * @param message [type: T*] Message data reference
      * @param sender [type: dmMessage::URL*] The sender URL if the receiver wants to respond. 0x0 is accepted
      * @param receiver [type: dmMessage::URL*] The receiver URL, must not be 0x0
      * @param user_data1 [type: uintptr_t] User data that can be used when both the sender and receiver are known
@@ -280,11 +280,11 @@ namespace dmMessage
      * dmMessage::Result result = dmMessage::Post(&msg, &sender, &receiver, (uintptr_t)go, 0, 0));
      * ```
      */
-    template <typename TDDFType>
-    Result PostDDF(const TDDFType* message, const URL* sender, const URL* receiver, uintptr_t user_data1, uintptr_t user_data2, MessageDestroyCallback destroy_callback)
+    template <typename T>
+    Result PostDDF(const T* message, const URL* sender, const URL* receiver, uintptr_t user_data1, uintptr_t user_data2, MessageDestroyCallback destroy_callback)
     {
         return Post(sender, receiver, message->m_DDFDescriptor->m_NameHash, user_data1, user_data2,
-                    (uintptr_t)message->m_DDFDescriptor, message, sizeof(TDDFType), destroy_callback);
+                    (uintptr_t)message->m_DDFDescriptor, message, sizeof(T), destroy_callback);
     }
 
     /*#

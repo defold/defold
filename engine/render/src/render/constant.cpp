@@ -357,7 +357,7 @@ static inline void IterateConstants(IterateConstantCtx* context, const uint64_t*
     context->m_Callback(constant->m_NameHash, context->m_Ctx);
 }
 
-void IterateNamedConstants(HNamedConstantBuffer buffer, void (*callback)(dmhash_t name_hash, void* ctx), void* ctx)
+void IterateNamedConstants(HNamedConstantBuffer buffer, IterateNamedConstantsFn callback, void* ctx)
 {
     IterateConstantCtx context;
     context.m_Ctx = ctx;

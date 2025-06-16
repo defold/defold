@@ -60,7 +60,7 @@ char (&ArraySizeHelper(T (&a)[N]))[N];
 /*# get number of elements in C array
  * @macro
  * @name DM_ARRAY_SIZE
- * @param Array [type:]
+ * @param Array
  * @return Number of elements
  */
 #define DM_ARRAY_SIZE(A) (sizeof(ArraySizeHelper(A)))
@@ -354,7 +354,7 @@ public:
      * Swap the content of two arrays
      *
      * @name Swap
-     * @param rhs [type:dmArray`<T>`&] reference to array to swap content with
+     * @param rhs [type:dmArray<T>&] reference to array to swap content with
      */
     void Swap(dmArray<T>& rhs);
 
@@ -362,7 +362,7 @@ public:
      * map a function on all values
      * @name Map
      * @param fn function that will be called for each element
-     * @param ctx user defined context that will be passed in with each callback
+     * @param ctx [void*] user defined context that will be passed in with each callback
      */
     void Map(void (*fn)(T* value, void* ctx), void* ctx);
 
