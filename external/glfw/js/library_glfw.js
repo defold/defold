@@ -566,20 +566,19 @@ var LibraryGLFW = {
       }
     },
 
-    //adaptation for our needs of https://github.com/emscripten-core/emscripten/blob/941bbc6b9b35d3124f17d2503d7a32cc81032dac/src/library_glfw.js#L662
     joys: {}, // glfw joystick data
     lastGamepadState: null,
-    lastGamepadStateFrame: null, // The integer value of Browser.mainLoop.currentFrameNumber of when the last gamepad state was produced.
+    lastGamepadStateFrame: null, // The integer value of MainLoop.currentFrameNumber of when the last gamepad state was produced.
 
     refreshJoysticks: function(forceUpdate) {
         // Produce a new Gamepad API sample if we are ticking a new game frame, or if not using emscripten_set_main_loop() at all to drive animation.
         if (GLFW.gamepadFunc) {
-          if (forceUpdate || Browser.mainLoop.currentFrameNumber !== GLFW.lastGamepadStateFrame || !Browser.mainLoop.currentFrameNumber) {
+          if (forceUpdate || MainLoop.currentFrameNumber !== GLFW.lastGamepadStateFrame || !MainLoop.currentFrameNumber) {
             GLFW.lastGamepadState = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : null);
             if (!GLFW.lastGamepadState) {
               return;
             }
-            GLFW.lastGamepadStateFrame = Browser.mainLoop.currentFrameNumber;
+            GLFW.lastGamepadStateFrame = MainLoop.currentFrameNumber;
             for (var joy = 0; joy < GLFW.lastGamepadState.length; ++joy) {
               var gamepad = GLFW.lastGamepadState[joy];
 
