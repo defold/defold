@@ -257,7 +257,7 @@ jobs:
         if [[ "${{ matrix.platform }}" == "armv7-android" ]]; then
           export CC="armv7a-linux-androideabi21-clang"
           export CXX="armv7a-linux-androideabi21-clang++"
-          export CFLAGS="-march=armv7-a -mfloat-abi=softfp"
+          export CFLAGS="-march=armv7-a -mfloat-abi=softfp -DBOX2D_DISABLE_SIMD"
           export CXXFLAGS="$CFLAGS"
         fi
         CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" CC="$CC" CXX="$CXX" PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
