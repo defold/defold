@@ -38,7 +38,7 @@
 
             &:hover {
                 visibility: visible;
-                -fx-cursor: h-resize;
+                -fx-cursor: v-resize;
 
                 .image-view {
                     -fx-effect: innershadow(gaussian, -df-text-selected, 20, 1.0, 0, 0);
