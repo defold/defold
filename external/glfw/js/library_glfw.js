@@ -927,6 +927,7 @@ var LibraryGLFW = {
       return 1;
     }
     catch(e) {
+      console.error(e);
       GLFW.gamepadFunc = null;
       return 0;
     }
