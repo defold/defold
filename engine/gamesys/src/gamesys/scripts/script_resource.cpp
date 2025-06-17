@@ -1254,8 +1254,7 @@ static int ReleaseResource(lua_State* L)
     dmhash_t path_hash                      = dmScript::CheckHashOrString(L, 1);
     HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
     if (!rd) {
-        luaL_error(L, "Could not release resource: %s", dmHashReverseSafe64(path_hash));
-        return 0;
+        return luaL_error(L, "Could not release resource: %s", dmHashReverseSafe64(path_hash));
     }
     dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
