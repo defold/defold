@@ -182,8 +182,8 @@
   (let [exp (Math/log10 extent)]
     (- 1.0 (- exp (Math/floor exp)))))
 
-(defn small-grid-axis-size [extent ^double size] (* size 0.1 (Math/pow 10 (dec (Math/floor (Math/log10 extent))))))
-(defn large-grid-axis-size [extent ^double size] (* size 0.1 (Math/pow 10      (Math/floor (Math/log10 extent)))))
+(defn small-grid-axis-size [^double extent ^double size] (* size (Math/pow 10 (- (Math/floor (Math/log10 extent)) 2))))
+(defn large-grid-axis-size [^double extent ^double size] (* size (Math/pow 10 (- (Math/floor (Math/log10 extent)) 1))))
 
 (defn grid-snap-down [^double a ^double sz] (* sz (Math/floor (/ a sz))))
 (defn grid-snap-up   [^double a ^double sz] (* sz (Math/ceil  (/ a sz))))
