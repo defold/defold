@@ -438,7 +438,7 @@
           .getContent
           (.lookup "#show-grid-settings")))
 
-(handler/defhandler :show-grid-settings :workbench
+(handler/defhandler :scene.grid.show-settings :workbench
   (run [app-view scene-visibility prefs]
        (when-let [btn (get-grid-settings-button app-view)]
          (grid/show-settings! app-view btn prefs)))
@@ -488,7 +488,8 @@
     :tooltip "Grid"
     :graphic-fn (partial icons/make-svg-icon-graphic grid-svg-path)
     :command :scene.visibility.toggle-grid
-    :more :show-grid-settings}
+    :more {:id :show-grid-settings
+           :command :scene.grid.show-settings}}
    {:id :2d-mode
     :tooltip "2d mode"
     :graphic-fn (partial icons/make-svg-icon-graphic mode-2d-svg-path)

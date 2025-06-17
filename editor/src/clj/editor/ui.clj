@@ -1846,17 +1846,18 @@
                                (execute-command (contexts scene) command (:user-data menu-item)))))
 
         (if more
-          (let [group (doto (HBox.)
+          (let [{:keys [id command]} more
+                group (doto (HBox.)
                         (add-style! "button-group"))
                 icon (icons/get-image-view "icons/32/Icons_S_05_arrowdown.png" 18)
                 more-button (doto (Button.)
                               (.setGraphic icon)
-                              (.setId (name more))
                               (add-style! "more-button")
                               (on-action! (fn [_event]
-                                            (execute-command (contexts scene) more (:user-data menu-item)))))]
+                                            (execute-command (contexts scene) command (:user-data menu-item)))))]
             (.add (.getChildren group) button)
             (.add (.getChildren group) more-button)
+            (when id (.setId more-button (name id)))
             (observe (.selectedProperty button)
                      (fn [_observable _old-val new-val]
                        (if new-val
