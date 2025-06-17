@@ -590,15 +590,20 @@
 
 (g/defnode CurveGrid
   (inherits grid/Grid)
-  (output options g/Any (g/constantly {:active-plane :z
-                                       :color [1.0 1.0 1.0 1.0]
-                                       :axes-colors {:x [1.0 1.0 1.0 1.0]
-                                                     :y [1.0 1.0 1.0 1.0]
-                                                     :z [1.0 1.0 1.0 1.0]}
-                                       :opacity 0.1
-                                       :size {:x 10
-                                              :y 10
-                                              :z 10}})))
+  (input viewport g/Any)
+  (output options g/Any (g/fnk [camera viewport]
+                               (let [[_scale-x scale-y] (camera/scale-factor camera viewport)
+                                     y-size (* (Math/pow 10 (Math/floor (Math/log10 scale-y))) 100)]
+                                 {:active-plane :z
+                                  :color [1.0 1.0 1.0 1.0]
+                                  :axes-colors {:x [1.0 1.0 1.0 1.0]
+                                                :y [1.0 1.0 1.0 1.0]
+                                                :z [1.0 1.0 1.0 1.0]}
+                                  :opacity 0.1
+                                  :auto-scale false
+                                  :size {:x 0.2
+                                         :y y-size
+                                         :z 1}}))))
 
 (defn make-view!
   ([app-view graph ^Parent parent ^ListView list ^AnchorPane view opts]
@@ -644,7 +649,8 @@
                                                 (g/connect rulers :renderables view-id :aux-renderables)
                                                 (g/connect view-id :viewport rulers :viewport)
                                                 (g/connect view-id :cursor-pos rulers :cursor-pos)
-                                                (g/connect view-id :_node-id app-view :scene-view-ids))))]
+                                                (g/connect view-id :_node-id app-view :scene-view-ids)
+                                                (g/connect view-id :viewport grid :viewport))))]
       (when parent
         (let [^Node pane (scene/make-gl-pane! node-id opts)]
           (ui/context! parent :curve-view {:view-id node-id} (SubSelectionProvider. app-view))
