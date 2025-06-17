@@ -323,7 +323,7 @@
         size-val (str (get (prefs/get prefs prefs-path) axis))
         cancel-fn (fn [_] (ui/text! text-field size-val))
         update-fn (fn [_] (try
-                            (let [value (some-> (.getText text-field) Integer/parseInt)]
+                            (let [value (some-> (.getText text-field) Float/parseFloat)]
                               (if (pos? value)
                                 (do (prefs/set! prefs (conj prefs-path axis) value)
                                     (ui/text! text-field (str value))
@@ -380,7 +380,7 @@
 
 (defn- pref-popup-position
   ^Point2D [^Parent container]
-  (Utils/pointRelativeTo container 0 0 HPos/RIGHT VPos/BOTTOM -190.0 10.0 true))
+  (Utils/pointRelativeTo container 0 0 HPos/RIGHT VPos/BOTTOM -200.0 10.0 true))
 
 (defn show-settings! [app-view ^Parent owner prefs]
   (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
