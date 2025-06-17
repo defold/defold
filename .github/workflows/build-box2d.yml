@@ -299,8 +299,6 @@ jobs:
       run: ci/ci.sh install --platform=${{ matrix.platform }}
 
     - name: Build Box2D
-      env:
-        EMCC_FORCE_STDLIBS: 1
       run: |
         ./scripts/build.py --save-env-path=ci/env.sh save_env
         source ci/env.sh
