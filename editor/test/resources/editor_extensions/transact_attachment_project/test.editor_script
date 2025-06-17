@@ -148,6 +148,13 @@ local function print_gui(gui)
         local spine_scene_res = editor.get(spine_scene, "spine_scene")
         print(("    spine scene: %s%s"):format(editor.get(spine_scene, "name"), spine_scene_res and " " .. spine_scene_res or ""))
     end
+    local fonts = editor.get(gui, "fonts")
+    print(("  fonts: %s"):format(#fonts))
+    for i = 1, #fonts do
+        local font = fonts[i]
+        local font_res = editor.get(font, "font")
+        print(("    font: %s%s"):format(editor.get(font, "name"), font_res and " " .. font_res or ""))
+    end
 end
 
 function M.get_commands()
@@ -359,7 +366,10 @@ function M.get_commands()
                     editor.tx.add(gui, "spine_scenes", {spine_scene = "/defold-spine/assets/template/template.spinescene"}),
                     editor.tx.add(gui, "spine_scenes", {}),
                     editor.tx.add(gui, "textures", {texture = "/test.tilesource"}),
-                    editor.tx.add(gui, "textures", {texture = "/test.atlas"})
+                    editor.tx.add(gui, "textures", {texture = "/test.atlas"}),
+                    editor.tx.add(gui, "fonts", {font = "/test.font"}),
+                    editor.tx.add(gui, "fonts", {}),
+                    editor.tx.add(gui, "fonts", {})
                 })
 
                 print("After transaction (edit):")
@@ -373,7 +383,7 @@ function M.get_commands()
                 })
                 print("After transaction (reorder):")
                 print_gui(gui)
-                
+
                 print("Expected reorder errors:")
                 expect_error("undefined property", editor.tx.reorder, gui, "not-a-property", {})
                 expect_error("reorder not defined", editor.tx.reorder, collision, "shapes", {})
@@ -388,7 +398,8 @@ function M.get_commands()
                     editor.tx.clear(gui, "materials"),
                     editor.tx.clear(gui, "particlefxs"),
                     editor.tx.clear(gui, "spine_scenes"),
-                    editor.tx.clear(gui, "textures")
+                    editor.tx.clear(gui, "textures"),
+                    editor.tx.clear(gui, "fonts")
                 })
 
                 print("Expected layout errors:")

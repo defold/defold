@@ -3,6 +3,10 @@
         -fx-spacing: 0;
     }
 
+    .text-field {
+        -fx-min-width: 32px;
+    }
+
     .composite-property-control-container {
         .button {
             &:focused {
@@ -20,12 +24,21 @@
             -fx-min-width: 24px;
             -fx-background-radius: 0;
             -fx-border-radius: 0;
-            -fx-background-color: transparent;
             -fx-border-color: transparent;
             visibility: hidden;
 
+            &.drag-handle {
+                -fx-max-width: 16px;
+                -fx-min-width: 16px;
+            }
+
+            &.color-dropper {
+                -fx-background-color: transparent;
+            }
+
             &:hover {
                 visibility: visible;
+                -fx-cursor: v-resize;
 
                 .image-view {
                     -fx-effect: innershadow(gaussian, -df-text-selected, 20, 1.0, 0, 0);
@@ -38,6 +51,10 @@
                 .image-view {
                     -fx-effect: innershadow(gaussian, -df-defold-blue-light, 20, 1.0, 0, 0);
                 }
+            }
+
+            &.hidden {
+                visibility: hidden;
             }
         }
 

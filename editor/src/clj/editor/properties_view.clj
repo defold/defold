@@ -266,28 +266,37 @@
     (ui/user-data! ::values nil)))
 
 (defn handle-label-release-event!
-  [^MouseEvent event]
+  [^MouseEvent event ^Node control]
   (.consume event)
-  (doto (.getTarget event)
-    (ui/remove-style! "active")
-    (ui/user-data! ::op-seq nil)
-    (ui/user-data! ::position nil)))
+  (let [target (.getTarget event)]
+    (when-not (ui/user-data target ::values)
+      (.requestFocus control))
+    (doto target
+      (ui/remove-style! "active")
+      (ui/user-data! ::op-seq nil)
+      (ui/user-data! ::position nil))))
 
 (defn- make-control-draggable
   ([^Node control drag-event-handler]
    (make-control-draggable control drag-event-handler true))
   ([^Node control drag-event-handler is-left-aligned]
-   (let [drag-icon (doto (Button. "" (jfx/get-image-view "icons/32/Icons_X_10_scalesides.png" 16))
-                     (ui/add-style! "action-button")
+   (let [drag-icon (doto (Button. "" (jfx/get-image-view "icons/32/Icons_X_11_scaleupdown.png" 14))
+                     (ui/add-styles! ["action-button" "drag-handle"])
+                     (.setFocusTraversable false)
                      (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (drag-event-handler event)))
                      (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-label-press-event! event)))
-                     (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-label-release-event! event))))]
+                     (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-label-release-event! event control))))]
      (if is-left-aligned
-       (AnchorPane/setRightAnchor drag-icon 4.0)
-       (AnchorPane/setLeftAnchor drag-icon 4.0))
+       (AnchorPane/setRightAnchor drag-icon 0.0)
+       (AnchorPane/setLeftAnchor drag-icon 0.0))
      (doto control
        (AnchorPane/setRightAnchor 0.0)
        (AnchorPane/setLeftAnchor 0.0))
+     (ui/observe (.focusedProperty control)
+                 (fn [_ _ is-focused]
+                   (if is-focused
+                     (ui/add-style! drag-icon "hidden")
+                     (ui/remove-style! drag-icon "hidden"))))
      (doto (AnchorPane. (ui/node-array [control drag-icon]))
        (GridPane/setHgrow Priority/ALWAYS)
        (ui/add-style! "overlay-action-pane")))))
@@ -599,7 +608,7 @@
         pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha? edit-type) c))
         saved-colors ^Collection (get-saved-colors prefs)
         color-dropper (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
-                        (ui/add-style! "action-button")
+                        (ui/add-styles! ["action-button" "color-dropper"])
                         (AnchorPane/setRightAnchor 0.0)
                         (ui/on-click! (fn [^MouseEvent event] (color-dropper/activate! color-dropper-view pick-fn event))))
         text (TextField.)

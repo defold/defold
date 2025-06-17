@@ -533,6 +533,12 @@
           (attachment->set-tx-steps child-node-id rt project evaluation-context)))
     (throw (LuaError. "layout name is required"))))
 
+(defmethod init-attachment :editor.gui/FontNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
+  (-> attachment
+      (util/provide-defaults
+        "name" (gen-gui-component-name attachment "font" gui-attachment/scene-node->fonts-node rt parent-node-id evaluation-context))
+      (attachment->set-tx-steps child-node-id rt project evaluation-context)))
+
 (def ^:private attachment-coercer (coerce/map-of coerce/string coerce/untouched))
 (def ^:private attachments-coercer (coerce/vector-of attachment-coercer))
 
