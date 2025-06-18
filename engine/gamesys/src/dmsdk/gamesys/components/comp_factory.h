@@ -58,7 +58,7 @@ namespace dmGameSystem
      * @param world [type: HFactoryWorld] Factory world
      * @param component [type: HFactoryComponent] Factory component
      * @param collection [type: HCollection] Gameobject collection to spawn into
-     * @param id [type: dmhash_t] Identifier for the new instance. Must be unique within the collection. Pass nullptr to use the default identifier (e.g. /instance1, /instance2 etc.).
+     * @param id [type: dmhash_t] Identifier for the new instance. Must be unique within the collection. Pass nullptr to automatically generate a unique identifier (e.g. /instance1, /instance2 etc.).
      * @param position [type: dmVMath::Point3] Position of the spawned object
      * @param rotation [type: dmVMath::Quat] Rotation of the spawned object
      * @param scale [type: dmVMath::Vector3] Scale of the spawned object
