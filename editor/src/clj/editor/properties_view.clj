@@ -891,12 +891,14 @@
     (when (nil? user-data)
       (when-let [node-id (handler/selection->node-id selection)]
         (g/with-auto-evaluation-context evaluation-context
-          (let [property-labels [(:key property)]]
-            (mapv (fn [transfer-overrides-plan]
-                    {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
-                     :command :edit.pull-up-overrides
-                     :user-data {:transfer-overrides-plan transfer-overrides-plan}})
-                  (properties/pull-up-overrides-plan-alternatives node-id property-labels evaluation-context)))))))
+          (let [prop-kws [(:key property)] ; TODO(property-override-transfer): Add properties/coalesced-prop-info->transferred-properties?
+                transferred-prop-infos-by-prop-kw (properties/transferred-properties node-id prop-kws evaluation-context)]
+            (when transferred-prop-infos-by-prop-kw
+              (mapv (fn [transfer-overrides-plan]
+                      {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+                       :command :edit.pull-up-overrides
+                       :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                    (properties/pull-up-overrides-plan-alternatives node-id transferred-prop-infos-by-prop-kw evaluation-context))))))))
   (run [user-data]
     (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 
@@ -918,12 +920,14 @@
     (when (nil? user-data)
       (when-let [node-id (handler/selection->node-id selection)]
         (g/with-auto-evaluation-context evaluation-context
-          (let [property-labels [(:key property)]]
-            (mapv (fn [transfer-overrides-plan]
-                    {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
-                     :command :edit.push-down-overrides
-                     :user-data {:transfer-overrides-plan transfer-overrides-plan}})
-                  (properties/push-down-overrides-plan-alternatives node-id property-labels evaluation-context)))))))
+          (let [prop-kws [(:key property)] ; TODO(property-override-transfer): Add properties/coalesced-prop-info->transferred-properties?
+                transferred-prop-infos-by-prop-kw (properties/transferred-properties node-id prop-kws evaluation-context)]
+            (when transferred-prop-infos-by-prop-kw
+              (mapv (fn [transfer-overrides-plan]
+                      {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+                       :command :edit.push-down-overrides
+                       :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                    (properties/push-down-overrides-plan-alternatives node-id transferred-prop-infos-by-prop-kw evaluation-context))))))))
   (run [user-data]
     (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 

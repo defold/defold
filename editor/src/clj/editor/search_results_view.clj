@@ -646,6 +646,13 @@
              context-menu
              (assoc :context-menu context-menu))}))
 
+(defn- transfer-overrides-plan-menu-item [transfer-overrides-plan evaluation-context]
+  {:fx/type fx.menu-item/lifecycle
+   :text (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+   :disable (not (properties/can-transfer-overrides? transfer-overrides-plan))
+   :on-action {:event-type :on-transfer-overrides
+               :transfer-overrides-plan transfer-overrides-plan}})
+
 (defn- override-inspector-view [state parent]
   {:fx/type fxui/ext-with-anchor-pane-props
    :desc {:fx/type fxui/ext-value
@@ -669,23 +676,16 @@
                queried-proj-path (resource/proj-path (:resource tree))
                queried-qualifier (:qualifier tree)
                source-node-id (:node-id selected-item)
-               overridden-property-labels (:overridden-properties selected-item)
+               overridden-prop-kws (:overridden-properties selected-item)
 
                [pull-up-overrides-menu-items push-down-overrides-menu-items]
-               (when (and source-node-id
-                          (coll/not-empty overridden-property-labels))
-                 (let [transfer-overrides-plan-menu-item
-                       (fn transfer-overrides-plan-menu-item [transfer-overrides-plan evaluation-context]
-                         {:fx/type fx.menu-item/lifecycle
-                          :text (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
-                          :disable (not (properties/can-transfer-overrides? transfer-overrides-plan))
-                          :on-action {:event-type :on-transfer-overrides
-                                      :transfer-overrides-plan transfer-overrides-plan}})]
-                   (g/with-auto-evaluation-context evaluation-context
+               (when (and source-node-id (coll/not-empty overridden-prop-kws))
+                 (g/with-auto-evaluation-context evaluation-context
+                   (when-let [transferred-prop-infos-by-prop-kw (properties/transferred-properties source-node-id overridden-prop-kws evaluation-context)]
                      (pair (mapv #(transfer-overrides-plan-menu-item % evaluation-context)
-                                 (properties/pull-up-overrides-plan-alternatives source-node-id overridden-property-labels evaluation-context))
+                                 (properties/pull-up-overrides-plan-alternatives source-node-id transferred-prop-infos-by-prop-kw evaluation-context))
                            (mapv #(transfer-overrides-plan-menu-item % evaluation-context)
-                                 (properties/push-down-overrides-plan-alternatives source-node-id overridden-property-labels evaluation-context))))))]
+                                 (properties/push-down-overrides-plan-alternatives source-node-id transferred-prop-infos-by-prop-kw evaluation-context))))))]
 
            {:fx/type fx.h-box/lifecycle
             :anchor-pane/bottom 0

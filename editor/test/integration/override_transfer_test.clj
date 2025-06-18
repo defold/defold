@@ -28,8 +28,6 @@
 
 (def ^:private gui-text-pb-field-index (gui/prop-key->pb-field-index :text))
 (def ^:private transferred-properties (with-post-ec properties/transferred-properties))
-(def ^:private pull-up-overrides-plan-alternatives (with-post-ec properties/pull-up-overrides-plan-alternatives))
-(def ^:private push-down-overrides-plan-alternatives (with-post-ec properties/push-down-overrides-plan-alternatives))
 
 (defmulti ^:private simplify-save-value (fn [_save-value ext] ext))
 
@@ -57,6 +55,18 @@
                          (cond-> save-value
                                  (not (g/error-value? save-value))
                                  (simplify-save-value (resource/type-ext resource))))))))))))
+
+(defn- pull-up-overrides-plan-alternatives
+  [source-node-id source-prop-kws]
+  (g/with-auto-evaluation-context evaluation-context
+    (when-let [transferred-prop-infos-by-prop-kw (properties/transferred-properties source-node-id source-prop-kws evaluation-context)]
+      (properties/pull-up-overrides-plan-alternatives source-node-id transferred-prop-infos-by-prop-kw evaluation-context))))
+
+(defn- push-down-overrides-plan-alternatives
+  [source-node-id source-prop-kws]
+  (g/with-auto-evaluation-context evaluation-context
+    (when-let [transferred-prop-infos-by-prop-kw (properties/transferred-properties source-node-id source-prop-kws evaluation-context)]
+      (properties/push-down-overrides-plan-alternatives source-node-id transferred-prop-infos-by-prop-kw evaluation-context))))
 
 (defn- transfer-overrides-plan-info
   ^String [transfer-overrides-plan]
