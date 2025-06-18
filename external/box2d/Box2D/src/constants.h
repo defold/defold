@@ -23,7 +23,9 @@ extern float b2_lengthUnitsPerMeter;
 #define B2_LINEAR_SLOP ( 0.005f * b2_lengthUnitsPerMeter )
 
 // Maximum number of simultaneous worlds that can be allocated
+#ifndef B2_MAX_WORLDS
 #define B2_MAX_WORLDS 128
+#endif
 
 // The maximum rotation of a body per time step. This limit is very large and is used
 // to prevent numerical problems. You shouldn't need to adjust this.
@@ -43,6 +45,12 @@ extern float b2_lengthUnitsPerMeter;
 
 // The time that a body must be still before it will go to sleep. In seconds.
 #define B2_TIME_TO_SLEEP 0.5f
+
+// The default joint constraint hertz
+#define B2_JOINT_CONSTRAINT_HERTZ 60.0f
+
+// The default joint constraint damping ratio
+#define B2_JOINT_CONSTRAINT_DAMPING_RATIO 2.0f
 
 enum b2TreeNodeFlags
 {

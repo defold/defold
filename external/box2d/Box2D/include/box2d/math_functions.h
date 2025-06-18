@@ -61,6 +61,13 @@ typedef struct b2AABB
 	b2Vec2 upperBound;
 } b2AABB;
 
+/// separation = dot(normal, point) - offset
+typedef struct b2Plane
+{
+	b2Vec2 normal;
+	float offset;
+} b2Plane;
+
 /**@}*/
 
 /**
@@ -75,6 +82,21 @@ static const b2Vec2 b2Vec2_zero = { 0.0f, 0.0f };
 static const b2Rot b2Rot_identity = { 1.0f, 0.0f };
 static const b2Transform b2Transform_identity = { { 0.0f, 0.0f }, { 1.0f, 0.0f } };
 static const b2Mat22 b2Mat22_zero = { { 0.0f, 0.0f }, { 0.0f, 0.0f } };
+
+/// Is this a valid number? Not NaN or infinity.
+B2_API bool b2IsValidFloat( float a );
+
+/// Is this a valid vector? Not NaN or infinity.
+B2_API bool b2IsValidVec2( b2Vec2 v );
+
+/// Is this a valid rotation? Not NaN or infinity. Is normalized.
+B2_API bool b2IsValidRotation( b2Rot q );
+
+/// Is this a valid bounding box? Not Nan or infinity. Upper bound greater than or equal to lower bound.
+B2_API bool b2IsValidAABB( b2AABB aabb );
+
+/// Is this a valid plane? Normal is a unit vector. Not Nan or infinity.
+B2_API bool b2IsValidPlane( b2Plane a );
 
 /// @return the minimum of two integers
 B2_INLINE int b2MinInt( int a, int b )
@@ -270,12 +292,13 @@ B2_INLINE float b2Distance( b2Vec2 a, b2Vec2 b )
 }
 
 /// Convert a vector into a unit vector if possible, otherwise returns the zero vector.
+/// todo MSVC is not inlining this function in several places per warning 4710
 B2_INLINE b2Vec2 b2Normalize( b2Vec2 v )
 {
 	float length = sqrtf( v.x * v.x + v.y * v.y );
 	if ( length < FLT_EPSILON )
 	{
-		return b2Vec2_zero;
+		return B2_LITERAL( b2Vec2 ){ 0.0f, 0.0f };
 	}
 
 	float invLength = 1.0f / length;
@@ -283,14 +306,21 @@ B2_INLINE b2Vec2 b2Normalize( b2Vec2 v )
 	return n;
 }
 
+/// Determines if the provided vector is normalized (norm(a) == 1).
+B2_INLINE bool b2IsNormalized( b2Vec2 a )
+{
+	float aa = b2Dot( a, a );
+	return b2AbsFloat( 1.0f - aa ) < 100.0f * FLT_EPSILON;
+}
+
 /// Convert a vector into a unit vector if possible, otherwise returns the zero vector. Also
 /// outputs the length.
 B2_INLINE b2Vec2 b2GetLengthAndNormalize( float* length, b2Vec2 v )
 {
-	*length = b2Length( v );
+	*length = sqrtf( v.x * v.x + v.y * v.y );
 	if ( *length < FLT_EPSILON )
 	{
-		return b2Vec2_zero;
+		return B2_LITERAL( b2Vec2 ){ 0.0f, 0.0f };
 	}
 
 	float invLength = 1.0f / *length;
@@ -347,7 +377,7 @@ B2_INLINE b2Rot b2MakeRot( float radians )
 B2_API b2Rot b2ComputeRotationBetweenUnitVectors( b2Vec2 v1, b2Vec2 v2 );
 
 /// Is this rotation normalized?
-B2_INLINE bool b2IsNormalized( b2Rot q )
+B2_INLINE bool b2IsNormalizedRot( b2Rot q )
 {
 	// larger tolerance due to failure on mingw 32-bit
 	float qq = q.s * q.s + q.c * q.c;
@@ -365,7 +395,10 @@ B2_INLINE b2Rot b2NLerp( b2Rot q1, b2Rot q2, float t )
 		omt * q1.s + t * q2.s,
 	};
 
-	return b2NormalizeRot( q );
+	float mag = sqrtf( q.s * q.s + q.c * q.c );
+	float invMag = mag > 0.0 ? 1.0f / mag : 0.0f;
+	b2Rot qn = { q.c * invMag, q.s * invMag };
+	return qn;
 }
 
 /// Compute the angular velocity necessary to rotate between two rotations over a give time
@@ -444,35 +477,11 @@ B2_INLINE float b2RelativeAngle( b2Rot b, b2Rot a )
 	return b2Atan2( s, c );
 }
 
-/// Convert an angle in the range [-2*pi, 2*pi] into the range [-pi, pi]
+/// Convert any angle into the range [-pi, pi]
 B2_INLINE float b2UnwindAngle( float radians )
 {
-	if ( radians < -B2_PI )
-	{
-		return radians + 2.0f * B2_PI;
-	}
-	else if ( radians > B2_PI )
-	{
-		return radians - 2.0f * B2_PI;
-	}
-
-	return radians;
-}
-
-/// Convert any into the range [-pi, pi] (slow)
-B2_INLINE float b2UnwindLargeAngle( float radians )
-{
-	while ( radians > B2_PI )
-	{
-		radians -= 2.0f * B2_PI;
-	}
-
-	while ( radians < -B2_PI )
-	{
-		radians += 2.0f * B2_PI;
-	}
-
-	return radians;
+	// Assuming this is deterministic
+	return remainderf( radians, 2.0f * B2_PI );
 }
 
 /// Rotate a vector
@@ -605,17 +614,48 @@ B2_INLINE b2AABB b2AABB_Union( b2AABB a, b2AABB b )
 	return c;
 }
 
-/// Is this a valid number? Not NaN or infinity.
-B2_API bool b2IsValidFloat( float a );
+/// Do a and b overlap
+B2_INLINE bool b2AABB_Overlaps( b2AABB a, b2AABB b )
+{
+	return !( b.lowerBound.x > a.upperBound.x || b.lowerBound.y > a.upperBound.y || a.lowerBound.x > b.upperBound.x ||
+			  a.lowerBound.y > b.upperBound.y );
+}
 
-/// Is this a valid vector? Not NaN or infinity.
-B2_API bool b2IsValidVec2( b2Vec2 v );
+/// Compute the bounding box of an array of circles
+B2_INLINE b2AABB b2MakeAABB( const b2Vec2* points, int count, float radius )
+{
+	B2_ASSERT( count > 0 );
+	b2AABB a = { points[0], points[0] };
+	for ( int i = 1; i < count; ++i )
+	{
+		a.lowerBound = b2Min( a.lowerBound, points[i] );
+		a.upperBound = b2Max( a.upperBound, points[i] );
+	}
 
-/// Is this a valid rotation? Not NaN or infinity. Is normalized.
-B2_API bool b2IsValidRotation( b2Rot q );
+	b2Vec2 r = { radius, radius };
+	a.lowerBound = b2Sub( a.lowerBound, r );
+	a.upperBound = b2Add( a.upperBound, r );
 
-/// Is this a valid bounding box? Not Nan or infinity. Upper bound greater than or equal to lower bound.
-B2_API bool b2IsValidAABB( b2AABB aabb );
+	return a;
+}
+
+/// Signed separation of a point from a plane
+B2_INLINE float b2PlaneSeparation( b2Plane plane, b2Vec2 point )
+{
+	return b2Dot( plane.normal, point ) - plane.offset;
+}
+
+/// One-dimensional mass-spring-damper simulation. Returns the new velocity given the position and time step.
+/// You can then compute the new position using:
+/// position += timeStep * newVelocity
+/// This drives towards a zero position. By using implicit integration we get a stable solution
+/// that doesn't require transcendental functions.
+B2_INLINE float b2SpringDamper( float hertz, float dampingRatio, float position, float velocity, float timeStep )
+{
+	float omega = 2.0f * B2_PI * hertz;
+	float omegaH = omega * timeStep;
+	return ( velocity - omega * omegaH * position ) / ( 1.0f + 2.0f * dampingRatio * omegaH + omegaH * omegaH );
+}
 
 /// Box2D bases all length units on meters, but you may need different units for your game.
 /// You can set this value to use different units. This should be done at application startup

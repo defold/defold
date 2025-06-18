@@ -11,7 +11,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define B2_DEFAULT_CATEGORY_BITS 0x0001ULL
+#define B2_DEFAULT_CATEGORY_BITS 1
 #define B2_DEFAULT_MASK_BITS UINT64_MAX
 
 /// Task interface
@@ -52,14 +52,17 @@ typedef void b2FinishTaskCallback( void* userTask, void* userContext );
 /// Optional friction mixing callback. This intentionally provides no context objects because this is called
 /// from a worker thread.
 /// @warning This function should not attempt to modify Box2D state or user application state.
-typedef float b2FrictionCallback( float frictionA, int materialA, float frictionB, int materialB );
+/// @ingroup world
+typedef float b2FrictionCallback( float frictionA, int userMaterialIdA, float frictionB, int userMaterialIdB );
 
 /// Optional restitution mixing callback. This intentionally provides no context objects because this is called
 /// from a worker thread.
 /// @warning This function should not attempt to modify Box2D state or user application state.
-typedef float b2RestitutionCallback( float restitutionA, int materialA, float restitutionB, int materialB );
+/// @ingroup world
+typedef float b2RestitutionCallback( float restitutionA, int userMaterialIdA, float restitutionB, int userMaterialIdB );
 
 /// Result from b2World_RayCastClosest
+/// If there is initial overlap the fraction and normal will be zero while the point is an arbitrary point in the overlap region.
 /// @ingroup world
 typedef struct b2RayResult
 {
@@ -97,13 +100,7 @@ typedef struct b2WorldDef
 	/// This parameter controls how fast overlap is resolved and usually has units of meters per second. This only
 	/// puts a cap on the resolution speed. The resolution speed is increased by increasing the hertz and/or
 	/// decreasing the damping ratio.
-	float contactPushMaxSpeed;
-
-	/// Joint stiffness. Cycles per second.
-	float jointHertz;
-
-	/// Joint bounciness. Non-dimensional.
-	float jointDampingRatio;
+	float maxContactPushSpeed;
 
 	/// Maximum linear speed. Usually meters per second.
 	float maximumLinearSpeed;
@@ -328,74 +325,6 @@ typedef enum b2ShapeType
 	b2_shapeTypeCount
 } b2ShapeType;
 
-/// Used to create a shape.
-/// This is a temporary object used to bundle shape creation parameters. You may use
-/// the same shape definition to create multiple shapes.
-/// Must be initialized using b2DefaultShapeDef().
-/// @ingroup shape
-typedef struct b2ShapeDef
-{
-	/// Use this to store application specific shape data.
-	void* userData;
-
-	/// The Coulomb (dry) friction coefficient, usually in the range [0,1].
-	float friction;
-
-	/// The coefficient of restitution (bounce) usually in the range [0,1].
-	/// https://en.wikipedia.org/wiki/Coefficient_of_restitution
-	float restitution;
-
-	/// The rolling resistance usually in the range [0,1].
-	float rollingResistance;
-
-	/// The tangent speed for conveyor belts
-	float tangentSpeed;
-
-	/// User material identifier. This is passed with query results and to friction and restitution
-	/// combining functions. It is not used internally.
-	int material;
-
-	/// The density, usually in kg/m^2.
-	float density;
-
-	/// Collision filtering data.
-	b2Filter filter;
-
-	/// Custom debug draw color.
-	uint32_t customColor;
-
-	/// A sensor shape generates overlap events but never generates a collision response.
-	/// Sensors do not collide with other sensors and do not have continuous collision.
-	/// Instead, use a ray or shape cast for those scenarios.
-	bool isSensor;
-
-	/// Enable contact events for this shape. Only applies to kinematic and dynamic bodies. Ignored for sensors.
-	bool enableContactEvents;
-
-	/// Enable hit events for this shape. Only applies to kinematic and dynamic bodies. Ignored for sensors.
-	bool enableHitEvents;
-
-	/// Enable pre-solve contact events for this shape. Only applies to dynamic bodies. These are expensive
-	/// and must be carefully handled due to threading. Ignored for sensors.
-	bool enablePreSolveEvents;
-
-	/// Normally shapes on static bodies don't invoke contact creation when they are added to the world. This overrides
-	/// that behavior and causes contact creation. This significantly slows down static body creation which can be important
-	/// when there are many static shapes.
-	/// This is implicitly always true for sensors, dynamic bodies, and kinematic bodies.
-	bool invokeContactCreation;
-
-	/// Should the body update the mass properties when this shape is created. Default is true.
-	bool updateBodyMass;
-
-	/// Used internally to detect a valid definition. DO NOT SET.
-	int internalValue;
-} b2ShapeDef;
-
-/// Use this to initialize your shape definition
-/// @ingroup shape
-B2_API b2ShapeDef b2DefaultShapeDef( void );
-
 /// Surface materials allow chain shapes to have per segment surface properties.
 /// @ingroup shape
 typedef struct b2SurfaceMaterial
@@ -415,7 +344,7 @@ typedef struct b2SurfaceMaterial
 
 	/// User material identifier. This is passed with query results and to friction and restitution
 	/// combining functions. It is not used internally.
-	int material;
+	int userMaterialId;
 
 	/// Custom debug draw color.
 	uint32_t customColor;
@@ -425,10 +354,67 @@ typedef struct b2SurfaceMaterial
 /// @ingroup shape
 B2_API b2SurfaceMaterial b2DefaultSurfaceMaterial( void );
 
+/// Used to create a shape.
+/// This is a temporary object used to bundle shape creation parameters. You may use
+/// the same shape definition to create multiple shapes.
+/// Must be initialized using b2DefaultShapeDef().
+/// @ingroup shape
+typedef struct b2ShapeDef
+{
+	/// Use this to store application specific shape data.
+	void* userData;
+
+	/// The surface material for this shape.
+	b2SurfaceMaterial material;
+
+	/// The density, usually in kg/m^2.
+	/// This is not part of the surface material because this is for the interior, which may have
+	/// other considerations, such as being hollow. For example a wood barrel may be hollow or full of water.
+	float density;
+
+	/// Collision filtering data.
+	b2Filter filter;
+
+	/// A sensor shape generates overlap events but never generates a collision response.
+	/// Sensors do not have continuous collision. Instead, use a ray or shape cast for those scenarios.
+	/// Sensors still contribute to the body mass if they have non-zero density.
+	/// @note Sensor events are disabled by default.
+	/// @see enableSensorEvents
+	bool isSensor;
+
+	/// Enable sensor events for this shape. This applies to sensors and non-sensors. False by default, even for sensors.
+	bool enableSensorEvents;
+
+	/// Enable contact events for this shape. Only applies to kinematic and dynamic bodies. Ignored for sensors. False by default.
+	bool enableContactEvents;
+
+	/// Enable hit events for this shape. Only applies to kinematic and dynamic bodies. Ignored for sensors. False by default.
+	bool enableHitEvents;
+
+	/// Enable pre-solve contact events for this shape. Only applies to dynamic bodies. These are expensive
+	/// and must be carefully handled due to threading. Ignored for sensors.
+	bool enablePreSolveEvents;
+
+	/// When shapes are created they will scan the environment for collision the next time step. This can significantly slow down
+	/// static body creation when there are many static shapes.
+	/// This is flag is ignored for dynamic and kinematic shapes which always invoke contact creation.
+	bool invokeContactCreation;
+
+	/// Should the body update the mass properties when this shape is created. Default is true.
+	bool updateBodyMass;
+
+	/// Used internally to detect a valid definition. DO NOT SET.
+	int internalValue;
+} b2ShapeDef;
+
+/// Use this to initialize your shape definition
+/// @ingroup shape
+B2_API b2ShapeDef b2DefaultShapeDef( void );
+
 /// Used to create a chain of line segments. This is designed to eliminate ghost collisions with some limitations.
 /// - chains are one-sided
 /// - chains have no mass and should be used on static bodies
-/// - chains have a counter-clockwise winding order
+/// - chains have a counter-clockwise winding order (normal points right of segment direction)
 /// - chains are either a loop or open
 /// - a chain must have at least 4 points
 /// - the distance between any two points must be greater than B2_LINEAR_SLOP
@@ -463,6 +449,9 @@ typedef struct b2ChainDef
 
 	/// Indicates a closed chain formed by connecting the first and last points
 	bool isLoop;
+
+	/// Enable sensors to detect this chain. False by default.
+	bool enableSensorEvents;
 
 	/// Used internally to detect a valid definition. DO NOT SET.
 	int internalValue;
@@ -525,9 +514,9 @@ typedef struct b2Counters
 typedef enum b2JointType
 {
 	b2_distanceJoint,
+	b2_filterJoint,
 	b2_motorJoint,
 	b2_mouseJoint,
-	b2_nullJoint,
 	b2_prismaticJoint,
 	b2_revoluteJoint,
 	b2_weldJoint,
@@ -680,10 +669,10 @@ typedef struct b2MouseJointDef
 /// @ingroup mouse_joint
 B2_API b2MouseJointDef b2DefaultMouseJointDef( void );
 
-/// A null joint is used to disable collision between two specific bodies.
+/// A filter joint is used to disable collision between two specific bodies.
 ///
-/// @ingroup null_joint
-typedef struct b2NullJointDef
+/// @ingroup filter_joint
+typedef struct b2FilterJointDef
 {
 	/// The first attached body.
 	b2BodyId bodyIdA;
@@ -696,11 +685,11 @@ typedef struct b2NullJointDef
 
 	/// Used internally to detect a valid definition. DO NOT SET.
 	int internalValue;
-} b2NullJointDef;
+} b2FilterJointDef;
 
 /// Use this to initialize your joint definition
-/// @ingroup null_joint
-B2_API b2NullJointDef b2DefaultNullJointDef( void );
+/// @ingroup filter_joint
+B2_API b2FilterJointDef b2DefaultFilterJointDef( void );
 
 /// Prismatic joint definition
 ///
@@ -728,6 +717,10 @@ typedef struct b2PrismaticJointDef
 
 	/// The constrained angle between the bodies: bodyB_angle - bodyA_angle
 	float referenceAngle;
+
+	/// The target translation for the joint in meters. The spring-damper will drive
+	/// to this translation.
+	float targetTranslation;
 
 	/// Enable a linear spring along the prismatic joint axis
 	bool enableSpring;
@@ -800,6 +793,10 @@ typedef struct b2RevoluteJointDef
 	/// This defines the zero angle for the joint limit.
 	float referenceAngle;
 
+	/// The target angle for the joint in radians. The spring-damper will drive
+	/// to this angle.
+	float targetAngle;
+
 	/// Enable a rotational spring on the revolute hinge axis
 	bool enableSpring;
 
@@ -812,10 +809,10 @@ typedef struct b2RevoluteJointDef
 	/// A flag to enable joint limits
 	bool enableLimit;
 
-	/// The lower angle for the joint limit in radians
+	/// The lower angle for the joint limit in radians. Minimum of -0.99*pi radians.
 	float lowerAngle;
 
-	/// The upper angle for the joint limit in radians
+	/// The upper angle for the joint limit in radians. Maximum of 0.99*pi radians.
 	float upperAngle;
 
 	/// A flag to enable the joint motor
@@ -865,6 +862,7 @@ typedef struct b2WeldJointDef
 	b2Vec2 localAnchorB;
 
 	/// The bodyB angle minus bodyA angle in the reference state (radians)
+	/// todo maybe make this a b2Rot
 	float referenceAngle;
 
 	/// Linear stiffness expressed as Hertz (cycles per second). Use zero for maximum stiffness.
@@ -1080,6 +1078,7 @@ typedef struct b2ContactEndTouchEvent
 } b2ContactEndTouchEvent;
 
 /// A hit touch event is generated when two shapes collide with a speed faster than the hit speed threshold.
+/// This may be reported for speculative contacts that have a confirmed impulse.
 typedef struct b2ContactHitEvent
 {
 	/// Id of the first shape
@@ -1088,7 +1087,9 @@ typedef struct b2ContactHitEvent
 	/// Id of the second shape
 	b2ShapeId shapeIdB;
 
-	/// Point where the shapes hit
+	/// Point where the shapes hit at the beginning of the time step.
+	/// This is a mid-point between the two surfaces. It could be at speculative
+	/// point where the two shapes were not touching at the beginning of the time step.
 	b2Vec2 point;
 
 	/// Normal vector pointing from shape A to shape B
@@ -1200,22 +1201,27 @@ typedef bool b2PreSolveFcn( b2ShapeId shapeIdA, b2ShapeId shapeIdB, b2Manifold* 
 /// @ingroup world
 typedef bool b2OverlapResultFcn( b2ShapeId shapeId, void* context );
 
-/// Prototype callback for ray casts.
+/// Prototype callback for ray and shape casts.
 /// Called for each shape found in the query. You control how the ray cast
 /// proceeds by returning a float:
 /// return -1: ignore this shape and continue
 /// return 0: terminate the ray cast
 /// return fraction: clip the ray to this point
 /// return 1: don't clip the ray and continue
+/// A cast with initial overlap will return a zero fraction and a zero normal.
 /// @param shapeId the shape hit by the ray
 /// @param point the point of initial intersection
-/// @param normal the normal vector at the point of intersection
-/// @param fraction the fraction along the ray at the point of intersection
+/// @param normal the normal vector at the point of intersection, zero for a shape cast with initial overlap
+/// @param fraction the fraction along the ray at the point of intersection, zero for a shape cast with initial overlap
 /// @param context the user context
 /// @return -1 to filter, 0 to terminate, fraction to clip the ray for closest hit, 1 to continue
 /// @see b2World_CastRay
 /// @ingroup world
 typedef float b2CastResultFcn( b2ShapeId shapeId, b2Vec2 point, b2Vec2 normal, float fraction, void* context );
+
+// Used to collect collision planes for character movers.
+// Return true to continue gathering planes.
+typedef bool b2PlaneResultFcn( b2ShapeId shapeId, const b2PlaneResult* plane, void* context );
 
 /// These colors are used for debug draw and mostly match the named SVG colors.
 /// See https://www.rapidtables.com/web/color/index.html
@@ -1377,32 +1383,32 @@ typedef enum b2HexColor
 typedef struct b2DebugDraw
 {
 	/// Draw a closed polygon provided in CCW order.
-	void ( *DrawPolygon )( const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context );
+	void ( *DrawPolygonFcn )( const b2Vec2* vertices, int vertexCount, b2HexColor color, void* context );
 
 	/// Draw a solid closed polygon provided in CCW order.
-	void ( *DrawSolidPolygon )( b2Transform transform, const b2Vec2* vertices, int vertexCount, float radius, b2HexColor color,
+	void ( *DrawSolidPolygonFcn )( b2Transform transform, const b2Vec2* vertices, int vertexCount, float radius, b2HexColor color,
 								void* context );
 
 	/// Draw a circle.
-	void ( *DrawCircle )( b2Vec2 center, float radius, b2HexColor color, void* context );
+	void ( *DrawCircleFcn )( b2Vec2 center, float radius, b2HexColor color, void* context );
 
 	/// Draw a solid circle.
-	void ( *DrawSolidCircle )( b2Transform transform, float radius, b2HexColor color, void* context );
+	void ( *DrawSolidCircleFcn )( b2Transform transform, float radius, b2HexColor color, void* context );
 
 	/// Draw a solid capsule.
-	void ( *DrawSolidCapsule )( b2Vec2 p1, b2Vec2 p2, float radius, b2HexColor color, void* context );
+	void ( *DrawSolidCapsuleFcn )( b2Vec2 p1, b2Vec2 p2, float radius, b2HexColor color, void* context );
 
 	/// Draw a line segment.
-	void ( *DrawSegment )( b2Vec2 p1, b2Vec2 p2, b2HexColor color, void* context );
+	void ( *DrawSegmentFcn )( b2Vec2 p1, b2Vec2 p2, b2HexColor color, void* context );
 
 	/// Draw a transform. Choose your own length scale.
-	void ( *DrawTransform )( b2Transform transform, void* context );
+	void ( *DrawTransformFcn )( b2Transform transform, void* context );
 
 	/// Draw a point.
-	void ( *DrawPoint )( b2Vec2 p, float size, b2HexColor color, void* context );
+	void ( *DrawPointFcn )( b2Vec2 p, float size, b2HexColor color, void* context );
 
 	/// Draw a string in world space
-	void ( *DrawString )( b2Vec2 p, const char* s, b2HexColor color, void* context );
+	void ( *DrawStringFcn )( b2Vec2 p, const char* s, b2HexColor color, void* context );
 
 	/// Bounds to use if restricting drawing to a rectangular region
 	b2AABB drawingBounds;
@@ -1420,7 +1426,7 @@ typedef struct b2DebugDraw
 	bool drawJointExtras;
 
 	/// Option to draw the bounding boxes for shapes
-	bool drawAABBs;
+	bool drawBounds;
 
 	/// Option to draw the mass and center of mass of dynamic bodies
 	bool drawMass;
@@ -1440,8 +1446,14 @@ typedef struct b2DebugDraw
 	/// Option to draw contact normal impulses
 	bool drawContactImpulses;
 
+	/// Option to draw contact feature ids
+	bool drawContactFeatures;
+
 	/// Option to draw contact friction impulses
 	bool drawFrictionImpulses;
+
+	/// Option to draw islands as bounding boxes
+	bool drawIslands;
 
 	/// User context that is passed as an argument to drawing callback functions
 	void* context;

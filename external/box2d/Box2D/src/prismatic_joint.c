@@ -53,6 +53,18 @@ float b2PrismaticJoint_GetSpringDampingRatio( b2JointId jointId )
 	return joint->prismaticJoint.dampingRatio;
 }
 
+void b2PrismaticJoint_SetTargetTranslation( b2JointId jointId, float translation )
+{
+	b2JointSim* joint = b2GetJointSimCheckType( jointId, b2_prismaticJoint );
+	joint->prismaticJoint.targetTranslation = translation;
+}
+
+float b2PrismaticJoint_GetTargetTranslation( b2JointId jointId )
+{
+	b2JointSim* joint = b2GetJointSimCheckType( jointId, b2_prismaticJoint );
+	return joint->prismaticJoint.targetTranslation;
+}
+
 void b2PrismaticJoint_EnableLimit( b2JointId jointId, bool enableLimit )
 {
 	b2JointSim* joint = b2GetJointSimCheckType( jointId, b2_prismaticJoint );
@@ -84,6 +96,8 @@ float b2PrismaticJoint_GetUpperLimit( b2JointId jointId )
 
 void b2PrismaticJoint_SetLimits( b2JointId jointId, float lower, float upper )
 {
+	B2_ASSERT( lower <= upper );
+
 	b2JointSim* joint = b2GetJointSimCheckType( jointId, b2_prismaticJoint );
 	if ( lower != joint->prismaticJoint.lowerTranslation || upper != joint->prismaticJoint.upperTranslation )
 	{
@@ -415,18 +429,18 @@ void b2SolvePrismaticJoint( b2JointSim* base, b2StepContext* context, bool useBi
 	if ( joint->enableSpring )
 	{
 		// This is a real spring and should be applied even during relax
-		float C = translation;
+		float C = translation - joint->targetTranslation;
 		float bias = joint->springSoftness.biasRate * C;
 		float massScale = joint->springSoftness.massScale;
 		float impulseScale = joint->springSoftness.impulseScale;
 
 		float Cdot = b2Dot( axisA, b2Sub( vB, vA ) ) + a2 * wB - a1 * wA;
-		float impulse = -massScale * joint->axialMass * ( Cdot + bias ) - impulseScale * joint->springImpulse;
-		joint->springImpulse += impulse;
+		float deltaImpulse = -massScale * joint->axialMass * ( Cdot + bias ) - impulseScale * joint->springImpulse;
+		joint->springImpulse += deltaImpulse;
 
-		b2Vec2 P = b2MulSV( impulse, axisA );
-		float LA = impulse * a1;
-		float LB = impulse * a2;
+		b2Vec2 P = b2MulSV( deltaImpulse, axisA );
+		float LA = deltaImpulse * a1;
+		float LB = deltaImpulse * a2;
 
 		vA = b2MulSub( vA, mA, P );
 		wA -= iA * LA;
@@ -470,9 +484,9 @@ void b2SolvePrismaticJoint( b2JointSim* base, b2StepContext* context, bool useBi
 			}
 			else if ( useBias )
 			{
-				bias = context->jointSoftness.biasRate * C;
-				massScale = context->jointSoftness.massScale;
-				impulseScale = context->jointSoftness.impulseScale;
+				bias = base->constraintSoftness.biasRate * C;
+				massScale = base->constraintSoftness.massScale;
+				impulseScale = base->constraintSoftness.impulseScale;
 			}
 
 			float oldImpulse = joint->lowerImpulse;
@@ -508,9 +522,9 @@ void b2SolvePrismaticJoint( b2JointSim* base, b2StepContext* context, bool useBi
 			}
 			else if ( useBias )
 			{
-				bias = context->jointSoftness.biasRate * C;
-				massScale = context->jointSoftness.massScale;
-				impulseScale = context->jointSoftness.impulseScale;
+				bias = base->constraintSoftness.biasRate * C;
+				massScale = base->constraintSoftness.massScale;
+				impulseScale = base->constraintSoftness.impulseScale;
 			}
 
 			float oldImpulse = joint->upperImpulse;
@@ -553,9 +567,9 @@ void b2SolvePrismaticJoint( b2JointSim* base, b2StepContext* context, bool useBi
 			C.x = b2Dot( perpA, d );
 			C.y = b2RelativeAngle( stateB->deltaRotation, stateA->deltaRotation ) + joint->deltaAngle;
 
-			bias = b2MulSV( context->jointSoftness.biasRate, C );
-			massScale = context->jointSoftness.massScale;
-			impulseScale = context->jointSoftness.impulseScale;
+			bias = b2MulSV( base->constraintSoftness.biasRate, C );
+			massScale = base->constraintSoftness.massScale;
+			impulseScale = base->constraintSoftness.impulseScale;
 		}
 
 		float k11 = mA + mB + iA * s1 * s1 + iB * s2 * s2;
@@ -633,22 +647,22 @@ void b2DrawPrismaticJoint( b2DebugDraw* draw, b2JointSim* base, b2Transform tran
 	b2HexColor c4 = b2_colorBlue;
 	b2HexColor c5 = b2_colorDimGray;
 
-	draw->DrawSegment( pA, pB, c5, draw->context );
+	draw->DrawSegmentFcn( pA, pB, c5, draw->context );
 
 	if ( joint->enableLimit )
 	{
 		b2Vec2 lower = b2MulAdd( pA, joint->lowerTranslation, axis );
 		b2Vec2 upper = b2MulAdd( pA, joint->upperTranslation, axis );
 		b2Vec2 perp = b2LeftPerp( axis );
-		draw->DrawSegment( lower, upper, c1, draw->context );
-		draw->DrawSegment( b2MulSub( lower, 0.1f, perp ), b2MulAdd( lower, 0.1f, perp ), c2, draw->context );
-		draw->DrawSegment( b2MulSub( upper, 0.1f, perp ), b2MulAdd( upper, 0.1f, perp ), c3, draw->context );
+		draw->DrawSegmentFcn( lower, upper, c1, draw->context );
+		draw->DrawSegmentFcn( b2MulSub( lower, 0.1f, perp ), b2MulAdd( lower, 0.1f, perp ), c2, draw->context );
+		draw->DrawSegmentFcn( b2MulSub( upper, 0.1f, perp ), b2MulAdd( upper, 0.1f, perp ), c3, draw->context );
 	}
 	else
 	{
-		draw->DrawSegment( b2MulSub( pA, 1.0f, axis ), b2MulAdd( pA, 1.0f, axis ), c1, draw->context );
+		draw->DrawSegmentFcn( b2MulSub( pA, 1.0f, axis ), b2MulAdd( pA, 1.0f, axis ), c1, draw->context );
 	}
 
-	draw->DrawPoint( pA, 5.0f, c1, draw->context );
-	draw->DrawPoint( pB, 5.0f, c4, draw->context );
+	draw->DrawPointFcn( pA, 5.0f, c1, draw->context );
+	draw->DrawPointFcn( pB, 5.0f, c4, draw->context );
 }

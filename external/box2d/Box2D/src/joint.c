@@ -18,8 +18,8 @@
 #include <stddef.h>
 #include <string.h>
 
-B2_ARRAY_SOURCE( b2Joint, b2Joint );
-B2_ARRAY_SOURCE( b2JointSim, b2JointSim );
+B2_ARRAY_SOURCE( b2Joint, b2Joint )
+B2_ARRAY_SOURCE( b2JointSim, b2JointSim )
 
 b2DistanceJointDef b2DefaultDistanceJointDef( void )
 {
@@ -50,9 +50,9 @@ b2MouseJointDef b2DefaultMouseJointDef( void )
 	return def;
 }
 
-b2NullJointDef b2DefaultNullJointDef( void )
+b2FilterJointDef b2DefaultFilterJointDef( void )
 {
-	b2NullJointDef def = { 0 };
+	b2FilterJointDef def = { 0 };
 	def.internalValue = B2_SECRET_COOKIE;
 	return def;
 }
@@ -60,7 +60,7 @@ b2NullJointDef b2DefaultNullJointDef( void )
 b2PrismaticJointDef b2DefaultPrismaticJointDef( void )
 {
 	b2PrismaticJointDef def = { 0 };
-	def.localAxisA = ( b2Vec2 ){ 1.0f, 0.0f };
+	def.localAxisA = (b2Vec2){ 1.0f, 0.0f };
 	def.internalValue = B2_SECRET_COOKIE;
 	return def;
 }
@@ -91,7 +91,7 @@ b2WheelJointDef b2DefaultWheelJointDef( void )
 	return def;
 }
 
-b2ExplosionDef b2DefaultExplosionDef(void)
+b2ExplosionDef b2DefaultExplosionDef( void )
 {
 	b2ExplosionDef def = { 0 };
 	def.maskBits = B2_DEFAULT_MASK_BITS;
@@ -154,7 +154,7 @@ static b2JointPair b2CreateJoint( b2World* world, b2Body* bodyA, b2Body* bodyB, 
 	int jointId = b2AllocId( &world->jointIdPool );
 	if ( jointId == world->joints.count )
 	{
-		b2JointArray_Push( &world->joints, ( b2Joint ){ 0 } );
+		b2JointArray_Push( &world->joints, (b2Joint){ 0 } );
 	}
 
 	b2Joint* joint = b2JointArray_Get( &world->joints, jointId );
@@ -286,6 +286,14 @@ static b2JointPair b2CreateJoint( b2World* world, b2Body* bodyA, b2Body* bodyB, 
 		B2_ASSERT( joint->setIndex == setIndex );
 	}
 
+	jointSim->constraintHertz = B2_JOINT_CONSTRAINT_HERTZ;
+	jointSim->constraintDampingRatio = B2_JOINT_CONSTRAINT_DAMPING_RATIO;
+	jointSim->constraintSoftness = (b2Softness){
+		.biasRate = 0.0f,
+		.massScale = 1.0f,
+		.impulseScale = 0.0f,
+	};
+
 	B2_ASSERT( jointSim->jointId == jointId );
 	B2_ASSERT( jointSim->bodyIdA == bodyIdA );
 	B2_ASSERT( jointSim->bodyIdB == bodyIdB );
@@ -299,7 +307,7 @@ static b2JointPair b2CreateJoint( b2World* world, b2Body* bodyA, b2Body* bodyB, 
 
 	b2ValidateSolverSets( world );
 
-	return ( b2JointPair ){ joint, jointSim };
+	return (b2JointPair){ joint, jointSim };
 }
 
 static void b2DestroyContactsBetweenBodies( b2World* world, b2Body* bodyA, b2Body* bodyB )
@@ -351,7 +359,7 @@ b2JointId b2CreateDistanceJoint( b2WorldId worldId, const b2DistanceJointDef* de
 
 	if ( world->locked )
 	{
-		return ( b2JointId ){ 0 };
+		return (b2JointId){ 0 };
 	}
 
 	B2_ASSERT( b2Body_IsValid( def->bodyIdA ) );
@@ -404,7 +412,7 @@ b2JointId b2CreateMotorJoint( b2WorldId worldId, const b2MotorJointDef* def )
 
 	if ( world->locked )
 	{
-		return ( b2JointId ){ 0 };
+		return (b2JointId){ 0 };
 	}
 
 	b2Body* bodyA = b2GetBodyFullId( world, def->bodyIdA );
@@ -414,9 +422,9 @@ b2JointId b2CreateMotorJoint( b2WorldId worldId, const b2MotorJointDef* def )
 	b2JointSim* joint = pair.jointSim;
 
 	joint->type = b2_motorJoint;
-	joint->localOriginAnchorA = ( b2Vec2 ){ 0.0f, 0.0f };
-	joint->localOriginAnchorB = ( b2Vec2 ){ 0.0f, 0.0f };
-	joint->motorJoint = ( b2MotorJoint ){ 0 };
+	joint->localOriginAnchorA = (b2Vec2){ 0.0f, 0.0f };
+	joint->localOriginAnchorB = (b2Vec2){ 0.0f, 0.0f };
+	joint->motorJoint = (b2MotorJoint){ 0 };
 	joint->motorJoint.linearOffset = def->linearOffset;
 	joint->motorJoint.angularOffset = def->angularOffset;
 	joint->motorJoint.maxForce = def->maxForce;
@@ -442,7 +450,7 @@ b2JointId b2CreateMouseJoint( b2WorldId worldId, const b2MouseJointDef* def )
 
 	if ( world->locked )
 	{
-		return ( b2JointId ){ 0 };
+		return (b2JointId){ 0 };
 	}
 
 	b2Body* bodyA = b2GetBodyFullId( world, def->bodyIdA );
@@ -469,7 +477,7 @@ b2JointId b2CreateMouseJoint( b2WorldId worldId, const b2MouseJointDef* def )
 	return jointId;
 }
 
-b2JointId b2CreateNullJoint( b2WorldId worldId, const b2NullJointDef* def )
+b2JointId b2CreateFilterJoint( b2WorldId worldId, const b2FilterJointDef* def )
 {
 	B2_CHECK_DEF( def );
 	b2World* world = b2GetWorldFromId( worldId );
@@ -478,17 +486,17 @@ b2JointId b2CreateNullJoint( b2WorldId worldId, const b2NullJointDef* def )
 
 	if ( world->locked )
 	{
-		return ( b2JointId ){ 0 };
+		return (b2JointId){ 0 };
 	}
 
 	b2Body* bodyA = b2GetBodyFullId( world, def->bodyIdA );
 	b2Body* bodyB = b2GetBodyFullId( world, def->bodyIdB );
 
 	bool collideConnected = false;
-	b2JointPair pair = b2CreateJoint( world, bodyA, bodyB, def->userData, 1.0f, b2_nullJoint, collideConnected);
+	b2JointPair pair = b2CreateJoint( world, bodyA, bodyB, def->userData, 1.0f, b2_filterJoint, collideConnected );
 
 	b2JointSim* joint = pair.jointSim;
-	joint->type = b2_nullJoint;
+	joint->type = b2_filterJoint;
 	joint->localOriginAnchorA = b2Vec2_zero;
 	joint->localOriginAnchorB = b2Vec2_zero;
 
@@ -499,13 +507,17 @@ b2JointId b2CreateNullJoint( b2WorldId worldId, const b2NullJointDef* def )
 b2JointId b2CreateRevoluteJoint( b2WorldId worldId, const b2RevoluteJointDef* def )
 {
 	B2_CHECK_DEF( def );
+	B2_ASSERT( def->lowerAngle <= def->upperAngle );
+	B2_ASSERT( def->lowerAngle >= -0.99f * B2_PI );
+	B2_ASSERT( def->upperAngle <= 0.99f * B2_PI );
+
 	b2World* world = b2GetWorldFromId( worldId );
 
 	B2_ASSERT( world->locked == false );
 
 	if ( world->locked )
 	{
-		return ( b2JointId ){ 0 };
+		return (b2JointId){ 0 };
 	}
 
 	b2Body* bodyA = b2GetBodyFullId( world, def->bodyIdA );
@@ -523,18 +535,11 @@ b2JointId b2CreateRevoluteJoint( b2WorldId worldId, const b2RevoluteJointDef* de
 	joint->revoluteJoint = empty;
 
 	joint->revoluteJoint.referenceAngle = b2ClampFloat( def->referenceAngle, -B2_PI, B2_PI );
-	joint->revoluteJoint.linearImpulse = b2Vec2_zero;
-	joint->revoluteJoint.axialMass = 0.0f;
-	joint->revoluteJoint.springImpulse = 0.0f;
-	joint->revoluteJoint.motorImpulse = 0.0f;
-	joint->revoluteJoint.lowerImpulse = 0.0f;
-	joint->revoluteJoint.upperImpulse = 0.0f;
+	joint->revoluteJoint.targetAngle = b2ClampFloat( def->targetAngle, -B2_PI, B2_PI );
 	joint->revoluteJoint.hertz = def->hertz;
 	joint->revoluteJoint.dampingRatio = def->dampingRatio;
-	joint->revoluteJoint.lowerAngle = b2MinFloat( def->lowerAngle, def->upperAngle );
-	joint->revoluteJoint.upperAngle = b2MaxFloat( def->lowerAngle, def->upperAngle );
-	joint->revoluteJoint.lowerAngle = b2ClampFloat( joint->revoluteJoint.lowerAngle, -B2_PI, B2_PI );
-	joint->revoluteJoint.upperAngle = b2ClampFloat( joint->revoluteJoint.upperAngle, -B2_PI, B2_PI );
+	joint->revoluteJoint.lowerAngle = def->lowerAngle;
+	joint->revoluteJoint.upperAngle = def->upperAngle;
 	joint->revoluteJoint.maxMotorTorque = def->maxMotorTorque;
 	joint->revoluteJoint.motorSpeed = def->motorSpeed;
 	joint->revoluteJoint.enableSpring = def->enableSpring;
@@ -554,13 +559,15 @@ b2JointId b2CreateRevoluteJoint( b2WorldId worldId, const b2RevoluteJointDef* de
 b2JointId b2CreatePrismaticJoint( b2WorldId worldId, const b2PrismaticJointDef* def )
 {
 	B2_CHECK_DEF( def );
+	B2_ASSERT( def->lowerTranslation <= def->upperTranslation );
+
 	b2World* world = b2GetWorldFromId( worldId );
 
 	B2_ASSERT( world->locked == false );
 
 	if ( world->locked )
 	{
-		return ( b2JointId ){ 0 };
+		return (b2JointId){ 0 };
 	}
 
 	b2Body* bodyA = b2GetBodyFullId( world, def->bodyIdA );
@@ -578,12 +585,7 @@ b2JointId b2CreatePrismaticJoint( b2WorldId worldId, const b2PrismaticJointDef* 
 
 	joint->prismaticJoint.localAxisA = b2Normalize( def->localAxisA );
 	joint->prismaticJoint.referenceAngle = def->referenceAngle;
-	joint->prismaticJoint.impulse = b2Vec2_zero;
-	joint->prismaticJoint.axialMass = 0.0f;
-	joint->prismaticJoint.springImpulse = 0.0f;
-	joint->prismaticJoint.motorImpulse = 0.0f;
-	joint->prismaticJoint.lowerImpulse = 0.0f;
-	joint->prismaticJoint.upperImpulse = 0.0f;
+	joint->prismaticJoint.targetTranslation = def->targetTranslation;
 	joint->prismaticJoint.hertz = def->hertz;
 	joint->prismaticJoint.dampingRatio = def->dampingRatio;
 	joint->prismaticJoint.lowerTranslation = def->lowerTranslation;
@@ -613,7 +615,7 @@ b2JointId b2CreateWeldJoint( b2WorldId worldId, const b2WeldJointDef* def )
 
 	if ( world->locked )
 	{
-		return ( b2JointId ){ 0 };
+		return (b2JointId){ 0 };
 	}
 
 	b2Body* bodyA = b2GetBodyFullId( world, def->bodyIdA );
@@ -649,13 +651,15 @@ b2JointId b2CreateWeldJoint( b2WorldId worldId, const b2WeldJointDef* def )
 b2JointId b2CreateWheelJoint( b2WorldId worldId, const b2WheelJointDef* def )
 {
 	B2_CHECK_DEF( def );
+	B2_ASSERT( def->lowerTranslation <= def->upperTranslation );
+
 	b2World* world = b2GetWorldFromId( worldId );
 
 	B2_ASSERT( world->locked == false );
 
 	if ( world->locked )
 	{
-		return ( b2JointId ){ 0 };
+		return (b2JointId){ 0 };
 	}
 
 	b2Body* bodyA = b2GetBodyFullId( world, def->bodyIdA );
@@ -668,7 +672,7 @@ b2JointId b2CreateWheelJoint( b2WorldId worldId, const b2WheelJointDef* def )
 	joint->localOriginAnchorA = def->localAnchorA;
 	joint->localOriginAnchorB = def->localAnchorB;
 
-	joint->wheelJoint = ( b2WheelJoint ){ 0 };
+	joint->wheelJoint = (b2WheelJoint){ 0 };
 	joint->wheelJoint.localAxisA = b2Normalize( def->localAxisA );
 	joint->wheelJoint.perpMass = 0.0f;
 	joint->wheelJoint.axialMass = 0.0f;
@@ -841,7 +845,17 @@ b2BodyId b2Joint_GetBodyB( b2JointId jointId )
 b2WorldId b2Joint_GetWorld( b2JointId jointId )
 {
 	b2World* world = b2GetWorld( jointId.world0 );
-	return ( b2WorldId ){ jointId.world0 + 1, world->generation };
+	return (b2WorldId){ jointId.world0 + 1, world->generation };
+}
+
+void b2Joint_SetLocalAnchorA( b2JointId jointId, b2Vec2 localAnchor )
+{
+	B2_ASSERT( b2IsValidVec2( localAnchor ) );
+
+	b2World* world = b2GetWorld( jointId.world0 );
+	b2Joint* joint = b2GetJointFullId( world, jointId );
+	b2JointSim* jointSim = b2GetJointSim( world, joint );
+	jointSim->localOriginAnchorA = localAnchor;
 }
 
 b2Vec2 b2Joint_GetLocalAnchorA( b2JointId jointId )
@@ -852,12 +866,114 @@ b2Vec2 b2Joint_GetLocalAnchorA( b2JointId jointId )
 	return jointSim->localOriginAnchorA;
 }
 
+void b2Joint_SetLocalAnchorB( b2JointId jointId, b2Vec2 localAnchor )
+{
+	B2_ASSERT( b2IsValidVec2( localAnchor ) );
+
+	b2World* world = b2GetWorld( jointId.world0 );
+	b2Joint* joint = b2GetJointFullId( world, jointId );
+	b2JointSim* jointSim = b2GetJointSim( world, joint );
+	jointSim->localOriginAnchorB = localAnchor;
+}
+
 b2Vec2 b2Joint_GetLocalAnchorB( b2JointId jointId )
 {
 	b2World* world = b2GetWorld( jointId.world0 );
 	b2Joint* joint = b2GetJointFullId( world, jointId );
 	b2JointSim* jointSim = b2GetJointSim( world, joint );
 	return jointSim->localOriginAnchorB;
+}
+
+void b2Joint_SetReferenceAngle( b2JointId jointId, float angleInRadians )
+{
+	B2_ASSERT( b2IsValidFloat( angleInRadians ) );
+
+	b2World* world = b2GetWorld( jointId.world0 );
+	b2Joint* joint = b2GetJointFullId( world, jointId );
+	b2JointSim* jointSim = b2GetJointSim( world, joint );
+
+	switch ( joint->type )
+	{
+		case b2_prismaticJoint:
+			jointSim->prismaticJoint.referenceAngle = angleInRadians;
+			break;
+
+		case b2_revoluteJoint:
+			jointSim->revoluteJoint.referenceAngle = angleInRadians;
+			break;
+
+		case b2_weldJoint:
+			jointSim->weldJoint.referenceAngle = angleInRadians;
+			break;
+
+		default:
+			break;
+	}
+}
+
+float b2Joint_GetReferenceAngle( b2JointId jointId )
+{
+	b2World* world = b2GetWorld( jointId.world0 );
+	b2Joint* joint = b2GetJointFullId( world, jointId );
+	b2JointSim* jointSim = b2GetJointSim( world, joint );
+
+	switch ( joint->type )
+	{
+		case b2_prismaticJoint:
+			return jointSim->prismaticJoint.referenceAngle;
+
+		case b2_revoluteJoint:
+			return jointSim->revoluteJoint.referenceAngle;
+
+		case b2_weldJoint:
+			return jointSim->weldJoint.referenceAngle;
+
+		default:
+			return 0.0f;
+	}
+}
+
+void b2Joint_SetLocalAxisA( b2JointId jointId, b2Vec2 localAxis )
+{
+	B2_ASSERT( b2IsValidVec2( localAxis ) );
+	B2_ASSERT( b2IsNormalized( localAxis ) );
+
+	b2World* world = b2GetWorld( jointId.world0 );
+	b2Joint* joint = b2GetJointFullId( world, jointId );
+	b2JointSim* jointSim = b2GetJointSim( world, joint );
+
+	switch ( joint->type )
+	{
+		case b2_prismaticJoint:
+			jointSim->prismaticJoint.localAxisA = localAxis;
+			break;
+
+		case b2_wheelJoint:
+			jointSim->wheelJoint.localAxisA = localAxis;
+			break;
+
+		default:
+			break;
+	}
+}
+
+b2Vec2 b2Joint_GetLocalAxisA( b2JointId jointId )
+{
+	b2World* world = b2GetWorld( jointId.world0 );
+	b2Joint* joint = b2GetJointFullId( world, jointId );
+	b2JointSim* jointSim = b2GetJointSim( world, joint );
+
+	switch ( joint->type )
+	{
+		case b2_prismaticJoint:
+			return jointSim->prismaticJoint.localAxisA;
+
+		case b2_wheelJoint:
+			return jointSim->wheelJoint.localAxisA;
+
+		default:
+			return b2Vec2_zero;
+	}
 }
 
 void b2Joint_SetCollideConnected( b2JointId jointId, bool shouldCollide )
@@ -959,7 +1075,7 @@ b2Vec2 b2Joint_GetConstraintForce( b2JointId jointId )
 		case b2_mouseJoint:
 			return b2GetMouseJointForce( world, base );
 
-		case b2_nullJoint:
+		case b2_filterJoint:
 			return b2Vec2_zero;
 
 		case b2_prismaticJoint:
@@ -997,7 +1113,7 @@ float b2Joint_GetConstraintTorque( b2JointId jointId )
 		case b2_mouseJoint:
 			return b2GetMouseJointTorque( world, base );
 
-		case b2_nullJoint:
+		case b2_filterJoint:
 			return 0.0f;
 
 		case b2_prismaticJoint:
@@ -1018,8 +1134,223 @@ float b2Joint_GetConstraintTorque( b2JointId jointId )
 	}
 }
 
+float b2Joint_GetLinearSeparation( b2JointId jointId )
+{
+	b2World* world = b2GetWorld( jointId.world0 );
+	b2Joint* joint = b2GetJointFullId( world, jointId );
+	b2JointSim* base = b2GetJointSim( world, joint );
+
+	b2Transform xfA = b2GetBodyTransform( world, joint->edges[0].bodyId );
+	b2Transform xfB = b2GetBodyTransform( world, joint->edges[1].bodyId );
+
+	b2Vec2 pA = b2TransformPoint( xfA, base->localOriginAnchorA );
+	b2Vec2 pB = b2TransformPoint( xfB, base->localOriginAnchorB );
+	b2Vec2 dp = b2Sub( pB, pA );
+
+	switch ( joint->type )
+	{
+		case b2_distanceJoint:
+		{
+			b2DistanceJoint* distanceJoint = &base->distanceJoint;
+			float length = b2Length( dp );
+			if ( distanceJoint->enableSpring )
+			{
+				if ( distanceJoint->enableLimit )
+				{
+					if ( length < distanceJoint->minLength )
+					{
+						return distanceJoint->minLength - length;
+					}
+					else if ( length > distanceJoint->maxLength )
+					{
+						return length - distanceJoint->maxLength;
+					}
+
+					return 0.0f;
+				}
+
+				return 0.0f;
+			}
+
+			return b2AbsFloat( length - distanceJoint->length );
+		}
+
+		case b2_motorJoint:
+			return 0.0f;
+
+		case b2_mouseJoint:
+			return 0.0f;
+
+		case b2_filterJoint:
+			return 0.0f;
+
+		case b2_prismaticJoint:
+		{
+			b2PrismaticJoint* prismaticJoint = &base->prismaticJoint;
+			b2Vec2 axisA = b2RotateVector( xfA.q, prismaticJoint->localAxisA );
+			b2Vec2 perpA = b2LeftPerp( axisA );
+			float perpendicularSeparation = b2AbsFloat( b2Dot( perpA, dp ) );
+			float limitSeparation = 0.0f;
+
+			if ( prismaticJoint->enableLimit )
+			{
+				float translation = b2Dot( axisA, dp );
+				if ( translation < prismaticJoint->lowerTranslation )
+				{
+					limitSeparation = prismaticJoint->lowerTranslation - translation;
+				}
+
+				if ( prismaticJoint->upperTranslation < translation )
+				{
+					limitSeparation = translation - prismaticJoint->upperTranslation;
+				}
+			}
+
+			return sqrtf( perpendicularSeparation * perpendicularSeparation + limitSeparation * limitSeparation );
+		}
+
+		case b2_revoluteJoint:
+			return b2Length( dp );
+
+		case b2_weldJoint:
+		{
+			b2WeldJoint* weldJoint = &base->weldJoint;
+			if ( weldJoint->linearHertz == 0.0f )
+			{
+				return b2Length( dp );
+			}
+
+			return 0.0f;
+		}
+
+		case b2_wheelJoint:
+		{
+			b2WheelJoint* wheelJoint = &base->wheelJoint;
+			b2Vec2 axisA = b2RotateVector( xfA.q, wheelJoint->localAxisA );
+			b2Vec2 perpA = b2LeftPerp( axisA );
+			float perpendicularSeparation = b2AbsFloat( b2Dot( perpA, dp ) );
+			float limitSeparation = 0.0f;
+
+			if ( wheelJoint->enableLimit )
+			{
+				float translation = b2Dot( axisA, dp );
+				if ( translation < wheelJoint->lowerTranslation )
+				{
+					limitSeparation = wheelJoint->lowerTranslation - translation;
+				}
+
+				if ( wheelJoint->upperTranslation < translation )
+				{
+					limitSeparation = translation - wheelJoint->upperTranslation;
+				}
+			}
+
+			return sqrtf( perpendicularSeparation * perpendicularSeparation + limitSeparation * limitSeparation );
+		}
+
+		default:
+			B2_ASSERT( false );
+			return 0.0f;
+	}
+}
+
+float b2Joint_GetAngularSeparation( b2JointId jointId )
+{
+	b2World* world = b2GetWorld( jointId.world0 );
+	b2Joint* joint = b2GetJointFullId( world, jointId );
+	b2JointSim* base = b2GetJointSim( world, joint );
+
+	b2Transform xfA = b2GetBodyTransform( world, joint->edges[0].bodyId );
+	b2Transform xfB = b2GetBodyTransform( world, joint->edges[1].bodyId );
+	float relativeAngle = b2RelativeAngle( xfB.q, xfA.q );
+
+	switch ( joint->type )
+	{
+		case b2_distanceJoint:
+			return 0.0f;
+
+		case b2_motorJoint:
+			return 0.0f;
+
+		case b2_mouseJoint:
+			return 0.0f;
+
+		case b2_filterJoint:
+			return 0.0f;
+
+		case b2_prismaticJoint:
+		{
+			b2PrismaticJoint* prismaticJoint = &base->prismaticJoint;
+			return b2UnwindAngle( relativeAngle - prismaticJoint->referenceAngle );
+		}
+
+		case b2_revoluteJoint:
+		{
+			b2RevoluteJoint* revoluteJoint = &base->revoluteJoint;
+			if ( revoluteJoint->enableLimit )
+			{
+				float angle = b2UnwindAngle( relativeAngle - revoluteJoint->referenceAngle );
+				if ( angle < revoluteJoint->lowerAngle )
+				{
+					return revoluteJoint->lowerAngle - angle;
+				}
+
+				if ( revoluteJoint->upperAngle < angle )
+				{
+					return angle - revoluteJoint->upperAngle;
+				}
+			}
+
+			return 0.0f;
+		}
+
+		case b2_weldJoint:
+		{
+			b2WeldJoint* weldJoint = &base->weldJoint;
+			if ( weldJoint->angularHertz == 0.0f )
+			{
+				return b2UnwindAngle( relativeAngle - weldJoint->referenceAngle );
+			}
+
+			return 0.0f;
+		}
+
+		case b2_wheelJoint:
+			return 0.0f;
+
+		default:
+			B2_ASSERT( false );
+			return 0.0f;
+	}
+}
+
+void b2Joint_GetConstraintTuning( b2JointId jointId, float* hertz, float* dampingRatio )
+{
+	b2World* world = b2GetWorld( jointId.world0 );
+	b2Joint* joint = b2GetJointFullId( world, jointId );
+	b2JointSim* base = b2GetJointSim( world, joint );
+	*hertz = base->constraintHertz;
+	*dampingRatio = base->constraintDampingRatio;
+}
+
+void b2Joint_SetConstraintTuning( b2JointId jointId, float hertz, float dampingRatio )
+{
+	B2_ASSERT( b2IsValidFloat( hertz ) && hertz >= 0.0f );
+	B2_ASSERT( b2IsValidFloat( dampingRatio ) && dampingRatio >= 0.0f );
+
+	b2World* world = b2GetWorld( jointId.world0 );
+	b2Joint* joint = b2GetJointFullId( world, jointId );
+	b2JointSim* base = b2GetJointSim( world, joint );
+	base->constraintHertz = hertz;
+	base->constraintDampingRatio = dampingRatio;
+}
+
 void b2PrepareJoint( b2JointSim* joint, b2StepContext* context )
 {
+	// Clamp joint hertz based on the time step to reduce jitter.
+	float hertz = b2MinFloat( joint->constraintHertz, 0.25f * context->inv_h );
+	joint->constraintSoftness = b2MakeSoft( hertz, joint->constraintDampingRatio, context->h );
+
 	switch ( joint->type )
 	{
 		case b2_distanceJoint:
@@ -1034,7 +1365,7 @@ void b2PrepareJoint( b2JointSim* joint, b2StepContext* context )
 			b2PrepareMouseJoint( joint, context );
 			break;
 
-		case b2_nullJoint:
+		case b2_filterJoint:
 			break;
 
 		case b2_prismaticJoint:
@@ -1074,7 +1405,7 @@ void b2WarmStartJoint( b2JointSim* joint, b2StepContext* context )
 			b2WarmStartMouseJoint( joint, context );
 			break;
 
-		case b2_nullJoint:
+		case b2_filterJoint:
 			break;
 
 		case b2_prismaticJoint:
@@ -1114,7 +1445,7 @@ void b2SolveJoint( b2JointSim* joint, b2StepContext* context, bool useBias )
 			b2SolveMouseJoint( joint, context );
 			break;
 
-		case b2_nullJoint:
+		case b2_filterJoint:
 			break;
 
 		case b2_prismaticJoint:
@@ -1218,17 +1549,17 @@ void b2DrawJoint( b2DebugDraw* draw, b2World* world, b2Joint* joint )
 			b2Vec2 target = jointSim->mouseJoint.targetA;
 
 			b2HexColor c1 = b2_colorGreen;
-			draw->DrawPoint( target, 4.0f, c1, draw->context );
-			draw->DrawPoint( pB, 4.0f, c1, draw->context );
+			draw->DrawPointFcn( target, 4.0f, c1, draw->context );
+			draw->DrawPointFcn( pB, 4.0f, c1, draw->context );
 
 			b2HexColor c2 = b2_colorLightGray;
-			draw->DrawSegment( target, pB, c2, draw->context );
+			draw->DrawSegmentFcn( target, pB, c2, draw->context );
 		}
 		break;
 
-		case b2_nullJoint:
+		case b2_filterJoint:
 		{
-			draw->DrawSegment( pA, pB, b2_colorGold, draw->context );
+			draw->DrawSegmentFcn( pA, pB, b2_colorGold, draw->context );
 		}
 		break;
 
@@ -1245,22 +1576,22 @@ void b2DrawJoint( b2DebugDraw* draw, b2World* world, b2Joint* joint )
 			break;
 
 		default:
-			draw->DrawSegment( transformA.p, pA, color, draw->context );
-			draw->DrawSegment( pA, pB, color, draw->context );
-			draw->DrawSegment( transformB.p, pB, color, draw->context );
+			draw->DrawSegmentFcn( transformA.p, pA, color, draw->context );
+			draw->DrawSegmentFcn( pA, pB, color, draw->context );
+			draw->DrawSegmentFcn( transformB.p, pB, color, draw->context );
 	}
 
 	if ( draw->drawGraphColors )
 	{
-		b2HexColor colors[B2_GRAPH_COLOR_COUNT] = { b2_colorRed,		 b2_colorOrange,	b2_colorYellow, b2_colorGreen,
-												  b2_colorCyan,		 b2_colorBlue,		b2_colorViolet, b2_colorPink,
-												  b2_colorChocolate, b2_colorGoldenRod, b2_colorCoral,	b2_colorBlack };
+		b2HexColor colors[B2_GRAPH_COLOR_COUNT] = { b2_colorRed,	   b2_colorOrange,	  b2_colorYellow, b2_colorGreen,
+													b2_colorCyan,	   b2_colorBlue,	  b2_colorViolet, b2_colorPink,
+													b2_colorChocolate, b2_colorGoldenRod, b2_colorCoral,  b2_colorBlack };
 
 		int colorIndex = joint->colorIndex;
 		if ( colorIndex != B2_NULL_INDEX )
 		{
 			b2Vec2 p = b2Lerp( pA, pB, 0.5f );
-			draw->DrawPoint( p, 5.0f, colors[colorIndex], draw->context );
+			draw->DrawPointFcn( p, 5.0f, colors[colorIndex], draw->context );
 		}
 	}
 }

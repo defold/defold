@@ -85,6 +85,8 @@ float b2WheelJoint_GetUpperLimit( b2JointId jointId )
 
 void b2WheelJoint_SetLimits( b2JointId jointId, float lower, float upper )
 {
+	B2_ASSERT( lower <= upper );
+
 	b2JointSim* joint = b2GetJointSimCheckType( jointId, b2_wheelJoint );
 	if ( lower != joint->wheelJoint.lowerTranslation || upper != joint->wheelJoint.upperTranslation )
 	{
@@ -389,9 +391,9 @@ void b2SolveWheelJoint( b2JointSim* base, b2StepContext* context, bool useBias )
 			}
 			else if ( useBias )
 			{
-				bias = context->jointSoftness.biasRate * C;
-				massScale = context->jointSoftness.massScale;
-				impulseScale = context->jointSoftness.impulseScale;
+				bias = base->constraintSoftness.biasRate * C;
+				massScale = base->constraintSoftness.massScale;
+				impulseScale = base->constraintSoftness.impulseScale;
 			}
 
 			float Cdot = b2Dot( axisA, b2Sub( vB, vA ) ) + a2 * wB - a1 * wA;
@@ -427,9 +429,9 @@ void b2SolveWheelJoint( b2JointSim* base, b2StepContext* context, bool useBias )
 			}
 			else if ( useBias )
 			{
-				bias = context->jointSoftness.biasRate * C;
-				massScale = context->jointSoftness.massScale;
-				impulseScale = context->jointSoftness.impulseScale;
+				bias = base->constraintSoftness.biasRate * C;
+				massScale = base->constraintSoftness.massScale;
+				impulseScale = base->constraintSoftness.impulseScale;
 			}
 
 			// sign flipped on Cdot
@@ -461,9 +463,9 @@ void b2SolveWheelJoint( b2JointSim* base, b2StepContext* context, bool useBias )
 		if ( useBias )
 		{
 			float C = b2Dot( perpA, d );
-			bias = context->jointSoftness.biasRate * C;
-			massScale = context->jointSoftness.massScale;
-			impulseScale = context->jointSoftness.impulseScale;
+			bias = base->constraintSoftness.biasRate * C;
+			massScale = base->constraintSoftness.massScale;
+			impulseScale = base->constraintSoftness.impulseScale;
 		}
 
 		float s1 = b2Cross( b2Add( d, rA ), perpA );
@@ -528,22 +530,22 @@ void b2DrawWheelJoint( b2DebugDraw* draw, b2JointSim* base, b2Transform transfor
 	b2HexColor c4 = b2_colorDimGray;
 	b2HexColor c5 = b2_colorBlue;
 
-	draw->DrawSegment( pA, pB, c5, draw->context );
+	draw->DrawSegmentFcn( pA, pB, c5, draw->context );
 
 	if ( joint->enableLimit )
 	{
 		b2Vec2 lower = b2MulAdd( pA, joint->lowerTranslation, axis );
 		b2Vec2 upper = b2MulAdd( pA, joint->upperTranslation, axis );
 		b2Vec2 perp = b2LeftPerp( axis );
-		draw->DrawSegment( lower, upper, c1, draw->context );
-		draw->DrawSegment( b2MulSub( lower, 0.1f, perp ), b2MulAdd( lower, 0.1f, perp ), c2, draw->context );
-		draw->DrawSegment( b2MulSub( upper, 0.1f, perp ), b2MulAdd( upper, 0.1f, perp ), c3, draw->context );
+		draw->DrawSegmentFcn( lower, upper, c1, draw->context );
+		draw->DrawSegmentFcn( b2MulSub( lower, 0.1f, perp ), b2MulAdd( lower, 0.1f, perp ), c2, draw->context );
+		draw->DrawSegmentFcn( b2MulSub( upper, 0.1f, perp ), b2MulAdd( upper, 0.1f, perp ), c3, draw->context );
 	}
 	else
 	{
-		draw->DrawSegment( b2MulSub( pA, 1.0f, axis ), b2MulAdd( pA, 1.0f, axis ), c1, draw->context );
+		draw->DrawSegmentFcn( b2MulSub( pA, 1.0f, axis ), b2MulAdd( pA, 1.0f, axis ), c1, draw->context );
 	}
 
-	draw->DrawPoint( pA, 5.0f, c1, draw->context );
-	draw->DrawPoint( pB, 5.0f, c4, draw->context );
+	draw->DrawPointFcn( pA, 5.0f, c1, draw->context );
+	draw->DrawPointFcn( pB, 5.0f, c4, draw->context );
 }

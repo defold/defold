@@ -932,23 +932,6 @@ void b2Body_ApplyForceToCenter( b2BodyId bodyId, b2Vec2 force, bool wake )
 	}
 }
 
-// DEFOLD EDIT BEGIN
-b2Vec2 b2Body_GetTotalForce( b2BodyId bodyId )
-{
-	b2World* world = b2GetWorld( bodyId.world0 );
-	b2Body* body = b2GetBodyFullId( world, bodyId );
-	b2BodyState* state = b2GetBodyState( world, body );
-	if ( state == NULL )
-	{
-		return b2Vec2_zero;
-	}
-
-	b2SolverSet* set = b2SolverSetArray_Get( &world->solverSets, body->setIndex );
-	b2BodySim* bodySim = b2BodySimArray_Get( &set->bodySims, body->localIndex );
-	return bodySim->force;
-}
-// DEFOLD EDIT END
-
 void b2Body_ApplyTorque( b2BodyId bodyId, float torque, bool wake )
 {
 	b2World* world = b2GetWorld( bodyId.world0 );
@@ -1877,10 +1860,7 @@ int b2Body_GetJoints( b2BodyId bodyId, b2JointId* jointArray, int capacity )
 
 bool b2ShouldBodiesCollide( b2World* world, b2Body* bodyA, b2Body* bodyB )
 {
-	// DEFOLD EDIT BEGIN
-	// Support collisions for kinematic objects
-	if ( bodyA->type != b2_dynamicBody && bodyB->type != b2_dynamicBody && bodyA->type != b2_kinematicBody && bodyB->type != b2_kinematicBody )
-	// DEFOLD EDIT END
+	if ( bodyA->type != b2_dynamicBody && bodyB->type != b2_dynamicBody )
 	{
 		return false;
 	}

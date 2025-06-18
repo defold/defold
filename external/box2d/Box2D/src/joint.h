@@ -137,6 +137,7 @@ typedef struct b2PrismaticJoint
 	float upperImpulse;
 	float hertz;
 	float dampingRatio;
+	float targetTranslation;
 	float maxMotorForce;
 	float motorSpeed;
 	float referenceAngle;
@@ -167,6 +168,7 @@ typedef struct b2RevoluteJoint
 	float upperImpulse;
 	float hertz;
 	float dampingRatio;
+	float targetAngle;
 	float maxMotorTorque;
 	float motorSpeed;
 	float referenceAngle;
@@ -258,6 +260,11 @@ typedef struct b2JointSim
 	float invMassA, invMassB;
 	float invIA, invIB;
 
+	float constraintHertz;
+	float constraintDampingRatio;
+
+	b2Softness constraintSoftness;
+
 	union
 	{
 		b2DistanceJoint distanceJoint;
@@ -331,5 +338,5 @@ void b2DrawRevoluteJoint( b2DebugDraw* draw, b2JointSim* base, b2Transform trans
 void b2DrawWheelJoint( b2DebugDraw* draw, b2JointSim* base, b2Transform transformA, b2Transform transformB );
 
 // Define inline functions for arrays
-B2_ARRAY_INLINE( b2Joint, b2Joint );
-B2_ARRAY_INLINE( b2JointSim, b2JointSim );
+B2_ARRAY_INLINE( b2Joint, b2Joint )
+B2_ARRAY_INLINE( b2JointSim, b2JointSim )

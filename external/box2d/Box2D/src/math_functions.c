@@ -49,7 +49,12 @@ bool b2IsValidRotation( b2Rot q )
 		return false;
 	}
 
-	return b2IsNormalized( q );
+	return b2IsNormalizedRot( q );
+}
+
+bool b2IsValidPlane( b2Plane a )
+{
+	return b2IsValidVec2( a.normal ) && b2IsNormalized( a.normal ) && b2IsValidFloat( a.offset );
 }
 
 // https://stackoverflow.com/questions/46210708/atan2-approximation-with-11bits-in-mantissa-on-x86with-sse2-and-armwith-vfpv4
@@ -101,7 +106,7 @@ float b2Atan2( float y, float x )
 // https://en.wikipedia.org/wiki/Bh%C4%81skara_I%27s_sine_approximation_formula
 b2CosSin b2ComputeCosSin( float radians )
 {
-	float x = b2UnwindLargeAngle( radians );
+	float x = b2UnwindAngle( radians );
 	float pi2 = B2_PI * B2_PI;
 
 	// cosine needs angle in [-pi/2, pi/2]

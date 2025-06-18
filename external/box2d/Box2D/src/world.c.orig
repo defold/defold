@@ -692,14 +692,6 @@ static void b2Collide( b2StepContext* context )
 	b2TracyCZoneEnd( collide );
 }
 
-// DEFOLD EDIT BEGIN
-bool b2World_IsLocked( b2WorldId worldId )
-{
-	b2World* world = b2GetWorldFromId( worldId );
-	return world->locked;
-}
-// DEFOLD EDIT END
-
 void b2World_Step( b2WorldId worldId, float timeStep, int subStepCount )
 {
 	B2_ASSERT( b2IsValidFloat( timeStep ) );
