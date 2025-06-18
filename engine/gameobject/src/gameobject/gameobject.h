@@ -134,7 +134,7 @@ namespace dmGameObject
      * @param out_instance Output parameter for the new instance
      * @return RESULT_OK on success
      */
-    Result SpawnInternal(HCollection collection, HPrototype proto, const char *prototype_name, dmhash_t id, 
+    Result Spawn(HCollection collection, HPrototype proto, const char *prototype_name, dmhash_t id, 
                         HPropertyContainer property_container, const Point3& position, const Quat& rotation, const Vector3& scale, HInstance* out_instance);
 
     /**

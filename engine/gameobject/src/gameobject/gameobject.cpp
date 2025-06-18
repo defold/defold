@@ -1174,7 +1174,7 @@ namespace dmGameObject
     }
 
     // Supplied 'proto' will be released after this function is done.
-    Result SpawnInternal(HCollection hcollection, HPrototype proto, const char *prototype_name, dmhash_t id, HPropertyContainer property_container, const Point3& position, const Quat& rotation, const Vector3& scale, HInstance* out_instance)
+    Result Spawn(HCollection hcollection, HPrototype proto, const char *prototype_name, dmhash_t id, HPropertyContainer property_container, const Point3& position, const Quat& rotation, const Vector3& scale, HInstance* out_instance)
     {
         Collection* collection = hcollection->m_Collection;
         if (collection->m_ToBeDeleted) {
@@ -1694,7 +1694,7 @@ namespace dmGameObject
         }
 
         HInstance instance;
-        Result result = SpawnInternal(hcollection, proto, prototype_name, id, property_container, position, rotation, scale, &instance);
+        Result result = Spawn(hcollection, proto, prototype_name, id, property_container, position, rotation, scale, &instance);
         if (result != RESULT_OK) {
             dmLogError("Could not spawn an instance of prototype %s.", prototype_name);
             return 0x0;

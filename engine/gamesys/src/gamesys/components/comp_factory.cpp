@@ -507,7 +507,7 @@ namespace dmGameSystem
         }
         const char* path = CompFactoryGetPrototypePath(world, component);
 
-        dmGameObject::Result result = dmGameObject::SpawnInternal(collection, prototype, path, id, properties, position, rotation, scale, out_instance);
+        dmGameObject::Result result = dmGameObject::Spawn(collection, prototype, path, id, properties, position, rotation, scale, out_instance);
         if (result != dmGameObject::RESULT_OK) {
             dmLogError("Could not spawn an instance of prototype %s.", path);
             return result;
