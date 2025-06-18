@@ -91,17 +91,6 @@ namespace dmTransform
     }
 
     /**
-     * Apply the transform on a point, but without scaling the Z-component of the point (includes the transform translation).
-     * @param t Transform
-     * @param p Point
-     * @return Transformed point
-     */
-    inline dmVMath::Point3 ApplyNoScaleZ(const TransformS1& t, const dmVMath::Point3 p)
-    {
-        return dmVMath::Point3(rotate(t.GetRotation(), mulPerElem(dmVMath::Vector3(t.GetScale(), t.GetScale(), 1.0f), dmVMath::Vector3(p))) + t.GetTranslation());
-    }
-
-    /**
      * Apply the transform on a vector (excludes the transform translation).
      * @param t Transform
      * @param v Vector
@@ -110,17 +99,6 @@ namespace dmTransform
     inline dmVMath::Vector3 Apply(const TransformS1& t, const dmVMath::Vector3 v)
     {
         return dmVMath::Vector3(rotate(t.GetRotation(), v * t.GetScale()));
-    }
-
-    /**
-     * Apply the transform on a vector, but without scaling the Z-component of the vector (excludes the transform translation).
-     * @param t Transform
-     * @param v Vector
-     * @return Transformed vector
-     */
-    inline dmVMath::Vector3 ApplyNoScaleZ(const TransformS1& t, const dmVMath::Vector3 v)
-    {
-        return dmVMath::Vector3(rotate(t.GetRotation(), mulPerElem(dmVMath::Vector3(t.GetScale(), t.GetScale(), 1.0f), v)));
     }
 
     /**
@@ -134,21 +112,6 @@ namespace dmTransform
         TransformS1 res;
         res.SetRotation(lhs.GetRotation() * rhs.GetRotation());
         res.SetTranslation(dmVMath::Vector3(Apply(lhs, dmVMath::Point3(rhs.GetTranslation()))));
-        res.SetScale(lhs.GetScale() * rhs.GetScale());
-        return res;
-    }
-
-    /**
-     * Transforms the right-hand transform by the left-hand transform, without scaling the Z-component of the transition of the transformed transform
-     * @param lhs Transforming transform
-     * @param rhs Transformed transform
-     * @return Transformed transform
-     */
-    inline TransformS1 MulNoScaleZ(const TransformS1& lhs, const TransformS1& rhs)
-    {
-        TransformS1 res;
-        res.SetRotation(lhs.GetRotation() * rhs.GetRotation());
-        res.SetTranslation(dmVMath::Vector3(ApplyNoScaleZ(lhs, dmVMath::Point3(rhs.GetTranslation()))));
         res.SetScale(lhs.GetScale() * rhs.GetScale());
         return res;
     }

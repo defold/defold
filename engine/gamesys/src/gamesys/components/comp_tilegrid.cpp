@@ -516,14 +516,7 @@ namespace dmGameSystem
 
             Matrix4 local(component->m_Rotation, component->m_Translation);
             const Matrix4& go_world = dmGameObject::GetWorldMatrix(component->m_Instance);
-            if (dmGameObject::ScaleAlongZ(component->m_Instance))
-            {
-                component->m_World = go_world * local;
-            }
-            else
-            {
-                component->m_World = dmTransform::MulNoScaleZ(go_world, local);
-            }
+            component->m_World = go_world * local;
         }
         DM_PROPERTY_ADD_U32(rmtp_Tilemap, world->m_Components.Size());
 

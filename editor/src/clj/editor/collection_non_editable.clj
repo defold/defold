@@ -129,7 +129,6 @@
           (game-object-common/maybe-duplicate-id-error _node-id dup-ids))
         (let [build-resource (workspace/make-build-resource resource)
               name (:name collection-desc)
-              scale-along-z (not= 0 (:scale-along-z collection-desc))
 
               game-object-instance-build-targets
               (into embedded-game-object-instance-build-targets
@@ -146,7 +145,7 @@
                             instance-property-descs (mapv #(instance-property-desc-with-go-props % proj-path->source-resource) (:instance-properties collection-instance-desc))]
                         (collection-common/collection-instance-build-target collection-instance-id pose instance-property-descs referenced-collection-build-target proj-path->build-target)))
                     collection-instance-descs)]
-          [(collection-common/collection-build-target build-resource _node-id name scale-along-z game-object-instance-build-targets collection-instance-build-targets)]))))
+          [(collection-common/collection-build-target build-resource _node-id name game-object-instance-build-targets collection-instance-build-targets)]))))
 
 (defn component-property-desc-overrides-properties? [component-property-desc]
   (not (empty? (:properties component-property-desc))))
