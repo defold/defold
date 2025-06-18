@@ -357,14 +357,15 @@ namespace dmGameSystem
                 dmScript::GetInstance(L);
                 int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
-                dmGameObject::HInstance instance = CompFactorySpawn(world, component, collection,
-                                                                index, id, position, rotation, scale, properties);
+                dmGameObject::HInstance instance;
+                dmGameObject::Result result = CompFactorySpawn(world, component, collection,
+                                                                id, position, rotation, scale, properties, &instance);
 
                 lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
                 dmScript::SetInstance(L);
                 dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
 
-                if (instance != 0)
+                if (result == dmGameObject::RESULT_OK)
                 {
                     dmScript::PushHash(L, id);
                 }

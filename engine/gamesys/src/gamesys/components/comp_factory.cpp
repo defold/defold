@@ -463,27 +463,6 @@ namespace dmGameSystem
         assert(top == lua_gettop(L));
     }
 
-
-    dmGameObject::HInstance CompFactorySpawn(HFactoryWorld world, HFactoryComponent component, dmGameObject::HCollection collection,
-                                                uint32_t index, dmhash_t id,
-                                                const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
-                                                dmGameObject::HPropertyContainer properties)
-    {
-        dmGameObject::HPrototype prototype = CompFactoryGetPrototype(world, component);
-        const char* path = CompFactoryGetPrototypePath(world, component);
-
-        dmGameObject::HInstance instance = dmGameObject::Spawn(collection, prototype, path, id, properties, position, rotation, scale);
-        if (instance != 0x0)
-        {
-            dmGameObject::AssignInstanceIndex(index, instance);
-        }
-        else
-        {
-            dmGameObject::ReleaseInstanceIndex(index, collection);
-        }
-        return instance;
-    }
-
     dmGameObject::Result CompFactorySpawn(HFactoryWorld world, HFactoryComponent component, dmGameObject::HCollection collection, dmhash_t id,
                                                 const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
                                                 dmGameObject::HPropertyContainer properties, dmGameObject::HInstance* out_instance)

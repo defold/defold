@@ -52,11 +52,6 @@ namespace dmGameSystem
     bool                CompFactoryIsLoading(HFactoryWorld world, HFactoryComponent component);
     bool                CompFactoryIsDynamicPrototype(HFactoryWorld world, HFactoryComponent component);
 
-    dmGameObject::HInstance CompFactorySpawn(HFactoryWorld world, HFactoryComponent component, dmGameObject::HCollection collection,
-                                                uint32_t index, dmhash_t id,
-                                                const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
-                                                dmGameObject::HPropertyContainer properties);
-
     /*# 
      * Spawns a new gameobject instance in a collection using a factory component.
      * @name CompFactorySpawn
