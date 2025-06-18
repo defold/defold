@@ -64,8 +64,14 @@
      (let [node-type (g/node-type node)]
        (or (when (in/behavior node-type :url)
              (let [value (in/node-value node :url evaluation-context)]
-               (when (string? value)
-                 (coll/not-empty value))))
+               (when (and (string? value)
+                          (coll/not-empty value))
+                 ;; Convert urls to a more readable representation.
+                 ;;   "#book_script" -> "book_script"
+                 ;;   "/referenced_book#book_script" -> "referenced_book/book_script"
+                 (-> value
+                     (subs 1)
+                     (string/replace "#" "/")))))
            (when (in/behavior node-type :id)
              (let [value (in/node-value node :id evaluation-context)]
                (when (string? value)

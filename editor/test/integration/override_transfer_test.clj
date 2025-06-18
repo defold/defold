@@ -138,7 +138,7 @@
     (test-util/with-changes-reverted project
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf.collection" "referenced_book" "book_script")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to Ancestor in '/book.go'" :ok]]
+        (is (= [["Pull Up Text Override to 'book_script' in '/book.go'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/book.go"
@@ -190,8 +190,8 @@
     (test-util/with-changes-reverted project
       (let [source-node-id (test-util/resource-outline-node-id project "/room.collection" "referenced_shelf" "referenced_book" "book_script")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to Ancestor in '/shelf.collection'" :ok]
-                ["Pull Up Text Override to Ancestor in '/book.go'" :ok]]
+        (is (= [["Pull Up Text Override to 'referenced_book/book_script' in '/shelf.collection'" :ok]
+                ["Pull Up Text Override to 'book_script' in '/book.go'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/shelf.collection"
@@ -243,7 +243,7 @@
     (test-util/with-changes-reverted project
       (let [source-node-id (test-util/resource-outline-node-id project "/room.collection" "referenced_shelf" "embedded_book" "book_script")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to Ancestor in '/shelf.collection'" :ok]]
+        (is (= [["Pull Up Text Override to 'embedded_book/book_script' in '/shelf.collection'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/shelf.collection"
@@ -304,8 +304,8 @@
     (test-util/with-changes-reverted project
       (let [source-node-id (test-util/resource-outline-node-id project "/room.collection" "referenced_shelf" "referenced_book" "book_script")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to Ancestor in '/shelf.collection'" :ok]
-                ["Pull Up Text Override to Ancestor in '/book.go'" :ok]]
+        (is (= [["Pull Up Text Override to 'referenced_book/book_script' in '/shelf.collection'" :ok]
+                ["Pull Up Text Override to 'book_script' in '/book.go'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (second transfer-overrides-plans))
         (is (= {"/book.go"

@@ -1001,10 +1001,11 @@
 
 (defn- property-transfer-target?
   "Returns true if the supplied value is a property-transfer-target."
-  [{:keys [target-status target-owner-resource target-node-id target-prop-kw]}]
+  [{:keys [target-status target-owner-resource target-node-id target-prop-node-id target-prop-kw]}]
   (and (property-transfer-target-status? target-status)
        (resource/resource? target-owner-resource)
        (g/node-id? target-node-id)
+       (g/node-id? target-prop-node-id)
        (keyword? target-prop-kw)))
 
 (defn- property-transfer?
@@ -1047,9 +1048,9 @@
                                 (if-let [target-prop-info (get target-prop-infos-by-prop-kw source-prop-kw)]
 
                                   ;; The property exists in the target.
-                                  (let [target-node-id (:node-id target-prop-info)
+                                  (let [target-prop-node-id (:node-id target-prop-info)
                                         target-prop-kw (get target-prop-info :prop-kw source-prop-kw)
-                                        target-owner-resource (resource-node/owner-resource basis target-node-id)]
+                                        target-owner-resource (resource-node/owner-resource basis target-prop-node-id)]
                                     (if (and (resource/file-resource? target-owner-resource)
                                              (resource/editable? target-owner-resource))
 
@@ -1058,6 +1059,7 @@
                                         (cond-> {:target-status :ok
                                                  :target-owner-resource target-owner-resource
                                                  :target-node-id target-node-id
+                                                 :target-prop-node-id target-prop-node-id
                                                  :target-prop-kw target-prop-kw}
 
                                                 target-set-fn
@@ -1068,6 +1070,7 @@
                                       {:target-status :owner-resource-not-editable
                                        :target-owner-resource target-owner-resource
                                        :target-node-id target-node-id
+                                       :target-prop-node-id target-prop-node-id
                                        :target-prop-kw source-prop-kw}))
 
                                   ;; The property does not exist in the target.
@@ -1075,6 +1078,7 @@
                                     {:target-status :property-not-found
                                      :target-owner-resource target-owner-resource
                                      :target-node-id target-node-id
+                                     :target-prop-node-id target-node-id
                                      :target-prop-kw source-prop-kw})))))]
 
                    {:source-node-id (:node-id source-prop-info)
@@ -1103,16 +1107,21 @@
          (map (fn [{:keys [source-node-id] :as property-transfer}]
                 {:pre [(g/node-id? source-node-id)]}
                 (as-> property-transfer property-transfer
-                      (merge {:source-node-type-kw (g/node-type-kw basis source-node-id)
-                              :source-node-path (gu/node-debug-label-path source-node-id evaluation-context)}
+                      (merge (sorted-map
+                               :source-node-type-kw (g/node-type-kw basis source-node-id)
+                               :source-node-path (gu/node-debug-label-path source-node-id evaluation-context))
                              property-transfer)
                       (update property-transfer :targets
                               (fn [property-transfer-targets]
                                 (coll/transfer property-transfer-targets (coll/empty-with-meta property-transfer-targets)
-                                  (map (fn [{:keys [target-node-id] :as property-transfer-target}]
-                                         {:pre [(g/node-id? target-node-id)]}
-                                         (merge {:target-node-type-kw (g/node-type-kw basis target-node-id)
-                                                 :target-node-path (gu/node-debug-label-path target-node-id evaluation-context)}
+                                  (map (fn [{:keys [target-node-id target-prop-node-id] :as property-transfer-target}]
+                                         {:pre [(g/node-id? target-node-id)
+                                                (g/node-id? target-prop-node-id)]}
+                                         (merge (sorted-map
+                                                  :target-node-type-kw (g/node-type-kw basis target-node-id)
+                                                  :target-node-path (gu/node-debug-label-path target-node-id evaluation-context)
+                                                  :target-prop-node-type-kw (g/node-type-kw basis target-prop-node-id)
+                                                  :target-prop-node-path (gu/node-debug-label-path target-prop-node-id evaluation-context))
                                                 property-transfer-target))))))))))))))
 
 (defn transfer-overrides-status
@@ -1207,12 +1216,12 @@
 (defn- set-property-tx-data
   [property-transfer-target new-value evaluation-context]
   {:pre [(property-transfer-target? property-transfer-target)]}
-  (let [target-node-id (:target-node-id property-transfer-target)]
+  (let [target-prop-node-id (:target-prop-node-id property-transfer-target)]
     (if-let [target-set-fn (:target-set-fn property-transfer-target)]
       (let [old-value (:target-value property-transfer-target)]
-        (target-set-fn evaluation-context target-node-id old-value new-value))
+        (target-set-fn evaluation-context target-prop-node-id old-value new-value))
       (let [target-prop-kw (:target-prop-kw property-transfer-target)]
-        (g/set-property target-node-id target-prop-kw new-value)))))
+        (g/set-property target-prop-node-id target-prop-kw new-value)))))
 
 (defn- clear-property-tx-data
   [{:keys [source-clear-fn source-node-id source-prop-kw]}]
