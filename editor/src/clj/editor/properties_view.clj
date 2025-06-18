@@ -1014,7 +1014,7 @@
       (when-let [update-ui-fn (get update-fns key)]
         (update-ui-fn property)))))
 
-(def ^:private ephemeral-edit-type-fields [:from-type :to-type :set-fn :clear-fn])
+(def ^:private ephemeral-edit-type-fields [:from-type :to-type :set-fn :clear-fn :dialog-accept-fn])
 
 (defn- edit-type->template [edit-type]
   (apply dissoc edit-type ephemeral-edit-type-fields))
