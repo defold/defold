@@ -845,7 +845,8 @@ namespace dmScript
         return false;
     }
 
-    bool GetURL(lua_State* L, dmMessage::URL& out_url) {
+    bool GetURL(lua_State* L, dmMessage::URL& out_url)
+    {
         DM_LUA_STACK_CHECK(L, 0);
         GetInstance(L);
 
@@ -872,10 +873,12 @@ namespace dmScript
         return false;
     }
 
-    bool CheckURL(lua_State* L, dmMessage::URL* out_url) {
+    bool CheckURL(lua_State* L, dmMessage::URL* out_url)
+    {
         bool result = GetURL(L, out_url);
-        if (!result) {
-            luaL_error(L, "no URL could be found in the current script environment");
+        if (!result)
+        {
+            return luaL_error(L, "No URL could be found in the current script environment.");
         }
         return result;
     }
