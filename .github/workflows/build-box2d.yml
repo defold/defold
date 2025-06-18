@@ -2,6 +2,9 @@ name: Build Box2D
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - issue-10617-build-box2d
 
 env:
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
