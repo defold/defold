@@ -1533,7 +1533,7 @@ static int b2PartitionMid( int* indices, b2Vec2* centers, int count )
 
 #else
 
-#define B2_BIN_COUNT 8
+#define B2_BIN_COUNT 64
 
 typedef struct b2TreeBin
 {

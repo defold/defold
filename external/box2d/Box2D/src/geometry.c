@@ -510,26 +510,14 @@ b2CastOutput b2RayCastCircle( const b2RayCastInput* input, const b2Circle* shape
 	b2Vec2 p = shape->center;
 
 	b2CastOutput output = { 0 };
-	
+
 	// Shift ray so circle center is the origin
 	b2Vec2 s = b2Sub( input->origin, p );
-	
-	float r = shape->radius;
-	float rr = r * r;
-
 	float length;
 	b2Vec2 d = b2GetLengthAndNormalize( &length, input->translation );
 	if ( length == 0.0f )
 	{
 		// zero length ray
-		
-		if (b2LengthSquared(s) < rr)
-		{
-			// initial overlap
-			output.point = input->origin;
-			output.hit = true;
-		}
-		
 		return output;
 	}
 
@@ -542,6 +530,8 @@ b2CastOutput b2RayCastCircle( const b2RayCastInput* input, const b2Circle* shape
 	b2Vec2 c = b2MulAdd( s, t, d );
 
 	float cc = b2Dot( c, c );
+	float r = shape->radius;
+	float rr = r * r;
 
 	if ( cc > rr )
 	{
@@ -556,15 +546,7 @@ b2CastOutput b2RayCastCircle( const b2RayCastInput* input, const b2Circle* shape
 
 	if ( fraction < 0.0f || input->maxFraction * length < fraction )
 	{
-		// intersection is point outside the range of the ray segment
-		
-		if (b2LengthSquared(s) < rr)
-		{
-			// initial overlap
-			output.point = input->origin;
-			output.hit = true;
-		}
-		
+		// outside the range of the ray segment
 		return output;
 	}
 
@@ -622,7 +604,7 @@ b2CastOutput b2RayCastCapsule( const b2RayCastInput* input, const b2Capsule* sha
 			return b2RayCastCircle( input, &circle );
 		}
 
-		if ( qa > capsuleLength )
+		if ( qa > 1.0f )
 		{
 			// start point ahead of capsule segment
 			b2Circle circle = { v2, shape->radius };
@@ -630,8 +612,6 @@ b2CastOutput b2RayCastCapsule( const b2RayCastInput* input, const b2Capsule* sha
 		}
 
 		// ray starts inside capsule -> no hit
-		output.point = input->origin;
-		output.hit = true;
 		return output;
 	}
 
@@ -802,11 +782,8 @@ b2CastOutput b2RayCastPolygon( const b2RayCastInput* input, const b2Polygon* sha
 
 	if ( shape->radius == 0.0f )
 	{
-		// Shift all math to first vertex since the polygon may be far
-		// from the origin.
-		b2Vec2 base = shape->vertices[0];
-		
-		b2Vec2 p1 = b2Sub(input->origin, base);
+		// Put the ray into the polygon's frame of reference.
+		b2Vec2 p1 = input->origin;
 		b2Vec2 d = input->translation;
 
 		float lower = 0.0f, upper = input->maxFraction;
@@ -820,8 +797,7 @@ b2CastOutput b2RayCastPolygon( const b2RayCastInput* input, const b2Polygon* sha
 			// p = p1 + a * d
 			// dot(normal, p - v) = 0
 			// dot(normal, p1 - v) + a * dot(normal, d) = 0
-			b2Vec2 vertex = b2Sub(shape->vertices[i], base);
-			float numerator = b2Dot( shape->normals[i], b2Sub( vertex, p1 ) );
+			float numerator = b2Dot( shape->normals[i], b2Sub( shape->vertices[i], p1 ) );
 			float denominator = b2Dot( shape->normals[i], d );
 
 			if ( denominator == 0.0f )
@@ -852,9 +828,12 @@ b2CastOutput b2RayCastPolygon( const b2RayCastInput* input, const b2Polygon* sha
 				}
 			}
 
+			// The use of epsilon here causes the B2_ASSERT on lower to trip
+			// in some cases. Apparently the use of epsilon was to make edge
+			// shapes work, but now those are handled separately.
+			// if (upper < lower - b2_epsilon)
 			if ( upper < lower )
 			{
-				// Ray misses
 				return output;
 			}
 		}
@@ -865,13 +844,7 @@ b2CastOutput b2RayCastPolygon( const b2RayCastInput* input, const b2Polygon* sha
 		{
 			output.fraction = lower;
 			output.normal = shape->normals[index];
-			output.point = b2MulAdd( input->origin, lower, d );
-			output.hit = true;
-		}
-		else
-		{
-			// initial overlap
-			output.point = input->origin;
+			output.point = b2MulAdd( p1, lower, d );
 			output.hit = true;
 		}
 
@@ -969,7 +942,6 @@ b2PlaneResult b2CollideMoverAndCircle( const b2Circle* shape, const b2Capsule* m
 		b2Plane plane = { distanceOutput.normal, totalRadius - distanceOutput.distance };
 		return (b2PlaneResult){
 			.plane = plane,
-			.point = distanceOutput.pointA,
 			.hit = true,
 		};
 	}
@@ -996,7 +968,6 @@ b2PlaneResult b2CollideMoverAndCapsule( const b2Capsule* shape, const b2Capsule*
 		b2Plane plane = { distanceOutput.normal, totalRadius - distanceOutput.distance };
 		return (b2PlaneResult){
 			.plane = plane,
-			.point = distanceOutput.pointA,
 			.hit = true,
 		};
 	}
@@ -1023,7 +994,6 @@ b2PlaneResult b2CollideMoverAndPolygon( const b2Polygon* shape, const b2Capsule*
 		b2Plane plane = { distanceOutput.normal, totalRadius - distanceOutput.distance };
 		return (b2PlaneResult){
 			.plane = plane,
-			.point = distanceOutput.pointA,
 			.hit = true,
 		};
 	}
@@ -1050,7 +1020,6 @@ b2PlaneResult b2CollideMoverAndSegment( const b2Segment* shape, const b2Capsule*
 		b2Plane plane = { distanceOutput.normal, totalRadius - distanceOutput.distance };
 		return (b2PlaneResult){
 			.plane = plane,
-			.point = distanceOutput.pointA,
 			.hit = true,
 		};
 	}

@@ -169,8 +169,8 @@ static void b2SensorTask( int startIndex, int endIndex, uint32_t threadIndex, vo
 		struct b2SensorQueryContext queryContext = {
 			.world = world,
 			.taskContext = taskContext,
-			.sensor = sensor,
 			.sensorShape = sensorShape,
+			.sensor = sensor,
 			.transform = transform,
 		};
 
@@ -360,14 +360,14 @@ void b2DestroySensor( b2World* world, b2Shape* sensorShape )
 			.sensorShapeId =
 				{
 					.index1 = sensorShape->id + 1,
-					.world0 = world->worldId,
 					.generation = sensorShape->generation,
+					.world0 = world->worldId,
 				},
 			.visitorShapeId =
 				{
 					.index1 = ref->shapeId + 1,
-					.world0 = world->worldId,
 					.generation = ref->generation,
+					.world0 = world->worldId,
 				},
 		};
 

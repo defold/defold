@@ -426,10 +426,9 @@ void b2DestroyContact( b2World* world, b2Contact* contact, bool wakeBodies )
 	}
 	else
 	{
-		// contact is non-touching or is sleeping
+		// contact is non-touching or is sleeping or is a sensor
 		B2_ASSERT( contact->setIndex != b2_awakeSet || ( contact->flags & b2_contactTouchingFlag ) == 0 );
 		b2SolverSet* set = b2SolverSetArray_Get( &world->solverSets, contact->setIndex );
-
 		int movedIndex = b2ContactSimArray_RemoveSwap( &set->contactSims, contact->localIndex );
 		if ( movedIndex != B2_NULL_INDEX )
 		{
@@ -467,7 +466,18 @@ b2ContactSim* b2GetContactSim( b2World* world, b2Contact* contact )
 	return b2ContactSimArray_Get( &set->contactSims, contact->localIndex );
 }
 
-// Update the contact manifold and touching status.
+bool b2ShouldShapesCollide( b2Filter filterA, b2Filter filterB )
+{
+	if ( filterA.groupIndex == filterB.groupIndex && filterA.groupIndex != 0 )
+	{
+		return filterA.groupIndex > 0;
+	}
+
+	bool collide = ( filterA.maskBits & filterB.categoryBits ) != 0 && ( filterA.categoryBits & filterB.maskBits ) != 0;
+	return collide;
+}
+
+// Update the contact manifold and touching status. Also updates sensor overlap.
 // Note: do not assume the shape AABBs are overlapping or are valid.
 bool b2UpdateContact( b2World* world, b2ContactSim* contactSim, b2Shape* shapeA, b2Transform transformA, b2Vec2 centerOffsetA,
 					  b2Shape* shapeB, b2Transform transformB, b2Vec2 centerOffsetB )
@@ -501,7 +511,7 @@ bool b2UpdateContact( b2World* world, b2ContactSim* contactSim, b2Shape* shapeA,
 	int pointCount = contactSim->manifold.pointCount;
 	bool touching = pointCount > 0;
 
-	if ( touching && world->preSolveFcn != NULL && ( contactSim->simFlags & b2_simEnablePreSolveEvents ) != 0 )
+	if ( touching && world->preSolveFcn && ( contactSim->simFlags & b2_simEnablePreSolveEvents ) != 0 )
 	{
 		b2ShapeId shapeIdA = { shapeA->id + 1, world->worldId, shapeA->generation };
 		b2ShapeId shapeIdB = { shapeB->id + 1, world->worldId, shapeB->generation };

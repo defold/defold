@@ -62,7 +62,6 @@ typedef float b2FrictionCallback( float frictionA, int userMaterialIdA, float fr
 typedef float b2RestitutionCallback( float restitutionA, int userMaterialIdA, float restitutionB, int userMaterialIdB );
 
 /// Result from b2World_RayCastClosest
-/// If there is initial overlap the fraction and normal will be zero while the point is an arbitrary point in the overlap region.
 /// @ingroup world
 typedef struct b2RayResult
 {
@@ -101,6 +100,12 @@ typedef struct b2WorldDef
 	/// puts a cap on the resolution speed. The resolution speed is increased by increasing the hertz and/or
 	/// decreasing the damping ratio.
 	float maxContactPushSpeed;
+
+	/// Joint stiffness. Cycles per second.
+	float jointHertz;
+
+	/// Joint bounciness. Non-dimensional.
+	float jointDampingRatio;
 
 	/// Maximum linear speed. Usually meters per second.
 	float maximumLinearSpeed;
@@ -718,10 +723,6 @@ typedef struct b2PrismaticJointDef
 	/// The constrained angle between the bodies: bodyB_angle - bodyA_angle
 	float referenceAngle;
 
-	/// The target translation for the joint in meters. The spring-damper will drive
-	/// to this translation.
-	float targetTranslation;
-
 	/// Enable a linear spring along the prismatic joint axis
 	bool enableSpring;
 
@@ -793,10 +794,6 @@ typedef struct b2RevoluteJointDef
 	/// This defines the zero angle for the joint limit.
 	float referenceAngle;
 
-	/// The target angle for the joint in radians. The spring-damper will drive
-	/// to this angle.
-	float targetAngle;
-
 	/// Enable a rotational spring on the revolute hinge axis
 	bool enableSpring;
 
@@ -809,10 +806,10 @@ typedef struct b2RevoluteJointDef
 	/// A flag to enable joint limits
 	bool enableLimit;
 
-	/// The lower angle for the joint limit in radians. Minimum of -0.99*pi radians.
+	/// The lower angle for the joint limit in radians. Minimum of -0.95*pi radians.
 	float lowerAngle;
 
-	/// The upper angle for the joint limit in radians. Maximum of 0.99*pi radians.
+	/// The upper angle for the joint limit in radians. Maximum of 0.95*pi radians.
 	float upperAngle;
 
 	/// A flag to enable the joint motor
@@ -1078,7 +1075,6 @@ typedef struct b2ContactEndTouchEvent
 } b2ContactEndTouchEvent;
 
 /// A hit touch event is generated when two shapes collide with a speed faster than the hit speed threshold.
-/// This may be reported for speculative contacts that have a confirmed impulse.
 typedef struct b2ContactHitEvent
 {
 	/// Id of the first shape
@@ -1087,9 +1083,7 @@ typedef struct b2ContactHitEvent
 	/// Id of the second shape
 	b2ShapeId shapeIdB;
 
-	/// Point where the shapes hit at the beginning of the time step.
-	/// This is a mid-point between the two surfaces. It could be at speculative
-	/// point where the two shapes were not touching at the beginning of the time step.
+	/// Point where the shapes hit
 	b2Vec2 point;
 
 	/// Normal vector pointing from shape A to shape B
@@ -1201,18 +1195,17 @@ typedef bool b2PreSolveFcn( b2ShapeId shapeIdA, b2ShapeId shapeIdB, b2Manifold* 
 /// @ingroup world
 typedef bool b2OverlapResultFcn( b2ShapeId shapeId, void* context );
 
-/// Prototype callback for ray and shape casts.
+/// Prototype callback for ray casts.
 /// Called for each shape found in the query. You control how the ray cast
 /// proceeds by returning a float:
 /// return -1: ignore this shape and continue
 /// return 0: terminate the ray cast
 /// return fraction: clip the ray to this point
 /// return 1: don't clip the ray and continue
-/// A cast with initial overlap will return a zero fraction and a zero normal.
 /// @param shapeId the shape hit by the ray
 /// @param point the point of initial intersection
-/// @param normal the normal vector at the point of intersection, zero for a shape cast with initial overlap
-/// @param fraction the fraction along the ray at the point of intersection, zero for a shape cast with initial overlap
+/// @param normal the normal vector at the point of intersection
+/// @param fraction the fraction along the ray at the point of intersection
 /// @param context the user context
 /// @return -1 to filter, 0 to terminate, fraction to clip the ray for closest hit, 1 to continue
 /// @see b2World_CastRay

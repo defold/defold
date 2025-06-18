@@ -53,18 +53,6 @@ float b2PrismaticJoint_GetSpringDampingRatio( b2JointId jointId )
 	return joint->prismaticJoint.dampingRatio;
 }
 
-void b2PrismaticJoint_SetTargetTranslation( b2JointId jointId, float translation )
-{
-	b2JointSim* joint = b2GetJointSimCheckType( jointId, b2_prismaticJoint );
-	joint->prismaticJoint.targetTranslation = translation;
-}
-
-float b2PrismaticJoint_GetTargetTranslation( b2JointId jointId )
-{
-	b2JointSim* joint = b2GetJointSimCheckType( jointId, b2_prismaticJoint );
-	return joint->prismaticJoint.targetTranslation;
-}
-
 void b2PrismaticJoint_EnableLimit( b2JointId jointId, bool enableLimit )
 {
 	b2JointSim* joint = b2GetJointSimCheckType( jointId, b2_prismaticJoint );
@@ -429,7 +417,7 @@ void b2SolvePrismaticJoint( b2JointSim* base, b2StepContext* context, bool useBi
 	if ( joint->enableSpring )
 	{
 		// This is a real spring and should be applied even during relax
-		float C = translation - joint->targetTranslation;
+		float C = translation;
 		float bias = joint->springSoftness.biasRate * C;
 		float massScale = joint->springSoftness.massScale;
 		float impulseScale = joint->springSoftness.impulseScale;
@@ -484,9 +472,9 @@ void b2SolvePrismaticJoint( b2JointSim* base, b2StepContext* context, bool useBi
 			}
 			else if ( useBias )
 			{
-				bias = base->constraintSoftness.biasRate * C;
-				massScale = base->constraintSoftness.massScale;
-				impulseScale = base->constraintSoftness.impulseScale;
+				bias = context->jointSoftness.biasRate * C;
+				massScale = context->jointSoftness.massScale;
+				impulseScale = context->jointSoftness.impulseScale;
 			}
 
 			float oldImpulse = joint->lowerImpulse;
@@ -522,9 +510,9 @@ void b2SolvePrismaticJoint( b2JointSim* base, b2StepContext* context, bool useBi
 			}
 			else if ( useBias )
 			{
-				bias = base->constraintSoftness.biasRate * C;
-				massScale = base->constraintSoftness.massScale;
-				impulseScale = base->constraintSoftness.impulseScale;
+				bias = context->jointSoftness.biasRate * C;
+				massScale = context->jointSoftness.massScale;
+				impulseScale = context->jointSoftness.impulseScale;
 			}
 
 			float oldImpulse = joint->upperImpulse;
@@ -567,9 +555,9 @@ void b2SolvePrismaticJoint( b2JointSim* base, b2StepContext* context, bool useBi
 			C.x = b2Dot( perpA, d );
 			C.y = b2RelativeAngle( stateB->deltaRotation, stateA->deltaRotation ) + joint->deltaAngle;
 
-			bias = b2MulSV( base->constraintSoftness.biasRate, C );
-			massScale = base->constraintSoftness.massScale;
-			impulseScale = base->constraintSoftness.impulseScale;
+			bias = b2MulSV( context->jointSoftness.biasRate, C );
+			massScale = context->jointSoftness.massScale;
+			impulseScale = context->jointSoftness.impulseScale;
 		}
 
 		float k11 = mA + mB + iA * s1 * s1 + iB * s2 * s2;

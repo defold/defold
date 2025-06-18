@@ -218,6 +218,10 @@ static void b2ComputeSimplexWitnessPoints( b2Vec2* a, b2Vec2* b, const b2Simplex
 {
 	switch ( s->count )
 	{
+		case 0:
+			B2_ASSERT( false );
+			break;
+
 		case 1:
 			*a = s->v1.wA;
 			*b = s->v1.wB;
@@ -236,8 +240,6 @@ static void b2ComputeSimplexWitnessPoints( b2Vec2* a, b2Vec2* b, const b2Simplex
 			break;
 
 		default:
-			*a = b2Vec2_zero;
-			*b = b2Vec2_zero;
 			B2_ASSERT( false );
 			break;
 	}
@@ -495,12 +497,7 @@ b2DistanceOutput b2ShapeDistance( const b2DistanceInput* input, b2SimplexCache* 
 		// If we have 3 points, then the origin is in the corresponding triangle.
 		if ( simplex.count == 3 )
 		{
-			// Overlap
-			b2Vec2 localPointA, localPointB;
-			b2ComputeSimplexWitnessPoints( &localPointA, &localPointB, &simplex );
-			output.pointA = b2TransformPoint( input->transformA, localPointA );
-			output.pointB = b2TransformPoint( input->transformA, localPointB );
-			return output;
+			break;
 		}
 
 #ifndef NDEBUG
@@ -511,6 +508,9 @@ b2DistanceOutput b2ShapeDistance( const b2DistanceInput* input, b2SimplexCache* 
 		}
 #endif
 
+		// Save the normal
+		nonUnitNormal = d;
+
 		// Ensure the search direction is numerically fit.
 		if ( b2Dot( d, d ) < FLT_EPSILON * FLT_EPSILON )
 		{
@@ -520,16 +520,11 @@ b2DistanceOutput b2ShapeDistance( const b2DistanceInput* input, b2SimplexCache* 
 			// The origin is probably contained by a line segment
 			// or triangle. Thus the shapes are overlapped.
 
-			// Must return overlap due to invalid normal.
-			b2Vec2 localPointA, localPointB;
-			b2ComputeSimplexWitnessPoints( &localPointA, &localPointB, &simplex );
-			output.pointA = b2TransformPoint( input->transformA, localPointA );
-			output.pointB = b2TransformPoint( input->transformA, localPointB );
-			return output;
+			// We can't return zero here even though there may be overlap.
+			// In case the simplex is a point, segment, or triangle it is difficult
+			// to determine if the origin is contained in the CSO or very close to it.
+			break;
 		}
-
-		// Save the normal
-		nonUnitNormal = d;
 
 		// Compute a tentative new simplex vertex using support points.
 		// support = support(a, d) - support(b, -d)
@@ -574,7 +569,6 @@ b2DistanceOutput b2ShapeDistance( const b2DistanceInput* input, b2SimplexCache* 
 
 	// Prepare output
 	b2Vec2 normal = b2Normalize( nonUnitNormal );
-	B2_ASSERT( b2IsNormalized( normal ) );
 	normal = b2RotateVector( input->transformA.q, normal );
 
 	b2Vec2 localPointA, localPointB;
@@ -618,7 +612,7 @@ b2CastOutput b2ShapeCast( const b2ShapeCastPairInput* input )
 	// Prepare input for distance query
 	b2SimplexCache cache = { 0 };
 
-	float fraction = 0.0f;
+	float alpha = 0.0f;
 
 	b2DistanceInput distanceInput = { 0 };
 	distanceInput.proxyA = input->proxyA;
@@ -648,13 +642,18 @@ b2CastOutput b2ShapeCast( const b2ShapeCastPairInput* input )
 				}
 				else
 				{
-					// Initial overlap
+					if ( distanceOutput.distance == 0.0f )
+					{
+						// Normal may be invalid
+						return output;
+					}
+
+					// Initial overlap but distance is non-zero due to radius
+					B2_ASSERT( b2IsNormalized( distanceOutput.normal ) );
+					output.fraction = alpha;
+					output.point = b2MulAdd( distanceOutput.pointA, input->proxyA.radius, distanceOutput.normal );
+					output.normal = distanceOutput.normal;
 					output.hit = true;
-					
-					// Compute a common point
-					b2Vec2 c1 = b2MulAdd( distanceOutput.pointA, input->proxyA.radius, distanceOutput.normal );
-					b2Vec2 c2 = b2MulAdd( distanceOutput.pointB, -input->proxyB.radius, distanceOutput.normal );
-					output.point = b2Lerp( c1, c2, 0.5f );
 					return output;
 				}
 			}
@@ -662,7 +661,7 @@ b2CastOutput b2ShapeCast( const b2ShapeCastPairInput* input )
 			{
 				// Regular hit
 				B2_ASSERT( distanceOutput.distance > 0.0f && b2IsNormalized( distanceOutput.normal ) );
-				output.fraction = fraction;
+				output.fraction = alpha;
 				output.point = b2MulAdd( distanceOutput.pointA, input->proxyA.radius, distanceOutput.normal );
 				output.normal = distanceOutput.normal;
 				output.hit = true;
@@ -678,18 +677,20 @@ b2CastOutput b2ShapeCast( const b2ShapeCastPairInput* input )
 		if ( denominator >= 0.0f )
 		{
 			// Miss
+			output.fraction = 1.0f;
 			return output;
 		}
 
 		// Advance sweep
-		fraction += ( target - distanceOutput.distance ) / denominator;
-		if ( fraction >= input->maxFraction )
+		alpha += ( target - distanceOutput.distance ) / denominator;
+		if ( alpha >= input->maxFraction )
 		{
 			// Miss
+			output.fraction = 1.0f;
 			return output;
 		}
 
-		distanceInput.transformB.p = b2MulAdd( input->transformB.p, fraction, delta2 );
+		distanceInput.transformB.p = b2MulAdd( input->transformB.p, alpha, delta2 );
 	}
 
 	// Failure!

@@ -60,6 +60,7 @@ B2_API b2TreeStats b2World_OverlapShape( b2WorldId worldId, const b2ShapeProxy* 
 
 /// Cast a ray into the world to collect shapes in the path of the ray.
 /// Your callback function controls whether you get the closest point, any point, or n-points.
+/// The ray-cast ignores shapes that contain the starting point.
 /// @note The callback function may receive shapes in any order
 /// @param worldId The world to cast the ray against
 /// @param origin The start point of the ray
@@ -71,7 +72,7 @@ B2_API b2TreeStats b2World_OverlapShape( b2WorldId worldId, const b2ShapeProxy* 
 B2_API b2TreeStats b2World_CastRay( b2WorldId worldId, b2Vec2 origin, b2Vec2 translation, b2QueryFilter filter,
 									b2CastResultFcn* fcn, void* context );
 
-/// Cast a ray into the world to collect the closest hit. This is a convenience function. Ignores initial overlap.
+/// Cast a ray into the world to collect the closest hit. This is a convenience function.
 /// This is less general than b2World_CastRay() and does not allow for custom filtering.
 B2_API b2RayResult b2World_CastRayClosest( b2WorldId worldId, b2Vec2 origin, b2Vec2 translation, b2QueryFilter filter );
 
@@ -148,6 +149,13 @@ B2_API void b2World_Explode( b2WorldId worldId, const b2ExplosionDef* explosionD
 /// @param pushSpeed The maximum contact constraint push out speed (meters per second)
 /// @note Advanced feature
 B2_API void b2World_SetContactTuning( b2WorldId worldId, float hertz, float dampingRatio, float pushSpeed );
+
+/// Adjust joint tuning parameters
+/// @param worldId The world id
+/// @param hertz The contact stiffness (cycles per second)
+/// @param dampingRatio The contact bounciness with 1 being critical damping (non-dimensional)
+/// @note Advanced feature
+B2_API void b2World_SetJointTuning( b2WorldId worldId, float hertz, float dampingRatio );
 
 /// Set the maximum linear speed. Usually in m/s.
 B2_API void b2World_SetMaximumLinearSpeed( b2WorldId worldId, float maximumLinearSpeed );
@@ -275,7 +283,6 @@ B2_API void b2Body_SetAngularVelocity( b2BodyId bodyId, float angularVelocity );
 
 /// Set the velocity to reach the given transform after a given time step.
 /// The result will be close but maybe not exact. This is meant for kinematic bodies.
-/// The target is not applied if the velocity would be below the sleep threshold.
 /// This will automatically wake the body if asleep.
 B2_API void b2Body_SetTargetTransform( b2BodyId bodyId, b2Transform target, float timeStep );
 
@@ -553,12 +560,6 @@ B2_API void b2Shape_SetMaterial( b2ShapeId shapeId, int material );
 /// Get the shape material identifier
 B2_API int b2Shape_GetMaterial( b2ShapeId shapeId );
 
-/// Set the shape surface material
-B2_API void b2Shape_SetSurfaceMaterial( b2ShapeId shapeId, b2SurfaceMaterial surfaceMaterial );
-
-/// Get the shape surface material
-B2_API b2SurfaceMaterial b2Shape_GetSurfaceMaterial( b2ShapeId shapeId );
-
 /// Get the shape filter
 B2_API b2Filter b2Shape_GetFilter( b2ShapeId shapeId );
 
@@ -745,29 +746,11 @@ B2_API b2BodyId b2Joint_GetBodyB( b2JointId jointId );
 /// Get the world that owns this joint
 B2_API b2WorldId b2Joint_GetWorld( b2JointId jointId );
 
-/// Set the local anchor on bodyA
-B2_API void b2Joint_SetLocalAnchorA( b2JointId jointId, b2Vec2 localAnchor );
-
 /// Get the local anchor on bodyA
 B2_API b2Vec2 b2Joint_GetLocalAnchorA( b2JointId jointId );
 
-/// Set the local anchor on bodyB
-B2_API void b2Joint_SetLocalAnchorB( b2JointId jointId, b2Vec2 localAnchor );
-
 /// Get the local anchor on bodyB
 B2_API b2Vec2 b2Joint_GetLocalAnchorB( b2JointId jointId );
-
-/// Get the joint reference angle in radians (revolute, prismatic, and weld)
-B2_API float b2Joint_GetReferenceAngle( b2JointId jointId );
-
-/// Set the joint reference angle in radians, must be in [-pi,pi]. (revolute, prismatic, and weld)
-B2_API void b2Joint_SetReferenceAngle( b2JointId jointId, float angleInRadians );
-
-/// Set the local axis on bodyA (prismatic and wheel)
-B2_API void b2Joint_SetLocalAxisA( b2JointId jointId, b2Vec2 localAxis );
-
-/// Get the local axis on bodyA (prismatic and wheel)
-B2_API b2Vec2 b2Joint_GetLocalAxisA( b2JointId jointId );
 
 /// Toggle collision between connected bodies
 B2_API void b2Joint_SetCollideConnected( b2JointId jointId, bool shouldCollide );
@@ -789,21 +772,6 @@ B2_API b2Vec2 b2Joint_GetConstraintForce( b2JointId jointId );
 
 /// Get the current constraint torque for this joint. Usually in Newton * meters.
 B2_API float b2Joint_GetConstraintTorque( b2JointId jointId );
-
-/// Get the current linear separation error for this joint. Does not consider admissible movement. Usually in meters.
-B2_API float b2Joint_GetLinearSeparation( b2JointId jointId );
-
-/// Get the current angular separation error for this joint. Does not consider admissible movement. Usually in meters.
-B2_API float b2Joint_GetAngularSeparation( b2JointId jointId );
-
-/// Get the joint constraint tuning. Advanced feature.
-B2_API void b2Joint_GetConstraintTuning( b2JointId jointId, float* hertz, float* dampingRatio );
-
-/// Set the joint constraint tuning. Advanced feature.
-/// @param jointId the joint
-/// @param hertz the stiffness in Hertz (cycles per second)
-/// @param dampingRatio the non-dimensional damping ratio (one for critical damping)
-B2_API void b2Joint_SetConstraintTuning( b2JointId jointId, float hertz, float dampingRatio );
 
 /**
  * @defgroup distance_joint Distance Joint
@@ -903,8 +871,7 @@ B2_API void b2MotorJoint_SetLinearOffset( b2JointId jointId, b2Vec2 linearOffset
 /// Get the motor joint linear offset target
 B2_API b2Vec2 b2MotorJoint_GetLinearOffset( b2JointId jointId );
 
-/// Set the motor joint angular offset target in radians. This angle will be unwound
-/// so the motor will drive along the shortest arc.
+/// Set the motor joint angular offset target in radians
 B2_API void b2MotorJoint_SetAngularOffset( b2JointId jointId, float angularOffset );
 
 /// Get the motor joint angular offset target in radians
@@ -1017,12 +984,6 @@ B2_API void b2PrismaticJoint_SetSpringDampingRatio( b2JointId jointId, float dam
 /// Get the prismatic spring damping ratio (non-dimensional)
 B2_API float b2PrismaticJoint_GetSpringDampingRatio( b2JointId jointId );
 
-/// Set the prismatic joint spring target angle, usually in meters
-B2_API void b2PrismaticJoint_SetTargetTranslation( b2JointId jointId, float translation );
-
-/// Get the prismatic joint spring target translation, usually in meters
-B2_API float b2PrismaticJoint_GetTargetTranslation( b2JointId jointId );
-
 /// Enable/disable a prismatic joint limit
 B2_API void b2PrismaticJoint_EnableLimit( b2JointId jointId, bool enableLimit );
 
@@ -1098,12 +1059,6 @@ B2_API void b2RevoluteJoint_SetSpringDampingRatio( b2JointId jointId, float damp
 /// Get the revolute joint spring damping ratio, non-dimensional
 B2_API float b2RevoluteJoint_GetSpringDampingRatio( b2JointId jointId );
 
-/// Set the revolute joint spring target angle, radians
-B2_API void b2RevoluteJoint_SetTargetAngle( b2JointId jointId, float angle );
-
-/// Get the revolute joint spring target angle, radians
-B2_API float b2RevoluteJoint_GetTargetAngle( b2JointId jointId );
-
 /// Get the revolute joint current angle in radians relative to the reference angle
 /// @see b2RevoluteJointDef::referenceAngle
 B2_API float b2RevoluteJoint_GetAngle( b2JointId jointId );
@@ -1121,7 +1076,7 @@ B2_API float b2RevoluteJoint_GetLowerLimit( b2JointId jointId );
 B2_API float b2RevoluteJoint_GetUpperLimit( b2JointId jointId );
 
 /// Set the revolute joint limits in radians. It is expected that lower <= upper
-/// and that -0.99 * B2_PI <= lower && upper <= -0.99 * B2_PI.
+/// and that -0.95 * B2_PI <= lower && upper <= -0.95 * B2_PI.
 B2_API void b2RevoluteJoint_SetLimits( b2JointId jointId, float lower, float upper );
 
 /// Enable/disable a revolute joint motor
@@ -1161,6 +1116,12 @@ B2_API float b2RevoluteJoint_GetMaxMotorTorque( b2JointId jointId );
 /// Create a weld joint
 /// @see b2WeldJointDef for details
 B2_API b2JointId b2CreateWeldJoint( b2WorldId worldId, const b2WeldJointDef* def );
+
+/// Get the weld joint reference angle in radians
+B2_API float b2WeldJoint_GetReferenceAngle( b2JointId jointId );
+
+/// Set the weld joint reference angle in radians, must be in [-pi,pi].
+B2_API void b2WeldJoint_SetReferenceAngle( b2JointId jointId, float angleInRadians );
 
 /// Set the weld joint linear stiffness in Hertz. 0 is rigid.
 B2_API void b2WeldJoint_SetLinearHertz( b2JointId jointId, float hertz );
