@@ -31,11 +31,11 @@ jobs:
           echo "DYNAMO_HOME=$DYNAMO_HOME"
           export CC=clang
           export CXX=clang++
-          export CFLAGS="--target=x86_64-unknown-linux-gnu -O2 -fPIC -g0"
+          export CFLAGS="--target=x86_64-unknown-linux-gnu -O2 -fPIC -gdwarf-4"
           export CXXFLAGS="$CFLAGS"
           ./scripts/build.py install_waf
           cd external/box2d
-          PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
+          PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }} --cflags="$CFLAGS" --cxxflags="$CXXFLAGS"
           waf install
       - name: Check artifact existence
         run: |
