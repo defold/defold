@@ -31,7 +31,7 @@ jobs:
           echo "DYNAMO_HOME=$DYNAMO_HOME"
           export CC=clang
           export CXX=clang++
-          export CFLAGS="--target=x86_64-unknown-linux-gnu -O2 -fPIC"
+          export CFLAGS="--target=x86_64-unknown-linux-gnu -O2 -fPIC -g0"
           export CXXFLAGS="$CFLAGS"
           ./scripts/build.py install_waf
           cd external/box2d
