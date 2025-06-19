@@ -98,7 +98,7 @@
      (gt/node-type n))))
 
 (defn node-type
-  "Return the node-type given a node. Uses the current basis if not provided."
+  "Return the node-type given a node."
   [node]
   (when node
     (gt/node-type node)))
@@ -1553,7 +1553,7 @@
   ([node-id]
    (override? (now) node-id))
   ([basis node-id]
-   (not (nil? (override-original basis node-id)))))
+   (some? (override-original basis node-id))))
 
 (defn override-id
   ([node-id]
@@ -1582,19 +1582,25 @@
      true)))
 
 (defn node-property-dynamic
-  "Returns the value of a dynamic associated with a specific node property."
-  [node property-label dynamic-label evaluation-context]
-  (let [node-type (node-type node)
-        property-def (get (in/all-properties node-type) property-label)
-        _ (assert property-def (format "Property %s not found in node-type %s." property-label (:k node-type)))
-        dynamic-fnk (-> property-def (get :dynamics) (get dynamic-label))
-        _ (assert dynamic-fnk (format "Dynamic %s not found on property %s in node-type %s." dynamic-label property-label (:k node-type)))
-        dynamic-fn (:fn dynamic-fnk)
-        dynamic-args (coll/transfer (:arguments dynamic-fnk) {}
-                       (map (fn [arg-label]
-                              (let [arg-value (in/node-value node arg-label evaluation-context)]
-                                (pair arg-label arg-value)))))]
-    (dynamic-fn dynamic-args)))
+  "Returns the value of a dynamic associated with a specific node property, or
+  not-found value if the dynamic does not exist"
+  ([node property-label dynamic-label evaluation-context]
+   (node-property-dynamic node property-label dynamic-label nil evaluation-context))
+  ([node property-label dynamic-label not-found evaluation-context]
+   (let [node-type (node-type node)
+         property-def (get (in/all-properties node-type) property-label)
+         _ (assert property-def (format "Property %s not found in node-type %s." property-label (:k node-type)))
+         dynamic-fnk (-> property-def (get :dynamics) (get dynamic-label))]
+     (if dynamic-fnk
+       (let [dynamic-fn (:fn dynamic-fnk)
+             dynamic-args (coll/transfer (:arguments dynamic-fnk) {}
+                            (map (fn [arg-label]
+                                     (let [arg-value (case arg-label
+                                                       :_this node
+                                                       (in/node-value node arg-label evaluation-context))]
+                                       (pair arg-label arg-value)))))]
+         (dynamic-fn dynamic-args))
+       not-found))))
 
 (defmulti node-key
   "Used to identify a node uniquely within a scope. This has various uses,
