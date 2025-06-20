@@ -204,6 +204,21 @@ namespace dmRender
     uint32_t GetFontMapResourceSize(HFontMap font_map);
 
     /**
+     * Set the font map's max ascent
+     * @param font_map [type: HFontMap] Font map handle
+     * @param max_ascent [type: float] The max ascent over the base line
+     */
+    void SetFontMapMaxAscent(HFontMap font_map, float max_ascent);
+
+    /**
+     * Set the font map's max descent
+     * @note This is a positive number
+     * @param font_map [type: HFontMap] Font map handle
+     * @param max_descent [type: float] The max descent under the base line (Positive number!)
+     */
+    void SetFontMapMaxDescent(HFontMap font_map, float max_descent);
+
+    /**
      * Set the outline threshold
      * @param font_map [type: HFontMap] Font map handle
      * @param outline [type: float] The outline threshold [0.0 .. 1.0]

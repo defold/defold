@@ -455,6 +455,11 @@ namespace dmGameSystem
         {
             dmRender::SetFontMapSdfSpread(resource->m_FontMap, CalcSdfSpread(resource));
             dmRender::SetFontMapSdfOutlineWidth(resource->m_FontMap, CalcSdfOutlineWidth(resource));
+
+            dmFont::HFont hfont = dmGameSystem::GetFont(resource->m_TTFResource);
+            float scale = dmFont::GetPixelScaleFromSize(hfont, resource->m_DDF->m_Size);
+            dmRender::SetFontMapMaxAscent(resource->m_FontMap, dmFont::GetAscent(hfont, scale));
+            dmRender::SetFontMapMaxDescent(resource->m_FontMap, -dmFont::GetDescent(hfont, scale));
         }
         return dmResource::RESULT_OK;
     }
