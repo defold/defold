@@ -56,7 +56,7 @@
  *
  * This constant has a string describing the current LuaSocket version.
  *
- * @variable
+ * @constant
  * @name socket._VERSION
  *
  */
@@ -95,7 +95,7 @@
  *
  * This constant contains the maximum number of sockets that the select function can handle.
  *
- * @variable
+ * @constant
  * @name socket._SETSIZE
  *
  */

@@ -1481,17 +1481,17 @@ union SaveLoadBuffer
 
     /*# no network connection found
      * @name sys.NETWORK_DISCONNECTED
-     * @variable
+     * @constant
      */
 
     /*# network connected through mobile cellular
      * @name sys.NETWORK_CONNECTED_CELLULAR
-     * @variable
+     * @constant
      */
 
     /*# network connected through other, non cellular, connection
      * @name sys.NETWORK_CONNECTED
-     * @variable
+     * @constant
      */
 
     void InitializeSys(lua_State* L)

@@ -72,17 +72,17 @@ namespace dmGameSystem
     /*# unloaded
      *
      * @name factory.STATUS_UNLOADED
-     * @variable
+     * @constant
      */
     /*# loading
      *
      * @name factory.STATUS_LOADING
-     * @variable
+     * @constant
      */
     /*# loaded
      *
      * @name factory.STATUS_LOADED
-     * @variable
+     * @constant
      */
     static int FactoryComp_GetStatus(lua_State* L)
     {

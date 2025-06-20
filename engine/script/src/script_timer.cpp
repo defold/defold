@@ -797,7 +797,7 @@ namespace dmScript
         /*# Indicates an invalid timer handle
          *
          * @name timer.INVALID_TIMER_HANDLE
-         * @variable
+         * @constant
          */
         SETCONSTANT(INVALID_TIMER_HANDLE);
 

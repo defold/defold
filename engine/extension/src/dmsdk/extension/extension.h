@@ -324,7 +324,7 @@ typedef void (*FExtensionOnEvent)(ExtensionParams*, const ExtensionEvent*);
 typedef ExtensionResult (*FExtensionCallback)(ExtensionParams* params);
 
 /*# Used when registering new extensions
- * @variable
+ * @constant
  * @name ExtensionDescBufferSize
  */
 const size_t ExtensionDescBufferSize = 128;

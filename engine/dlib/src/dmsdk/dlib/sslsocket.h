@@ -63,7 +63,7 @@ namespace dmSSLSocket
     typedef struct SSLSocket* Socket;
 
     /*# SSLSocket socket handle
-     * @variable
+     * @constant
      * @name dmSSLSocket::INVALID_SOCKET_HANDLE
      */
     const Socket INVALID_SOCKET_HANDLE = 0;

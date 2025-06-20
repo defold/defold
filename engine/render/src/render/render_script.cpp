@@ -1141,7 +1141,7 @@ namespace dmRender
 
     /*#
      * @name render.RENDER_TARGET_DEFAULT
-     * @variable
+     * @constant
      */
 
     /*# sets a render target
@@ -1981,12 +1981,12 @@ namespace dmRender
 
     /*#
      * @name render.FRUSTUM_PLANES_SIDES
-     * @variable
+     * @constant
      */
 
     /*#
      * @name render.FRUSTUM_PLANES_ALL
-     * @variable
+     * @constant
      */
 
      /*# sets the blending function

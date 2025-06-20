@@ -382,17 +382,17 @@ namespace dmGameSystem
 
     /*# an asyncronous request has finished successfully
      * @name sys.REQUEST_STATUS_FINISHED
-     * @variable
+     * @constant
      */
 
     /*# an asyncronous request is unable to read the resource
      * @name sys.REQUEST_STATUS_ERROR_IO_ERROR
-     * @variable
+     * @constant
      */
 
     /*# an asyncronous request is unable to locate the resource
      * @name sys.REQUEST_STATUS_ERROR_NOT_FOUND
-     * @variable
+     * @constant
      */
 
     void ScriptSysGameSysRegister(const ScriptLibContext& context)

@@ -617,17 +617,17 @@ namespace dmGameSystem
 /*# Static (immovable) body
  *
  * @name b2d.body.B2_STATIC_BODY
- * @variable
+ * @constant
  */
 /*# Kinematic body
  *
  * @name b2d.body.B2_KINEMATIC_BODY
- * @variable
+ * @constant
  */
 /*# Dynamic body
  *
  * @name b2d.body.B2_DYNAMIC_BODY
- * @variable
+ * @constant
  */
 
 /**
