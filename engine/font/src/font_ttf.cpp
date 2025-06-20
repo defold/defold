@@ -152,7 +152,7 @@ FontResult GetGlyphTTF(HFont hfont, uint32_t codepoint, const GlyphOptions* opti
     stbtt_GetGlyphBox(info, glyph_index, &x0, &y0, &x1, &y1);
 
     float scale = options->m_Scale;
-    int padding = options->m_StbttSDFPadding;
+    float padding = options->m_StbttSDFPadding;
     int on_edge_value = options->m_StbttSDFOnEdgeValue;
 
     int ascent = 0;
@@ -164,9 +164,9 @@ FontResult GetGlyphTTF(HFont hfont, uint32_t codepoint, const GlyphOptions* opti
 
     if (options->m_GenerateImage)
     {
-        float pixel_dist_scale = (float)on_edge_value/(float)padding;
+        float pixel_dist_scale = (float)on_edge_value/padding;
 
-        glyph->m_Bitmap.m_Data = stbtt_GetGlyphSDF(info, scale, glyph_index, padding, on_edge_value, pixel_dist_scale,
+        glyph->m_Bitmap.m_Data = stbtt_GetGlyphSDF(info, scale, glyph_index, (int)padding, on_edge_value, pixel_dist_scale,
                                                    &srcw, &srch, &offsetx, &offsety);
 
         if (glyph->m_Bitmap.m_Data)

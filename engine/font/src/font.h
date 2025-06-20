@@ -20,7 +20,7 @@
 
 namespace dmFont
 {
-    void DebugFont(HFont font, float scale, const char* text);
+    void DebugFont(HFont font, float scale, float padding, const char* text);
 
 } // namespace
 

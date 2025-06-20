@@ -202,7 +202,7 @@ void DebugGlyph(Glyph* glyph, int indent)
     Indent(indent+1); printf("descent:  %.3f\n", glyph->m_Descent);
 }
 
-void DebugFont(HFont hfont, float scale, const char* text)
+void DebugFont(HFont hfont, float scale, float padding, const char* text)
 {
     int indent = 0;
 
@@ -218,6 +218,7 @@ void DebugFont(HFont hfont, float scale, const char* text)
     options.m_Scale = scale;
     options.m_GenerateImage = true;
 
+    options.m_StbttSDFPadding = padding;
     const char* cursor = text;
     uint32_t codepoint = 0;
     while ((codepoint = dmUtf8::NextChar(&cursor)))

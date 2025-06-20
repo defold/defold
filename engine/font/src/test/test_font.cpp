@@ -38,7 +38,7 @@ TEST(Simple, LoadTTF)
     dmFont::DestroyFont(font);
 }
 
-static int TestStandalone(const char* path, float size, const char* text)
+static int TestStandalone(const char* path, float size, float padding, const char* text)
 {
     dmFont::HFont font = dmFont::LoadFontFromPath(path);
     if (!font)
@@ -48,7 +48,7 @@ static int TestStandalone(const char* path, float size, const char* text)
     }
 
     float scale = dmFont::GetPixelScaleFromSize(font, size);
-    dmFont::DebugFont(font, scale, text);
+    dmFont::DebugFont(font, scale, padding, text);
 
     dmFont::DestroyFont(font);
     return 0;
@@ -65,6 +65,7 @@ int main(int argc, char **argv)
         const char* path = argv[1];
         const char* text = "abcABC123åäö!\"";
         float size = 1.0f;
+        float padding = 3.0f;
 
         if (argc > 2)
         {
@@ -80,7 +81,17 @@ int main(int argc, char **argv)
                 return 1;
             }
         }
-        int ret = TestStandalone(path, size, text);
+
+        if (argc > 4)
+        {
+            int nresult = sscanf(argv[4], "%f", &padding);
+            if (nresult != 1)
+            {
+                dmLogError("Failed to parse padding: '%s'", argv[4]);
+                return 1;
+            }
+        }
+        int ret = TestStandalone(path, size, padding, text);
         dmLog::LogFinalize();
         return ret;
     }
