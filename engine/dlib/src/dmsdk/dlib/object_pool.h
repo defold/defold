@@ -38,6 +38,7 @@
  *
  * @struct
  * @name dmObjectPool
+ * @tparam T
  */
 template <typename T>
 class dmObjectPool
@@ -60,7 +61,6 @@ public:
     /*#
      * Constructor
      * @name dmObjectPool
-     * @param capacity
      */
     dmObjectPool()
     {

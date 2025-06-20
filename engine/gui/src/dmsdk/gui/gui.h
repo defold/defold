@@ -310,8 +310,8 @@ namespace dmGui
     /*#
      * Get property value
      * @name GetNodeProperty
-     * @param scene type: dmGui::HScene] scene
-     * @param node type: dmGui::HNode] node
+     * @param scene [type: dmGui::HScene] scene
+     * @param node [type: dmGui::HNode] node
      * @param property [type: dmGui::Property] property enum
      * @return value [type: dmVMath::Vector4]
      */
@@ -320,8 +320,8 @@ namespace dmGui
     /*#
      * Set property value
      * @name SetNodeProperty
-     * @param scene type: dmGui::HScene] scene
-     * @param node type: dmGui::HNode] node
+     * @param scene [type: dmGui::HScene] scene
+     * @param node [type: dmGui::HNode] node
      * @param property [type: dmGui::Property] property enum
      * @param value [type: dmVMath::Vector4]
      */
@@ -346,8 +346,8 @@ namespace dmGui
     /*#
      * Set adjust mode
      * @name SetNodeAdjustMode
-     * @param scene type: dmGui::HScene] scene
-     * @param node type: dmGui::HNode] node
+     * @param scene [type: dmGui::HScene] scene
+     * @param node [type: dmGui::HNode] node
      * @param adjust_mode [type: AdjustMode] the adjust mode
      */
     void SetNodeAdjustMode(HScene scene, HNode node, AdjustMode adjust_mode);

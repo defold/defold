@@ -116,6 +116,13 @@ typedef enum ExtensionAppExitCode
     EXTENSION_APP_EXIT_CODE_EXIT     = -1,
 } ExtensionAppExitCode;
 
+/*#
+ * The extension app parameters
+ * @struct
+ * @name ExtensionAppParams
+ * @member m_ConfigFile [type:HConfigFile] Deprecated
+ * @member m_ExitStatus [type:ExtensionAppExitCode] App exit code
+ */
 typedef struct ExtensionAppParams
 {
     HConfigFile                 m_ConfigFile; // Deprecated. Here for backwards compatibility
@@ -124,7 +131,7 @@ typedef struct ExtensionAppParams
 } ExtensionAppParams;
 
 /*#
- * The global parameters avalable when registering and unregistering an extensioin
+ * The global parameters avalable when registering and unregistering an extension
  * @struct
  * @name ExtensionParams
  * @member m_ConfigFile [type:HConfigFile] The game project settings (including overrides and plugins)
@@ -141,6 +148,11 @@ typedef struct ExtensionParams
     struct ExtensionParamsImpl* m_Impl;
 } ExtensionParams;
 
+/*#
+ * Extension event
+ * @struct
+ * @name ExtensionEvent
+ */
 typedef struct ExtensionEvent
 {
     enum ExtensionEventID m_Event;
@@ -257,7 +269,7 @@ typedef ExtensionResult (*FExtensionAppInitialize)(ExtensionAppParams*);
 /*#
  * Callback when the app is being finalized
  * @typedef
- * @name FExtensionInitialize
+ * @name FExtensionAppFinalize
  * @param params [type:ExtensionAppParams]
  * @return result [type:ExtensionResult] EXTENSION_RESULT_OK if all went ok
  */
@@ -312,7 +324,7 @@ typedef void (*FExtensionOnEvent)(ExtensionParams*, const ExtensionEvent*);
 typedef ExtensionResult (*FExtensionCallback)(ExtensionParams* params);
 
 /*# Used when registering new extensions
- * @variable
+ * @constant
  * @name ExtensionDescBufferSize
  */
 const size_t ExtensionDescBufferSize = 128;
@@ -355,7 +367,7 @@ bool ExtensionRegisterCallback(ExtensionCallbackType callback_type, FExtensionCa
  * This function is only available on iOS. [icon:ios]
  *
  * @name ExtensionRegisteriOSUIApplicationDelegate
- * @param delegate [type:id<UIApplicationDelegate>] An UIApplicationDelegate, see: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
+ * @param delegate [type:void*] An id<UIApplicationDelegate>, see: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
  *
  * @examples
  * ```objective-c

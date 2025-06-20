@@ -38,7 +38,7 @@ static const HOpaqueHandle INVALID_OPAQUE_HANDLE = 0xFFFFFFFF;
  *
  * @class
  * @name dmOpaqueHandleContainer
- * @tparam T [type:typename T] Contained type pointer
+ * @tparam T Contained type pointer
  */
 template <typename T>
 class dmOpaqueHandleContainer

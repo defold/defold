@@ -57,47 +57,47 @@ namespace dmGameSystem
     /*# uint8
      * Unsigned integer, 1 byte
      * @name buffer.VALUE_TYPE_UINT8
-     * @variable
+     * @constant
     */
     /*# uint16
      * Unsigned integer, 2 bytes
      * @name buffer.VALUE_TYPE_UINT16
-     * @variable
+     * @constant
     */
     /*# uint32
      * Unsigned integer, 4 bytes
      * @name buffer.VALUE_TYPE_UINT32
-     * @variable
+     * @constant
     */
     /*# uint64
      * Unsigned integer, 8 bytes
      * @name buffer.VALUE_TYPE_UINT64
-     * @variable
+     * @constant
     */
     /*# int8
      * Signed integer, 1 byte
      * @name buffer.VALUE_TYPE_INT8
-     * @variable
+     * @constant
     */
     /*# int16
      * Signed integer, 2 bytes
      * @name buffer.VALUE_TYPE_INT16
-     * @variable
+     * @constant
     */
     /*# int32
      * Signed integer, 4 bytes
      * @name buffer.VALUE_TYPE_INT32
-     * @variable
+     * @constant
     */
     /*# int64
      * Signed integer, 8 bytes
      * @name buffer.VALUE_TYPE_INT64
-     * @variable
+     * @constant
     */
     /*# float32
      * Float, single precision, 4 bytes
      * @name buffer.VALUE_TYPE_FLOAT32
-     * @variable
+     * @constant
     */
 
 #define SCRIPT_LIB_NAME "buffer"

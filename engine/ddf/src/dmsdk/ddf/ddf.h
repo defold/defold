@@ -114,6 +114,7 @@ namespace dmDDF
     /*#
      * Load/decode a DDF message from buffer. Template variant
      * @name LoadMessage<T>
+     * @tparam T
      * @param buffer [type:const void*] Input buffer
      * @param buffer_size [type:uint32_t] Input buffer size in bytes
      * @param message [type:T**] (out) Destination pointer to message

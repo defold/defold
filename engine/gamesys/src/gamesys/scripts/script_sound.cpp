@@ -605,7 +605,7 @@ namespace dmGameSystem
      *
      * @name sound.pause
      * @param url [type:string|hash|url] the sound that should pause
-     * @param pause [type:bool] true if the sound should pause
+     * @param pause [type:boolean] true if the sound should pause
      *
      * @examples
      *

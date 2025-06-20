@@ -231,19 +231,19 @@ namespace dmGameSystem
     /*# collection proxy is loading now
      * It's impossible to change the collection while the collection proxy is loading.
      * @name collectionproxy.RESULT_LOADING
-     * @variable
+     * @constant
      */
 
     /*# collection proxy is already loaded
      * It's impossible to change the collection if the collection is already loaded.
      * @name collectionproxy.RESULT_ALREADY_LOADED
-     * @variable
+     * @constant
      */
 
     /*# collection proxy isn't excluded
      * It's impossible to change the collection for a proxy that isn't excluded.
      * @name collectionproxy.RESULT_NOT_EXCLUDED
-     * @variable
+     * @constant
      */
 
     static void LuaInit(lua_State* L)

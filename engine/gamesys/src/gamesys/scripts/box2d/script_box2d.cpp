@@ -149,6 +149,19 @@ namespace dmGameSystem
  * @language Lua
  */
 
+
+/*# Box2D world
+ * @typedef
+ * @name b2World
+ * @param value [type:userdata]
+ */
+
+/*# Box2D body
+ * @typedef
+ * @name b2Body
+ * @param value [type:userdata]
+ */
+
 /*# Get the Box2D world from the current collection
  * @name b2d.get_world
  * @return world [type: b2World] the world if successful. Otherwise `nil`.

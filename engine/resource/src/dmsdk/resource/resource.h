@@ -129,8 +129,9 @@ typedef enum ResourceResult
 
 /*#
  * Function called when a resource has been reloaded.
+ * @typedef
  * @name FResourceReloadedCallback
- * @param params Parameters
+ * @param params [type:ResourceReloadedParams*] Parameters
  * @see RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT (internal flag)
  * @see [ref:ResourceRegisterReloadedCallback]
  */
@@ -141,9 +142,9 @@ typedef void (*FResourceReloadedCallback)(const struct ResourceReloadedParams* p
  * The callbacks will not necessarily be called in the order they were registered.
  * This has only effect when reloading is supported.
  * @name ResourceRegisterReloadedCallback
- * @param factory Handle of the factory to which the callback will be registered
- * @param callback Callback function to register
- * @param user_data User data that will be supplied to the callback when it is called
+ * @param factory [type:HResourceFactory] Handle of the factory to which the callback will be registered
+ * @param callback [type:FResourceReloadedCallback] Callback function to register
+ * @param user_data [type:void*] User data that will be supplied to the callback when it is called
  * @see RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT (internal flag)
  */
 void ResourceRegisterReloadedCallback(HResourceFactory factory, FResourceReloadedCallback callback, void* user_data);
@@ -151,9 +152,9 @@ void ResourceRegisterReloadedCallback(HResourceFactory factory, FResourceReloade
 /**
  * Remove a registered callback function, O(n).
  * @name ResourceUnregisterReloadedCallback
- * @param factory Handle of the factory from which the callback will be removed
- * @param callback Callback function to remove
- * @param user_data User data that was supplied when the callback was registered
+ * @param factory [type:HResourceFactory] Handle of the factory from which the callback will be removed
+ * @param callback [type:FResourceReloadedCallback] Callback function to remove
+ * @param user_data [type:void*] User data that was supplied when the callback was registered
  * @see RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT (internal flag)
  */
 void ResourceUnregisterReloadedCallback(HResourceFactory factory, FResourceReloadedCallback callback, void* user_data);

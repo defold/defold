@@ -55,28 +55,28 @@ namespace dmGameSystem
      * The emitter does not have any living particles and will not spawn any particles in this state.
      *
      * @name particlefx.EMITTER_STATE_SLEEPING
-     * @variable
+     * @constant
      */
 
     /*# prespawn state
      * The emitter will be in this state when it has been started but before spawning any particles. Normally the emitter is in this state for a short time, depending on if a start delay has been set for this emitter or not.
      *
      * @name particlefx.EMITTER_STATE_PRESPAWN
-     * @variable
+     * @constant
      */
 
     /*# spawning state
      * The emitter is spawning particles.
      *
      * @name particlefx.EMITTER_STATE_SPAWNING
-     * @variable
+     * @constant
      */
 
     /*# postspawn state
      * The emitter is not spawning any particles, but has particles that are still alive.
      *
      * @name particlefx.EMITTER_STATE_POSTSPAWN
-     * @variable
+     * @constant
      */
 
     void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_id, dmParticle::EmitterState emitter_state, void* user_data)

@@ -1,7 +1,7 @@
 // Generated, do not edit!
-// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/dlib and cmd=/Users/mathiaswesterdahl/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mathiaswesterdahl/work/defold/engine/dlib/sdk_gen.json
+// Generated with cwd=/Users/bjornritzl/projects/defold/engine/dlib and cmd=/Users/bjornritzl/projects/defold/scripts/dmsdk/gen_sdk.py -i /Users/bjornritzl/projects/defold/engine/dlib/sdk_gen.json
 
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -42,7 +42,7 @@
 namespace dmConfigFile
 {
     /*# HConfigFile type definition
-     * Each game session has a single config file that holds all parameters from game.projec,t and any overridden values.
+     * Each game session has a single config file that holds all parameters from game.project and any overridden values.
      * @typedef
      * @name HConfig
      * @language C++
@@ -130,7 +130,7 @@ namespace dmConfigFile
 
 #endif // #define DMSDK_CONFIGFILE_GEN_HPP
 /*# HConfigFile type definition
- * Each game session has a single config file that holds all parameters from game.projec,t and any overridden values.
+ * Each game session has a single config file that holds all parameters from game.project and any overridden values.
  * @typedef
  * @name HConfigFile
  * @language C

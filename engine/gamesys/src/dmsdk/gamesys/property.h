@@ -36,6 +36,10 @@ namespace dmGameSystem
      * @language C++
      */
 
+    /*#
+     * @struct
+     * @name PropVector3
+     */
     struct PropVector3
     {
         dmhash_t m_Vector;
@@ -54,6 +58,10 @@ namespace dmGameSystem
         }
     };
 
+    /*#
+     * @struct
+     * @name PropVector4
+     */
     struct PropVector4
     {
         dmhash_t m_Vector;

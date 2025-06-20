@@ -90,8 +90,8 @@ namespace dmResource
     * Returns the canonical path hash of a resource
     * @name GetPath
     * @param factory [type: dmResource::HFactory] Factory handle
-    * @param resource Resource
-    * @param hash Returned hash
+    * @param resource [type:const void*] Resource
+    * @param hash [type:uint64_t*] Returned hash
     * @return RESULT_OK on success
     */
    Result GetPath(HFactory factory, const void* resource, uint64_t* hash);
@@ -116,7 +116,9 @@ namespace dmResource
    /*#
     * Function called when a resource has been reloaded.
     * @name RegisterResourceReloadedCallback
-    * @param params Parameters
+    * @param factory [type:dmResource::HFactory] Handle of the factory to which the callback will be registered
+    * @param callback [type:dmResource::FResourceReloadedCallback] Callback function to register
+    * @param user_data [type:void*] User data that to 
     * @see RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT
     * @see ResourceRegisterReloadedCallback
     */
@@ -125,9 +127,9 @@ namespace dmResource
    /**
     * Remove a registered callback function, O(n).
     * @name ResourceUnregisterReloadedCallback
-    * @param factory Handle of the factory from which the callback will be removed
-    * @param callback Callback function to remove
-    * @param user_data User data that was supplied when the callback was registered
+    * @param factory [type:dmResource::HFactory] Handle of the factory from which the callback will be removed
+    * @param callback [type:dmResource::FResourceReloadedCallback] Callback function to remove
+    * @param user_data [type:void*] User data that was supplied when the callback was registered
     * @see RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT
     */
    void UnregisterResourceReloadedCallback(HFactory factory, FResourceReloadedCallback callback, void* user_data);
