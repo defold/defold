@@ -1543,7 +1543,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    /** DEPRECATED in favcor of set_event_listener
+    /** DEPRECATED in favor of set_event_listener
      * sets a physics world event listener. If a function is set, physics messages will no longer be sent.
      *
      * @name physics.set_listener

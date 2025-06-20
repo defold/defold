@@ -36,6 +36,8 @@
  * @note The key type needs to support == and % operators
  * @type class
  * @name dmHashTable
+ * @tparam KEY
+ * @tparam T
  */
 template <typename KEY, typename T>
 class dmHashTable
@@ -396,8 +398,9 @@ public:
     /*#
      * Iterate over all entries in table
      * @name Iterate
-     * @param call_back Call-back called for every entry
-     * @param context Context
+     * @tparam CONTEXT
+     * @param call_back [type:void*] Call-back called for every entry
+     * @param context [type:CONTEXT*] Context
      */
     template <typename CONTEXT>
     void Iterate(void (*call_back)(CONTEXT *context, const KEY* key, T* value), CONTEXT* context) const

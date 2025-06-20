@@ -742,7 +742,7 @@ namespace dmGameObject
      * set the component child iterator function. Called during inspection
      * @name ComponentTypeSetChildIteratorFn
      * @param type [type: HComponentType] the type
-     * @param fn [type: FIteratorChildren] child iterator function
+     * @param fn [type: dmGameObject::FIteratorChildren] child iterator function
      */
     void ComponentTypeSetChildIteratorFn(HComponentType type, FIteratorChildren fn);
 
@@ -750,7 +750,7 @@ namespace dmGameObject
      * set the component property iterator function. Called during inspection
      * @name ComponentTypeSetPropertyIteratorFn
      * @param type [type: HComponentType] the type
-     * @param fn [type: FIteratorProperties] property iterator function
+     * @param fn [type: dmGameObject::FIteratorProperties] property iterator function
      */
     void ComponentTypeSetPropertyIteratorFn(HComponentType type, FIteratorProperties fn);
 

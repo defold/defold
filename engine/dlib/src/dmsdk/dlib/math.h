@@ -32,6 +32,7 @@ namespace dmMath
 
     /*# Min function
      * @name Min
+     * @tparam T
      * @param a [type:T] Value a
      * @param b [type:T] Value b
      * @return v [type:T] Min of a and b
@@ -45,6 +46,7 @@ namespace dmMath
     /*#
      * Max function
      * @name Max
+     * @tparam T
      * @param a [type:T] Value a
      * @param b [type:T] Value b
      * @return v [type:T] Max of a and b
@@ -58,6 +60,7 @@ namespace dmMath
     /*#
      * Clamp function
      * @name Clamp
+     * @tparam T
      * @param v [type:T] Value to clamp
      * @param min [type:T] Lower bound
      * @param max [type:T] Upper bound
@@ -72,6 +75,7 @@ namespace dmMath
     /*# Select one of two values
      * Select one of two values depending on the sign of another.
      * @name Select
+     * @tparam T
      * @param x [type:T] Value to test for positiveness
      * @param a [type:T] Result if test succeeded
      * @param b [type:T] Result if test failed
@@ -88,6 +92,7 @@ namespace dmMath
 
     /*# Abs function
      * @name Abs
+     * @tparam T
      * @param x [type:T]
      * @return v [type:T] Absolute value of x
      */

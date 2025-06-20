@@ -503,7 +503,7 @@ namespace dmExtension
 /*# 
  * Callback when the app is being finalized
  * @typedef
- * @name FExtensionInitialize
+ * @name FExtensionAppFinalize
  * @language C
  * @param params [type:ExtensionAppParams] 
  * @return result [type:ExtensionResult] EXTENSION_RESULT_OK if all went ok

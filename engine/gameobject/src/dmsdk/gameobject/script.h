@@ -56,6 +56,7 @@ namespace dmGameObject
     /*# Sends a script message
      * Sends a script message. Wraps the message in a dmGameSystemDDF::ScriptMessage struct.
      * @name PostDDF
+     * @tparam T
      * @param message [type:T*] The ddf message to send
      * @param sender [type:dmMessage::Message*] The sender
      * @param receiver [type:dmMessage::Message*] The receiver

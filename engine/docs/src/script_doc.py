@@ -279,7 +279,7 @@ def _create_doc_element(tags):
             tmp = [tmp[0], '']
         tparam = element.tparams.add()
         tparam.name = tmp[0]
-        tparam.type, tparam.doc = extract_type_from_docstr(tmp[1])
+        tparam.doc = tmp[1]
 
     for value in tags["member"]:
         tmp = value.split(' ', 1)
@@ -435,9 +435,6 @@ def validate_cpp_type(t, doc):
     # varargs
     if t == "..." or t == "va_list":
         return True
-    # common template types
-    if t == "T" or t == "KEY":
-        return True
     # extension macros and similar
     if t == "symbol":
         return True
@@ -448,6 +445,12 @@ def validate_cpp_type(t, doc):
     for element in doc.elements:
         if element.name == t:
             return True
+
+    # is type defined as a template parameter in the same document?
+    for element in doc.elements:
+        for tparam in element.tparams:
+            if tparam.name == t:
+                return True
 
     # print(doc)
     return False
@@ -506,6 +509,7 @@ def parse_document(doc_str):
         for err in errors:
             print("  ERROR", err)
         if len(errors) > 0: sys.exit(1)
+        # if len(warnings) > 0: sys.exit(1)
     return doc
 
 def message_to_dict(message):

@@ -88,7 +88,7 @@ namespace dmMessage
     /*#
      * Helper struct for parsing a string of the form "socket:path#fragment"
      * @note The sizes do not include the null character. There is no null character since the dmMessage::ParseURL is non destructive.
-     * @typedef
+     * @struct
      * @name dmMessage::StringURL
      * @member m_Socket [type: const char*] The socket
      * @member m_SocketSize [type: uint32_t] The socket length
@@ -258,7 +258,7 @@ namespace dmMessage
      * Post a DDF message to a socket. A helper wrapper for Post()'ing a DDF message
      * @note Message data is copied by value
      * @name PostDDF
-     * @tparam T [type: T] Must be a DDF type
+     * @tparam T Must be a DDF type
      * @param message [type: T*] Message data reference
      * @param sender [type: dmMessage::URL*] The sender URL if the receiver wants to respond. 0x0 is accepted
      * @param receiver [type: dmMessage::URL*] The receiver URL, must not be 0x0

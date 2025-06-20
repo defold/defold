@@ -533,7 +533,7 @@ namespace dmGameObject
      * @note Calling this function during update is not permitted. Use #Spawn instead for deferred creation
      * @name New
      * @param collection [type: dmGameObject::HCollection] Gameobject collection
-     * @param prototype_name |type: const char*] Prototype file name. May be 0.
+     * @param prototype_name [type: const char*] Prototype file name. May be 0.
      * @return instance [type: dmGameObject::HInstance] New gameobject instance. NULL if any error occured
      */
     HInstance New(HCollection collection, const char* name);
@@ -800,7 +800,7 @@ namespace dmGameObject
      * Retrieve the world in the collection connected to the supplied component
      * @name GetWorld
      * @param collection [type:HCollection] Collection handle
-     * @param component_type_index index of the component type
+     * @param component_type_index [type:uint32_t] index of the component type
      * @return world [type:void*] The pointer to the world, 0x0 if not found
      */
     HComponentWorld GetWorld(HCollection collection, uint32_t component_type_index);
