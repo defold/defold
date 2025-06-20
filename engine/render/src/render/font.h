@@ -204,6 +204,20 @@ namespace dmRender
     uint32_t GetFontMapResourceSize(HFontMap font_map);
 
     /**
+     * Set the outline threshold
+     * @param font_map [type: HFontMap] Font map handle
+     * @param outline [type: float] The outline threshold [0.0 .. 1.0]
+     */
+    void SetFontMapSdfOutlineWidth(HFontMap font_map, float outline);
+
+    /**
+     * Set the spread (padding). It is the sumb of the outline
+     * @param font_map [type: HFontMap] Font map handle
+     * @param padding [type: float] The padding around the glyph bitmap (in pixels)
+     */
+    void SetFontMapSdfSpread(HFontMap font_map, float padding);
+
+    /**
      * Set the user data assigned to this font map
      * @param font_map [type: HFontMap] Font map handle
      * @param user_data [type: void*] the user data

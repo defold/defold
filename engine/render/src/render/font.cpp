@@ -303,6 +303,18 @@ namespace dmRender
         return font_map->m_Texture;
     }
 
+    void SetFontMapSdfOutlineWidth(HFontMap font_map, float outline)
+    {
+        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
+        font_map->m_SdfOutline = outline;
+    }
+
+    void SetFontMapSdfSpread(HFontMap font_map, float padding)
+    {
+        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
+        font_map->m_SdfSpread = padding;
+    }
+
     void SetFontMapMaterial(HFontMap font_map, HMaterial material)
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);

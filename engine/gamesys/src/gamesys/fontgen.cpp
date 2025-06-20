@@ -49,7 +49,7 @@ struct JobItem
 
     uint32_t        m_Codepoint;
 
-    int             m_StbttSdfPadding;
+    float           m_StbttSdfPadding;
     int             m_StbttEdgeValue;
     float           m_Scale;        // Size to pixel scale
 
@@ -328,22 +328,16 @@ static bool GenerateGlyphs(Context* ctx, FontResource* fontresource,
     status->m_Failures     = 0;
     status->m_Error        = 0;
 
-    float stbtt_padding = ctx->m_StbttDefaultSdfPadding;;
-    if (dmRenderDDF::MODE_MULTI_LAYER == font_info.m_RenderMode)
-    {
-        // see Fontc.java
-        const float rootOf2 = sqrtf(2.0f);
-
-        // x2 to make it more visually equal to our previous generation
-        if (font_info.m_OutlineWidth > 0)
-            stbtt_padding += 2.0f * (font_info.m_OutlineWidth + rootOf2);
-        if (font_info.m_ShadowBlur > 0)
-            stbtt_padding += 2.0f * (font_info.m_ShadowBlur + rootOf2);
-    }
+    int stbtt_edge = ctx->m_StbttDefaultSdfEdge;
+    float stbtt_padding = ctx->m_StbttDefaultSdfPadding + font_info.m_OutlineWidth;
 
     // See Fontc.java. If we have shadow blur, we need 3 channels
-    bool    has_shadow = font_info.m_ShadowAlpha > 0.0f && font_info.m_ShadowBlur > 0.0f;
-    int     stbtt_edge = ctx->m_StbttDefaultSdfEdge;
+    bool has_shadow = font_info.m_ShadowAlpha > 0.0f && font_info.m_ShadowBlur > 0.0f;
+
+    if (dmRenderDDF::MODE_MULTI_LAYER == font_info.m_RenderMode)
+    {
+        stbtt_padding += has_shadow ? font_info.m_ShadowBlur : 0.0f;
+    }
 
     const char* cursor = text;
     uint32_t c = 0;
@@ -398,7 +392,7 @@ dmExtension::Result FontGenInitialize(dmExtension::Params* params)
 
     // 3 is arbitrary but resembles the output from out generator
     g_FontExtContext->m_StbttDefaultSdfPadding = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.stbtt_sdf_base_padding", 3);
-    g_FontExtContext->m_StbttDefaultSdfEdge = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.stbtt_sdf_edge_value", 190);
+    g_FontExtContext->m_StbttDefaultSdfEdge = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.stbtt_sdf_edge_value", 191);
 
     g_FontExtContext->m_Jobs = dmExtension::GetContextAsType<dmJobThread::HContext>(params, "job_thread");
     return dmExtension::RESULT_OK;
@@ -415,6 +409,17 @@ dmExtension::Result FontGenUpdate(dmExtension::Params* params)
 {
     return dmExtension::RESULT_OK;
 }
+
+float FontGenGetBasePadding()
+{
+    return g_FontExtContext->m_StbttDefaultSdfPadding;
+}
+
+float FontGenGetEdgeValue()
+{
+    return g_FontExtContext->m_StbttDefaultSdfEdge;
+}
+
 
 // Scripting
 

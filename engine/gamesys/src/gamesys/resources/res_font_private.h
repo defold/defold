@@ -59,6 +59,7 @@ namespace dmGameSystem
         TTFResource*            m_TTFResource;          // the first ttf resource
         dmJobThread::HContext   m_Jobs;
         uint32_t                m_CacheCellPadding;
+        uint32_t                m_ResourceSize;         // For correct resource usage reporting
         bool                    m_IsDynamic;            // Are the glyphs populated at runtime?
         uint8_t                 m_Padding;              // Extra space for outline + shadow
 

@@ -25,6 +25,9 @@ namespace dmGameSystem
     dmExtension::Result FontGenFinalize(dmExtension::Params* params);
     dmExtension::Result FontGenUpdate(dmExtension::Params* params);
 
+    float FontGenGetBasePadding(); // E.g. 3
+    float FontGenGetEdgeValue(); // [0 .. 255]
+
     // Scripting
     typedef void (*FGlyphCallback)(void* cbk_ctx, int result, const char* errmsg);
     bool FontGenAddGlyphs(FontResource* resource, const char* text, FGlyphCallback cbk, void* cbk_ctx);

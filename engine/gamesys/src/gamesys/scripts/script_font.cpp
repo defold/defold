@@ -64,6 +64,13 @@ static int AddSource(lua_State* L)
     return 0;
 }
 
+/*#
+ * Removes the ttf resource from a .fontc file
+ *
+ * @name font.add_source
+ * @param fontc [type:string,hash] The path to the .fontc resource
+ * @param ttf [type:string,hash] The path to the .ttf resource
+ */
 static int RemoveSource(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
