@@ -452,6 +452,29 @@ TEST(Shaderc, Structs)
     dmShaderc::DeleteShaderContext(shader_ctx);
 }
 
+TEST(Shaderc, TestHLSLSimple)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/reflection.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
+
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version    = 50;
+    options.m_EntryPoint = "main";
+
+    dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
+    dmLogInfo("%s", (const char*) dst->m_Data.Begin());
+
+    dmShaderc::FreeShaderCompileResult(dst);
+
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(shader_ctx);
+}
+
 static int TestStandalone(const char* filename, const char* compileTo = 0)
 {
     uint32_t data_size;

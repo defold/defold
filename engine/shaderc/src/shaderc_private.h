@@ -92,6 +92,10 @@ namespace dmShaderc
     void                 SetResourceSetSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, uint64_t name_hash, uint8_t set);
     ShaderCompileResult* CompileSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, const ShaderCompilerOptions& options);
 
+    // Extra functions
+#ifdef DM_BINARY_HLSL_SUPPORTED
+    ShaderCompileResult* CompileRawHLSLToBinary(HShaderContext context, ShaderCompileResult* raw_hlsl);
+#endif
 }
 
 #endif

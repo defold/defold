@@ -10,7 +10,7 @@ waflib.Task.task_factory('glslang', 'glslang -w --auto-map-bindings --auto-map-l
                       before='c cxx',
                       shell=False)
 
-@extension('.vert', '.frag')
+@extension('.vert', '.frag', '.comp')
 def fragmentprogram_file(self, node):
     shader = self.create_task('glslang')
     shader.set_inputs(node)
@@ -21,6 +21,6 @@ def fragmentprogram_file(self, node):
 def build(bld):
     bld.program(features = 'cxx test',
                 includes = '. ..',
-                use = 'DLIB PROFILE SPIRV_CROSS shaderc',
+                use = ['DLIB', 'PROFILE', 'SPIRV_CROSS', 'shaderc'],
                 target = 'test_shaderc',
-                source = ['test_shaderc.cpp'] + bld.path.ant_glob(['data/*.vert', 'data/*.frag']))
+                source = ['test_shaderc.cpp'] + bld.path.ant_glob(['data/*.vert', 'data/*.frag', 'data/*.comp']))
