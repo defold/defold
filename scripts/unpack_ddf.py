@@ -126,7 +126,7 @@ def print_bytes(descriptor, data):
     print(descriptor.name, ":", str.format('[%s]' % binascii.hexlify(data).decode('utf8')), "len:", len(data) )
 
 def print_string(descriptor, data):
-    print(descriptor.name, ":", str.format('"%s"' % data), "len:", len(data))
+    print(descriptor.name, ":", '"' + data.replace('"', '\\"') + '"', "len:", len(data))
 
 def print_uint32(descriptor, data):
     print(descriptor.name, ":", str.format('%d\t(0x%08x)' % (data, data)), get_descriptor_type(descriptor))
