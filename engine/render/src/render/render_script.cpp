@@ -372,6 +372,24 @@ namespace dmRender
         {0, 0}
     };
 
+    /*# Constant buffer
+     * @typedef
+     * @name constant_buffer
+     * @param value [type:userdata]
+     */
+
+    /*# Render target
+     * @typedef
+     * @name render_target
+     * @param value [type:number]
+     */
+
+    /*# Texture handle
+     * @typedef
+     * @name texture
+     * @param value [type:number]
+     */
+
     /*# create a new constant buffer.
      *
      * Constant buffers are used to set shader program variables and are optionally passed to the `render.draw()` function.
@@ -1090,7 +1108,7 @@ namespace dmRender
 
             return render_resource->m_Resource;
         }
-        return luaL_error(L, "Invalid render target.");;
+        return luaL_error(L, "Invalid render target.");
     }
 
     /*# deletes a render target
@@ -1099,7 +1117,7 @@ namespace dmRender
      * You cannot delete a render target resource.
      *
      * @name render.delete_render_target
-     * @param render_target [type:number] render target to delete
+     * @param render_target [type:render_target] render target to delete
      * @examples
      *
      * How to delete a render target:
@@ -1133,7 +1151,7 @@ namespace dmRender
      * This function supports render targets created by a render script, or a render target resource.
      *
      * @name render.set_render_target
-     * @param render_target [type:number] render target to set. render.RENDER_TARGET_DEFAULT to set the default render target
+     * @param render_target [type:render_target] render target to set. render.RENDER_TARGET_DEFAULT to set the default render target
      * @param [options] [type:table] optional table with behaviour parameters
      *
      * `transient`
@@ -1222,7 +1240,7 @@ namespace dmRender
      * a subsequent call to render.enable_render_target, render.disable_render_target or render.set_render_target.
      *
      * @name render.enable_render_target
-     * @param render_target [type:number] render target to enable
+     * @param render_target [type:render_target] render target to enable
      *
      * @deprecated Use render.set_render_target() instead
      *
@@ -1274,7 +1292,7 @@ namespace dmRender
      * enabled.
      *
      * @name render.disable_render_target
-     * @param render_target [type:number] render target to disable
+     * @param render_target [type:render_target] render target to disable
      *
      * @deprecated Use render.set_render_target() instead
      *
@@ -1315,7 +1333,7 @@ namespace dmRender
      * either a render script, or from a render target resource.
      *
      * @name render.set_render_target_size
-     * @param render_target [type:number] render target to set size for
+     * @param render_target [type:render_target] render target to set size for
      * @param width [type:number] new render target width
      * @param height [type:number] new render target height
      * @examples
@@ -1355,8 +1373,8 @@ namespace dmRender
      *
      * @name render.enable_texture
      * @param binding [type:number|string|hash] texture binding, either by texture unit, string or hash for the sampler name that the texture should be bound to
-     * @param handle_or_name [type:number|string|hash] render target or texture handle that should be bound, or a named resource in the "Render Resource" table in the currently assigned .render file
-     * @param [buffer_type] [type:number] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `graphics.BUFFER_TYPE_COLOR0_BIT`. These values are supported:
+     * @param handle_or_name [type:texture|string|hash] render target or texture handle that should be bound, or a named resource in the "Render Resource" table in the currently assigned .render file
+     * @param [buffer_type] [type:type:graphics.BUFFER_TYPE_COLOR0_BIT|graphics.BUFFER_TYPE_COLOR1_BIT|graphics.BUFFER_TYPE_COLOR2_BIT|graphics.BUFFER_TYPE_COLOR3_BIT|graphics.BUFFER_TYPE_DEPTH_BIT|graphics.BUFFER_TYPE_STENCIL_BIT] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `graphics.BUFFER_TYPE_COLOR0_BIT`. These values are supported:
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      *
@@ -1511,7 +1529,7 @@ namespace dmRender
      * Disables a texture that has previourly been enabled.
      *
      * @name render.disable_texture
-     * @param binding [type:number|string|hash] texture binding, either by texture unit, string or hash that should be disabled
+     * @param binding [type:texture|string|hash] texture binding, either by texture unit, string or hash that should be disabled
      * @examples
      *
      * ```lua
@@ -1551,8 +1569,8 @@ namespace dmRender
      * Returns the specified buffer width from a render target.
      *
      * @name render.get_render_target_width
-     * @param render_target [type:number] render target from which to retrieve the buffer width
-     * @param buffer_type [type:number] which type of buffer to retrieve the width from
+     * @param render_target [type:render_target] render target from which to retrieve the buffer width
+     * @param buffer_type [type:graphics.BUFFER_TYPE_COLOR0_BIT|graphics.BUFFER_TYPE_COLOR1_BIT|graphics.BUFFER_TYPE_COLOR2_BIT|graphics.BUFFER_TYPE_COLOR3_BIT|graphics.BUFFER_TYPE_DEPTH_BIT|graphics.BUFFER_TYPE_STENCIL_BIT] which type of buffer to retrieve the width from
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      * - `graphics.BUFFER_TYPE_COLOR[x]_BIT` (x: [0..3], if supported!)
@@ -1591,8 +1609,8 @@ namespace dmRender
      * Returns the specified buffer height from a render target.
      *
      * @name render.get_render_target_height
-     * @param render_target [type:number] render target from which to retrieve the buffer height
-     * @param buffer_type [type:number] which type of buffer to retrieve the height from
+     * @param render_target [type:render_target] render target from which to retrieve the buffer height
+     * @param buffer_type [type:graphics.BUFFER_TYPE_COLOR0_BIT|graphics.BUFFER_TYPE_COLOR1_BIT|graphics.BUFFER_TYPE_COLOR2_BIT|graphics.BUFFER_TYPE_COLOR3_BIT|graphics.BUFFER_TYPE_DEPTH_BIT|graphics.BUFFER_TYPE_STENCIL_BIT] which type of buffer to retrieve the height from
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      * - `graphics.BUFFER_TYPE_DEPTH_BIT`

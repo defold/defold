@@ -290,7 +290,7 @@ namespace dmGameSystem
      * `buffer`
      * : [type:buffer] If the request was successfull, this will contain the request payload in a buffer object, and nil otherwise. Make sure to check the status before doing anything with the buffer value!
      *
-     * @return handle [type:handle] a handle to the request
+     * @return handle [type:number] a handle to the request
      * @examples
      *
      * Load binary data from a custom project resource and update a texture resource:

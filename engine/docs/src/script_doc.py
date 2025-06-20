@@ -381,13 +381,30 @@ CPP_TYPES = [
     "lua_State",
     "dmhash_t", "dmArray", "dmAllocator" ]
 
-def validate_lua_type(t):
+def validate_lua_type(t, doc):
     # function(self, node) -> function
     if t.startswith("function("):
         v = t.split("(")
         t = v[0]
 
-    return (t in LUA_TYPES)
+    # only validate types in the same namespace
+    if "." in t:
+        v = t.split(".")
+        namespace = v[0]
+        if namespace != doc.info.namespace:
+            print("Ignoring type '%s' in '%s' (%s) since namespaces do not match" % (t, doc.info.name, doc.info.path))
+            return True
+
+    # standard Lua types
+    if t in LUA_TYPES:
+        return True
+
+    # is type defined in the same document?
+    for element in doc.elements:
+        if element.name == t:
+            return True
+
+    return False
 
 def validate_cpp_type(t, doc):
     t = t.replace("*", "").replace("&", "").replace("const ", "").replace("unsigned ", "")
@@ -469,8 +486,12 @@ def parse_document(doc_str):
                     for t in param.types:
                         if param.name == "...":
                             continue
-                        if not validate_lua_type(t):
+                        if not validate_lua_type(t, doc):
                             errors.append("'%s' has unknown type '%s' for parameter '%s'" % (element.name, t, param.name))
+                for returnvalue in element.returnvalues:
+                    for t in returnvalue.types:
+                        if not validate_lua_type(t, doc):
+                            errors.append("'%s' has unknown type '%s' for return value '%s'" % (element.name, t, returnvalue.name))
         elif doc.info.language == "C++":
             for element in doc.elements:
                 for param in element.parameters:
@@ -481,9 +502,9 @@ def parse_document(doc_str):
                             errors.append("'%s' has unknown type '%s' for parameter '%s'" % (element.name, t, param.name))
 
         for warning in warnings:
-            print("WARNING", warning)
+            print("  WARNING", warning)
         for err in errors:
-            print("ERROR", err)
+            print("  ERROR", err)
         if len(errors) > 0: sys.exit(1)
     return doc
 
@@ -619,10 +640,6 @@ if __name__ == '__main__':
     for name in args[:-1]:
         with open(name, 'r') as f:
             doc_str += f.read()
-
-    # print(name)
-    # if "render.h.apidoc_" not in name:
-    #     doc_str = ""
 
     output_file = args[-1]
     f = open(output_file, "w")

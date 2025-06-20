@@ -286,7 +286,7 @@ namespace dmLiveUpdate
  *
  * @note deprecated
  * @name liveupdate.is_using_liveupdate_data
- * @return bool [type:bool] true if a liveupdate archive (any format) has been loaded
+ * @return bool [type:boolean] true if a liveupdate archive (any format) has been loaded
  * @note: Old downloaded files are automatically discarded upon startup, if their signatures mismatch with the bundled manifest.
  */
 
@@ -297,7 +297,7 @@ namespace dmLiveUpdate
  * This can be used to determine if a new mount is needed or not
  *
  * @name liveupdate.get_mounts
- * @return mounts [type:array] Array of mounts
+ * @return mounts [type:table] Array of mounts
  * @note: Any mount with priority < 0 is considered a base archive and it cannot be removed. All other mounts are considered "live update" content
  * @examples
  *

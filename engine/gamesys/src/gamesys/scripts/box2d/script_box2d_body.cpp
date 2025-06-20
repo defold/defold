@@ -602,6 +602,18 @@ namespace dmGameSystem
  * @language Lua
  */
 
+/*# Box2D world
+ * @typedef
+ * @name b2World
+ * @param value [type:userdata]
+ */
+
+/*# Box2D body
+ * @typedef
+ * @name b2Body
+ * @param value [type:userdata]
+ */
+
 /*# Static (immovable) body
  *
  * @name b2d.body.B2_STATIC_BODY

@@ -964,7 +964,7 @@ namespace dmGameSystem
      * @name physics.get_joint_reaction_torque
      * @param collisionobject [type:string|hash|url] collision object where the joint exist
      * @param joint_id [type:string|hash] id of the joint
-     * @return torque [type:float] the reaction torque on bodyB in N*m.
+     * @return torque [type:number] the reaction torque on bodyB in N*m.
      *
      */
     static int Physics_GetJointReactionTorque(lua_State* L)

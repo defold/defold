@@ -563,7 +563,7 @@ namespace dmGui
      * - `gui.TYPE_PARTICLEFX`
      * - `gui.TYPE_CUSTOM`
      * 
-     * @return subtype [type:integer|nil] id of the custom type
+     * @return subtype [type:number|nil] id of the custom type
      */
     static int LuaGetType(lua_State* L)
     {
@@ -671,7 +671,7 @@ namespace dmGui
      * @param node [type:node] node to get the property for
      * @param property [type:string|hash|constant] the property to retrieve 
      * @param [options] [type:table] optional options table (only applicable for material constants)
-     * - `index` [type:integer] index into array property (1 based)
+     * - `index` [type:number] index into array property (1 based)
      *
      * @examples
      *
@@ -812,7 +812,7 @@ namespace dmGui
      * @param property [type:string|hash|constant] the property to set 
      * @param value [type:number|vector4|vector3|quaternion] the property to set
      * @param [options] [type:table] optional options table (only applicable for material constants)
-     * - `index` [type:integer] index into array property (1 based)
+     * - `index` [type:number] index into array property (1 based)
      * - `key` [type:hash] name of internal property
      *
      * @examples
