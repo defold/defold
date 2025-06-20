@@ -158,7 +158,7 @@ static int JobGenerateGlyph(void* context, void* data)
         {
             for (int x = 0; x < w; ++x)
             {
-                uint8_t value = item->m_Data[1 + y * w + x];
+                uint8_t value = glyph.m_Bitmap.m_Data[1 + y * w + x];
                 rgb[y * (w * ch) + (x * ch) + 0] = value;
                 rgb[y * (w * ch) + (x * ch) + 1] = 0;
                 rgb[y * (w * ch) + (x * ch) + 2] = value;
