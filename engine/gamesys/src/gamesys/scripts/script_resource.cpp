@@ -930,6 +930,7 @@ static int CreateTexture(lua_State* L)
         return ReportPathError(L, res, create_params.m_PathHash);
     }
 
+    dmGameObject::AddDynamicResourceHash(create_params.m_Collection, create_params.m_PathHash);
     dmScript::PushHash(L, create_params.m_PathHash);
     assert((top+1) == lua_gettop(L));
     return 1;
@@ -1251,13 +1252,14 @@ static int ReleaseResource(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
     dmhash_t path_hash                      = dmScript::CheckHashOrString(L, 1);
+    HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
+    if (!rd) {
+        return luaL_error(L, "Could not release resource: %s", dmHashReverseSafe64(path_hash));
+    }
     dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
-
-    if (ReleaseDynamicResource(g_ResourceModule.m_Factory, collection, path_hash) != dmResource::RESULT_OK)
-    {
-        return DM_LUA_ERROR("Could not release resource: %s", dmHashReverseSafe64(path_hash));
-    }
+    dmGameObject::RemoveDynamicResourceHash(collection, path_hash);
+    dmResource::Release(g_ResourceModule.m_Factory, dmResource::GetResource(rd));
     return 0;
 }
 
