@@ -407,5 +407,13 @@ namespace dmGameSystem
         component->m_CustomResource = resource;
     }
 
+    dmGameObject::Result CompCollectionFactorySpawn(HCollectionFactoryWorld world, HCollectionFactoryComponent component, dmGameObject::HCollection collection,
+                                                const char* id_prefix,
+                                                const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
+                                                dmGameObject::InstancePropertyContainers* properties, dmGameObject::InstanceIdMap* out_instances)
+    {
+        return dmGameObject::SpawnFromCollection(collection, CompCollectionFactoryGetResource(component)->m_CollectionDesc, id_prefix,
+                                                         properties, position, rotation, scale, out_instances);
+    }
 }
 
