@@ -226,6 +226,13 @@ namespace dmRender
     void SetFontMapSdfOutlineWidth(HFontMap font_map, float outline);
 
     /**
+     * Set the shadow threshold
+     * @param font_map [type: HFontMap] Font map handle
+     * @param shadow [type: float] The shadow threshold [0.0 .. 1.0]
+     */
+    void SetFontMapSdfShadow(HFontMap font_map, float shadow);
+
+    /**
      * Set the spread (padding). It is the sumb of the outline
      * @param font_map [type: HFontMap] Font map handle
      * @param padding [type: float] The padding around the glyph bitmap (in pixels)

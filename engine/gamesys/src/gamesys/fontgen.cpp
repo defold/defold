@@ -356,6 +356,8 @@ static bool GenerateGlyphs(Context* ctx, FontResource* fontresource,
         }
 
         TTFResource* ttfresource = dmGameSystem::ResFontGetResourceFromCodepoint(fontresource, c);
+        if (!ttfresource)
+            continue;
 
         // Incref the resources so that they're not accidentally removed during this threaded work
         dmResource::IncRef(ctx->m_ResourceFactory, fontresource);

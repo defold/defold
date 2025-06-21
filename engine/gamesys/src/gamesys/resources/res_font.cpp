@@ -31,6 +31,8 @@
 
 namespace dmGameSystem
 {
+    static const float SDF_EDGE_VALUE = 0.75f; // This is a fixed constant in the current font renderer
+
     struct ImageDataHeader
     {
         uint8_t m_Compression; // FontGlyphCompression
@@ -401,29 +403,23 @@ namespace dmGameSystem
         params->m_GetFontMetrics     = (dmRender::FGetFontMetrics)GetFontMetrics;
     }
 
-    static float CalcSdfSpread(FontResource* resource)
+    static float CalcPadding(FontResource* resource, float* outline_padding, float* shadow_padding)
     {
         float base_padding = dmGameSystem::FontGenGetBasePadding();
-        float outline_padding = resource->m_DDF->m_OutlineWidth;
-        return base_padding + outline_padding;
+        *outline_padding = resource->m_DDF->m_OutlineWidth;
+        *shadow_padding = resource->m_DDF->m_ShadowBlur;
+        return base_padding + *outline_padding + *shadow_padding;
     }
 
-    static float CalcSdfOutlineWidth(FontResource* resource)
+    static float CalcSdfValue(float padding, float width)
     {
-        float on_edge_value = dmGameSystem::FontGenGetEdgeValue(); // e.g. 191
-
-        //
-        float sdf_edge_value = 0.75f; // This is a fixed constant in the current font renderer
-        float base_edge = sdf_edge_value * 255.0f;
-
-        //
-        float outline_padding = resource->m_DDF->m_OutlineWidth;
-        float padding = CalcSdfSpread(resource);
+        float on_edge_value = dmGameSystem::FontGenGetEdgeValue(); // [0 .. 255] e.g. 191
+        const float base_edge = SDF_EDGE_VALUE * 255.0f;
 
         // Described in the stb_truetype.h as "what value the SDF should increase by when moving one SDF "pixel" away from the edge"
         float pixel_dist_scale = (float)on_edge_value/padding;
 
-        return (base_edge - (pixel_dist_scale * outline_padding)) / 255.0f;;
+        return (base_edge - (pixel_dist_scale * width)) / 255.0f;;
     }
 
     static dmResource::Result CreateFont(dmRender::HRenderContext context, dmRenderDDF::FontMap* ddf, const char* path, FontResource* resource)
@@ -453,8 +449,14 @@ namespace dmGameSystem
         dmRender::SetFontMapUserData(resource->m_FontMap, (void*)resource);
         if (ddf->m_Dynamic)
         {
-            dmRender::SetFontMapSdfSpread(resource->m_FontMap, CalcSdfSpread(resource));
-            dmRender::SetFontMapSdfOutlineWidth(resource->m_FontMap, CalcSdfOutlineWidth(resource));
+            float outline_padding;
+            float shadow_padding; // the extra padding for the shadow blur
+            float padding = CalcPadding(resource, &outline_padding, &shadow_padding);
+
+            dmRender::SetFontMapSdfSpread(resource->m_FontMap, padding);
+            dmRender::SetFontMapSdfOutlineWidth(resource->m_FontMap, CalcSdfValue(padding, outline_padding));
+            if (shadow_padding)
+                dmRender::SetFontMapSdfShadow(resource->m_FontMap, CalcSdfValue(padding, outline_padding + shadow_padding));
 
             dmFont::HFont hfont = dmGameSystem::GetFont(resource->m_TTFResource);
             float scale = dmFont::GetPixelScaleFromSize(hfont, resource->m_DDF->m_Size);

@@ -321,6 +321,12 @@ namespace dmRender
         font_map->m_SdfOutline = outline;
     }
 
+    void SetFontMapSdfShadow(HFontMap font_map, float shadow)
+    {
+        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
+        font_map->m_SdfShadow = shadow;
+    }
+
     void SetFontMapSdfSpread(HFontMap font_map, float padding)
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
