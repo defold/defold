@@ -2461,8 +2461,8 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  *                 id = 'idle0',
  *                 width = 128,
  *                 height = 128,
- *                 pivot_x = 64,
- *                 pivot_y = 64,
+ *                 pivot_x = 0.5,
+ *                 pivot_y = 0.5,
  *                 vertices  = {
  *                     0,   0,
  *                     0,   128,
