@@ -361,12 +361,15 @@
   (or (get property :edit-type)
       {:type (:type property)}))
 
-(defn edit-type-id [property]
-  (let [t (:type (property-edit-type property))
+(defn edit-type-id [edit-type]
+  (let [t (:type edit-type)
         t (or (g/value-type-dispatch-value t) t)]
     (if (:on-interface t)
       (:on t)
       t)))
+
+(defn property-edit-type-id [property]
+  (edit-type-id (property-edit-type property)))
 
 (defn value [property]
   ((get-in property [:edit-type :to-type] identity) (:value property)))
@@ -631,6 +634,10 @@
        (every? some? (:original-values property))
        (not-every? nil? (:values property))))
 
+(defn overridden-uncoalesced? [property]
+  (and (contains? property :original-value)
+       (not (g/error? (:original-value property)))))
+
 (defn error-aggregate [vals]
   (when-let [errors (seq (remove nil? (distinct (filter g/error? vals))))]
     (g/error-aggregate errors)))
@@ -638,6 +645,9 @@
 (defn validation-message [property]
   (when-let [err (error-aggregate (:errors property))]
     {:severity (:severity err) :message (g/error-message err)}))
+
+(defn clear-override-uncoalesced [property]
+  ((-> property :edit-type (:clear-fn g/clear-property)) (:node-id property) (:prop-kw property)))
 
 (defn clear-override! [property]
   (when (overridden? property)
