@@ -19,6 +19,9 @@ import re
 import logging
 import sys
 import io
+import codecs
+import html
+
 from optparse import OptionParser
 from markdown import Markdown
 from markdown import Extension
@@ -28,9 +31,57 @@ from pprint import pprint
 from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.message import Message
 
+import pystache
 import json
 import yaml
 import script_doc_ddf_pb2
+
+
+LUA_MTL = """
+--[[
+Generated using Defold build pipeline
+
+./scripts/build.py build_docs
+
+{{ info.description }}
+--]]
+
+---@meta
+---@diagnostic disable: lowercase-global
+---@diagnostic disable: missing-return
+---@diagnostic disable: duplicate-doc-param
+---@diagnostic disable: duplicate-set-field
+---@diagnostic disable: args-after-dots
+
+---@class defold_api.{{ info.name }}
+{{ info.name }} = {}
+
+{{#elements}}
+{{#is_variable}}
+---{{ description }}
+{{ info.name }}.{{ name }} = nil
+{{/is_variable}}
+{{#is_constant}}
+---{{ description }}
+{{ name }} = nil
+{{/is_constant}}
+
+{{#is_function}}
+---{{ description }}
+{{#parameters}}
+---@param {{name}}{{#is_optional}}?{{/is_optional}} {{ types_string }} {{doc}}
+{{/parameters}}
+{{#returnvalues}}
+---@return {{ types_string }} {{ name }} {{doc}}
+{{/returnvalues}}
+function {{ name }}({{ params_string }}) end
+
+{{/is_function}}
+{{/elements}}
+
+return {{ info.name }}
+"""
+
 
 
 # JG: reference pattern is 15 in blockprocessors.py, so I'm guessing it's supposed to be lower?
@@ -630,11 +681,71 @@ def message_to_yaml_dict(message):
 
     return api
 
+
+def to_protobuf(s, output_file):
+    msg = parse_document(s)
+    with open(output_file, "w") as f:
+        f.write(str(msg))
+
+def to_json(s, output_file):
+    msg = parse_document(s)
+    dct = message_to_json_dict(msg)
+    with open(output_file, "w") as f:
+        json.dump(dct, f, indent = 2)
+
+def to_script_api(s, output_file):
+    msg = parse_document(s)
+    dct = message_to_yaml_dict(msg)
+    with open(output_file, "w") as f:
+        yaml.dump(dct, f, default_flow_style = False)
+
+
+def to_lua_annotation(s, output_file):
+    def fixdoc(s):
+        lines = s.splitlines(keepends = True)
+        for i,line in enumerate(lines):
+            line = re.sub(r'\[icon:.*?\]', r'', line)
+            line = re.sub(r'\[type:(.*)\]', r'\1', line)
+            line = re.sub(r'^- (.*)', r'\1', line)
+            line = re.sub(r'^: (.*)', r'\1', line)
+            line = re.sub(r'`(.*?)`', r'\1', line)
+            lines[i] = line
+        return "---".join(lines)
+
+    msg = parse_document(s)
+    if msg.info.language == "Lua":
+        dct = message_to_dict(msg)
+        dct["info"]["name"] = dct["info"]["name"].replace("-", "_").lower()
+        dct["info"]["description"] = re.sub(r'\[icon:.*?\]', r'', dct["info"]["description"])
+        for element in dct["elements"]:
+            element["is_" + element["type"].lower()] = True
+            element["description"] = fixdoc(element["description"])
+            element["params_string"] = ", ".join([parameter["name"] for parameter in element["parameters"]])
+            element["members_string"] = ", ".join([member["name"] for member in element["members"]])
+            for member in element["members"]:
+                member["doc"] = fixdoc(member["doc"])
+            for parameter in element["parameters"]:
+                parameter["types_string"] = "|".join([t for t in parameter["types"]])
+                parameter["doc"] = fixdoc(parameter["doc"])
+                if parameter["is_optional"] != True:
+                    parameter["is_optional"] = None
+            for rv in element["returnvalues"]:
+                rv["types_string"] = "|".join([t for t in rv["types"]])
+                rv["doc"] = fixdoc(rv["doc"])
+
+        result = pystache.render(LUA_MTL, dct)
+        result = html.unescape(result)
+        with codecs.open(output_file, "wb", encoding="utf-8") as f:
+            f.write(result)
+    else:
+        f = open(output_file, "w")
+        f.close()
+
 if __name__ == '__main__':
     usage = "usage: %prog [options] INFILE(s) OUTFILE"
     parser = OptionParser(usage = usage)
     parser.add_option("-t", "--type", dest="type",
-                      help="Supported formats: protobuf, json and script_api. default is protobuf", metavar="TYPE", default='protobuf')
+                      help="Supported formats: protobuf, json, script_api and lua. default is protobuf", metavar="TYPE", default='protobuf')
     (options, args) = parser.parse_args()
 
     if len(args) < 2:
@@ -646,21 +757,16 @@ if __name__ == '__main__':
             doc_str += f.read()
 
     output_file = args[-1]
-    f = open(output_file, "w")
     if options.type == 'protobuf':
-        doc_msg = parse_document(doc_str)
-        f.write(str(doc_msg))
+        to_protobuf(doc_str, output_file)
     elif options.type == 'json':
-        doc_msg = parse_document(doc_str)
-        doc_dict = message_to_json_dict(doc_msg)
-        json.dump(doc_dict, f, indent = 2)
+        to_json(doc_str, output_file)
     elif options.type == 'script_api':
-        doc_msg = parse_document(doc_str)
-        doc_dict = message_to_yaml_dict(doc_msg)
-        yaml.dump(doc_dict, f, default_flow_style = False)
+        to_script_api(doc_str, output_file)
+    elif options.type == 'lua':
+        to_lua_annotation(doc_str, output_file)
     else:
         print ('Unknown type: %s' % options.type)
         sys.exit(5)
-    f.close()
 
 

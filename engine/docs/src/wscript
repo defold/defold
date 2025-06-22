@@ -20,10 +20,14 @@ def build(bld):
         bld(source = source,
             target = '%s_doc.script_api' % namespace,
             rule = 'python ${SCRIPT_DOC} -t script_api ${SRC} ${TGT}')
+        bld(source = source,
+            target = '%s_doc.lua' % namespace,
+            rule = 'python ${SCRIPT_DOC} -t lua ${SRC} ${TGT}')
 
         bld.install_files('${PREFIX}/share/doc', '%s_doc.sdoc' % namespace)
         bld.install_files('${PREFIX}/share/doc', '%s_doc.json' % namespace)
         bld.install_files('${PREFIX}/share/doc', '%s_doc.script_api' % namespace)
+        bld.install_files('${PREFIX}/share/doc', '%s_doc.lua' % namespace)
 
 def options(opt):
     opt.load('waf_dynamo')
