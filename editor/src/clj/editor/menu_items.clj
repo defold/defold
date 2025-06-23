@@ -37,15 +37,19 @@
    :icon open-selected-icon
    :command :file.open-selected})
 
-(def push-down-overrides-text "Push Down Overrides")
-(def push-down-overrides
-  {:label push-down-overrides-text
-   :command :edit.push-down-overrides})
-
 (def pull-up-overrides-text "Pull Up Overrides")
+(def pull-up-overrides-icon "icons/32/Icons_62-Pull-Up-Override.png")
 (def pull-up-overrides
   {:label pull-up-overrides-text
+   :icon pull-up-overrides-icon
    :command :edit.pull-up-overrides})
+
+(def push-down-overrides-text "Push Down Overrides")
+(def push-down-overrides-icon "icons/32/Icons_63-Push-Down-Override.png")
+(def push-down-overrides
+  {:label push-down-overrides-text
+   :icon push-down-overrides-icon
+   :command :edit.push-down-overrides})
 
 (def separator {:label :separator})
 (def separator-with-id
