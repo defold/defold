@@ -748,7 +748,8 @@ ordinary paths."
               (into #{}
                     (comp
                       (filter #(= :collision (:type %)))
-                      (mapcat :collisions))
+                      (mapcat :collisions)
+                      (filter #(re-matches #"^/[^/]*$" (key %))))
                     errors))
             (collision-notification-id [resource-path]
               [::resource-collision-notification resource-path])]
