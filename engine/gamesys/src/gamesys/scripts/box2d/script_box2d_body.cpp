@@ -1016,14 +1016,4 @@ namespace dmGameSystem
  * @return force [type: vector3]
  */
 
-/*#
- * @typedef
- * @name b2Body
- * @param value [type:userdata]
- */
 
-/*#
- * @typedef
- * @name b2BodyType
- * @param value [type:userdata]
- */
