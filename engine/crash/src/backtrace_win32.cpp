@@ -136,7 +136,9 @@ namespace dmCrash
         ::SymSetOptions(SYMOPT_DEBUG);
         ::SymInitialize(process, 0, TRUE);
 
-        g_AppState.m_PtrCount = GetCallstackPointers(pep, &g_AppState.m_Ptr[0], AppState::PTRS_MAX);
+        AppState* state = GetAppState();
+
+        state->m_PtrCount = GetCallstackPointers(pep, &state->m_Ptr[0], AppState::PTRS_MAX);
 
         // Get a nicer printout as well
         const int name_length = 1024;
@@ -151,9 +153,9 @@ namespace dmCrash
         line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
 
         uint32_t offset = 0;
-        for (uint32_t i = 0; i < g_AppState.m_PtrCount; ++i)
+        for (uint32_t i = 0; i < state->m_PtrCount; ++i)
         {
-            DWORD64 address = (DWORD64)(g_AppState.m_Ptr[i]);
+            DWORD64 address = (DWORD64)(state->m_Ptr[i]);
 
             const char* symbolname = "<unknown symbol>";
             DWORD64 symboladdress = address;
@@ -173,9 +175,9 @@ namespace dmCrash
                 char module_name[dmCrash::AppState::MODULE_NAME_SIZE];
                 if (::GetModuleFileNameA(module, module_name, sizeof(module_name)))
                 {
-                    for (uint32_t m = 0; m < g_AppState.m_ModuleCount; ++m)
+                    for (uint32_t m = 0; m < state->m_ModuleCount; ++m)
                     {
-                        if (strncmp(g_AppState.m_ModuleName[m], module_name, dmCrash::AppState::MODULE_NAME_SIZE) == 0)
+                        if (strncmp(state->m_ModuleName[m], module_name, dmCrash::AppState::MODULE_NAME_SIZE) == 0)
                         {
                             module_index = m;
 
@@ -185,7 +187,7 @@ namespace dmCrash
                     }
                 }
             }
-            g_AppState.m_PtrModuleIndex[i] = module_index;
+            state->m_PtrModuleIndex[i] = module_index;
 
             const char* filename = "<unknown>";
             int line_number = 0;
@@ -198,28 +200,29 @@ namespace dmCrash
             if (offset < (dmCrash::AppState::EXTRA_MAX - 1))
             {
                 uint32_t size_left = dmCrash::AppState::EXTRA_MAX - offset;
-                offset += dmSnPrintf(&g_AppState.m_Extra[offset], size_left, "%2d 0x%0llX %s %s:%d\n", i, symboladdress, symbolname, filename, line_number);
+                offset += dmSnPrintf(&state->m_Extra[offset], size_left, "%2d 0x%0llX %s %s:%d\n", i, symboladdress, symbolname, filename, line_number);
             }
         }
-        g_AppState.m_Extra[dmCrash::AppState::EXTRA_MAX - 1] = 0;
+        state->m_Extra[dmCrash::AppState::EXTRA_MAX - 1] = 0;
 
         ::SymCleanup(process);
 
         if (g_CrashExtraInfoCallback)
         {
-            int extra_len = strlen(g_AppState.m_Extra);
-            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, g_AppState.m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
+            int extra_len = strlen(state->m_Extra);
+            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, state->m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
         }
 
-        WriteCrash(g_FilePath, &g_AppState);
+        WriteCrash(GetFilePath(), state);
 
-        LogCallstack(g_AppState.m_Extra);
+        LogCallstack(state->m_Extra);
     }
 
     void WriteDump()
     {
         // The test write signum
-        g_AppState.m_Signum = 0xDEAD;
+        AppState* state = GetAppState();
+        state->m_Signum = 0xDEAD;
         GenerateCallstack(0);
     }
 
@@ -248,7 +251,8 @@ namespace dmCrash
 
     LONG WINAPI ExceptionHandler(EXCEPTION_POINTERS *ptr)
     {
-        g_AppState.m_Signum = 0xDEAD;
+        AppState* state = GetAppState();
+        state->m_Signum = 0xDEAD;
 
         fflush(stdout);
         bool is_debug_mode = dLib::IsDebugMode();
