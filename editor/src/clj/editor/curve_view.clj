@@ -207,8 +207,7 @@
     (cond
       (string/includes? prop-name "red") 0.0
       (string/includes? prop-name "green") 120.0
-      (string/includes? prop-name "blue") 240.0
-      (string/includes? prop-name "alpha") 60.0)))
+      (string/includes? prop-name "blue") 240.0)))
 
 (g/defnk produce-curves [selected-node-properties]
   (let [curves (mapcat (fn [p] (->> (:properties p)
