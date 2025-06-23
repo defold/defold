@@ -421,9 +421,7 @@ def is_optional(str):
 LUA_TYPES = [
     "string", "number", "boolean", "table", "userdata", "nil", "function", "thread",
     "vector", "vector3", "vector4", "matrix4", "quaternion", "hash", "url", "node",
-    "constant", "resource",
-    "any", "file",
-    "b2Body", "b2BodyType", "buffer", "bufferstream" ]
+    "constant", "resource", "buffer", "any", "file"]
 CPP_TYPES = [
     "string", "float", "double", "long", "int", "bool", "char", "void",
     "int8_t", "uint8_t", "int16_t", "uint16_t", "int32_atomic_t", "int32_t", "uint32_t", "int64_t", "uint64_t",
@@ -559,7 +557,7 @@ def parse_document(doc_str):
             print("  WARNING", warning)
         for err in errors:
             print("  ERROR", err)
-        if len(errors) > 0: sys.exit(1)
+        if len(errors) > 0: raise Exception("Errors occurred when generating documentation")
         # if len(warnings) > 0: sys.exit(1)
     return doc
 
