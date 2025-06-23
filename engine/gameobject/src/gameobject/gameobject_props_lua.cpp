@@ -260,5 +260,12 @@ namespace dmGameObject
         lua_pop(L, 1);
         return PropertyContainerCreate(builder);
     }
+}
 
+namespace dmScript
+{
+    dmGameObject::HPropertyContainer PropertyContainerCreateFromLua(lua_State* L, int index)
+    {
+        return dmGameObject::PropertyContainerCreateFromLua(L, index);
+    }
 }

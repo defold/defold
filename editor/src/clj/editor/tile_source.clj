@@ -540,7 +540,7 @@
             metrics (texture-set-gen/calculate-tile-metrics image-size properties collision-size)]
         (when metrics
           (merge properties metrics)))
-      (g/error-fatal "tile data could not be generated due to invalid values")))
+      (g/->error _node-id :image :fatal image-resource "tile data could not be generated due to invalid values")))
 
 (defn- check-anim-error [tile-count anim-data]
   (let [node-id (:node-id anim-data)

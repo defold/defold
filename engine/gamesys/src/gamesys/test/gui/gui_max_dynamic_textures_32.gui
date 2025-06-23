@@ -8,4 +8,4 @@ background_color {
 material: "/gui/gui.material"
 adjust_reference: ADJUST_REFERENCE_PARENT
 max_nodes: 512
-max_dynamic_textures: 256
+max_dynamic_textures: 32

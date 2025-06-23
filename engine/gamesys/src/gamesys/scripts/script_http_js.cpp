@@ -138,10 +138,11 @@ namespace dmGameSystem
 
     void OnHttpProgress(void* context, uint32_t loaded, uint32_t total)
     {
+        RequestContext* ctx = (RequestContext*) context;
         dmHttpDDF::HttpRequestProgress progress = {};
         progress.m_BytesReceived                = loaded;
         progress.m_BytesTotal                   = total;
-        RequestContext* ctx = (RequestContext*) context;
+        progress.m_Url                          = ctx->m_Url;
         if (dmGameObject::RESULT_OK != dmGameObject::PostDDF(&progress, 0, &ctx->m_Requester, ctx->m_Callback, false))
         {
             dmLogWarning("Failed to return http-progress. Requester deleted?");
@@ -261,6 +262,7 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         dmScript::RegisterDDFDecoder(dmHttpDDF::HttpResponse::m_DDFDescriptor, &HttpResponseDecoder);
+        dmScript::RegisterDDFDecoder(dmHttpDDF::HttpRequestProgress::m_DDFDescriptor, &HttpRequestProgressDecoder);
 
         if (config_file) {
             float timeout = dmConfigFile::GetFloat(config_file, "network.http_timeout", 0.0f);

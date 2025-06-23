@@ -1333,6 +1333,8 @@ GUI initial state:
   textures: 0
   layouts: 0
   spine scenes: 0
+  fonts: 0
+  nodes: 0
 Transaction: edit GUI
 After transaction (edit):
   layers: 2
@@ -1358,7 +1360,67 @@ After transaction (edit):
     spine scene: explicit name
     spine scene: template /defold-spine/assets/template/template.spinescene
     spine scene: spine_scene1
+  fonts: 3
+    font: test /test.font
+    font: font
+    font: font1
+  nodes: 2
+  - type: gui-node-type-box
+    id: box
+    nodes: 5
+    - type: gui-node-type-pie
+      id: pie
+      nodes: 0
+    - type: gui-node-type-text
+      id: text
+      nodes: 0
+    - type: gui-node-type-template
+      id: button
+      nodes: 2
+      - type: gui-node-type-box
+        id: button/box
+        nodes: 0
+      - type: gui-node-type-text
+        id: button/text
+        nodes: 0
+    - type: gui-node-type-particlefx
+      id: particlefx
+      nodes: 0
+    - type: gui-node-type-spine
+      id: spine
+      nodes: 1
+      - type: gui-node-type-box
+        id: box1
+        nodes: 0
+  - type: gui-node-type-text
+    id: text1
+    nodes: 0
+Transaction: set Landscape position
+  position = {10, 10, 10}, can reset = false
+  Landscape:position = {20, 20, 20}, can reset = true
+  Portrait:position = {10, 10, 10}, can reset = false
+Transaction: reset Landscape position
+  position = {10, 10, 10}, can reset = false
+  Landscape:position = {10, 10, 10}, can reset = false
+  Portrait:position = {10, 10, 10}, can reset = false
+Template node: button
+  can add: false
+  can reorder: false
+Override text node: button/text
+  can add: false
+  can reorder: false
+Transaction: set override node property
+  text: custom text
+  can reset: true
+Transaction: reset override node property
+  text: <text>
+  can reset: false
+Transaction: set override position and layout position properties
+  position = {10, 10, 10}, can reset = true
+  Landscape:position = {20, 20, 20}, can reset = true
+  Portrait:position = {10, 10, 10}, can reset = false
 can reorder layers: true
+can reorder nodes: true
 Transaction: reorder
 After transaction (reorder):
   layers: 2
@@ -1384,12 +1446,52 @@ After transaction (reorder):
     spine scene: explicit name
     spine scene: template /defold-spine/assets/template/template.spinescene
     spine scene: spine_scene1
+  fonts: 3
+    font: test /test.font
+    font: font
+    font: font1
+  nodes: 2
+  - type: gui-node-type-text
+    id: text1
+    nodes: 0
+  - type: gui-node-type-box
+    id: box
+    nodes: 5
+    - type: gui-node-type-pie
+      id: pie
+      nodes: 0
+    - type: gui-node-type-text
+      id: text
+      nodes: 0
+    - type: gui-node-type-template
+      id: button
+      nodes: 2
+      - type: gui-node-type-box
+        id: button/box
+        nodes: 0
+      - type: gui-node-type-text
+        id: button/text
+        nodes: 0
+    - type: gui-node-type-particlefx
+      id: particlefx
+      nodes: 0
+    - type: gui-node-type-spine
+      id: spine
+      nodes: 1
+      - type: gui-node-type-box
+        id: box1
+        nodes: 0
 Expected reorder errors:
   undefined property => GuiSceneNode does not define \"not-a-property\"
   reorder not defined => CollisionObjectNode does not support \"shapes\" reordering
   duplicates => Reordered child nodes are not the same as current child nodes
   missing children => Reordered child nodes are not the same as current child nodes
   wrong child nodes => Reordered child nodes are not the same as current child nodes
+  add to template node => \"nodes\" is not editable
+  reorder template node => \"nodes\" is not editable
+  add to overridden text node => \"nodes\" is read-only
+  reorder overridden text node => \"nodes\" is read-only
+  reset unresettable => Can't reset property \"text\" of TextNode
 Transaction: clear GUI
 Expected layout errors:
   no name => layout name is required
@@ -1402,6 +1504,8 @@ After transaction (clear):
   textures: 0
   layouts: 0
   spine scenes: 0
+  fonts: 0
+  nodes: 0
 ")
 
 (deftest attachment-properties-test
@@ -1483,3 +1587,37 @@ emitters: 0
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
       (expect-script-output expected-particlefx-test-output out))))
+
+(deftest inheritance-chain-test
+  (testing "hierarchy adherence"
+    (let [h-ref (atom (-> (make-hierarchy)
+                          (derive :mammal :animal)
+                          (derive :bird :animal)
+                          (derive :dog :mammal)
+                          (derive :cat :mammal)
+                          (derive :sparrow :bird)
+                          (derive :eagle :bird)))
+          sound-chain (graph/make-inheritance-chain h-ref)]
+      (sound-chain :animal (constantly :grunt))
+      (sound-chain :mammal (constantly :roar))
+      (sound-chain :bird (constantly :chirp))
+      (sound-chain :cat #(when (:happy %) :meow))
+      (sound-chain :eagle (constantly :screech))
+      (is (= :chirp ((sound-chain :sparrow) {})))
+      (is (= :screech ((sound-chain :eagle) {})))
+      (is (= :roar ((sound-chain :dog) {})))
+      (is (= :roar ((sound-chain :cat) {})))
+      (is (= :meow ((sound-chain :cat) {:happy true})))))
+  (testing "hierarchy modification"
+    (let [h-ref (atom (derive (make-hierarchy) :mammal :animal))
+          sound-chain (graph/make-inheritance-chain h-ref)]
+      (sound-chain :animal (constantly :grunt))
+      (sound-chain :mammal (constantly :roar))
+      (is (= :roar ((sound-chain :mammal) {})))
+      (is (nil? ((sound-chain :cat) {})))
+      ;; hierarchy is modified
+      (swap! h-ref derive :cat :mammal)
+      (is (= :roar ((sound-chain :cat) {})))
+      ;; chain is modified
+      (sound-chain :cat (constantly :meow))
+      (is (= :meow ((sound-chain :cat) {}))))))
