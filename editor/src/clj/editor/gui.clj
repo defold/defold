@@ -1380,7 +1380,8 @@
                          (when-let [target-prop-infos-by-prop-kw (transfer-overrides-target-properties target-node-id target-layout-name evaluation-context)]
                            (cond-> {:target-node-id target-node-id
                                     :target-prop-infos-by-prop-kw target-prop-infos-by-prop-kw}
-                                   (not= source-layout-name target-layout-name)
+                                   (or (not= "" source-layout-name)
+                                       (not= "" target-layout-name))
                                    (assoc :target-aspect
                                           (pair (if (= "" target-layout-name)
                                                   "Default"
