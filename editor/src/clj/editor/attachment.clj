@@ -263,6 +263,7 @@
         get-fn (getter basis workspace node-type list-kw)
         children-set (set (get-fn node-id evaluation-context))
         reorder-fn (-> basis (workspace/node-attachments workspace) (get node-type) list-kw :reorder)]
+    (assert (editable? basis workspace node-type list-kw))
     (assert (not (read-only? workspace node-id list-kw evaluation-context)))
     (assert (every? children-set reordered-child-node-ids))
     (assert (= (count children-set) (count reordered-child-node-ids))) ;; no duplicates
@@ -274,8 +275,8 @@
 
   The implementation will assert that the supplied child node ids are the same
   node ids as defined by [[getter]]. It will also assert that the container
-  node-id defines reorder of a list identified by list-kw (see [[reorderable?]])
-  and is not [[read-only?]]"
+  node-id defines an editable and reorderable list (see [[reorderable?]],
+  [[editable?]]) and is not [[read-only?]]"
   [workspace node-id list-kw reordered-child-node-ids]
   (g/expand-ec reorder-tx workspace node-id list-kw reordered-child-node-ids))
 

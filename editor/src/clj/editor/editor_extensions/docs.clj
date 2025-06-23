@@ -295,7 +295,7 @@ editor.command({
           :type :function
           :parameters [node-param property-param]
           :returnvalues [transaction-step-param]
-          :description "Create a transaction step that will delete all items from node's list property when transacted with `editor.transact()`."}
+          :description "Create a transaction step that will remove all items from node's list property when transacted with `editor.transact()`."}
          {:name "editor.tx.remove"
           :type :function
           :parameters [node-param property-param (assoc node-param :name "child_node")]

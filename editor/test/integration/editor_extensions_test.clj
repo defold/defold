@@ -1488,7 +1488,7 @@ Expected reorder errors:
   missing children => Reordered child nodes are not the same as current child nodes
   wrong child nodes => Reordered child nodes are not the same as current child nodes
   add to template node => \"nodes\" is not editable
-  reorder template node => TemplateNode does not support \"nodes\" reordering
+  reorder template node => \"nodes\" is not editable
   add to overridden text node => \"nodes\" is read-only
   reorder overridden text node => \"nodes\" is read-only
   reset unresettable => Can't reset property \"text\" of TextNode

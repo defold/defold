@@ -244,50 +244,6 @@
             ([a b c d] (coll/some #(% a b c d) fs))
             ([a b c d e] (coll/some #(% a b c d e) fs))))))))
 
-(defonce/type InheritanceChain
-  [^:unsynchronized-mutable node-type-kw->f
-   ^:unsynchronized-mutable hierarchy
-   ^:unsynchronized-mutable builder
-   hierarchy-ref
-   ^ReentrantReadWriteLock lock]
-  IFn
-  (invoke [this node-type-kw]
-    ;; The code below is based on Java code snippet in ReentrantReadWriteLock's
-    ;; Javadoc.
-    (let [r (.readLock lock)]
-      (.lock r)
-      (try
-        (let [h @hierarchy-ref
-              builder-valid (and (.-builder this) (identical? hierarchy h))]
-          (when-not builder-valid
-            ;; Must release read lock before acquiring write lock
-            (.unlock r)
-            (let [w (.writeLock lock)]
-              (.lock w)
-              (try
-                ;; Recheck state because another thread might have
-                ;; acquired write lock and changed state before we did
-                (let [h @hierarchy-ref
-                      builder-valid (and (.-builder this) (identical? hierarchy h))]
-                  (when-not builder-valid
-                    (set! (.-hierarchy this) h)
-                    (set! (.-builder this) (make-property-fn-builder h (.-node-type-kw->f this))))
-                  ;; Downgrade by acquiring read lock before releasing write lock
-                  (.lock r))
-                (finally
-                  ;; Unlock write lock, still hold read
-                  (.unlock w)))))
-          ((.-builder this) node-type-kw))
-        (finally (.unlock r)))))
-  (invoke [this node-type-kw f]
-    (let [w (.writeLock lock)]
-      (.lock w)
-      (try
-        (set! (.-node-type-kw->f this) (assoc node-type-kw->f node-type-kw f))
-        (set! (.-builder this) nil)
-        (finally
-          (.unlock w))))))
-
 (defn make-inheritance-chain
   "Create an inheritance chain
 
@@ -301,7 +257,22 @@
   ([]
    (make-inheritance-chain #'clojure.core/global-hierarchy))
   ([hierarchy-ref]
-   (->InheritanceChain {} @hierarchy-ref fn/constantly-constantly-nil hierarchy-ref (ReentrantReadWriteLock.))))
+   (let [state-atom (atom {::builder nil
+                           ::hierarchy @hierarchy-ref
+                           ::node-type-kw->f {}})]
+     (fn inheritance-chain
+       ([node-type-kw]
+        (let [h @hierarchy-ref
+              {::keys [builder hierarchy] :as current-state} @state-atom
+              builder (if (and builder (identical? hierarchy h))
+                        builder
+                        (let [builder (make-property-fn-builder h (::node-type-kw->f current-state))]
+                          (swap! state-atom assoc ::hierarchy h ::builder builder)
+                          builder))]
+          (builder node-type-kw)))
+       ([node-type-kw f]
+        (swap! state-atom #(-> % (update ::node-type-kw->f assoc node-type-kw f) (assoc ::builder nil)))
+        nil)))))
 
 (defonce ^:private ext-property-getter
   (make-inheritance-chain))
@@ -891,9 +862,11 @@
           {:keys [basis]} evaluation-context
           node-id-or-resource (resolve-node-id-or-path node project evaluation-context)
           workspace (project/workspace project evaluation-context)
+          node-type (g/node-type* basis node-id-or-resource)
           list-kw (property->prop-kw property)]
       (and (not (resource/resource? node-id-or-resource))
-           (attachment/reorderable? basis workspace (g/node-type* basis node-id-or-resource) list-kw)
+           (attachment/editable? basis workspace node-type list-kw)
+           (attachment/reorderable? basis workspace node-type list-kw)
            (not (attachment/read-only? workspace node-id-or-resource list-kw evaluation-context))))))
 
 (def ^:private reorder-args-coercer
@@ -912,6 +885,8 @@
           reordered-child-node-ids (mapv #(node-id-or-path->node-id % project evaluation-context) children)]
       (when-not (attachment/defines? basis workspace node-type list-kw)
         (throw (LuaError. (format "%s does not define \"%s\"" (name (:k node-type)) property))))
+      (when-not (attachment/editable? basis workspace node-type list-kw)
+        (throw (LuaError. (format "\"%s\" is not editable" property))))
       (when-not (attachment/reorderable? basis workspace node-type list-kw)
         (throw (LuaError. (format "%s does not support \"%s\" reordering" (name (:k node-type)) property))))
       (when (attachment/read-only? workspace node-id list-kw evaluation-context)

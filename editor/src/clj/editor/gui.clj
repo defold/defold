@@ -4329,7 +4329,7 @@
 (def ^:private empty-node-type-registry
   {;; graph-node-type -> non-deprecated info
    :node-cls->type-info {}
-   ;; node-type-kw -> custom-type -> info
+   ;; node-desc-type keyword -> custom-type -> info
    :node-type->custom-type->type-info {}
    ;; flat list
    :type-infos []})
@@ -4431,8 +4431,6 @@
               (when-let [prop-kw->override (layout->prop->override layout-name)]
                 (when (contains? prop-kw->override prop-kw)
                   #(layout-property-clear-in-specific-layout evaluation-context layout-name node-id prop-kw))))))))))
-
-;; TODO: template nodes????
 
 (defn- init-gui-node-attachment [{:keys [basis] :as evaluation-context} rt project parent-node-id child-node-type child-node-id attachment node-id-base-name-fn]
   (let [{:keys [node-type custom-type defaults]} (get-registered-node-type-info child-node-type)

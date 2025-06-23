@@ -1582,10 +1582,14 @@
      true)))
 
 (defn node-property-dynamic
-  "Returns the value of a dynamic associated with a specific node property, or
-  not-found value if the dynamic does not exist"
+  "Returns the value of a dynamic associated with a specific node property
+  If the dynamic does not exist, returns the provided not-found value, or throws
+  an assertion error if there was no not-found value provided"
   ([node property-label dynamic-label evaluation-context]
-   (node-property-dynamic node property-label dynamic-label nil evaluation-context))
+   (let [ret (node-property-dynamic node property-label dynamic-label ::not-found evaluation-context)]
+     (assert (not (identical? ret ::not-found))
+             (format "Dynamic %s not found on property %s in node-type %s." dynamic-label property-label (:k (node-type node))))
+     ret))
   ([node property-label dynamic-label not-found evaluation-context]
    (let [node-type (node-type node)
          property-def (get (in/all-properties node-type) property-label)
