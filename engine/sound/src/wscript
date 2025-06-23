@@ -7,10 +7,6 @@ def configure(conf):
 
 def build(bld):
     source      = 'sound_codec.cpp sound_decoder.cpp'.split()
-    if waflib.Options.options.with_openal:
-        source += ['sound_openal.cpp']
-    else:
-        source += ['sound.cpp']
     source_null = 'devices/device_null.cpp sound_null.cpp'.split()
 
     decoder_wav     = ['decoders/decoder_wav.cpp']
@@ -32,9 +28,12 @@ def build(bld):
     else:
         source += ['sound_generic.cpp']
 
-    if waflib.Options.options.with_openal:
-        source += ['devices/device_openal.cpp']
-    elif 'android' in bld.env.PLATFORM:
+    source_openal = source.copy()
+    source_openal += ['sound_openal.cpp', 'devices/device_openal.cpp']
+
+    source += ['sound.cpp']
+
+    if 'android' in bld.env.PLATFORM:
         source += ['devices/device_opensl.cpp']
     elif 'web' in bld.env.PLATFORM:
         source += ['devices/device_js.cpp']
@@ -85,6 +84,12 @@ def build(bld):
                       defines  = defines,
                       target   = 'sound',
                       source   = source)
+
+    sound = bld.stlib(features = 'c cxx ddf',
+                      includes = '. %s' % include,
+                      defines  = defines,
+                      target   = 'sound_openal',
+                      source   = source_openal)
 
     simd_flags = []
 
