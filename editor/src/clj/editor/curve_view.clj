@@ -202,7 +202,8 @@
                                  :world-lines world-lines}}]]
     (into {} (map #(do [% renderables]) [pass/transparent]))))
 
-(defn- prop-kw->hue [prop-kw]
+(defn- prop-kw->hue-saturation
+  [prop-kw]
   (let [prop-name (name prop-kw)]
     (cond
       (string/includes? prop-name "red") [0.0 1.0]
@@ -212,18 +213,35 @@
 
 (g/defnk produce-curves [selected-node-properties]
   (let [curves (mapcat (fn [p] (->> (:properties p)
-                                 (filter has-control-points?)
-                                 (map (fn [[k p]] {:node-id (:node-id p)
-                                                   :property k
-                                                   :curve (iv/iv-entries (:points (:value p)))}))))
+                                    (filter has-control-points?)
+                                    (map (fn [[k p]]
+                                           (let [[hue saturation] (prop-kw->hue-saturation k)]
+                                             {:node-id (:node-id p)
+                                              :property k
+                                              :curve (iv/iv-entries (:points (:value p)))
+                                              :hue hue
+                                              :saturation (or saturation 1.0)})))))
                        selected-node-properties)
-        ccount (count curves)
-        hue-f (/ 360.0 ccount)
-        curves (map-indexed (fn [i c]
-                              (let [[hue saturation] (or (prop-kw->hue (:property c))
-                                                         [(* (+ i 0.5) hue-f) 1.0])]
-                                (assoc c :hue hue :saturation saturation)))
-                            curves)]
+        precolored-curves (filter :hue curves)
+        ;; If the saturation is zero, the hue is not actually used.
+        taken-hues (into #{} (comp (filter (comp pos? :saturation))
+                                   (map :hue)) precolored-curves)
+        taken-count (count taken-hues)
+        autocolored-curves (filterv (comp nil? :hue) curves)
+        autocolored-count (count autocolored-curves)
+        hue-f (/ 360.0 (+ autocolored-count taken-count))
+        min-distance (/ hue-f 2)
+        curves (into
+                precolored-curves
+                (map-indexed (fn [i c]
+                               (let [hue (* (+ i 0.5) hue-f)
+                                     overlapping-hue (some #(when (< (abs (- hue %)) min-distance) %) taken-hues)]
+                                 (assoc c :hue (if overlapping-hue
+                                                 (+ overlapping-hue
+                                                    ;; Move to the nearest side of the overlapping hue.
+                                                    (cond-> min-distance (> overlapping-hue hue) -))
+                                                 hue)))) autocolored-curves))]
+
     curves))
 
 (defn- aabb-contains? [^AABB aabb ^Point3d p]
