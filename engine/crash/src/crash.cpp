@@ -131,21 +131,7 @@ namespace dmCrash
 
     static HDump LoadDumpV2(AppState* state, FILE* f)
     {
-
-        // printf("fpos: %u\n", (uint32_t)ftell(f));
-
-        // fpos_t pos = ftell(f);
-        // fseek(f, 0, SEEK_END);
-        // printf("length: %u\n", (uint32_t)ftell(f));
-        // fseek(f, pos, SEEK_SET);
-        // printf("fpos: %u\n", (uint32_t)ftell(f));
-        // fflush(f);
-
         size_t nread = fread(state, 1, sizeof(AppStateV2), f);
-
-        printf("NREAD: %u\n", (uint32_t)nread);
-        printf("size V2: %u\n", (uint32_t)sizeof(AppStateV2));
-
         if (nread != sizeof(AppStateV2))
         {
             dmLogError("%s: Crashdump is incomplete", __FUNCTION__);

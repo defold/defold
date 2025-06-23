@@ -101,7 +101,7 @@ static void PrintErrorMessage(DWORD errorCode) {
         nullptr
     );
 
-    std::wcerr << "Error: " <<  std::hex << errorCode << ": ";
+    std::wcerr << "Error: 0x" <<  std::hex << errorCode << ": ";
     if (errorMessageBuffer) {
         std::wcerr << reinterpret_cast<LPWSTR>(errorMessageBuffer);
         LocalFree(errorMessageBuffer);
@@ -117,10 +117,10 @@ static int FindModules(PlatformInfo& info)
     info.num_modules = 0;
 
     HMODULE hMods[1024];
-    DWORD cbNeeded;
+    DWORD cbNeeded = 0;
 
     // Get a list of all the modules in this process.
-    if( EnumProcessModules(info.pi.hProcess, hMods, sizeof(hMods), &cbNeeded))
+    if(EnumProcessModules(info.pi.hProcess, hMods, sizeof(hMods), &cbNeeded))
     {
         info.num_modules = (cbNeeded / sizeof(HMODULE));
         for (uint32_t i = 0; i < info.num_modules; i++ )
@@ -128,7 +128,8 @@ static int FindModules(PlatformInfo& info)
             char module_name[MAX_PATH];
 
             // Get the full path to the module's file.
-
+            info.module_names[i] = 0;
+            info.module_addresses[i] = 0;
             if (GetModuleFileNameExA(info.pi.hProcess, hMods[i], module_name, sizeof(module_name)))
             {
                 // Print the module name and handle value.
@@ -140,6 +141,7 @@ static int FindModules(PlatformInfo& info)
     }
     else
     {
+        printf("Module enumeration failed. The callstack may be incorrect.\n");
         DWORD errcode = GetLastError();
         PrintErrorMessage(errcode);
     }
@@ -158,12 +160,15 @@ static int PlatformInit(const char* path, PlatformInfo& info)
         info.si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
         info.si.dwFlags |= STARTF_USESTDHANDLES;
 
-        if( !CreateProcessA(0, (LPSTR)path, 0, 0, TRUE, PROCESS_VM_READ, 0, 0, (LPSTARTUPINFOA)&info.si, &info.pi) )
+        printf("Opening path: '%s'\n", path);
+        if( !CreateProcessA(0, (LPSTR)path, 0, 0, TRUE, PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, 0, (LPSTARTUPINFOA)&info.si, &info.pi) )
         {
             DWORD errcode = GetLastError();
             PrintErrorMessage(errcode);
             return 0;
         }
+
+        Sleep(100);
 
         info.symbol = ( SYMBOL_INFO * )calloc( sizeof( SYMBOL_INFO ) + (MAX_SYM_NAME+1) * sizeof( wchar_t ), 1 );
         info.symbol->MaxNameLen = MAX_SYM_NAME;
@@ -178,9 +183,7 @@ static int PlatformInit(const char* path, PlatformInfo& info)
             return 0;
         }
 
-        printf("**********************************************************\n");
         FindModules(info);
-        printf("**********************************************************\n");
     }
 
     return 1;
@@ -196,19 +199,6 @@ static void PlatformExit(PlatformInfo& info)
     free( info.symbol );
 }
 
-// static DWORD64 GetBaseAddress(PlatformInfo& info, uintptr_t ptr)
-// {
-//     uint32_t module_index = dmCrash::GetModuleName(dump, i);
-//     const char* module_name =
-//     const char* modulename = dmCrash::GetModuleName(dump, i);
-//     if( modulename == 0 )
-//     {
-//         break;
-//     }
-//     uintptr_t ptr = (uintptr_t)dmCrash::GetModuleAddr(dump, i);
-// }
-
-
 // https://learn.microsoft.com/en-us/windows/win32/debug/retrieving-symbol-information-by-address
 //  SymGetLineFromAddr64
 
@@ -221,12 +211,6 @@ const char* PlatformGetSymbol(PlatformInfo& info, uintptr_t ptr, uint32_t module
 
     DWORD64 relative = ptr - old_base_address;
     DWORD64 address = relative + new_base_address;
-
-    printf("address: %llx\n", ptr);
-    printf("  base old: %llx\n", old_base_address);
-    printf("  base new: %llx\n", new_base_address);
-    printf("  relative: %llx\n", relative);
-    printf("  -> addr:  %llx\n", address);
 
     DWORD64 dwDisplacement = 0;
     if(!SymFromAddr( info.pi.hProcess, address, &dwDisplacement, info.symbol ))
@@ -253,88 +237,6 @@ const char* PlatformGetSymbol(PlatformInfo& info, uintptr_t ptr, uint32_t module
     info.buffer[sizeof(info.buffer)-1] = 0;
 
     return info.buffer;
-}
-
-// http://stackoverflow.com/questions/17389968/get-linux-executable-load-address-builtin-return-address-and-addr2line
-// _AddressOfReturnAddress, GetModuleInformation + lpBaseOfDll
-
-/*
-#define PSAPI_VERSION 1
-#include <Psapi.h>
-DWORD_PTR GetProcessBaseAddress( PlatformInfo& info, DWORD processID )
-{
-    HMODULE hMods[1024];
-    HANDLE hProcess;
-    DWORD cbNeeded;
-
-    hProcess = info.pi.hProcess;
-
-printf("HELLO 2\n");
-    if( EnumProcessModules(hProcess, hMods, sizeof(hMods), &cbNeeded))
-    {
-        for ( size_t i = 0; i < (cbNeeded / sizeof(HMODULE)); i++ )
-        {
-            TCHAR szModName[MAX_PATH];
-
-            // Get the full path to the module's file.
-
-            if ( GetModuleFileNameEx( hProcess, hMods[i], szModName,
-                                      sizeof(szModName) / sizeof(TCHAR)))
-            {
-                // Print the module name and handle value.
-
-                printf("\t%s (0x%08X)\n", szModName, (uint32_t)hMods[i] );
-            }
-        }
-    }
-
-printf("HELLO 3\n");
-    //CloseHandle( hProcess );
-    return 0;
-}
-*/
-
-#include <Psapi.h>
-uintptr_t GetProcessBaseAddress(PlatformInfo& pinfo, DWORD processID)
-{
-    HANDLE process = OpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processID );;
-    HMODULE mods[1024];
-    DWORD needed;
-
-    if (EnumProcessModules(process, mods, sizeof(mods), &needed))
-    {
-        uint32_t count = needed / sizeof(HANDLE);
-        for (uint32_t i=0;i!=count;i++)
-        {
-            char path[512];
-            if (!GetModuleFileNameExA(process, mods[i], path, 512))
-            {
-                fprintf(stderr, "Failed to get module filename");
-            }
-
-            fprintf(stderr, "module: %s\n", path);
-
-            MODULEINFO info;
-            if (GetModuleInformation(process, mods[i], &info, sizeof(info)))
-            {
-            fprintf(stderr, "  size: 0x%08x\n", info.SizeOfImage);
-            }
-        }
-    }
-    else
-    {
-        fprintf(stderr, "Failed to enumerate process modules\n");
-
-        char* msg;
-        DWORD err = GetLastError();
-        FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR) &msg, 0, 0);
-        fprintf(stderr, "Error: %s (%d)\n", msg, err);
-        LocalFree((HLOCAL) msg);
-    }
-
-    CloseHandle(process);
-
-    return 0;
 }
 
 #elif defined(__APPLE__)

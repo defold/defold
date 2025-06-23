@@ -29,6 +29,8 @@ namespace dmCrash
 {
     static char g_MiniDumpPath[AppState::FILEPATH_MAX];
     static bool g_CrashDumpEnabled = true;
+    // Often we get both a signal, and a call to the exception handler.
+    static bool g_DumpWritten      = false;
     static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
 
@@ -180,8 +182,6 @@ namespace dmCrash
                         if (strncmp(state->m_ModuleName[m], module_name, dmCrash::AppState::MODULE_NAME_SIZE) == 0)
                         {
                             module_index = m;
-
-                            dmLogWarning("Module: %u '%s'", module_index, module_name);
                             break;
                         }
                     }
@@ -259,7 +259,12 @@ namespace dmCrash
         dLib::SetDebugMode(true);
 
         WriteMiniDump(g_MiniDumpPath, ptr);
-        GenerateCallstack(ptr);
+
+        if (!g_DumpWritten)
+        {
+            GenerateCallstack(ptr);
+        }
+        g_DumpWritten = true;
 
         dLib::SetDebugMode(is_debug_mode);
         return EXCEPTION_CONTINUE_SEARCH;
@@ -283,7 +288,7 @@ namespace dmCrash
         dLib::SetDebugMode(true);
 
         CheckConsoleNeeded(is_debug_mode);
-        dmLogError("No exception pointers. Cannot write mini dump.\n");
+        g_DumpWritten = true;
         GenerateCallstack(0);
 
         dLib::SetDebugMode(is_debug_mode);
