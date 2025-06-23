@@ -421,7 +421,8 @@ def is_optional(str):
 LUA_TYPES = [
     "string", "number", "boolean", "table", "userdata", "nil", "function", "thread",
     "vector", "vector3", "vector4", "matrix4", "quaternion", "hash", "url", "node",
-    "constant", "resource", "buffer", "any", "file"]
+    "constant", "resource", "buffer", "any", "file",
+    "b2Body", "b2BodyType", "bufferstream" ]
 CPP_TYPES = [
     "string", "float", "double", "long", "int", "bool", "char", "void",
     "int8_t", "uint8_t", "int16_t", "uint16_t", "int32_atomic_t", "int32_t", "uint32_t", "int64_t", "uint64_t",
