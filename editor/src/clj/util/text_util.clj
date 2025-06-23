@@ -374,7 +374,7 @@
   letter in the singular form will determine the casing of the word used to
   represent the amount."
   (^String [^long count ^String singular]
-   (amount-text count singular (str singular \s)))
+   (amount-text count singular nil))
   (^String [^long count ^String singular ^String plural]
    (amount-text count singular plural
                 (if (and (not (.isEmpty singular))
@@ -387,4 +387,5 @@
         \space
         (case count
           1 singular
-          plural))))
+          (or plural
+              (str singular \s))))))

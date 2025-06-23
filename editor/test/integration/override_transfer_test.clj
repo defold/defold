@@ -59,17 +59,18 @@
 (defn- pull-up-overrides-plan-alternatives
   [source-node-id source-prop-kws]
   (g/with-auto-evaluation-context evaluation-context
-    (when-let [transferred-prop-infos-by-prop-kw (properties/transferred-properties source-node-id source-prop-kws evaluation-context)]
-      (properties/pull-up-overrides-plan-alternatives source-node-id transferred-prop-infos-by-prop-kw evaluation-context))))
+    (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties source-node-id source-prop-kws evaluation-context)]
+      (properties/pull-up-overrides-plan-alternatives source-node-id source-prop-infos-by-prop-kw evaluation-context))))
 
 (defn- push-down-overrides-plan-alternatives
   [source-node-id source-prop-kws]
   (g/with-auto-evaluation-context evaluation-context
-    (when-let [transferred-prop-infos-by-prop-kw (properties/transferred-properties source-node-id source-prop-kws evaluation-context)]
-      (properties/push-down-overrides-plan-alternatives source-node-id transferred-prop-infos-by-prop-kw evaluation-context))))
+    (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties source-node-id source-prop-kws evaluation-context)]
+      (properties/push-down-overrides-plan-alternatives source-node-id source-prop-infos-by-prop-kw evaluation-context))))
 
 (defn- transfer-overrides-plan-info
   ^String [transfer-overrides-plan]
+  {:pre [(properties/transfer-overrides-plan? transfer-overrides-plan)]}
   (g/with-auto-evaluation-context evaluation-context
     (let [status (properties/transfer-overrides-status transfer-overrides-plan)
           description (-> transfer-overrides-plan
@@ -502,8 +503,18 @@
       (set-gui-layout! project "/book_l.gui" "Landscape")
       (let [source-node-id (test-util/resource-outline-node-id project "/book_l.gui" "Nodes" "book_text")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (not (empty? (transferred-properties source-node-id :all))))
-        (is (empty? transfer-overrides-plans))))))
+        (is (= [["Pull Up Text Override to 'book_text' in Default Layout of '/book_l.gui'" :ok]]
+               (mapv transfer-overrides-plan-info transfer-overrides-plans)))
+        (properties/transfer-overrides! (first transfer-overrides-plans))
+        (is (= {"/book_l.gui"
+                {:nodes
+                 [{:type :type-text
+                   :id "book_text"
+                   :text "landscape text from book_l.gui"}]
+
+                 :layouts
+                 [{:name "Landscape"}]}}
+               (select-save-values project #{"/book_l.gui"})))))))
 
 (deftest pull-up-gui-overrides-from-shelf-to-book-l-test
   (test-util/with-temp-project-content
@@ -636,8 +647,30 @@
       (set-gui-layout! project "/shelf_l.gui" "Landscape")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf_l.gui" "Nodes" "referenced_book" "referenced_book/book_text")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to 'book_text' in '/book.gui'" :property-not-found]]
-               (mapv transfer-overrides-plan-info transfer-overrides-plans)))))))
+        (is (= [["Pull Up Text Override to 'referenced_book/book_text' in Default Layout of '/shelf_l.gui'" :ok]]
+               (mapv transfer-overrides-plan-info transfer-overrides-plans)))
+        (properties/transfer-overrides! (first transfer-overrides-plans))
+        (is (= {"/book.gui"
+                {:nodes
+                 [{:type :type-text
+                   :id "book_text"
+                   :text "default text from book.gui"}]}
+
+                "/shelf_l.gui"
+                {:nodes
+                 [{:type :type-template
+                   :id "referenced_book"
+                   :template "/book.gui"}
+                  {:type :type-text
+                   :template-node-child true
+                   :id "referenced_book/book_text"
+                   :parent "referenced_book"
+                   :text "landscape text from shelf_l.gui"
+                   :overridden-fields [gui-text-pb-field-index]}]
+
+                 :layouts
+                 [{:name "Landscape"}]}}
+               (select-save-values project #{"/book.gui" "/shelf_l.gui"})))))))
 
 (deftest pull-up-gui-overrides-from-shelf-l-to-book-l-test
   (test-util/with-temp-project-content
@@ -725,9 +758,49 @@
       (set-gui-layout! project "/shelf_l.gui" "Landscape")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf_l.gui" "Nodes" "referenced_book" "referenced_book/book_text")
             transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Pull Up Text Override to 'book_text' in '/book_l.gui'" :ok]]
+        (is (= [["Pull Up Text Override to 'referenced_book/book_text' in Default Layout of '/shelf_l.gui'" :ok]
+                ["Pull Up Text Override to 'book_text' in '/book_l.gui'" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
+        (is (= {"/book_l.gui"
+                {:nodes
+                 [{:type :type-text
+                   :id "book_text"
+                   :text "default text from book_l.gui"}]
+
+                 :layouts
+                 [{:name "Landscape"
+                   :nodes
+                   [{:type :type-text
+                     :id "book_text"
+                     :text "landscape text from book_l.gui"
+                     :overridden-fields [gui-text-pb-field-index]}]}]}
+
+                "/shelf_l.gui"
+                {:nodes
+                 [{:type :type-template
+                   :id "referenced_book"
+                   :template "/book_l.gui"}
+                  {:type :type-text
+                   :template-node-child true
+                   :id "referenced_book/book_text"
+                   :parent "referenced_book"
+                   :text "landscape text from shelf_l.gui"
+                   :overridden-fields [gui-text-pb-field-index]}]
+
+                 :layouts
+                 [{:name "Landscape"}]}}
+               (select-save-values project #{"/book_l.gui" "/shelf_l.gui"})))))
+
+    (test-util/with-changes-reverted project
+      (set-gui-layout! project "/book_l.gui" "")
+      (set-gui-layout! project "/shelf_l.gui" "Landscape")
+      (let [source-node-id (test-util/resource-outline-node-id project "/shelf_l.gui" "Nodes" "referenced_book" "referenced_book/book_text")
+            transfer-overrides-plans (pull-up-overrides-plan-alternatives source-node-id :all)]
+        (is (= [["Pull Up Text Override to 'referenced_book/book_text' in Default Layout of '/shelf_l.gui'" :ok]
+                ["Pull Up Text Override to 'book_text' in '/book_l.gui'" :ok]]
+               (mapv transfer-overrides-plan-info transfer-overrides-plans)))
+        (properties/transfer-overrides! (second transfer-overrides-plans))
         (is (= {"/book_l.gui"
                 {:nodes
                  [{:type :type-text
@@ -1205,21 +1278,3 @@
                    :text "default text from shelf.gui"
                    :overridden-fields [gui-text-pb-field-index]}]}}
                (select-save-values project #{"/shelf.gui" "/room_one.gui" "/room_two.gui"})))))))
-
-(comment
-  ;; TODO: Implement pull-up from layout to default.
-
-  {"Pull up from shelf.gui to book.gui"
-   ["Pull Up Text Override to 'book_text' in Default Layout of '/book.gui'"]}
-
-  {"Pull up from shelf.gui to book_l.gui"
-   ["Pull Up Text Override to 'book_text' in Default Layout of '/book_l.gui'"]}
-
-  {"Pull up from shelf_l.gui to book.gui"
-   ["Pull Up Text Override to 'referenced_book/book_text' in Default Layout of '/shelf_l.gui'"
-    "Pull Up Text Override to 'book_text' in Default Layout of '/book.gui'"]}
-
-  {"Pull up from shelf_l.gui to book_l.gui"
-   ["Pull Up Text Override to 'referenced_book/book_text' in Default Layout of '/shelf_l.gui'"
-    "Pull Up Text Override to 'book_text' in Default Layout of '/book_l.gui'"
-    "Pull Up Text Override to 'book_text' in Landscape Layout of '/book_l.gui'"]})

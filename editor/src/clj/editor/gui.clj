@@ -1313,11 +1313,11 @@
   (basic-layout-property-update-in-current-layout evaluation-context node-id :scale scene/apply-scale-delta delta))
 
 (defn- transfer-overrides-target-properties
-  [target-node-id layout-name evaluation-context]
-  {:pre [(string? layout-name)]}
+  [target-node-id target-layout-name evaluation-context]
+  {:pre [(string? target-layout-name)]}
   (let [layout->prop->value (g/node-value target-node-id :layout->prop->value evaluation-context)
         prop-kw->prop-info (:properties (g/node-value target-node-id :_declared-properties evaluation-context))
-        prop-kw->value (get layout->prop->value layout-name ::not-found)]
+        prop-kw->value (get layout->prop->value target-layout-name ::not-found)]
     ;; We don't return any target properties if the layout does not exist in the
     ;; target node. Otherwise, we would have to create the layout in the target
     ;; gui scene, which might be confusing?
@@ -1327,8 +1327,8 @@
                (let [value (get prop-kw->value prop-kw)
                      edit-type (:edit-type prop-info)
                      changes-fn (:changes-fn edit-type)
-                     set-fn (fn/partial layout-property-edit-type-set-in-specific-layout layout-name changes-fn prop-kw)
-                     clear-fn (fn/partial layout-property-edit-type-clear-in-specific-layout layout-name changes-fn)]
+                     set-fn (fn/partial layout-property-edit-type-set-in-specific-layout target-layout-name changes-fn prop-kw)
+                     clear-fn (fn/partial layout-property-edit-type-clear-in-specific-layout target-layout-name changes-fn)]
                  (pair prop-kw
                        {:node-id (or (:node-id prop-info) target-node-id)
                         :prop-kw (or (:prop-kw prop-info) prop-kw)
@@ -1338,34 +1338,55 @@
                                      :clear-fn clear-fn)}))))))))
 
 (defn- transfer-overrides-plan
-  [override-transfer-type transferred-prop-infos-by-prop-kw target-node-ids layout-name {:keys [basis] :as evaluation-context}]
-  {:pre [(not (coll/empty? target-node-ids))]}
-  (let [target-node-id+target-prop-infos-by-prop-kw
-        (mapv (fn [target-node-id]
-                (let [target-prop-infos-by-prop-kw (transfer-overrides-target-properties target-node-id layout-name evaluation-context)]
-                  (pair target-node-id target-prop-infos-by-prop-kw)))
-              target-node-ids)]
-    (properties/transfer-overrides-plan basis override-transfer-type transferred-prop-infos-by-prop-kw target-node-id+target-prop-infos-by-prop-kw)))
+  [override-transfer-type source-layout-name source-prop-infos-by-prop-kw target-node-id+layout-names {:keys [basis] :as evaluation-context}]
+  {:pre [(not (coll/empty? target-node-id+layout-names))]}
+  (when-let [target-infos
+             (coll/not-empty
+               (coll/transfer target-node-id+layout-names []
+                 (keep (fn [[target-node-id target-layout-name]]
+                         (when-let [target-prop-infos-by-prop-kw (transfer-overrides-target-properties target-node-id target-layout-name evaluation-context)]
+                           (cond-> {:target-node-id target-node-id
+                                    :target-prop-infos-by-prop-kw target-prop-infos-by-prop-kw}
+                                   (not= source-layout-name target-layout-name)
+                                   (assoc :target-aspect
+                                          (pair (if (= "" target-layout-name)
+                                                  "Default"
+                                                  target-layout-name)
+                                                "Layout"))))))))]
+    (properties/transfer-overrides-plan basis override-transfer-type source-prop-infos-by-prop-kw target-infos)))
 
 (defmethod properties/pull-up-overrides-plan-alternatives ::GuiNode
-  [source-node-id transferred-prop-infos-by-prop-kw {:keys [basis] :as evaluation-context}]
-  (when-let [original-node-id (g/override-original basis source-node-id)]
-    (let [trivial-gui-scene-info (g/node-value source-node-id :trivial-gui-scene-info evaluation-context)
-          layout-name (or (:current-layout trivial-gui-scene-info) "")
-          original-node-ids (iterate #(g/override-original basis %) original-node-id)]
+  [source-node-id source-prop-infos-by-prop-kw {:keys [basis] :as evaluation-context}]
+  (when-let [trivial-gui-scene-info (g/maybe-node-value source-node-id :trivial-gui-scene-info evaluation-context)]
+    (let [source-layout-name (or (:current-layout trivial-gui-scene-info) "")
+
+          original-node-ids
+          (iterate #(g/override-original basis %)
+                   (g/override-original basis source-node-id))
+
+          pull-up-overrides-to-default-layout-plan
+          (when (not= "" source-layout-name)
+            (transfer-overrides-plan :pull-up-overrides source-layout-name source-prop-infos-by-prop-kw [[source-node-id ""]] evaluation-context))
+
+          source-node-layout-transfer-overrides-plans
+          (if pull-up-overrides-to-default-layout-plan
+            [pull-up-overrides-to-default-layout-plan]
+            [])]
+
       (coll/transfer
-        original-node-ids []
+        original-node-ids source-node-layout-transfer-overrides-plans
         (take-while some?)
-        (map (fn [original-node-id]
-               (transfer-overrides-plan :pull-up-overrides transferred-prop-infos-by-prop-kw [original-node-id] layout-name evaluation-context)))))))
+        (keep (fn [original-node-id]
+                (transfer-overrides-plan :pull-up-overrides source-layout-name source-prop-infos-by-prop-kw [[original-node-id source-layout-name]] evaluation-context)))))))
 
 (defmethod properties/push-down-overrides-plan-alternatives ::GuiNode
-  [source-node-id transferred-prop-infos-by-prop-kw {:keys [basis] :as evaluation-context}]
+  [source-node-id source-prop-infos-by-prop-kw {:keys [basis] :as evaluation-context}]
   (when-let [override-node-ids (coll/not-empty (g/overrides basis source-node-id))]
-    (let [trivial-gui-scene-info (g/node-value source-node-id :trivial-gui-scene-info evaluation-context)
-          layout-name (or (:current-layout trivial-gui-scene-info) "")
-          transfer-overrides-plan (transfer-overrides-plan :push-down-overrides transferred-prop-infos-by-prop-kw override-node-ids layout-name evaluation-context)]
-      [transfer-overrides-plan])))
+    (when-let [trivial-gui-scene-info (g/maybe-node-value source-node-id :trivial-gui-scene-info evaluation-context)]
+      (let [source-layout-name (or (:current-layout trivial-gui-scene-info) "")
+            target-node-id+layout-names (e/map #(pair % source-layout-name) override-node-ids)
+            transfer-overrides-plan (transfer-overrides-plan :push-down-overrides source-layout-name source-prop-infos-by-prop-kw target-node-id+layout-names evaluation-context)]
+        [transfer-overrides-plan]))))
 
 ;; SDK api
 (defmethod update-gui-resource-reference [::GuiNode :layer]

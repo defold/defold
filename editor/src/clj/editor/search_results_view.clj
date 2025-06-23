@@ -681,11 +681,11 @@
                [pull-up-overrides-menu-items push-down-overrides-menu-items]
                (when (and source-node-id (coll/not-empty overridden-prop-kws))
                  (g/with-auto-evaluation-context evaluation-context
-                   (when-let [transferred-prop-infos-by-prop-kw (properties/transferred-properties source-node-id overridden-prop-kws evaluation-context)]
+                   (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties source-node-id overridden-prop-kws evaluation-context)]
                      (pair (mapv #(transfer-overrides-plan-menu-item % evaluation-context)
-                                 (properties/pull-up-overrides-plan-alternatives source-node-id transferred-prop-infos-by-prop-kw evaluation-context))
+                                 (properties/pull-up-overrides-plan-alternatives source-node-id source-prop-infos-by-prop-kw evaluation-context))
                            (mapv #(transfer-overrides-plan-menu-item % evaluation-context)
-                                 (properties/push-down-overrides-plan-alternatives source-node-id transferred-prop-infos-by-prop-kw evaluation-context))))))]
+                                 (properties/push-down-overrides-plan-alternatives source-node-id source-prop-infos-by-prop-kw evaluation-context))))))]
 
            {:fx/type fx.h-box/lifecycle
             :anchor-pane/bottom 0
