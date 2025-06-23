@@ -394,7 +394,7 @@ static const luaL_reg Module_methods[] =
  * This event is sent to a window event listener when the game window or app screen has lost focus.
  *
  * @name window.WINDOW_EVENT_FOCUS_LOST
- * @variable
+ * @constant
  */
 
 /*# focus gained window event
@@ -404,7 +404,7 @@ static const luaL_reg Module_methods[] =
  * This event is also sent at game startup and the engine gives focus to the game.
  *
  * @name window.WINDOW_EVENT_FOCUS_GAINED
- * @variable
+ * @constant
  */
 
 /*# resized window event
@@ -413,7 +413,7 @@ static const luaL_reg Module_methods[] =
  * The new size is passed along in the data field to the event listener.
  *
  * @name window.WINDOW_EVENT_RESIZED
- * @variable
+ * @constant
  */
 
 /*# iconify window event
@@ -422,7 +422,7 @@ static const luaL_reg Module_methods[] =
  * iconified (reduced to an application icon in a toolbar, application tray or similar).
  *
  * @name window.WINDOW_EVENT_ICONFIED
- * @variable
+ * @constant
  */
 
 /*# deiconified window event
@@ -431,26 +431,26 @@ static const luaL_reg Module_methods[] =
  * restored after being iconified.
  *
  * @name window.WINDOW_EVENT_DEICONIFIED
- * @variable
+ * @constant
  */
 
 /*# dimming mode on
   * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
   * @name window.DIMMING_ON
-  * @variable
+  * @constant
   */
 
 /*# dimming mode off
   * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
   * @name window.DIMMING_OFF
-  * @variable
+  * @constant
   */
 
 /*# dimming mode unknown
   * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
   * This mode indicates that the dim mode can't be determined, or that the platform doesn't support dimming.
   * @name window.DIMMING_UNKNOWN
-  * @variable
+  * @constant
   */
 
 static void LuaInit(lua_State* L)

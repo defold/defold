@@ -1028,7 +1028,7 @@ static int CreateTexture(lua_State* L)
  *
  * @param buffer [type:buffer] optional buffer of precreated pixel data
  *
- * @return request_id [type:handle] The request id for the async request.
+ * @return request_id [type:number] The request id for the async request.
  *
  * [icon:attention] 3D Textures are currently only supported on OpenGL and Vulkan adapters. To check if your device supports 3D textures, use:
  *
@@ -1569,29 +1569,29 @@ static int SetTexture(lua_State* L)
  *
  * @name resource.get_texture_info
  *
- * @param path [type:hash|string|handle] The path to the resource or a texture handle
+ * @param path [type:hash|string|number] The path to the resource or a texture handle
  * @return table [type:table] A table containing info about the texture:
  *
  * `handle`
- * : [type:handle] the opaque handle to the texture resource
+ * : [type:number] the opaque handle to the texture resource
  *
  * `width`
- * : [type:integer] width of the texture
+ * : [type:number] width of the texture
  *
  * `height`
- * : [type:integer] height of the texture
+ * : [type:number] height of the texture
  *
  * `depth`
- * : [type:integer] depth of the texture (i.e 1 for a 2D texture, 6 for a cube map, the actual depth of a 3D texture)
+ * : [type:number] depth of the texture (i.e 1 for a 2D texture, 6 for a cube map, the actual depth of a 3D texture)
  *
  * `page_count`
- * : [type:integer] number of pages of the texture array. For 2D texture value is 1. For cube map - 6
+ * : [type:number] number of pages of the texture array. For 2D texture value is 1. For cube map - 6
  *
  * `mipmaps`
- * : [type:integer] number of mipmaps of the texture
+ * : [type:number] number of mipmaps of the texture
  *
  * `flags`
- * : [type:integer] usage hints of the texture.
+ * : [type:number] usage hints of the texture.
  *
  * `type`
  * : [type:number] The texture type. Supported values:
@@ -1733,29 +1733,26 @@ static int GetTextureInfo(lua_State* L)
  *
  * @name resource.get_render_target_info
  *
- * @param path [type:hash|string|handle] The path to the resource or a render target handle
+ * @param path [type:hash|string|number] The path to the resource or a render target handle
  * @return table [type:table] A table containing info about the render target:
  *
  * `handle`
- * : [type:handle] the opaque handle to the texture resource
+ * : [type:number] the opaque handle to the texture resource
  *
  * 'attachments'
  * : [type:table] a table of attachments, where each attachment contains the following entries:
  *
- * `handle`
- * : [type:handle] the opaque handle to the texture resource
- *
  * `width`
- * : [type:integer] width of the texture
+ * : [type:number] width of the texture
  *
  * `height`
- * : [type:integer] height of the texture
+ * : [type:number] height of the texture
  *
  * `depth`
- * : [type:integer] depth of the texture (i.e 1 for a 2D texture and 6 for a cube map)
+ * : [type:number] depth of the texture (i.e 1 for a 2D texture and 6 for a cube map)
  *
  * `mipmaps`
- * : [type:integer] number of mipmaps of the texture
+ * : [type:number] number of mipmaps of the texture
  *
  * `type`
  * : [type:number] The texture type. Supported values:
@@ -2372,22 +2369,22 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * : [type:string] the id of the animation, used in e.g sprite.play_animation
  *
  * * `width`
- * : [type:integer] the width of the animation
+ * : [type:number] the width of the animation
  *
  * * `height`
- * : [type:integer] the height of the animation
+ * : [type:number] the height of the animation
  *
  * * `frame_start`
- * : [type:integer] index to the first geometry of the animation. Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
+ * : [type:number] index to the first geometry of the animation. Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
  *
  * * `frame_end`
- * : [type:integer] index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
+ * : [type:number] index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
  *
  * * `playback`
  * : [type:constant] optional playback mode of the animation, the default value is [ref:go.PLAYBACK_ONCE_FORWARD]
  *
  * * `fps`
- * : [type:integer] optional fps of the animation, the default value is 30
+ * : [type:number] optional fps of the animation, the default value is 30
  *
  * * `flip_vertical`
  * : [type:boolean] optional flip the animation vertically, the default value is false
@@ -2574,22 +2571,22 @@ static int CreateAtlas(lua_State* L)
  * : [type:string] the id of the animation, used in e.g sprite.play_animation
  *
  * * `width`
- * : [type:integer] the width of the animation
+ * : [type:number] the width of the animation
  *
  * * `height`
- * : [type:integer] the height of the animation
+ * : [type:number] the height of the animation
  *
  * * `frame_start`
- * : [type:integer] index to the first geometry of the animation. Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
+ * : [type:number] index to the first geometry of the animation. Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
  *
  * * `frame_end`
- * : [type:integer] index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
+ * : [type:number] index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
  *
  * * `playback`
  * : [type:constant] optional playback mode of the animation, the default value is [ref:go.PLAYBACK_ONCE_FORWARD]
  *
  * * `fps`
- * : [type:integer] optional fps of the animation, the default value is 30
+ * : [type:number] optional fps of the animation, the default value is 30
  *
  * * `flip_vertical`
  * : [type:boolean] optional flip the animation vertically, the default value is false
@@ -3451,7 +3448,7 @@ static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metr
  * @param [options] [type:table] A table containing parameters for the text. Supported entries:
  *
  * `width`
- * : [type:integer] The width of the text field. Not used if `line_break` is false.
+ * : [type:number] The width of the text field. Not used if `line_break` is false.
  *
  * `leading`
  * : [type:number] The leading (default 1.0)
