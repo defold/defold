@@ -717,7 +717,7 @@
   (first
     (g/tx-nodes-added
       (g/transact
-        (gui/add-layer nil scene (g/node-value scene :layers-node) name index nil)))))
+        (gui/add-layer scene (g/node-value scene :layers-node) name index nil)))))
 
 (defn- add-texture! [scene name resource]
   (first

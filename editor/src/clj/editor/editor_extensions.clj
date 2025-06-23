@@ -129,7 +129,7 @@
     (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
           node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)
-          getter (graph/ext-value-getter node-id-or-resource property evaluation-context)]
+          getter (graph/ext-value-getter node-id-or-resource property project evaluation-context)]
       (if getter
         (getter)
         (throw (LuaError. (str (if (resource/resource? node-id-or-resource)
@@ -144,7 +144,7 @@
     (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
           node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)]
-      (some? (graph/ext-value-getter node-id-or-resource property evaluation-context)))))
+      (some? (graph/ext-value-getter node-id-or-resource property project evaluation-context)))))
 
 (defn- make-ext-can-set-fn [project]
   (rt/lua-fn ext-can-set [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
@@ -843,6 +843,7 @@
                                "get" (make-ext-get-fn project)
                                "can_add" (graph/make-ext-can-add-fn project)
                                "can_get" (make-ext-can-get-fn project)
+                               "can_reorder" (graph/make-ext-can-reorder-fn project)
                                "can_set" (make-ext-can-set-fn project)
                                "command" commands/ext-command-fn
                                "create_directory" (make-ext-create-directory-fn project reload-resources!)
@@ -860,7 +861,8 @@
                                "tx" {"set" (make-ext-tx-set-fn project)
                                      "add" (graph/make-ext-add-fn project)
                                      "clear" (graph/make-ext-clear-fn project)
-                                     "remove" (graph/make-ext-remove-fn project)}
+                                     "remove" (graph/make-ext-remove-fn project)
+                                     "reorder" (graph/make-ext-reorder-fn project)}
                                "ui" (assoc
                                       (ui-components/env workspace project project-path)
                                       "open_resource" (make-open-resource-fn workspace open-resource!))

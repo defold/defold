@@ -114,27 +114,21 @@
       (callback url)
       (add-watch launched-targets [::url id callback] (url-watcher id callback)))))
 
-(defn update-launched-target! [target target-info on-service-url-found]
-  (let [old @launched-targets]
+(defn update-launched-target! [target target-info]
+  (let [old @launched-targets
+        result-target (volatile! nil)]
     (reset! launched-targets
             (map (fn [launched-target]
                    (if (= (:id launched-target) (:id target))
-                     (let [result-target (merge launched-target target-info)]
-                       (when (and (:url target-info) (not (:url launched-target)))
-                         (future
-                           ;; Wait for the console stream to be marked as active
-                           (loop []
-                             (if (console/current-stream? (:log-stream result-target))
-                               (on-service-url-found result-target)
-                               (do
-                                 (Thread/sleep 100)
-                                 (recur))))))
-                       result-target)
+                     (let [rt (merge launched-target target-info)]
+                       (vreset! result-target rt)
+                       rt)
                      launched-target))
                  old))
     (when (not= old @launched-targets)
       (clear-selected-target-hint!)
-      (invalidate-target-menu!))))
+      (invalidate-target-menu!))
+    @result-target))
 
 (defn launched-targets? []
   (seq @launched-targets))

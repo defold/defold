@@ -85,7 +85,7 @@
    :path ["engine" "fixed_update_frequency"]}
   {:type :number,
    :help "If the time step is too large, it will be capped to this max value (seconds)",
-   :default 0.5,
+   :default 0.033333,
    :path ["engine" "max_time_step"]}
   {:type :integer,
    :help
@@ -939,6 +939,10 @@
    :help "Number of milliseconds to sleep between server updates"
    :default 0
    :path ["profiler" "sleep_between_server_updates"]}
+  {:type :boolean
+   :help "enable in browser performance timeline"
+   :default false
+   :path ["profiler" "performance_timeline_enabled"]}
   {:type :resource
    :filter "settings"
    :default "/liveupdate.settings"

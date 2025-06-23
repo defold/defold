@@ -857,8 +857,12 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 
     dmProfile::Options options;
     options.m_Port = g_ProfilerPort;
+    options.m_EnablePerformanceTimeline = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.performance_timeline_enabled", 0);
     options.m_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.sleep_between_server_updates", 0);
-    dmProfile::Initialize(&options);
+    if (!dmProfile::IsInitialized())
+    {
+        dmProfile::Initialize(&options);
+    }
 
     if (!dmProfile::IsInitialized()) // We might use the null implementation
     {
@@ -885,7 +889,11 @@ static dmExtension::Result AppFinalizeProfiler(dmExtension::AppParams* params)
     }
 
     dmProfiler::SetEnabled(false);
-    dmProfile::Finalize();
+
+    if (dmExtension::AppParamsGetAppExitCode(params) == dmExtension::APP_EXIT_CODE_EXIT)
+    {
+        dmProfile::Finalize();
+    }
 
     if (g_ProfilerCurrentFrame)
     {

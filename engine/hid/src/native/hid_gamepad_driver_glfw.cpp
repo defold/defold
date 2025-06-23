@@ -172,16 +172,27 @@ namespace dmHID
         }
     }
 
+
+    // Note: For windows and Linux we will get callbacks here on init when
+    // we detect devices using GLFWGamepadDriverDetectDevices. If a joystick
+    // is not present when checking a joystick id glfw will generate a
+    // disconnect callback.
+    // https://github.com/glfw/glfw/blob/3.4/src/win32_joystick.c#L627
+    // https://github.com/glfw/glfw/blob/3.4/src/linux_joystick.c#L398
     static void GLFWGamepadCallback(void* user_Data, int gamepad_id, dmPlatform::GamepadEvent event)
     {
-        if (event == dmPlatform::GAMEPAD_EVENT_CONNECTED || event == dmPlatform::GAMEPAD_EVENT_DISCONNECTED)
+        Gamepad* gp = 0;
+        if (event == dmPlatform::GAMEPAD_EVENT_CONNECTED)
         {
-            Gamepad* gp = GLFWEnsureAllocatedGamepad(g_GLFWGamepadDriver, gamepad_id);
-            if (gp == 0)
-            {
-                return;
-            }
+            gp = GLFWEnsureAllocatedGamepad(g_GLFWGamepadDriver, gamepad_id);
+        }
+        else if (event == dmPlatform::GAMEPAD_EVENT_DISCONNECTED)
+        {
+            gp = GLFWGetGamepad(g_GLFWGamepadDriver, gamepad_id);
+        }
 
+        if (gp != 0)
+        {
             SetGamepadConnectionStatus(g_GLFWGamepadDriver->m_HidContext, gp, event == dmPlatform::GAMEPAD_EVENT_CONNECTED ? 1 : 0);
         }
     }

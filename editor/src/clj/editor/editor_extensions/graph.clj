@@ -25,6 +25,7 @@
             [editor.editor-extensions.node-types :as node-types]
             [editor.editor-extensions.tile-map :as tile-map]
             [editor.game-project :as game-project]
+            [editor.gui-attachment :as gui-attachment]
             [editor.id :as id]
             [editor.outline :as outline]
             [editor.properties :as properties]
@@ -40,6 +41,7 @@
            [editor.editor_extensions.tile_map Tiles]
            [editor.properties Curve CurveSpread]
            [javax.vecmath Vector3d]
+           [org.apache.commons.io FilenameUtils]
            [org.luaj.vm2 LuaError]))
 
 (set! *warn-on-reflection* true)
@@ -240,8 +242,9 @@
   Args:
     node-id-or-resource    resolved node id or folder resource
     property               string property name
+    project                the project node id
     evaluation-context     used evaluation context"
-  [node-id-or-resource property evaluation-context]
+  [node-id-or-resource property project evaluation-context]
   (if (resource/resource? node-id-or-resource)
     (case property
       "path" #(resource/proj-path node-id-or-resource)
@@ -263,10 +266,12 @@
             "type" (when-let [type-name (node-types/->name (g/node-type* (:basis evaluation-context) node-id))]
                      (constantly type-name))
             nil)
-          (let [node-type (g/node-type* (:basis evaluation-context) node-id)
+          (let [{:keys [basis]} evaluation-context
+                workspace (project/workspace project evaluation-context)
+                node-type (g/node-type* basis node-id)
                 list-kw (property->prop-kw property)]
-            (when (attachment/defines? node-type list-kw)
-              (let [f (attachment/getter node-type list-kw)]
+            (when (attachment/defines? basis workspace node-type list-kw)
+              (let [f (attachment/getter basis workspace node-type list-kw)]
                 #(mapv rt/wrap-userdata (f node-id evaluation-context)))))))))
 
 ;; endregion
@@ -275,11 +280,11 @@
 
 (defmulti ext-setter
   "Returns a function that receives a LuaValue and returns txs"
-  (fn [node-id property _rt evaluation-context]
+  (fn [node-id property _rt _project evaluation-context]
     [(node-id->type-keyword node-id evaluation-context) property]))
 
 (defmethod ext-setter [:editor.code.resource/CodeEditorResourceNode "text"]
-  [node-id _ rt _]
+  [node-id _ rt _ _]
   (fn [lua-value]
     [(g/set-property node-id :modified-lines (code.util/split-lines (rt/->clj rt coerce/string lua-value)))
      (g/update-property node-id :invalidated-rows conj 0)
@@ -290,16 +295,17 @@
   (coerce/map-of coerce/integer coerce/string))
 
 (defmethod ext-setter [:editor.tile-source/TileSourceNode "tile_collision_groups"]
-  [node-id _ rt _]
+  [node-id _ rt project _]
   (fn [lua-value]
     (let [one-indexed-tile-index->collision-group-id (rt/->clj rt tile-collision-group-coercer lua-value)]
       (g/expand-ec
         (fn [evaluation-context]
           (let [basis (:basis evaluation-context)
+                workspace (project/workspace project evaluation-context)
                 collision-id->node-id
                 (coll/pair-map-by
                   #(g/node-value % :id evaluation-context)
-                  ((attachment/getter (g/node-type* basis node-id) :collision-groups) node-id evaluation-context))
+                  ((attachment/getter basis workspace (g/node-type* basis node-id) :collision-groups) node-id evaluation-context))
                 new-tile->collision-group-node
                 (coll/pair-map-by
                   (comp dec key) ;; 1-indexed to 0-indexed
@@ -313,11 +319,11 @@
 (def ^:private tiles-coercer
   (coerce/wrap-with-pred coerce/userdata #(instance? Tiles %) "is not a tiles datatype"))
 
-(defmethod ext-setter [:editor.tile-map/LayerNode "tiles"] [node-id _ rt _]
+(defmethod ext-setter [:editor.tile-map/LayerNode "tiles"] [node-id _ rt _ _]
   (fn [lua-value]
     (g/set-property node-id :cell-map ((rt/->clj rt tiles-coercer lua-value)))))
 
-(defmethod ext-setter [:editor.particlefx/EmitterNode "animation"] [node-id _ rt _]
+(defmethod ext-setter [:editor.particlefx/EmitterNode "animation"] [node-id _ rt _ _]
   ;; set property directly instead of going through outline so that there is no
   ;; order dependency between setting animation and material
   (fn set-emitter-animation [lua-value]
@@ -326,7 +332,7 @@
 (def ^:private modifier-type-coercer
   (apply coerce/enum (mapv first (protobuf/enum-values Particle$ModifierType))))
 
-(defmethod ext-setter [:editor.particlefx/ModifierNode "type"] [node-id _ rt _]
+(defmethod ext-setter [:editor.particlefx/ModifierNode "type"] [node-id _ rt _ _]
   ;; hidden in the outline, but we want to set it from editor scripts
   (fn set-modifier-type [lua-value]
     (g/set-property node-id :type (rt/->clj rt modifier-type-coercer lua-value))))
@@ -336,8 +342,8 @@
 
   Returns nil if there is no setter for the node-id+property pair"
   [node-id property rt project evaluation-context]
-  (if (fn/multi-responds? ext-setter node-id property rt evaluation-context)
-    (ext-setter node-id property rt evaluation-context)
+  (if (fn/multi-responds? ext-setter node-id property rt project evaluation-context)
+    (ext-setter node-id property rt project evaluation-context)
     (when-let [outline-property (outline-property node-id property evaluation-context)]
       (when-not (properties/read-only? outline-property)
         (when-let [from (-> outline-property
@@ -352,7 +358,8 @@
 
 ;; region attach
 
-(defn- attachment->set-tx-steps [attachment child-node-id rt project evaluation-context]
+;; SDK api
+(defn attachment->set-tx-steps [attachment child-node-id rt project evaluation-context]
   (coll/mapcat
     (fn [[property lua-value]]
       (if-let [setter (ext-lua-value-setter child-node-id property rt project evaluation-context)]
@@ -362,6 +369,7 @@
                                   (name (node-id->type-keyword child-node-id evaluation-context)))))))
     attachment))
 
+;; SDK api
 (defmulti init-attachment
   (fn init-attachment-dispatch-fn [_evaluation-context _rt _project _parent-node-id child-node-type _child-node-id _attachment]
     (:k child-node-type)))
@@ -477,6 +485,60 @@
           "height" default-capsule-height)
         (attachment->set-tx-steps child-node-id rt project evaluation-context))))
 
+(defmethod init-attachment :editor.gui/LayerNode [evaluation-context rt project parent-node-id _child-node-type child-node-id attachment]
+  (let [layers-node (gui-attachment/scene-node->layers-node (:basis evaluation-context) parent-node-id)]
+    (concat
+      (g/set-property child-node-id :child-index (gui-attachment/next-child-index layers-node evaluation-context))
+      (-> attachment
+          (util/provide-defaults
+            "name" (rt/->lua (id/gen "layer" (g/node-value layers-node :name-counts evaluation-context))))
+          (attachment->set-tx-steps child-node-id rt project evaluation-context)))))
+
+;; SDK api
+(defn gen-gui-component-name [attachment resource-key container-node-fn rt parent-node-id evaluation-context]
+  (rt/->lua
+    (id/gen
+      (if-let [lua-material-str (get attachment resource-key)]
+        (FilenameUtils/getBaseName (rt/->clj rt coerce/string lua-material-str))
+        resource-key)
+      (-> evaluation-context
+          :basis
+          (container-node-fn parent-node-id)
+          (g/node-value :name-counts evaluation-context)))))
+
+(defmethod init-attachment :editor.gui/MaterialNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
+  (-> attachment
+      (util/provide-defaults
+        "name" (gen-gui-component-name attachment "material" gui-attachment/scene-node->materials-node rt parent-node-id evaluation-context))
+      (attachment->set-tx-steps child-node-id rt project evaluation-context)))
+
+(defmethod init-attachment :editor.gui/ParticleFXResource [evaluation-context rt project parent-node-id _ child-node-id attachment]
+  (-> attachment
+      (util/provide-defaults
+        "name" (gen-gui-component-name attachment "particlefx" gui-attachment/scene-node->particlefx-resources-node rt parent-node-id evaluation-context))
+      (attachment->set-tx-steps child-node-id rt project evaluation-context)))
+
+(defmethod init-attachment :editor.gui/TextureNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
+  (-> attachment
+      (util/provide-defaults
+        "name" (gen-gui-component-name attachment "texture" gui-attachment/scene-node->textures-node rt parent-node-id evaluation-context))
+      (attachment->set-tx-steps child-node-id rt project evaluation-context)))
+
+(defmethod init-attachment :editor.gui/LayoutNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
+  (if-let [lua-name (get attachment "name")]
+    (concat
+      (g/set-property child-node-id :name (rt/->clj rt (apply coerce/enum (g/node-value parent-node-id :unused-display-profiles evaluation-context)) lua-name))
+      (-> attachment
+          (dissoc "name")
+          (attachment->set-tx-steps child-node-id rt project evaluation-context)))
+    (throw (LuaError. "layout name is required"))))
+
+(defmethod init-attachment :editor.gui/FontNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
+  (-> attachment
+      (util/provide-defaults
+        "name" (gen-gui-component-name attachment "font" gui-attachment/scene-node->fonts-node rt parent-node-id evaluation-context))
+      (attachment->set-tx-steps child-node-id rt project evaluation-context)))
+
 (def ^:private attachment-coercer (coerce/map-of coerce/string coerce/untouched))
 (def ^:private attachments-coercer (coerce/vector-of attachment-coercer))
 
@@ -489,7 +551,7 @@
         (throw (LuaError. (str name " is not " (->> possible-node-types keys (keep node-types/->name) sort (util/join-words ", " " or ")))))))
     (throw (LuaError. "type is required"))))
 
-(defn- parse-attachment [rt possible-node-types attachment]
+(defn- parse-attachment [basis workspace rt possible-node-types attachment]
   (let [requires-explicit-type (< 1 (count possible-node-types))
         node-type (if requires-explicit-type
                     (extract-node-type rt attachment possible-node-types)
@@ -499,11 +561,11 @@
     (reduce-kv
       (fn [acc property lua-value]
         (let [list-kw (property->prop-kw property)]
-          (if (attachment/defines? node-type list-kw)
-            (let [child-node-types (attachment/child-node-types node-type list-kw)]
+          (if (attachment/defines? basis workspace node-type list-kw)
+            (let [child-node-types (attachment/child-node-types basis workspace node-type list-kw)]
               (update acc :add
                       into
-                      (map #(coll/pair list-kw (parse-attachment rt child-node-types %)))
+                      (map #(coll/pair list-kw (parse-attachment basis workspace rt child-node-types %)))
                       (rt/->clj rt attachments-coercer lua-value)))
             (update acc :init assoc property lua-value))))
       tree
@@ -518,13 +580,14 @@
   (rt/varargs-lua-fn ext-add [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property attachment]} (rt/->clj rt add-args-coercer varargs)
           {:keys [basis]} evaluation-context
+          workspace (project/workspace project evaluation-context)
           node-id (node-id-or-path->node-id node project evaluation-context)
           node-type (g/node-type* basis node-id)
           list-kw (property->prop-kw property)
-          _ (when-not (attachment/defines? node-type list-kw)
+          _ (when-not (attachment/defines? basis workspace node-type list-kw)
               (throw (LuaError. (format "%s does not define \"%s\"" (name (:k node-type)) property))))
-          tree [[list-kw (parse-attachment rt (attachment/child-node-types node-type list-kw) attachment)]]]
-      (-> (attachment/add basis node-id tree (partial g/expand-ec init-attachment rt project))
+          tree [[list-kw (parse-attachment basis workspace rt (attachment/child-node-types basis workspace node-type list-kw) attachment)]]]
+      (-> (attachment/add basis workspace node-id tree (partial g/expand-ec init-attachment rt project))
           (with-meta {:type :transaction-step})
           (rt/wrap-userdata "editor.tx.add(...)")))))
 
@@ -534,10 +597,13 @@
 (defn make-ext-can-add-fn [project]
   (rt/varargs-lua-fn ext-can-add [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt can-add-args-coercer varargs)
+          {:keys [basis]} evaluation-context
           node-id-or-resource (resolve-node-id-or-path node project evaluation-context)]
       (and (not (resource/resource? node-id-or-resource))
            (attachment/defines?
-             (g/node-type* (:basis evaluation-context) node-id-or-resource)
+             basis
+             (project/workspace project evaluation-context)
+             (g/node-type* basis node-id-or-resource)
              (property->prop-kw property))))))
 
 (def ^:private clear-args-coercer
@@ -546,12 +612,14 @@
 (defn make-ext-clear-fn [project]
   (rt/varargs-lua-fn ext-clear [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt clear-args-coercer varargs)
+          {:keys [basis]} evaluation-context
+          workspace (project/workspace project evaluation-context)
           node-id (node-id-or-path->node-id node project evaluation-context)
-          node-type (g/node-type* (:basis evaluation-context) node-id)
+          node-type (g/node-type* basis node-id)
           list-kw (property->prop-kw property)]
-      (when-not (attachment/defines? node-type list-kw)
+      (when-not (attachment/defines? basis workspace node-type list-kw)
         (throw (LuaError. (format "%s does not define \"%s\"" (name (:k node-type)) property))))
-      (-> (attachment/clear node-id list-kw)
+      (-> (attachment/clear workspace node-id list-kw)
           (with-meta {:type :transaction-step})
           (rt/wrap-userdata "editor.tx.clear(...)")))))
 
@@ -561,16 +629,59 @@
 (defn make-ext-remove-fn [project]
   (rt/varargs-lua-fn ext-remove [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property child]} (rt/->clj rt remove-args-coercer varargs)
+          {:keys [basis]} evaluation-context
+          workspace (project/workspace project evaluation-context)
           node-id (node-id-or-path->node-id node project evaluation-context)
           child-node-id (node-id-or-path->node-id child project evaluation-context)
-          node-type (g/node-type* (:basis evaluation-context) node-id)
+          node-type (g/node-type* basis node-id)
           list-kw (property->prop-kw property)]
-      (when-not (attachment/defines? node-type list-kw)
+      (when-not (attachment/defines? basis workspace node-type list-kw)
         (throw (LuaError. (format "%s does not define \"%s\"" (name (:k node-type)) property))))
-      (when-not (some #(= child-node-id %) ((attachment/getter node-type list-kw) node-id evaluation-context))
+      (when-not (some #(= child-node-id %) ((attachment/getter basis workspace node-type list-kw) node-id evaluation-context))
         (throw (LuaError. (format "%s is not in the \"%s\" list of %s" child property node))))
-      (-> (attachment/remove node-id list-kw child-node-id)
+      (-> (attachment/remove workspace node-id list-kw child-node-id)
           (with-meta {:type :transaction-step})
           (rt/wrap-userdata "editor.tx.remove(...)")))))
+
+(def ^:private can-reorder-args-coercer
+  (coerce/regex :node node-id-or-path-coercer :property coerce/string))
+
+(defn make-ext-can-reorder-fn [project]
+  (rt/varargs-lua-fn ext-can-reorder [{:keys [rt evaluation-context]} varargs]
+    (let [{:keys [node property]} (rt/->clj rt can-reorder-args-coercer varargs)
+          {:keys [basis]} evaluation-context
+          node-id-or-resource (resolve-node-id-or-path node project evaluation-context)]
+      (and (not (resource/resource? node-id-or-resource))
+           (attachment/reorderable?
+             basis
+             (project/workspace project evaluation-context)
+             (g/node-type* basis node-id-or-resource)
+             (property->prop-kw property))))))
+
+(def ^:private reorder-args-coercer
+  (coerce/regex :node node-id-or-path-coercer
+                :property coerce/string
+                :children (coerce/vector-of node-id-or-path-coercer)))
+
+(defn make-ext-reorder-fn [project]
+  (rt/varargs-lua-fn ext-reorder [{:keys [rt evaluation-context]} varargs]
+    (let [{:keys [node property children]} (rt/->clj rt reorder-args-coercer varargs)
+          {:keys [basis]} evaluation-context
+          workspace (project/workspace project evaluation-context)
+          node-id (node-id-or-path->node-id node project evaluation-context)
+          node-type (g/node-type* basis node-id)
+          list-kw (property->prop-kw property)
+          reordered-child-node-ids (mapv #(node-id-or-path->node-id % project evaluation-context) children)]
+      (when-not (attachment/defines? basis workspace node-type list-kw)
+        (throw (LuaError. (format "%s does not define \"%s\"" (name (:k node-type)) property))))
+      (when-not (attachment/reorderable? basis workspace node-type list-kw)
+        (throw (LuaError. (format "%s does not support \"%s\" reordering" (name (:k node-type)) property))))
+      (let [current-child-node-set (set ((attachment/getter basis workspace node-type list-kw) node-id evaluation-context))]
+        (when (or (not (every? current-child-node-set reordered-child-node-ids))
+                  (not (= (count current-child-node-set) (count reordered-child-node-ids))))
+          (throw (LuaError. "Reordered child nodes are not the same as current child nodes"))))
+      (-> (attachment/reorder workspace node-id list-kw reordered-child-node-ids)
+          (with-meta {:type :transaction-step})
+          (rt/wrap-userdata "editor.tx.reorder(...)")))))
 
 ;; endregion

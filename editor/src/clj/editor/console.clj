@@ -110,6 +110,7 @@
   (reset! console-stream stream)
   (clear-console!))
 
+;; Start a background thread that continuously reads lines from log-stream and calls sink-fn for each line.
 (defn start-log-pump! [log-stream sink-fn]
   (doto (Thread. (fn []
                    (try

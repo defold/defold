@@ -107,6 +107,56 @@ local function print_collision_object(collision)
     end
 end
 
+local function print_gui(gui)
+    local layers = editor.get(gui, "layers")
+    print(("  layers: %s"):format(#layers))
+    for i = 1, #layers do
+        local layer = layers[i]
+        print(("    layer: %s"):format(editor.get(layer, "name")))
+    end
+    local materials = editor.get(gui, "materials")
+    print(("  materials: %s"):format(#materials))
+    for i = 1, #materials do
+        local material = materials[i]
+        local material_res = editor.get(material, "material")
+        print(("    material: %s%s"):format(editor.get(material, "name"), material_res and " " .. material_res or ""))
+    end
+    local particlefxs = editor.get(gui, "particlefxs")
+    print(("  particlefxs: %s"):format(#particlefxs))
+    for i = 1, #particlefxs do
+        local particlefx = particlefxs[i]
+        local particlefx_res = editor.get(particlefx, "particlefx")
+        print(("    particlefx: %s%s"):format(editor.get(particlefx, "name"), particlefx_res and " " .. particlefx_res or ""))
+    end
+    local textures = editor.get(gui, "textures")
+    print(("  textures: %s"):format(#textures))
+    for i = 1, #textures do
+        local texture = textures[i]
+        local texture_res = editor.get(texture, "texture")
+        print(("    texture: %s%s"):format(editor.get(texture, "name"), texture_res and " " .. texture_res or ""))
+    end
+    local layouts = editor.get(gui, "layouts")
+    print(("  layouts: %s"):format(#layouts))
+    for i = 1, #layouts do
+        local layout = layouts[i]
+        print(("    layout: %s"):format(editor.get(layout, "name")))
+    end
+    local spine_scenes = editor.get(gui, "spine_scenes")
+    print(("  spine scenes: %s"):format(#spine_scenes))
+    for i = 1, #spine_scenes do
+        local spine_scene = spine_scenes[i]
+        local spine_scene_res = editor.get(spine_scene, "spine_scene")
+        print(("    spine scene: %s%s"):format(editor.get(spine_scene, "name"), spine_scene_res and " " .. spine_scene_res or ""))
+    end
+    local fonts = editor.get(gui, "fonts")
+    print(("  fonts: %s"):format(#fonts))
+    for i = 1, #fonts do
+        local font = fonts[i]
+        local font_res = editor.get(font, "font")
+        print(("    font: %s%s"):format(editor.get(font, "name"), font_res and " " .. font_res or ""))
+    end
+end
+
 function M.get_commands()
     return {
         editor.command({
@@ -293,7 +343,75 @@ function M.get_commands()
                 print("Expected errors:")
                 expect_error("missing type", editor.tx.add, collision, "shapes", {})
                 expect_error("wrong type", editor.tx.add, collision, "shapes", {type = "box"})
-                
+
+                local gui = "/test.gui"
+                print("GUI initial state:")
+                print_gui(gui)
+
+                print("Transaction: edit GUI")
+                editor.transact({
+                    editor.tx.add(gui, "layers", {name = "bg"}),
+                    editor.tx.add(gui, "layers", {name = "fg"}),
+                    editor.tx.add(gui, "layouts", {name = "Landscape"}),
+                    editor.tx.add(gui, "layouts", {name = "Portrait"}),
+                    editor.tx.add(gui, "materials", {}),
+                    editor.tx.add(gui, "materials", {material = "/test.material"}),
+                    editor.tx.add(gui, "materials", {material = "/test.material"}),
+                    editor.tx.add(gui, "materials", {}),
+                    editor.tx.add(gui, "particlefxs", {}),
+                    editor.tx.add(gui, "particlefxs", {particlefx = "/test.particlefx"}),
+                    editor.tx.add(gui, "particlefxs", {}),
+                    editor.tx.add(gui, "spine_scenes", {}),
+                    editor.tx.add(gui, "spine_scenes", {name = "explicit name"}),
+                    editor.tx.add(gui, "spine_scenes", {spine_scene = "/defold-spine/assets/template/template.spinescene"}),
+                    editor.tx.add(gui, "spine_scenes", {}),
+                    editor.tx.add(gui, "textures", {texture = "/test.tilesource"}),
+                    editor.tx.add(gui, "textures", {texture = "/test.atlas"}),
+                    editor.tx.add(gui, "fonts", {font = "/test.font"}),
+                    editor.tx.add(gui, "fonts", {}),
+                    editor.tx.add(gui, "fonts", {})
+                })
+
+                print("After transaction (edit):")
+                print_gui(gui)
+
+                print(("can reorder layers: %s"):format(tostring(editor.can_reorder(gui, "layers"))))
+                local bg_layer, fg_layer = table.unpack(editor.get(gui, "layers"))
+                print("Transaction: reorder")
+                editor.transact({
+                    editor.tx.reorder(gui, "layers", {fg_layer, bg_layer})
+                })
+                print("After transaction (reorder):")
+                print_gui(gui)
+
+                print("Expected reorder errors:")
+                expect_error("undefined property", editor.tx.reorder, gui, "not-a-property", {})
+                expect_error("reorder not defined", editor.tx.reorder, collision, "shapes", {})
+                expect_error("duplicates", editor.tx.reorder, gui, "layers", {fg_layer, fg_layer, bg_layer})
+                expect_error("missing children", editor.tx.reorder, gui, "layers", {fg_layer})
+                expect_error("wrong child nodes", editor.tx.reorder, gui, "layers", {fg_layer, gui})
+
+                print("Transaction: clear GUI")
+                editor.transact({
+                    editor.tx.clear(gui, "layers"),
+                    editor.tx.clear(gui, "layouts"),
+                    editor.tx.clear(gui, "materials"),
+                    editor.tx.clear(gui, "particlefxs"),
+                    editor.tx.clear(gui, "spine_scenes"),
+                    editor.tx.clear(gui, "textures"),
+                    editor.tx.clear(gui, "fonts")
+                })
+
+                print("Expected layout errors:")
+                expect_error("no name", editor.transact, {editor.tx.add(gui, "layouts", {})})
+                expect_error("unknown profile", editor.transact, {editor.tx.add(gui, "layouts", {name = "Not a profile"})})
+                expect_error("duplicates", editor.transact, {
+                    editor.tx.add(gui, "layouts", {name = "Landscape"}),
+                    editor.tx.add(gui, "layouts", {name = "Landscape"})
+                })
+
+                print("After transaction (clear):")
+                print_gui(gui)
             end
         })
     }

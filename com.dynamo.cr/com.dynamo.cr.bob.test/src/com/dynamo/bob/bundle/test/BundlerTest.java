@@ -401,15 +401,15 @@ public class BundlerTest {
         count++;
         createFile(outputContentRoot, "builtins/render/default.render_script", "");
         count++;
-        createFile(outputContentRoot, "builtins/render/default.display_profiles", "");
+        createFile(outputContentRoot, "builtins/render/default.display_profiles", " profiles { name: \"Landscape\" qualifiers { width: 1280 height: 720 } } profiles { name: \"Portrait\" qualifiers { width: 720 height: 1280 } } ");
         count++;
         createFile(outputContentRoot, "builtins/input/default.gamepads", "");
         count++;
-        createFile(outputContentRoot, "input/game.input_binding", "");
+        createFile(outputContentRoot, "input/game.input_binding", "key_trigger { input: KEY_SPACE action: \"\" }");
         count++;
 
         // These aren't put in the DARC file, so we don't count up
-        createFile(outputContentRoot, "builtins/graphics/default.texture_profiles", "");
+        createFile(outputContentRoot, "builtins/graphics/default.texture_profiles", "path_settings { path: \"**\" profile: \"Default\"}profiles { name: \"Default\" platforms { os: OS_ID_GENERIC formats { format: TEXTURE_FORMAT_RGBA compressor: \"Uncompressed\" compressor_preset: \"UNCOMPRESSED\" } mipmaps: true }}");
         createFile(outputContentRoot, "builtins/manifests/web/engine_template.html", "");
         createFile(outputContentRoot, "builtins/manifests/web/light_theme.css", "");
         createFile(outputContentRoot, "builtins/manifests/web/dark_theme.css", "");
@@ -472,10 +472,10 @@ public class BundlerTest {
         sub2.mkdir();
         int numBuiltins = createDefaultFiles(contentRoot);
         createFile(contentRoot, "m.txt", "dummy");
-        createFile(sub1.getAbsolutePath(), "s1-1.txt", "dummy");
-        createFile(sub1.getAbsolutePath(), "s1-2.txt", "dummy");
-        createFile(sub2.getAbsolutePath(), "s2-1.txt", "dummy");
-        createFile(sub2.getAbsolutePath(), "s2-2.txt", "dummy");
+        createFile(sub1.getAbsolutePath(), "s1-1.txt", "dummy1");
+        createFile(sub1.getAbsolutePath(), "s1-2.txt", "dummy2");
+        createFile(sub2.getAbsolutePath(), "s2-1.txt", "dummy3");
+        createFile(sub2.getAbsolutePath(), "s2-2.txt", "dummy4");
 
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=custom,m.txt\n[display]\nwidth=640\nheight=480\n");
         build();

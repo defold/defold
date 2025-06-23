@@ -1284,6 +1284,10 @@ public class Project {
                 case "x86_64-win32":
                     symbolsFilename = String.format("dmengine%s.pdb", variantSuffix);
                     break;
+                case "arm64-android":
+                case "armv7-android":
+                    symbolsFilename = String.format("libdmengine%s.so", variantSuffix);
+                    break;
             }
 
             if (symbolsFilename != null) {

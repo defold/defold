@@ -31,7 +31,7 @@
 
 extern "C" {
 // Implementation in library_profile.js
-bool dmProfileJSInit();
+bool dmProfileJSInit(uint8_t enablePerformanceTimeline);
 void dmProfileJSReset(uint32_t thread_id);
 void dmProfileJSEndFrame(uint32_t thread_id);
 uint32_t dmProfileJSBeginMark(uint32_t thread_id, const char *name);
@@ -216,7 +216,7 @@ namespace dmProfile
         if (!dLib::IsDebugMode())
             return;
 
-        if (!dmProfileJSInit())
+        if (!dmProfileJSInit(options->m_EnablePerformanceTimeline ? 1 : 0))
         {
             dmLogError("Failed to initialize the profiler");
             return;

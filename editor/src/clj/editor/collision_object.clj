@@ -145,6 +145,8 @@
 
 (def ^:private render-triangles-uniform-scale (wrap-uniform-scale scene-shapes/render-triangles))
 
+(def ^:private render-points-uniform-scale (wrap-uniform-scale scene-shapes/render-points))
+
 (g/defnk produce-sphere-shape-scene
   [_node-id transform diameter color node-outline-key project-physics-type]
   (let [radius (* 0.5 diameter)
@@ -427,7 +429,7 @@
                                                       shapes)))))))
 
 (defn convex-hull-scene
-  [_node-id convex-shape-data color]
+  [_node-id convex-shape-data color project-physics-type]
   (when (and (= (:shape-type convex-shape-data) :type-hull)
              (not-empty (:data convex-shape-data)))
     (let [points (partition 3 (:data convex-shape-data))
@@ -439,32 +441,43 @@
           vbuf (vtx/flip! (reduce (fn [vb [x y z]] (scene-shapes/pos-vtx-put! vb x y z 0.0))
                                   (scene-shapes/->pos-vtx (count points) :static)
                                   points))]
-      {:node-id _node-id
-       :node-outline-key "Convex Hull"
-       :aabb aabb
-       :renderable {:render-fn render-triangles-uniform-scale
-                    :tags #{:collision-shape}
-                    :passes [pass/transparent pass/selection]
-                    :user-data {:color color
-                                :double-sided true
-                                :geometry {:primitive-type GL2/GL_POLYGON
-                                           :vbuf vbuf}}}
-       :children [{:node-id _node-id
-                   :aabb aabb
-                   :renderable {:render-fn render-lines-uniform-scale
-                                :tags #{:collision-shape :outline}
-                                :passes [pass/outline]
-                                :user-data {:color color
-                                            :geometry {:primitive-type GL2/GL_LINE_LOOP
-                                                       :vbuf vbuf}}}}]})))
+      (if (= "2D" project-physics-type)
+        {:node-id _node-id
+         :node-outline-key "2D Convex Hull"
+         :aabb aabb
+         :renderable {:render-fn render-triangles-uniform-scale
+                      :tags #{:collision-shape}
+                      :passes [pass/transparent pass/selection]
+                      :user-data {:color color
+                                  :double-sided true
+                                  :geometry {:primitive-type GL2/GL_POLYGON
+                                             :vbuf vbuf}}}
+         :children [{:node-id _node-id
+                     :aabb aabb
+                     :renderable {:render-fn render-lines-uniform-scale
+                                  :tags #{:collision-shape :outline}
+                                  :passes [pass/outline]
+                                  :user-data {:color color
+                                              :geometry {:primitive-type GL2/GL_LINE_LOOP
+                                                         :vbuf vbuf}}}}]}
+        {:node-id _node-id
+         :node-outline-key "3D Convex Hull"
+         :aabb aabb
+         :renderable {:render-fn render-points-uniform-scale
+                      :tags #{:collision-shape :outline}
+                      :passes [pass/outline]
+                      :user-data {:color color
+                                  :point-size 3.0
+                                  :geometry {:primitive-type GL2/GL_POINTS
+                                             :vbuf vbuf}}}}))))
 
 (g/defnk produce-scene
-  [_node-id child-scenes convex-shape-data collision-group-color]
+  [_node-id child-scenes convex-shape-data collision-group-color project-physics-type]
   {:node-id _node-id
    :aabb geom/null-aabb
    :renderable {:passes [pass/selection]}
    :children (if convex-shape-data
-               [(convex-hull-scene _node-id convex-shape-data collision-group-color)]
+               [(convex-hull-scene _node-id convex-shape-data collision-group-color project-physics-type)]
                child-scenes)})
 
 (defn- make-embedded-collision-shape [shapes]
@@ -675,12 +688,6 @@
   (output collision-group-node g/Any :cached (g/fnk [_node-id group] {:node-id _node-id :collision-group group}))
   (output collision-group-color g/Any :cached produce-collision-group-color))
 
-(attachment/register!
-  CollisionObjectNode :shapes
-  :add {SphereShape attach-shape-node
-        BoxShape attach-shape-node
-        CapsuleShape attach-shape-node}
-  :get attachment/nodes-getter)
 (node-types/register-node-type-name! SphereShape "shape-type-sphere")
 (node-types/register-node-type-name! BoxShape "shape-type-box")
 (node-types/register-node-type-name! CapsuleShape "shape-type-capsule")
@@ -689,19 +696,26 @@
   (strip-empty-embedded-collision-shape collision-object-desc))
 
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext "collisionobject"
-    :node-type CollisionObjectNode
-    :ddf-type Physics$CollisionObjectDesc
-    :load-fn load-collision-object
-    :sanitize-fn sanitize-collision-object
-    :icon collision-object-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:grid true}}
-    :tags #{:component}
-    :tag-opts {:component {:transform-properties #{}}}
-    :label "Collision Object"))
+  (concat
+    (attachment/register
+      workspace CollisionObjectNode :shapes
+      :add {SphereShape attach-shape-node
+            BoxShape attach-shape-node
+            CapsuleShape attach-shape-node}
+      :get attachment/nodes-getter)
+    (resource-node/register-ddf-resource-type workspace
+      :ext "collisionobject"
+      :node-type CollisionObjectNode
+      :ddf-type Physics$CollisionObjectDesc
+      :load-fn load-collision-object
+      :sanitize-fn sanitize-collision-object
+      :icon collision-object-icon
+      :icon-class :design
+      :view-types [:scene :text]
+      :view-opts {:scene {:grid true}}
+      :tags #{:component}
+      :tag-opts {:component {:transform-properties #{}}}
+      :label "Collision Object")))
 
 ;; outline context menu
 
