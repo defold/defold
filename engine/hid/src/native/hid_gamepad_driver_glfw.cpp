@@ -415,7 +415,14 @@ namespace dmHID
     static void GetGamepadDeviceNameInternal(HContext context, int glfw_id, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
         const char* device_name = dmPlatform::GetJoystickDeviceName(context->m_Window, glfw_id);
-        dmStrlCpy(name, device_name, MAX_GAMEPAD_NAME_LENGTH);
+        if (device_name != 0x0)
+        {
+            dmStrlCpy(name, device_name, MAX_GAMEPAD_NAME_LENGTH);
+        }
+        else
+        {
+            name[0] = '\0';
+        }
     }
 
     static void GLFWGamepadDriverGetGamepadDeviceName(HContext context, GamepadDriver* driver, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
