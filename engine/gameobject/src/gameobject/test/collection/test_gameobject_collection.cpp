@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 
+#include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
@@ -270,16 +271,16 @@ TEST_F(CollectionTest, CollectionSpawning)
     {
         dmGameObject::InstanceIdMap output;
         dmGameObject::InstancePropertyContainers props;
-        sprintf(buffer, "%s%d\0", prefix, i);
+        dmSnPrintf(buffer, sizeof(buffer), "%s%d", prefix, i);
         dmGameObject::Result result = Spawn(m_Factory, coll, "/root1.collectionc", buffer, &props, pos, rot, scale, &output);
         ASSERT_TRUE(result == dmGameObject::RESULT_OK);
         ASSERT_NE(output.Size(), 0u);
 
-        sprintf(buffer, "%s%d/go1\0", prefix, i);
+        dmSnPrintf(buffer, sizeof(buffer), "%s%d/go1", prefix, i);
         ASSERT_EQ((uint64_t)*output.Get(dmHashString64("/go1")), (uint64_t)dmHashString64(buffer));
-        sprintf(buffer, "%s%d/go2\0", prefix, i);
+        dmSnPrintf(buffer, sizeof(buffer), "%s%d/go2", prefix, i);
         ASSERT_EQ((uint64_t)*output.Get(dmHashString64("/go2")), (uint64_t)dmHashString64(buffer));
-        sprintf(buffer, "%s%d/sub1/child\0", prefix, i);
+        dmSnPrintf(buffer, sizeof(buffer), "%s%d/sub1/child", prefix, i);
         ASSERT_EQ((uint64_t)*output.Get(dmHashString64("/sub1/child")), (uint64_t)dmHashString64(buffer));
 
         ret = dmGameObject::Update(coll, &m_UpdateContext);
