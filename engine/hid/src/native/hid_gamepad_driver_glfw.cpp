@@ -421,7 +421,9 @@ namespace dmHID
         }
         else
         {
-            name[0] = '\0';
+            // the gamepad must have a non-empty string name
+            // in order to use it (even as the raw gamepad binding)
+            dmStrlCpy(name, "_", MAX_GAMEPAD_NAME_LENGTH);
         }
     }
 
