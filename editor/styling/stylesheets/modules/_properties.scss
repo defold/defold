@@ -30,6 +30,10 @@
             &.drag-handle {
                 -fx-max-width: 16px;
                 -fx-min-width: 16px;
+
+                &:hover {
+                    -fx-cursor: v-resize;
+                }
             }
 
             &.color-dropper {
@@ -38,7 +42,6 @@
 
             &:hover {
                 visibility: visible;
-                -fx-cursor: v-resize;
 
                 .image-view {
                     -fx-effect: innershadow(gaussian, -df-text-selected, 20, 1.0, 0, 0);

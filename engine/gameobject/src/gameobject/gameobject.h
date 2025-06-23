@@ -267,15 +267,6 @@ namespace dmGameObject
     HRegister GetRegister(HCollection collection);
 
     /**
-     * Retrieve a collection from the socket name hash
-     * @param regist The register bound to the specified collection
-     * @param socket_name The name of the socket
-     * @return The game object collection if successful. 0 otherwise.
-     */
-    // Used by comp_collision_object.cpp to do cold lookups of urls
-    HCollection GetCollectionByHash(HRegister regist, dmhash_t socket_name);
-
-    /**
      * Retrieve the frame message socket for the specified collection.
      * @param collection Collection handle
      * @return The frame message socket of the specified collection
