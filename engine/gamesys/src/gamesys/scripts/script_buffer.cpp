@@ -100,6 +100,12 @@ namespace dmGameSystem
      * @constant
     */
 
+    /*#
+     * @typedef
+     * @name bufferstream
+     * @param value [type:userdata]
+     */
+
 #define SCRIPT_LIB_NAME "buffer"
 #define SCRIPT_TYPE_NAME_BUFFER "buffer"
 #define SCRIPT_TYPE_NAME_BUFFERSTREAM "bufferstream"
