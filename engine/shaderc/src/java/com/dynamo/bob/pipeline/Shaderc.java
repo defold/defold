@@ -257,9 +257,17 @@ public class Shaderc {
         public ShaderResource[] textures;
         public ResourceTypeInfo[] types;
     };
+    public static class HLSLResourceEntry {
+        public String name;
+        public long nameHash = 0;
+        public byte hLSLRegister = 0;
+        public byte set = 0;
+        public byte binding = 0;
+    };
     public static class ShaderCompileResult {
         public byte[] data;
         public String lastError;
+        public HLSLResourceEntry[] hLSLResourceEntries;
     };
 }
 

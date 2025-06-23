@@ -467,7 +467,7 @@ TEST(Shaderc, TestHLSLSimple)
     options.m_EntryPoint = "main";
 
     dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
-    dmLogInfo("%s", (const char*) dst->m_Data.Begin());
+    ASSERT_NE((void*) 0, dst->m_Data.Begin());
 
     dmShaderc::FreeShaderCompileResult(dst);
 
@@ -480,7 +480,7 @@ static int TestStandalone(const char* filename, const char* compileTo = 0)
     uint32_t data_size;
     void* data = ReadFile(filename, &data_size);
 
-    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_VERTEX, data, data_size);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
     const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
 
     dmShaderc::DebugPrintReflection(reflection);
@@ -500,6 +500,23 @@ static int TestStandalone(const char* filename, const char* compileTo = 0)
             dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
             dmLogInfo("%s", (const char*) dst->m_Data.Begin());
 
+            dmShaderc::FreeShaderCompileResult(dst);
+            dmShaderc::DeleteShaderCompiler(compiler);
+        }
+        else if (strcmp(compileTo, "hlsl") == 0)
+        {
+            dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
+            dmShaderc::ShaderCompilerOptions options;
+            options.m_Version                    = 50;
+            options.m_No420PackExtension         = 0;
+            options.m_GlslEmitUboAsPlainUniforms = 0;
+            options.m_GlslEs                     = 0;
+            options.m_EntryPoint                 = "main";
+
+            dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
+            dmLogInfo("%s", (const char*) dst->m_Data.Begin());
+
+            dmShaderc::FreeShaderCompileResult(dst);
             dmShaderc::DeleteShaderCompiler(compiler);
         }
     }

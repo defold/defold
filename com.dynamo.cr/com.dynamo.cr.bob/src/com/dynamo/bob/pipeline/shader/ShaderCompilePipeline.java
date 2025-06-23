@@ -421,7 +421,7 @@ public class ShaderCompilePipeline {
     //////////////////////////
     // PUBLIC API
     //////////////////////////
-    public byte[] crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws IOException, CompileExceptionError {
+    public Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws IOException, CompileExceptionError {
         int version = ShaderLanguageToVersion(shaderLanguage);
 
         ShaderModule module = getShaderModule(shaderType);
@@ -429,7 +429,10 @@ public class ShaderCompilePipeline {
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
             // We have already produced SPIR-v for the input module, no need to crosscompile
-            return FileUtils.readFileToByteArray(module.spirvFile);
+
+            Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
+            result.data = FileUtils.readFileToByteArray(module.spirvFile);
+            return result;
         } else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
             // TODO: Move this into the crosscompile function, since we are actually crosscompiling.
             String shaderTypeStr = ShaderTypeToSpirvStage(shaderType);
@@ -439,7 +442,10 @@ public class ShaderCompilePipeline {
             FileUtil.deleteOnExit(fileCrossCompiled);
 
             generateWGSL(module.desc.resourcePath, module.spirvFile.getAbsolutePath(), fileCrossCompiled.getAbsolutePath());
-            return FileUtils.readFileToByteArray(fileCrossCompiled);
+
+            Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
+            result.data = FileUtils.readFileToByteArray(fileCrossCompiled);
+            return result;
         } else if (CanBeCrossCompiled(shaderLanguage)) {
             Shaderc.ShaderCompileResult result = generateCrossCompiledShader(shaderType, shaderLanguage, version);
 
@@ -447,15 +453,13 @@ public class ShaderCompilePipeline {
                 throw new CompileExceptionError("Cross-compilation of shader type: " + shaderType + ", to language: " + shaderLanguage + " failed, reason: " + result.lastError);
             }
 
-            byte[] bytes = result.data;
-
             // JG: spirv-cross renames samplers for GLSL based shaders, so we have to run a second pass to force renaming them back.
             //     There doesn't seem to be a simpler way to do this in spirv-cross from what I can understand.
             if (ShaderLanguageIsGLSL(shaderLanguage)) {
-                bytes = RemapTextureSamplers(module.spirvReflector.getTextures(), new String(bytes));
+                result.data = RemapTextureSamplers(module.spirvReflector.getTextures(), new String(result.data));
             }
 
-            return bytes;
+            return result;
         }
 
         throw new CompileExceptionError("Cannot crosscompile to shader language: " + shaderLanguage);

@@ -431,12 +431,22 @@ message ShaderDesc
         repeated ResourceTypeInfo types           = 6;
     }
 
+    message HLSLResourceBinding
+    {
+        optional string name      = 1;
+        optional uint64 name_hash = 2;
+        optional uint32 binding   = 3;
+        optional uint32 set       = 4;
+        optional uint32 register  = 5;
+    }
+
     message Shader
     {
-        required bytes      source                = 1;
-        required ShaderType shader_type           = 2;
-        required Language   language              = 3;
-        optional bool       variant_texture_array = 4 [default = false];
+        required bytes               source                 = 1;
+        required ShaderType          shader_type            = 2;
+        required Language            language               = 3;
+        optional bool                variant_texture_array  = 4 [default = false];
+        repeated HLSLResourceBinding hlsl_resource_bindings = 5;
     }
 
     repeated Shader shaders              = 1;

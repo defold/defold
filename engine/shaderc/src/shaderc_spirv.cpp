@@ -55,41 +55,6 @@ namespace dmShaderc
         entries.Push(entry);
     }
 
-    static const ShaderResource* FindShaderResource(const dmArray<ShaderResource>& resources, uint64_t name_hash)
-    {
-        for (int i = 0; i < resources.Size(); ++i)
-        {
-            if (resources[i].m_NameHash == name_hash)
-                return &resources[i];
-        }
-        return 0;
-    }
-
-    static const ShaderResource* FindShaderResourceInputOutput(HShaderContext context, uint64_t name_hash)
-    {
-        const ShaderResource* res_input = FindShaderResource(context->m_Reflection.m_Inputs, name_hash);
-        if (res_input)
-            return res_input;
-        const ShaderResource* res_output = FindShaderResource(context->m_Reflection.m_Outputs, name_hash);
-        if (res_output)
-            return res_output;
-        return 0;
-    }
-
-    static const ShaderResource* FindShaderResourceUniform(HShaderContext context, uint64_t name_hash)
-    {
-        const ShaderResource* res_ubo = FindShaderResource(context->m_Reflection.m_UniformBuffers, name_hash);
-        if (res_ubo)
-            return res_ubo;
-        const ShaderResource* res_ssbo = FindShaderResource(context->m_Reflection.m_StorageBuffers, name_hash);
-        if (res_ssbo)
-            return res_ssbo;
-        const ShaderResource* res_texture = FindShaderResource(context->m_Reflection.m_Textures, name_hash);
-        if (res_texture)
-            return res_texture;
-        return 0;
-    }
-
     void SetResourceLocationSPIRV(HShaderContext context, ShaderCompilerSPIRV* compiler, uint64_t name_hash, uint8_t location)
     {
         const ShaderResource* res = FindShaderResourceInputOutput(context, name_hash);

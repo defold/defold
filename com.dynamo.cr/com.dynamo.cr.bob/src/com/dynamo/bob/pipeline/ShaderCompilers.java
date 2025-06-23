@@ -173,16 +173,16 @@ public class ShaderCompilers {
                 for (ShaderCompilePipeline.ShaderModuleDesc shaderModule : shaderModules) {
 
                     boolean variantTextureArray = false;
-                    byte[] crossCompileResult = pipeline.crossCompile(shaderModule.type, shaderLanguage);
+                    Shaderc.ShaderCompileResult crossCompileResult = pipeline.crossCompile(shaderModule.type, shaderLanguage);
 
                     if (!shaderTypeKeys.containsKey(shaderModule.type)) {
                         shaderTypeKeys.put(shaderModule.type, true);
                     }
 
                     if (arrayTextureFallbackRequired) {
-                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(crossCompileResult), compileOptions.maxPageCount);
+                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(crossCompileResult.data), compileOptions.maxPageCount);
                         if (variantCompileResult != null && variantCompileResult.arraySamplers.length > 0) {
-                            crossCompileResult = variantCompileResult.source.getBytes();
+                            crossCompileResult.data = variantCompileResult.source.getBytes();
                             variantTextureArray = true;
                         }
                     }

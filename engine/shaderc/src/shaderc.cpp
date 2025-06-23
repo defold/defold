@@ -17,6 +17,8 @@
 
 #include "shaderc_private.h"
 
+#include <dlib/log.h>
+
 namespace dmShaderc
 {
 	const ShaderReflection* GetReflection(HShaderContext context)
@@ -112,7 +114,18 @@ namespace dmShaderc
         if (compiler->m_Language == SHADER_LANGUAGE_HLSL)
         {
             ShaderCompileResult* result_xcompiled = CompileSPVC(context, (ShaderCompilerSPVC*) compiler, options);
-            ShaderCompileResult* result_hlsl = CompileRawHLSLToBinary(context, result_xcompiled);
+
+            // dmLogInfo("Compile shader: \n%s", (const char*) result_xcompiled->m_Data.Begin());
+            dmLogInfo("Reflection:");
+            const ShaderReflection* reflection = GetReflection(context);
+            DebugPrintReflection(reflection);
+            // dmLogInfo("Compile to HLSL");
+
+            dmArray<CombinedSampler> combined_samplers;
+            GetCombinedSamplerMapSPIRV(context, (ShaderCompilerSPVC*) compiler, combined_samplers);
+
+            ShaderCompileResult* result_hlsl = CompileRawHLSLToBinary(context, result_xcompiled, combined_samplers);
+
             FreeShaderCompileResult(result_xcompiled);
             return result_hlsl;
         }
@@ -123,5 +136,41 @@ namespace dmShaderc
     void FreeShaderCompileResult(ShaderCompileResult* result)
     {
         free(result);
+    }
+
+    // Internal / private
+    static const ShaderResource* FindShaderResource(const dmArray<ShaderResource>& resources, uint64_t name_hash)
+    {
+        for (int i = 0; i < resources.Size(); ++i)
+        {
+            if (resources[i].m_NameHash == name_hash)
+                return &resources[i];
+        }
+        return 0;
+    }
+
+    const ShaderResource* FindShaderResourceInputOutput(HShaderContext context, uint64_t name_hash)
+    {
+        const ShaderResource* res_input = FindShaderResource(context->m_Reflection.m_Inputs, name_hash);
+        if (res_input)
+            return res_input;
+        const ShaderResource* res_output = FindShaderResource(context->m_Reflection.m_Outputs, name_hash);
+        if (res_output)
+            return res_output;
+        return 0;
+    }
+
+    const ShaderResource* FindShaderResourceUniform(HShaderContext context, uint64_t name_hash)
+    {
+        const ShaderResource* res_ubo = FindShaderResource(context->m_Reflection.m_UniformBuffers, name_hash);
+        if (res_ubo)
+            return res_ubo;
+        const ShaderResource* res_ssbo = FindShaderResource(context->m_Reflection.m_StorageBuffers, name_hash);
+        if (res_ssbo)
+            return res_ssbo;
+        const ShaderResource* res_texture = FindShaderResource(context->m_Reflection.m_Textures, name_hash);
+        if (res_texture)
+            return res_texture;
+        return 0;
     }
 }
