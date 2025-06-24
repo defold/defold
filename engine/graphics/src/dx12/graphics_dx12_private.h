@@ -88,6 +88,7 @@ namespace dmGraphics
     struct DX12ShaderModule
     {
         ID3DBlob* m_ShaderBlob;
+        ID3DBlob* m_RootSignatureBlob;
         uint64_t  m_Hash;
     };
 
@@ -99,21 +100,30 @@ namespace dmGraphics
         uint16_t m_H;
     };
 
+    struct DX12ResourceBinding
+    {
+        dmhash_t m_NameHash; // Debug
+        uint8_t  m_Binding;
+        uint8_t  m_Set;
+        uint8_t  m_RootParameterIndex;
+    };
+
     struct DX12ShaderProgram
     {
-        Program                m_BaseProgram;
-        uint8_t*               m_UniformData;
-        ID3D12RootSignature*   m_RootSignature;
-        DX12ShaderModule*      m_VertexModule;
-        DX12ShaderModule*      m_FragmentModule;
-        DX12ShaderModule*      m_ComputeModule;
-        uint64_t               m_Hash;
-        uint32_t               m_UniformDataSizeAligned;
-        uint16_t               m_UniformBufferCount;
-        uint16_t               m_StorageBufferCount;
-        uint16_t               m_TextureSamplerCount;
-        uint16_t               m_TotalResourcesCount;
-        uint16_t               m_TotalUniformCount;
+        Program                      m_BaseProgram;
+        dmArray<DX12ResourceBinding> m_RootSignatureResources;
+        uint8_t*                     m_UniformData;
+        ID3D12RootSignature*         m_RootSignature;
+        DX12ShaderModule*            m_VertexModule;
+        DX12ShaderModule*            m_FragmentModule;
+        DX12ShaderModule*            m_ComputeModule;
+        uint64_t                     m_Hash;
+        uint32_t                     m_UniformDataSizeAligned;
+        uint16_t                     m_UniformBufferCount;
+        uint16_t                     m_StorageBufferCount;
+        uint16_t                     m_TextureSamplerCount;
+        uint16_t                     m_TotalResourcesCount;
+        uint16_t                     m_TotalUniformCount;
     };
 
     struct DX12RenderTarget

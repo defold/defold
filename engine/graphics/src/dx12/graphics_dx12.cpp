@@ -16,8 +16,9 @@
 #include <assert.h>
 
 #include <d3d12.h>
-#include <d3dx12.h>
-#include <D3DCompiler.h>
+#include <d3d12shader.h>
+#include <d3dcompiler.h>
+#include <d3dx12.h>  // Optional, for helpers
 
 #include <dxgi1_6.h>
 
@@ -177,6 +178,7 @@ namespace dmGraphics
         }
     }
 
+    /*
     static void CreateRootSignature(DX12Context* context, CD3DX12_ROOT_SIGNATURE_DESC* desc, DX12ShaderProgram* program)
     {
         ID3DBlob* signature;
@@ -187,6 +189,7 @@ namespace dmGraphics
         hr = context->m_Device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&program->m_RootSignature));
         CHECK_HR_ERROR(hr);
     }
+    */
 
     static void SetupMainRenderTarget(DX12Context* context, DXGI_SAMPLE_DESC sample_desc)
     {
@@ -1938,56 +1941,49 @@ namespace dmGraphics
         uint32_t texture_unit_start = program->m_UniformBufferCount;
         uint32_t ubo_ix = 0;
 
-        for (int set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
+        for (int i = 0; i < program->m_RootSignatureResources.Size(); ++i)
         {
-            for (int binding = 0; binding < program->m_BaseProgram.m_MaxBinding; ++binding)
+            DX12ResourceBinding& dx12_res = program->m_RootSignatureResources[i];
+            ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[dx12_res.m_Set][dx12_res.m_Binding];
+
+            switch(pgm_res.m_Res->m_BindingFamily)
             {
-                ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
-
-                if (pgm_res.m_Res == 0x0)
-                    continue;
-
-                switch(pgm_res.m_Res->m_BindingFamily)
+                case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
                 {
-                    case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                    DX12Texture* texture = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, context->m_CurrentTextures[pgm_res.m_TextureUnit]);
+
+                    if (pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
                     {
-                        uint32_t ix          = texture_unit_start + pgm_res.m_Res->m_Binding;
-                        DX12Texture* texture = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, context->m_CurrentTextures[pgm_res.m_TextureUnit]);
+                        const DX12TextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
+                        frame_resources.m_ScratchBuffer.AllocateSampler(context, sampler, i);
+                    }
+                    else
+                    {
+                        frame_resources.m_ScratchBuffer.AllocateTexture2D(context, texture, i);
 
-                        if (pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+                        // Transition all mipmaps into pixel read state
+                        for (int i = 0; i < texture->m_MipMapCount; ++i)
                         {
-                            const DX12TextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
-                            frame_resources.m_ScratchBuffer.AllocateSampler(context, sampler, ix);
-                        }
-                        else
-                        {
-                            frame_resources.m_ScratchBuffer.AllocateTexture2D(context, texture, ix);
-
-                            // Transition all mipmaps into pixel read state
-                            for (int i = 0; i < texture->m_MipMapCount; ++i)
+                            if (texture->m_ResourceStates[i] != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
                             {
-                                if (texture->m_ResourceStates[i] != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
-                                {
-                                    context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture->m_Resource, texture->m_ResourceStates[i], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, (UINT) i));
-                                    texture->m_ResourceStates[i] = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-                                }
+                                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture->m_Resource, texture->m_ResourceStates[i], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, (UINT) i));
+                                texture->m_ResourceStates[i] = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
                             }
                         }
-                    } break;
-                    case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
-                    {
-                        assert(0);
-                    } break;
-                    case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
-                    {
-                        const uint32_t uniform_size_nonalign = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
-                        void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, ubo_ix, uniform_size_nonalign);
-                        memcpy(gpu_mapped_memory, &program->m_UniformData[pgm_res.m_DataOffset], uniform_size_nonalign);
-                        ubo_ix++;
-                    } break;
-                    case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
-                    default: continue;
-                }
+                    }
+                } break;
+                case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                {
+                    assert(0);
+                } break;
+                case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+                {
+                    const uint32_t uniform_size_nonalign = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
+                    void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, i, uniform_size_nonalign);
+                    memcpy(gpu_mapped_memory, &program->m_UniformData[pgm_res.m_DataOffset], uniform_size_nonalign);
+                } break;
+                case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                default: continue;
             }
         }
     }
@@ -2150,12 +2146,168 @@ namespace dmGraphics
             return hr;
         }
 
+
+        hr = D3DGetBlobPart(shader->m_ShaderBlob->GetBufferPointer(), shader->m_ShaderBlob->GetBufferSize(), D3D_BLOB_ROOT_SIGNATURE, 0, &shader->m_RootSignatureBlob);
+        if (FAILED(hr))
+        {
+            // TODO: Extract reflection and generate root signature that way
+        }
+
         HashState64 shader_hash_state;
         dmHashInit64(&shader_hash_state, false);
         dmHashUpdateBuffer64(&shader_hash_state, data, data_size);
         shader->m_Hash = dmHashFinal64(&shader_hash_state);
 
         return S_OK;
+    }
+
+    static void PrintRootSignature(const D3D12_ROOT_SIGNATURE_DESC* desc)
+    {
+        dmLogInfo("Root Signature Parameters: %u\n", desc->NumParameters);
+        for (UINT i = 0; i < desc->NumParameters; ++i)
+        {
+            const D3D12_ROOT_PARAMETER& param = desc->pParameters[i];
+            dmLogInfo("  Param %u: ", i);
+            switch (param.ParameterType)
+            {
+            case D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE:
+                dmLogInfo("Descriptor Table (%u ranges)\n", param.DescriptorTable.NumDescriptorRanges);
+                for (UINT r = 0; r < param.DescriptorTable.NumDescriptorRanges; ++r)
+                {
+                    const D3D12_DESCRIPTOR_RANGE& range = param.DescriptorTable.pDescriptorRanges[r];
+                    dmLogInfo("    Range %u: Type=%d, BaseShaderRegister=%u, NumDescriptors=%u, RegisterSpace=%u\n",
+                        r, range.RangeType, range.BaseShaderRegister, range.NumDescriptors, range.RegisterSpace);
+                }
+                break;
+
+            case D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS:
+                dmLogInfo("32-bit Constants: ShaderRegister=%u, Num32BitValues=%u, Space=%u\n",
+                    param.Constants.ShaderRegister, param.Constants.Num32BitValues, param.Constants.RegisterSpace);
+                break;
+
+            case D3D12_ROOT_PARAMETER_TYPE_CBV:
+            case D3D12_ROOT_PARAMETER_TYPE_SRV:
+            case D3D12_ROOT_PARAMETER_TYPE_UAV:
+                dmLogInfo("Root Descriptor: Type=%d, ShaderRegister=%u, RegisterSpace=%u\n",
+                    param.ParameterType, param.Descriptor.ShaderRegister, param.Descriptor.RegisterSpace);
+                break;
+            }
+        }
+
+        dmLogInfo("Static Samplers: %u\n", desc->NumStaticSamplers);
+        for (UINT i = 0; i < desc->NumStaticSamplers; ++i)
+        {
+            const D3D12_STATIC_SAMPLER_DESC& sampler = desc->pStaticSamplers[i];
+            dmLogInfo("  Sampler %u: ShaderRegister=%u, Filter=%d, AddressU/V/W=%d/%d/%d\n",
+                i, sampler.ShaderRegister, sampler.Filter, sampler.AddressU, sampler.AddressV, sampler.AddressW);
+        }
+
+        dmLogInfo("Flags: 0x%X\n", desc->Flags);
+    }
+
+    static HRESULT MergeRootSignatures(ID3DBlob* blob_a, ID3DBlob* blob_b, ID3DBlob** out_merged_blob)
+    {
+        if (!blob_a || !blob_b || !out_merged_blob)
+        {
+            return E_INVALIDARG;
+        }
+
+        ID3D12RootSignatureDeserializer* deserializer_a = NULL;
+        ID3D12RootSignatureDeserializer* deserializer_b = NULL;
+
+        HRESULT hr = D3D12CreateRootSignatureDeserializer(blob_a->GetBufferPointer(), blob_a->GetBufferSize(), IID_PPV_ARGS(&deserializer_a));
+        if (FAILED(hr))
+        {
+            return hr;
+        }
+
+        hr = D3D12CreateRootSignatureDeserializer(blob_b->GetBufferPointer(), blob_b->GetBufferSize(), IID_PPV_ARGS(&deserializer_b));
+        if (FAILED(hr))
+        {
+            deserializer_a->Release();
+            return hr;
+        }
+
+        const D3D12_ROOT_SIGNATURE_DESC* desc_a = deserializer_a->GetRootSignatureDesc();
+        const D3D12_ROOT_SIGNATURE_DESC* desc_b = deserializer_b->GetRootSignatureDesc();
+
+        // Allocate combined arrays
+        UINT total_params = desc_a->NumParameters + desc_b->NumParameters;
+        UINT total_samplers = desc_a->NumStaticSamplers + desc_b->NumStaticSamplers;
+
+        D3D12_ROOT_PARAMETER* root_params = (D3D12_ROOT_PARAMETER*) calloc(total_params, sizeof(D3D12_ROOT_PARAMETER));
+        D3D12_STATIC_SAMPLER_DESC* static_samplers = NULL;
+        
+        if (total_samplers > 0)
+        {
+            static_samplers = (D3D12_STATIC_SAMPLER_DESC*) calloc(total_samplers, sizeof(D3D12_STATIC_SAMPLER_DESC));
+        }
+
+        // Copy root parameters
+        memcpy(root_params, desc_a->pParameters, sizeof(D3D12_ROOT_PARAMETER) * desc_a->NumParameters);
+        memcpy(root_params + desc_a->NumParameters, desc_b->pParameters, sizeof(D3D12_ROOT_PARAMETER) * desc_b->NumParameters);
+
+        // Copy static samplers if any
+        if (static_samplers)
+        {
+            memcpy(static_samplers, desc_a->pStaticSamplers, sizeof(D3D12_STATIC_SAMPLER_DESC) * desc_a->NumStaticSamplers);
+            memcpy(static_samplers + desc_a->NumStaticSamplers, desc_b->pStaticSamplers, sizeof(D3D12_STATIC_SAMPLER_DESC) * desc_b->NumStaticSamplers);
+        }
+
+        D3D12_ROOT_SIGNATURE_DESC merged_desc;
+        merged_desc.NumParameters     = total_params;
+        merged_desc.pParameters       = root_params;
+        merged_desc.NumStaticSamplers = total_samplers;
+        merged_desc.pStaticSamplers   = static_samplers;
+        merged_desc.Flags             = desc_a->Flags | desc_b->Flags | D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+        ID3DBlob* error_blob = NULL;
+        hr = D3D12SerializeRootSignature(&merged_desc, D3D_ROOT_SIGNATURE_VERSION_1, out_merged_blob, &error_blob);
+        if (FAILED(hr))
+        {
+            if (error_blob)
+            {
+                dmLogError("%s", error_blob->GetBufferPointer());
+                error_blob->Release();
+            }
+        }
+        else
+        {
+            // Debug
+            PrintRootSignature(&merged_desc);
+        }
+
+        // Cleanup
+        deserializer_a->Release();
+        deserializer_b->Release();
+        free(root_params);
+        if (static_samplers)
+        {
+            free(static_samplers);
+        }
+
+        return hr;
+    }
+
+    static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, ShaderDesc::Shader* ddf_vp, ShaderDesc::Shader* ddf_fp)
+    {
+        program->m_RootSignatureResources.SetCapacity(ddf_vp->m_HlslResourceBindings.m_Count + ddf_fp->m_HlslResourceBindings.m_Count);
+        program->m_RootSignatureResources.SetSize(program->m_RootSignatureResources.Capacity());
+
+        for (int i = 0; i < ddf_vp->m_HlslResourceBindings.m_Count; ++i)
+        {
+            program->m_RootSignatureResources[i].m_NameHash = ddf_vp->m_HlslResourceBindings[i].m_NameHash;
+            program->m_RootSignatureResources[i].m_Binding  = ddf_vp->m_HlslResourceBindings[i].m_Binding;
+            program->m_RootSignatureResources[i].m_Set      = ddf_vp->m_HlslResourceBindings[i].m_Set;
+        }
+
+        for (int i = 0; i < ddf_fp->m_HlslResourceBindings.m_Count; ++i)
+        {
+            uint32_t index = ddf_vp->m_HlslResourceBindings.m_Count + i;
+            program->m_RootSignatureResources[index].m_NameHash = ddf_fp->m_HlslResourceBindings[i].m_NameHash;
+            program->m_RootSignatureResources[index].m_Binding  = ddf_fp->m_HlslResourceBindings[i].m_Binding;
+            program->m_RootSignatureResources[index].m_Set      = ddf_fp->m_HlslResourceBindings[i].m_Set;
+        }
     }
 
     static HProgram DX12NewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
@@ -2186,6 +2338,10 @@ namespace dmGraphics
             memset(program->m_VertexModule, 0, sizeof(DX12ShaderModule));
             memset(program->m_FragmentModule, 0, sizeof(DX12ShaderModule));
 
+            dmLogInfo("--------");
+            dmLogInfo("VS Shader: %s", ddf_vp->m_Source.m_Data);
+            dmLogInfo("FS Shader: %s", ddf_fp->m_Source.m_Data);
+
             HRESULT hr = CreateShaderModule(context, "vs_5_0", ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count, program->m_VertexModule);
             CHECK_HR_ERROR(hr);
 
@@ -2194,72 +2350,16 @@ namespace dmGraphics
 
             CreateProgramResourceBindings(program, program->m_VertexModule, program->m_FragmentModule, 0);
 
-            dmArray<CD3DX12_ROOT_PARAMETER > root_parameter_descs;
-            root_parameter_descs.SetCapacity(program->m_UniformBufferCount + program->m_TextureSamplerCount);
-            root_parameter_descs.SetSize(root_parameter_descs.Capacity());
+            CreateRootSignatureResourceBindings(program, ddf_vp, ddf_fp);
 
-            uint32_t texture_unit_start = program->m_UniformBufferCount;
-            uint32_t texture_ix         = 0;
-            uint32_t ubo_ix             = 0;
+            ID3DBlob* merged_signature_blob = 0;
 
-            for (int set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
-            {
-                for (int binding = 0; binding < program->m_BaseProgram.m_MaxBinding; ++binding)
-                {
-                    ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
+            // We can only use a single root signature, so we have to merge them (TODO: can we do this offline?)
+            MergeRootSignatures(program->m_VertexModule->m_RootSignatureBlob, program->m_FragmentModule->m_RootSignatureBlob, &merged_signature_blob);
 
-                    if (pgm_res.m_Res == 0x0)
-                        continue;
-                    switch(pgm_res.m_Res->m_BindingFamily)
-                    {
-                        case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
-                        {
-                            uint32_t ix = texture_unit_start + pgm_res.m_Res->m_Binding;
+            hr = context->m_Device->CreateRootSignature(0, merged_signature_blob->GetBufferPointer(), merged_signature_blob->GetBufferSize(), IID_PPV_ARGS(&program->m_RootSignature));
+            CHECK_HR_ERROR(hr);
 
-                            if (pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
-                            {
-                                // Match the sampler to a resolved texture unit
-                                uint32_t texture_binding = pgm_res.m_TextureUnit;
-
-                                CD3DX12_DESCRIPTOR_RANGE sampler_range(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, texture_binding);
-                                root_parameter_descs[ix].InitAsDescriptorTable(1, &sampler_range, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
-                            }
-                            else
-                            {
-                                CD3DX12_DESCRIPTOR_RANGE texture_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, pgm_res.m_Res->m_Binding);
-                                root_parameter_descs[ix].InitAsDescriptorTable(1, &texture_range, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
-                            }
-                        } break;
-                        case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
-                        {
-                            // TODO
-                            assert(0);
-                        } break;
-                        case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
-                        {
-                            root_parameter_descs[ubo_ix].InitAsConstantBufferView(pgm_res.m_Res->m_Binding, 0, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
-                            ubo_ix++;
-                        } break;
-                        case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
-                        default: continue;
-                    }
-                }
-            }
-
-            CD3DX12_ROOT_SIGNATURE_DESC root_signature_desc;
-            root_signature_desc.Init(
-                root_parameter_descs.Size(),
-                root_parameter_descs.Begin(),
-                // No static samplers
-                0, 0,
-                D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
-                D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED |
-                // we can deny more shader stages here for better performance
-                D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
-                D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
-                D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS);
-
-            CreateRootSignature((DX12Context*) context, &root_signature_desc, program);
 
             HashState64 program_hash;
             dmHashInit64(&program_hash, false);

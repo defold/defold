@@ -437,6 +437,49 @@ namespace dmShaderc
         SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, name_hash, 0, &set);
     }
 
+    void LogCombinedSamplerMapping(spvc_compiler compiler)
+    {
+        const spvc_combined_image_sampler* samplers;
+        size_t sampler_count;
+        spvc_compiler_get_combined_image_samplers(compiler, &samplers, &sampler_count);
+
+        dmLogInfo("--------------");
+        dmLogInfo("LogCombinedSamplerMapping");
+
+        for (size_t i = 0; i < sampler_count; ++i)
+        {
+            const spvc_combined_image_sampler* s = &samplers[i];
+            const char* combined_name = spvc_compiler_get_name(compiler, s->combined_id);
+            const char* image_name    = spvc_compiler_get_name(compiler, s->image_id);
+            const char* sampler_name  = spvc_compiler_get_name(compiler, s->sampler_id);
+
+            dmLogInfo("Combined Sampler: %s = Texture(%s) + Sampler(%s), ids: %d, %d, %d", combined_name, image_name, sampler_name, s->combined_id, s->image_id, s->sampler_id);
+        }
+    }
+
+    void GetCombinedSamplerMapSPIRV(HShaderContext context, ShaderCompilerSPVC* compiler, dmArray<CombinedSampler>& combined_samplers)
+    {
+        const spvc_combined_image_sampler* samplers;
+        size_t sampler_count;
+        spvc_compiler_get_combined_image_samplers(compiler->m_SPVCCompiler, &samplers, &sampler_count);
+
+        combined_samplers.SetCapacity(sampler_count);
+        combined_samplers.SetSize(sampler_count);
+
+        for (size_t i = 0; i < sampler_count; ++i)
+        {
+            const spvc_combined_image_sampler* s = &samplers[i];
+            combined_samplers[i].m_CombinedName = spvc_compiler_get_name(compiler->m_SPVCCompiler, s->combined_id);
+            combined_samplers[i].m_CombinedId   = s->combined_id;
+            combined_samplers[i].m_ImageName    = spvc_compiler_get_name(compiler->m_SPVCCompiler, s->image_id);
+            combined_samplers[i].m_ImageId      = s->image_id;
+            combined_samplers[i].m_SamplerName  = spvc_compiler_get_name(compiler->m_SPVCCompiler, s->sampler_id);
+            combined_samplers[i].m_SamplerId    = s->sampler_id;
+
+            // dmLogInfo("Combined Sampler: %s = Texture(%s) + Sampler(%s)\n", combined_name, image_name, sampler_name);
+        }
+    }
+
     ShaderCompileResult* CompileSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, const ShaderCompilerOptions& options)
     {
         spvc_compiler_options spv_options = NULL;
@@ -450,6 +493,11 @@ namespace dmShaderc
             spvc_compiler_create_shader_resources_for_active_variables(compiler->m_SPVCCompiler, &active_resources, active_variables);
             spvc_compiler_set_enabled_interface_variables(compiler->m_SPVCCompiler, active_variables);
         }
+
+        spvc_compiler_set_entry_point(compiler->m_SPVCCompiler, options.m_EntryPoint, context->m_ExecutionModel);
+        spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
+
+        LogCombinedSamplerMapping(compiler->m_SPVCCompiler);
 
         if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_GLSL)
         {
@@ -480,10 +528,6 @@ namespace dmShaderc
         }
 
         spvc_compiler_install_compiler_options(compiler->m_SPVCCompiler, spv_options);
-
-        spvc_compiler_set_entry_point(compiler->m_SPVCCompiler, options.m_EntryPoint, context->m_ExecutionModel);
-
-        spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
 
         const char *compile_result = NULL;
         spvc_compiler_compile(compiler->m_SPVCCompiler, &compile_result);

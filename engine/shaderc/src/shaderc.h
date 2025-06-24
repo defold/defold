@@ -206,10 +206,24 @@ namespace dmShaderc
         dmArray<ResourceTypeInfo> m_Types;
     };
 
+    struct HLSLResourceEntry
+    {
+        const char* m_Name;
+        uint64_t    m_NameHash;
+        uint8_t     m_HLSLRegister;
+        uint8_t     m_Set;
+        uint8_t     m_Binding;
+    };
+
     struct ShaderCompileResult
     {
         dmArray<uint8_t> m_Data;
         const char*      m_LastError;
+
+        // In case of compiling HLSL, we generate a separate reflection structure
+        // that embeds a list of resources (called root signature) and their HLSL bind points (registers)
+        // This must match resource bind points in the engine, so we need to output that information here.
+        dmArray<HLSLResourceEntry> m_HLSLResourceEntries;
     };
 
     // Shader context
