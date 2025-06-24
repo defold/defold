@@ -1569,6 +1569,7 @@ namespace dmScript
         int        m_CallbackInfoRef;
         int        m_Callback;
         int        m_Self;
+        uint32_t   m_UniqueScriptId;
     };
 
     void PrintStack(lua_State* L)
@@ -1621,7 +1622,29 @@ namespace dmScript
         assert(lua_type(L, -1) == LUA_TNUMBER);
 
         int context_table_ref = lua_tonumber(L, -1);
-        lua_pop(L, 2);
+
+        lua_pop(L, 1);
+        // [-1] instance
+
+        // Inserted block: Set m_UniqueScriptId if possible
+        uint32_t unique_script_id = INVALID_SCRIPT_ID;
+        if (GetMetaFunction(L, -1, META_GET_UNIQUE_SCRIPT_ID, sizeof(META_GET_UNIQUE_SCRIPT_ID) - 1))
+        {
+            // [-2] instance
+            // [-1] META_GET_UNIQUE_SCRIPT_ID()
+            lua_pushvalue(L, -2); // push instance
+            // [-3] instance
+            // [-2] META_GET_UNIQUE_SCRIPT_ID()
+            // [-1] instance
+            lua_call(L, 1, 1);    // call __get_unique_script_id(self)
+            // [-2] instance
+            // [-1] unique script id
+            unique_script_id = (uint32_t)lua_tointeger(L, -1);
+            lua_pop(L, 1);
+            // [-1] instance
+        }
+
+        lua_pop(L, 1);
 
         lua_pushvalue(L, callback_stack_index);
         // [-1] callback
@@ -1645,6 +1668,7 @@ namespace dmScript
         // [-2] callback
         // [-1] LuaCallbackInfo
 
+        cbk->m_UniqueScriptId = unique_script_id;
         cbk->m_L = GetMainThread(L);
         cbk->m_ContextTableRef = context_table_ref;
 
