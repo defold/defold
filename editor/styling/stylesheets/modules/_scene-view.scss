@@ -17,7 +17,7 @@
             -fx-text-fill: -df-text;
             -fx-background-radius: 0;
             -fx-border-radius: 0;
-            -fx-pref-width: 50px;
+            -fx-pref-width: 58px;
 
             &:selected {
                 -fx-background-color: -df-background-light;
@@ -66,13 +66,14 @@
             }
 
             > .more-button {
-                -fx-max-width: 24px;
-                -fx-min-width: 24px;
+                -fx-max-width: 22px;
+                -fx-min-width: 22px;
                 -fx-pref-height: 30px;
                 -fx-background-radius: 0 15px 15px 0;
                 -fx-border-radius: 0 15px 15px 0;
                 -fx-background-color: transparent;
                 -fx-border-width: 0;
+                -fx-padding: 0 6px 0 0;
 
                 &:hover {
                     & > .image-view {
@@ -137,6 +138,62 @@
             -fx-background-color: -df-component-dark;
             -fx-background-radius: 4px;
             -fx-padding: 12px;
+
+            HBox {
+                -fx-pref-height: 28px;
+            }
+
+            .label {
+                -fx-pref-width: 80px;
+            }
+
+            .text-input {
+                -fx-background-color: -df-background-light;
+                -fx-border-color: -df-component-light;
+
+                &:hover {
+                    -fx-border-color: -df-component-lighter;
+                }
+
+                &:focused {
+                    -fx-border-width: 1px 1px 2px 1px;
+                    -fx-border-color: -df-component-lighter -df-component-lighter -df-defold-orange -df-component-lighter;
+                }
+
+            }
+
+            .button {
+                -fx-border-color: -df-component-lighter;
+
+                &:hover, 
+                &:focused {
+                    -fx-background-color: -df-component-light;
+                    -fx-text-fill: -df-text-selected;
+                    -fx-border-color: -df-component-lighter;
+                }
+            }
+
+            .toggle-button {
+                -fx-border-color: -df-component-lighter;
+
+            }
+
+            .slider {
+                .track {
+                    -fx-background-color: -df-background-light;
+                    -fx-border-color: -df-component-light;
+                }
+
+                .thumb {
+                    -fx-background-color: -df-component-light;
+
+                    &:hover,
+                    &:pressed,
+                    &:focused {
+                        -fx-background-color: -df-component-lighter;
+                    }
+                }
+            }
         }
 
         .popup-shadow {

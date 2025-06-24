@@ -217,9 +217,9 @@
                     :properties {:size {:type :object
                                         :scope :project
                                         :properties
-                                        {:x {:type :number :default 10.0}
-                                         :y {:type :number :default 10.0}
-                                         :z {:type :number :default 10.0}}}
+                                        {:x {:type :number :default 1.0}
+                                         :y {:type :number :default 1.0}
+                                         :z {:type :number :default 1.0}}}
                                  :active-plane {:type :keyword :default :z}
                                  :opacity {:type :number :default 0.25}
                                  :color {:type :tuple

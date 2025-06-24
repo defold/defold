@@ -36,6 +36,7 @@
            [javafx.scene.control Label Slider TextField ToggleButton ToggleGroup PopupControl]
            [javafx.scene.layout HBox Priority Region StackPane VBox]
            [javafx.scene.paint Color]
+           [javafx.stage PopupWindow$AnchorLocation]
            [java.nio ByteBuffer ByteOrder DoubleBuffer]
            [javax.vecmath Matrix3d Point3d Vector4d]))
 
@@ -107,24 +108,23 @@
 (defn render-grid-sizes
   [^GL2 gl ^doubles dir grids options]
   (let [{:keys [^double opacity color auto-scale]} options]
-    (doall
-     (for [grid-index (range (if auto-scale 2 1))
-           :let [^double fixed-axis (:plane grids)
-                 ^double ratio (nth (:ratios grids) grid-index)
-                 alpha (cond-> opacity
-                         auto-scale
-                         (->> (* ^double (aget dir fixed-axis) ratio)
-                              (Math/abs)))
-                 size-map (nth (:sizes grids) grid-index)
-                 ^double u-axis (mod (inc fixed-axis) 3)
-                 ^double v-axis (mod (inc u-axis) 3)
-                 u-axis-key (nth axes u-axis)
-                 v-axis-key (nth axes v-axis)
-                 u-size (get size-map u-axis-key)
-                 v-size (get size-map v-axis-key)]]
-       (do
-         (gl/gl-color gl (colors/alpha color alpha))
-         (render-grid gl fixed-axis u-size v-size (nth (:aabbs grids) grid-index)))))))
+    (doseq [grid-index (range (if auto-scale 2 1))
+            :let [^double fixed-axis (:plane grids)
+                  ^double ratio (nth (:ratios grids) grid-index)
+                  alpha (cond-> opacity
+                                auto-scale
+                                (->> (* ^double (aget dir fixed-axis) ratio)
+                                     (Math/abs)))
+                  size-map (nth (:sizes grids) grid-index)
+                  ^double u-axis (mod (inc fixed-axis) 3)
+                  ^double v-axis (mod (inc u-axis) 3)
+                  u-axis-key (nth axes u-axis)
+                  v-axis-key (nth axes v-axis)
+                  u-size (get size-map u-axis-key)
+                  v-size (get size-map v-axis-key)]]
+      (doto gl
+        (gl/gl-color (colors/alpha color alpha))
+        (render-grid fixed-axis u-size v-size (nth (:aabbs grids) grid-index))))))
 
 (defn render-scaled-grids
   [^GL2 gl _pass renderables _count]
@@ -159,7 +159,7 @@
   (let [nx (if (= plane 0) 1.0 0.0)
         ny (if (= plane 1) 1.0 0.0)
         nz (if (= plane 2) 1.0 0.0)
-        m (Matrix3d. nx         ny         nz
+        m (Matrix3d. nx          ny          nz
                      (.x plane1) (.y plane1) (.z plane1)
                      (.x plane2) (.y plane2) (.z plane2))
         v (Point3d. 0.0 (- (.w plane1)) (- (.w plane2)))
@@ -182,8 +182,8 @@
   (let [exp (Math/log10 extent)]
     (- 1.0 (- exp (Math/floor exp)))))
 
-(defn small-grid-axis-size [^double extent ^double size] (* size (Math/pow 10 (- (Math/floor (Math/log10 extent)) 2))))
-(defn large-grid-axis-size [^double extent ^double size] (* size (Math/pow 10 (- (Math/floor (Math/log10 extent)) 1))))
+(defn small-grid-axis-size [^double extent ^double size] (* size (Math/pow 10.0 (dec (Math/floor (Math/log10 extent))))))
+(defn large-grid-axis-size [^double extent ^double size] (* size (Math/pow 10.0      (Math/floor (Math/log10 extent)))))
 
 (defn grid-snap-down [^double a ^double sz] (* sz (Math/floor (/ a sz))))
 (defn grid-snap-up   [^double a ^double sz] (* sz (Math/ceil  (/ a sz))))
@@ -226,14 +226,14 @@
 (g/defnk produce-merged-options
   [prefs camera options]
   (cond-> (if prefs (prefs/get prefs grid-prefs-path) {})
-    :always
-    (assoc :auto-scale true)
+          :always
+          (assoc :auto-scale true)
 
-    options
-    (merge options)
+          options
+          (merge options)
 
-    (c/mode-2d? camera)
-    (assoc :active-plane :z)))
+          (c/mode-2d? camera)
+          (assoc :active-plane :z)))
 
 (g/defnode Grid
   (property prefs g/Any)
@@ -257,14 +257,13 @@
   (let [prefs-path (conj grid-prefs-path option)
         value (prefs/get prefs prefs-path)
         slider (Slider. 0.0 1.0 value)
-        label (doto (Label. "Opacity")
-                (.setPrefWidth 70))]
+        label (Label. "Opacity")]
     (ui/observe
-     (.valueProperty slider)
-     (fn [_observable _old-val new-val]
-       (let [val (math/round-with-precision new-val 0.01)]
-         (prefs/set! prefs prefs-path val)
-         (invalidate-grids! app-view))))
+      (.valueProperty slider)
+      (fn [_observable _old-val new-val]
+        (let [val (math/round-with-precision new-val 0.01)]
+          (prefs/set! prefs prefs-path val)
+          (invalidate-grids! app-view))))
     [label slider]))
 
 (defn plane-toggle-button
@@ -280,13 +279,13 @@
   (let [prefs-path (conj grid-prefs-path option)
         plane-group (ToggleGroup.)
         buttons (mapv (partial plane-toggle-button prefs plane-group prefs-path) axes)
-        label (doto (Label. "Plane")
-                (HBox/setHgrow Priority/ALWAYS)
-                (.setPrefWidth 70))]
+        label (Label. "Plane")]
     (ui/observe (.selectedToggleProperty plane-group)
                 (fn [_ ^ToggleButton old-value ^ToggleButton new-value]
                   (if new-value
-                    (do (let [active-plane (-> (.getText new-value) string/lower-case keyword)]
+                    (do (let [active-plane (-> (.getText new-value)
+                                               string/lower-case
+                                               keyword)]
                           (prefs/set! prefs prefs-path active-plane))
                         (invalidate-grids! app-view))
                     (.setSelected old-value true))))
@@ -298,9 +297,7 @@
         text-field (TextField.)
         [r g b a] (prefs/get prefs prefs-path)
         color (->> (Color. r g b a) (.toString) nnext (drop-last 2) (apply str "#"))
-        label (doto (Label. "Color")
-                (HBox/setHgrow Priority/ALWAYS)
-                (.setPrefWidth 83))
+        label (Label. "Color")
         cancel-fn (fn [_] (ui/text! text-field color))
         update-fn (fn [_] (try
                             (if-let [value (some-> (.getText text-field) colors/hex-color->color)]
@@ -313,7 +310,8 @@
       (ui/text! color)
       (ui/on-action! update-fn)
       (ui/on-cancel! cancel-fn)
-      (ui/auto-commit! update-fn))
+      (ui/auto-commit! update-fn)
+      (ui/on-focus! (fn [_] (ui/run-later (.selectAll text-field)))))
     [label text-field]))
 
 (defn- axis-group
@@ -323,7 +321,7 @@
         size-val (str (get (prefs/get prefs prefs-path) axis))
         cancel-fn (fn [_] (ui/text! text-field size-val))
         update-fn (fn [_] (try
-                            (let [value (some-> (.getText text-field) Float/parseFloat)]
+                            (let [value (Float/parseFloat (.getText text-field))]
                               (if (pos? value)
                                 (do (prefs/set! prefs (conj prefs-path axis) value)
                                     (ui/text! text-field (str value))
@@ -335,7 +333,9 @@
       (ui/text! size-val)
       (ui/on-action! update-fn)
       (ui/on-cancel! cancel-fn)
-      (ui/auto-commit! update-fn))
+      (ui/auto-commit! update-fn)
+      (.setFocusTraversable true)
+      (ui/on-focus! (fn [_] (ui/run-later (.selectAll text-field)))))
 
     [label text-field]))
 
@@ -347,9 +347,11 @@
                 (mapcat identity))
           axes)))
 
+(declare show-settings!)
+
 (defn- reset-button
   [app-view prefs ^PopupControl popup]
-  (let [button (doto (javafx.scene.control.Button. "Reset to defaults")
+  (let [button (doto (javafx.scene.control.Button. "Reset to Defaults")
                  (.setPrefWidth Double/MAX_VALUE))
         reset-fn (fn [_]
                    (doseq [path [[:size :x]
@@ -361,7 +363,8 @@
                      (let [path (into grid-prefs-path path)]
                        (prefs/set! prefs path (:default (prefs/schema prefs path)))))
                    (invalidate-grids! app-view)
-                   (.hide popup))]
+                   (.hide popup)
+                   (show-settings! app-view (.getOwnerNode popup) prefs))]
     (ui/on-action! button reset-fn)
     button))
 
@@ -380,7 +383,7 @@
 
 (defn- pref-popup-position
   ^Point2D [^Parent container]
-  (Utils/pointRelativeTo container 0 0 HPos/RIGHT VPos/BOTTOM -200.0 10.0 true))
+  (Utils/pointRelativeTo container 0 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
 
 (defn show-settings! [app-view ^Parent owner prefs]
   (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
@@ -393,5 +396,7 @@
                             (doto (VBox. 10 (ui/node-array (settings app-view prefs popup)))
                               (ui/add-style! "grid-settings"))])
       (ui/user-data! owner ::popup popup)
-      (ui/on-closed! popup (fn [_] (ui/user-data! owner ::popup nil)))
-      (.show popup owner (.getX anchor) (.getY anchor)))))
+      (doto popup
+        (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
+        (ui/on-closed! (fn [_] (ui/user-data! owner ::popup nil)))
+        (.show owner (.getX anchor) (.getY anchor))))))

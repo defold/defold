@@ -1560,10 +1560,10 @@
 (defmethod scene/attach-grid ::TileMapGrid
   [_ grid-node-id view-id resource-node camera]
   (concat
-   (g/connect grid-node-id  :_node-id        view-id      :grid)
-   (g/connect grid-node-id  :renderable      view-id      :aux-renderables)
-   (g/connect camera        :camera          grid-node-id :camera)
-   (g/connect resource-node :tile-dimensions grid-node-id :grid-size)))
+    (g/connect grid-node-id :_node-id view-id :grid)
+    (g/connect grid-node-id :renderable view-id :aux-renderables)
+    (g/connect camera :camera grid-node-id :camera)
+    (g/connect resource-node :tile-dimensions grid-node-id :grid-size)))
 
 (defn register-resource-types [workspace]
   (concat
