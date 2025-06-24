@@ -65,12 +65,14 @@ namespace dmScript
     const char META_TABLE_IS_VALID[]                 = "__is_valid";
     const char META_GET_INSTANCE_CONTEXT_TABLE_REF[] = "__get_instance_context_table_ref";
     const char META_GET_INSTANCE_DATA_TABLE_REF[]    = "__get_instance_data_table_ref";
+    const char META_GET_UNIQUE_SCRIPT_ID[]           = "__get_unique_script_id";
 
     const char SCRIPT_METATABLE_TYPE_HASH_KEY_NAME[] = "__dmengine_type";
     static const uint32_t SCRIPT_METATABLE_TYPE_HASH_KEY = dmHashBufferNoReverse32(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME, sizeof(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME) - 1);
 
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
+    const uint32_t INVALID_SCRIPT_ID = 0xFFFFFFFF;
 
     HContext NewContext(const ContextParams& params)
     {
@@ -1127,6 +1129,18 @@ namespace dmScript
 
         lua_pop(L, 1);
         // [-1] value
+    }
+
+    uint32_t GenerateUniqueScriptId()
+    {
+        static uint32_t counter = 0;
+
+        if (counter == INVALID_SCRIPT_ID - 1)
+            counter = 0;
+        else
+            ++counter;
+
+        return counter;
     }
 
     HScriptWorld NewScriptWorld(HContext context)
