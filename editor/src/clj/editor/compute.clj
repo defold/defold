@@ -75,7 +75,7 @@
 (g/defnk produce-build-targets [_node-id save-value resource shader-source-info compute-program]
   (or (g/flatten-errors
         (prop-resource-error _node-id :compute-program compute-program "Compute Program" "cp"))
-      (let [compute-shader-build-target (shader-compilation/make-shader-build-target _node-id [shader-source-info] 0)
+      (let [compute-shader-build-target (shader-compilation/make-shader-build-target _node-id [shader-source-info] 0 true)
             dep-build-targets [compute-shader-build-target]
             compute-desc-with-build-resources (assoc save-value
                                                 :compute-program (:resource compute-shader-build-target)
