@@ -103,3 +103,6 @@
 
 (defn hsl->rgba [h s l]
   (alpha (hsl->rgb h s l) 1.0))
+
+(defn hsla->rgba [h s l a]
+  (alpha (hsl->rgb h s l) a))
