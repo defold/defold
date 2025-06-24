@@ -1587,7 +1587,9 @@ namespace dmScript
         GetInstance(L);
         // [-1] instance
 
-        if (!GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF, sizeof(META_GET_INSTANCE_CONTEXT_TABLE_REF) - 1)) {
+        if (!GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF, sizeof(META_GET_INSTANCE_CONTEXT_TABLE_REF) - 1))
+        {
+            dmLogError("CreateCallback failed: missing meta function for instance context table");
             lua_pop(L, 1);
             return 0x0;
         }
@@ -1615,6 +1617,7 @@ namespace dmScript
         // [-1] context table
         if (lua_type(L, -1) != LUA_TTABLE)
         {
+            dmLogError("CreateCallback failed: expected context table (LUA_TTABLE), got %s", lua_typename(L, lua_type(L, -1)));
             lua_pop(L, 2);
             return 0x0;
         }
