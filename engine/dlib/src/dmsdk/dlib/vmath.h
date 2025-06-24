@@ -111,89 +111,89 @@ namespace dmVMath
 
     /*# dot product between two vectors
      * @name Dot
-     * @param a [type: vector3] the first vector
-     * @param b [type: vector3] the second vector
+     * @param a [type: Vector3] the first vector
+     * @param b [type: Vector3] the second vector
      * @return dot_product [type: float] the dot product
      */
     inline float Dot(Vector3 a, Vector3 b)      { return Vectormath::Aos::dot(a, b); }
 
     /*# dot product between two vectors
      * @name Dot
-     * @param a [type: vector4] the first vector
-     * @param b [type: vector4] the second vector
+     * @param a [type: Vector4] the first vector
+     * @param b [type: Vector4] the second vector
      * @return dot_product [type: float] the dot product
      */
     inline float Dot(Vector4 a, Vector4 b)      { return Vectormath::Aos::dot(a, b); }
 
     /*# calculate length of a vector
      * @name Length
-     * @param v [type: vector3] the vector
+     * @param v [type: Vector3] the vector
      * @return length [type: float] the length
      */
     inline float Length(Vector3 v)              { return Vectormath::Aos::length(v); }
 
     /*# calculate length of a vector
      * @name Length
-     * @param v [type: vector3] the vector
+     * @param v [type: Vector3] the vector
      * @return length [type: float] the length
      */
     inline float Length(Vector4 v)              { return Vectormath::Aos::length(v); }
 
     /*# calculate length of a quaternion
      * @name Length
-     * @param v [type: quaternion] the quaternion
+     * @param v [type: Quat] the quaternion
      * @return length [type: float] the length
      */
     inline float Length(Quat v)                 { return Vectormath::Aos::length(v); }
 
     /*# calculate squared length of a vector
      * @name Length
-     * @param v [type: vector3] the vector
+     * @param v [type: Vector3] the vector
      * @return length [type: float] the squared length
      */
     inline float LengthSqr(Vector3 v)           { return Vectormath::Aos::lengthSqr(v); }
 
     /*# calculate squared length of a vector
      * @name Length
-     * @param v [type: vector4] the vector
+     * @param v [type: Vector4] the vector
      * @return length [type: float] the squared length
      */
     inline float LengthSqr(Vector4 v)           { return Vectormath::Aos::lengthSqr(v); }
 
     /*# calculate squared length of a quaternion
      * @name Length
-     * @param v [type: quaternion] the vector
+     * @param v [type: Quat] the vector
      * @return length [type: float] the squared length
      */
     inline float LengthSqr(Quat v)              { return Vectormath::Aos::norm(v); } // quat doesn't have a lengthSqr(), but this is what's called before the sqrtf in length()
 
     /*# normalize a vector to length 1
      * @name Normalize
-     * @param v [type: vector3] the vector
-     * @return n [type: vector3] the normalized vector
+     * @param v [type: Vector3] the vector
+     * @return n [type: Vector3] the normalized vector
      */
     inline Vector3  Normalize(Vector3 v)        { return Vectormath::Aos::normalize(v); }
 
     /*# normalize a vector to length 1
      * @name Normalize
-     * @param v [type: vector4] the vector
-     * @return n [type: vector4] the normalized vector
+     * @param v [type: Vector4] the vector
+     * @return n [type: Vector4] the normalized vector
      */
     inline Vector4  Normalize(Vector4 v)        { return Vectormath::Aos::normalize(v); }
 
     /*# normalize a quaternion to length 1
      * @name Normalize
-     * @param v [type: quaternion] the quaternion
-     * @return n [type: quaternion] the normalized quaternion
+     * @param v [type: Quat] the quaternion
+     * @return n [type: Quat] the normalized quaternion
      */
     inline Quat     Normalize(Quat v)           { return Vectormath::Aos::normalize(v); }
 
     /*# linear interpolate between two vectors
      * @name Lerp
      * @param t [type: float] the unit time
-     * @param a [type: vector3] the start vector (t == 0)
-     * @param b [type: vector3] the end vector (t == 1)
-     * @return v [type: vector3] the result vector `v = a + (b - a) * t`
+     * @param a [type: Vector3] the start vector (t == 0)
+     * @param b [type: Vector3] the end vector (t == 1)
+     * @return v [type: Vector3] the result vector `v = a + (b - a) * t`
      * @note Does not clamp t to between 0 and 1
      * @examples
      * ```cpp
@@ -207,9 +207,9 @@ namespace dmVMath
     /*# linear interpolate between two vectors
      * @name Lerp
      * @param t [type: float] the unit time
-     * @param a [type: vector4] the start vector (t == 0)
-     * @param b [type: vector4] the end vector (t == 1)
-     * @return v [type: vector4] the result vector `v = a + (b - a) * t`
+     * @param a [type: Vector4] the start vector (t == 0)
+     * @param b [type: Vector4] the end vector (t == 1)
+     * @return v [type: Vector4] the result vector `v = a + (b - a) * t`
      * @note Does not clamp t to between 0 and 1
      * @examples
      * ```cpp
@@ -226,9 +226,9 @@ namespace dmVMath
     /*# spherical linear interpolate between two vectors
      * @name Slerp
      * @param t [type: float] the unit time
-     * @param a [type: vector3] the start vector (t == 0)
-     * @param b [type: vector3] the end vector (t == 1)
-     * @return v [type: vector3] the result vector
+     * @param a [type: Vector3] the start vector (t == 0)
+     * @param b [type: Vector3] the end vector (t == 1)
+     * @return v [type: Vector3] the result vector
      * @note Does not clamp t to between 0 and 1
      * @note Unpredicatable results if a and b point in opposite direction
      */
@@ -237,9 +237,9 @@ namespace dmVMath
     /*# spherical linear interpolate between two vectors
      * @name Slerp
      * @param t [type: float] the unit time
-     * @param a [type: vector4] the start vector (t == 0)
-     * @param b [type: vector4] the end vector (t == 1)
-     * @return v [type: vector4] the result vector
+     * @param a [type: Vector4] the start vector (t == 0)
+     * @param b [type: Vector4] the end vector (t == 1)
+     * @return v [type: Vector4] the result vector
      * @note Does not clamp t to between 0 and 1
      * @note Unpredicatable results if a and b point in opposite direction
      */
@@ -249,9 +249,9 @@ namespace dmVMath
      * Interpolates along the shortest path between two quaternions
      * @name Slerp
      * @param t [type: float] the unit time
-     * @param a [type: quaternion] the start vector (t == 0)
-     * @param b [type: quaternion] the end vector (t == 1)
-     * @return v [type: quaternion] the result vector
+     * @param a [type: Quat] the start vector (t == 0)
+     * @param b [type: Quat] the end vector (t == 1)
+     * @return v [type: Quat] the result vector
      * @note Does not clamp t to between 0 and 1
      */
     inline Quat     Slerp(float t, Quat a, Quat b)          { return Vectormath::Aos::slerp(t, a, b); }
@@ -259,68 +259,68 @@ namespace dmVMath
     /*# divide two vectors per element
      * Divide two vectors per element: `Vector3(a.x/b.x, a.y/b.y, a.z/b.z)`
      * @name DivPerElem
-     * @param a [type: vector3] the operand
-     * @param b [type: vector3] the dividend
-     * @return v [type: vector3] the result vector
+     * @param a [type: Vector3] the operand
+     * @param b [type: Vector3] the dividend
+     * @return v [type: Vector3] the result vector
      */
     inline Vector3  DivPerElem(Vector3 a, Vector3 b)        { return Vectormath::Aos::divPerElem(a, b); }
 
     /*# divide two vectors per element
      * Divide two vectors per element: `Vector3(a.x/b.x, a.y/b.y, a.z/b.z, a.w/b.w)`
      * @name DivPerElem
-     * @param a [type: vector4] the operand
-     * @param b [type: vector4] the dividend
-     * @return v [type: vector4] the result vector
+     * @param a [type: Vector4] the operand
+     * @param b [type: Vector4] the dividend
+     * @return v [type: Vector4] the result vector
      */
     inline Vector4  DivPerElem(Vector4 a, Vector4 b)        { return Vectormath::Aos::divPerElem(a, b); }
 
     /*# cross product between two vectors
      * @name Cross
-     * @param a [type: vector3] the operand
-     * @param b [type: vector3] the dividend
-     * @return v [type: vector3] the result vector
+     * @param a [type: Vector3] the operand
+     * @param b [type: Vector3] the dividend
+     * @return v [type: Vector3] the result vector
      */
     inline Vector3  Cross(Vector3 a, Vector3 b)             { return Vectormath::Aos::cross(a, b); }
 
     /*# multiply two vectors per element
      * Multiply two vectors per element: `Vector3(a.x * b.x, a.y * b.y, a.z * b.z)`
      * @name MulPerElem
-     * @param a [type: vector3] the first vector
-     * @param b [type: vector3] the second vector
-     * @return v [type: vector3] the result vector
+     * @param a [type: Vector3] the first vector
+     * @param b [type: Vector3] the second vector
+     * @return v [type: Vector3] the result vector
      */
     inline Vector3  MulPerElem(Vector3 a, Vector3 b)        { return Vectormath::Aos::mulPerElem(a, b); }
 
     /*# multiply two vectors per element
      * Multiply two vectors per element: `Vector3(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w)`
      * @name MulPerElem
-     * @param a [type: vector4] the first vector
-     * @param b [type: vector4] the second vector
-     * @return v [type: vector4] the result vector
+     * @param a [type: Vector4] the first vector
+     * @param b [type: Vector4] the second vector
+     * @return v [type: Vector4] the result vector
      */
     inline Vector4  MulPerElem(Vector4 a, Vector4 b)        { return Vectormath::Aos::mulPerElem(a, b); }
 
     /*# abs value per element
      * Return absolute value per element: `Vector3(abs(v.x), abs(v.y), abs(v.z))`
      * @name MulPerElem
-     * @param v [type: vector3] the vector
-     * @return r [type: vector3] the result vector
+     * @param v [type: Vector3] the vector
+     * @return r [type: Vector3] the result vector
      */
     inline Vector3  AbsPerElem(Vector3 v)                   { return Vectormath::Aos::absPerElem(v); }
 
     /*# conjugate of quaternion
      * Returns the conjugate of the quaternion: `conj = -q`
      * @name MulPerElem
-     * @param q [type: quaternion] the quaternions
-     * @return r [type: quaternion] the result
+     * @param q [type: Quat] the quaternions
+     * @return r [type: Quat] the result
      */
     inline Quat     Conjugate(Quat v)                       { return Vectormath::Aos::conj(v); }
 
     /*# rotate vector using quaternion
      * @name Rotate
-     * @param q [type: quaternion] the rotation
-     * @param v [type: vector3] the vector
-     * @return r [type: vector3] the rotated vector
+     * @param q [type: Quat] the rotation
+     * @param v [type: Vector3] the vector
+     * @return r [type: Vector3] the rotated vector
      */
     inline Vector3  Rotate(Quat q, Vector3 v)               { return Vectormath::Aos::rotate(q, v); }
 
@@ -363,7 +363,7 @@ namespace dmVMath
     /*# post multiply scale
      * @name AppendScale
      * @param m [type: Matrix4] the matrix
-     * @param v [type: vector3] the scale vector
+     * @param v [type: Vector3] the scale vector
      * @return r [type: Matrix4] the scaled vector
      */
     inline Matrix4 AppendScale(Matrix4 m, Vector3 v)        { return Vectormath::Aos::appendScale(m, v); }

@@ -265,9 +265,9 @@ namespace dmScript
     /*#
      * Check if the value at #index is a dmVMath::Vector3*
      * @name IsVector3
-     * @param L Lua state
-     * @param index Index of the value
-     * @return true if value at #index is a dmVMath::Vector3*
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return true [type:bool] if value at #index is a dmVMath::Vector3*
      */
     bool IsVector3(lua_State* L, int index);
 
@@ -303,9 +303,9 @@ namespace dmScript
     /*#
      * Check if the value at #index is a dmVMath::Vector4*
      * @name IsVector4
-     * @param L Lua state
-     * @param index Index of the value
-     * @return true if value at #index is a dmVMath::Vector4*
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return true [type:bool] if value at #index is a dmVMath::Vector4*
      */
     bool IsVector4(lua_State* L, int index);
 
@@ -340,9 +340,9 @@ namespace dmScript
     /*#
      * Check if the value at #index is a dmVMath::Quat*
      * @name IsQuat
-     * @param L Lua state
-     * @param index Index of the value
-     * @return true if value at #index is a dmVMath::Quat*
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return true [type:bool] if value at #index is a dmVMath::Quat*
      */
     bool IsQuat(lua_State* L, int index);
 
@@ -377,9 +377,9 @@ namespace dmScript
     /*#
      * Check if the value at #index is a dmVMath::Matrix4*
      * @name IsMatrix4
-     * @param L Lua state
-     * @param index Index of the value
-     * @return true if value at #index is a dmVMath::Matrix4*
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return true [type:bool] if value at #index is a dmVMath::Matrix4*
      */
     bool IsMatrix4(lua_State* L, int index);
 
@@ -434,7 +434,7 @@ namespace dmScript
      * @name CheckHash
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return The hash value
+     * @return value [type:hash] The hash value
      */
     dmhash_t CheckHash(lua_State* L, int index);
 
@@ -444,7 +444,7 @@ namespace dmScript
      * @name CheckHashOrString
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return The hash value
+     * @return value [type:hash] The hash value
      */
     dmhash_t CheckHashOrString(lua_State* L, int index);
 
@@ -554,9 +554,9 @@ namespace dmScript
      * data will stay around until the script instance is deleted.
      *
      * @name CreateCallback
-     * @param L Lua state
-     * @param index Lua stack index of the function
-     * @return Lua callback struct if successful, 0 otherwise
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Lua stack index of the function
+     * @return callback [type:LuaCallbackInfo*] Lua callback struct if successful, 0 otherwise
      *
      * @examples
      *
@@ -590,20 +590,20 @@ namespace dmScript
 
     /*# Check if Lua callback is valid.
      * @name IsCallbackValid
-     * @param cbk Lua callback struct
+     * @param cbk [type:LuaCallbackInfo*] Lua callback struct
      */
     bool IsCallbackValid(LuaCallbackInfo* cbk);
 
     /*# Deletes the Lua callback
      * @name DestroyCallback
-     * @param cbk Lua callback struct
+     * @param cbk [type:LuaCallbackInfo*] Lua callback struct
      */
     void DestroyCallback(LuaCallbackInfo* cbk);
 
     /*# Gets the Lua context from a callback struct
      * @name GetCallbackLuaContext
-     * @param cbk Lua callback struct
-     * @return L Lua state
+     * @param cbk [type:LuaCallbackInfo*] Lua callback struct
+     * @return L [type:lua_State*] Lua state
      */
     lua_State* GetCallbackLuaContext(LuaCallbackInfo* cbk);
 
@@ -619,8 +619,8 @@ namespace dmScript
      *  In the event of an unsuccessful call, the Lua stack is unchanged
      *
      * @name SetupCallback
-     * @param cbk Lua callback struct
-     * @return true if the setup was successful
+     * @param cbk [type:LuaCallbackInfo*] Lua callback struct
+     * @return true [type:bool] if the setup was successful
      */
     bool SetupCallback(LuaCallbackInfo* cbk);
 
@@ -634,7 +634,7 @@ namespace dmScript
      * Both values are removed from the stack
      *
      * @name TeardownCallback
-     * @param cbk Lua callback struct
+     * @param cbk [type:LuaCallbackInfo*] Lua callback struct
      */
     void TeardownCallback(LuaCallbackInfo* cbk);
 
@@ -643,10 +643,10 @@ namespace dmScript
      * In the case of an error, the error is logged and popped from the stack.
      *
      * @name PCall
-     * @param L lua state
-     * @param nargs number of arguments
-     * @param nresult number of results
-     * @return error code from pcall
+     * @param L [type:lua_State*] lua state
+     * @param nargs [type:int] number of arguments
+     * @param nresult [type:int] number of results
+     * @return error [type:int] error code from pcall
      */
     int PCall(lua_State* L, int nargs, int nresult);
 

@@ -896,14 +896,24 @@ ordinary paths."
   (property unloaded-proj-path? g/Any)
   (property resource-kind-extensions g/Any (default {:atlas ["atlas" "tilesource"]}))
   ;; See editor.attachment ns
-  ;; :add -> type -> list-kw -> type -> tx-attach-fn
-  ;; :get -> type -> list-kw -> get-fn
-  ;; :reorder -> type -> list-kw -> reorder-fn
+  ;; {node-type {list-kw {:add {node-type tx-attach-fn}
+  ;;                      :get get-fn
+  ;;                      :reorder reorder-fn
+  ;;                      :read-only? read-only-pred
+  ;;                      ;; one of:
+  ;;                      :alias node-type
+  ;;                      :aliases #{node-types}}}}
   ;;
   ;; tx-attach-fn: fn of parent-node, child-node -> txs
   ;; get-fn: fn of node, evaluation-context -> vector of nodes
   ;; reorder-fn: fn of reordered-nodes -> txs
-  (property node-attachments g/Any (default {:add {} :get {} :reorder {}}))
+  ;; read-only-pred: fn of parent-node, evaluation-context -> boolean
+  ;;
+  ;; :alias refers to a node type that this list definition tracks (i.e. a link
+  ;; to the "original")
+  ;; :aliases refers to a set of all node types that track this definition (i.e.
+  ;; links to "copies")
+  (property node-attachments g/Any (default {}))
 
   (input code-preprocessors g/NodeID :cascade-delete)
   (input notifications g/NodeID :cascade-delete)

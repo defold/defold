@@ -113,7 +113,7 @@
  *
  * @typedef
  * @name FResourcePreload
- * @param param [type: const ResourcePreloadParams*] Resource parameters
+ * @param param [type: const dmResource::ResourcePreloadParams*] Resource parameters
  * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
 
@@ -121,7 +121,7 @@
  * Resource create function
  * @typedef
  * @name FResourceCreate
- * @param param [type: const ResourceCreateParams*] Resource parameters
+ * @param param [type: const dmResource::ResourceCreateParams*] Resource parameters
  * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
 
@@ -130,7 +130,7 @@
  * @note returning RESOURCE_CREATE_RESULT_PENDING will result in a repeated callback the following update.
  * @typedef
  * @name FResourcePostCreate
- * @param param [type: const ResourcePostCreateParams*] Resource parameters
+ * @param param [type: const dmResource::ResourcePostCreateParams*] Resource parameters
  * @return result [type: ResourceResult] RESOURCE_CREATE_RESULT_OK on success or RESOURCE_CREATE_RESULT_PENDING when pending
  */
 
@@ -138,7 +138,7 @@
  * Resource destroy function
  * @typedef
  * @name FResourceDestroy
- * @param param [type: const ResourceDestroyParams*] Resource parameters
+ * @param param [type: const dmResource::ResourceDestroyParams*] Resource parameters
  * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
 
@@ -147,7 +147,7 @@
  * @note Beware that any "in flight" resource pointers to the actual resource must remain valid after this call.
  * @typedef
  * @name FResourceRecreate
- * @param param [type: const ResourceRecreateParams*] Resource parameters
+ * @param param [type: const dmResource::ResourceRecreateParams*] Resource parameters
  * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
 

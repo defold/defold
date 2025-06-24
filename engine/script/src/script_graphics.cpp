@@ -42,578 +42,578 @@ namespace dmScript
 
     /*#
      * @name graphics.BUFFER_TYPE_COLOR0_BIT
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BUFFER_TYPE_DEPTH_BIT
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BUFFER_TYPE_STENCIL_BIT
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if multitarget rendering isn't supported
      * @name graphics.BUFFER_TYPE_COLOR1_BIT
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if multitarget rendering isn't supported
      * @name graphics.BUFFER_TYPE_COLOR2_BIT
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if multitarget rendering isn't supported
      * @name graphics.BUFFER_TYPE_COLOR3_BIT
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.STATE_DEPTH_TEST
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.STATE_SCISSOR_TEST
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.STATE_STENCIL_TEST
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.STATE_ALPHA_TEST
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.STATE_BLEND
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.STATE_CULL_FACE
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.STATE_POLYGON_OFFSET_FILL
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.STATE_ALPHA_TEST_SUPPORTED
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BLEND_FACTOR_ZERO
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BLEND_FACTOR_ONE
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BLEND_FACTOR_SRC_COLOR
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BLEND_FACTOR_ONE_MINUS_SRC_COLOR
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BLEND_FACTOR_DST_COLOR
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BLEND_FACTOR_ONE_MINUS_DST_COLOR
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BLEND_FACTOR_SRC_ALPHA
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BLEND_FACTOR_DST_ALPHA
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BLEND_FACTOR_ONE_MINUS_DST_ALPHA
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BLEND_FACTOR_SRC_ALPHA_SATURATE
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BLEND_FACTOR_CONSTANT_COLOR
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BLEND_FACTOR_CONSTANT_ALPHA
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.COMPARE_FUNC_NEVER
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.COMPARE_FUNC_LESS
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.COMPARE_FUNC_LEQUAL
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.COMPARE_FUNC_GREATER
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.COMPARE_FUNC_GEQUAL
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.COMPARE_FUNC_EQUAL
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.COMPARE_FUNC_NOTEQUAL
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.COMPARE_FUNC_ALWAYS
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.STENCIL_OP_KEEP
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.STENCIL_OP_ZERO
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.STENCIL_OP_REPLACE
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.STENCIL_OP_INCR
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.STENCIL_OP_INCR_WRAP
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.STENCIL_OP_DECR
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.STENCIL_OP_DECR_WRAP
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.STENCIL_OP_INVERT
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.FACE_TYPE_FRONT
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.FACE_TYPE_BACK
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.FACE_TYPE_FRONT_AND_BACK
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_TYPE_2D
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_TYPE_2D_ARRAY
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_TYPE_CUBE_MAP
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_TYPE_IMAGE_2D
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_TYPE_3D
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_TYPE_IMAGE_3D
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_FILTER_DEFAULT
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_FILTER_NEAREST
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_FILTER_LINEAR
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_USAGE_FLAG_SAMPLE
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_USAGE_FLAG_MEMORYLESS
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_USAGE_FLAG_STORAGE
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_USAGE_FLAG_INPUT
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_USAGE_FLAG_COLOR
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_WRAP_CLAMP_TO_BORDER
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_WRAP_CLAMP_TO_EDGE
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_WRAP_MIRRORED_REPEAT
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_WRAP_REPEAT
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.COMPRESSION_TYPE_DEFAULT
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.COMPRESSION_TYPE_WEBP
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.COMPRESSION_TYPE_WEBP_LOSSY
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.COMPRESSION_TYPE_BASIS_UASTC
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.COMPRESSION_TYPE_BASIS_ETC1S
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_FORMAT_DEPTH
-     * @variable
+     * @constant
      */
 
     /*#
      * @name graphics.TEXTURE_FORMAT_STENCIL
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_LUMINANCE
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_LUMINANCE_ALPHA
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGB
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGB_16BPP
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA_16BPP
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGB_ETC1
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_R_ETC2
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RG_ETC2
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA_ETC2
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGB_BC1
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA_BC3
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_R_BC4
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RG_BC5
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA_BC7
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGB16F
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGB32F
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA16F
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA32F
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_R16F
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RG16F
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_R32F
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RG32F
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_RGBA32UI
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_BGRA8U
-     * @variable
+     * @constant
      */
 
     /*#
      * May be nil if the graphics driver doesn't support it
      * @name graphics.TEXTURE_FORMAT_R32UI
-     * @variable
+     * @constant
      */
 
     static const luaL_reg ScriptGraphics_methods[] =

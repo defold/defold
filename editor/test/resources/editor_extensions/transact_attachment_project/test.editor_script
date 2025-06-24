@@ -155,6 +155,28 @@ local function print_gui(gui)
         local font_res = editor.get(font, "font")
         print(("    font: %s%s"):format(editor.get(font, "name"), font_res and " " .. font_res or ""))
     end
+    local function print_gui_nodes(nodes, indent)
+        print(("%snodes: %s"):format(indent, #nodes))
+        local child_indent = indent .. "  "
+        for i = 1, #nodes do
+            local node = nodes[i]
+            local id_prop = editor.can_get(node, "id") and "id" or "generated_id"
+            print(("%s- type: %s"):format(indent, editor.get(node, "type")))
+            print(("%s  id: %s"):format(indent, editor.get(node, id_prop)))
+            print_gui_nodes(editor.get(node, "nodes"), child_indent)
+        end
+    end
+    print_gui_nodes(editor.get(gui, "nodes"), "  ")
+end
+
+local function print_gui_node_positions(node)
+    local props = {"position", "Landscape:position", "Portrait:position"}
+    for i = 1, #props do
+        local prop = props[i]
+        local position = editor.get(node, prop)
+        local can_reset = editor.can_reset(node, prop)
+        print(("  %s = {%s, %s, %s}, can reset = %s"):format(prop, position[1], position[2], position[3], tostring(can_reset)))
+    end
 end
 
 function M.get_commands()
@@ -358,6 +380,24 @@ function M.get_commands()
                     editor.tx.add(gui, "materials", {material = "/test.material"}),
                     editor.tx.add(gui, "materials", {material = "/test.material"}),
                     editor.tx.add(gui, "materials", {}),
+                    editor.tx.add(gui, "nodes", {
+                        type = "gui-node-type-box",
+                        position = {10, 10, 10},
+                        nodes = {
+                            {type = "gui-node-type-pie"},
+                            {type = "gui-node-type-text"},
+                            {
+                                type = "gui-node-type-template",
+                                template = "/button.gui"
+                            },
+                            {type = "gui-node-type-particlefx"},
+                            {
+                                type = "gui-node-type-spine",
+                                nodes = {{type = "gui-node-type-box"}}
+                            },
+                        }
+                    }),
+                    editor.tx.add(gui, "nodes", {type = "gui-node-type-text"}),
                     editor.tx.add(gui, "particlefxs", {}),
                     editor.tx.add(gui, "particlefxs", {particlefx = "/test.particlefx"}),
                     editor.tx.add(gui, "particlefxs", {}),
@@ -375,11 +415,50 @@ function M.get_commands()
                 print("After transaction (edit):")
                 print_gui(gui)
 
+                local nodes = editor.get(gui, "nodes")
+                local node = nodes[1]
+                print("Transaction: set Landscape position")
+                editor.transact({editor.tx.set(node, "Landscape:position", {20, 20, 20})})
+                print_gui_node_positions(node)
+
+                print("Transaction: reset Landscape position")
+                editor.transact({editor.tx.reset(node, "Landscape:position")})
+                print_gui_node_positions(node)
+
+                local template_node = editor.get(node, "nodes")[3]
+                print(("Template node: %s"):format(editor.get(template_node, "id")))
+                print(("  can add: %s"):format(tostring(editor.can_add(template_node, "nodes"))))
+                print(("  can reorder: %s"):format(tostring(editor.can_reorder(template_node, "nodes"))))
+                local override_text_node = editor.get(template_node, "nodes")[2]
+                print(("Override text node: %s"):format(editor.get(override_text_node, "generated_id")))
+                print(("  can add: %s"):format(tostring(editor.can_add(override_text_node, "nodes"))))
+                print(("  can reorder: %s"):format(tostring(editor.can_reorder(override_text_node, "nodes"))))
+
+                print("Transaction: set override node property")
+                editor.transact({editor.tx.set(override_text_node, "text", "custom text")})
+                print(("  text: %s"):format(editor.get(override_text_node, "text")))
+                print(("  can reset: %s"):format(tostring(editor.can_reset(override_text_node, "text"))))
+
+                print("Transaction: reset override node property")
+                editor.transact({editor.tx.reset(override_text_node, "text")})
+                print(("  text: %s"):format(editor.get(override_text_node, "text")))
+                print(("  can reset: %s"):format(tostring(editor.can_reset(override_text_node, "text"))))
+
+                print("Transaction: set override position and layout position properties")
+                editor.transact({
+                    editor.tx.set(override_text_node, "position", {10, 10, 10}),
+                    editor.tx.set(override_text_node, "Landscape:position", {20, 20, 20})
+                })
+                print_gui_node_positions(override_text_node)
+
                 print(("can reorder layers: %s"):format(tostring(editor.can_reorder(gui, "layers"))))
+                print(("can reorder nodes: %s"):format(tostring(editor.can_reorder(gui, "nodes"))))
                 local bg_layer, fg_layer = table.unpack(editor.get(gui, "layers"))
+                local node_a, node_b = nodes[1], nodes[2]
                 print("Transaction: reorder")
                 editor.transact({
-                    editor.tx.reorder(gui, "layers", {fg_layer, bg_layer})
+                    editor.tx.reorder(gui, "layers", {fg_layer, bg_layer}),
+                    editor.tx.reorder(gui, "nodes", {node_b, node_a}),
                 })
                 print("After transaction (reorder):")
                 print_gui(gui)
@@ -390,12 +469,18 @@ function M.get_commands()
                 expect_error("duplicates", editor.tx.reorder, gui, "layers", {fg_layer, fg_layer, bg_layer})
                 expect_error("missing children", editor.tx.reorder, gui, "layers", {fg_layer})
                 expect_error("wrong child nodes", editor.tx.reorder, gui, "layers", {fg_layer, gui})
+                expect_error("add to template node", editor.tx.add, template_node, "nodes", {type = "gui-node-type-box"})
+                expect_error("reorder template node", editor.tx.reorder, template_node, "nodes", {})
+                expect_error("add to overridden text node", editor.tx.add, override_text_node, "nodes", {type = "gui-node-type-box"})
+                expect_error("reorder overridden text node", editor.tx.reorder, override_text_node, "nodes", editor.get(override_text_node, "nodes"))
+                expect_error("reset unresettable", editor.tx.reset, override_text_node, "text")
 
                 print("Transaction: clear GUI")
                 editor.transact({
                     editor.tx.clear(gui, "layers"),
                     editor.tx.clear(gui, "layouts"),
                     editor.tx.clear(gui, "materials"),
+                    editor.tx.clear(gui, "nodes"),
                     editor.tx.clear(gui, "particlefxs"),
                     editor.tx.clear(gui, "spine_scenes"),
                     editor.tx.clear(gui, "textures"),
