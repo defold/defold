@@ -989,7 +989,6 @@
 
         update-ui-fn
         (fn update-ui-fn [property selection-provider]
-          ;; TODO: Do we need to supply the selection-provider here, or do we inherit it?
           (let [is-overridden (properties/overridden? property)
                 label-context (assoc context :property property :property-control control)]
             (ui/context! label :property label-context selection-provider)
