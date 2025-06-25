@@ -219,6 +219,7 @@ struct TestDummy {
     dmMessage::URL  m_URL;
     int             m_InstanceReference;
     int             m_ContextTableReference;
+    int             m_UniqueScriptId;
 };
 
 static int TestGetURL(lua_State* L) {
@@ -259,6 +260,13 @@ static int TestGetContextTableRef(lua_State* L)
     return 1;
 }
 
+static int TestScriptGetUniqueScriptId(lua_State* L)
+{
+    TestDummy* inst = (TestDummy*)lua_touserdata(L, 1);
+    lua_pushinteger(L, (lua_Integer)inst->m_UniqueScriptId);
+    return 1;
+}
+
 static int TestToString(lua_State* L)
 {
     lua_pushstring(L, "TestDummy");
@@ -277,6 +285,7 @@ static const luaL_reg Test_meta[] =
     {dmScript::META_TABLE_RESOLVE_PATH,             TestResolvePath},
     {dmScript::META_TABLE_IS_VALID,                 TestIsValid},
     {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, TestGetContextTableRef},
+    {dmScript::META_GET_UNIQUE_SCRIPT_ID,           TestScriptGetUniqueScriptId},
     {"__tostring",                                  TestToString},
     {0, 0}
 };
@@ -305,7 +314,7 @@ TEST_F(ScriptTestLua, TestUserType) {
     dummy->m_InstanceReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
     lua_newtable(L);
     dummy->m_ContextTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
-
+    dummy->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
     // Invalid
     ASSERT_FALSE(dmScript::IsInstanceValid(L));
 
@@ -519,6 +528,7 @@ static int CreateAndPushInstance(lua_State* L)
     int instanceref = dmScript::Ref(L, LUA_REGISTRYINDEX);
     lua_newtable(L);
     dummy->m_ContextTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    dummy->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref);
     dmScript::SetInstance(L);
@@ -1064,6 +1074,64 @@ TEST_F(ScriptTestLua, LuaBooleanFunctions)
     dmScript::PushBoolean(L, true);
     ASSERT_TRUE(lua_toboolean(L, -1));
     lua_pop(L, 1);
+}
+
+// Test that callback registry reference collision (reuse) does not allow invoking the old callback after the instance is destroyed or reused.
+TEST_F(ScriptTestLua, TestCallbackCollisionByInstanceReuse)
+{
+    // Define Lua function
+    ASSERT_TRUE(RunString(L, "function test_cb(self) _G.cb_call_count = (_G.cb_call_count or 0) + 1 end"));
+    // Create and destroy instance with callback
+    int instanceref1 = CreateAndPushInstance(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref1);
+    TestDummy* dummy = (TestDummy*)lua_touserdata(L, -1);
+    dmScript::SetInstance(L);
+    lua_getglobal(L, "test_cb");
+    dmScript::LuaCallbackInfo* cbk1 = dmScript::CreateCallback(L, -1);
+    dmScript::InvokeCallback(cbk1, 0, 0);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref1);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTableReference);
+
+    // Create and destroy instance with callback
+    int instanceref2 = CreateAndPushInstance(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref2);
+    TestDummy* dummy2 = (TestDummy*)lua_touserdata(L, -1);
+    dmScript::SetInstance(L);
+    lua_getglobal(L, "test_cb");
+    dmScript::LuaCallbackInfo* cbk2 = dmScript::CreateCallback(L, -1);
+    dmScript::InvokeCallback(cbk2, 0, 0);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref2);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy2->m_ContextTableReference);
+
+
+    ASSERT_TRUE(RunString(L, "function test_cb1(self) _G.cb2_call_count = (_G.cb2_call_count or 0) + 1 end"));
+    // Create and destroy instance with callback
+    int instanceref3 = CreateAndPushInstance(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref3);
+    TestDummy* dummy3 = (TestDummy*)lua_touserdata(L, -1);
+    dmScript::SetInstance(L);
+    lua_getglobal(L, "test_cb1");
+    dmScript::LuaCallbackInfo* cbk3 = dmScript::CreateCallback(L, -1);
+
+    // We expect that dummy3 reuses the same context table address
+    ASSERT_EQ(dummy->m_ContextTableReference, dummy3->m_ContextTableReference);
+
+    // Destroy callback to free the registry reference
+    // But dummy3 uses the same registry address as cbk1 used to use
+    // DestroyCallback shouldn't remove elements it doesn't own
+    // https://github.com/defold/defold/issues/10868
+    dmScript::DestroyCallback(cbk1);
+    dmScript::DestroyCallback(cbk2);
+
+    dmScript::InvokeCallback(cbk3, 0, 0);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref3);
+    dmScript::DestroyCallback(cbk3);
+
+    // At the end, assert that _G.cb_call_count == 2
+    ASSERT_TRUE(RunString(L, "assert(_G.cb_call_count == 2)"));
+    // If DestroyCallback(cbk1) works fine and doesn't remove what it doesn't own,
+    // this assert should pass
+    ASSERT_TRUE(RunString(L, "assert(_G.cb2_call_count == 1)"));
 }
 
 #undef USE_PANIC_FN
