@@ -128,10 +128,6 @@
                  :close-scopes {\' "punctuation.definition.string.quoted.end.lua"
                                 \" "punctuation.definition.string.quoted.end.lua"
                                 \] "punctuation.definition.string.end.lua"}}
-   :commit-characters {:method #{"("}
-                       :function #{"("}
-                       :field #{"."}
-                       :module #{"."}}
    :completion-trigger-characters #{"."}
    :ignored-completion-trigger-characters #{"{" ","}
    :patterns [{:captures {1 {:name "keyword.control.lua"}
