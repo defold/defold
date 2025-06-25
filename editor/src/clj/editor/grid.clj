@@ -31,8 +31,9 @@
            [com.sun.javafx.util Utils]
            [editor.types AABB Camera]
            [java.util List]
+           [javafx.event ActionEvent]
            [javafx.geometry HPos Point2D Pos VPos]
-           [javafx.scene Parent]
+           [javafx.scene Node Parent]
            [javafx.scene.control Label Slider TextField ToggleButton ToggleGroup PopupControl]
            [javafx.scene.layout HBox Region StackPane VBox]
            [javafx.scene.paint Color]
@@ -347,24 +348,27 @@
                 (mapcat identity))
           axes)))
 
-(declare show-settings!)
+(declare settings)
 
 (defn- reset-button
   [app-view prefs ^PopupControl popup]
   (let [button (doto (javafx.scene.control.Button. "Reset to Defaults")
                  (.setPrefWidth Double/MAX_VALUE))
-        reset-fn (fn [_]
-                   (doseq [path [[:size :x]
-                                 [:size :y]
-                                 [:size :z]
-                                 [:active-plane]
-                                 [:opacity]
-                                 [:color]]]
-                     (let [path (into grid-prefs-path path)]
-                       (prefs/set! prefs path (:default (prefs/schema prefs path)))))
-                   (invalidate-grids! app-view)
-                   (.hide popup)
-                   (show-settings! app-view (.getOwnerNode popup) prefs))]
+        reset-fn (fn [^ActionEvent event]
+                   (let [target ^Node (.getTarget event)
+                         parent (.getParent target)]
+                     (doseq [path [[:size :x]
+                                   [:size :y]
+                                   [:size :z]
+                                   [:active-plane]
+                                   [:opacity]
+                                   [:color]]]
+                       (let [path (into grid-prefs-path path)]
+                         (prefs/set! prefs path (:default (prefs/schema prefs path)))))
+                     (invalidate-grids! app-view)
+                     (doto parent
+                       (ui/children! (ui/node-array (settings app-view prefs popup)))
+                       (.requestFocus))))]
     (ui/on-action! button reset-fn)
     button))
 
