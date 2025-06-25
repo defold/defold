@@ -364,6 +364,10 @@ namespace dmGameSystem
     static void CompModelPoseCallback(void* user_data1, void* user_data2)
     {
         ModelComponent* component = (ModelComponent*)user_data1;
+        if (!component->m_Resource->m_Model->m_CreateGoBones)
+        {
+            return;
+        }
 
         // Include instance transform in the GO instance reflecting the root bone
         dmArray<dmRig::BonePose>& pose = *dmRig::GetPose(component->m_RigInstance);
@@ -599,8 +603,10 @@ namespace dmGameSystem
 
     static bool CreateGOBones(ModelWorld* world, ModelComponent* component)
     {
-        if(!component->m_Resource->m_RigScene->m_SkeletonRes)
+        if ((!component->m_Resource->m_Model->m_CreateGoBones) || (!component->m_Resource->m_RigScene->m_SkeletonRes))
+        {
             return true;
+        }
 
         dmGameObject::HInstance instance = component->m_Instance;
         dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
@@ -991,11 +997,14 @@ namespace dmGameSystem
 
         // Create GO<->bone representation
         // We need to make sure that bone GOs are created before we start the default animation.
-        if (!CreateGOBones(world, component))
+        if (component->m_Resource->m_Model->m_CreateGoBones)
         {
-            dmLogError("Failed to create game objects for bones in model. Consider increasing collection max instances (collection.max_instances).");
-            DestroyComponent(world, index);
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            if (!CreateGOBones(world, component))
+            {
+                dmLogError("Failed to create game objects for bones in model. Consider increasing collection max instances (collection.max_instances).");
+                DestroyComponent(world, index);
+                return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            }
         }
 
         // Create rig instance
@@ -2392,7 +2401,14 @@ namespace dmGameSystem
 
     dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index)
     {
-        return component->m_NodeInstances[bone_index];
+        if (component->m_Resource->m_Model->m_CreateGoBones)
+        {
+            return component->m_NodeInstances[bone_index];
+        }
+        else
+        {
+            return 0x0;
+        }
     }
 
     bool CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled)
