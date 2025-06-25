@@ -152,11 +152,12 @@
                 -fx-border-color: -df-component-light;
 
                 &:hover {
-                    -fx-border-color: -df-component-lighter;
+                    -fx-border-color: -df-component-light;
                 }
 
                 &:focused {
                     -fx-border-width: 1px 1px 2px 1px;
+                    -fx-background-color: -df-component-darker;
                     -fx-border-color: -df-component-lighter -df-component-lighter -df-defold-orange -df-component-lighter;
                 }
 
@@ -169,13 +170,22 @@
                 &:focused {
                     -fx-background-color: -df-component-light;
                     -fx-text-fill: -df-text-selected;
-                    -fx-border-color: -df-component-lighter;
                 }
             }
 
             .toggle-button {
                 -fx-border-color: -df-component-lighter;
 
+                &:hover,
+                &:focused {
+                    -fx-background-color: -df-component-light;
+                    -fx-text-fill: -df-text-selected;
+                }
+
+                &:selected {
+                    -fx-background-color: -df-background-light;
+                    -fx-text-fill: -df-text-selected;
+                }
             }
 
             .slider {
