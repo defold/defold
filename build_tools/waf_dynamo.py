@@ -592,7 +592,7 @@ def default_flags(self):
         emflags_link = [
             'DISABLE_EXCEPTION_CATCHING=1',
             'ALLOW_UNIMPLEMENTED_SYSCALLS=0',
-            'EXPORTED_RUNTIME_METHODS=["ccall","UTF8ToString","callMain","HEAPU8","stringToNewUTF8"]',
+            'EXPORTED_RUNTIME_METHODS=["ccall","UTF8ToString","callMain","HEAPU8","stringToNewUTF8","_malloc","_free"]',
             'EXPORTED_FUNCTIONS=_main,_malloc,_free',
             'ERROR_ON_UNDEFINED_SYMBOLS=1',
             'INITIAL_MEMORY=33554432',
