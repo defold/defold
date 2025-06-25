@@ -94,7 +94,7 @@
   (format "doc/%s_doc.sdoc" doc))
 
 (defn- load-sdoc [doc-name]
-  (:elements (protobuf/read-map-with-defaults ScriptDoc$Document (io/resource (sdoc-path doc-name)))))
+  (protobuf/read-map-with-defaults ScriptDoc$Document (io/resource (sdoc-path doc-name))))
 
 (defn make-completion-map
   "Make a completion map from reducible of ns path + completion tuples
@@ -141,16 +141,20 @@
   (make-completion-map
     (eduction
       (mapcat (fn [doc-name]
-                (eduction
-                  (remove #(= :typedef (:type %)))
-                  (map #(pair doc-name %))
-                  (load-sdoc doc-name))))
-      (map (fn [[doc-name raw-element]]
+                (let [sdoc (load-sdoc doc-name)
+                      raw-info (:info sdoc)
+                      raw-elements (:elements sdoc)]
+                  (eduction
+                    (remove #(= :typedef (:type %)))
+                    (map #(vector doc-name raw-info %))
+                    raw-elements))))
+      (map (fn [[doc-name raw-info raw-element]]
              (let [raw-name (:name raw-element)
                    name-parts (string/split raw-name #"\.")
                    ns-path (pop name-parts)
                    {:keys [type parameters] :as el} (assoc raw-element :name (peek name-parts))
-                   base-url (URI. (str "https://defold.com/ref/" doc-name))
+                   raw-namespace (:namespace raw-info)
+                   base-url (URI. (str "https://defold.com/ref/" raw-namespace "-lua"))
                    site-url (str "#"
                                  (string/replace
                                    (str
@@ -185,7 +189,7 @@
 (def base-globals
   (into #{"coroutine" "package" "string" "table" "math" "io" "file" "os" "debug"}
         (map :name)
-        (load-sdoc "lua_base.doc_h")))
+        (:elements (load-sdoc "lua_base.doc_h"))))
 
 (defn extract-globals-from-completions [completions]
   (into #{}
