@@ -1217,7 +1217,7 @@
               (let [property-transfer (first property-transfers)
                     property-label (:source-prop-label property-transfer)]
                 (str property-label " Override")))
-            (text-util/amount-text property-transfer-count "Override"))
+            (text-util/amount-text text-util/count->number property-transfer-count "Override"))
 
         property-transfer-targets
         (coll/transfer property-transfers []
@@ -1233,7 +1233,7 @@
               (if node-qualifier-label
                 (str \' node-qualifier-label \')
                 target-node-singular))
-            (text-util/amount-text target-node-count target-node-singular)))
+            (text-util/amount-text text-util/count->number target-node-count target-node-singular)))
 
         target-aspect-qualifier
         (let [target-aspects (coll/transfer property-transfer-targets #{}
@@ -1249,7 +1249,7 @@
                     target-aspect-kind (if (= 1 target-aspect-kind-count)
                                          (first target-aspect-kinds)
                                          "Aspect")]
-                (str "Among " (text-util/amount-text target-aspect-count target-aspect-kind))))))
+                (str "Among " (text-util/amount-text text-util/count->number target-aspect-count target-aspect-kind))))))
 
         target-resources-qualifier
         (let [target-proj-paths (coll/transfer property-transfer-targets #{}
@@ -1261,8 +1261,8 @@
               (str target-aspect-qualifier " of '" (first target-proj-paths) \')
               (str "in '" (first target-proj-paths) \'))
             (if target-aspect-qualifier
-              (str target-aspect-qualifier " Across " (text-util/amount-text target-proj-path-count "Resource"))
-              (str "Across " (text-util/amount-text target-proj-path-count "Resource")))))]
+              (str target-aspect-qualifier " Across " (text-util/amount-text text-util/count->number target-proj-path-count "Resource"))
+              (str "Across " (text-util/amount-text text-util/count->number target-proj-path-count "Resource")))))]
 
     (-> (format "%s %s to %s %s"
                 action-text

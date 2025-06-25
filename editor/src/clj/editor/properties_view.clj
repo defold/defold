@@ -669,7 +669,7 @@
     (fuzzy-combo-box/observe! combo-box listen-fn)
     [combo-box update-ui-fn]))
 
-(defmethod make-property-control resource/Resource [edit-type _context property-fn]
+(defmethod make-property-control resource/Resource [edit-type context property-fn]
   (let [box           (GridPane.)
         browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
                         (.setPrefWidth 26)
@@ -701,26 +701,16 @@
                                     (properties/validation-message property)
                                     (properties/read-only? property))))
         commit-fn (fn [_]
-                    (let [property (property-fn)
-                          resource (g/with-auto-evaluation-context evaluation-context
-                                     (let [basis (:basis evaluation-context)
-                                           node-id (first (:node-ids property))
-                                           project (project/get-project basis node-id)
-                                           workspace (project/workspace project evaluation-context)
-                                           proj-path (ui/text text)]
-                                       (workspace/resolve-workspace-resource workspace proj-path evaluation-context)))]
-                      (properties/set-values! property (repeat resource))))]
+                    (let [workspace (:workspace context)
+                          proj-path (ui/text text)
+                          resource (workspace/resolve-workspace-resource workspace proj-path)]
+                      (properties/set-values! (property-fn) (repeat resource))))]
     (ui/add-style! box "composite-property-control-container")
     (ui/on-action! browse-button (fn [_]
-                                   (let [property (property-fn)
-                                         resource (g/with-auto-evaluation-context evaluation-context
-                                                    (let [basis (:basis evaluation-context)
-                                                          node-id (first (:node-ids property))
-                                                          project (project/get-project basis node-id)
-                                                          workspace (project/workspace project evaluation-context)]
-                                                      (first (resource-dialog/make workspace project dialog-opts))))]
+                                   (let [{:keys [project workspace]} context
+                                         resource (first (resource-dialog/make workspace project dialog-opts))]
                                      (when (some? resource)
-                                       (properties/set-values! property (repeat resource))))))
+                                       (properties/set-values! (property-fn) (repeat resource))))))
     (ui/on-action! open-button (fn [_]
                                  (when-let [resource (-> (property-fn)
                                                          properties/values

@@ -323,6 +323,8 @@
             (.regionMatches str true i sub 0 sub-length) true
             :else (recur (inc i))))))))
 
+(def count->number str)
+
 (defn count->lower-case-string
   "Returns a human-readable string representation of the specified count.
   Produces lower-case words for numbers nine and below. Uses numerals for
@@ -365,23 +367,24 @@
      9 "Nine"
      (str count))))
 
+(defn singular->count->string
+  "Given a singular word, return a suitable count->string function that produces
+  numeric words that match its casing."
+  [^String singular]
+  (if (and (not (.isEmpty singular))
+           (Character/isUpperCase (.codePointAt singular 0)))
+    count->upper-case-string
+    count->lower-case-string))
+
 (defn amount-text
   "Returns a string in the form \"One Item\" or \"Seven Items\", depending on the
   specified count. You can supply both the singular and the plural form to
-  handle irregular nouns. The optional count->string function will be called
+  handle irregular nouns. The supplied count->string function will be called
   with the count to obtain it in word form. It may return nil, in which case the
-  numeral representation will be used. If not supplied, the casing of the first
-  letter in the singular form will determine the casing of the word used to
-  represent the amount."
-  (^String [^long count ^String singular]
-   (amount-text count singular nil))
-  (^String [^long count ^String singular ^String plural]
-   (amount-text count singular plural
-                (if (and (not (.isEmpty singular))
-                         (Character/isUpperCase (.codePointAt singular 0)))
-                  count->upper-case-string
-                  count->lower-case-string)))
-  (^String [^long count ^String singular ^String plural count->string]
+  numeral representation will be used."
+  (^String [count->string ^long count ^String singular]
+   (amount-text count->string count singular nil))
+  (^String [count->string ^long count ^String singular ^String plural]
    (str (or (count->string count)
             (str count))
         \space

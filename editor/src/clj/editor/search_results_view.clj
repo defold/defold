@@ -407,7 +407,7 @@
                             :text qualifier}))})
 
 (defn- resource-cell [{:keys [resource qualifier]}]
-  (let [proj-path (resource/proj-path resource)]
+  (let [proj-path (resource/resource->proj-path resource)]
     {:graphic (resource-cell-view proj-path qualifier)}))
 
 (defn- property->edit-type-dispatch-value [property]
@@ -574,24 +574,28 @@
 (defn- override-inspector-query-label [state]
   (let [{:keys [proj-path qualifier prop-kws]} state
 
-        header-prefix-label
-        {:fx/type fxui/legacy-label
-         :style {:-fx-text-fill :-df-text-light}
-         :wrap-text false
-         :text (case (count prop-kws)
-                 0 "All property overrides of"
-                 1 (str (properties/keyword->name (first prop-kws))
-                        " overrides of")
-                 (2 3 4) (str (util/join-words
-                                ", " " and "
-                                (map properties/keyword->name
-                                     prop-kws))
-                              " overrides of")
-                 "Specific property overrides of")}]
-    (-> (resource-cell-view proj-path qualifier)
-        (update :children #(cons header-prefix-label %))
-        (assoc :style {:-fx-min-height 26.0
-                       :-fx-alignment :center}))))
+        header-prefix-text
+        (case (count prop-kws)
+          0 "All Property Overrides of"
+          1 (str (properties/keyword->name (first prop-kws))
+                 " Overrides of")
+          (2 3 4) (str (util/join-words
+                         ", " " and "
+                         (map properties/keyword->name
+                              prop-kws))
+                       " Overrides of")
+          "Specific Property Overrides of")
+
+        header-text
+        (cond-> header-prefix-text
+                qualifier (str " '" qualifier \')
+                (and qualifier proj-path) (str " in")
+                proj-path (str " '" proj-path \'))]
+
+    {:fx/type fxui/legacy-label
+     :text header-text
+     :wrap-text false
+     :style {:-fx-min-height 26.0}}))
 
 (defn- override-inspector-tree-table-view
   [{:keys [display-order
@@ -673,7 +677,7 @@
           :pref-height 28
           :mouse-transparent true}
          (let [{:keys [display-order queried-properties selected-item tree]} state
-               queried-proj-path (resource/proj-path (:resource tree))
+               queried-proj-path (some-> tree :resource resource/proj-path)
                queried-qualifier (:qualifier tree)
                source-node-id (:node-id selected-item)
                overridden-prop-kws (:overridden-properties selected-item)
@@ -699,6 +703,7 @@
               :push-down-overrides-menu-items push-down-overrides-menu-items}
              {:fx/type fx.v-box/lifecycle
               :h-box/hgrow :always
+              :alignment :top-center
               :children
               [{:fx/type override-inspector-query-label
                 :v-box/vgrow :never

@@ -970,7 +970,7 @@
     (test-util/with-changes-reverted project
       (let [source-node-id (test-util/resource-outline-node-id project "/book.go" "book_script")
             transfer-overrides-plans (push-down-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Push Down Text Override to Three Descendants Across Two Resources" :ok]]
+        (is (= [["Push Down Text Override to 3 Descendants Across 2 Resources" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/book.go"
@@ -1078,7 +1078,7 @@
     (test-util/with-changes-reverted project
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf.collection" "referenced_book" "book_script")
             transfer-overrides-plans (push-down-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Push Down Text Override to Three Descendants Across Two Resources" :ok]]
+        (is (= [["Push Down Text Override to 3 Descendants Across 2 Resources" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/shelf.collection"
@@ -1220,7 +1220,7 @@
       (set-gui-layout! project "/room_two.gui" "")
       (let [source-node-id (test-util/resource-outline-node-id project "/shelf.gui" "Nodes" "referenced_book" "referenced_book/book_text")
             transfer-overrides-plans (push-down-overrides-plan-alternatives source-node-id :all)]
-        (is (= [["Push Down Text Override to Three Descendants Across Two Resources" :ok]]
+        (is (= [["Push Down Text Override to 3 Descendants Across 2 Resources" :ok]]
                (mapv transfer-overrides-plan-info transfer-overrides-plans)))
         (properties/transfer-overrides! (first transfer-overrides-plans))
         (is (= {"/shelf.gui"

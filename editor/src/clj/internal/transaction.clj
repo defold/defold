@@ -94,7 +94,7 @@
   {:pre [(gt/node-id? node-id)
          (keyword? property-label)
          (ifn? update-fn)
-         (coll/eager-seq? args)
+         (coll/eager-seqable? args)
          (or (nil? opts) (map? opts))]}
   [{:type :update-property
     :node-id node-id
@@ -135,7 +135,7 @@
 (defn callback
   [callback-fn args opts]
   {:pre [(ifn? callback-fn)
-         (coll/eager-seq? args)
+         (coll/eager-seqable? args)
          (or (nil? opts) (map? opts))]}
   [{:type :callback
     :fn callback-fn

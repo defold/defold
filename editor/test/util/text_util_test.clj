@@ -392,33 +392,32 @@
     (let [zero-result (str "SUPPLIED" \_ "ZERO" \_ "RESULT")]
       (is (identical? zero-result (text-util/count->upper-case-string 0 zero-result))))))
 
+(deftest singular->count->string-test
+  (testing "Lower-case behavior."
+    (let [count->string (text-util/singular->count->string "item")]
+      (is (= "-1" (count->string -1)))
+      (is (= "no" (count->string 0)))
+      (is (= "one" (count->string 1)))
+      (is (= "two" (count->string 2)))))
+  (testing "Upper-case behavior."
+    (let [count->string (text-util/singular->count->string "Item")]
+      (is (= "-1" (count->string -1)))
+      (is (= "No" (count->string 0)))
+      (is (= "One" (count->string 1)))
+      (is (= "Two" (count->string 2))))))
+
 (deftest amount-text-test
-  (testing "No count->string function supplied."
-    (testing "No plural form specified."
-      (testing "Lower-case behavior."
-        (is (= "-1 items" (text-util/amount-text -1 "item")))
-        (is (= "no items" (text-util/amount-text 0 "item")))
-        (is (= "one item" (text-util/amount-text 1 "item")))
-        (is (= "two items" (text-util/amount-text 2 "item"))))
+  (testing "No plural form specified."
+    (is (= "-1 items" (text-util/amount-text text-util/count->number -1 "item")))
+    (is (= "0 items" (text-util/amount-text text-util/count->number 0 "item")))
+    (is (= "1 item" (text-util/amount-text text-util/count->number 1 "item")))
+    (is (= "2 items" (text-util/amount-text text-util/count->number 2 "item"))))
 
-      (testing "Upper-case behavior."
-        (is (= "-1 Items" (text-util/amount-text -1 "Item")))
-        (is (= "No Items" (text-util/amount-text 0 "Item")))
-        (is (= "One Item" (text-util/amount-text 1 "Item")))
-        (is (= "Two Items" (text-util/amount-text 2 "Item")))))
-
-    (testing "Plural form specified."
-      (testing "Lower-case behavior."
-        (is (= "-1 foxes" (text-util/amount-text -1 "fox" "foxes")))
-        (is (= "no foxes" (text-util/amount-text 0 "fox" "foxes")))
-        (is (= "one fox" (text-util/amount-text 1 "fox" "foxes")))
-        (is (= "two foxes" (text-util/amount-text 2 "fox" "foxes"))))
-
-      (testing "Upper-case behavior."
-        (is (= "-1 Foxes" (text-util/amount-text -1 "Fox" "Foxes")))
-        (is (= "No Foxes" (text-util/amount-text 0 "Fox" "Foxes")))
-        (is (= "One Fox" (text-util/amount-text 1 "Fox" "Foxes")))
-        (is (= "Two Foxes" (text-util/amount-text 2 "Fox" "Foxes"))))))
+  (testing "Plural form specified."
+    (is (= "-1 foxes" (text-util/amount-text text-util/count->number -1 "fox" "foxes")))
+    (is (= "0 foxes" (text-util/amount-text text-util/count->number 0 "fox" "foxes")))
+    (is (= "1 fox" (text-util/amount-text text-util/count->number 1 "fox" "foxes")))
+    (is (= "2 foxes" (text-util/amount-text text-util/count->number 2 "fox" "foxes"))))
 
   (testing "Uses supplied count->string function."
     (letfn [(count->string [^long count]
@@ -428,8 +427,8 @@
                 2 "a few"
                 (when (pos? count)
                   "several")))]
-      (is (= "-1 tears" (text-util/amount-text -1 "tear" "tears" count->string)))
-      (is (= "an absence of tears" (text-util/amount-text 0 "tear" "tears" count->string)))
-      (is (= "a single tear" (text-util/amount-text 1 "tear" "tears" count->string)))
-      (is (= "a few tears" (text-util/amount-text 2 "tear" "tears" count->string)))
-      (is (= "several tears" (text-util/amount-text 3 "tear" "tears" count->string))))))
+      (is (= "-1 tears" (text-util/amount-text count->string -1 "tear" "tears")))
+      (is (= "an absence of tears" (text-util/amount-text count->string 0 "tear" "tears")))
+      (is (= "a single tear" (text-util/amount-text count->string 1 "tear" "tears")))
+      (is (= "a few tears" (text-util/amount-text count->string 2 "tear" "tears")))
+      (is (= "several tears" (text-util/amount-text count->string 3 "tear" "tears"))))))
