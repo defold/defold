@@ -252,14 +252,17 @@
         grid-id (g/node-value scene-view-id :grid)]
     (g/transact [(g/invalidate-output grid-id :grids)])))
 
-(defmulti settings-row (fn [_app-view _prefs option] option))
+(defmulti settings-row (fn [_app-view _prefs _popup option] option))
 
 (defmethod settings-row :opacity
-  [app-view prefs option]
+  [app-view prefs popup option]
   (let [prefs-path (conj grid-prefs-path option)
         value (prefs/get prefs prefs-path)
         slider (Slider. 0.0 1.0 value)
         label (Label. "Opacity")]
+    (.setOnMouseEntered slider (ui/event-handler e (.setAutoHide popup false)))
+    (.setOnMouseExited slider (ui/event-handler e (.setAutoHide popup true)))
+    
     (ui/observe
       (.valueProperty slider)
       (fn [_observable _old-val new-val]
@@ -277,7 +280,7 @@
       (ui/add-style! "plane-toggle"))))
 
 (defmethod settings-row :active-plane
-  [app-view prefs option]
+  [app-view prefs _popup option]
   (let [prefs-path (conj grid-prefs-path option)
         plane-group (ToggleGroup.)
         buttons (mapv (partial plane-toggle-button prefs plane-group prefs-path) axes)
@@ -294,7 +297,7 @@
     (concat [label] buttons)))
 
 (defmethod settings-row :color
-  [app-view prefs option]
+  [app-view prefs _popup option]
   (let [prefs-path (conj grid-prefs-path option)
         text-field (TextField.)
         [r g b a] (prefs/get prefs prefs-path)
@@ -342,7 +345,7 @@
     [label text-field]))
 
 (defmethod settings-row :size
-  [app-view prefs option]
+  [app-view prefs _popup option]
   (let [prefs-path (conj grid-prefs-path option)]
     (into []
           (comp (map (partial axis-group app-view prefs prefs-path))
@@ -382,7 +385,7 @@
     (->> [:size :active-plane :color :opacity]
          (e/remove (partial contains? options))
          (reduce (fn [rows option]
-                   (conj rows (doto (HBox. 5 (ui/node-array (settings-row app-view prefs option)))
+                   (conj rows (doto (HBox. 5 (ui/node-array (settings-row app-view prefs popup option)))
                                 (.setAlignment Pos/CENTER))))
                  [reset-btn]))))
 
@@ -395,9 +398,7 @@
     (.hide popup)
     (let [region (StackPane.)
           popup (popup/make-popup owner region)
-          anchor ^Point2D (pref-popup-position (.getParent owner))
-          overlay ^StackPane (.lookup (ui/main-root) "#overlay")
-          hide-popup-event (ui/event-handler event (.hide popup))]
+          anchor ^Point2D (pref-popup-position (.getParent owner))]
       (ui/children! region [(doto (Region.)
                               (ui/add-style! "popup-shadow"))
                             (doto (VBox. 10 (ui/node-array (settings app-view prefs popup)))
@@ -405,12 +406,5 @@
       (ui/user-data! owner ::popup popup)
       (doto popup
         (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
-        (.setAutoHide false)
-        (.setOnShown (ui/event-handler event (doto overlay
-                                               (.setVisible true)
-                                               (.addEventFilter MouseEvent/MOUSE_PRESSED hide-popup-event))))
-        (.setOnHidden (ui/event-handler event (doto overlay
-                                                (.removeEventFilter MouseEvent/MOUSE_PRESSED hide-popup-event)
-                                                (.setVisible false))))
         (ui/on-closed! (fn [_] (ui/user-data! owner ::popup nil)))
         (.show owner (.getX anchor) (.getY anchor))))))
