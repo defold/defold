@@ -2385,9 +2385,7 @@
         (cond
           (and selected-suggestion
                (or (= "\r" typed)
-                   (let [commit-characters (or (:commit-characters selected-suggestion)
-                                               (get-in grammar [:commit-characters (:type selected-suggestion)]))]
-                     (contains? commit-characters typed))))
+                   (contains? (:commit-characters selected-suggestion) typed)))
           (let [insertion (code-completion/insertion selected-suggestion)]
             (do (accept-suggestion! view-node insertion)
                 [;; insert-typed
