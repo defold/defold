@@ -72,21 +72,6 @@
   (or (some-> edit-type :type g/value-type-dispatch-value)
       (:type edit-type)))
 
-(defn- select-all-on-click! [^TextInputControl t]
-  (doto t
-    ;; Filter is necessary because the listener will be called after the text field has received focus, i.e. too late
-    (.addEventFilter MouseEvent/MOUSE_PRESSED (ui/event-handler e
-                                                (when (not (ui/focus? t))
-                                                  (.deselect t)
-                                                  (ui/user-data! t ::selection-at-focus true))))
-    ;; Filter is necessary because the TextArea captures the event
-    (.addEventFilter MouseEvent/MOUSE_RELEASED (ui/event-handler e
-                                                 (when (ui/user-data t ::selection-at-focus)
-                                                   (when (string/blank? (.getSelectedText t))
-                                                     (.consume e)
-                                                     (ui/run-later (.selectAll t))))
-                                                 (ui/user-data! t ::selection-at-focus nil)))))
-
 (defmulti customize! (fn [control _ _] (class control)))
 
 (defmethod customize! TextField [^TextField t update-fn cancel-fn]
@@ -95,7 +80,7 @@
     (ui/on-action! update-fn)
     (ui/on-cancel! cancel-fn)
     (ui/auto-commit! update-fn)
-    (select-all-on-click!)))
+    (ui/select-all-on-click!)))
 
 (defmethod customize! TextArea [^TextArea t update-fn cancel-fn]
   (doto t
@@ -103,7 +88,7 @@
     (ui/on-action! update-fn)
     (ui/on-cancel! cancel-fn)
     (ui/auto-commit! update-fn)
-    (select-all-on-click!)))
+    (ui/select-all-on-click!)))
 
 (defn- old-num->parse-num-fn [old-num]
   {:pre [(or (number? old-num) (nil? old-num))]}

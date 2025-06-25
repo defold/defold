@@ -2352,3 +2352,18 @@
   (let [anchor-node (.getTarget mouse-event)
         offset (Point2D. (.getScreenX mouse-event) (.getScreenY mouse-event))]
     (show-simple-context-menu! menu-item-fn item-action-fn items anchor-node offset)))
+
+(defn select-all-on-click! [^TextInputControl t]
+  (doto t
+    ;; Filter is necessary because the listener will be called after the text field has received focus, i.e. too late
+    (.addEventFilter MouseEvent/MOUSE_PRESSED (event-handler e
+                                                             (when (not (focus? t))
+                                                               (.deselect t)
+                                                               (user-data! t ::selection-at-focus true))))
+    ;; Filter is necessary because the TextArea captures the event
+    (.addEventFilter MouseEvent/MOUSE_RELEASED (event-handler e
+                                                              (when (user-data t ::selection-at-focus)
+                                                                (when (string/blank? (.getSelectedText t))
+                                                                  (.consume e)
+                                                                  (run-later (.selectAll t))))
+                                                              (user-data! t ::selection-at-focus nil)))))

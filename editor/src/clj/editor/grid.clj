@@ -34,7 +34,7 @@
            [javafx.geometry HPos Point2D Pos VPos]
            [javafx.scene Parent]
            [javafx.scene.control Label Slider TextField ToggleButton ToggleGroup PopupControl]
-           [javafx.scene.layout HBox Priority Region StackPane VBox]
+           [javafx.scene.layout HBox Region StackPane VBox]
            [javafx.scene.paint Color]
            [javafx.stage PopupWindow$AnchorLocation]
            [java.nio ByteBuffer ByteOrder DoubleBuffer]
@@ -311,7 +311,7 @@
       (ui/on-action! update-fn)
       (ui/on-cancel! cancel-fn)
       (ui/auto-commit! update-fn)
-      (ui/on-focus! (fn [_] (ui/run-later (.selectAll text-field)))))
+      (ui/select-all-on-click!))
     [label text-field]))
 
 (defn- axis-group
@@ -334,8 +334,8 @@
       (ui/on-action! update-fn)
       (ui/on-cancel! cancel-fn)
       (ui/auto-commit! update-fn)
-      (.setFocusTraversable true)
-      (ui/on-focus! (fn [_] (ui/run-later (.selectAll text-field)))))
+      (ui/select-all-on-click!)
+      (.setFocusTraversable true))
 
     [label text-field]))
 
