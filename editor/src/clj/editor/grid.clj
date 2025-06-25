@@ -35,6 +35,7 @@
            [javafx.geometry HPos Point2D Pos VPos]
            [javafx.scene Node Parent]
            [javafx.scene.control Label Slider TextField ToggleButton ToggleGroup PopupControl]
+           [javafx.scene.input MouseEvent]
            [javafx.scene.layout HBox Region StackPane VBox]
            [javafx.scene.paint Color]
            [javafx.stage PopupWindow$AnchorLocation]
@@ -394,7 +395,9 @@
     (.hide popup)
     (let [region (StackPane.)
           popup (popup/make-popup owner region)
-          anchor ^Point2D (pref-popup-position (.getParent owner))]
+          anchor ^Point2D (pref-popup-position (.getParent owner))
+          overlay ^StackPane (.lookup (ui/main-root) "#overlay")
+          hide-popup-event (ui/event-handler event (.hide popup))]
       (ui/children! region [(doto (Region.)
                               (ui/add-style! "popup-shadow"))
                             (doto (VBox. 10 (ui/node-array (settings app-view prefs popup)))
@@ -402,5 +405,12 @@
       (ui/user-data! owner ::popup popup)
       (doto popup
         (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
+        (.setAutoHide false)
+        (.setOnShown (ui/event-handler event (doto overlay
+                                               (.setVisible true)
+                                               (.addEventFilter MouseEvent/MOUSE_PRESSED hide-popup-event))))
+        (.setOnHidden (ui/event-handler event (doto overlay
+                                                (.removeEventFilter MouseEvent/MOUSE_PRESSED hide-popup-event)
+                                                (.setVisible false))))
         (ui/on-closed! (fn [_] (ui/user-data! owner ::popup nil)))
         (.show owner (.getX anchor) (.getY anchor))))))
