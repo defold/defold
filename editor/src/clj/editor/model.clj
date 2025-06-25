@@ -445,7 +445,7 @@
           (g/fnk [material-scene-infos]
             (model-scene/make-material-name->material-scene-info material-scene-infos)))
 
-  (property create-go-bones g/Bool (default false))
+  (property create-go-bones g/Bool (protobuf/default ModelProto$ModelDesc :create-go-bones))
 
   (property skeleton resource/Resource ; Nil is valid default.
             (value (gu/passthrough skeleton-resource))
