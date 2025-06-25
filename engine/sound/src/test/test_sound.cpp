@@ -1650,7 +1650,7 @@ INSTANTIATE_TEST_CASE_P(dmSoundVerifyAdpcmTest, dmSoundVerifyAdpcmTest, jc_test_
 #endif
 
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
-TEST_P(dmSoundTestPlayTest, Play)
+TEST_P(dmSoundTestPlayTest, Panning)
 {
 
     TestParams params = GetParam();
@@ -1686,7 +1686,8 @@ TEST_P(dmSoundTestPlayTest, Play)
         if (a > M_PI*2) {
             a-= M_PI*2;
         }
-        r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, dmVMath::Vector4(cosf(a),0,0,0));
+        float pan = cosf(a);
+        r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, dmVMath::Vector4(pan,0,0,0));
         ASSERT_EQ(dmSound::RESULT_OK, r);
 
         uint64_t tend = dmTime::GetMonotonicTime();
