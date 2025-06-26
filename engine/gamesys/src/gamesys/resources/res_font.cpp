@@ -643,9 +643,8 @@ namespace dmGameSystem
 
     TTFResource* ResFontGetTTFResourceFromCodepoint(FontResource* resource, uint32_t codepoint)
     {
-        // TODO: Get ttfresource from codepoint
-        // return GetTTFFromCodePoint(resource, codepoint);
-        return resource->m_TTFResource;
+        TTFResource* ttf = GetTTFFromCodePoint(resource, codepoint);
+        return ttf ? ttf : resource->m_TTFResource;
     }
 
     dmResource::Result ResFontGetInfo(FontResource* resource, FontInfo* desc)

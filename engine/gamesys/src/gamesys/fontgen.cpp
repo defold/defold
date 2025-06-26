@@ -427,7 +427,7 @@ dmExtension::Result FontGenInitialize(dmExtension::Params* params)
     // As we're interacting with the resources, it's good to use the resource mutex
     g_FontExtContext->m_Mutex = dmResource::GetLoadMutex(params->m_ResourceFactory);
 
-    // 3 is arbitrary but resembles the output from out generator
+    // 3 is arbitrary but resembles the output from our old generator
     g_FontExtContext->m_StbttDefaultSdfPadding = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.stbtt_sdf_base_padding", 3);
     g_FontExtContext->m_StbttDefaultSdfEdge = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.stbtt_sdf_edge_value", 191);
 
