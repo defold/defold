@@ -82,3 +82,13 @@
    (graph-dependencies (g/now) tgts))
   ([basis tgts]
    (g/dependencies basis tgts)))
+
+(defmacro with-post-ec
+  "Given a symbol that resolves to a function, returns a fn that executes that
+  function in an implicit evaluation-context supplied as the final argument to
+  the function."
+  [fn-sym]
+  {:pre [(symbol? fn-sym)]}
+  `(fn ~(symbol (name fn-sym)) [& ~'args]
+     (g/with-auto-evaluation-context ~'evaluation-context
+       (apply ~fn-sym (conj (vec ~'args) ~'evaluation-context)))))

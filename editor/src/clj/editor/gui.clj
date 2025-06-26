@@ -41,6 +41,7 @@
             [editor.id :as id]
             [editor.material :as material]
             [editor.math :as math]
+            [editor.menu-items :as menu-items]
             [editor.outline :as outline]
             [editor.particlefx :as particlefx]
             [editor.pose :as pose]
@@ -375,7 +376,7 @@
 
 (def pb-field-index->pb-field (protobuf/fields-by-indices Gui$NodeDesc))
 
-(def ^:private pb-field-index->prop-key
+(def pb-field-index->prop-key
   (persistent!
     (reduce-kv (fn [pb-field-index->prop-key pb-field-index pb-field]
                  (if-some [[prop-key] (pb-field-to-node-property-conversions pb-field)]
@@ -384,7 +385,7 @@
                (transient pb-field-index->pb-field)
                pb-field-index->pb-field)))
 
-(def ^:private prop-key->pb-field-index
+(def prop-key->pb-field-index
   (persistent!
     (reduce-kv (fn [prop-key->pb-field-index pb-field-index prop-key]
                  (assoc! prop-key->pb-field-index prop-key pb-field-index))
@@ -1343,6 +1344,83 @@
 
 (defmethod scene-tools/manip-scale ::GuiNode [evaluation-context node-id delta]
   (basic-layout-property-update-in-current-layout evaluation-context node-id :scale scene/apply-scale-delta delta))
+
+(defn- transfer-overrides-target-properties
+  [target-node-id target-layout-name evaluation-context]
+  {:pre [(string? target-layout-name)]}
+  (let [layout->prop->value (g/node-value target-node-id :layout->prop->value evaluation-context)
+        prop-kw->prop-info (:properties (g/node-value target-node-id :_declared-properties evaluation-context))
+        prop-kw->value (get layout->prop->value target-layout-name ::not-found)]
+    ;; We don't return any target properties if the layout does not exist in the
+    ;; target node. Otherwise, we would have to create the layout in the target
+    ;; gui scene, which might be confusing?
+    (when (not= ::not-found prop-kw->value)
+      (coll/transfer prop-kw->prop-info {}
+        (map (fn [[prop-kw prop-info]]
+               (let [value (get prop-kw->value prop-kw)
+                     edit-type (:edit-type prop-info)
+                     changes-fn (:changes-fn edit-type)
+                     set-fn (fn/partial layout-property-edit-type-set-in-specific-layout target-layout-name changes-fn prop-kw)
+                     clear-fn (fn/partial layout-property-edit-type-clear-in-specific-layout target-layout-name changes-fn)]
+                 (pair prop-kw
+                       {:node-id (or (:node-id prop-info) target-node-id)
+                        :prop-kw (or (:prop-kw prop-info) prop-kw)
+                        :value value
+                        :edit-type (assoc edit-type
+                                     :set-fn set-fn
+                                     :clear-fn clear-fn)}))))))))
+
+(defn- transfer-overrides-plan
+  [override-transfer-type source-layout-name source-prop-infos-by-prop-kw target-node-id+layout-names {:keys [basis] :as evaluation-context}]
+  {:pre [(not (coll/empty? target-node-id+layout-names))]}
+  (when-let [target-infos
+             (coll/not-empty
+               (coll/transfer target-node-id+layout-names []
+                 (keep (fn [[target-node-id target-layout-name]]
+                         (when-let [target-prop-infos-by-prop-kw (transfer-overrides-target-properties target-node-id target-layout-name evaluation-context)]
+                           (cond-> {:target-node-id target-node-id
+                                    :target-prop-infos-by-prop-kw target-prop-infos-by-prop-kw}
+                                   (or (not= "" source-layout-name)
+                                       (not= "" target-layout-name))
+                                   (assoc :target-aspect
+                                          (pair (if (= "" target-layout-name)
+                                                  "Default"
+                                                  target-layout-name)
+                                                "Layout"))))))))]
+    (properties/transfer-overrides-plan basis override-transfer-type source-prop-infos-by-prop-kw target-infos)))
+
+(defmethod properties/pull-up-overrides-plan-alternatives ::GuiNode
+  [source-node-id source-prop-infos-by-prop-kw {:keys [basis] :as evaluation-context}]
+  (when-let [trivial-gui-scene-info (g/maybe-node-value source-node-id :trivial-gui-scene-info evaluation-context)]
+    (let [source-layout-name (or (:current-layout trivial-gui-scene-info) "")
+
+          original-node-ids
+          (iterate #(g/override-original basis %)
+                   (g/override-original basis source-node-id))
+
+          pull-up-overrides-to-default-layout-plan
+          (when (not= "" source-layout-name)
+            (transfer-overrides-plan :pull-up-overrides source-layout-name source-prop-infos-by-prop-kw [[source-node-id ""]] evaluation-context))
+
+          source-node-layout-transfer-overrides-plans
+          (if pull-up-overrides-to-default-layout-plan
+            [pull-up-overrides-to-default-layout-plan]
+            [])]
+
+      (coll/transfer
+        original-node-ids source-node-layout-transfer-overrides-plans
+        (take-while some?)
+        (keep (fn [original-node-id]
+                (transfer-overrides-plan :pull-up-overrides source-layout-name source-prop-infos-by-prop-kw [[original-node-id source-layout-name]] evaluation-context)))))))
+
+(defmethod properties/push-down-overrides-plan-alternatives ::GuiNode
+  [source-node-id source-prop-infos-by-prop-kw {:keys [basis] :as evaluation-context}]
+  (when-let [override-node-ids (coll/not-empty (g/overrides basis source-node-id))]
+    (when-let [trivial-gui-scene-info (g/maybe-node-value source-node-id :trivial-gui-scene-info evaluation-context)]
+      (let [source-layout-name (or (:current-layout trivial-gui-scene-info) "")
+            target-node-id+layout-names (e/map #(pair % source-layout-name) override-node-ids)
+            transfer-overrides-plan (transfer-overrides-plan :push-down-overrides source-layout-name source-prop-infos-by-prop-kw target-node-id+layout-names evaluation-context)]
+        [transfer-overrides-plan]))))
 
 ;; SDK api
 (defmethod update-gui-resource-reference [::GuiNode :layer]
@@ -4274,7 +4352,7 @@
                     :user-data l}))))))
 
 (handler/register-menu! ::toolbar :visibility-settings
-  [{:label :separator}
+  [menu-items/separator
    {:icon layout-icon
     :command :scene.set-gui-layout
     :label "Test"}])

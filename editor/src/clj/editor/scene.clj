@@ -1524,7 +1524,7 @@
                              (ui/on-closed! (:tab opts) (fn [_]
                                                           (ui/kill-event-dispatch! this)
                                                           (dispose-scene-view! view-id)))
-                             (g/set-property! view-id :drawable drawable :picking-drawable picking-drawable :async-copy-state (atom (scene-async/make-async-copy-state width height)))
+                             (g/set-properties! view-id :drawable drawable :picking-drawable picking-drawable :async-copy-state (atom (scene-async/make-async-copy-state width height)))
                              (frame-selection view-id false)))))
                      (catch Throwable error
                        (error-reporting/report-exception! error)))

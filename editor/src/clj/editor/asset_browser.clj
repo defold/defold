@@ -21,9 +21,10 @@
             [editor.disk-availability :as disk-availability]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
-            [editor.notifications :as notifications]
             [editor.handler :as handler]
             [editor.icons :as icons]
+            [editor.menu-items :as menu-items]
+            [editor.notifications :as notifications]
             [editor.prefs :as prefs]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -85,20 +86,16 @@
           children)))))
 
 (handler/register-menu! ::resource-menu
-  [{:label "Open"
-    :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :file.open-selected}
-   {:label "Open As"
-    :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :file.open-as}
-   {:label :separator}
+  [menu-items/open-selected
+   menu-items/open-as
+   menu-items/separator
    {:label "Copy Resource Path"
     :command :edit.copy-resource-path}
    {:label "Copy Full Path"
     :command :edit.copy-absolute-path}
    {:label "Copy Require Path"
     :command :edit.copy-require-path}
-   {:label :separator}
+   menu-items/separator
    {:label "Show in Desktop"
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-desktop}
@@ -106,9 +103,11 @@
     :command :file.show-references}
    {:label "Dependencies..."
     :command :file.show-dependencies}
-   {:label "Show Overrides"
-    :command :edit.show-overrides}
-   {:label :separator}
+   menu-items/separator
+   menu-items/show-overrides
+   menu-items/pull-up-overrides
+   menu-items/push-down-overrides
+   menu-items/separator
    {:label "New"
     :command :file.new
     :expand true
@@ -120,7 +119,7 @@
    {:label "New Folder"
     :command :file.new-folder
     :icon "icons/32/Icons_01-Folder-closed.png"}
-   {:label :separator}
+   menu-items/separator
    {:label "Cut"
     :command :edit.cut}
    {:label "Copy"
@@ -130,11 +129,10 @@
    {:label "Delete"
     :command :edit.delete
     :icon "icons/32/Icons_M_06_trash.png"}
-   {:label :separator}
+   menu-items/separator
    {:label "Rename..."
     :command :file.rename}
-   {:label :separator
-    :id ::context-menu-end}])
+   (menu-items/separator-with-id ::context-menu-end)])
 
 (def fixed-resource-paths #{"/" "/game.project"})
 

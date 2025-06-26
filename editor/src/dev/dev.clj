@@ -34,6 +34,7 @@
             [editor.game-object :as game-object]
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
+            [editor.handler :as handler]
             [editor.math :as math]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
@@ -79,13 +80,16 @@
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
            [java.lang.reflect Modifier]
            [java.nio ByteBuffer]
+           [javafx.scene Node]
            [javafx.stage Window]
            [javax.vecmath Matrix3d Matrix4d Point2d Point3d Point4d Quat4d Vector2d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(namespaces/import-vars [util.debug-util stack-trace])
+(namespaces/import-vars
+  [util.debug-util stack-trace]
+  [integration.test-util outline-node-id outline-node-info resource-outline-node-id resource-outline-node-info])
 
 (defn javafx-tree [obj]
   (jfx/info-tree obj))
@@ -113,7 +117,11 @@
           (g/node-value :active-view)))
 
 (defn resource-node [path-or-resource]
-  (project/get-resource-node (project) path-or-resource))
+  (let [resource-node (project/get-resource-node (project) path-or-resource)]
+    (if (some? resource-node)
+      resource-node
+      (throw (ex-info (str "Resource not found: '" path-or-resource "'")
+                      {:path-or-resource path-or-resource})))))
 
 (defn selection []
   (->> (g/node-value (project) :selected-node-ids-by-resource-node)
@@ -147,37 +155,10 @@
              (coll/not-empty override-node-ids)
              (assoc :override-node-ids override-node-ids)))))
 
-(defn node-outline [node-id & outline-labels]
-  {:pre [(not (g/error? node-outline))
-         (every? string? outline-labels)]}
-  (reduce (fn [node-outline outline-label]
-            (or (some (fn [child-outline]
-                        (when (= outline-label (:label child-outline))
-                          child-outline))
-                      (:children node-outline))
-                (let [candidates (into (sorted-set)
-                                       (map :label)
-                                       (:children node-outline))]
-                  (throw (ex-info (format "node-outline for %s '%s' has no child-outline '%s'. Candidates: %s"
-                                          (symbol (g/node-type-kw node-id))
-                                          (:label node-outline)
-                                          outline-label
-                                          (string/join ", " (map #(str \' % \') candidates)))
-                                  {:start-node-type-kw (g/node-type-kw node-id)
-                                   :outline-labels (vec outline-labels)
-                                   :failed-outline-label outline-label
-                                   :failed-outline-label-candidates candidates
-                                   :failed-node-outline node-outline})))))
-          (g/node-value node-id :node-outline)
-          outline-labels))
-
-(defn outline-node-id [node-id & outline-labels]
-  (:node-id (apply node-outline node-id outline-labels)))
-
 (defn outline-labels [node-id & outline-labels]
   (into (sorted-set)
         (map :label)
-        (:children (apply node-outline node-id outline-labels))))
+        (:children (apply outline-node-info node-id outline-labels))))
 
 (defn- throw-invalid-component-resource-node-id-exception [basis node-id]
   (throw (ex-info "The specified node cannot be resolved to a component ResourceNode."
@@ -210,7 +191,6 @@
      game-object/ReferencedComponent
      (validate-component-resource-node-id basis (g/node-feeding-into basis node-id :source-resource))
 
-     :else
      (throw-invalid-component-resource-node-id-exception basis node-id))))
 
 (defn to-game-object-node-id
@@ -225,7 +205,6 @@
      collection/GameObjectInstanceNode
      (g/node-feeding-into basis node-id :source-resource)
 
-     :else
      (throw (ex-info "The specified node cannot be resolved to a GameObjectNode."
                      {:node-id node-id
                       :node-type (g/node-type* basis node-id)})))))
@@ -242,7 +221,6 @@
      collection/CollectionInstanceNode
      (g/node-feeding-into basis node-id :source-resource)
 
-     :else
      (throw (ex-info "The specified node cannot be resolved to a CollectionNode."
                      {:node-id node-id
                       :node-type (g/node-type* basis node-id)})))))
@@ -330,6 +308,27 @@
 
 (defn windows []
   (Window/getWindows))
+
+(defn focused-control
+  ^Node []
+  (some-> (ui/main-scene)
+          (ui/focus-owner)))
+
+(defn command-contexts
+  ([]
+   (when-some [focused-control (focused-control)]
+     (command-contexts focused-control)))
+  ([^Node control]
+   (ui/node-contexts control true)))
+
+(defn command-env
+  ([command]
+   (command-env (command-contexts) command nil))
+  ([command user-data]
+   (command-env (command-contexts) command user-data))
+  ([command-contexts command user-data]
+   (let [[_handler command-context] (handler/active command command-contexts user-data)]
+     (:env command-context))))
 
 (def assets-view (partial view-of-type asset-browser/AssetBrowser))
 (def changed-files-view (partial view-of-type changes-view/ChangesView))
