@@ -53,7 +53,7 @@
            [javafx.scene.control Button ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
-           [javafx.scene.layout AnchorPane HBox Pane]
+           [javafx.scene.layout AnchorPane GridPane HBox Pane Priority]
            [javafx.scene.shape SVGPath]
            [javafx.stage Modality PopupWindow Stage StageStyle Window]
            [javafx.util Callback Duration]))
@@ -2357,13 +2357,32 @@
   (doto t
     ;; Filter is necessary because the listener will be called after the text field has received focus, i.e. too late
     (.addEventFilter MouseEvent/MOUSE_PRESSED (event-handler e
-                                                             (when (not (focus? t))
-                                                               (.deselect t)
-                                                               (user-data! t ::selection-at-focus true))))
+                                                (when (not (focus? t))
+                                                  (.deselect t)
+                                                  (user-data! t ::selection-at-focus true))))
     ;; Filter is necessary because the TextArea captures the event
     (.addEventFilter MouseEvent/MOUSE_RELEASED (event-handler e
-                                                              (when (user-data t ::selection-at-focus)
-                                                                (when (string/blank? (.getSelectedText t))
-                                                                  (.consume e)
-                                                                  (run-later (.selectAll t))))
-                                                              (user-data! t ::selection-at-focus nil)))))
+                                                 (when (user-data t ::selection-at-focus)
+                                                   (when (string/blank? (.getSelectedText t))
+                                                     (.consume e)
+                                                     (run-later (.selectAll t))))
+                                                 (user-data! t ::selection-at-focus nil)))))
+
+
+(defmulti customize! (fn [control _ _] (class control)))
+
+(defmethod customize! TextField [^TextField t update-fn cancel-fn]
+  (doto t
+    (GridPane/setHgrow Priority/ALWAYS)
+    (on-action! update-fn)
+    (on-cancel! cancel-fn)
+    (auto-commit! update-fn)
+    (select-all-on-click!)))
+
+(defmethod customize! TextArea [^TextArea t update-fn cancel-fn]
+  (doto t
+    (GridPane/setHgrow Priority/ALWAYS)
+    (on-action! update-fn)
+    (on-cancel! cancel-fn)
+    (auto-commit! update-fn)
+    (select-all-on-click!)))

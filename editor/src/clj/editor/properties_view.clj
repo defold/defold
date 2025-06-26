@@ -72,24 +72,6 @@
   (or (some-> edit-type :type g/value-type-dispatch-value)
       (:type edit-type)))
 
-(defmulti customize! (fn [control _ _] (class control)))
-
-(defmethod customize! TextField [^TextField t update-fn cancel-fn]
-  (doto t
-    (GridPane/setHgrow Priority/ALWAYS)
-    (ui/on-action! update-fn)
-    (ui/on-cancel! cancel-fn)
-    (ui/auto-commit! update-fn)
-    (ui/select-all-on-click!)))
-
-(defmethod customize! TextArea [^TextArea t update-fn cancel-fn]
-  (doto t
-    (GridPane/setHgrow Priority/ALWAYS)
-    (ui/on-action! update-fn)
-    (ui/on-cancel! cancel-fn)
-    (ui/auto-commit! update-fn)
-    (ui/select-all-on-click!)))
-
 (defn- old-num->parse-num-fn [old-num]
   {:pre [(or (number? old-num) (nil? old-num))]}
   (if (math/float32? old-num)
@@ -135,7 +117,7 @@
                                     (properties/read-only? property))))
         update-fn (fn [_]
                     (properties/set-values! (property-fn) (repeat (.getText text))))]
-    (customize! text update-fn cancel-fn)
+    (ui/customize! text update-fn cancel-fn)
     (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
       (add-style-class! text style-class))
     [text update-ui-fn]))
@@ -155,7 +137,7 @@
                         (properties/set-values! property (repeat v))
                         (update-prop-fn nil))))
         drag-update-fn (fn [v update-val] (int (+ v update-val)))]
-    (customize! text update-fn cancel-fn)
+    (ui/customize! text update-fn cancel-fn)
     (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
       (add-style-class! text style-class))
     [text update-ui-fn drag-update-fn]))
@@ -176,7 +158,7 @@
                         (properties/set-values! property (repeat num))
                         (cancel-fn nil))))
         drag-update-fn (fn [v update-val] (properties/round-scalar (+ v update-val)))]
-    (customize! text-field update-fn cancel-fn)
+    (ui/customize! text-field update-fn cancel-fn)
     (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
       (add-style-class! text-field style-class))
     [text-field update-ui-fn drag-update-fn]))
@@ -313,7 +295,7 @@
                               (if (and num (not= num old-num))
                                 (properties/set-values! property (mapv #(assoc % index num) current-vals))
                                 (cancel-fn nil))))
-                _ (customize! text-field update-fn cancel-fn)
+                _ (ui/customize! text-field update-fn cancel-fn)
                 text-field (make-control-draggable text-field (partial handle-control-drag-event! property-fn drag-update-fn update-ui-fn) false) 
                 children (if (seq label-text)
                            (let [label (doto (Label. label-text)
@@ -397,7 +379,7 @@
                     (let [new-vals (mapv #(assoc % value-index num) old-vals)]
                       (properties/set-values! property new-vals))
                     (cancel-fn nil))))]
-        (customize! text-field update-fn cancel-fn)))
+        (ui/customize! text-field update-fn cancel-fn)))
 
     (pair grid-pane update-ui-fn)))
 
@@ -469,7 +451,7 @@
                               (if num
                                 (properties/set-values! property (mapv #(set-fn % num) current-vals))
                                 (cancel-fn nil))))]
-            (customize! text-field update-fn cancel-fn)
+            (ui/customize! text-field update-fn cancel-fn)
             (ui/add-child! box comp)))
         (range)
         text-fields
@@ -625,7 +607,7 @@
       (AnchorPane/setRightAnchor 0.0)
       (AnchorPane/setLeftAnchor 0.0)
       (ui/add-style! "color-input")
-      (customize! commit-fn cancel-fn))
+      (ui/customize! commit-fn cancel-fn))
     (doto color-picker
       (ui/on-action! (fn [_]
                        (let [c (.getValue color-picker)]
@@ -691,7 +673,7 @@
                                                               properties/values
                                                               properties/unify-values)]
                                           (ui/run-command open-button :file.open resource))))
-    (customize! text commit-fn cancel-fn)
+    (ui/customize! text commit-fn cancel-fn)
     (ui/children! box [text browse-button open-button])
     (GridPane/setConstraints text 0 0)
     (GridPane/setConstraints open-button 1 0)
@@ -769,7 +751,7 @@
                                     (properties/read-only? property))))
         update-fn (fn [_]
                     (properties/set-values! (property-fn) (repeat (.getText text))))]
-    (customize! text update-fn cancel-fn)
+    (ui/customize! text update-fn cancel-fn)
     [text update-ui-fn]))
 
 (defmethod create-property-control! :default [_ _ _]

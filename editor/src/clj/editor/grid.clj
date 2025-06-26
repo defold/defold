@@ -328,10 +328,7 @@
                               (cancel-fn nil))))]
     (doto text-field
       (ui/text! color)
-      (ui/on-action! update-fn)
-      (ui/on-cancel! cancel-fn)
-      (ui/auto-commit! update-fn)
-      (ui/select-all-on-click!)
+      (ui/customize! update-fn cancel-fn)
       (ensure-focus-traversable!))
     [label text-field]))
 
@@ -352,10 +349,7 @@
                               (cancel-fn nil))))]
     (doto text-field
       (ui/text! size-val)
-      (ui/on-action! update-fn)
-      (ui/on-cancel! cancel-fn)
-      (ui/auto-commit! update-fn)
-      (ui/select-all-on-click!)
+      (ui/customize! update-fn cancel-fn)
       (ensure-focus-traversable!))
     [label text-field]))
 
