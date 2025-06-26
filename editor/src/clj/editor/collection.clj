@@ -262,12 +262,6 @@
 (defn- component-source-resource [basis component-node-id]
   (g/node-value component-node-id :source-resource (g/make-evaluation-context {:basis basis :cache c/null-cache})))
 
-(defn- overridable-resource-type? [resource-type]
-  (some-> resource-type :tags (contains? :overridable-properties)))
-
-(defn- overridable-resource? [resource]
-  (some-> resource resource/resource-type overridable-resource-type?))
-
 (def ^:private override-traverse-fn
   (g/make-override-traverse-fn
     (fn override-traverse-fn [basis ^Arc arc]
@@ -284,7 +278,7 @@
             true
 
             game-object/EmbeddedComponent
-            (overridable-resource? (component-source-resource basis source-node-id))
+            (resource/overridable-resource? (component-source-resource basis source-node-id))
 
             game-object/ReferencedComponent
             true ; Always create an override node, because the source-resource might be assigned later.
@@ -299,10 +293,10 @@
                 true
 
                 game-object/EmbeddedComponent
-                (overridable-resource? (resource-node/resource basis source-node-id))
+                (resource/overridable-resource? (resource-node/resource basis source-node-id))
 
                 game-object/ReferencedComponent
-                (overridable-resource? (resource-node/resource basis source-node-id))))
+                (resource/overridable-resource? (resource-node/resource basis source-node-id))))
 
             script/ScriptPropertyNode
             true))))))

@@ -585,15 +585,15 @@
   (transact (delete-node node-id)))
 
 (defn callback
-  "Call the specified function with args when reaching the transaction step"
-  [f & args]
-  (it/callback f args))
+  "Call the specified callback-fn with args when reaching the transaction step."
+  [callback-fn & args]
+  (it/callback callback-fn args nil))
 
 (defn callback-ec
   "Same as callback, but injects the in-transaction evaluation-context
-  as the first argument to the update-fn."
-  [f & args]
-  (it/callback-ec f args))
+  as the first argument to the callback-fn."
+  [callback-fn & args]
+  (it/callback callback-fn args it/inject-evaluation-context-opts))
 
 (defn expand
   "Call the specified function when reaching the transaction step and apply the
@@ -666,32 +666,52 @@
    (assert target-id)
    (it/disconnect-sources basis target-id target-label)))
 
-(defn- set-value-from-first-arg [_ b] b)
+(defn set-properties
+  "Creates transaction steps to assign multiple values to a node's properties.
+  You must call the transact function on the return value to see the effects.
+
+  Example:
+  `(transact (set-properties node-id :name \"item\" :opacity 0.5))`"
+  [node-id & kvs]
+  (coll/transfer kvs []
+    (partition-all 2)
+    (mapcat (fn [[property-label new-value]]
+              (it/set-property node-id property-label new-value nil)))))
+
+(defn set-properties!
+  "Creates transaction steps to assign multiple values to a node's properties,
+  then executes them in a transaction. Returns the result of the transaction,
+  (tx-result)"
+  [node-id & kvs]
+  (transact (apply set-properties node-id kvs)))
 
 (defn set-property
-  "Creates the transaction step to assign a value to a node's property (or properties) value(s).  It will take effect when the transaction
-  is applies in a transact.
+  "Creates transaction steps to assign a value to a node property. Additional
+  options may be supplied in a map. You must call the transact function on the
+  return value to see the effects.
 
   Example:
-
-  `(transact (set-property root-id :touched 1))`"
-  [node-id & kvs]
-  (assert node-id)
-  (mapcat
-   (fn [[p v]]
-     (it/update-property node-id p set-value-from-first-arg [v]))
-   (partition-all 2 kvs)))
+  `(transact (set-property node-id :opacity 0.5 {:force true}))`"
+  ([node-id property-label value]
+   (it/set-property node-id property-label value nil))
+  ([node-id property-label value opts]
+   (it/set-property node-id property-label value opts))
+  ([node-id property-label value another-property-label another-value & more]
+   ;; Deprecated. To set multiple properties at once, use set-properties.
+   ;; Kept for compatibility with editor plugins until we can update them.
+   (apply set-properties node-id property-label value another-property-label another-value more)))
 
 (defn set-property!
-  "Creates the transaction step to assign a value to a node's property (or properties) value(s) and applies it in a transaction.
-  It returns the result of the transaction, (tx-result).
+  "Creates transaction steps to assign a value to a node property, then executes
+  them in a transaction. Returns the result of the transaction, (tx-result).
+  Additional options may be supplied in a map.
 
   Example:
-
-  `(set-property! root-id :touched 1)`"
-  [node-id & kvs]
-  (assert node-id)
-  (transact (apply set-property node-id kvs)))
+  `(set-property node-id :opacity 0.5 {:force true})`"
+  ([node-id property-label value]
+   (transact (set-property node-id property-label value)))
+  ([node-id property-label value opts]
+   (transact (set-property node-id property-label value opts))))
 
 (defn update-property
   "Create the transaction step to apply a function to a node's property in a transaction. The
@@ -702,15 +722,13 @@
 
   `(transact (g/update-property node-id :int-prop inc))`"
   [node-id p f & args]
-  (assert node-id)
-  (it/update-property node-id p f args))
+  (it/update-property node-id p f args nil))
 
 (defn update-property-ec
   "Same as update-property, but injects the in-transaction evaluation-context
   as the first argument to the update-fn."
   [node-id p f & args]
-  (assert node-id)
-  (it/update-property-ec node-id p f args))
+  (it/update-property node-id p f args it/inject-evaluation-context-opts))
 
 (defn update-property!
   "Create the transaction step to apply a function to a node's property in a transaction. Then it applies the transaction.
@@ -1624,13 +1642,14 @@
   "Returns a map of overridden prop-keywords to property values. Values will be
   produced by property value functions if possible."
   [node-id {:keys [basis] :as evaluation-context}]
-  (let [node-type (node-type* basis node-id)]
+  (let [node (node-by-id basis node-id)
+        node-type (gt/node-type node)]
     (into {}
           (map (fn [[prop-kw raw-prop-value]]
                  [prop-kw (if (has-property? node-type prop-kw)
-                            (node-value node-id prop-kw evaluation-context)
+                            (in/node-value node prop-kw evaluation-context)
                             raw-prop-value)]))
-          (node-value node-id :_overridden-properties evaluation-context))))
+          (in/node-value node :_overridden-properties evaluation-context))))
 
 (defn collect-overridden-properties
   "Collects overridden property values from override nodes originating from the
@@ -1660,7 +1679,11 @@
                                    node-key
                                    node-type-kw)
                            {:node-key node-key
-                            :node-type node-type-kw})))
+                            :node-type node-type-kw
+                            :source-node-id source-node-id
+                            :override-node-id override-node-id
+                            :override-node-key override-node-key
+                            :properties-by-override-node-key (persistent! properties-by-override-node-key)})))
                      (when (seq overridden-properties)
                        (assoc! properties-by-override-node-key
                                override-node-key overridden-properties))))))
