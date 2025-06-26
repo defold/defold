@@ -1047,7 +1047,7 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    static inline void GetPanScale(float pan, float* left_scale, float* right_scale)
+    void GetPanScale(float pan, float* left_scale, float* right_scale)
     {
         // Constant power panning: https://www.cs.cmu.edu/~music/icm-online/readings/panlaws/index.html
         const float theta = pan * M_PI_2;
