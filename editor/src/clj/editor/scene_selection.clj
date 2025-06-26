@@ -135,7 +135,7 @@
         (g/operation-label "Drop Resources")))))
 
 (defn- handle-drag-dropped!
-  [drop-fn select-fn action]
+  [drop-fn root-id select-fn action]
   (let [op-seq (gensym)
         {:keys [^DragEvent event string gesture-target world-pos world-dir]} action
         _ (ui/request-focus! gesture-target)
@@ -144,7 +144,7 @@
         resource-strings (-> string string/split-lines sort)
         resources (e/keep (partial workspace/resolve-workspace-resource workspace) resource-strings)
         z-plane-pos (math/line-plane-intersection world-pos world-dir (Point3d. 0.0 0.0 0.0) (Vector3d. 0.0 0.0 1.0))
-        drop-fn (partial drop-fn selection workspace z-plane-pos)
+        drop-fn (partial drop-fn root-id selection workspace z-plane-pos)
         added-nodes (add-dropped-resources! drop-fn resources op-seq)]
     (.consume event)
     (when (seq added-nodes)
@@ -160,13 +160,14 @@
         op-seq (g/node-value self :op-seq)
         mode (g/node-value self :mode)
         toggle? (g/node-value self :toggle?)
+        root-id (g/node-value self :root-id)
         cursor-pos [(:x action) (:y action) 0]
         contextual? (= (:button action) :secondary)]
     (case (:type action)
       :drag-dropped (let [drop-fn (g/node-value self :drop-fn)
                           select-fn (g/node-value self :select-fn)]
                       (when drop-fn
-                        (handle-drag-dropped! drop-fn select-fn action))
+                        (handle-drag-dropped! drop-fn root-id select-fn action))
                       nil)
       :mouse-pressed (let [op-seq (gensym)
                            toggle? (true? (some true? (map #(% action) toggle-modifiers)))

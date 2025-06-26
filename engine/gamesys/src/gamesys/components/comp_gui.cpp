@@ -931,7 +931,8 @@ namespace dmGameSystem
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxDynamicTextures = scene_desc->m_MaxDynamicTextures;
-        scene_params.m_MaxTextures = 128;
+        uint32_t texture_count = scene_resource->m_GuiTextureSets.Size();
+        scene_params.m_MaxTextures = texture_count > 0 ? texture_count : 1;
         scene_params.m_MaxMaterials = 16;
         scene_params.m_MaxAnimations = gui_world->m_MaxAnimationCount;
         scene_params.m_MaxParticlefx = gui_world->m_MaxParticleFXCount;
@@ -2355,7 +2356,12 @@ namespace dmGameSystem
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
         char resource_path[dmResource::RESOURCE_PATH_MAX];
         dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
-        ReleaseDynamicResource(dmGameObject::GetFactory(component->m_Instance), dmGameObject::GetCollection(component->m_Instance), resolved_path_hash);
+        dmResource::HFactory factory = dmGameObject::GetFactory(component->m_Instance);
+        ResourceDescriptor* rd = dmResource::FindByHash(factory, resolved_path_hash);
+        if (rd)
+        {
+            dmResource::Release(factory, dmResource::GetResource(rd));
+        }
     }
 
     static void SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
@@ -2851,7 +2857,7 @@ namespace dmGameSystem
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
                 dmGraphics::HTexture texture = texture_source->m_Texture->m_Texture;
-                dmGui::Result r = dmGui::AddTexture(gui_component->m_Scene, params.m_Options.m_Key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
+                dmGui::Result r = dmGui::AddDynamicTexture(gui_component->m_Scene, params.m_Options.m_Key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
                 if (r != dmGui::RESULT_OK)
                 {
                     dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(params.m_Options.m_Key),  r);

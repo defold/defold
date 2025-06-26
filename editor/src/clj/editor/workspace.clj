@@ -331,7 +331,6 @@ ordinary paths."
                        :language (when textual (or language "plaintext"))
                        :editable editable
                        :editor-openable (some? (some editor-openable-view-type? view-types))
-                       :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
                        :load-fn load-fn
                        :dependencies-fn dependencies-fn
@@ -357,11 +356,11 @@ ordinary paths."
                                                      (not (false? auto-connect-save-data?)))}
         resource-types-by-ext (if (string? ext)
                                 (let [ext (string/lower-case ext)]
-                                  {ext (assoc resource-type :ext ext)})
+                                  {ext (assoc resource-type :ext ext :build-ext (or build-ext (str ext "c")))})
                                 (into {}
                                       (map (fn [ext]
                                              (let [ext (string/lower-case ext)]
-                                               (pair ext (assoc resource-type :ext ext)))))
+                                               (pair ext (assoc resource-type :ext ext :build-ext (or build-ext (str ext "c")))))))
                                       ext))]
     (concat
       (g/update-property workspace :resource-types editable-resource-type-map-update-fn resource-types-by-ext)
@@ -748,7 +747,8 @@ ordinary paths."
               (into #{}
                     (comp
                       (filter #(= :collision (:type %)))
-                      (mapcat :collisions))
+                      (mapcat :collisions)
+                      (filter #(re-matches #"^/[^/]*$" (key %))))
                     errors))
             (collision-notification-id [resource-path]
               [::resource-collision-notification resource-path])]
@@ -895,6 +895,25 @@ ordinary paths."
   (property editable-proj-path? g/Any)
   (property unloaded-proj-path? g/Any)
   (property resource-kind-extensions g/Any (default {:atlas ["atlas" "tilesource"]}))
+  ;; See editor.attachment ns
+  ;; {node-type {list-kw {:add {node-type tx-attach-fn}
+  ;;                      :get get-fn
+  ;;                      :reorder reorder-fn
+  ;;                      :read-only? read-only-pred
+  ;;                      ;; one of:
+  ;;                      :alias node-type
+  ;;                      :aliases #{node-types}}}}
+  ;;
+  ;; tx-attach-fn: fn of parent-node, child-node -> txs
+  ;; get-fn: fn of node, evaluation-context -> vector of nodes
+  ;; reorder-fn: fn of reordered-nodes -> txs
+  ;; read-only-pred: fn of parent-node, evaluation-context -> boolean
+  ;;
+  ;; :alias refers to a node type that this list definition tracks (i.e. a link
+  ;; to the "original")
+  ;; :aliases refers to a set of all node types that track this definition (i.e.
+  ;; links to "copies")
+  (property node-attachments g/Any (default {}))
 
   (input code-preprocessors g/NodeID :cascade-delete)
   (input notifications g/NodeID :cascade-delete)
@@ -904,6 +923,10 @@ ordinary paths."
   (output resource-list g/Any :cached produce-resource-list)
   (output resource-map g/Any :cached produce-resource-map))
 
+(defn node-attachments [basis workspace]
+  (g/raw-property-value basis workspace :node-attachments))
+
+;; SDK api
 (defn register-resource-kind-extension [workspace resource-kind extension]
   (g/update-property
     workspace :resource-kind-extensions

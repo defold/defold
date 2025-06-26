@@ -21,11 +21,12 @@
             [editor.error-reporting :as error-reporting]
             [editor.git :as git]
             [editor.handler :as handler]
+            [editor.menu-items :as menu-items]
+            [editor.notifications :as notifications]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.vcs-status :as vcs-status]
             [editor.workspace :as workspace]
-            [editor.notifications :as notifications]
             [service.log :as log])
   (:import [java.io File]
            [javafx.beans.value ChangeListener]
@@ -66,20 +67,16 @@
               (error-reporting/report-exception! error))))))))
 
 (handler/register-menu! ::changes-menu
-  [{:label "Open"
-    :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :file.open-selected}
-   {:label "Open As"
-    :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :file.open-as}
-   {:label :separator}
+  [menu-items/open-selected
+   menu-items/open-as
+   menu-items/separator
    {:label "Copy Resource Path"
     :command :edit.copy-resource-path}
    {:label "Copy Full Path"
     :command :edit.copy-absolute-path}
    {:label "Copy Require Path"
     :command :edit.copy-require-path}
-   {:label :separator}
+   menu-items/separator
    {:label "Show in Asset Browser"
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-assets}
@@ -90,9 +87,11 @@
     :command :file.show-references}
    {:label "Dependencies..."
     :command :file.show-dependencies}
-   {:label "Show Overrides"
-    :command :edit.show-overrides}
-   {:label :separator}
+   menu-items/separator
+   menu-items/show-overrides
+   menu-items/pull-up-overrides
+   menu-items/push-down-overrides
+   menu-items/separator
    {:label "View Diff"
     :icon "icons/32/Icons_S_06_arrowup.png"
     :command :vcs.diff}

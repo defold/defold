@@ -42,7 +42,7 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 @BuilderParams(name="ShaderProgram", inExts= {".shbundle", ".shbundlec"}, outExt=".spc",
         // See configurePreBuildProjectOptions in Project.java
         paramsForSignature = {"platform", "output-spirv", "output-wgsl", "output-hlsl", "output-glsles100",
-        "output-glsles300", "output-glsl120", "output-glsl330", "output-glsl430"})
+        "output-glsles300", "output-glsl120", "output-glsl330", "output-glsl430", "exclude-gles-sm100"})
 public class ShaderProgramBuilder extends Builder {
 
     static public class ShaderBuildResult {
@@ -130,6 +130,7 @@ public class ShaderProgramBuilder extends Builder {
             this.modulesDescs.get(i).source = this.modulePreprocessors.get(i).getCompiledSource();
         }
 
+        compileOptions.excludeGlesSm100 = getExcludeGlesSm100Flag();
         if (getOutputHlslFlag()) {
             addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_HLSL);
         }
@@ -170,17 +171,18 @@ public class ShaderProgramBuilder extends Builder {
         task.output(0).setContent(shaderDescBuildResult.shaderDesc.toByteArray());
     }
 
-    private boolean getOutputShaderFlag(String projectOption, String projectProperty) {
+    private boolean getOutputShaderFlag(String projectOption) {
         // See configurePreBuildProjectOptions in Project.java
         return this.project.option(projectOption, "false").equals("true");
     }
 
-    private boolean getOutputSpirvFlag() { return getOutputShaderFlag("output-spirv", "output_spirv"); }
-    private boolean getOutputHlslFlag() { return getOutputShaderFlag("output-hlsl", "output_hlsl"); }
-    private boolean getOutputWGSLFlag() { return getOutputShaderFlag("output-wgsl", "output_wgsl"); }
-    private boolean getOutputGLSLFlag() { return getOutputShaderFlag("output-glsl", "output_glsl"); }
-    private boolean getOutputGLSLESFlag(int version) { return getOutputShaderFlag("output-glsles" + version, "output_glsl_es" + version); }
-    private boolean getOutputGLSLFlag(int version) { return getOutputShaderFlag("output-glsl" + version, "output_glsl" + version); }
+    private boolean getOutputSpirvFlag() { return getOutputShaderFlag("output-spirv"); }
+    private boolean getOutputHlslFlag() { return getOutputShaderFlag("output-hlsl"); }
+    private boolean getOutputWGSLFlag() { return getOutputShaderFlag("output-wgsl"); }
+    private boolean getOutputGLSLFlag() { return getOutputShaderFlag("output-glsl"); }
+    private boolean getOutputGLSLESFlag(int version) { return getOutputShaderFlag("output-glsles" + version); }
+    private boolean getOutputGLSLFlag(int version) { return getOutputShaderFlag("output-glsl" + version); }
+    private boolean getExcludeGlesSm100Flag() { return getOutputShaderFlag("exclude-gles-sm100"); }
 
     static public ShaderDescBuildResult buildResultsToShaderDescBuildResults(ShaderCompileResult shaderCompileresult) throws CompileExceptionError {
         ShaderDescBuildResult shaderDescBuildResult = new ShaderDescBuildResult();

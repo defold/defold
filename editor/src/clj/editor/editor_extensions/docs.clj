@@ -74,6 +74,11 @@
           :parameters [node-param property-param]
           :returnvalues [boolean-ret-param]
           :description "Check if `editor.tx.reorder()` transaction with this property won't throw an error"}
+         {:name "editor.can_reset"
+          :type :function
+          :parameters [node-param property-param]
+          :returnvalues [boolean-ret-param]
+          :description "Check if `editor.tx.reset()` transaction with this property won't throw an error"}
          {:name "editor.command"
           :type :function
           :description "Create an editor command"
@@ -290,7 +295,7 @@ editor.command({
           :type :function
           :parameters [node-param property-param]
           :returnvalues [transaction-step-param]
-          :description "Create a transaction step that will deletes all items from node's list property when transacted with `editor.transact()`."}
+          :description "Create a transaction step that will remove all items from node's list property when transacted with `editor.transact()`."}
          {:name "editor.tx.remove"
           :type :function
           :parameters [node-param property-param (assoc node-param :name "child_node")]
@@ -301,6 +306,11 @@ editor.command({
           :parameters [node-param property-param {:name "child_nodes" :types ["table"] :doc "array of child nodes (the same as returned by <code>editor.get(node, property)</code>) in new order"}]
           :returnvalues [transaction-step-param]
           :description "Create a transaction step that reorders child nodes in a node list defined by the property if supported (see <code>editor.can_reorder()</code>)"}
+         {:name "editor.tx.reset"
+          :type :function
+          :parameters [node-param property-param]
+          :returnvalues [transaction-step-param]
+          :description "Create a transaction step that will reset an overridden property to its default value when transacted with `editor.transact()`."}
          {:name "editor.version"
           :type :variable
           :description "A string, version name of Defold"}

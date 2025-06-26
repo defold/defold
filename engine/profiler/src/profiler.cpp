@@ -599,32 +599,32 @@ static int ProfilerScopeEnd(lua_State* L)
 /*# continously show latest frame
 *
 * @name profiler.MODE_RUN
-* @variable
+* @constant
 */
 /*# pause on current frame
 *
 * @name profiler.MODE_PAUSE
-* @variable
+* @constant
 */
 /*# pause at peak frame
 *
 * @name profiler.MODE_SHOW_PEAK_FRAME
-* @variable
+* @constant
 */
 /*# start recording
 *
 * @name profiler.MODE_RECORD
-* @variable
+* @constant
 */
 /*# show full profiler ui
 *
 * @name profiler.VIEW_MODE_FULL
-* @variable
+* @constant
 */
 /*# show mimimal profiler ui
 *
 * @name profiler.VIEW_MODE_MINIMIZED
-* @variable
+* @constant
 */
 
 
@@ -857,6 +857,7 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 
     dmProfile::Options options;
     options.m_Port = g_ProfilerPort;
+    options.m_EnablePerformanceTimeline = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.performance_timeline_enabled", 0);
     options.m_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.sleep_between_server_updates", 0);
     if (!dmProfile::IsInitialized())
     {

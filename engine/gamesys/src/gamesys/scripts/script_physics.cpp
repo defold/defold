@@ -63,7 +63,7 @@ namespace dmGameSystem
      * @param damping [type:number] The damping ratio. 0 = no damping, 1 = critical damping.
      *
      * @name physics.JOINT_TYPE_SPRING
-     * @variable
+     * @constant
      */
 
     /*# fixed joint type
@@ -72,7 +72,7 @@ namespace dmGameSystem
      * @param max_length [type:number] The maximum length of the rope.
      *
      * @name physics.JOINT_TYPE_FIXED
-     * @variable
+     * @constant
      */
 
     /*# hinge joint type
@@ -91,7 +91,7 @@ namespace dmGameSystem
      * (Read only field, available from `physics.get_joint_properties()`)
      *
      * @name physics.JOINT_TYPE_HINGE
-     * @variable
+     * @constant
      */
 
     /*# slider joint type
@@ -111,7 +111,7 @@ namespace dmGameSystem
      * (Read only field, available from `physics.get_joint_properties()`)
      *
      * @name physics.JOINT_TYPE_SLIDER
-     * @variable
+     * @constant
      */
 
     /*# weld joint type
@@ -122,7 +122,7 @@ namespace dmGameSystem
      * @param damping [type:number] The damping ratio. 0 = no damping, 1 = critical damping.
      *
      * @name physics.JOINT_TYPE_WELD
-     * @variable
+     * @constant
      */
 
     /*# wheel joint type
@@ -140,7 +140,7 @@ namespace dmGameSystem
      * (Read only field, available from `physics.get_joint_properties()`)
      *
      * @name physics.JOINT_TYPE_WHEEL
-     * @variable
+     * @constant
      */
 
     struct PhysicsScriptContext
@@ -964,7 +964,7 @@ namespace dmGameSystem
      * @name physics.get_joint_reaction_torque
      * @param collisionobject [type:string|hash|url] collision object where the joint exist
      * @param joint_id [type:string|hash] id of the joint
-     * @return torque [type:float] the reaction torque on bodyB in N*m.
+     * @return torque [type:number] the reaction torque on bodyB in N*m.
      *
      */
     static int Physics_GetJointReactionTorque(lua_State* L)
@@ -1318,22 +1318,22 @@ namespace dmGameSystem
 
     /*#
      * @name physics.SHAPE_TYPE_SPHERE
-     * @variable
+     * @constant
      */
 
     /*#
      * @name physics.SHAPE_TYPE_BOX
-     * @variable
+     * @constant
      */
 
     /*#
      * @name physics.SHAPE_TYPE_CAPSULE
-     * @variable
+     * @constant
      */
 
     /*#
      * @name physics.SHAPE_TYPE_HULL
-     * @variable
+     * @constant
      */
 
     /*# get collision shape info
@@ -1543,7 +1543,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    /** DEPRECATED in favcor of set_event_listener
+    /** DEPRECATED in favor of set_event_listener
      * sets a physics world event listener. If a function is set, physics messages will no longer be sent.
      *
      * @name physics.set_listener

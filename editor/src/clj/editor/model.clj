@@ -527,7 +527,7 @@
 
 (defn load-model [_project self resource {:keys [name default-animation mesh skeleton animations materials] :as model-desc}]
   (concat
-    (g/set-property self
+    (g/set-properties self
       :name name
       :default-animation default-animation
       :mesh (workspace/resolve-resource resource mesh)

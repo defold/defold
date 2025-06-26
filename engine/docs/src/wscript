@@ -7,6 +7,14 @@ def configure(conf):
     conf.env['SCRIPT_DOC'] = os.path.abspath('src/script_doc.py')
     pass
 
+def install_file(task):
+    src = task.inputs[0].abspath()
+    if os.path.getsize(src) > 0:
+        tgt = "%s/share/doc/" % task.env["PREFIX"]
+        os.makedirs(tgt, exist_ok = True)
+        cmd = 'cp %s %s' % (src, tgt)
+        return task.exec_command(cmd)
+
 def build(bld):
     files = bld.path.ant_glob('*.apidoc_')
     for source in files:
@@ -20,10 +28,18 @@ def build(bld):
         bld(source = source,
             target = '%s_doc.script_api' % namespace,
             rule = 'python ${SCRIPT_DOC} -t script_api ${SRC} ${TGT}')
+        bld(source = source,
+            target = '%s_doc.lua' % namespace,
+            rule = 'python ${SCRIPT_DOC} -t lua ${SRC} ${TGT}')
 
-        bld.install_files('${PREFIX}/share/doc', '%s_doc.sdoc' % namespace)
-        bld.install_files('${PREFIX}/share/doc', '%s_doc.json' % namespace)
-        bld.install_files('${PREFIX}/share/doc', '%s_doc.script_api' % namespace)
+        bld(source = '%s_doc.sdoc' % namespace,
+            rule = install_file)
+        bld(source = '%s_doc.json' % namespace,
+            rule = install_file)
+        bld(source = '%s_doc.script_api' % namespace,
+            rule = install_file)
+        bld(source = '%s_doc.lua' % namespace,
+            rule = install_file)
 
 def options(opt):
     opt.load('waf_dynamo')

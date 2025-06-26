@@ -39,10 +39,10 @@
   ([project scene parent inverted? visible?]
     (let [parent (or parent (g/node-value scene :node-tree))
           node (add-box! project scene parent)]
-      (g/set-property! node
-                       :clipping-mode :clipping-mode-stencil
-                       :clipping-visible visible?
-                       :clipping-inverted inverted?)
+      (g/set-properties! node
+        :clipping-mode :clipping-mode-stencil
+        :clipping-visible visible?
+        :clipping-inverted inverted?)
       node)))
 
 (defn- add-inv-clipper!

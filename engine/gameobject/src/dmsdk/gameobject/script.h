@@ -45,7 +45,7 @@ namespace dmGameObject
     /*# Sends an unref script message
      * Sends a script message to unreference a script object
      *
-     * @name dmScript::PostScriptUnrefMessage
+     * @name PostScriptUnrefMessage
      * @param sender [type:dmMessage::Message*] The sender
      * @param receiver [type:dmMessage::Message*] The receiver
      * @param reference [type:int] The reference to remove
@@ -55,22 +55,35 @@ namespace dmGameObject
 
     /*# Sends a script message
      * Sends a script message. Wraps the message in a dmGameSystemDDF::ScriptMessage struct.
-     * @name dmScript::PostDDF
-     * @param message [type:TDDFType*] The ddf message to send
+     * @name PostDDF
+     * @tparam T
+     * @param message [type:T*] The ddf message to send
      * @param sender [type:dmMessage::Message*] The sender
      * @param receiver [type:dmMessage::Message*] The receiver
      * @param function_ref [type:int] The function ref. 0 wil cause the "on_message" to be called
      * @param unref_function_after_call [type:bool] call dmScript::UnrefInInstance on the function_ref after the dmScript::PCall is made
      * @return success [type:bool] true if successful
      */
-    template <typename TDDFType>
-    Result PostDDF(const TDDFType* message, const dmMessage::URL* sender, const dmMessage::URL* receiver, int function_ref, bool unref_function_after_call)
+    template <typename T>
+    Result PostDDF(const T* message, const dmMessage::URL* sender, const dmMessage::URL* receiver, int function_ref, bool unref_function_after_call)
     {
         dmArray<uint8_t> packed_message;
-        packed_message.SetCapacity(sizeof(TDDFType)); // A good estimate for most messages
+        packed_message.SetCapacity(sizeof(T)); // A good estimate for most messages
         dmDDF::SaveMessageToArray(message, message->m_DDFDescriptor, packed_message);
         return PostScriptMessage(message->m_DDFDescriptor, packed_message.Begin(), packed_message.Size(), sender, receiver, function_ref, unref_function_after_call);
     }
+}
+
+namespace dmScript
+{
+    /*#
+     * Creates a property container from a lua table
+     * @name PropertyContainerCreateFromLua
+     * @param L [type: lua_State*] The lua state
+     * @param index [type: int] The lua stack index of the lua table
+     * @return container [type: HPropertyContainer] The property container
+     */
+    dmGameObject::HPropertyContainer PropertyContainerCreateFromLua(lua_State* L, int index);
 }
 
 #endif // DMSDK_GAMEOBJECT_SCRIPT_H

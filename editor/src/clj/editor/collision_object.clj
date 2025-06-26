@@ -332,7 +332,7 @@
         old-height (g/node-value node-id :height evaluation-context)
         new-diameter (properties/scale-by-absolute-value-and-round old-diameter (.getX delta))
         new-height (properties/scale-by-absolute-value-and-round old-height (.getY delta))]
-    (g/set-property node-id :diameter new-diameter :height new-height)))
+    (g/set-properties node-id :diameter new-diameter :height new-height)))
 
 (defmethod scene-tools/manip-scale-manips ::CapsuleShape
   [node-id]
@@ -688,12 +688,6 @@
   (output collision-group-node g/Any :cached (g/fnk [_node-id group] {:node-id _node-id :collision-group group}))
   (output collision-group-color g/Any :cached produce-collision-group-color))
 
-(attachment/register!
-  CollisionObjectNode :shapes
-  :add {SphereShape attach-shape-node
-        BoxShape attach-shape-node
-        CapsuleShape attach-shape-node}
-  :get attachment/nodes-getter)
 (node-types/register-node-type-name! SphereShape "shape-type-sphere")
 (node-types/register-node-type-name! BoxShape "shape-type-box")
 (node-types/register-node-type-name! CapsuleShape "shape-type-capsule")
@@ -702,19 +696,26 @@
   (strip-empty-embedded-collision-shape collision-object-desc))
 
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext "collisionobject"
-    :node-type CollisionObjectNode
-    :ddf-type Physics$CollisionObjectDesc
-    :load-fn load-collision-object
-    :sanitize-fn sanitize-collision-object
-    :icon collision-object-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:grid true}}
-    :tags #{:component}
-    :tag-opts {:component {:transform-properties #{}}}
-    :label "Collision Object"))
+  (concat
+    (attachment/register
+      workspace CollisionObjectNode :shapes
+      :add {SphereShape attach-shape-node
+            BoxShape attach-shape-node
+            CapsuleShape attach-shape-node}
+      :get attachment/nodes-getter)
+    (resource-node/register-ddf-resource-type workspace
+      :ext "collisionobject"
+      :node-type CollisionObjectNode
+      :ddf-type Physics$CollisionObjectDesc
+      :load-fn load-collision-object
+      :sanitize-fn sanitize-collision-object
+      :icon collision-object-icon
+      :icon-class :design
+      :view-types [:scene :text]
+      :view-opts {:scene {:grid true}}
+      :tags #{:component}
+      :tag-opts {:component {:transform-properties #{}}}
+      :label "Collision Object")))
 
 ;; outline context menu
 

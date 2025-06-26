@@ -339,6 +339,11 @@
    :deprecated true,
    :label "Output SPIR-V"
    :path ["shader" "output_spirv"]}
+  {:type :boolean
+   :help "Don't compile shaders for devices running OpenGLES 2.0 / WebGL 1.0"
+   :default false
+   :label "Exclude GLES 2.0"
+   :path ["shader" "exclude_gles_sm100"]}
   {:type :number,
    :help
    "seconds to wait before treating a held down keyboard-key to start repeating itself",
@@ -939,13 +944,17 @@
    :help "Number of milliseconds to sleep between server updates"
    :default 0
    :path ["profiler" "sleep_between_server_updates"]}
+  {:type :boolean
+   :help "enable in browser performance timeline"
+   :default false
+   :path ["profiler" "performance_timeline_enabled"]}
   {:type :resource
    :filter "settings"
    :default "/liveupdate.settings"
    :help "liveupdate settings"
    :preserve-extension true,
    :path ["liveupdate" "settings"]}
-   {:type :boolean
+  {:type :boolean
    :filter "settings"
    :default true
    :help "enables auto-mount of previously mounted resources when the application starts"
