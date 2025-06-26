@@ -62,6 +62,8 @@ namespace dmGameSystem
         uint32_t                m_ResourceSize;         // For correct resource usage reporting
         bool                    m_IsDynamic;            // Are the glyphs populated at runtime?
         uint8_t                 m_Padding;              // Extra space for outline + shadow
+        uint8_t                 m_Prewarming:1;         // If true, it is currently waiting for glyphs to be prewamed (dynamic fonts only)
+        uint8_t                 m_PrewarmDone:1;
 
         dmHashTable32<dmRenderDDF::GlyphBank::Glyph*>   m_Glyphs;
         dmHashTable32<DynamicGlyph*>                    m_DynamicGlyphs;

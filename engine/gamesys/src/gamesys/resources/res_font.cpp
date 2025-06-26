@@ -31,8 +31,6 @@
 
 namespace dmGameSystem
 {
-    static const float SDF_EDGE_VALUE = 0.75f; // This is a fixed constant in the current font renderer
-
     struct ImageDataHeader
     {
         uint8_t m_Compression; // FontGlyphCompression
@@ -129,26 +127,23 @@ namespace dmGameSystem
         return 0;
     }
 
-    static void PrewarmDynamicGlyphs(FontResource* resource, TTFResource* ttfresource, bool all_chars, const char* characters)
+    static void PrewarmGlyphsCallback(void* ctx, int result, const char* errmsg)
     {
-        // uint32_t range_start = 0;
-        // uint32_t range_end = characters ? (uint32_t)dmUtf8::StrLen(characters) : 0;
+        FontResource* font = (FontResource*)ctx;
+        font->m_Prewarming = 0;
+        font->m_PrewarmDone = 1;
+    }
+
+    static dmResource::Result PrewarmGlyphCache(FontResource* resource, TTFResource* ttfresource, bool all_chars, const char* characters)
+    {
         if (all_chars)
         {
-            //GetFontFromCodePoint
-            // //range_end = 0x10FFFF; // From Fontc.java
-            // for (uint32_t i = 0; i < 0x10FFFF; ++i)
-            // {
-            //     uint32_t c = i;
-            // }
-
+            // It defeats the purpose of the dynamic glyph cache to include _all_ characters
+            return dmResource::RESULT_OK;
         }
 
-        // for (uint32_t i = range_start; i < range_end; ++i)
-        // {
-        //     uint32_t c = all_chars ? i : characters[i];
-
-        // }
+        bool result = dmGameSystem::FontGenAddGlyphs(resource, characters, true, PrewarmGlyphsCallback, resource);
+        return result ? dmResource::RESULT_OK : dmResource::RESULT_INVALID_DATA;
     }
 
     static uint32_t GetResourceSize(FontResource* font)
@@ -411,6 +406,16 @@ namespace dmGameSystem
         return base_padding + *outline_padding + *shadow_padding;
     }
 
+    static float GetPaddedSdfSpread(float padding)
+    {
+        // Make sure the output spread value is not zero. We distribute the distance values over
+        // the spread when we generate the DF glyphs, so if this value is zero we won't be able to map
+        // the distance values to a valid range..
+        // We use sqrt(2) since it is the diagonal length of a pixel, but any small positive value would do.
+        const float sqrt2 = 1.4142f;
+        return sqrt2 + padding;
+    }
+
     static float CalcSdfValue(float padding, float width)
     {
         float on_edge_value = dmGameSystem::FontGenGetEdgeValue(); // [0 .. 255] e.g. 191
@@ -455,8 +460,13 @@ namespace dmGameSystem
 
             dmRender::SetFontMapSdfSpread(resource->m_FontMap, padding);
             dmRender::SetFontMapSdfOutlineWidth(resource->m_FontMap, CalcSdfValue(padding, outline_padding));
+
+            float sdf_shadow = 1.0f;
             if (shadow_padding)
-                dmRender::SetFontMapSdfShadow(resource->m_FontMap, CalcSdfValue(padding, outline_padding + shadow_padding));
+            {
+                sdf_shadow = CalcSdfValue(padding, shadow_padding);
+            }
+            dmRender::SetFontMapSdfShadow(resource->m_FontMap, sdf_shadow);
 
             dmFont::HFont hfont = dmGameSystem::GetFont(resource->m_TTFResource);
             float scale = dmFont::GetPixelScaleFromSize(hfont, resource->m_DDF->m_Size);
@@ -472,10 +482,25 @@ namespace dmGameSystem
         {
             // Prewarm cache
             font->m_Jobs = dmResource::GetJobThread(factory);
-            // Use the default ttf resource for prewarming
-            //PrewarmDynamicGlyphs(resource, font->m_TTFResource, ddf->m_AllChars, ddf->m_Characters);
-
             AddFontRange(font, font->m_TTFResource, 0, 0xFFFFFFFF); // Add the default font/range
+
+            bool all_chars = font->m_DDF->m_AllChars;
+            bool has_chars = font->m_DDF->m_Characters != 0 && font->m_DDF->m_Characters[0] != 0;
+            if (all_chars || !has_chars)
+            {
+                font->m_PrewarmDone = 1;
+                return dmResource::RESULT_OK;
+            }
+
+            // Use the default ttf resource for prewarming
+            dmResource::Result r = PrewarmGlyphCache(font, font->m_TTFResource, all_chars, font->m_DDF->m_Characters);
+            if (dmResource::RESULT_OK != r)
+            {
+                dmLogError("Failed to prewarm glyph cache for font '%s'", path);
+                return dmResource::RESULT_OK;
+            }
+
+            font->m_Prewarming = 1;
         }
         else
         {
@@ -489,9 +514,11 @@ namespace dmGameSystem
                 dmRenderDDF::GlyphBank::Glyph* glyph = &glyph_bank->m_Glyphs[i];
                 font->m_Glyphs.Put(glyph->m_Character, glyph);
             }
+
+            font->m_PrewarmDone = 1;
         }
 
-        return dmResource::RESULT_OK;
+        return font->m_Prewarming ? dmResource::RESULT_PENDING : dmResource::RESULT_OK;
     }
 
     static dmResource::Result ResFontPreload(const dmResource::ResourcePreloadParams* params)
@@ -543,8 +570,6 @@ namespace dmGameSystem
             return r;
         }
 
-        PrewarmFont(params->m_Factory, path, font);
-
         dmResource::SetResource(params->m_Resource, font);
         dmResource::SetResourceSize(params->m_Resource, GetResourceSize(font));
         return r;
@@ -553,10 +578,13 @@ namespace dmGameSystem
     static dmResource::Result ResFontPostCreate(const dmResource::ResourcePostCreateParams* params)
     {
         FontResource* font = (FontResource*)dmResource::GetResource(params->m_Resource);
-        if (!font->m_IsDynamic)
-            return dmResource::RESULT_OK;
-        // If prewarming, return PENDING
-        return dmResource::RESULT_OK;
+
+        if (font->m_Prewarming)
+        {
+            dmGameSystem::FontGenFlushFinishedJobs(8000);
+            return font->m_PrewarmDone ? dmResource::RESULT_OK : dmResource::RESULT_PENDING;
+        }
+        return PrewarmFont(params->m_Factory, params->m_Filename, font);
     }
 
     static dmResource::Result ResFontDestroy(const dmResource::ResourceDestroyParams* params)
@@ -613,9 +641,10 @@ namespace dmGameSystem
         return resource->m_FontMap;
     }
 
-    TTFResource* ResFontGetResourceFromCodepoint(FontResource* resource, uint32_t codepoint)
+    TTFResource* ResFontGetTTFResourceFromCodepoint(FontResource* resource, uint32_t codepoint)
     {
         // TODO: Get ttfresource from codepoint
+        // return GetTTFFromCodePoint(resource, codepoint);
         return resource->m_TTFResource;
     }
 

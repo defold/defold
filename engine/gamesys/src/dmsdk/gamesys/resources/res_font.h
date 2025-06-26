@@ -34,6 +34,13 @@ namespace dmGameSystem
      */
 
     /*#
+     * The edge value of an sdf glyph bitmap
+     * @constant
+     * @name SDF_EDGE_VALUE
+     */
+    const float SDF_EDGE_VALUE = 0.75f; // This is a fixed constant in the current font renderer
+
+    /*#
      * Handle to font resource
      * @struct
      * @name FontResource
@@ -132,12 +139,12 @@ namespace dmGameSystem
     dmRender::HFont ResFontGetHandle(FontResource* font);
 
     /*#
-     * @name ResFontGetResourceFromCodepoint
+     * @name ResFontGetTTFResourceFromCodepoint
      * @param font [type: FontResource*] The font resource
      * @param codepoint [type: uint32_t] The codepoint to query
      * @return ttfresource [type: TTFResource*] The ttfresource if successful. 0 otherwise.
      */
-    TTFResource* ResFontGetResourceFromCodepoint(FontResource* resource, uint32_t codepoint);
+    TTFResource* ResFontGetTTFResourceFromCodepoint(FontResource* resource, uint32_t codepoint);
 
     /*#
      * @name ResFontGetInfo

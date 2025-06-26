@@ -30,6 +30,9 @@ namespace dmGameSystem
 
     // Scripting
     typedef void (*FGlyphCallback)(void* cbk_ctx, int result, const char* errmsg);
-    bool FontGenAddGlyphs(FontResource* resource, const char* text, FGlyphCallback cbk, void* cbk_ctx);
+    bool FontGenAddGlyphs(FontResource* resource, const char* text, bool loading, FGlyphCallback cbk, void* cbk_ctx);
     bool FontGenRemoveGlyphs(FontResource* resource, const char* text);
+
+    // If we're busy waiting for created glyphs
+    void FontGenFlushFinishedJobs(uint64_t timeout);
 }

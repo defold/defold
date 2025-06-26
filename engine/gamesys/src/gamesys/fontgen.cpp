@@ -20,6 +20,7 @@
 #include <dmsdk/dlib/time.h>
 #include <dmsdk/dlib/utf8.h>
 #include <dmsdk/script/script.h>
+#include <dlib/math.h>
 
 #include <resource/resource.h>
 #include <dmsdk/gamesys/resources/res_font.h>
@@ -43,6 +44,8 @@ struct JobStatus
 
 struct JobItem
 {
+    dmMutex::HMutex m_Mutex;
+
     // input
     FontResource*   m_FontResource; // Incref'd for each job item
     TTFResource*    m_TTFResource;  // Incref'd for each job item
@@ -54,9 +57,11 @@ struct JobItem
     float           m_Scale;        // Size to pixel scale
 
     // From the .fontc info
+    float           m_OutlineWidth;
+    float           m_ShadowBlur;
     uint8_t         m_IsSdf:1;
-    uint8_t         m_HasShadow:1;
     uint8_t         m_Deleted:1;
+    uint8_t         m_IsLoading:1;  // If set, we're in the prewarming sequence, and can't IncRef the font resource, as it's being loaded!
 
     // "global"
     JobStatus*      m_Status;       // same for all items in the same job batch
@@ -82,13 +87,30 @@ Context* g_FontExtContext = 0;
 
 static void ReleaseResources(Context* ctx, JobItem* item)
 {
-    if (item->m_FontResource)
+    if (item->m_FontResource && !item->m_IsLoading)
         dmResource::Release(ctx->m_ResourceFactory, item->m_FontResource);
     item->m_FontResource = 0;
 
     if (item->m_TTFResource)
         dmResource::Release(ctx->m_ResourceFactory, item->m_TTFResource);
     item->m_TTFResource = 0;
+}
+
+static float CalcSdfValueU8(float padding, float width)
+{
+    float on_edge_value = dmGameSystem::FontGenGetEdgeValue(); // [0 .. 255] e.g. 191
+    const float base_edge = SDF_EDGE_VALUE * 255.0f;
+
+    // Described in the stb_truetype.h as "what value the SDF should increase by when moving one SDF "pixel" away from the edge"
+    float pixel_dist_scale = (float)on_edge_value/padding;
+
+    return (base_edge - (pixel_dist_scale * width));
+}
+
+static float Remap(float value, float outline_edge)
+{
+    float unit = value / outline_edge;
+    return dmMath::Clamp(unit, 0.0f, 1.0f) * SDF_EDGE_VALUE * 255.0f;
 }
 
 // Called on the worker thread
@@ -138,12 +160,13 @@ static int JobGenerateGlyph(void* context, void* data)
         return 0;
     }
 
-    if (item->m_HasShadow && glyph.m_Bitmap.m_Data)
+    if (item->m_ShadowBlur > 0.0f && glyph.m_Bitmap.m_Data)
     {
-        // Strictly, we can render non-blurred shadow, with a single channel
-        // so this case is about blurred shadow
+        // To support the old shadow algorithm, we need to rescale the values,
+        // so that values >outline border are within the shapes
 
-// TODO: Blur the blue channel
+        // TODO: Tbh, it feels like we should be able to use a single distance field channel.
+        // We should look into it if we ever choose the new code path as the default.
 
         // Make a copy
         glyph.m_Bitmap.m_Channels = 3;
@@ -154,14 +177,19 @@ static int JobGenerateGlyph(void* context, void* data)
 
         uint8_t* rgb = (uint8_t*)malloc(newsize);
 
+        float outline_width      = item->m_OutlineWidth;
+        float outline_edge_value = CalcSdfValueU8(options.m_StbttSDFPadding, outline_width);
+
         for (int y = 0; y < h; ++y)
         {
             for (int x = 0; x < w; ++x)
             {
-                uint8_t value = glyph.m_Bitmap.m_Data[1 + y * w + x];
+                uint8_t value = glyph.m_Bitmap.m_Data[y * w + x];
+                uint8_t shadow_value = Remap(value, outline_edge_value);
+
                 rgb[y * (w * ch) + (x * ch) + 0] = value;
                 rgb[y * (w * ch) + (x * ch) + 1] = 0;
-                rgb[y * (w * ch) + (x * ch) + 2] = value;
+                rgb[y * (w * ch) + (x * ch) + 2] = shadow_value;
             }
         }
         free((void*)glyph.m_Bitmap.m_Data);
@@ -248,9 +276,8 @@ static void JobPostProcessGlyph(void* context, void* data, int result)
 {
     Context* ctx = (Context*)context;
     JobItem* item = (JobItem*)data;
-    //FontInfo* info = item->m_FontInfo;
 
-    DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
+    DM_MUTEX_OPTIONAL_SCOPED_LOCK(item->m_Mutex);
     if (!item->m_FontResource || !item->m_TTFResource)
     {
         DeleteItem(ctx, item);
@@ -287,7 +314,9 @@ static void JobPostProcessGlyph(void* context, void* data, int result)
 
 static void GenerateGlyph(Context* ctx,
                             FontResource* fontresource, TTFResource* ttfresource, uint32_t codepoint,
-                            float scale, float stbtt_padding, int stbtt_edge, bool is_sdf, bool has_shadow,
+                            float scale, float stbtt_padding, int stbtt_edge,
+                            bool is_sdf, float outline_width, float shadow_blur,
+                            bool is_loading,
                             JobStatus* status, FGlyphCallback cbk, void* cbk_ctx)
 {
     JobItem* item = new JobItem;
@@ -299,14 +328,17 @@ static void GenerateGlyph(Context* ctx,
     item->m_Status = status;
     item->m_Scale = scale;
     item->m_IsSdf = is_sdf;
-    item->m_HasShadow = has_shadow;
+    item->m_IsLoading = is_loading;
+    item->m_OutlineWidth = outline_width;
+    item->m_ShadowBlur = shadow_blur;
     item->m_StbttSdfPadding = stbtt_padding;
     item->m_StbttEdgeValue = stbtt_edge;
+    item->m_Mutex = is_loading ? 0 : ctx->m_Mutex;
     dmJobThread::PushJob(ctx->m_Jobs, JobGenerateGlyph, JobPostProcessGlyph, ctx, item);
 }
 
 static bool GenerateGlyphs(Context* ctx, FontResource* fontresource,
-                            const char* text, FGlyphCallback cbk, void* cbk_ctx)
+                            const char* text, bool loading, FGlyphCallback cbk, void* cbk_ctx)
 {
     uint32_t len = dmUtf8::StrLen(text);
 
@@ -355,19 +387,22 @@ static bool GenerateGlyphs(Context* ctx, FontResource* fontresource,
             callback_ctx = cbk_ctx;
         }
 
-        TTFResource* ttfresource = dmGameSystem::ResFontGetResourceFromCodepoint(fontresource, c);
+        TTFResource* ttfresource = dmGameSystem::ResFontGetTTFResourceFromCodepoint(fontresource, c);
         if (!ttfresource)
             continue;
 
         // Incref the resources so that they're not accidentally removed during this threaded work
-        dmResource::IncRef(ctx->m_ResourceFactory, fontresource);
+        if (!loading) // If we're in the process of creating this resource, then we cannot incref it!
+            dmResource::IncRef(ctx->m_ResourceFactory, fontresource);
         dmResource::IncRef(ctx->m_ResourceFactory, ttfresource);
 
         dmFont::HFont font = dmGameSystem::GetFont(ttfresource);
         float scale = dmFont::GetPixelScaleFromSize(font, font_info.m_Size);
 
         // TODO: Pass dmFont::HFont instead of ttfresource
-        GenerateGlyph(ctx, fontresource, ttfresource, c, scale, stbtt_padding, stbtt_edge, is_sdf, has_shadow,
+        GenerateGlyph(ctx, fontresource, ttfresource, c, scale, stbtt_padding, stbtt_edge, is_sdf,
+                        font_info.m_OutlineWidth, has_shadow ? font_info.m_ShadowBlur : 0.0f,
+                        loading,
                         status, callback, callback_ctx);
     }
     return true;
@@ -412,6 +447,11 @@ dmExtension::Result FontGenUpdate(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
+void FontGenFlushFinishedJobs(uint64_t timeout)
+{
+    dmJobThread::Update(g_FontExtContext->m_Jobs, timeout);
+}
+
 float FontGenGetBasePadding()
 {
     return g_FontExtContext->m_StbttDefaultSdfPadding;
@@ -425,10 +465,10 @@ float FontGenGetEdgeValue()
 
 // Scripting
 
-bool FontGenAddGlyphs(FontResource* fontresource, const char* text, FGlyphCallback cbk, void* cbk_ctx)
+bool FontGenAddGlyphs(FontResource* fontresource, const char* text, bool loading, FGlyphCallback cbk, void* cbk_ctx)
 {
     Context* ctx = g_FontExtContext;
-    return GenerateGlyphs(ctx, fontresource, text, cbk, cbk_ctx);
+    return GenerateGlyphs(ctx, fontresource, text, loading, cbk, cbk_ctx);
 }
 
 

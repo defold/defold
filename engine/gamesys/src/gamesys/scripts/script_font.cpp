@@ -196,7 +196,7 @@ static int AddGlyphs(lua_State* L)
         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
     }
 
-    if (!dmGameSystem::FontGenAddGlyphs(resource, text, callback, cbk_ctx))
+    if (!dmGameSystem::FontGenAddGlyphs(resource, text, false, callback, cbk_ctx))
     {
         dmResource::Release(g_ResourceFactory, resource);
         return DM_LUA_ERROR("Failed to add glyphs to font %s", dmHashReverseSafe64(fontc_path_hash));
