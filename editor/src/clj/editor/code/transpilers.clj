@@ -239,7 +239,7 @@
                   :view-types [:code :default]
                   :additional-load-fn (fn [_ self _]
                                         (g/connect self :save-data transpiler :source-code-save-datas)))
-                (g/set-property transpiler :build-file-proj-path build-file-proj-path :instance instance)
+                (g/set-properties transpiler :build-file-proj-path build-file-proj-path :instance instance)
                 (g/connect code-transpilers :lua-preprocessors transpiler :lua-preprocessors)
                 (g/connect workspace :root transpiler :root)
                 (g/connect transpiler :_node-id code-transpilers :nodes)

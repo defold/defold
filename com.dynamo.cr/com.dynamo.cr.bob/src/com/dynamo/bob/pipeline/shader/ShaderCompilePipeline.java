@@ -444,7 +444,9 @@ public class ShaderCompilePipeline {
             Shaderc.ShaderCompileResult result = generateCrossCompiledShader(shaderType, shaderLanguage, version);
 
             if (!result.lastError.isEmpty()) {
-                throw new CompileExceptionError("Cross-compilation of shader type: " + shaderType + ", to language: " + shaderLanguage + " failed, reason: " + result.lastError);
+                String excludeKey = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ? "exclude_gles_sm100" : null;
+                String exclusionMessage = excludeKey != null ? "\nEnable the 'shader." + excludeKey + "' option in game.project if you don't intend to use this language." : "";
+                throw new CompileExceptionError("Cross-compilation of shader type: " + shaderType + ", to language: " + shaderLanguage + " failed, reason: " + result.lastError + exclusionMessage);
             }
 
             byte[] bytes = result.data;

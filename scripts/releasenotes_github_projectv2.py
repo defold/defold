@@ -272,11 +272,12 @@ def check_commit_branches(commit, branches):
     return True
 
 def issue_to_markdown(issue, hide_details = True, title_only = False):
+    closed_issues = [ "#" + str(x) for x in issue["closed_issues"]]
     if title_only:
-        md = ("* __%s__: ([#%s](%s)) %s (by %s)\n" % (issue["type"], issue["number"], issue["url"], issue["title"], issue["author"]))
+        md = ("* __%s__: ([%s](%s)) %s (by %s)\n" % (issue["type"], ",".join(closed_issues), issue["url"], issue["title"], issue["author"]))
 
     else:    
-        md = ("__%s__: ([#%s](%s)) __'%s'__ by %s\n" % (issue["type"], issue["number"], issue["url"], issue["title"], issue["author"]))
+        md = ("__%s__: ([%s](%s)) __'%s'__ by %s\n" % (issue["type"], ",".join(closed_issues), issue["url"], issue["title"], issue["author"]))
         if hide_details: md += ("[details=\"Details\"]\n")
         md += ("%s\n" % issue["body"])
         if hide_details: md += ("\n---\n[/details]\n")
@@ -300,7 +301,7 @@ def parse_github_project(version):
         if not content:
             continue
 
-        # if content.get("number") != 10678: continue
+        # if content.get("number") not in [10770, 8815, 10595]: continue
         # pprint(content)
         # pprint(item)
 
@@ -326,47 +327,63 @@ def parse_github_project(version):
             continue
 
         # Make sure to ignore duplicates
+        duplicate = False
         for existing_issue in issues:
             if existing_issue.get("number") == issue.get("number"):
-                yellow("IGNORED (duplicate issue)")
-                continue
+                duplicate = True
+                break
+
+        # Multiple issues closed by the same PR
+        for existing_issue in issues:
+            if existing_issue["pr_number"] == pr.get("number"):
+                existing_issue["closed_issues"].append(issue.get("number"))
+                duplicate = True
+                break
 
         entry = {
             "title": pr.get("title"),
             "body": pr.get("body"),
             "url": pr.get("url"),
-            "number": issue.get("number"),
+            "issue_number": issue.get("number"),
+            "pr_number": pr.get("number"),
+            "closed_issues": [ issue.get("number") ],
             "author": pr.get("author").get("login"),
             "labels": labels,
             "type": get_issue_type_from_labels(labels),
             "mergecommit": find_merge_commit(pr),
             "referencecommits": find_reference_commits(pr),
+            "duplicate": duplicate,
         }
         # strip from match to end of file
-        entry["body"] = re.sub("## PR checklist.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("### Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("### Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("# Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("Technical notes.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("## Technical details.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub(r"## PR checklist.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub(r"#* Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub(r"Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub(r"Technical notes.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub(r"#* Technical details.*", "", entry["body"], flags=re.DOTALL).strip()
 
         # Remove closing keywords
-        entry["body"] = re.sub("Resolves .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Resolved .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Resolve .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Closes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Closes .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Closed .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Close .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fixes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fixes #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fixes .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fixed .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fix https.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fix .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Fix #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("Related to #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Resolves https.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Resolves #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Resolved https.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Resolved #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Resolve https.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Resolve #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Closes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Closes #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Closed https.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Closed #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Close https.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Close #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Fixes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Fixes #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Fixed https.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Fixed #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Fix https.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Fix #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
+
+        # Remove other common ways to reference issues
+        entry["body"] = re.sub(r"Also related to #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub(r"Related to #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
 
         # Remove "user facing changes" header
         entry["body"] = re.sub("User-facing changes.", "", entry["body"], flags=re.IGNORECASE).strip()
@@ -385,7 +402,7 @@ def check_issue_commits(issues):
     for issue in issues:
         dev_ok = False
         beta_ok = False
-        print("  Checking #%s '%s' (%s)" % (issue["number"], issue["title"], issue["url"]))
+        print("  Checking #%s '%s' (%s)" % (issue["issue_number"], issue["title"], issue["url"]))
         if issue.get("mergecommit") != None:
             branches = get_commit_branches(issue["mergecommit"])
             if "dev" in branches:
@@ -435,11 +452,11 @@ def generate_markdown(version, issues, hide_details = False):
     details_editor = ("\n## Editor\n")
     for issue_type in types:
         for issue in engine:
-            if issue["type"] == issue_type:
+            if issue["type"] == issue_type and issue["duplicate"] == False:
                 summary += issue_to_markdown(issue, title_only = True)
                 details_engine += issue_to_markdown(issue, hide_details = hide_details)
         for issue in editor:
-            if issue["type"] == issue_type:
+            if issue["type"] == issue_type and issue["duplicate"] == False:
                 summary += issue_to_markdown(issue, title_only = True)
                 details_editor += issue_to_markdown(issue, hide_details = hide_details)
 

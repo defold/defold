@@ -1244,7 +1244,7 @@
         new-x (update-curve-spread-start-value old-x #(props/scale-by-absolute-value-and-round % (.getX delta)))
         new-y (update-curve-spread-start-value old-y #(props/scale-by-absolute-value-and-round % (.getY delta)))
         new-z (update-curve-spread-start-value old-z #(props/scale-by-absolute-value-and-round % (.getZ delta)))]
-    (g/set-property node-id
+    (g/set-properties node-id
       :emitter-key-size-x new-x
       :emitter-key-size-y new-y
       :emitter-key-size-z new-z)))

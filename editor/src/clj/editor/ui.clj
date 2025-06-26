@@ -375,7 +375,8 @@
      (invalidated [~'this ~observable]
        ~@body)))
 
-(defn scene [^Node node]
+(defn scene
+  ^Scene [^Node node]
   (.getScene node))
 
 (defn add-styles! [^Styleable node classes]
@@ -1489,6 +1490,26 @@
      (event-handler event
        (when focus (.requestFocus control))
        (show-context-menu! menu-location event)))))
+
+(defn register-button-menu
+  [^MenuButton menu-button menu-location]
+  (.setOnShowing
+    menu-button
+    (event-handler event
+      (.consume event)
+      (let [scene (scene menu-button)
+            menu (handler/realize-menu menu-location)
+            command-contexts (contexts scene false)
+            keymap (or (user-data scene :keymap) keymap/empty)
+
+            menu-items
+            (g/with-auto-or-fake-evaluation-context evaluation-context
+              (make-menu-items scene menu command-contexts keymap evaluation-context))]
+
+        (refresh-separator-visibility menu-items)
+        (refresh-menu-item-styles menu-items)
+        (.setAll (.getItems menu-button) (to-array menu-items))
+        nil))))
 
 (defn- event-targets-tab? [^Event event]
   (some? (closest-node-with-style "tab" (.getTarget event))))
