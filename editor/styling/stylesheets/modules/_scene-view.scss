@@ -152,7 +152,7 @@
                 -fx-border-color: -df-component-light;
 
                 &:hover {
-                    -fx-border-color: -df-component-light;
+                    -fx-border-color: -df-component-lighter;
                 }
 
                 &:focused {
@@ -186,6 +186,10 @@
                     -fx-background-color: -df-background-light;
                     -fx-text-fill: -df-text-selected;
                 }
+
+                &:focused {
+                   -fx-border-color: -df-text;
+                }
             }
 
             .slider {
@@ -198,11 +202,17 @@
                     -fx-background-color: -df-component-light;
 
                     &:hover,
-                    &:pressed,
-                    &:focused {
+                    &:pressed {
                         -fx-background-color: -df-component-lighter;
                     }
                 }
+
+                &:focused {
+                    .thumb {
+                        -fx-background-color: -df-component-lighter;
+                    }
+                   
+                } 
             }
         }
 
