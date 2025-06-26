@@ -549,7 +549,7 @@ static float GainToScale(float gain)
     return scale;
 }
 
-// Generate sine wave per given parametyers and resasmple it as needed to mimic runtimes signal path for generated test waves
+// Generate sine wave per given parameters and resample it as needed to mimic runtimes signal path for generated test waves
 static double GenAndMixTone(uint64_t pos, float tone_frq, float sample_rate, float mix_rate, int num_frames, bool ramp_active, float scale)
 {
     static_assert(_pfb_num_phases == 1 << 11, "PFB header does not readily offer this constant - update needed (see below)!");
@@ -622,7 +622,7 @@ TEST_P(dmSoundVerifyTest, Mix)
     const double f = 44100.0;
     const int n = (int)(frame_count * (f / mix_rate));
 
-    const double level = (params.m_Channels == 2) ? 1.0f : sin(M_PI_4); // center panning introduces this (only for mono samples)
+    const double level = sin(M_PI_4); // center panning introduces this loss of signal
 
     assert(g_LoopbackDevice->m_AllOutput.Size() >= n * 2);
 
