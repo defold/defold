@@ -109,6 +109,7 @@ namespace dmGameSystem
             if (range->m_TTFResource == ttf)
             {
                 --i;
+                dmResource::Release(factory, (void*)range->m_TTFResource);
                 font->m_Ranges.EraseSwap(i);
             }
         }
