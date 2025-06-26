@@ -53,13 +53,13 @@ Generated using Defold build pipeline
 ---@diagnostic disable: duplicate-set-field
 ---@diagnostic disable: args-after-dots
 
----@class defold_api.{{ info.name }}
-{{ info.name }} = {}
+---@class defold_api.{{ info.namespace }}
+{{ info.namespace }} = {}
 
 {{#elements}}
 {{#is_variable}}
 ---{{ description }}
-{{ info.name }}.{{ name }} = nil
+{{ info.namespace }}.{{ name }} = nil
 {{/is_variable}}
 {{#is_constant}}
 ---{{ description }}
@@ -79,7 +79,7 @@ function {{ name }}({{ params_string }}) end
 {{/is_function}}
 {{/elements}}
 
-return {{ info.name }}
+return {{ info.namespace }}
 """
 
 
