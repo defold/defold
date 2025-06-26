@@ -272,8 +272,3 @@ player_health = 120
 
 [shader]
 exclude_gles_sm100 = 0
-
-[fontgen]
-enable = 1
-stbtt_sdf_base_padding = 3
-stbtt_sdf_edge_value = 191

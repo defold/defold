@@ -526,14 +526,6 @@
    :default true,
    :path ["label" "subpixels"]}
   {:type :integer,
-   :help "The base padding when generating sdf glyphs. [0-255]. 3 by default",
-   :default 3,
-   :path ["fontgen" "stbtt_sdf_base_padding"]}
-  {:type :integer,
-   :help "The on edge when generating sdf glyphs. [0-255]. 191 by default",
-   :default 191,
-   :path ["fontgen" "stbtt_sdf_edge_value"]}
-  {:type :integer,
    :help "max number of particle fx components, 64 by default",
    :default 64,
    :path ["particle_fx" "max_count"]}
@@ -1045,6 +1037,4 @@
   "native_extension" {:help "Settings for native extensions"
                       :group "Distribution"},
   "profiler" {:help "Settings related to the runtime profiler"
-              :group "Runtime"},
-  "fontgen" {:help "Settings related to the runtime font generation"
               :group "Runtime"}}}
