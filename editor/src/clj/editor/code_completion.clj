@@ -33,7 +33,7 @@
           :opt-un [:editor.code-completion.insert/cursor-range]))
 (s/def ::type
   #{;; defold-specific
-    :message
+    :message :typedef
     ;; shared with vscode
     :text :method :function :constructor :field :variable :class :interface
     :module :property :unit :value :enum :keyword :snippet :color :file

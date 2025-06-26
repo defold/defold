@@ -32,7 +32,7 @@ namespace dmSocket
 {
     /*#
      * Socket default timeout value
-     * @variable
+     * @constant
      * @name SOCKET_TIMEOUT
      */
     const int SOCKET_TIMEOUT = 500 * 1000;
@@ -47,7 +47,7 @@ namespace dmSocket
 
     /*#
      * Invalid socket handle
-     * @variable
+     * @constant
      * @name INVALID_SOCKET_HANDLE
      */
     const Socket INVALID_SOCKET_HANDLE = 0xffffffff;

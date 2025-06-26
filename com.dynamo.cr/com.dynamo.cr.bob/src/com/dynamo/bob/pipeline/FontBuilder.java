@@ -16,9 +16,10 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 
-import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.ProtoBuilder;
+import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.fs.IResource;
@@ -27,14 +28,14 @@ import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Font.FontTextureFormat;
 
+@ProtoParams(srcClass = FontDesc.class, messageClass = FontDesc.class)
 @BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc")
-public class FontBuilder extends Builder  {
+public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
-        ProtoUtil.merge(input, fontDescbuilder);
-        FontDesc fontDesc = fontDescbuilder.build();
+        FontDesc.Builder builder = getSrcBuilder(input);
+        FontDesc fontDesc = builder.build();
 
         IResource ttfResource = input.getResource(fontDesc.getFont());
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
@@ -68,12 +69,10 @@ public class FontBuilder extends Builder  {
 
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
-        FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
-        ProtoUtil.merge(task.firstInput(), fontDescbuilder);
-        FontDesc fontDesc = fontDescbuilder.build();
+        FontDesc.Builder builder = getSrcBuilder(task.firstInput());
+        FontDesc fontDesc = builder.build();
         boolean dynamic = fontDesc.getDynamic();
         FontMap.Builder fontMapBuilder = FontMap.newBuilder();
-
 
         BuilderUtil.checkResource(this.project, task.firstInput(), "material", fontDesc.getMaterial());
         if (dynamic)

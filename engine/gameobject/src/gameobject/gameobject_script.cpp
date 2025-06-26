@@ -541,9 +541,9 @@ namespace dmGameObject
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to retrieve
      * @param [options] [type:table] optional options table
-     * - index [type:integer] index into array property (1 based)
+     * - index [type:number] index into array property (1 based)
      * - key [type:hash] name of internal property
-     * @return value [type:any] the value of the specified property
+     * @return value [type:number|boolean|hash|url|vector3|vector4|quaternion|resource] the value of the specified property
      *
      * @examples
      * Get a property "speed" from a script "player", the property must be declared in the player-script:
@@ -672,7 +672,7 @@ namespace dmGameObject
      * @name go.set
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to set
-     * @param value [type:any|table] the value to set
+     * @param value [type:number|boolean|hash|url|vector3|vector4|quaternion|resource] the value to set
      * @param [options] [type:table] optional options table
      * - index [type:integer] index into array property (1 based)
      * - key [type:hash] name of internal property
@@ -1451,7 +1451,7 @@ namespace dmGameObject
      * @name go.animate
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to animate
-     * @param playback [type:constant] playback mode of the animation
+     * @param playback [type:go.PLAYBACK_ONCE_FORWARD|go.PLAYBACK_ONCE_BACKWARD|go.PLAYBACK_ONCE_PINGPONG|go.PLAYBACK_LOOP_FORWARD|go.PLAYBACK_LOOP_BACKWARD|go.PLAYBACK_LOOP_PINGPONG] playback mode of the animation
      *
      * - `go.PLAYBACK_ONCE_FORWARD`
      * - `go.PLAYBACK_ONCE_BACKWARD`
@@ -1461,7 +1461,7 @@ namespace dmGameObject
      * - `go.PLAYBACK_LOOP_PINGPONG`
      *
      * @param to [type:number|vector3|vector4|quaternion] target property value
-     * @param easing [type:constant|vector] easing to use during animation. Either specify a constant, see the <a href="/manuals/animation#_easing">animation guide</a> for a complete list, or a vmath.vector with a curve
+     * @param easing [type:vector|go.EASING_INBACK|go.EASING_INBOUNCE|go.EASING_INCIRC|go.EASING_INCUBIC|go.EASING_INELASTIC|go.EASING_INEXPO|go.EASING_INOUTBACK|go.EASING_INOUTBOUNCE|go.EASING_INOUTCIRC|go.EASING_INOUTCUBIC|go.EASING_INOUTELASTIC|go.EASING_INOUTEXPO|go.EASING_INOUTQUAD|go.EASING_INOUTQUART|go.EASING_INOUTQUINT|go.EASING_INOUTSINE|go.EASING_INQUAD|go.EASING_INQUART|go.EASING_INQUINT|go.EASING_INSINE|go.EASING_LINEAR|go.EASING_OUTBACK|go.EASING_OUTBOUNCE|go.EASING_OUTCIRC|go.EASING_OUTCUBIC|go.EASING_OUTELASTIC|go.EASING_OUTEXPO|go.EASING_OUTINBACK|go.EASING_OUTINBOUNCE|go.EASING_OUTINCIRC|go.EASING_OUTINCUBIC|go.EASING_OUTINELASTIC|go.EASING_OUTINEXPO|go.EASING_OUTINQUAD|go.EASING_OUTINQUART|go.EASING_OUTINQUINT|go.EASING_OUTINSINE|go.EASING_OUTQUAD|go.EASING_OUTQUART|go.EASING_OUTQUINT|go.EASING_OUTSINE] easing to use during animation. Either specify a constant, see the <a href="/manuals/animation#_easing">animation guide</a> for a complete list, or a vmath.vector with a curve
      * @param duration [type:number] duration of the animation in seconds
      * @param [delay] [type:number] delay before the animation starts in seconds
      * @param [complete_function] [type:function(self, url, property)] optional function to call when the animation has completed
@@ -1749,10 +1749,6 @@ namespace dmGameObject
                 {
                     return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64Alloc(&hash_ctx, dmGameObject::GetIdentifier(todelete)));
                 }
-                if (todelete->m_Generated)
-                {
-                    dmScript::ReleaseHash(L, todelete->m_Identifier);
-                }
                 dmGameObject::Delete(hcollection, todelete, recursive);
             }
             else
@@ -1871,10 +1867,6 @@ namespace dmGameObject
         {
             DM_HASH_REVERSE_MEM(hash_ctx, 256);
             return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64Alloc(&hash_ctx, dmGameObject::GetIdentifier(instance)));
-        }
-        if (instance->m_Generated)
-        {
-            dmScript::ReleaseHash(L, instance->m_Identifier);
         }
         dmGameObject::HCollection collection = instance->m_Collection->m_HCollection;
         dmGameObject::Delete(collection, instance, recursive);
@@ -2000,7 +1992,7 @@ namespace dmGameObject
      * 
      * @name go.exists
      * @param url [type:string|hash|url] url of the game object to check
-     * @return exists [type:bool] true if the game object exists
+     * @return exists [type:boolean] true if the game object exists
      *
      * @examples
      * Check if game object "my_game_object" exists
@@ -2611,7 +2603,7 @@ bail:
      * to set the initial state of the script.
      *
      * @name init
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * ```lua
@@ -2628,7 +2620,7 @@ bail:
      * or release user input focus (see [ref:release_input_focus]).
      *
      * @name final
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * ```lua
@@ -2644,7 +2636,7 @@ bail:
      * It can be used to perform any kind of game related tasks, e.g. moving the game object instance.
      *
      * @name update
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param dt [type:number] the time-step of the frame update
      * @examples
      *
@@ -2671,7 +2663,7 @@ bail:
      * physics (enabled by ticking 'Use Fixed Timestep' in the Physics section of game.project).
      *
      * @name fixed_update
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param dt [type:number] the time-step of the frame update
      * @examples
      */
@@ -2685,7 +2677,7 @@ bail:
      * documentation of the message specifies which data is supplied.
      *
      * @name on_message
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param message_id [type:hash] id of the received message
      * @param message [type:table] a table containing the message data
      * @param sender [type:url] address of the sender
@@ -2796,7 +2788,7 @@ bail:
      * `acc_z`     | Accelerometer z value (if present).
      *
      * @name on_input
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
      * @param action [type:table] a table containing the input data, see above for a description
      * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
@@ -2838,7 +2830,7 @@ bail:
      * It can be used for live development, e.g. to tweak constants or set up the state properly for the instance.
      *
      * @name on_reload
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * This example demonstrates how to tweak the speed of a game object instance that is moved on user input.
@@ -2879,242 +2871,242 @@ bail:
     /*# no playback
      *
      * @name go.PLAYBACK_NONE
-     * @variable
+     * @constant
      */
     /*# once forward
      *
      * @name go.PLAYBACK_ONCE_FORWARD
-     * @variable
+     * @constant
      */
     /*# once backward
      *
      * @name go.PLAYBACK_ONCE_BACKWARD
-     * @variable
+     * @constant
      */
     /*# once ping pong
      *
      * @name go.PLAYBACK_ONCE_PINGPONG
-     * @variable
+     * @constant
      */
     /*# loop forward
      *
      * @name go.PLAYBACK_LOOP_FORWARD
-     * @variable
+     * @constant
      */
     /*# loop backward
      *
      * @name go.PLAYBACK_LOOP_BACKWARD
-     * @variable
+     * @constant
      */
     /*# ping pong loop
      *
      * @name go.PLAYBACK_LOOP_PINGPONG
-     * @variable
+     * @constant
      */
 
     /*# linear interpolation
      *
      * @name go.EASING_LINEAR
-     * @variable
+     * @constant
      */
     /*# in-quadratic
      *
      * @name go.EASING_INQUAD
-     * @variable
+     * @constant
      */
     /*# out-quadratic
      *
      * @name go.EASING_OUTQUAD
-     * @variable
+     * @constant
      */
     /*# in-out-quadratic
      *
      * @name go.EASING_INOUTQUAD
-     * @variable
+     * @constant
      */
     /*# out-in-quadratic
      *
      * @name go.EASING_OUTINQUAD
-     * @variable
+     * @constant
      */
     /*# in-cubic
      *
      * @name go.EASING_INCUBIC
-     * @variable
+     * @constant
      */
     /*# out-cubic
      *
      * @name go.EASING_OUTCUBIC
-     * @variable
+     * @constant
      */
     /*# in-out-cubic
      *
      * @name go.EASING_INOUTCUBIC
-     * @variable
+     * @constant
      */
     /*# out-in-cubic
      *
      * @name go.EASING_OUTINCUBIC
-     * @variable
+     * @constant
      */
     /*# in-quartic
      *
      * @name go.EASING_INQUART
-     * @variable
+     * @constant
      */
     /*# out-quartic
      *
      * @name go.EASING_OUTQUART
-     * @variable
+     * @constant
      */
     /*# in-out-quartic
      *
      * @name go.EASING_INOUTQUART
-     * @variable
+     * @constant
      */
     /*# out-in-quartic
      *
      * @name go.EASING_OUTINQUART
-     * @variable
+     * @constant
      */
     /*# in-quintic
      *
      * @name go.EASING_INQUINT
-     * @variable
+     * @constant
      */
     /*# out-quintic
      *
      * @name go.EASING_OUTQUINT
-     * @variable
+     * @constant
      */
     /*# in-out-quintic
      *
      * @name go.EASING_INOUTQUINT
-     * @variable
+     * @constant
      */
     /*# out-in-quintic
      *
      * @name go.EASING_OUTINQUINT
-     * @variable
+     * @constant
      */
     /*# in-sine
      *
      * @name go.EASING_INSINE
-     * @variable
+     * @constant
      */
     /*# out-sine
      *
      * @name go.EASING_OUTSINE
-     * @variable
+     * @constant
      */
     /*# in-out-sine
      *
      * @name go.EASING_INOUTSINE
-     * @variable
+     * @constant
      */
     /*# out-in-sine
      *
      * @name go.EASING_OUTINSINE
-     * @variable
+     * @constant
      */
     /*# in-exponential
      *
      * @name go.EASING_INEXPO
-     * @variable
+     * @constant
      */
     /*# out-exponential
      *
      * @name go.EASING_OUTEXPO
-     * @variable
+     * @constant
      */
     /*# in-out-exponential
      *
      * @name go.EASING_INOUTEXPO
-     * @variable
+     * @constant
      */
     /*# out-in-exponential
      *
      * @name go.EASING_OUTINEXPO
-     * @variable
+     * @constant
      */
     /*# in-circlic
      *
      * @name go.EASING_INCIRC
-     * @variable
+     * @constant
      */
     /*# out-circlic
      *
      * @name go.EASING_OUTCIRC
-     * @variable
+     * @constant
      */
     /*# in-out-circlic
      *
      * @name go.EASING_INOUTCIRC
-     * @variable
+     * @constant
      */
     /*# out-in-circlic
      *
      * @name go.EASING_OUTINCIRC
-     * @variable
+     * @constant
      */
     /*# in-elastic
      *
      * @name go.EASING_INELASTIC
-     * @variable
+     * @constant
      */
     /*# out-elastic
      *
      * @name go.EASING_OUTELASTIC
-     * @variable
+     * @constant
      */
     /*# in-out-elastic
      *
      * @name go.EASING_INOUTELASTIC
-     * @variable
+     * @constant
      */
     /*# out-in-elastic
      *
      * @name go.EASING_OUTINELASTIC
-     * @variable
+     * @constant
      */
     /*# in-back
      *
      * @name go.EASING_INBACK
-     * @variable
+     * @constant
      */
     /*# out-back
      *
      * @name go.EASING_OUTBACK
-     * @variable
+     * @constant
      */
     /*# in-out-back
      *
      * @name go.EASING_INOUTBACK
-     * @variable
+     * @constant
      */
     /*# out-in-back
      *
      * @name go.EASING_OUTINBACK
-     * @variable
+     * @constant
      */
     /*# in-bounce
      *
      * @name go.EASING_INBOUNCE
-     * @variable
+     * @constant
      */
     /*# out-bounce
      *
      * @name go.EASING_OUTBOUNCE
-     * @variable
+     * @constant
      */
     /*# in-out-bounce
      *
      * @name go.EASING_INOUTBOUNCE
-     * @variable
+     * @constant
      */
     /*# out-in-bounce
      *
      * @name go.EASING_OUTINBOUNCE
-     * @variable
+     * @constant
      */
 }

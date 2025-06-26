@@ -27,7 +27,7 @@ namespace dmGameSystem
         uint32_t* mip_map_offsets            = new uint32_t[params.m_MaxMipMaps];
         uint32_t* mip_map_offsets_compressed = new uint32_t[1];
         uint32_t* mip_map_dimensions         = new uint32_t[params.m_MaxMipMaps * 2];
-        uint8_t layer_count                  = GetLayerCount(params.m_Type) * dmMath::Max((uint16_t) 1, params.m_LayerCount);
+        uint8_t layer_count                  = GetLayerCount(params.m_Type) * dmMath::Max((uint8_t) 1, params.m_LayerCount);
 
         uint32_t data_size = 0;
         uint16_t mm_width  = params.m_Width;
@@ -209,7 +209,6 @@ namespace dmGameSystem
         }
 
         assert(create_params.m_Collection);
-        dmGameObject::AddDynamicResourceHash(create_params.m_Collection, create_params.m_PathHash);
         *resource_out = resource;
         return dmResource::RESULT_OK;
     }
@@ -259,25 +258,11 @@ namespace dmGameSystem
         upload_params.m_X                     = params.m_X;
         upload_params.m_Y                     = params.m_Y;
         upload_params.m_Z                     = params.m_Z;
+        upload_params.m_Page                  = params.m_Slice;
         upload_params.m_MipMap                = params.m_MipMap;
         upload_params.m_SubUpdate             = params.m_SubUpdate;
         upload_params.m_UploadSpecificMipmap  = 1;
 
         return dmResource::SetResource(factory, params.m_PathHash, (void*) &recreate_params);
-    }
-
-    dmResource::Result ReleaseDynamicResource(dmResource::HFactory factory, dmGameObject::HCollection collection, dmhash_t path_hash)
-    {
-        HResourceDescriptor rd = dmResource::FindByHash(factory, path_hash);
-        if (!rd)
-        {
-            return dmResource::RESULT_RESOURCE_NOT_FOUND;
-        }
-
-        // This will remove the entry in the collections list of dynamically allocated resource (if it exists),
-        // but we do the actual release here since we allow releasing arbitrary resources now
-        dmGameObject::RemoveDynamicResourceHash(collection, path_hash);
-        dmResource::Release(factory, dmResource::GetResource(rd));
-        return dmResource::RESULT_OK;
     }
 }

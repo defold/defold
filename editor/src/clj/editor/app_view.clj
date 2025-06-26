@@ -20,7 +20,6 @@
             [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
-            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -52,6 +51,7 @@
             [editor.live-update-settings :as live-update-settings]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
+            [editor.menu-items :as menu-items]
             [editor.os :as os]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
@@ -59,6 +59,7 @@
             [editor.prefs-dialog :as prefs-dialog]
             [editor.process :as process]
             [editor.progress :as progress]
+            [editor.properties :as properties]
             [editor.recent-files :as recent-files]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
@@ -79,7 +80,7 @@
             [internal.util :refer [first-where]]
             [service.log :as log]
             [service.smoke-log :as slog]
-            [util.coll :as coll]
+            [util.coll :as coll :refer [pair]]
             [util.eduction :as e]
             [util.http-server :as http-server]
             [util.profiler :as profiler]
@@ -96,11 +97,11 @@
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
            [javafx.geometry HPos Orientation Pos]
-           [javafx.scene Parent Scene Node]
-           [javafx.scene.control Label Hyperlink MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
+           [javafx.scene Node Parent Scene]
+           [javafx.scene.control Hyperlink Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy TabPane$TabDragPolicy Tooltip]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ClipboardContent MouseButton MouseEvent]
-           [javafx.scene.layout AnchorPane GridPane VBox HBox Region StackPane Priority]
+           [javafx.scene.layout AnchorPane GridPane HBox Priority Region StackPane VBox]
            [javafx.scene.paint Color]
            [javafx.scene.shape Ellipse]
            [javafx.scene.text Font]
@@ -362,11 +363,15 @@
 
 (defn- context-openable-resource
   ([app-view selection]
-   (or (selection->single-openable-resource selection)
-       (g/node-value app-view :active-resource)))
+   (when-let [resource (or (selection->single-resource selection)
+                           (g/node-value app-view :active-resource))]
+     (when (resource/openable-resource? resource)
+       resource)))
   ([app-view selection evaluation-context]
-   (or (selection->single-openable-resource selection)
-       (g/node-value app-view :active-resource evaluation-context))))
+   (when-let [resource (or (selection->single-resource selection)
+                           (g/node-value app-view :active-resource evaluation-context))]
+     (when (resource/openable-resource? resource)
+       resource))))
 
 (defn- context-resource
   ([app-view selection]
@@ -403,11 +408,11 @@
 
 (handler/defhandler :scene.select-scale-tool :workbench
   (run [app-view] (g/transact (g/set-property app-view :active-tool :scale)))
-  (state [app-view]  (= (g/node-value app-view :active-tool) :scale)))
+  (state [app-view] (= (g/node-value app-view :active-tool) :scale)))
 
 (handler/defhandler :scene.select-rotate-tool :workbench
   (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
-  (state [app-view]  (= (g/node-value app-view :active-tool) :rotate)))
+  (state [app-view] (= (g/node-value app-view :active-tool) :rotate)))
 
 (handler/defhandler :scene.visibility.show-settings :workbench
   (run [app-view scene-visibility]
@@ -465,7 +470,7 @@
     :tooltip "Scale tool"
     :icon "icons/45/Icons_T_04_Scale.png"
     :command :scene.select-scale-tool}
-   {:label :separator}
+   menu-items/separator
    {:id :2d-mode
     :tooltip "2d mode"
     :graphic-fn (partial icons/make-svg-icon-graphic mode-2d-svg-path)
@@ -743,12 +748,20 @@
       (throw e))))
 
 (defn- make-launched-log-sink [launched-target on-service-url-found]
-  (let [initial-output (atom "")]
+  (let [initial-output (atom "")
+        version-line (atom nil)
+        updated-target (atom nil)]
     (fn [line]
       (when (< (count @initial-output) 5000)
         (swap! initial-output str line "\n")
         (when-let [target-info (engine/parse-launched-target-info @initial-output)]
-          (targets/update-launched-target! launched-target target-info on-service-url-found)))
+          (let [result-target (targets/update-launched-target! launched-target target-info)]
+            (reset! updated-target result-target)))
+        (when (not @version-line)
+          (when-let [engine-version-line (engine/parse-engine-version-line line)]
+            (reset! version-line engine-version-line))))
+      (when (and @updated-target (= @version-line line))
+        (on-service-url-found @updated-target))
       (when (console/current-stream? (:log-stream launched-target))
         (console/append-console-line! line)))))
 
@@ -1618,28 +1631,31 @@ If you do not specifically require different script states, consider changing th
                {:label "Upgrade File Formats..."
                 :id ::save-and-upgrade-all
                 :command :file.save-and-upgrade-all}
-               {:label :separator}
+               menu-items/separator
                {:label "Search in Files..."
                 :command :file.search}
                {:label "Recent Files"
                 :command :private/recent-files}
-               {:label :separator}
+               menu-items/separator
                {:label "Close"
                 :command :window.tab.close}
                {:label "Close All"
                 :command :window.tab.close-all}
                {:label "Close Others"
                 :command :window.tab.close-others}
-               {:label :separator}
+               menu-items/separator
                {:label "Referencing Files..."
                 :command :file.show-references}
                {:label "Dependencies..."
                 :command :file.show-dependencies}
-               {:label "Show Overrides"
-                :command :edit.show-overrides}
+               menu-items/separator
+               menu-items/show-overrides
+               menu-items/pull-up-overrides
+               menu-items/push-down-overrides
+               menu-items/separator
                {:label "Hot Reload"
                 :command :run.hot-reload}
-               {:label :separator}
+               menu-items/separator
                {:label "Open Project..."
                 :command :file.open-project}
                {:label "Preferences..."
@@ -1654,7 +1670,7 @@ If you do not specifically require different script states, consider changing th
                {:label "Redo"
                 :icon "icons/redo.png"
                 :command :edit.redo}
-               {:label :separator}
+               menu-items/separator
                {:label "Cut"
                 :command :edit.cut}
                {:label "Copy"
@@ -1666,13 +1682,12 @@ If you do not specifically require different script states, consider changing th
                {:label "Delete"
                 :icon "icons/32/Icons_M_06_trash.png"
                 :command :edit.delete}
-               {:label :separator}
+               menu-items/separator
                {:label "Move Up"
                 :command :edit.reorder-up}
                {:label "Move Down"
                 :command :edit.reorder-down}
-               {:label :separator
-                :id ::edit-end}]}
+               (menu-items/separator-with-id ::edit-end)]}
    {:label "View"
     :id ::view
     :children [{:label "Toggle Assets Pane"
@@ -1683,7 +1698,7 @@ If you do not specifically require different script states, consider changing th
                 :command :window.toggle-bottom-pane}
                {:label "Toggle Properties Pane"
                 :command :window.toggle-right-pane}
-               {:label :separator}
+               menu-items/separator
                {:label "Show Console"
                 :command :window.show-console}
                {:label "Show Curve Editor"
@@ -1692,59 +1707,60 @@ If you do not specifically require different script states, consider changing th
                 :command :window.show-build-errors}
                {:label "Show Search Results"
                 :command :window.show-search-results}
-               {:label :separator
-                :id ::view-end}]}
+               (menu-items/separator-with-id ::view-end)]}
    {:label "Help"
     :children [{:label "Reload Stylesheet"
                 :command :dev.reload-css}
                {:label "Show Logs"
                 :command :help.open-logs}
-               {:label :separator}
+               menu-items/separator
                {:label "Create Desktop Entry"
                 :command :file.create-desktop-entry}
-               {:label :separator}
+               menu-items/separator
                {:label "Documentation"
                 :command :help.open-documentation}
                {:label "Support Forum"
                 :command :help.open-forum}
                {:label "Find Assets"
                 :command :help.open-asset-portal}
-               {:label :separator}
+               menu-items/separator
                {:label "Report Issue"
                 :command :help.report-issue}
                {:label "Report Suggestion"
                 :command :help.report-suggestion}
                {:label "Search Issues"
                 :command :help.open-issues}
-               {:label :separator}
+               menu-items/separator
                {:label "Development Fund"
                 :command :help.open-donations}
-               {:label :separator}
+               menu-items/separator
                {:label "About"
                 :command :app.about}]}])
 
 (handler/register-menu! ::tab-menu
-  [{:label "Close"
+  [menu-items/open-as
+   menu-items/separator
+   {:label "Close"
     :command :window.tab.close}
    {:label "Close Others"
     :command :window.tab.close-others}
    {:label "Close All"
     :command :window.tab.close-all}
-   {:label :separator}
+   menu-items/separator
    {:label "Move to Other Tab Pane"
     :command :window.tab.move-to-other-group}
    {:label "Swap With Other Tab Pane"
     :command :window.tab.swap-with-other-group}
    {:label "Join Tab Panes"
     :command :window.tab.join-groups}
-   {:label :separator}
+   menu-items/separator
    {:label "Copy Resource Path"
     :command :edit.copy-resource-path}
    {:label "Copy Full Path"
     :command :edit.copy-absolute-path}
    {:label "Copy Require Path"
     :command :edit.copy-require-path}
-   {:label :separator}
+   menu-items/separator
    {:label "Show in Asset Browser"
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-assets}
@@ -1755,8 +1771,10 @@ If you do not specifically require different script states, consider changing th
     :command :file.show-references}
    {:label "Dependencies..."
     :command :file.show-dependencies}
-   {:label "Show Overrides"
-    :command :edit.show-overrides}])
+   menu-items/separator
+   menu-items/show-overrides
+   menu-items/pull-up-overrides
+   menu-items/push-down-overrides])
 
 (defrecord SelectionProvider [app-view]
   handler/SelectionProvider
@@ -2125,14 +2143,21 @@ If you do not specifically require different script states, consider changing th
       (open-resource app-view prefs workspace project resource))))
 
 (handler/defhandler :file.open-as :global
-  (active? [selection] (selection->single-openable-resource selection))
-  (enabled? [selection user-data] (resource/exists? (selection->single-openable-resource selection)))
+  (active? [app-view selection evaluation-context] (context-openable-resource app-view selection evaluation-context))
+  (enabled? [app-view selection evaluation-context] (resource/exists? (context-openable-resource app-view selection evaluation-context)))
   (run [selection app-view prefs workspace project user-data]
-       (let [resource (selection->single-openable-resource selection)]
+       (let [resource (context-openable-resource app-view selection)]
          (open-resource app-view prefs workspace project resource user-data)))
-  (options [prefs workspace selection user-data]
+  (options [app-view prefs workspace selection user-data]
            (when-not user-data
-             (let [resource (selection->single-openable-resource selection)
+             (let [[resource active-view-type-id]
+                   (g/with-auto-evaluation-context evaluation-context
+                     (if-let [selected-resource (selection->single-resource selection)]
+                       (pair selected-resource nil)
+                       (let [active-resource (g/node-value app-view :active-resource evaluation-context)
+                             active-view-type-id (:id (:view-type (g/node-value app-view :active-view-info evaluation-context)))]
+                         (pair active-resource active-view-type-id))))
+
                    resource-type (resource/resource-type resource)
                    is-custom-code-editor-configured (some? (custom-code-editor-executable-path-preference prefs))
 
@@ -2159,7 +2184,10 @@ If you do not specifically require different script states, consider changing th
                                                   :use-custom-editor false})]
                                    [(view-type->option view-type)])))
                        (map view-type->option))
-                     (:view-types resource-type))))))
+                     (cond->> (:view-types resource-type)
+
+                              active-view-type-id
+                              (e/filter #(not= active-view-type-id (:id %)))))))))
 
 (handler/defhandler :private/recent-files :global
   (enabled? [prefs workspace evaluation-context]
@@ -2171,14 +2199,14 @@ If you do not specifically require different script states, consider changing th
             :command :file.reopen-recent}]
           (cond-> (recent-files/exist? prefs workspace evaluation-context)
                   (->
-                    (conj {:label :separator})
+                    (conj menu-items/separator)
                     (into
                       (map (fn [[resource view-type :as resource+view-type]]
                              {:label (string/replace (str (resource/proj-path resource) " • " (:label view-type) " view") #"_" "__")
                               :command :private/open-selected-recent-file
                               :user-data resource+view-type}))
                       (recent-files/some-recent prefs workspace evaluation-context))
-                    (conj {:label :separator})))
+                    (conj menu-items/separator)))
           (conj {:label "More..."
                  :command :file.open-recent})))))
 
@@ -2397,9 +2425,12 @@ If you do not specifically require different script states, consider changing th
       (search-results-view/show-override-inspector! search-results-view node-id properties))))
 
 (defn- select-possibly-overridable-resource-node [selection project evaluation-context]
+  ;; TODO: This will return the outline-selected resource-node when used from an
+  ;; editor tab context. Shouldn't we use the resource-node associated with the
+  ;; editor tab in that scenario?
   (or (handler/selection->node-id selection)
       (when-let [resource (handler/adapt-single selection resource/Resource)]
-        (when (contains? (:tags (resource/resource-type resource)) :overridable-properties)
+        (when (resource/overridable? resource)
           (project/get-resource-node project resource evaluation-context)))))
 
 (handler/defhandler :edit.show-overrides :global
@@ -2413,6 +2444,52 @@ If you do not specifically require different script states, consider changing th
       (g/with-auto-evaluation-context evaluation-context
         (select-possibly-overridable-resource-node selection project evaluation-context))
       :all)))
+
+(handler/defhandler :edit.pull-up-overrides :global
+  (enabled? [selection user-data evaluation-context]
+    (if user-data
+      (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
+      (if-let [node-id (handler/selection->node-id selection)]
+        (not (coll/empty? (g/overridden-properties node-id evaluation-context)))
+        false))
+    (or (some? user-data)
+        (if-let [node-id (handler/selection->node-id selection)]
+          (not (coll/empty? (g/overridden-properties node-id evaluation-context)))
+          false)))
+  (options [selection user-data]
+    (when (nil? user-data)
+      (when-let [node-id (handler/selection->node-id selection)]
+        (g/with-auto-evaluation-context evaluation-context
+          (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties node-id :all evaluation-context)]
+            (mapv (fn [transfer-overrides-plan]
+                    {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+                     :command :edit.pull-up-overrides
+                     :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                  (properties/pull-up-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context)))))))
+  (run [user-data]
+    (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
+
+(handler/defhandler :edit.push-down-overrides :global
+  (enabled? [selection user-data evaluation-context]
+    (if user-data
+      (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
+      (if-let [node-id (handler/selection->node-id selection)]
+        (let [basis (:basis evaluation-context)]
+          (and (not (coll/empty? (g/overrides basis node-id)))
+               (not (coll/empty? (g/overridden-properties node-id evaluation-context)))))
+        false)))
+  (options [selection user-data]
+    (when (nil? user-data)
+      (when-let [node-id (handler/selection->node-id selection)]
+        (g/with-auto-evaluation-context evaluation-context
+          (when-let [source-prop-infos-by-prop-kw (properties/transferred-properties node-id :all evaluation-context)]
+            (mapv (fn [transfer-overrides-plan]
+                    {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+                     :command :edit.push-down-overrides
+                     :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                  (properties/push-down-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context)))))))
+  (run [user-data]
+    (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
 
 (handler/defhandler :window.toggle-left-pane :global
   (run [^Stage main-stage]

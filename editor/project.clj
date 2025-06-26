@@ -28,7 +28,7 @@
                      [org.clojure/tools.cli                       "0.3.5"]
                      [org.clojure/tools.macro                     "0.1.5"]
                      [org.clojure/tools.namespace                 "1.2.0"]
-                     [org.clojure/data.int-map                    "0.2.4"]
+                     [org.clojure/data.int-map                    "1.3.0"]
                      [org.clojure/data.json                       "2.5.0"]
                      [com.cognitect/transit-clj                   "0.8.285"]
                      [prismatic/schema                            "1.1.9"]
@@ -164,6 +164,8 @@
                       "--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED"
                       ;; used in editor.scene$read_to_buffered_image
                       "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"]
+                      ;; "-XX:MaxJavaStackTraceDepth=1073741823"
+
   :main ^:skip-aot   com.defold.editor.Main
 
   :uberjar-exclusions [#"^natives/"]
@@ -225,6 +227,7 @@
                                         "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"
                                         "--add-opens=java.net.http/jdk.internal.net.http=ALL-UNNAMED"
                                         "--add-opens=java.net.http/jdk.internal.net.http.common=ALL-UNNAMED"]}
+                      :strict-pb-map-keys {:jvm-opts ["-Ddefold.protobuf.strict.enable=true"]}
                       :no-asserts {:global-vars {*assert* false}}
                       :no-decorated-exceptions {:jvm-opts ["-Ddefold.exception.decorate.disable=true"]}
                       :no-schemas {:jvm-opts ["-Ddefold.schema.check.disable=true"]}
@@ -285,7 +288,7 @@
                                 :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.1.3.zip"
                                                     "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/3.9.0.zip"
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.1.0.zip"
-                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/3.7.0.zip"
+                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/3.9.2.zip"
                                                     "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.2.zip"
                                                     "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.2.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"

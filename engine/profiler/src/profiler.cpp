@@ -118,14 +118,16 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
 {
     if(gRenderProfile && g_ProfilerCurrentFrame)
     {
-        DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
-
         DM_PROFILE("RenderProfiler");
+
+        {
+        DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
         // Make sure the main thread is at the front so it's picked by default
         std::sort(g_ProfilerCurrentFrame->m_Threads.Begin(), g_ProfilerCurrentFrame->m_Threads.End(), ThreadSortPred(&g_ProfilerThreadSortOrder));
 
         dmProfileRender::UpdateRenderProfile(gRenderProfile, g_ProfilerCurrentFrame);
+        }
 
         // Enable alpha blending
         dmGraphics::PipelineState ps_before = dmGraphics::GetPipelineState(graphics_context);
@@ -597,32 +599,32 @@ static int ProfilerScopeEnd(lua_State* L)
 /*# continously show latest frame
 *
 * @name profiler.MODE_RUN
-* @variable
+* @constant
 */
 /*# pause on current frame
 *
 * @name profiler.MODE_PAUSE
-* @variable
+* @constant
 */
 /*# pause at peak frame
 *
 * @name profiler.MODE_SHOW_PEAK_FRAME
-* @variable
+* @constant
 */
 /*# start recording
 *
 * @name profiler.MODE_RECORD
-* @variable
+* @constant
 */
 /*# show full profiler ui
 *
 * @name profiler.VIEW_MODE_FULL
-* @variable
+* @constant
 */
 /*# show mimimal profiler ui
 *
 * @name profiler.VIEW_MODE_MINIMIZED
-* @variable
+* @constant
 */
 
 
@@ -855,8 +857,12 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 
     dmProfile::Options options;
     options.m_Port = g_ProfilerPort;
+    options.m_EnablePerformanceTimeline = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.performance_timeline_enabled", 0);
     options.m_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.sleep_between_server_updates", 0);
-    dmProfile::Initialize(&options);
+    if (!dmProfile::IsInitialized())
+    {
+        dmProfile::Initialize(&options);
+    }
 
     if (!dmProfile::IsInitialized()) // We might use the null implementation
     {
@@ -883,7 +889,11 @@ static dmExtension::Result AppFinalizeProfiler(dmExtension::AppParams* params)
     }
 
     dmProfiler::SetEnabled(false);
-    dmProfile::Finalize();
+
+    if (dmExtension::AppParamsGetAppExitCode(params) == dmExtension::APP_EXIT_CODE_EXIT)
+    {
+        dmProfile::Finalize();
+    }
 
     if (g_ProfilerCurrentFrame)
     {

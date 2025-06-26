@@ -222,10 +222,6 @@ namespace dmScript
         // [-2] context_table
         // [-1] weak_table
 
-        // context_table["__weak"] = weak_table
-        lua_pushvalue(L, -1);        // duplicate weak_table for storing in context
-        lua_setfield(L, -3, "__weak");  // context_table["__weak"] = weak_table
-
         // Now store weak_table ref separately
         context->m_ContextWeakTableRef = Ref(L, LUA_REGISTRYINDEX);
 
@@ -849,7 +845,8 @@ namespace dmScript
         return false;
     }
 
-    bool GetURL(lua_State* L, dmMessage::URL& out_url) {
+    bool GetURL(lua_State* L, dmMessage::URL& out_url)
+    {
         DM_LUA_STACK_CHECK(L, 0);
         GetInstance(L);
 
@@ -874,6 +871,16 @@ namespace dmScript
         // lua type error.
         (void)CheckURL(L, -1);
         return false;
+    }
+
+    bool CheckURL(lua_State* L, dmMessage::URL* out_url)
+    {
+        bool result = GetURL(L, out_url);
+        if (!result)
+        {
+            return luaL_error(L, "No URL could be found in the current script environment.");
+        }
+        return result;
     }
 
     bool GetUserData(lua_State* L, uintptr_t* out_user_data, uint32_t user_type_hash) {

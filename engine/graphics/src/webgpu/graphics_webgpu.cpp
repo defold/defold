@@ -187,6 +187,7 @@ static WebGPUTexture* WebGPUNewTextureInternal(const TextureCreationParams& para
     if (params.m_UsageHintBits & TEXTURE_USAGE_FLAG_COLOR)
         texture->m_UsageFlags |= WGPUTextureUsage_RenderAttachment;
     texture->m_UsageHintFlags = params.m_UsageHintBits;
+    texture->m_PageCount      = params.m_LayerCount;
 
     if (params.m_OriginalWidth == 0)
     {
@@ -759,7 +760,7 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
     {
         WebGPUTexture* texture              = GetAssetFromContainer<WebGPUTexture>(context->m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureDepthStencil);
         depthstencil_desc.format            = texture->m_Format;
-        depthstencil_desc.depthWriteEnabled = context->m_CurrentPipelineState.m_WriteDepth;
+        depthstencil_desc.depthWriteEnabled = context->m_CurrentPipelineState.m_WriteDepth && context->m_CurrentPipelineState.m_DepthTestEnabled;
         depthstencil_desc.depthCompare      = context->m_CurrentPipelineState.m_DepthTestEnabled ? g_webgpu_compare_funcs[context->m_CurrentPipelineState.m_DepthTestFunc] : WGPUCompareFunction_Always;
         if (context->m_CurrentPipelineState.m_StencilEnabled)
         {
@@ -3099,6 +3100,13 @@ static uint32_t WebGPUGetTextureUsageHintFlags(HTexture _texture)
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
     return texture->m_UsageHintFlags;
+}
+
+static uint8_t WebGPUGetTexturePageCount(HTexture _texture)
+{
+    TRACE_CALL;
+    WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
+    return texture->m_PageCount;
 }
 
 static bool WebGPUIsContextFeatureSupported(HContext _context, ContextFeature feature)

@@ -330,6 +330,13 @@ var LibraryGLFW = {
             GLFW.buttons &= ~(1 << 0);
         }
 
+        // Audio is blocked by default in browsers until a user performs an interaction,
+        // so we need to try to resume on mouse button down/up and touch start/end.
+        // We must also check that the sound device hasn't been stripped
+        if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
+          DefoldSoundDevice.TryResumeAudio();
+        }
+
         event.preventDefault();
     },
 
@@ -404,9 +411,7 @@ var LibraryGLFW = {
           GLFW.fillTouch(touch.identifier, canvasX, canvasY, GLFW.GLFW_PHASE_BEGAN);
         }
 
-        // Audio is blocked by default in browsers until a user performs an interaction,
-        // so we need to try to resume it here (on mouse button down and touch start).
-        // We must also check that the sound device hasn't been stripped
+        // Resume audio on user interaction (see explanation in touchWasFinished).
         if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
           DefoldSoundDevice.TryResumeAudio();
         }
@@ -422,9 +427,7 @@ var LibraryGLFW = {
       GLFW.buttons |= (1 << event['button']);
       GLFW.onMouseButtonChanged(event, 1);// GLFW_PRESS
 
-      // Audio is blocked by default in browsers until a user performs an interaction,
-      // so we need to try to resume it here (on mouse button down and touch start).
-      // We must also check that the sound device hasn't been stripped
+      // Resume audio on user interaction (see explanation in touchWasFinished).
       if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
         DefoldSoundDevice.TryResumeAudio();
       }
@@ -435,6 +438,11 @@ var LibraryGLFW = {
 
       GLFW.buttons &= ~(1 << event['button']);
       GLFW.onMouseButtonChanged(event, 0);// GLFW_RELEASE
+
+      // Resume audio on user interaction (see explanation in touchWasFinished).
+      if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
+        DefoldSoundDevice.TryResumeAudio();
+      }
     },
 
     onMouseWheel: function(event) {
@@ -558,20 +566,19 @@ var LibraryGLFW = {
       }
     },
 
-    //adaptation for our needs of https://github.com/emscripten-core/emscripten/blob/941bbc6b9b35d3124f17d2503d7a32cc81032dac/src/library_glfw.js#L662
     joys: {}, // glfw joystick data
     lastGamepadState: null,
-    lastGamepadStateFrame: null, // The integer value of Browser.mainLoop.currentFrameNumber of when the last gamepad state was produced.
+    lastGamepadStateFrame: null, // The integer value of MainLoop.currentFrameNumber of when the last gamepad state was produced.
 
     refreshJoysticks: function(forceUpdate) {
         // Produce a new Gamepad API sample if we are ticking a new game frame, or if not using emscripten_set_main_loop() at all to drive animation.
         if (GLFW.gamepadFunc) {
-          if (forceUpdate || Browser.mainLoop.currentFrameNumber !== GLFW.lastGamepadStateFrame || !Browser.mainLoop.currentFrameNumber) {
+          if (forceUpdate || MainLoop.currentFrameNumber !== GLFW.lastGamepadStateFrame || !MainLoop.currentFrameNumber) {
             GLFW.lastGamepadState = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : null);
             if (!GLFW.lastGamepadState) {
               return;
             }
-            GLFW.lastGamepadStateFrame = Browser.mainLoop.currentFrameNumber;
+            GLFW.lastGamepadStateFrame = MainLoop.currentFrameNumber;
             for (var joy = 0; joy < GLFW.lastGamepadState.length; ++joy) {
               var gamepad = GLFW.lastGamepadState[joy];
 
@@ -920,6 +927,7 @@ var LibraryGLFW = {
       return 1;
     }
     catch(e) {
+      console.error(e);
       GLFW.gamepadFunc = null;
       return 0;
     }

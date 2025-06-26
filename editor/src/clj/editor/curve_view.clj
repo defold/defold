@@ -101,11 +101,11 @@
 (def ^:private xs (reduce (fn [res s] (conj res (double (/ s (- x-steps 1))))) [] (range x-steps)))
 
 (g/defnk produce-curve-renderables [visible-curves]
-  (let [splines+colors (mapv (fn [{:keys [node-id property curve hue]}]
+  (let [splines+colors (mapv (fn [{:keys [curve hue saturation]}]
                                (let [spline (->> curve
                                               (mapv second)
                                               (properties/->spline))
-                                     color (colors/hsl->rgba hue 1.0 0.7)]
+                                     color (colors/hsl->rgba hue saturation 0.7)]
                                  [spline color])) visible-curves)
         curve-vs (reduce (fn [res [spline color]]
                            (let [[r g b a] color]
@@ -139,32 +139,32 @@
                               order (into {} (map-indexed (fn [i [idx _]] [idx i]) control-points))]
                           [(properties/->spline (map second control-points)) (into #{} (map order sel))])) visible-curves)
         scount (count splines)
-        color-hues (mapv :hue visible-curves)
+        color-hues (mapv (fn [{:keys [hue saturation]}] [hue saturation]) visible-curves)
         cp-r 4.0
         quad (let [[v0 v1 v2 v3] (vec (for [x [(- cp-r) cp-r]
                                             y [(- cp-r) cp-r]]
                                         [x y 0.0]))]
                (geom/scale scale [v0 v1 v2 v2 v1 v3]))
-        cp-vs (mapcat (fn [[spline sel] hue]
-                        (let [s 0.7
+        cp-vs (mapcat (fn [[spline sel] [hue saturation]]
+                        (let [a 0.7
                               l 0.5]
                           (->> spline
                             (map-indexed (fn [i [x y tx ty]]
                                            (let [v (geom/transl [x y 0.0] quad)
                                                  selected? (contains? sel i)
-                                                 s (if selected? 1.0 s)
+                                                 a (if selected? 1.0 a)
                                                  l (if selected? 0.9 l)
-                                                 c (colors/hsl->rgba hue s l)]
+                                                 c (colors/hsla->rgba hue saturation l a)]
                                              (mapv (fn [v] (reduce conj v c)) v))))
                             (mapcat identity))))
                       splines color-hues)
         [sx sy] scale
-        [tangent-vs line-vs] (let [s 1.0
+        [tangent-vs line-vs] (let [a 1.0
                                 l 0.9
-                                cps (mapcat (fn [[spline sel] hue]
+                                cps (mapcat (fn [[spline sel] [hue saturation]]
                                           (let [first-i 0
                                                 last-i (dec (count spline))
-                                                c (colors/hsl->rgba hue s l)]
+                                                c (colors/hsla->rgba hue saturation l a)]
                                             (->> sel
                                               (map (fn [i]
                                                      (if-let [[x y tx ty] (get spline i)]
@@ -202,27 +202,46 @@
                                  :world-lines world-lines}}]]
     (into {} (map #(do [% renderables]) [pass/transparent]))))
 
-(defn- prop-kw->hue [prop-kw]
+(defn- prop-kw->hue-saturation
+  [prop-kw]
   (let [prop-name (name prop-kw)]
     (cond
-      (string/includes? prop-name "red") 0.0
-      (string/includes? prop-name "green") 120.0
-      (string/includes? prop-name "blue") 240.0
-      (string/includes? prop-name "alpha") 60.0)))
+      (string/includes? prop-name "red") [0.0 1.0]
+      (string/includes? prop-name "green") [120.0 1.0]
+      (string/includes? prop-name "blue") [240.0 1.0]
+      (string/includes? prop-name "alpha") [0.0 0.0])))
 
 (g/defnk produce-curves [selected-node-properties]
   (let [curves (mapcat (fn [p] (->> (:properties p)
-                                 (filter has-control-points?)
-                                 (map (fn [[k p]] {:node-id (:node-id p)
-                                                   :property k
-                                                   :curve (iv/iv-entries (:points (:value p)))}))))
+                                    (filter has-control-points?)
+                                    (map (fn [[k p]]
+                                           (let [[hue saturation] (prop-kw->hue-saturation k)]
+                                             {:node-id (:node-id p)
+                                              :property k
+                                              :curve (iv/iv-entries (:points (:value p)))
+                                              :hue hue
+                                              :saturation (or saturation 1.0)})))))
                        selected-node-properties)
-        ccount (count curves)
-        hue-f (/ 360.0 ccount)
-        curves (map-indexed (fn [i c]
-                              (assoc c :hue (or (prop-kw->hue (:property c))
-                                                (* (+ i 0.5) hue-f))))
-                            curves)]
+        precolored-curves (filter :hue curves)
+        ;; If the saturation is zero, the hue is not actually used.
+        taken-hues (into #{} (comp (filter (comp pos? :saturation))
+                                   (map :hue)) precolored-curves)
+        taken-count (count taken-hues)
+        autocolored-curves (filterv (comp nil? :hue) curves)
+        autocolored-count (count autocolored-curves)
+        hue-f (/ 360.0 (+ autocolored-count taken-count))
+        min-distance (/ hue-f 2)
+        curves (into
+                precolored-curves
+                (map-indexed (fn [i c]
+                               (let [hue (* (+ i 0.5) hue-f)
+                                     overlapping-hue (some #(when (< (abs (- hue %)) min-distance) %) taken-hues)]
+                                 (assoc c :hue (if overlapping-hue
+                                                 (+ overlapping-hue
+                                                    ;; Move to the nearest side of the overlapping hue.
+                                                    (cond-> min-distance (> overlapping-hue hue) -))
+                                                 hue)))) autocolored-curves))]
+
     curves))
 
 (defn- aabb-contains? [^AABB aabb ^Point3d p]
@@ -515,8 +534,9 @@
                                                       new-items (reduce (fn [res c]
                                                                           (if (contains? p (:property c))
                                                                             (conj res {:keyword (:property c)
-                                                                                      :property (get p (:property c))
-                                                                                      :hue (:hue c)})
+                                                                                       :property (get p (:property c))
+                                                                                       :hue (:hue c)
+                                                                                       :saturation (:saturation c)})
                                                                             res))
                                                                         [] curves)
                                                       old-items (ui/user-data list ::items)
@@ -663,7 +683,7 @@
                       (let [this ^CheckBoxListCell this]
                         (proxy-super updateItem item empty)
                         (when (and item (not empty))
-                          (let [[r g b] (colors/hsl->rgb (:hue item) 1.0 0.75)]
+                          (let [[r g b] (colors/hsl->rgb (:hue item) (:saturation item) 0.75)]
                             (proxy-super setStyle (format "-fx-text-fill: rgb(%d, %d, %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)))))))))))))))
       node-id)))
 

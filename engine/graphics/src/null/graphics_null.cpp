@@ -1034,6 +1034,7 @@ namespace dmGraphics
             &rt->m_FrameBuffer.m_ColorBufferSize[3]
         };
 
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             if (buffer_type_flags & color_buffer_flags[i])
@@ -1043,7 +1044,10 @@ namespace dmGraphics
                 uint32_t buffer_size                    = GetBufferSize(params.m_ColorBufferParams[i]);
                 rt->m_ColorTextureParams[i].m_DataSize  = buffer_size;
                 rt->m_ColorBufferTexture[i]             = NewTexture(context, params.m_ColorBufferCreationParams[i]);
-                Texture* attachment_tex                 = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, rt->m_ColorBufferTexture[i]);
+                Texture* attachment_tex = 0x0;
+                {
+                    attachment_tex                 = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, rt->m_ColorBufferTexture[i]);
+                }
                 SetTexture(rt->m_ColorBufferTexture[i], rt->m_ColorTextureParams[i]);
                 *(color_buffer_sizes[i]) = buffer_size;
                 *(color_buffers[i])      = attachment_tex->m_Data;
@@ -1059,7 +1063,10 @@ namespace dmGraphics
                 uint32_t buffer_size               = sizeof(float) * params.m_DepthBufferParams.m_Width * params.m_DepthBufferParams.m_Height;
                 rt->m_DepthBufferParams.m_DataSize = buffer_size;
                 rt->m_DepthBufferTexture           = NewTexture(context, params.m_DepthBufferCreationParams);
-                Texture* attachment_tex            = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, rt->m_DepthBufferTexture);
+                Texture* attachment_tex = 0x0;
+                {
+                    attachment_tex            = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, rt->m_DepthBufferTexture);
+                }
                 SetTexture(rt->m_DepthBufferTexture, rt->m_DepthBufferParams);
 
                 rt->m_FrameBuffer.m_DepthTextureBufferSize = buffer_size;
@@ -1079,7 +1086,10 @@ namespace dmGraphics
                 uint32_t buffer_size                 = sizeof(float) * params.m_StencilBufferParams.m_Width * params.m_StencilBufferParams.m_Height;
                 rt->m_StencilBufferParams.m_DataSize = buffer_size;
                 rt->m_StencilBufferTexture           = NewTexture(context, params.m_StencilBufferCreationParams);
-                Texture* attachment_tex              = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, rt->m_StencilBufferTexture);
+                Texture* attachment_tex = 0x0;
+                {
+                    attachment_tex              = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, rt->m_StencilBufferTexture);
+                }
                 SetTexture(rt->m_StencilBufferTexture, rt->m_StencilBufferParams);
 
                 rt->m_FrameBuffer.m_StencilTextureBufferSize = buffer_size;
@@ -1096,6 +1106,7 @@ namespace dmGraphics
 
     static void NullDeleteRenderTarget(HRenderTarget render_target)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_NullContext->m_AssetHandleContainer, render_target);
 
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
@@ -1133,6 +1144,7 @@ namespace dmGraphics
         else
         {
             assert(GetAssetType(render_target) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
             RenderTarget* rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
             context->m_CurrentFrameBuffer = &rt->m_FrameBuffer;
         }
@@ -1140,6 +1152,7 @@ namespace dmGraphics
 
     static HTexture NullGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_NullContext->m_AssetHandleContainer, render_target);
 
         if (IsColorBufferType(buffer_type))
@@ -1159,6 +1172,7 @@ namespace dmGraphics
 
     static void NullGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         RenderTarget* rt      = GetAssetFromContainer<RenderTarget>(g_NullContext->m_AssetHandleContainer, render_target);
         TextureParams* params = 0;
 
@@ -1187,6 +1201,7 @@ namespace dmGraphics
 
     static void NullSetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_NullContext->m_AssetHandleContainer, render_target);
 
         uint32_t buffer_size = sizeof(uint32_t) * width * height;
@@ -1301,6 +1316,7 @@ namespace dmGraphics
         tex->m_NumTextureIds  = num_texture_ids;
         tex->m_LastBoundUnit  = new int32_t[num_texture_ids];
         tex->m_UsageHintFlags = params.m_UsageHintBits;
+        tex->m_PageCount      = params.m_LayerCount;
 
         for (int i = 0; i < num_texture_ids; ++i)
         {
@@ -1318,17 +1334,16 @@ namespace dmGraphics
             tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
-        ScopedLock lock(context->m_AssetContainerMutex);
-
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetContainerMutex);
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
     static int DoDeleteTexture(void* _context, void* _h_texture)
     {
         NullContext* context = (NullContext*) _context;
-        ScopedLock lock(context->m_AssetContainerMutex);
         HTexture texture = (HTexture) _h_texture;
 
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
         if (tex)
         {
@@ -1346,14 +1361,13 @@ namespace dmGraphics
     static void DoDeleteTextureComplete(void* _context, void* _h_texture, int result)
     {
         NullContext* context = (NullContext*) _context;
-        ScopedLock lock(context->m_AssetContainerMutex);
         HTexture texture = (HTexture) _h_texture;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         context->m_AssetHandleContainer.Release(texture);
     }
 
     static void NullDeleteTextureAsync(NullContext* context, HTexture texture)
     {
-        ScopedLock lock(context->m_AssetContainerMutex);
         dmJobThread::PushJob(context->m_JobThread, DoDeleteTexture, DoDeleteTextureComplete, context, (void*) texture);
     }
 
@@ -1413,6 +1427,7 @@ namespace dmGraphics
     static HandleResult NullGetTextureHandle(HTexture texture, void** out_handle)
     {
         *out_handle = 0x0;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         Texture* tex = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
 
         if (!tex)
@@ -1434,7 +1449,7 @@ namespace dmGraphics
 
     static void NullSetTexture(HTexture texture, const TextureParams& params)
     {
-        ScopedLock lock(g_NullContext->m_AssetContainerMutex);
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         Texture* tex = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
         assert(tex);
         assert(!params.m_SubUpdate || (params.m_X + params.m_Width <= tex->m_Width));
@@ -1471,6 +1486,7 @@ namespace dmGraphics
 
     static uint32_t NullGetTextureResourceSize(HTexture texture)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         Texture* tex = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
         if (!tex)
         {
@@ -1493,21 +1509,25 @@ namespace dmGraphics
 
     static uint16_t NullGetTextureWidth(HTexture texture)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_Width;
     }
 
     static uint16_t NullGetTextureHeight(HTexture texture)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_Height;
     }
 
     static uint16_t NullGetOriginalTextureWidth(HTexture texture)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_OriginalWidth;
     }
 
     static uint16_t NullGetOriginalTextureHeight(HTexture texture)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_OriginalHeight;
     }
 
@@ -1517,6 +1537,7 @@ namespace dmGraphics
         assert(unit < MAX_TEXTURE_COUNT);
         assert(texture);
         NullContext* context = (NullContext*) _context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
         assert(tex->m_Data);
         context->m_Textures[unit] = texture;
@@ -1680,7 +1701,7 @@ namespace dmGraphics
         uint16_t param_array_index = (uint16_t) (size_t) data;
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
 
-        ScopedLock lock(context->m_AssetContainerMutex);
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetContainerMutex);
         Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, ap.m_Texture);
         if (tex)
         {
@@ -1710,10 +1731,11 @@ namespace dmGraphics
     {
         if (g_NullContext->m_AsyncProcessingSupport && g_NullContext->m_UseAsyncTextureLoad)
         {
-            ScopedLock lock(g_NullContext->m_AssetContainerMutex);
-
-            Texture* tex               = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
-            tex->m_DataState          |= 1 << params.m_MipMap;
+            {
+                DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
+                Texture* tex      = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
+                tex->m_DataState |= 1 << params.m_MipMap;
+            }
             uint16_t param_array_index = PushSetTextureAsyncState(g_NullContext->m_SetTextureAsyncState, texture, params, callback, user_data);
 
             dmJobThread::PushJob(g_NullContext->m_JobThread,
@@ -1731,7 +1753,7 @@ namespace dmGraphics
 
     static uint32_t NullGetTextureStatusFlags(HTexture texture)
     {
-        ScopedLock lock(g_NullContext->m_AssetContainerMutex);
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         Texture* tex   = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
         uint32_t flags = TEXTURE_STATUS_OK;
         if(tex && tex->m_DataState)
@@ -1760,6 +1782,7 @@ namespace dmGraphics
 
     static TextureType NullGetTextureType(HTexture texture)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_Type;
     }
 
@@ -1775,12 +1798,20 @@ namespace dmGraphics
 
     static uint8_t NullGetNumTextureHandles(HTexture texture)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_NumTextureIds;
     }
 
     static uint32_t NullGetTextureUsageHintFlags(HTexture texture)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_UsageHintFlags;
+    }
+
+    static uint8_t NullGetTexturePageCount(HTexture texture)
+    {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
+        return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_PageCount;
     }
 
     static bool NullIsContextFeatureSupported(HContext _context, ContextFeature feature)
@@ -1791,11 +1822,13 @@ namespace dmGraphics
 
     static uint16_t NullGetTextureDepth(HTexture texture)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_Depth;
     }
 
     static uint8_t NullGetTextureMipmapCount(HTexture texture)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_MipMapCount;
     }
 
@@ -1810,10 +1843,12 @@ namespace dmGraphics
         AssetType type       = GetAssetType(asset_handle);
         if (type == ASSET_TYPE_TEXTURE)
         {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
             return GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, asset_handle) != 0;
         }
         else if (type == ASSET_TYPE_RENDER_TARGET)
         {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
             return GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;

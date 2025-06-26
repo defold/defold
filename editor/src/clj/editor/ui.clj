@@ -50,7 +50,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Orientation Point2D]
            [javafx.scene Group Node Parent Scene]
-           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane HBox Pane]
@@ -375,7 +375,8 @@
      (invalidated [~'this ~observable]
        ~@body)))
 
-(defn scene [^Node node]
+(defn scene
+  ^Scene [^Node node]
   (.getScene node))
 
 (defn add-styles! [^Styleable node classes]
@@ -1489,6 +1490,26 @@
      (event-handler event
        (when focus (.requestFocus control))
        (show-context-menu! menu-location event)))))
+
+(defn register-button-menu
+  [^MenuButton menu-button menu-location]
+  (.setOnShowing
+    menu-button
+    (event-handler event
+      (.consume event)
+      (let [scene (scene menu-button)
+            menu (handler/realize-menu menu-location)
+            command-contexts (contexts scene false)
+            keymap (or (user-data scene :keymap) keymap/empty)
+
+            menu-items
+            (g/with-auto-or-fake-evaluation-context evaluation-context
+              (make-menu-items scene menu command-contexts keymap evaluation-context))]
+
+        (refresh-separator-visibility menu-items)
+        (refresh-menu-item-styles menu-items)
+        (.setAll (.getItems menu-button) (to-array menu-items))
+        nil))))
 
 (defn- event-targets-tab? [^Event event]
   (some? (closest-node-with-style "tab" (.getTarget event))))

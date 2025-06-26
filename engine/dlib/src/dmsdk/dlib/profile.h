@@ -498,6 +498,10 @@
 #define DM_PROPERTY_RESET(name)
 #undef DM_PROPERTY_RESET
 
+/*#
+ * @typedef
+ * @name dmProfileIdx
+ */
 typedef uint64_t dmProfileIdx;
 
 // Private

@@ -150,10 +150,10 @@ namespace dmGameSystem
         uint16_t                                  m_Width;
         uint16_t                                  m_Height;
         uint16_t                                  m_Depth;
-        uint16_t                                  m_LayerCount;
         uint16_t                                  m_MaxMipMaps;
         uint16_t                                  m_TextureBpp;
         uint16_t                                  m_UsageFlags;
+        uint8_t                                   m_LayerCount;
     };
 
     struct SetTextureResourceParams
@@ -182,7 +182,6 @@ namespace dmGameSystem
     void FillTextureResourceBuffer(const dmGraphics::TextureImage* texture_image, dmArray<uint8_t>& texture_resource_buffer);
     dmResource::Result CreateTextureResource(dmResource::HFactory factory, const CreateTextureResourceParams& create_params, void** resource_out);
     dmResource::Result SetTextureResource(dmResource::HFactory factory, const SetTextureResourceParams& params);
-    dmResource::Result ReleaseDynamicResource(dmResource::HFactory factory, dmGameObject::HCollection collection, dmhash_t path_hash);
 }
 
 #endif // DM_GAMESYS_PRIVER_H
