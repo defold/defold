@@ -34,8 +34,7 @@
            [javafx.event ActionEvent]
            [javafx.geometry HPos Point2D Pos VPos]
            [javafx.scene Node Parent]
-           [javafx.scene.control Label Slider TextField ToggleButton ToggleGroup PopupControl]
-           [javafx.scene.input MouseEvent]
+           [javafx.scene.control Button Control Label Slider TextField ToggleButton ToggleGroup PopupControl]
            [javafx.scene.layout HBox Region StackPane VBox]
            [javafx.scene.paint Color]
            [javafx.stage PopupWindow$AnchorLocation]
@@ -184,8 +183,12 @@
   (let [exp (Math/log10 extent)]
     (- 1.0 (- exp (Math/floor exp)))))
 
-(defn small-grid-axis-size [^double extent ^double size] (* size (Math/pow 10.0 (dec (Math/floor (Math/log10 extent))))))
-(defn large-grid-axis-size [^double extent ^double size] (* size (Math/pow 10.0      (Math/floor (Math/log10 extent)))))
+(defn- normalize ^double
+  [^double v ^double scale] ^double
+  (Math/pow 10 (- (Math/floor (Math/log10 v)) scale)))
+
+(defn small-grid-axis-size [^double extent ^double size] (* (/ size (normalize size 1)) (normalize extent 2)))
+(defn large-grid-axis-size [^double extent ^double size] (* (/ size (normalize size 1)) (normalize extent 1)))
 
 (defn grid-snap-down [^double a ^double sz] (* sz (Math/floor (/ a sz))))
 (defn grid-snap-up   [^double a ^double sz] (* sz (Math/ceil  (/ a sz))))
@@ -221,8 +224,8 @@
     {:ratios [first-grid-ratio (- 1.0 ^double first-grid-ratio)]
      :sizes [grid-size-small grid-size-large]
      :aabbs (cond-> [(snap-out-to-grid aabb grid-size-small)]
-              grid-size-large
-              (conj (snap-out-to-grid aabb grid-size-large)))
+                    grid-size-large
+                    (conj (snap-out-to-grid aabb grid-size-large)))
      :plane plane}))
 
 (g/defnk produce-merged-options
@@ -254,15 +257,26 @@
 
 (defmulti settings-row (fn [_app-view _prefs _popup option] option))
 
+(defn- ensure-focus-traversable!
+  [^Control control]
+  (ui/observe (.focusTraversableProperty control)
+    (fn [_ _ _]
+      (.setFocusTraversable control true))))
+
 (defmethod settings-row :opacity
-  [app-view prefs popup option]
+  [app-view prefs ^PopupControl popup option]
   (let [prefs-path (conj grid-prefs-path option)
         value (prefs/get prefs prefs-path)
         slider (Slider. 0.0 1.0 value)
         label (Label. "Opacity")]
-    (.setOnMouseEntered slider (ui/event-handler e (.setAutoHide popup false)))
-    (.setOnMouseExited slider (ui/event-handler e (.setAutoHide popup true)))
-    
+    (doto slider
+      (ensure-focus-traversable!)
+      (.setBlockIncrement 0.1)
+      ;; Hacky way to fix a Linux specific issue that interferes with mouse events,
+      ;; when autoHide is set to true.
+      (.setOnMouseEntered (ui/event-handler e (.setAutoHide popup false)))
+      (.setOnMouseExited (ui/event-handler e (.setAutoHide popup true))))
+
     (ui/observe
       (.valueProperty slider)
       (fn [_observable _old-val new-val]
@@ -275,6 +289,7 @@
   [prefs plane-group prefs-path plane]
   (let [active-plane (prefs/get prefs prefs-path)]
     (doto (ToggleButton. (string/upper-case (name plane)))
+      (ensure-focus-traversable!)
       (.setToggleGroup plane-group)
       (.setSelected (= plane active-plane))
       (ui/add-style! "plane-toggle"))))
@@ -316,7 +331,8 @@
       (ui/on-action! update-fn)
       (ui/on-cancel! cancel-fn)
       (ui/auto-commit! update-fn)
-      (ui/select-all-on-click!))
+      (ui/select-all-on-click!)
+      (ensure-focus-traversable!))
     [label text-field]))
 
 (defn- axis-group
@@ -340,8 +356,7 @@
       (ui/on-cancel! cancel-fn)
       (ui/auto-commit! update-fn)
       (ui/select-all-on-click!)
-      (.setFocusTraversable true))
-
+      (ensure-focus-traversable!))
     [label text-field]))
 
 (defmethod settings-row :size
@@ -356,7 +371,7 @@
 
 (defn- reset-button
   [app-view prefs ^PopupControl popup]
-  (let [button (doto (javafx.scene.control.Button. "Reset to Defaults")
+  (let [button (doto (Button. "Reset to Defaults")
                  (.setPrefWidth Double/MAX_VALUE))
         reset-fn (fn [^ActionEvent event]
                    (let [target ^Node (.getTarget event)
@@ -373,7 +388,9 @@
                      (doto parent
                        (ui/children! (ui/node-array (settings app-view prefs popup)))
                        (.requestFocus))))]
-    (ui/on-action! button reset-fn)
+    (doto button
+      (ui/on-action! reset-fn)
+      (ensure-focus-traversable!))
     button))
 
 (defn- settings
@@ -402,6 +419,8 @@
       (ui/children! region [(doto (Region.)
                               (ui/add-style! "popup-shadow"))
                             (doto (VBox. 10 (ui/node-array (settings app-view prefs popup)))
+                              (.setFocusTraversable true)
+                              (ensure-focus-traversable!)
                               (ui/add-style! "grid-settings"))])
       (ui/user-data! owner ::popup popup)
       (doto popup
