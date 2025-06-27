@@ -2306,6 +2306,7 @@ namespace dmGui
     Result SetSceneScript(HScene scene, HScript script)
     {
         scene->m_Script = script;
+        scene->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
         return RESULT_OK;
     }
 
