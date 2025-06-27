@@ -1119,8 +1119,15 @@ namespace dmGameSystem
         }
     }
 
-    static inline void EnsureBindPoseCacheBufferSize(ModelWorld* world, uint32_t max_width, uint32_t max_height)
+    static inline void EnsureBindPoseCacheBufferSize(ModelWorld* world, uint32_t num_bone_pixels)
     {
+        uint32_t max_width  = dmMath::Min(num_bone_pixels, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth);
+        uint32_t max_height = dmMath::Min(num_bone_pixels / world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth + 1, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxHeight);
+        if (num_bone_pixels > (max_width * max_height))
+        {
+            dmLogOnceError("Bone matrix texture cache is too small to fit %d pixels of bone data. Increase model.max_bone_matrix_texture_width and/or max_bone_matrix_texture_height.", num_bone_pixels);
+        }
+
         if (world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentWidth < max_width ||
             world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentHeight < max_height)
         {
@@ -1787,17 +1794,14 @@ namespace dmGameSystem
         // TODO!
         // We should be able to write 4x3 matrices here. The last column will always be (0, 0, 0, 1)
         uint32_t num_bone_pixels = pose_matrix_count * 4;
-        uint32_t max_width  = dmMath::Min(num_bone_pixels, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth);
-        uint32_t max_height = dmMath::Min(num_bone_pixels / world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth + 1, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxHeight);
-
-        EnsureBindPoseCacheBufferSize(world, max_width, max_height);
+        EnsureBindPoseCacheBufferSize(world, num_bone_pixels);
         dmVMath::Matrix4* animation_data_write_ptr = (dmVMath::Matrix4*) world->m_SkinnedAnimationData.m_BindPoseCacheBuffer;
 
         memcpy(animation_data_write_ptr, pose_matrix_read_ptr, pose_matrix_count * sizeof(dmVMath::Matrix4));
 
         dmGraphics::TextureParams tp;
-        tp.m_Width     = max_width;
-        tp.m_Height    = max_height;
+        tp.m_Width     = world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentWidth;
+        tp.m_Height    = world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentHeight;
         tp.m_Depth     = 1;
         tp.m_Format    = BIND_POSE_CACHE_TEXTURE_FORMAT;
         tp.m_Data      = animation_data_write_ptr;
