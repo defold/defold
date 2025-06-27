@@ -91,7 +91,7 @@ static ResourceResult DeregisterResourceType_TTFFont(HResourceTypeContext ctx, H
     return RESOURCE_RESULT_OK;
 }
 
- // Scripting
+ // Fontgen api
 
 dmFont::HFont GetFont(TTFResource* resource)
 {
