@@ -30,6 +30,13 @@ namespace dmSound
 
     uint32_t GetDefaultFrameCount(uint32_t mix_rate);
 
+    /*
+     * @param pan [type: float] Range [0, 1]. 0.5 == center panning, 0 == full left, 1 == full right
+     * @param left_scale [type: float*] (out)Range [0, 1]
+     * @param right_scale [type: float*] (out)Range [0, 1]
+     */
+    void GetPanScale(float pan, float* left_scale, float* right_scale);
+
     // Unit tests
     int64_t GetInternalPos(HSoundInstance);
     int32_t GetRefCount(HSoundData);
