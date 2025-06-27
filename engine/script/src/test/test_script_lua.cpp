@@ -219,7 +219,7 @@ struct TestDummy {
     dmMessage::URL  m_URL;
     int             m_InstanceReference;
     int             m_ContextTableReference;
-    int             m_UniqueScriptId;
+    uint32_t        m_UniqueScriptId;
 };
 
 static int TestGetURL(lua_State* L) {

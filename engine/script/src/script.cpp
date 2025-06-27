@@ -1608,7 +1608,7 @@ namespace dmScript
 
         if (!GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF, sizeof(META_GET_INSTANCE_CONTEXT_TABLE_REF) - 1))
         {
-            dmLogError("CreateCallback failed: missing meta function for instance context table");
+            dmLogError("CreateCallback failed: missing %s meta function for instance context table", "INSTANCE_CONTEXT");
             lua_pop(L, 1);
             return 0x0;
         }
@@ -1631,21 +1631,24 @@ namespace dmScript
         // [-1] instance
 
         uint32_t unique_script_id = INVALID_SCRIPT_ID;
-        if (GetMetaFunction(L, -1, META_GET_UNIQUE_SCRIPT_ID, sizeof(META_GET_UNIQUE_SCRIPT_ID) - 1))
+        if (!GetMetaFunction(L, -1, META_GET_UNIQUE_SCRIPT_ID, sizeof(META_GET_UNIQUE_SCRIPT_ID) - 1))
         {
-            // [-2] instance
-            // [-1] META_GET_UNIQUE_SCRIPT_ID()
-            lua_pushvalue(L, -2); // push instance
-            // [-3] instance
-            // [-2] META_GET_UNIQUE_SCRIPT_ID()
-            // [-1] instance
-            lua_call(L, 1, 1);    // call __get_unique_script_id(self)
-            // [-2] instance
-            // [-1] unique script id
-            unique_script_id = (uint32_t)lua_tointeger(L, -1);
+            dmLogError("CreateCallback failed: missing %s meta function for instance context table", "UNIQUE_SCRIPT");
             lua_pop(L, 1);
-            // [-1] instance
+            return 0x0;
         }
+        // [-2] instance
+        // [-1] META_GET_UNIQUE_SCRIPT_ID()
+        lua_pushvalue(L, -2); // push instance
+        // [-3] instance
+        // [-2] META_GET_UNIQUE_SCRIPT_ID()
+        // [-1] instance
+        lua_call(L, 1, 1);    // call __get_unique_script_id(self)
+        // [-2] instance
+        // [-1] unique script id
+        unique_script_id = (uint32_t)lua_tointeger(L, -1);
+        lua_pop(L, 1);
+        // [-1] instance
 
         lua_pop(L, 1);
 
@@ -1772,7 +1775,6 @@ namespace dmScript
 
         if (cbk->m_UniqueScriptId != unique_script_id)
         {
-            cbk->m_UniqueScriptId  = INVALID_SCRIPT_ID;
             return false;
         }
 
@@ -1787,11 +1789,16 @@ namespace dmScript
             cbk->m_CallbackInfoRef == LUA_NOREF ||
             cbk->m_Callback == LUA_NOREF ||
             cbk->m_Self == LUA_NOREF ||
-            !IsCallbackInstanceValid(cbk))
+            cbk->m_UniqueScriptId == INVALID_SCRIPT_ID)
         {
             return false;
         }
-        return true;
+        if (IsCallbackInstanceValid(cbk))
+        {
+            return true;
+        }
+        cbk->m_UniqueScriptId = INVALID_SCRIPT_ID;
+        return false;
     }
 
     lua_State* GetCallbackLuaContext(LuaCallbackInfo* cbk)
@@ -1807,12 +1814,19 @@ namespace dmScript
         if(cbk->m_ContextTableRef != LUA_NOREF)
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_ContextTableRef);
-            if (lua_type(L, -1) == LUA_TTABLE && IsCallbackInstanceValid(cbk))
+            if (lua_type(L, -1) == LUA_TTABLE)
             {
-                // We do not use dmScript::Unref for refs in the context local table as we don't
-                // want to count those refs the ref debug count shown in the profiler
-                luaL_unref(L, -1, cbk->m_Self);
-                luaL_unref(L, -1, cbk->m_Callback);
+                if (IsCallbackInstanceValid(cbk))
+                {
+                    // We do not use dmScript::Unref for refs in the context local table as we don't
+                    // want to count those refs the ref debug count shown in the profiler
+                    luaL_unref(L, -1, cbk->m_Self);
+                    luaL_unref(L, -1, cbk->m_Callback);
+                }
+                else
+                {
+                    cbk->m_UniqueScriptId = INVALID_SCRIPT_ID;
+                }
             }
             
             // For the callback (that can actually outlive the script instance)
