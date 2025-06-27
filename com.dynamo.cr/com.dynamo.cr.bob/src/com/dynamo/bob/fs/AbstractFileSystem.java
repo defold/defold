@@ -90,7 +90,9 @@ public abstract class AbstractFileSystem<F extends IFileSystem, R extends IResou
     private void walk(IWalker walker, String path, Collection<String> results) {
         String absolutePath = FilenameUtils.normalizeNoEndSeparator(FilenameUtils.concat(this.rootDirectory, path));
         File file = new File(absolutePath);
-
+        if (!file.exists()) {
+            return;
+        }
         if (file.isDirectory()) {
             if (walker.handleDirectory(path, results)) {
                 String[] children = file.list();
