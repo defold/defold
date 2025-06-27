@@ -582,10 +582,12 @@
 (defn restore-split-positions! [^Scene scene prefs]
   (let [split-positions (stored-split-positions prefs)
         split-panes (existing-split-panes scene)]
-    (doseq [[id positions] split-positions]
-      (when-some [^SplitPane split-pane (get split-panes id)]
-        (.setDividerPositions split-pane (double-array positions))
-        (.layout split-pane)))))
+    ;; The nested run-later fixes restore on Linux, by forcing an initial rendering pass. 
+    (ui/run-later
+      (doseq [[id positions] split-positions]
+        (when-some [^SplitPane split-pane (get split-panes id)]
+          (.setDividerPositions split-pane (double-array positions))
+          (.layout split-pane))))))
 
 (defn stored-hidden-panes [prefs]
   (prefs/get prefs prefs-hidden-panes))
