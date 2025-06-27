@@ -17,6 +17,7 @@
 #include "font_renderer_private.h"
 #include "font_renderer_api.h"
 
+#include <dlib/math.h>
 #include <dlib/mutex.h>
 #include <dlib/zlib.h>
 
@@ -185,8 +186,16 @@ namespace dmRender
         font_map->m_IsMonospaced = params.m_IsMonospaced;
         font_map->m_Padding = params.m_Padding;
 
-        font_map->m_CacheWidth = params.m_CacheWidth;
-        font_map->m_CacheHeight = params.m_CacheHeight;
+        font_map->m_CacheMaxWidth = params.m_CacheWidth;
+        font_map->m_CacheMaxHeight = params.m_CacheHeight;
+        // Old limits from Fontc.java
+        if (font_map->m_CacheMaxWidth == 0)
+            font_map->m_CacheMaxWidth = 2048;
+        if (font_map->m_CacheMaxHeight == 0)
+            font_map->m_CacheMaxHeight = 4096;
+        font_map->m_CacheWidth  = dmMath::Max(256U, params.m_CacheWidth);
+        font_map->m_CacheHeight = dmMath::Max(256U, params.m_CacheHeight);
+
         font_map->m_CacheCellPadding = params.m_CacheCellPadding;
         font_map->m_CacheChannels = params.m_GlyphChannels;
 
@@ -402,10 +411,10 @@ namespace dmRender
         return x + 1;
     }
 
-    static bool GetNextCacheSize(HFontMap font_map, uint32_t* width, uint32_t* height)
+    static bool GetNextCacheSize(HFontMap font_map, uint16_t* width, uint16_t* height)
     {
-        const uint32_t max_width = 2048;
-        const uint32_t max_height = 4096;
+        const uint16_t max_width = font_map->m_CacheMaxWidth;
+        const uint16_t max_height = font_map->m_CacheMaxHeight;
         if (*height <= *width)
             *height = NextPowerOfTwo(*height);
         else
@@ -423,8 +432,8 @@ namespace dmRender
         }
         else
         {
-            font_map->m_CacheWidth = dmMath::Max(font_map->m_CacheWidth, (uint32_t)metrics->m_ImageMaxWidth);
-            font_map->m_CacheHeight = dmMath::Max(font_map->m_CacheHeight, (uint32_t)metrics->m_ImageMaxHeight);
+            font_map->m_CacheWidth = dmMath::Max(font_map->m_CacheWidth, (uint16_t)metrics->m_ImageMaxWidth);
+            font_map->m_CacheHeight = dmMath::Max(font_map->m_CacheHeight, (uint16_t)metrics->m_ImageMaxHeight);
         }
 
         if (!IsPowerOfTwo(font_map->m_CacheWidth))
@@ -617,8 +626,8 @@ namespace dmRender
             return false;
         }
 
-        uint32_t width  = font_map->m_CacheWidth;
-        uint32_t height = font_map->m_CacheHeight;
+        uint16_t width  = font_map->m_CacheWidth;
+        uint16_t height = font_map->m_CacheHeight;
         bool result = GetNextCacheSize(font_map, &width, &height);
         return result;
     }

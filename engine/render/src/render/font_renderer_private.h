@@ -55,6 +55,8 @@ namespace dmRender
         , m_Cache(0)
         , m_CacheIndices(0)
         , m_CacheCursor(0)
+        , m_CacheMaxWidth(0)
+        , m_CacheMaxHeight(0)
         , m_CacheWidth(0)
         , m_CacheHeight(0)
         , m_CacheCellWidth(0)
@@ -119,14 +121,16 @@ namespace dmRender
         dmGraphics::TextureFilter m_MinFilter;
         dmGraphics::TextureFilter m_MagFilter;
 
-        uint32_t                m_CacheWidth;           // In texels
-        uint32_t                m_CacheHeight;          // In texels
-        uint32_t                m_CacheCellWidth;       // In texels
-        uint32_t                m_CacheCellHeight;      // In texels
-        uint32_t                m_CacheCellMaxAscent;   // In texels
-        uint32_t                m_CacheColumns;         // Number of cells in horizontal direction
-        uint32_t                m_CacheRows;            // Number of cells in horizontal direction
-        uint32_t                m_CacheCellCount;       // Number of cells in total
+        uint16_t                m_CacheMaxWidth;        // In texels
+        uint16_t                m_CacheMaxHeight;       // In texels
+        uint16_t                m_CacheWidth;           // In texels
+        uint16_t                m_CacheHeight;          // In texels
+        uint16_t                m_CacheCellWidth;       // In texels
+        uint16_t                m_CacheCellHeight;      // In texels
+        uint16_t                m_CacheCellMaxAscent;   // In texels
+        uint16_t                m_CacheColumns;         // Number of cells in horizontal direction
+        uint16_t                m_CacheRows;            // Number of cells in horizontal direction
+        uint16_t                m_CacheCellCount;       // Number of cells in total
         uint8_t                 m_CacheChannels;        // Number of channels
         uint8_t                 m_CacheCellPadding;
         uint8_t                 m_LayerMask;
