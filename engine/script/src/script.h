@@ -57,6 +57,7 @@ namespace dmScript
     extern const char META_TABLE_GET_USER_DATA[];
     extern const char META_TABLE_IS_VALID[];
     extern const char META_GET_INSTANCE_DATA_TABLE_REF[];
+    extern const char META_GET_UNIQUE_SCRIPT_ID[];
 
     /**
      * Implementor should return a Ref to the instance context table.
@@ -505,6 +506,17 @@ namespace dmScript
      *  [-1] value
     */
     void GetScriptWorldContextValue(HScriptWorld script_world);
+
+    /**
+     * Generate a new unique script ID.
+     *
+     * This function is responsible for producing a unique 32-bit identifier
+     * that can be used to uniquely identify a script instance during its lifetime.
+     * The returned ID is guaranteed to never be INVALID_SCRIPT_ID.
+     *
+     * @return a unique non-zero uint32_t script identifier
+     */
+    uint32_t GenerateUniqueScriptId();
 
     /**
      * Retrieve the Lua traceback from the current context
