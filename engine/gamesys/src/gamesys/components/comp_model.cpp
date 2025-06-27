@@ -364,10 +364,6 @@ namespace dmGameSystem
     static void CompModelPoseCallback(void* user_data1, void* user_data2)
     {
         ModelComponent* component = (ModelComponent*)user_data1;
-        if (!component->m_Resource->m_Model->m_CreateGoBones)
-        {
-            return;
-        }
 
         // Include instance transform in the GO instance reflecting the root bone
         dmArray<dmRig::BonePose>& pose = *dmRig::GetPose(component->m_RigInstance);
@@ -931,9 +927,12 @@ namespace dmGameSystem
     {
         dmRig::InstanceCreateParams create_params = {0};
 
-        create_params.m_PoseCallback = CompModelPoseCallback;
-        create_params.m_PoseCBUserData1 = component;
-        create_params.m_PoseCBUserData2 = 0;
+        if (component->m_Resource->m_Model->m_CreateGoBones)
+        {
+            create_params.m_PoseCallback = CompModelPoseCallback;
+            create_params.m_PoseCBUserData1 = component;
+            create_params.m_PoseCBUserData2 = 0;
+        }
         create_params.m_EventCallback = CompModelEventCallback;
         create_params.m_EventCBUserData1 = component;
         create_params.m_EventCBUserData2 = 0;
