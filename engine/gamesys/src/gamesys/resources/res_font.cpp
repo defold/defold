@@ -16,7 +16,7 @@
 #include "res_font_private.h"
 #include "res_glyph_bank.h"
 #include "res_ttf.h"
-#include <gamesys/fontgen.h>
+#include <gamesys/fontgen/fontgen.h>
 
 #include <string.h>
 
@@ -118,6 +118,8 @@ namespace dmGameSystem
     static TTFResource* GetTTFFromCodePoint(FontResource* resource, uint32_t codepoint)
     {
         uint32_t size = resource->m_Ranges.Size();
+        if (!size)
+            return 0;
         GlyphRange* ranges = resource->m_Ranges.Begin();
         for (uint32_t i = size-1; i >= 0; --i)
         {

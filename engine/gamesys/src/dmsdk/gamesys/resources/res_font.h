@@ -154,13 +154,7 @@ namespace dmGameSystem
      */
     dmResource::Result ResFontGetInfo(FontResource* font, FontInfo* info);
 
-    /*#
-     * @name ResFontHasGlyph
-     * @param font [type: FontResource*] The font resource
-     * @param codepoint [type: uint32_t] The glyph codepoint
-     * @return result [type: bool] true if the glyph already exists
-     */
-    bool ResFontHasGlyph(FontResource* font, uint32_t codepoint);
+    // FontGen API
 
     /*#
      * @name ResFontAddGlyph
@@ -204,8 +198,6 @@ namespace dmGameSystem
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
     dmResource::Result ResFontRemoveGlyphSource(dmResource::HFactory factory, dmhash_t fontc_hash, dmhash_t ttf_hash);
-
-    void   ResFontDebugPrint(FontResource* font);
 }
 
 #endif // DMSDK_GAMESYS_RES_FONT_H

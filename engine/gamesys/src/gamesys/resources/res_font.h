@@ -15,11 +15,6 @@
 #ifndef DM_GAMESYS_RES_FONT_H
 #define DM_GAMESYS_RES_FONT_H
 
-#include <dmsdk/resource/resource.h>
 #include <dmsdk/gamesys/resources/res_font.h>
-
-namespace dmGameSystem
-{
-}
 
 #endif // DM_GAMESYS_RES_FONT_H

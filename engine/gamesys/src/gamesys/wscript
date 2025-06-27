@@ -100,6 +100,7 @@ def build(bld):
         'scripts/script_collectionproxy.cpp',
         'scripts/script_physics.cpp',
         'scripts/script_factory.cpp',
+        'scripts/script_font.cpp',
         'scripts/script_label.cpp',
         'scripts/script_model.cpp',
         'scripts/script_particlefx.cpp',

@@ -23,7 +23,7 @@
 #include <dmsdk/gamesys/resources/res_font.h>
 #include <dmsdk/gamesys/resources/res_ttf.h>
 
-#include "gamesys/fontgen.h"
+#include "gamesys/fontgen/fontgen.h"
 
 namespace dmGameSystem
 {
