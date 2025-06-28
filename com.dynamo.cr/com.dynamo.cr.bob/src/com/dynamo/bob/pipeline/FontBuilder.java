@@ -23,19 +23,17 @@ import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.util.BobProjectProperties;
 
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Font.FontTextureFormat;
 
-@ProtoParams(srcClass = FontDesc.class, messageClass = FontDesc.class)
-@BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc")
+@ProtoParams(srcClass = FontDesc.class, messageClass = FontMap.class)
+@BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc", paramsForSignature = {"font-runtime-generation"})
 public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
 
     private boolean useRuntimeGeneration() {
-        BobProjectProperties properties = this.project.getProjectProperties();
-        return properties.getBooleanValue("font", "runtime_generation", false);
+        return this.project.option("font-runtime-generation", "false").equals("true");
     }
 
     @Override
@@ -79,7 +77,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         FontDesc fontDesc = builder.build();
         FontMap.Builder fontMapBuilder = FontMap.newBuilder();
 
-        BuilderUtil.checkResource(this.project, task.firstInput(), "material", fontDesc.getMaterial());
+        BuilderUtil.checkResource(this.project, task.input(1), "material", fontDesc.getMaterial());
         if (useRuntimeGeneration())
         {
             BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
