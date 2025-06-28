@@ -43,7 +43,6 @@ message FontDesc
     optional uint32 cache_height = 16 [default = 0];
     optional FontRenderMode render_mode = 17 [default = MODE_SINGLE_LAYER];
     optional string characters = 18 [default = ""];
-    optional bool dynamic = 19 [default = false];
 }
 
 // Used at runtime
@@ -116,18 +115,16 @@ message FontMap
     optional FontTextureFormat output_format = 14 [default = TYPE_BITMAP];
     optional FontRenderMode render_mode      = 15 [default = MODE_SINGLE_LAYER];
 
-    optional bool dynamic         = 16 [default = false];
-
-    optional bool all_chars       = 17 [default = false]; // 0x000000 - 0x10FFFF
-    optional string characters    = 18 [default = ""];
+    optional bool all_chars       = 16 [default = false]; // 0x000000 - 0x10FFFF
+    optional string characters    = 17 [default = ""];
 
     // If zero, it'll grow dynamically to our max size (2k x 4k)
-    optional uint32 cache_width   = 19 [default = 0];
-    optional uint32 cache_height  = 20 [default = 0];
+    optional uint32 cache_width   = 18 [default = 0];
+    optional uint32 cache_height  = 19 [default = 0];
 
-    optional float sdf_spread     = 21 [default = 1];
-    optional float sdf_outline    = 22 [default = 0];
-    optional float sdf_shadow     = 23 [default = 0];
-    optional uint32 padding       = 24 [default = 0];
+    optional float sdf_spread     = 20 [default = 1];
+    optional float sdf_outline    = 21 [default = 0];
+    optional float sdf_shadow     = 22 [default = 0];
+    optional uint32 padding       = 23 [default = 0];
 }
 

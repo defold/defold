@@ -315,6 +315,12 @@ namespace dmGameSystem
         return font->m_Glyphs.Size() + font->m_DynamicGlyphs.Size();
     }
 
+    static inline bool IsDynamic(dmRenderDDF::FontMap* ddf)
+    {
+        // If it's empty, we don't have a glyph bank
+        return ddf->m_GlyphBank[0] == 0;
+    }
+
     static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::FontMap* ddf,
                                                     FontResource* font_map, const char* filename)
     {
@@ -325,7 +331,7 @@ namespace dmGameSystem
             return result;
         }
 
-        if (ddf->m_Dynamic)
+        if (IsDynamic(ddf))
         {
             result = dmResource::Get(factory, ddf->m_Font, (void**) &font_map->m_TTFResource);
             if (result != dmResource::RESULT_OK)
@@ -435,7 +441,8 @@ namespace dmGameSystem
         dmRender::FontMapParams params;
         SetupParamsBase(ddf, path, &params);
 
-        if (ddf->m_Dynamic)
+        resource->m_IsDynamic = IsDynamic(ddf);
+        if (resource->m_IsDynamic)
             SetupParamsForDynamicFont(ddf, path, &params);
         else
             SetupParamsForGlyphBank(ddf, path, resource->m_GlyphBankResource->m_DDF, &params);
@@ -450,12 +457,11 @@ namespace dmGameSystem
 
         resource->m_DDF               = ddf;
         resource->m_CacheCellPadding  = params.m_CacheCellPadding;
-        resource->m_IsDynamic         = ddf->m_Dynamic;
         resource->m_Padding           = ddf->m_Padding;
 
         dmRender::SetFontMapMaterial(resource->m_FontMap, resource->m_MaterialResource->m_Material);
         dmRender::SetFontMapUserData(resource->m_FontMap, (void*)resource);
-        if (ddf->m_Dynamic)
+        if (resource->m_IsDynamic)
         {
             float outline_padding;
             float shadow_padding; // the extra padding for the shadow blur
@@ -534,7 +540,7 @@ namespace dmGameSystem
         }
 
         dmResource::PreloadHint(params->m_HintInfo, ddf->m_Material);
-        if (ddf->m_Dynamic)
+        if (IsDynamic(ddf))
             dmResource::PreloadHint(params->m_HintInfo, ddf->m_Font);
 
         *params->m_PreloadData = ddf;
@@ -556,7 +562,7 @@ namespace dmGameSystem
             return r;
         }
 
-        if (ddf->m_Dynamic)
+        if (IsDynamic(ddf))
         {
             if (ddf->m_OutputFormat != dmRenderDDF::TYPE_DISTANCE_FIELD)
             {

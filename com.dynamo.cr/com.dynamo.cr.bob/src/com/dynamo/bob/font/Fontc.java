@@ -173,8 +173,6 @@ public class Fontc {
         fontDescbuilder.mergeFrom(fontDesc);
         FontDesc desc = fontDescbuilder.build();
         String characters = desc.getCharacters();
-        if (desc.getDynamic())
-            characters = "";
 
         // the list of parameters which affect the glyph_bank
         String result = ""
@@ -186,7 +184,6 @@ public class Fontc {
             + characters
             + desc.getOutputFormat()
             + desc.getAllChars()
-            + desc.getDynamic()
             + desc.getCacheWidth()
             + desc.getCacheHeight()
             + desc.getRenderMode();
@@ -1077,10 +1074,16 @@ public class Fontc {
 
             String basedir = ".";
             String outfile = args[1];
+            boolean dynamic = false;
 
-            if (args.length >= 3) {
+            if (args.length >= 2) {
                 basedir = args[1];
+            }
+            if (args.length >= 3) {
                 outfile = args[2];
+            }
+            if (args.length >= 4) {
+                dynamic = Boolean.parseBoolean(args[3]);
             }
 
             final File fontInput = new File(args[0]);
@@ -1129,7 +1132,7 @@ public class Fontc {
             FontMap.Builder fontMapBuilder = FontMap.newBuilder();
             fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
 
-            if (!fontDesc.getDynamic())
+            if (!dynamic)
             {
                 // Construct the project-relative path based from the input font file
                 Path glyphBankProjectPath  = Paths.get(fontInput.getAbsolutePath().replace(".font", ".glyph_bankc"));
@@ -1172,7 +1175,6 @@ public class Fontc {
             fontMapBuilder.setOutlineAlpha(fontDesc.getOutlineAlpha());
             fontMapBuilder.setOutlineWidth(fontDesc.getOutlineWidth());
             fontMapBuilder.setLayerMask(GetFontMapLayerMask(fontDesc));
-            fontMapBuilder.setDynamic(fontDesc.getDynamic());
 
             fontMapBuilder.setOutputFormat(fontDesc.getOutputFormat());
             fontMapBuilder.setRenderMode(fontDesc.getRenderMode());

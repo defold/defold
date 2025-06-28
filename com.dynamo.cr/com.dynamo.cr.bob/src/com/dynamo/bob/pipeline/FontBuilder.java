@@ -23,6 +23,7 @@ import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.BobProjectProperties;
 
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
@@ -31,6 +32,11 @@ import com.dynamo.render.proto.Font.FontTextureFormat;
 @ProtoParams(srcClass = FontDesc.class, messageClass = FontDesc.class)
 @BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc")
 public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
+
+    private boolean useRuntimeGeneration() {
+        BobProjectProperties properties = this.project.getProjectProperties();
+        return properties.getBooleanValue("font", "runtime_generation", false);
+    }
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
@@ -49,7 +55,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         createSubTask(fontDesc.getMaterial(),"material", taskBuilder);
 
         Task subTask = null;
-        if (fontDesc.getDynamic())
+        if (useRuntimeGeneration())
         {
             // input(2)
             subTask = createSubTask(ttfResource, CopyBuilders.TTFBuilder.class, taskBuilder);
@@ -71,15 +77,13 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
     public void build(Task task) throws CompileExceptionError, IOException {
         FontDesc.Builder builder = getSrcBuilder(task.firstInput());
         FontDesc fontDesc = builder.build();
-        boolean dynamic = fontDesc.getDynamic();
         FontMap.Builder fontMapBuilder = FontMap.newBuilder();
 
         BuilderUtil.checkResource(this.project, task.firstInput(), "material", fontDesc.getMaterial());
-        if (dynamic)
+        if (useRuntimeGeneration())
         {
             BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
-            fontMapBuilder.setDynamic(dynamic);
-            fontMapBuilder.setFont(fontDesc.getFont()); // Keep the suffix as-is (i.e. ".ttf")
+            // leave glyphbank field empty, as we use that to check at runtime (to toggle runtime generation or not)
         }
         else
         {
@@ -88,6 +92,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             fontMapBuilder.setGlyphBank(glyphBankPath);
         }
 
+        fontMapBuilder.setFont(fontDesc.getFont()); // Keep the suffix as-is (i.e. ".ttf")
         fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
 
         boolean all_chars = fontDesc.getAllChars();
