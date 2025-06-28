@@ -333,7 +333,7 @@ namespace dmGameSystem
 
         dmhash_t id = dmGameObject::CreateInstanceId();
 
-        // When calling factory.create() from something other than a .gui_script
+        // When calling factory.create() from a .gui_script (see engine/src/test/factory/factory.gui_script)
         bool msg_passing = dmGameObject::GetInstanceFromLua(L) == 0x0;
         if (msg_passing)
         {
