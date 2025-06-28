@@ -374,7 +374,7 @@ platforms:
     writeLibPattern: 'lib%s.a'
     writeExePattern: 'dmengine.js'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
-    allowedFlags:   ["--bind","--tracing","-gseparate-dwarf","-g([0-9]?)","--emit-module-names","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-f\\w[\\w-=]+","-x","c","-l\\w+.js"]
+    allowedFlags:   ["--bind","--tracing","-gseparate-dwarf","-g([0-9]?)","--emit-module-names","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-f\\w[\\w-=]+","-x","c","-l\\w+.js","-l\\w+"]
     compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -O{{optLevel}} -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
     libCmd:         '{{env.EMSCRIPTEN_BIN}}/emar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     manifestName:     'engine_template.html'
