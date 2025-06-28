@@ -480,19 +480,49 @@ namespace dmShaderc
         }
     }
 
+    #define MAX_BINDINGS 128
+    bool GetFirstFreeBindingIndex(HShaderContext context, uint32_t* binding)
+    {
+        uint8_t used[MAX_BINDINGS] = {0};
+
+        for (int i = 0; i < context->m_Reflection.m_UniformBuffers.Size(); ++i)
+        {
+            if (context->m_Reflection.m_UniformBuffers[i].m_Binding < MAX_BINDINGS)
+                used[context->m_Reflection.m_UniformBuffers[i].m_Binding] = 1;
+        }
+
+        for (int i = 0; i < context->m_Reflection.m_StorageBuffers.Size(); ++i)
+        {
+            if (context->m_Reflection.m_StorageBuffers[i].m_Binding < MAX_BINDINGS)
+                used[context->m_Reflection.m_StorageBuffers[i].m_Binding] = 1;
+        }
+
+        for (int i = 0; i < context->m_Reflection.m_Textures.Size(); ++i)
+        {
+            if (context->m_Reflection.m_Textures[i].m_Binding < MAX_BINDINGS)
+                used[context->m_Reflection.m_Textures[i].m_Binding] = 1;
+        }
+
+        for (uint32_t i = 0; i < MAX_BINDINGS; ++i)
+        {
+            if (!used[i])
+            {
+                *binding = i;
+                return true;
+            }
+        }
+
+        return false; // No free binding index available
+    }
+    #undef MAX_BINDINGS
+
     ShaderCompileResult* CompileSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, const ShaderCompilerOptions& options)
     {
         spvc_compiler_options spv_options = NULL;
         spvc_compiler_create_compiler_options(compiler->m_SPVCCompiler, &spv_options);
 
-        if (options.m_RemoveUnusedVariables)
-        {
-            spvc_set active_variables;
-            spvc_resources active_resources;
-            spvc_compiler_get_active_interface_variables(compiler->m_SPVCCompiler, &active_variables);
-            spvc_compiler_create_shader_resources_for_active_variables(compiler->m_SPVCCompiler, &active_resources, active_variables);
-            spvc_compiler_set_enabled_interface_variables(compiler->m_SPVCCompiler, active_variables);
-        }
+        bool can_remove_unused_variables = true;
+        uint8_t hlsl_num_workgroups_id_binding = 0xff;
 
         spvc_compiler_set_entry_point(compiler->m_SPVCCompiler, options.m_EntryPoint, context->m_ExecutionModel);
         spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
@@ -512,19 +542,48 @@ namespace dmShaderc
         }
         else if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_HLSL)
         {
+            assert(options.m_Version > 50);
+
             spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_HLSL_SHADER_MODEL, options.m_Version);
 
             if (context->m_Stage == SHADER_STAGE_COMPUTE)
             {
-                if (spvc_compiler_hlsl_remap_num_workgroups_builtin(compiler->m_SPVCCompiler))
+                spvc_variable_id num_workgroups_id = spvc_compiler_hlsl_remap_num_workgroups_builtin(compiler->m_SPVCCompiler);
+
+                if (num_workgroups_id)
                 {
-                    dmLogInfo("HLSL: gl_NumWorkGroups has been remapped, this should be handled by the engine (TODO).");
+                    // If we remove unused variables, the cbuffer that contains the gl_NumWorkGroups data will be removed..
+                    can_remove_unused_variables = false;
+
+                    // Find the lowest unused register
+                    uint32_t free_binding;
+
+                    if (GetFirstFreeBindingIndex(context, &free_binding))
+                    {
+                        spvc_compiler_set_decoration(compiler->m_SPVCCompiler, num_workgroups_id, SpvDecorationBinding, free_binding);
+                        spvc_compiler_set_decoration(compiler->m_SPVCCompiler, num_workgroups_id, SpvDecorationDescriptorSet, 0);
+
+                        hlsl_num_workgroups_id_binding = free_binding;
+                    }
+                    else
+                    {
+                        dmLogInfo("HLSL: No free cbuffer binding found for gl_NumWorkGroups");
+                    }
                 }
             }
         }
         else
         {
             assert(0 && "Shader langauge not yet supported");
+        }
+
+        if (options.m_RemoveUnusedVariables && can_remove_unused_variables)
+        {
+            spvc_set active_variables;
+            spvc_resources active_resources;
+            spvc_compiler_get_active_interface_variables(compiler->m_SPVCCompiler, &active_variables);
+            spvc_compiler_create_shader_resources_for_active_variables(compiler->m_SPVCCompiler, &active_resources, active_variables);
+            spvc_compiler_set_enabled_interface_variables(compiler->m_SPVCCompiler, active_variables);
         }
 
         spvc_compiler_install_compiler_options(compiler->m_SPVCCompiler, spv_options);
@@ -543,6 +602,7 @@ namespace dmShaderc
         result->m_Data.SetCapacity(compile_result_size);
         result->m_Data.SetSize(compile_result_size);
         result->m_LastError = "";
+        result->m_HLSLNumWorkGroupsId = hlsl_num_workgroups_id_binding;
 
         if (compile_result)
         {

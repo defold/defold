@@ -463,7 +463,7 @@ TEST(Shaderc, TestHLSLSimple)
     dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
 
     dmShaderc::ShaderCompilerOptions options;
-    options.m_Version    = 50;
+    options.m_Version    = 51;
     options.m_EntryPoint = "main";
 
     dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
@@ -475,19 +475,30 @@ TEST(Shaderc, TestHLSLSimple)
     dmShaderc::DeleteShaderContext(shader_ctx);
 }
 
-static int TestStandalone(const char* filename, const char* compileTo = 0)
+static int TestStandalone(const char* filename, const char* languageStr, const char* stageStr)
 {
     uint32_t data_size;
     void* data = ReadFile(filename, &data_size);
 
-    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::ShaderStage stage = dmShaderc::SHADER_STAGE_VERTEX;
+
+    if (strcmp(stageStr, "frag") == 0)
+    {
+        stage = dmShaderc::SHADER_STAGE_FRAGMENT;
+    }
+    else if (strcmp(stageStr, "comp") == 0)
+    {
+        stage = dmShaderc::SHADER_STAGE_COMPUTE;
+    }
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(stage, data, data_size);
     const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
 
     dmShaderc::DebugPrintReflection(reflection);
 
-    if (compileTo)
+    if (languageStr)
     {
-        if (strcmp(compileTo, "es100") == 0)
+        if (strcmp(languageStr, "es100") == 0)
         {
             dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_GLSL);
             dmShaderc::ShaderCompilerOptions options;
@@ -503,11 +514,11 @@ static int TestStandalone(const char* filename, const char* compileTo = 0)
             dmShaderc::FreeShaderCompileResult(dst);
             dmShaderc::DeleteShaderCompiler(compiler);
         }
-        else if (strcmp(compileTo, "hlsl") == 0)
+        else if (strcmp(languageStr, "hlsl") == 0)
         {
             dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
             dmShaderc::ShaderCompilerOptions options;
-            options.m_Version                    = 50;
+            options.m_Version                    = 51;
             options.m_No420PackExtension         = 0;
             options.m_GlslEmitUboAsPlainUniforms = 0;
             options.m_GlslEs                     = 0;
@@ -532,10 +543,13 @@ int main(int argc, char **argv)
     {
         if (argc > 2)
         {
-            return TestStandalone(argv[1], argv[2]);
+            if (argc > 3)
+            {
+                return TestStandalone(argv[1], argv[2], argv[3]);
+            }
+            return TestStandalone(argv[1], argv[2], "vert");
         }
-
-        return TestStandalone(argv[1]);
+        return TestStandalone(argv[1], NULL, "vert");
     }
 
     jc_test_init(&argc, argv);

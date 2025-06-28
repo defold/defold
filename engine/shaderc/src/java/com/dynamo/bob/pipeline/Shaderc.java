@@ -268,6 +268,7 @@ public class Shaderc {
         public byte[] data;
         public String lastError;
         public HLSLResourceEntry[] hLSLResourceEntries;
+        public byte hLSLNumWorkGroupsId = 0;
     };
 }
 

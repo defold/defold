@@ -224,6 +224,10 @@ namespace dmShaderc
         // that embeds a list of resources (called root signature) and their HLSL bind points (registers)
         // This must match resource bind points in the engine, so we need to output that information here.
         dmArray<HLSLResourceEntry> m_HLSLResourceEntries;
+        // When compiling compute shaders for HLSL, we need to store a reference to the
+        // manufactured gl_NumWorkGroups constant buffer that was generated.
+        // The value will be set to 0xFF otherwise.
+        uint8_t                    m_HLSLNumWorkGroupsId;
     };
 
     // Shader context

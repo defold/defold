@@ -31,6 +31,8 @@ interface DECLSPEC_UUID("5A58797D-A72C-478D-8BA2-EFC6B0EFE88E") ID3D12ShaderRefl
 
 namespace dmShaderc
 {
+    static const dmhash_t SPIRV_Cross_NumWorkgroups_hash = dmHashString64("SPIRV_Cross_NumWorkgroups");
+
     char* ExtractBaseName(const char* combined_name)
     {
         const char* suffix = "_sampler";
@@ -94,7 +96,9 @@ namespace dmShaderc
             dmhash_t resource_name_hash = dmHashString64(bindDesc.Name);
             const ShaderResource* resource = FindShaderResourceUniform(context, resource_name_hash);
 
-            resource_entries[i].m_Name = bindDesc.Name;
+            memset(&resource_entries[i], 0, sizeof(HLSLResourceEntry));
+
+            resource_entries[i].m_Name     = bindDesc.Name;
             resource_entries[i].m_NameHash = resource_name_hash;
 
             if (!resource)
@@ -130,6 +134,14 @@ namespace dmShaderc
                 resource_entries[i].m_HLSLRegister = bindDesc.BindPoint;
                 resource_entries[i].m_Set          = resource->m_Set;
                 resource_entries[i].m_Binding      = resource->m_Binding;
+            }
+            else if (resource_name_hash == SPIRV_Cross_NumWorkgroups_hash)
+            {
+                dmLogInfo("Found SPIRV_Cross_NumWorkgroups (binding=%d)", bindDesc.BindPoint);
+
+                resource_entries[i].m_HLSLRegister = bindDesc.BindPoint;
+                resource_entries[i].m_Set          = 0; // note: we set decoration to 0 in shaderc_spvc.cpp
+                resource_entries[i].m_Binding      = bindDesc.BindPoint;
             }
             else
             {
@@ -230,6 +242,8 @@ namespace dmShaderc
         buffer.SetSize(BUFFER_SIZE);
 
         char* write_str = buffer.Begin();
+        memset(write_str, 0, BUFFER_SIZE);
+
         const char* prefix = "[RootSignature(\"";
         const char* suffix = "\")]\n";
 
@@ -287,8 +301,13 @@ namespace dmShaderc
 
     static bool InjectRootSignatureIntoSource(const char* source, const char* root_signature, dmArray<char>& injected_buffer)
     {
-        const char* marker = "SPIRV_Cross_Output main(";
-        const char* insert_pos = strstr(source, marker);
+        const char* markers[] = { "SPIRV_Cross_Output main(", "void main(" };
+        const char* insert_pos = nullptr;
+
+        for (int i = 0; i < DM_ARRAY_SIZE(markers) && !insert_pos; ++i)
+        {
+            insert_pos = strstr(source, markers[i]);
+        }
 
         if (!insert_pos)
             return false;
@@ -298,7 +317,7 @@ namespace dmShaderc
         size_t source_len   = strlen(source);
 
         // Safe estimate: prefix + root + newline + suffix + null
-        size_t total_len = prefix_len + root_sig_len + 2 + (source_len - prefix_len) + 1;
+        size_t total_len = prefix_len + root_sig_len + 1 + (source_len - prefix_len);
 
         injected_buffer.SetCapacity(total_len);
 
@@ -321,11 +340,9 @@ namespace dmShaderc
         memcpy(result + offset, source + prefix_len, rest_len);
         offset += rest_len;
 
-        // Null-terminate
-        result[offset] = '\0';
-
         // Now set the actual used size (including null, if you want to preserve it)
-        injected_buffer.SetSize(offset + 1);
+        injected_buffer.SetCapacity(offset);
+        injected_buffer.SetSize(offset);
 
         return true;
     }
@@ -340,13 +357,13 @@ namespace dmShaderc
         switch(context->m_Stage)
         {
         case SHADER_STAGE_VERTEX:
-            profile = "vs_5_0";
+            profile = "vs_5_1";
             break;
         case SHADER_STAGE_FRAGMENT:
-            profile = "ps_5_0";
+            profile = "ps_5_1";
             break;
         case SHADER_STAGE_COMPUTE:
-            profile = "cs_5_0";
+            profile = "cs_5_1";
             break;
         }
 
@@ -402,37 +419,39 @@ namespace dmShaderc
             return 0;
         }
 
+        // Explicitly null-terminate the incoming string.
+        char* src_data = (char*) malloc(raw_hlsl->m_Data.Size()+1);
+        memcpy((void*) src_data, raw_hlsl->m_Data.Begin(), raw_hlsl->m_Data.Size());
+        src_data[raw_hlsl->m_Data.Size()] = '\0';
+
         PrintRootSignatureFromReflection(reflection, &shaderDesc);
 
         dmArray<char> root_signature_buffer;
         GenerateRootSignatureFromReflection(reflection, &shaderDesc, root_signature_buffer);
 
         dmArray<char> injected_source_buffer;
-        InjectRootSignatureIntoSource((const char*) raw_hlsl->m_Data.Begin(), root_signature_buffer.Begin(), injected_source_buffer);
+        InjectRootSignatureIntoSource((const char*) src_data, root_signature_buffer.Begin(), injected_source_buffer);
 
         ShaderCompileResult* result = (ShaderCompileResult*) malloc(sizeof(ShaderCompileResult));
         memset(result, 0, sizeof(ShaderCompileResult));
 
-        result->m_Data.SetCapacity(injected_source_buffer.Size());
-        result->m_Data.SetSize(injected_source_buffer.Size());
+        uint32_t data_size = injected_source_buffer.Size();
+
+        result->m_Data.SetCapacity(data_size);
+        result->m_Data.SetSize(data_size);
+
         result->m_LastError = "";
+        result->m_HLSLNumWorkGroupsId = raw_hlsl->m_HLSLNumWorkGroupsId;
         result->m_HLSLResourceEntries.SetCapacity(shaderDesc.BoundResources);
         result->m_HLSLResourceEntries.SetSize(shaderDesc.BoundResources);
 
-        memset(result->m_Data.Begin(), 0, result->m_Data.Size());
-        memcpy(result->m_Data.Begin(), injected_source_buffer.Begin(), result->m_Data.Size());
-
-        const char* end_str = "// End of file";
-
-        result->m_Data.OffsetCapacity(strlen(end_str) + 1);
-
-        uint32_t curr_size = result->m_Data.Size();
-
-        memcpy(result->m_Data.Begin() + curr_size, end_str, sizeof(end_str));
-        result->m_Data.SetSize(result->m_Data.Capacity());
-        result->m_Data[result->m_Data.Size()-2] = '\0';
+        char* write_str = (char*) result->m_Data.Begin();
+        memset(write_str, 0, data_size);
+        memcpy(write_str, injected_source_buffer.Begin(), data_size);
 
         FillResourceEntryArray(context, reflection, &shaderDesc, combined_samplers, result->m_HLSLResourceEntries);
+
+        free(src_data);
 
         return result;
     }

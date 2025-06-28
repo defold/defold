@@ -57,6 +57,8 @@ namespace dmGraphics
     static int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy);
     static void    FlushResourcesToDestroy(DX12FrameResource& current_frame_resource);
 
+    static const dmhash_t HASH_SPIRV_Cross_NumWorkgroups = dmHashString64("SPIRV_Cross_NumWorkgroups");
+
     #define CHECK_HR_ERROR(result) \
     { \
         if(g_DX12Context->m_VerifyGraphicsCalls && result != S_OK) { \
@@ -77,13 +79,6 @@ namespace dmGraphics
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
         m_UseValidationLayers     = params.m_UseValidationLayers;
-
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
 
         assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
     }
@@ -260,14 +255,21 @@ namespace dmGraphics
         }
     }
 
-    void* DX12ScratchBuffer::AllocateConstantBuffer(DX12Context* context, uint32_t buffer_index, uint32_t non_aligned_byte_size)
+    void* DX12ScratchBuffer::AllocateConstantBuffer(DX12Context* context, DX12PipelineType pipeline_type, uint32_t buffer_index, uint32_t non_aligned_byte_size)
     {
         assert(non_aligned_byte_size < MAX_BLOCK_SIZE);
         uint32_t pool_index     = non_aligned_byte_size / BLOCK_STEP_SIZE;
         uint32_t memory_cursor  = m_MemoryPools[pool_index].m_MemoryCursor;
         uint8_t* base_ptr       = ((uint8_t*) m_MemoryPools[pool_index].m_MappedDataPtr) + memory_cursor;
 
-        context->m_CommandList->SetGraphicsRootConstantBufferView(buffer_index, m_MemoryPools[pool_index].m_MemoryHeap->GetGPUVirtualAddress() + memory_cursor);
+        if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
+        {
+            context->m_CommandList->SetGraphicsRootConstantBufferView(buffer_index, m_MemoryPools[pool_index].m_MemoryHeap->GetGPUVirtualAddress() + memory_cursor);
+        }
+        else
+        {
+            context->m_CommandList->SetComputeRootConstantBufferView(buffer_index, m_MemoryPools[pool_index].m_MemoryHeap->GetGPUVirtualAddress() + memory_cursor);
+        }
 
         m_MemoryPools[pool_index].m_MemoryCursor += m_MemoryPools[pool_index].m_BlockSize;
         m_MemoryPools[pool_index].m_DescriptorCursor++;
@@ -279,13 +281,20 @@ namespace dmGraphics
         return (void*) base_ptr;
     }
 
-    void DX12ScratchBuffer::AllocateSampler(DX12Context* context, const DX12TextureSampler& sampler, uint32_t sampler_index)
+    void DX12ScratchBuffer::AllocateSampler(DX12Context* context, DX12PipelineType pipeline_type, const DX12TextureSampler& sampler, uint32_t sampler_index)
     {
         CD3DX12_GPU_DESCRIPTOR_HANDLE handle_sampler(context->m_SamplerPool.m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart(), sampler.m_DescriptorOffset);
-        context->m_CommandList->SetGraphicsRootDescriptorTable(sampler_index, handle_sampler);
+        if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
+        {
+            context->m_CommandList->SetGraphicsRootDescriptorTable(sampler_index, handle_sampler);
+        }
+        else
+        {
+            context->m_CommandList->SetComputeRootDescriptorTable(sampler_index, handle_sampler);
+        }
     }
 
-    void DX12ScratchBuffer::AllocateTexture2D(DX12Context* context, DX12Texture* texture, uint32_t texture_index)
+    void DX12ScratchBuffer::AllocateTexture2D(DX12Context* context, DX12PipelineType pipeline_type, DX12Texture* texture, uint32_t texture_index)
     {
         D3D12_SHADER_RESOURCE_VIEW_DESC view_desc = {};
         view_desc.Format                          = texture->m_ResourceDesc.Format;
@@ -323,7 +332,14 @@ namespace dmGraphics
 
         CD3DX12_GPU_DESCRIPTOR_HANDLE handle_texture(m_MemoryPools[0].m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart(), desc_offset);
 
-        context->m_CommandList->SetGraphicsRootDescriptorTable(texture_index, handle_texture);
+        if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
+        {
+            context->m_CommandList->SetGraphicsRootDescriptorTable(texture_index, handle_texture);
+        }
+        else
+        {
+            context->m_CommandList->SetComputeRootDescriptorTable(texture_index, handle_texture);
+        }
     }
 
     void DX12ScratchBuffer::Reset(DX12Context* context)
@@ -343,6 +359,110 @@ namespace dmGraphics
             m_MemoryPools[0].m_DescriptorHeap
         };
         context->m_CommandList->SetDescriptorHeaps(DM_ARRAY_SIZE(heaps), heaps);
+    }
+
+    static DXGI_FORMAT GetDXGIFormatFromTextureFormat(TextureFormat format)
+    {
+        switch (format)
+        {
+            case TEXTURE_FORMAT_LUMINANCE:               return DXGI_FORMAT_R8_UNORM;
+            case TEXTURE_FORMAT_LUMINANCE_ALPHA:         return DXGI_FORMAT_R8G8_UNORM;
+            case TEXTURE_FORMAT_RGB:                     return DXGI_FORMAT_R8G8B8A8_UNORM; // No native RGB8
+            case TEXTURE_FORMAT_RGBA:                    return DXGI_FORMAT_R8G8B8A8_UNORM;
+            case TEXTURE_FORMAT_RGB_16BPP:               return DXGI_FORMAT_B5G6R5_UNORM;
+            case TEXTURE_FORMAT_RGBA_16BPP:              return DXGI_FORMAT_B5G5R5A1_UNORM;
+            case TEXTURE_FORMAT_DEPTH:                   return DXGI_FORMAT_D32_FLOAT;
+            case TEXTURE_FORMAT_STENCIL:                 return DXGI_FORMAT_D24_UNORM_S8_UINT;
+
+            // Compressed formats
+            case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:        return DXGI_FORMAT_UNKNOWN; // Not supported in DX
+            case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:        return DXGI_FORMAT_UNKNOWN;
+            case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:       return DXGI_FORMAT_UNKNOWN;
+            case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:       return DXGI_FORMAT_UNKNOWN;
+            case TEXTURE_FORMAT_RGB_ETC1:                return DXGI_FORMAT_UNKNOWN;
+            case TEXTURE_FORMAT_R_ETC2:                  return DXGI_FORMAT_UNKNOWN;
+            case TEXTURE_FORMAT_RG_ETC2:                 return DXGI_FORMAT_UNKNOWN;
+            case TEXTURE_FORMAT_RGBA_ETC2:               return DXGI_FORMAT_UNKNOWN;
+            case TEXTURE_FORMAT_RGBA_ASTC_4x4:           return DXGI_FORMAT_UNKNOWN;
+
+            case TEXTURE_FORMAT_RGB_BC1:                 return DXGI_FORMAT_BC1_UNORM;
+            case TEXTURE_FORMAT_RGBA_BC3:                return DXGI_FORMAT_BC3_UNORM;
+            case TEXTURE_FORMAT_R_BC4:                   return DXGI_FORMAT_BC4_UNORM; // Or BC4_SNORM
+            case TEXTURE_FORMAT_RG_BC5:                  return DXGI_FORMAT_BC5_UNORM; // Or BC5_SNORM
+            case TEXTURE_FORMAT_RGBA_BC7:                return DXGI_FORMAT_BC7_UNORM;
+
+            // Floating-point formats
+            case TEXTURE_FORMAT_RGB16F:                  return DXGI_FORMAT_R16G16B16A16_FLOAT; // No native RGB16F
+            case TEXTURE_FORMAT_RGB32F:                  return DXGI_FORMAT_R32G32B32_FLOAT;
+            case TEXTURE_FORMAT_RGBA16F:                 return DXGI_FORMAT_R16G16B16A16_FLOAT;
+            case TEXTURE_FORMAT_RGBA32F:                 return DXGI_FORMAT_R32G32B32A32_FLOAT;
+            case TEXTURE_FORMAT_R16F:                    return DXGI_FORMAT_R16_FLOAT;
+            case TEXTURE_FORMAT_RG16F:                   return DXGI_FORMAT_R16G16_FLOAT;
+            case TEXTURE_FORMAT_R32F:                    return DXGI_FORMAT_R32_FLOAT;
+            case TEXTURE_FORMAT_RG32F:                   return DXGI_FORMAT_R32G32_FLOAT;
+
+            // Integer formats
+            case TEXTURE_FORMAT_RGBA32UI:                return DXGI_FORMAT_R32G32B32A32_UINT;
+            case TEXTURE_FORMAT_BGRA8U:                  return DXGI_FORMAT_B8G8R8A8_UNORM;
+            case TEXTURE_FORMAT_R32UI:                   return DXGI_FORMAT_R32_UINT;
+        }
+
+        assert(0);
+
+        return (DXGI_FORMAT) -1;
+    }
+
+    static void SetupSupportedTextureFormats(DX12Context* context)
+    {
+        // TODO: Compression formats!
+
+        // Same as vulkan (we should merge checks for types somehow, so we make sure to test all formats)
+        TextureFormat texture_formats[] = { TEXTURE_FORMAT_LUMINANCE,
+                                            TEXTURE_FORMAT_LUMINANCE_ALPHA,
+                                            TEXTURE_FORMAT_RGBA,
+
+                                            // Float formats
+                                            TEXTURE_FORMAT_RGB16F,
+                                            TEXTURE_FORMAT_RGB32F,
+                                            TEXTURE_FORMAT_RGBA16F,
+                                            TEXTURE_FORMAT_RGBA32F,
+                                            TEXTURE_FORMAT_R16F,
+                                            TEXTURE_FORMAT_RG16F,
+                                            TEXTURE_FORMAT_R32F,
+                                            TEXTURE_FORMAT_RG32F,
+
+                                            // Misc formats
+                                            TEXTURE_FORMAT_RGBA32UI,
+                                            TEXTURE_FORMAT_R32UI,
+                                            TEXTURE_FORMAT_RGB_16BPP,
+                                            TEXTURE_FORMAT_RGBA_16BPP,
+                                        };
+
+        // RGB isn't supported as a texture format, but we still need to supply it to the engine
+        // Later when a texture is created, we will convert it internally to RGBA.
+        context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
+
+        // https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkImageCreateInfo.html
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(texture_formats); ++i)
+        {
+            TextureFormat texture_format = texture_formats[i];
+            DXGI_FORMAT dxgi_format      = GetDXGIFormatFromTextureFormat(texture_format);
+
+            D3D12_FEATURE_DATA_FORMAT_SUPPORT query = {};
+            query.Format = dxgi_format;
+
+            HRESULT hr = context->m_Device->CheckFeatureSupport(
+                D3D12_FEATURE_FORMAT_SUPPORT,
+                &query,
+                sizeof(query)
+            );
+
+            if (SUCCEEDED(hr))
+            {
+                // TODO: Check for more fine-grained support, i.e "query.Support1 & D3D12_FORMAT_SUPPORT1_TEXTURE2D"
+                context->m_TextureFormatSupport |= 1 << texture_format;
+            }
+        }
     }
 
     static bool MultiSamplingCountSupported(ID3D12Device* device, DXGI_FORMAT format, uint32_t requested_count)
@@ -445,6 +565,8 @@ namespace dmGraphics
         context->m_SwapChain = static_cast<IDXGISwapChain3*>(swap_chain_tmp);
 
         context->m_MSAASampleCount = GetClosestMultiSamplingCount(context->m_Device, color_format, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_SAMPLE_COUNT));
+
+        SetupSupportedTextureFormats(context);
 
         ////// MOVE THIS?
         D3D12_DESCRIPTOR_HEAP_DESC sampler_heap_desc = {};
@@ -1041,6 +1163,13 @@ namespace dmGraphics
         context->m_FrameBegun = 0;
     }
 
+    static inline bool IsRenderTargetbound(DX12Context* context, HRenderTarget rt)
+    {
+        //ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
+        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, rt);
+        return current_rt ? current_rt->m_IsBound : 0;
+    }
+
     static inline uint32_t GetPitchFromMipMap(uint32_t pitch, uint8_t mipmap)
     {
         for (uint32_t i = 0; i < mipmap; ++i)
@@ -1561,55 +1690,6 @@ namespace dmGraphics
         return D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
     }
 
-    static DXGI_FORMAT GetDXGIFormatFromTextureFormat(TextureFormat format)
-    {
-        switch(format)
-        {
-            case TEXTURE_FORMAT_LUMINANCE:         return DXGI_FORMAT_R8_UNORM;
-            case TEXTURE_FORMAT_LUMINANCE_ALPHA:   return DXGI_FORMAT_R8G8_UNORM;
-            case TEXTURE_FORMAT_RGB:               return DXGI_FORMAT_UNKNOWN; // Unsupported?
-            case TEXTURE_FORMAT_RGBA:              return DXGI_FORMAT_R8G8B8A8_UNORM;
-            case TEXTURE_FORMAT_RGB_16BPP:         return DXGI_FORMAT_UNKNOWN; // Unsupported
-            case TEXTURE_FORMAT_RGBA_16BPP:        return DXGI_FORMAT_R16G16B16A16_UNORM;
-            /*
-            TEXTURE_FORMAT_DEPTH:             return ;
-            TEXTURE_FORMAT_STENCIL:           return ;
-            TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:  return ;
-            TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:  return ;
-            TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1: return ;
-            TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1: return ;
-            TEXTURE_FORMAT_RGB_ETC1:          return ;
-            TEXTURE_FORMAT_R_ETC2:            return ;
-            TEXTURE_FORMAT_RG_ETC2:           return ;
-            TEXTURE_FORMAT_RGBA_ETC2:         return ;
-            TEXTURE_FORMAT_RGBA_ASTC_4x4:     return ;
-            TEXTURE_FORMAT_RGB_BC1: return ;
-            TEXTURE_FORMAT_RGBA_BC3: return ;
-            TEXTURE_FORMAT_R_BC4: return ;
-            TEXTURE_FORMAT_RG_BC5: return ;
-            TEXTURE_FORMAT_RGBA_BC7: return ;
-            // Floating point texture formats
-            TEXTURE_FORMAT_RGB16F: return ;
-            TEXTURE_FORMAT_RGB32F: return ;
-            TEXTURE_FORMAT_RGBA16F: return ;
-            TEXTURE_FORMAT_RGBA32F: return ;
-            TEXTURE_FORMAT_R16F: return ;
-            TEXTURE_FORMAT_RG16F: return ;
-            TEXTURE_FORMAT_R32F: return ;
-            TEXTURE_FORMAT_RG32F: return ;
-            // Internal formats (not exposed via script APIs)
-            TEXTURE_FORMAT_RGBA32UI: return ;
-            TEXTURE_FORMAT_BGRA8U: return ;
-            TEXTURE_FORMAT_R32UI: return ;
-            */
-        }
-
-        assert(0);
-
-        return (DXGI_FORMAT) -1;
-    }
-
-
     static inline DXGI_FORMAT GetDXGIFormat(Type type, uint16_t size, bool normalized)
     {
         /*
@@ -1770,6 +1850,54 @@ namespace dmGraphics
             default: break;
         }
         return D3D12_BLEND_ZERO;
+    }
+
+    static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)
+    {
+        memcpy(&uniform_data_ptr[offset], data_ptr, data_size);
+    }
+
+    static void CreateComputePipeline(DX12Context* context, DX12Pipeline* pipeline)
+    {
+        assert(context->m_CurrentProgram && context->m_CurrentProgram->m_ComputeModule);
+
+        D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+        psoDesc.pRootSignature = context->m_CurrentProgram->m_RootSignature;
+
+        psoDesc.CS.pShaderBytecode = context->m_CurrentProgram->m_ComputeModule->m_ShaderBlob->GetBufferPointer();
+        psoDesc.CS.BytecodeLength  = context->m_CurrentProgram->m_ComputeModule->m_ShaderBlob->GetBufferSize();
+
+        psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+
+        HRESULT hr = context->m_Device->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(pipeline));
+        CHECK_HR_ERROR(hr);
+    }
+
+    static DX12Pipeline* GetOrCreateComputePipeline(DX12Context* context)
+    {
+        HashState64 pipeline_hash_state;
+        dmHashInit64(&pipeline_hash_state, false);
+        dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_Hash, sizeof(context->m_CurrentProgram->m_Hash));
+
+        uint64_t pipeline_hash = dmHashFinal64(&pipeline_hash_state);
+        DX12Pipeline* cached_pipeline = context->m_PipelineCache.Get(pipeline_hash);
+
+        if (!cached_pipeline)
+        {
+            if (context->m_PipelineCache.Full())
+            {
+                context->m_PipelineCache.SetCapacity(32, context->m_PipelineCache.Capacity() + 4);
+            }
+
+            context->m_PipelineCache.Put(pipeline_hash, {});
+            cached_pipeline = context->m_PipelineCache.Get(pipeline_hash);
+
+            CreateComputePipeline(context, cached_pipeline);
+
+            dmLogDebug("Created new DX12 Compute Pipeline with hash %llu", (unsigned long long) pipeline_hash);
+        }
+
+        return cached_pipeline;
     }
 
     static void CreatePipeline(DX12Context* context, DX12RenderTarget* rt, DX12Pipeline* pipeline)
@@ -1934,7 +2062,7 @@ namespace dmGraphics
         context->m_CommandList->RSSetScissorRects(1, &scissor);
     }
 
-    static void CommitUniforms(DX12Context* context, DX12FrameResource& frame_resources)
+    static void CommitUniforms(DX12Context* context, DX12FrameResource& frame_resources, DX12PipelineType pipeline_type)
     {
         DX12ShaderProgram* program = context->m_CurrentProgram;
 
@@ -1955,11 +2083,11 @@ namespace dmGraphics
                     if (pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
                     {
                         const DX12TextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
-                        frame_resources.m_ScratchBuffer.AllocateSampler(context, sampler, i);
+                        frame_resources.m_ScratchBuffer.AllocateSampler(context, pipeline_type, sampler, i);
                     }
                     else
                     {
-                        frame_resources.m_ScratchBuffer.AllocateTexture2D(context, texture, i);
+                        frame_resources.m_ScratchBuffer.AllocateTexture2D(context, pipeline_type, texture, i);
 
                         // Transition all mipmaps into pixel read state
                         for (int i = 0; i < texture->m_MipMapCount; ++i)
@@ -1979,7 +2107,7 @@ namespace dmGraphics
                 case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                 {
                     const uint32_t uniform_size_nonalign = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
-                    void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, i, uniform_size_nonalign);
+                    void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, pipeline_type, i, uniform_size_nonalign);
                     memcpy(gpu_mapped_memory, &program->m_UniformData[pgm_res.m_DataOffset], uniform_size_nonalign);
                 } break;
                 case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
@@ -2025,7 +2153,26 @@ namespace dmGraphics
         context->m_CommandList->IASetVertexBuffers(0, num_vx_buffers, vx_buffer_views); // set the vertex buffer (using the vertex buffer view)
 
         // frame_resources.m_ScratchBuffer.Bind(context);
-        CommitUniforms(context, frame_resources);
+        CommitUniforms(context, frame_resources, PIPELINE_TYPE_GRAPHICS);
+    }
+
+    static void DrawSetupCompute(DX12Context* context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    {
+        DX12FrameResource& frame_resources = context->m_FrameResources[context->m_CurrentFrameIndex];
+
+        DX12Pipeline* pipeline = GetOrCreateComputePipeline(context);
+        context->m_CommandList->SetComputeRootSignature(context->m_CurrentProgram->m_RootSignature);
+        context->m_CommandList->SetPipelineState(*pipeline);
+
+        if (context->m_CurrentProgram->m_NumWorkGroupsResourceIndex != 0xff)
+        {
+            uint32_t data[] = { group_count_x, group_count_y, group_count_z };
+            DX12ResourceBinding& workgroup_res = context->m_CurrentProgram->m_RootSignatureResources[context->m_CurrentProgram->m_NumWorkGroupsResourceIndex];
+            ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[workgroup_res.m_Set][workgroup_res.m_Binding];
+            WriteConstantData(pgm_res.m_DataOffset, context->m_CurrentProgram->m_UniformData, (uint8_t*) data, sizeof(data));
+        }
+
+        CommitUniforms(context, frame_resources, PIPELINE_TYPE_COMPUTE);
     }
 
     static void DX12DrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count)
@@ -2062,6 +2209,18 @@ namespace dmGraphics
     {
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DispatchCalls, 1);
+
+         DX12Context* context = (DX12Context*) _context;
+
+        // From graphics_vulkan.cpp
+        if (IsRenderTargetbound(context, context->m_CurrentRenderTarget))
+        {
+            EndRenderPass(context);
+        }
+
+        DrawSetupCompute(context, group_count_x, group_count_y, group_count_z);
+
+        context->m_CommandList->Dispatch(group_count_x, group_count_y, group_count_z);
     }
 
     static D3D12_SHADER_VISIBILITY GetShaderVisibilityFromStage(uint8_t stage_flag)
@@ -2289,24 +2448,36 @@ namespace dmGraphics
         return hr;
     }
 
-    static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, ShaderDesc::Shader* ddf_vp, ShaderDesc::Shader* ddf_fp)
+    static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, ShaderDesc::Shader** shaders, uint32_t shader_count)
     {
-        program->m_RootSignatureResources.SetCapacity(ddf_vp->m_HlslResourceBindings.m_Count + ddf_fp->m_HlslResourceBindings.m_Count);
-        program->m_RootSignatureResources.SetSize(program->m_RootSignatureResources.Capacity());
+        uint32_t num_bindings = 0;
 
-        for (int i = 0; i < ddf_vp->m_HlslResourceBindings.m_Count; ++i)
+        for (int i = 0; i < shader_count; ++i)
         {
-            program->m_RootSignatureResources[i].m_NameHash = ddf_vp->m_HlslResourceBindings[i].m_NameHash;
-            program->m_RootSignatureResources[i].m_Binding  = ddf_vp->m_HlslResourceBindings[i].m_Binding;
-            program->m_RootSignatureResources[i].m_Set      = ddf_vp->m_HlslResourceBindings[i].m_Set;
+            num_bindings += shaders[i]->m_HlslResourceBindings.m_Count;
         }
 
-        for (int i = 0; i < ddf_fp->m_HlslResourceBindings.m_Count; ++i)
+        program->m_RootSignatureResources.SetCapacity(num_bindings);
+        program->m_RootSignatureResources.SetSize(num_bindings);
+
+        uint32_t offset = 0;
+
+        for (int i = 0; i < shader_count; ++i)
         {
-            uint32_t index = ddf_vp->m_HlslResourceBindings.m_Count + i;
-            program->m_RootSignatureResources[index].m_NameHash = ddf_fp->m_HlslResourceBindings[i].m_NameHash;
-            program->m_RootSignatureResources[index].m_Binding  = ddf_fp->m_HlslResourceBindings[i].m_Binding;
-            program->m_RootSignatureResources[index].m_Set      = ddf_fp->m_HlslResourceBindings[i].m_Set;
+            for (int j = 0; j < shaders[i]->m_HlslResourceBindings.m_Count; ++j)
+            {
+                uint32_t index = offset + j;
+                program->m_RootSignatureResources[index].m_NameHash = shaders[i]->m_HlslResourceBindings[j].m_NameHash;
+                program->m_RootSignatureResources[index].m_Binding  = shaders[i]->m_HlslResourceBindings[j].m_Binding;
+                program->m_RootSignatureResources[index].m_Set      = shaders[i]->m_HlslResourceBindings[j].m_Set;
+
+                if (program->m_RootSignatureResources[index].m_NameHash == HASH_SPIRV_Cross_NumWorkgroups)
+                {
+                    program->m_NumWorkGroupsResourceIndex = index;
+                }
+            }
+
+            offset += shaders[i]->m_HlslResourceBindings.m_Count;
         }
     }
 
@@ -2323,12 +2494,33 @@ namespace dmGraphics
 
         DX12Context* context = (DX12Context*) _context;
         DX12ShaderProgram* program = new DX12ShaderProgram();
+        program->m_NumWorkGroupsResourceIndex = 0xff; // 0xff == unused
 
         CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
 
+        HashState64 program_hash;
+        dmHashInit64(&program_hash, false);
+
         if (ddf_cp)
         {
-            assert(0 && "Not implemented yet");
+            program->m_ComputeModule = new DX12ShaderModule();
+            memset(program->m_ComputeModule, 0, sizeof(DX12ShaderModule));
+
+            dmLogInfo("COMPUTE: %s", ddf_cp->m_Source.m_Data);
+
+            HRESULT hr = CreateShaderModule(context, "cs_5_1", ddf_cp->m_Source.m_Data, ddf_cp->m_Source.m_Count, program->m_ComputeModule);
+            CHECK_HR_ERROR(hr);
+
+            CreateProgramResourceBindings(program, NULL, NULL, program->m_ComputeModule);
+
+            CreateRootSignatureResourceBindings(program, &ddf_cp, 1);
+
+            // Extract the embedded root signature blob
+            hr = context->m_Device->CreateRootSignature(0, program->m_ComputeModule->m_ShaderBlob->GetBufferPointer(), program->m_ComputeModule->m_ShaderBlob->GetBufferSize(), IID_PPV_ARGS(&program->m_RootSignature));
+            CHECK_HR_ERROR(hr);
+
+            // Create the hash
+            dmHashUpdateBuffer64(&program_hash, &program->m_ComputeModule->m_Hash, sizeof(program->m_ComputeModule->m_Hash));
         }
         else
         {
@@ -2338,19 +2530,35 @@ namespace dmGraphics
             memset(program->m_VertexModule, 0, sizeof(DX12ShaderModule));
             memset(program->m_FragmentModule, 0, sizeof(DX12ShaderModule));
 
+            char* vs_copy = (char*) malloc(ddf_vp->m_Source.m_Count);
+            memcpy(vs_copy, ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count);
+            vs_copy[ddf_vp->m_Source.m_Count-1] = '\0';
+
+            char* fs_copy = (char*) malloc(ddf_fp->m_Source.m_Count);
+            memcpy(fs_copy, ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count);
+            fs_copy[ddf_fp->m_Source.m_Count-1] = '\0';
+
             dmLogInfo("--------");
             dmLogInfo("VS Shader: %s", ddf_vp->m_Source.m_Data);
-            dmLogInfo("FS Shader: %s", ddf_fp->m_Source.m_Data);
+            dmLogInfo("FS Shader: %s, %d, %d", ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count, strlen(fs_copy));
 
-            HRESULT hr = CreateShaderModule(context, "vs_5_0", ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count, program->m_VertexModule);
+            HRESULT hr = CreateShaderModule(context, "vs_5_1", vs_copy, ddf_vp->m_Source.m_Count, program->m_VertexModule);
             CHECK_HR_ERROR(hr);
 
-            hr = CreateShaderModule(context, "ps_5_0", ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count, program->m_FragmentModule);
+            for (int i = ddf_fp->m_Source.m_Count-10; i < ddf_fp->m_Source.m_Count; ++i)
+            {
+                printf("%d,", ddf_fp->m_Source.m_Data[i]);
+            }
+
+            printf("\n");
+
+            hr = CreateShaderModule(context, "ps_5_1", fs_copy, ddf_fp->m_Source.m_Count, program->m_FragmentModule);
             CHECK_HR_ERROR(hr);
 
-            CreateProgramResourceBindings(program, program->m_VertexModule, program->m_FragmentModule, 0);
+            CreateProgramResourceBindings(program, program->m_VertexModule, program->m_FragmentModule, NULL);
 
-            CreateRootSignatureResourceBindings(program, ddf_vp, ddf_fp);
+            ShaderDesc::Shader* shaders[] = { ddf_vp, ddf_fp };
+            CreateRootSignatureResourceBindings(program, shaders, 2);
 
             ID3DBlob* merged_signature_blob = 0;
 
@@ -2360,10 +2568,7 @@ namespace dmGraphics
             hr = context->m_Device->CreateRootSignature(0, merged_signature_blob->GetBufferPointer(), merged_signature_blob->GetBufferSize(), IID_PPV_ARGS(&program->m_RootSignature));
             CHECK_HR_ERROR(hr);
 
-
-            HashState64 program_hash;
-            dmHashInit64(&program_hash, false);
-
+            // Create the hash
             for (uint32_t i=0; i < program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); i++)
             {
                 dmHashUpdateBuffer64(&program_hash, &program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_Binding, sizeof(program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_Binding));
@@ -2371,8 +2576,9 @@ namespace dmGraphics
 
             dmHashUpdateBuffer64(&program_hash, &program->m_VertexModule->m_Hash, sizeof(program->m_VertexModule->m_Hash));
             dmHashUpdateBuffer64(&program_hash, &program->m_FragmentModule->m_Hash, sizeof(program->m_FragmentModule->m_Hash));
-            program->m_Hash = dmHashFinal64(&program_hash);
         }
+
+        program->m_Hash = dmHashFinal64(&program_hash);
 
         return (HProgram) program;
     }
@@ -2440,11 +2646,6 @@ namespace dmGraphics
                 input_ix++;
             }
         }
-    }
-
-    static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)
-    {
-        memcpy(&uniform_data_ptr[offset], data_ptr, data_size);
     }
 
     static void DX12SetConstantV4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
@@ -2913,40 +3114,6 @@ namespace dmGraphics
         DX12SetTextureParamsInternal(g_DX12Context, tex, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
 
-    /*
-    case TEXTURE_FORMAT_LUMINANCE:          return VK_FORMAT_R8_UNORM;
-    case TEXTURE_FORMAT_LUMINANCE_ALPHA:    return VK_FORMAT_R8G8_UNORM;
-    case TEXTURE_FORMAT_RGB:                return VK_FORMAT_R8G8B8_UNORM;
-    case TEXTURE_FORMAT_RGBA:               return VK_FORMAT_R8G8B8A8_UNORM;
-    case TEXTURE_FORMAT_RGB_16BPP:          return VK_FORMAT_R5G6B5_UNORM_PACK16;
-    case TEXTURE_FORMAT_RGBA_16BPP:         return VK_FORMAT_R4G4B4A4_UNORM_PACK16;
-    case TEXTURE_FORMAT_DEPTH:              return VK_FORMAT_UNDEFINED;
-    case TEXTURE_FORMAT_STENCIL:            return VK_FORMAT_UNDEFINED;
-    case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   return VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG;
-    case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   return VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG;
-    case dTEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  return VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG;
-    case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  return VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG;
-    case TEXTURE_FORMAT_RGB_ETC1:           return VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
-    case TEXTURE_FORMAT_RGBA_ETC2:          return VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
-    case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return VK_FORMAT_ASTC_4x4_UNORM_BLOCK;
-    case TEXTURE_FORMAT_RGB_BC1:            return VK_FORMAT_BC1_RGB_UNORM_BLOCK;
-    case TEXTURE_FORMAT_RGBA_BC3:           return VK_FORMAT_BC3_UNORM_BLOCK;
-    case TEXTURE_FORMAT_RGBA_BC7:           return VK_FORMAT_BC7_UNORM_BLOCK;
-    case TEXTURE_FORMAT_R_BC4:              return VK_FORMAT_BC4_UNORM_BLOCK;
-    case TEXTURE_FORMAT_RG_BC5:             return VK_FORMAT_BC5_UNORM_BLOCK;
-    case TEXTURE_FORMAT_RGB16F:             return VK_FORMAT_R16G16B16_SFLOAT;
-    case TEXTURE_FORMAT_RGB32F:             return VK_FORMAT_R32G32B32_SFLOAT;
-    case TEXTURE_FORMAT_RGBA16F:            return VK_FORMAT_R16G16B16A16_SFLOAT;
-    case TEXTURE_FORMAT_RGBA32F:            return VK_FORMAT_R32G32B32A32_SFLOAT;
-    case TEXTURE_FORMAT_R16F:               return VK_FORMAT_R16_SFLOAT;
-    case TEXTURE_FORMAT_RG16F:              return VK_FORMAT_R16G16_SFLOAT;
-    case TEXTURE_FORMAT_R32F:               return VK_FORMAT_R32_SFLOAT;
-    case TEXTURE_FORMAT_RG32F:              return VK_FORMAT_R32G32_SFLOAT;
-    case TEXTURE_FORMAT_RGBA32UI:           return VK_FORMAT_R32G32B32A32_UINT;
-    case TEXTURE_FORMAT_BGRA8U:             return VK_FORMAT_B8G8R8A8_UNORM;
-    case TEXTURE_FORMAT_R32UI:              return VK_FORMAT_R32_UINT;
-    default:                                return VK_FORMAT_UNDEFINED;
-        */
     static void DX12SetTexture(HTexture texture, const TextureParams& params)
     {
         // Same as graphics_opengl.cpp

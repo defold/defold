@@ -114,6 +114,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(data, "[B");
         GET_FLD_TYPESTR(lastError, "Ljava/lang/String;");
         GET_FLD_ARRAY(hLSLResourceEntries, "HLSLResourceEntry");
+        GET_FLD_TYPESTR(hLSLNumWorkGroupsId, "B");
     }
     #undef GET_FLD
     #undef GET_FLD_ARRAY
@@ -230,6 +231,7 @@ jobject C2J_CreateShaderCompileResult(JNIEnv* env, TypeInfos* types, const Shade
     dmJNI::SetObjectDeref(env, obj, types->m_ShaderCompileResultJNI.data, dmJNI::C2J_CreateUByteArray(env, src->m_Data.Begin(), src->m_Data.Size()));
     dmJNI::SetString(env, obj, types->m_ShaderCompileResultJNI.lastError, src->m_LastError);
     dmJNI::SetObjectDeref(env, obj, types->m_ShaderCompileResultJNI.hLSLResourceEntries, C2J_CreateHLSLResourceEntryArray(env, types, src->m_HLSLResourceEntries.Begin(), src->m_HLSLResourceEntries.Size()));
+    dmJNI::SetUByte(env, obj, types->m_ShaderCompileResultJNI.hLSLNumWorkGroupsId, src->m_HLSLNumWorkGroupsId);
     return obj;
 }
 
@@ -567,6 +569,7 @@ bool J2C_CreateShaderCompileResult(JNIEnv* env, TypeInfos* types, jobject obj, S
             env->DeleteLocalRef(field_object);
         }
     }
+    out->m_HLSLNumWorkGroupsId = dmJNI::GetUByte(env, obj, types->m_ShaderCompileResultJNI.hLSLNumWorkGroupsId);
     return true;
 }
 

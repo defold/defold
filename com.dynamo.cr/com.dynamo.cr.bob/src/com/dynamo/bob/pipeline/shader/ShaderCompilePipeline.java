@@ -28,6 +28,7 @@ import com.dynamo.bob.pipeline.ShadercJni;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.MurmurHash;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
@@ -92,7 +93,7 @@ public class ShaderCompilePipeline {
             case LANGUAGE_GLES_SM300 -> 300;
             case LANGUAGE_GLSL_SM330 -> 330;
             case LANGUAGE_GLSL_SM430 -> 430;
-            case LANGUAGE_HLSL       -> 50;
+            case LANGUAGE_HLSL       -> 51;
             default -> 0;
         };
     }
@@ -418,6 +419,31 @@ public class ShaderCompilePipeline {
         return compiler;
     }
 
+    private static void injectHLSLNumWorkGroupsIdIntoReflection(ShaderModule module, int workGroupId) {
+        Shaderc.ResourceType type = new Shaderc.ResourceType();
+        type.useTypeIndex = true;
+
+        // This is what the generated cbuffer looks like:
+        // cbuffer SPIRV_Cross_NumWorkgroups : register(b3)
+        // {
+        //     uint3 SPIRV_Cross_NumWorkgroups_1_count : packoffset(c0);
+        // };
+
+        Shaderc.ShaderResource hLSLNumWorkGroupsId = new Shaderc.ShaderResource();
+        hLSLNumWorkGroupsId.name             = "SPIRV_Cross_NumWorkgroups";
+        hLSLNumWorkGroupsId.nameHash         = MurmurHash.hash64(hLSLNumWorkGroupsId.name);
+        hLSLNumWorkGroupsId.instanceName     = null;
+        hLSLNumWorkGroupsId.blockSize        = 12; // uint3 == 3 x uint32
+        hLSLNumWorkGroupsId.binding          = (byte) workGroupId;
+        hLSLNumWorkGroupsId.set              = 0;
+        hLSLNumWorkGroupsId.stageFlags       = (byte) Shaderc.ShaderStage.SHADER_STAGE_COMPUTE.getValue();
+        hLSLNumWorkGroupsId.type             = type;
+
+        module.spirvReflector.addUBO(hLSLNumWorkGroupsId);
+
+        System.out.println("HLSL GROUP ID: " + workGroupId);
+    }
+
     //////////////////////////
     // PUBLIC API
     //////////////////////////
@@ -457,6 +483,12 @@ public class ShaderCompilePipeline {
             //     There doesn't seem to be a simpler way to do this in spirv-cross from what I can understand.
             if (ShaderLanguageIsGLSL(shaderLanguage)) {
                 result.data = RemapTextureSamplers(module.spirvReflector.getTextures(), new String(result.data));
+            }
+
+            // If we are cross-compiling a compute shader to HLSL, we need to inject an extra resource into the reflection,
+            // because there is no gl_NumWorkGroups equivalent in HLSL
+            if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE && result.hLSLNumWorkGroupsId >= 0) {
+                injectHLSLNumWorkGroupsIdIntoReflection(module, result.hLSLNumWorkGroupsId);
             }
 
             return result;
