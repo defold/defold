@@ -2008,7 +2008,7 @@ TEST_P(FactoryTest, Test)
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
 
         // --- step 5 ---
-        // recreate resources without factoy.load having been called (sync load on demand)
+        // recreate resources without factory.load having been called (sync load on demand)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         dmGameObject::PostUpdate(m_Register);
@@ -2093,6 +2093,35 @@ TEST_P(FactoryTest, IdHashTest)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/factory/factory_hash_test.goc", go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
     go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_P(FactoryTest, Create)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+    
+    lua_pushnumber(L, m_projectOptions.m_MaxInstances);
+    lua_setglobal(L, "max_instances");
+
+    // Spawn the game object with the script we want to call
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmhash_t go_hash = dmHashString64("/go");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/factory/factory_create_test.goc", go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));

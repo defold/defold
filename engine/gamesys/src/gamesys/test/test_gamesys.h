@@ -69,6 +69,7 @@ struct ProjectOptions {
   uint32_t m_MaxCollisionCount;
   uint32_t m_MaxCollisionObjectCount;
   uint32_t m_MaxContactPointCount;
+  uint32_t m_MaxInstances;
   bool m_3D;
   float m_Scale;
   float m_VelocityThreshold;
@@ -100,6 +101,7 @@ public:
         this->m_projectOptions.m_MaxCollisionCount = 0;
         this->m_projectOptions.m_MaxCollisionObjectCount = 0;
         this->m_projectOptions.m_MaxContactPointCount = 0;
+        this->m_projectOptions.m_MaxInstances = 1024;
         this->m_projectOptions.m_3D = false;
         this->m_projectOptions.m_Scale = 1.0f;
         this->m_projectOptions.m_VelocityThreshold = 1.0f;
@@ -669,7 +671,7 @@ void GamesysTest<T>::SetUp()
     // TODO: Investigate why the ConsumeInputInCollectionProxy test fails if the components are actually sorted (the way they're supposed to)
     //dmGameObject::SortComponentTypes(m_Register);
 
-    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0x0);
+    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, this->m_projectOptions.m_MaxInstances, 0x0);
 }
 
 template<typename T>
