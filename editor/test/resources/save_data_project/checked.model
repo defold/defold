@@ -175,4 +175,4 @@ materials {
     }
   }
 }
-create_go_bones: true
+create_go_bones: false
