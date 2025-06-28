@@ -77,18 +77,14 @@ namespace dmGameSystem
     };
 
     inline dmGameObject::Result DoSpawn(HFactoryWorld world, HFactoryComponent component, dmGameObject::HCollection collection,
-                                        dmhash_t id, uint32_t index,
-                                        const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
+                                        dmhash_t id, const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
                                         dmGameObject::HPropertyContainer properties, dmGameObject::HInstance* out_instance)
     {
+        uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
         if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
         {
-            index = dmGameObject::AcquireInstanceIndex(collection);
-            if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
-            {
-                dmLogWarning("Gameobject buffer is full. See `collection.max_instances` in game.project.");
-                return dmGameObject::RESULT_OUT_OF_RESOURCES;
-            }
+            dmLogWarning("Gameobject buffer is full. See `collection.max_instances` in game.project.");
+            return dmGameObject::RESULT_OUT_OF_RESOURCES;
         }
 
         if (!id)
@@ -257,7 +253,7 @@ namespace dmGameSystem
             }
 
             dmGameObject::HInstance spawned_instance;
-            dmGameObject::Result result = DoSpawn(world, component, collection, create->m_Id, create->m_Index, create->m_Position, create->m_Rotation, scale, properties, &spawned_instance);
+            dmGameObject::Result result = DoSpawn(world, component, collection, create->m_Id, create->m_Position, create->m_Rotation, scale, properties, &spawned_instance);
 
             if (properties)
             {
@@ -486,7 +482,7 @@ namespace dmGameSystem
                                                 const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
                                                 dmGameObject::HPropertyContainer properties, dmGameObject::HInstance* out_instance)
     {
-        return DoSpawn(world, component, collection, id, dmGameObject::INVALID_INSTANCE_POOL_INDEX, position, rotation, scale, properties, out_instance);
+        return DoSpawn(world, component, collection, id, position, rotation, scale, properties, out_instance);
     }
 
 }

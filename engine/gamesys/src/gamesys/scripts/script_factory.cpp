@@ -246,7 +246,6 @@ namespace dmGameSystem
 
         dmGameSystemDDF::Create* create_msg = (dmGameSystemDDF::Create*)buffer;
         create_msg->m_Id = id;
-        create_msg->m_Index = dmGameObject::INVALID_INSTANCE_POOL_INDEX;
         create_msg->m_Position = position;
         create_msg->m_Rotation = rotation;
         create_msg->m_Scale3 = scale;
