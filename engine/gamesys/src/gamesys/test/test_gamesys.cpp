@@ -2116,7 +2116,7 @@ TEST_P(FactoryTest, Create)
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
     
     lua_pushnumber(L, m_projectOptions.m_MaxInstances);
-    lua_setglobal(L, "MAX_INSTANCES");
+    lua_setglobal(L, "max_instances");
 
     // Spawn the game object with the script we want to call
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
