@@ -652,7 +652,17 @@ namespace dmGameSystem
 
     dmResource::Result ResFontGetInfo(FontResource* resource, FontInfo* desc)
     {
-        memcpy(desc, resource->m_DDF, sizeof(FontInfo));
+        dmRenderDDF::FontMap* ddf = resource->m_DDF;
+        desc->m_Size         = ddf->m_Size;
+        desc->m_ShadowX      = ddf->m_ShadowX;
+        desc->m_ShadowY      = ddf->m_ShadowY;
+        desc->m_ShadowBlur   = ddf->m_ShadowBlur;
+        desc->m_ShadowAlpha  = ddf->m_ShadowAlpha;
+        desc->m_Alpha        = ddf->m_Alpha;
+        desc->m_OutlineAlpha = ddf->m_OutlineAlpha;
+        desc->m_OutlineWidth = ddf->m_OutlineWidth;
+        desc->m_OutputFormat = ddf->m_OutputFormat;
+        desc->m_RenderMode   = ddf->m_RenderMode;
         return dmResource::RESULT_OK;
     }
 

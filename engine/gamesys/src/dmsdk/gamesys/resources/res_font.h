@@ -51,19 +51,32 @@ namespace dmGameSystem
 
     /*#
      * Used to retrieve the information of a font.
-     * @typedef
+     * @struct
      * @name FontInfo
-     * @member m_Size [type: uint32_t]
-     * @member m_Antialias [type: uint32_t]
-     * @member m_ShadowX [type: float]
-     * @member m_ShadowY [type: float]
-     * @member m_ShadowBlur [type: uint32_t]
-     * @member m_ShadowAlpha [type: float]
-     * @member m_Alpha [type: float]
-     * @member m_OutlineAlpha [type: float]
-     * @member m_OutlineWidth [type: float]
+     * @member m_Size [type: uint32_t] The size of the font (in points)
+     * @member m_ShadowX [type: float] The shadow distance in X-axis (in pixels)
+     * @member m_ShadowY [type: float] The shadow distance in Y-axis (in pixels)
+     * @member m_ShadowBlur [type: uint32_t] The shadow blur spread [0.255] (in pixels)
+     * @member m_ShadowAlpha [type: float] The shadow alpha value [0..255]
+     * @member m_Alpha [type: float] The alpha value [0..255]
+     * @member m_OutlineAlpha [type: float] The outline alpha value [0..255]
+     * @member m_OutlineWidth [type: float] The outline size (in pixels)
+     * @member m_OutputFormat [type: dmRenderDDF::FontTextureFormat] The type of font (bitmap or distance field)
+     * @member m_RenderMode [type: dmRenderDDF::FontRenderMode] Single or multi channel
      */
-    typedef dmRenderDDF::FontMap FontInfo;
+    struct FontInfo
+    {
+        uint32_t   m_Size;
+        float      m_ShadowX;
+        float      m_ShadowY;
+        uint32_t   m_ShadowBlur;
+        float      m_ShadowAlpha;
+        float      m_Alpha;
+        float      m_OutlineAlpha;
+        float      m_OutlineWidth;
+        dmRenderDDF::FontTextureFormat m_OutputFormat;
+        dmRenderDDF::FontRenderMode m_RenderMode;
+    };
 
     /*#
      * Represents a glyph.

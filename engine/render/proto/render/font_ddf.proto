@@ -96,7 +96,6 @@ message GlyphBank
 }
 
 // Used at runtime.
-// Part of dmSDK
 message FontMap
 {
     optional string material      = 1 [default = "", (resource)=true];
