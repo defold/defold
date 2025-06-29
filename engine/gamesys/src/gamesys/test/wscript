@@ -81,12 +81,17 @@ def build(bld):
 
     embed_source = ['resource/booster_on_sfx.wav', 'resource/layer_guitar_a.ogg']
 
+    dynamic_fonts = [
+        'dyn_glyph_bank_test_1.font'
+    ]
+
     test_gamesys = bld.program(features = 'cxx cprogram embed test',
                                includes = '../../../src ../../../proto .',
                                use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig gamesys_model',
                                exported_symbols = exported_symbols + ['ScriptModelExt'],
                                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
                                content_root='../test',
+                               dynamic_fonts = dynamic_fonts,
                                source = bld.path.ant_glob('test_gamesys.cpp') + bld.path.ant_glob(dirs, excl=excl_pattern),
                                embed_source = embed_source,
                                target = 'test_gamesys')
@@ -99,13 +104,13 @@ def build(bld):
                                         source = bld.path.ant_glob('test_gamesys_http.cpp') + bld.path.ant_glob('http/*'),
                                         target = 'test_gamesys_http')
 
-    if not 'web' in bld.env['PLATFORM']:
         if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):
+            bld.add_group() # uses test data from http/* and we only want to build it once
             bld.program(features = 'cxx test',
                         includes = '../../../src ../../../proto .',
                         exported_symbols = exported_symbols,
                         use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB TEST_SCRIPT gamesys gamesys_rig_null gamesys_model_null',
-                        source = 'test_script_http.cpp http/test_http.lua.raw http/test_http_timeout.lua.raw'.split(),
+                        source = 'test_script_http.cpp'.split(),
                         target = 'test_script_http')
 
     if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-macos', 'arm64-macos', 'x86_64-linux')  and not waflib.Options.options.with_vulkan:
