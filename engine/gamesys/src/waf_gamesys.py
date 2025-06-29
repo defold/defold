@@ -451,8 +451,11 @@ task = waflib.Task.task_factory('gameobject',
                                 after='proto_gen_py',
                                 before='c cxx')
 
+GENERATOR_ID = 0
+
 @extension('.go')
 def gofile(self, node):
+    global GENERATOR_ID
     try:
         import gameobject_ddf_pb2
         import google.protobuf.text_format
@@ -465,10 +468,12 @@ def gofile(self, node):
 
         embed_output_nodes = []
         for i, c in enumerate(msg.embedded_components):
-            name = '%s_generated_%d.%s' % (node.name.split('.')[0], i, c.type)
-            embed_node = node.parent.make_node(name) # node.parent.exclusive_build_node(name)
-            embed_output_nodes.append(embed_node)
+            GENERATOR_ID = GENERATOR_ID + 1
 
+            name = '%s_generated_%d.%s' % (node.name.split('.')[0], GENERATOR_ID, c.type)
+
+            embed_node = node.parent.get_bld().make_node(name)
+            embed_output_nodes.append(embed_node)
             sub_task = self.create_task(c.type)
             sub_task.set_inputs(embed_node)
             out = embed_node.change_ext('.' + c.type + 'c')
