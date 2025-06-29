@@ -92,12 +92,8 @@ def font_file(self, node):
     classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
     fontmap = self.create_task('fontmap')
 
-    fontmap.env['CLASSPATH']    = os.pathsep.join(classpath)
+    fontmap.env['CLASSPATH'] = os.pathsep.join(classpath)
     fontmap.env['CONTENT_ROOT'] = fontmap.generator.content_root
-    fontmap.env['DYNAMIC']      = 'true'
-    if hasattr(fontmap.generator, 'dynamic_fonts'):
-        fontmap.env['DYNAMIC']  = 'true' if node.name in fontmap.generator.dynamic_fonts else 'false'
-
     fontmap.set_inputs(node)
     obj_ext = '.fontc'
     out = node.change_ext(obj_ext)
