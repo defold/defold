@@ -44,6 +44,7 @@
             [editor.git :as git]
             [editor.github :as github]
             [editor.graph-util :as gu]
+            [editor.grid :as grid]
             [editor.handler :as handler]
             [editor.hot-reload :as hot-reload]
             [editor.icons :as icons]
@@ -436,6 +437,21 @@
         (ui/remove-style! btn "filters-active"))
       (scene-visibility/settings-visible? btn))))
 
+(defn get-grid-settings-button
+  [app-view]
+  (some-> ^TabPane (g/node-value app-view :active-tab-pane)
+          ui/selected-tab
+          .getContent
+          (.lookup "#show-grid-settings")))
+
+(handler/defhandler :scene.grid.show-settings :workbench
+  (run [app-view scene-visibility prefs]
+       (when-let [btn (get-grid-settings-button app-view)]
+         (grid/show-settings! app-view btn prefs)))
+  (state [app-view scene-visibility]
+         (when-let [btn (get-grid-settings-button app-view)]
+           (scene-visibility/settings-visible? btn))))
+
 (def ^:private eye-icon-svg-path
   (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
 
@@ -444,6 +460,9 @@
 
 (def ^:private mode-2d-svg-path
   (ui/load-svg-path "scene/images/2d-mode.svg"))
+
+(def ^:private grid-svg-path
+  (ui/load-svg-path "scene/images/grid.svg"))
 
 (defn- make-visibility-settings-graphic []
   (doto (StackPane.)
@@ -471,6 +490,12 @@
     :icon "icons/45/Icons_T_04_Scale.png"
     :command :scene.select-scale-tool}
    menu-items/separator
+   {:id :grid
+    :tooltip "Grid"
+    :graphic-fn (partial icons/make-svg-icon-graphic grid-svg-path)
+    :command :scene.visibility.toggle-grid
+    :more {:id :show-grid-settings
+           :command :scene.grid.show-settings}}
    {:id :2d-mode
     :tooltip "2d mode"
     :graphic-fn (partial icons/make-svg-icon-graphic mode-2d-svg-path)
@@ -557,10 +582,12 @@
 (defn restore-split-positions! [^Scene scene prefs]
   (let [split-positions (stored-split-positions prefs)
         split-panes (existing-split-panes scene)]
-    (doseq [[id positions] split-positions]
-      (when-some [^SplitPane split-pane (get split-panes id)]
-        (.setDividerPositions split-pane (double-array positions))
-        (.layout split-pane)))))
+    ;; The nested run-later fixes restore on Linux, by forcing an initial rendering pass. 
+    (ui/run-later
+      (doseq [[id positions] split-positions]
+        (when-some [^SplitPane split-pane (get split-panes id)]
+          (.setDividerPositions split-pane (double-array positions))
+          (.layout split-pane))))))
 
 (defn stored-hidden-panes [prefs]
   (prefs/get prefs prefs-hidden-panes))

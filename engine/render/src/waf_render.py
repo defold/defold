@@ -32,8 +32,13 @@ waflib.Task.task_factory('material_shaderbuilder', '${JAVA} -classpath ${CLASSPA
                       before='c cxx',
                       shell=False)
 
+GENERATOR_ID = 0
+
 @extension('.material')
 def material_file(self, node):
+    global GENERATOR_ID
+    GENERATOR_ID = GENERATOR_ID + 1
+
     import google.protobuf.text_format
     import render.material_ddf_pb2
     import dlib
@@ -54,7 +59,8 @@ def material_file(self, node):
 
     if shader_name == None:
         shader_hash = dlib.dmHashBuffer64(msg.vertex_program + msg.fragment_program)
-        shader_name = 'shader_%d%s' % (shader_hash, '.spc')
+        # make sure the name is unique, as each task requires unique outputs
+        shader_name = 'shader_%d_%d_%s' % (shader_hash, GENERATOR_ID, '.spc')
 
     material.env['CLASSPATH']    = os.pathsep.join(classpath)
     material.env['CONTENT_ROOT'] = material.generator.content_root

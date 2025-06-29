@@ -19,12 +19,12 @@
             [editor.background :as background]
             [editor.camera :as camera]
             [editor.colors :as colors]
-            [editor.curve-grid :as curve-grid]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
+            [editor.grid :as grid]
             [editor.handler :as handler]
             [editor.properties :as properties]
             [editor.rulers :as rulers]
@@ -608,6 +608,23 @@
                         res))]
       (app-view/sub-select! app-view selection))))
 
+(g/defnode CurveGrid
+  (inherits grid/Grid)
+  (input viewport g/Any)
+  (output options g/Any (g/fnk [camera viewport]
+                               (let [[_scale-x scale-y] (camera/scale-factor camera viewport)
+                                     y-size (* (Math/pow 10 (Math/floor (Math/log10 scale-y))) 100)]
+                                 {:active-plane :z
+                                  :color [1.0 1.0 1.0 1.0]
+                                  :axes-colors {:x [1.0 1.0 1.0 1.0]
+                                                :y [1.0 1.0 1.0 1.0]
+                                                :z [1.0 1.0 1.0 1.0]}
+                                  :opacity 0.1
+                                  :auto-scale false
+                                  :size {:x 0.2
+                                         :y y-size
+                                         :z 1}}))))
+
 (defn make-view!
   ([app-view graph ^Parent parent ^ListView list ^AnchorPane view opts]
     (let [view-id (make-view! app-view graph parent list view opts false)]
@@ -615,13 +632,13 @@
       view-id))
   ([app-view graph ^Parent parent ^ListView list ^AnchorPane view opts reloading?]
     (let [[node-id] (g/tx-nodes-added
-                      (g/transact (g/make-nodes graph [view-id    [CurveView :list list :hidden-curves #{}]
+                      (g/transact (g/make-nodes graph [view-id [CurveView :list list :hidden-curves #{}]
                                                        controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
-                                                       selection  [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
+                                                       selection [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                        background background/Background
-                                                       camera     [camera/CameraController :local-camera (or (:camera opts) (camera/make-camera :orthographic camera-filter-fn))]
-                                                       grid       curve-grid/Grid
-                                                       rulers     [rulers/Rulers]]
+                                                       camera [camera/CameraController :local-camera (or (:camera opts) (camera/make-camera :orthographic camera-filter-fn))]
+                                                       grid CurveGrid
+                                                       rulers [rulers/Rulers]]
                                                 (g/update-property camera :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
                                                 (g/connect camera :_node-id view-id :camera-id)
@@ -642,17 +659,18 @@
                                                 (g/connect controller :input-handler view-id :input-handlers)
                                                 (g/connect controller :info-text view-id :tool-info-text)
 
-                                                (g/connect selection            :renderable                view-id          :tool-renderables)
-                                                (g/connect selection            :input-handler             view-id          :input-handlers)
-                                                (g/connect selection            :picking-rect              view-id          :picking-rect)
-                                                (g/connect view-id              :picking-selection         selection        :picking-selection)
-                                                (g/connect app-view             :sub-selection             selection        :selection)
+                                                (g/connect selection :renderable view-id :tool-renderables)
+                                                (g/connect selection :input-handler view-id :input-handlers)
+                                                (g/connect selection :picking-rect view-id :picking-rect)
+                                                (g/connect view-id :picking-selection selection :picking-selection)
+                                                (g/connect app-view :sub-selection selection :selection)
 
                                                 (g/connect camera :camera rulers :camera)
                                                 (g/connect rulers :renderables view-id :aux-renderables)
                                                 (g/connect view-id :viewport rulers :viewport)
                                                 (g/connect view-id :cursor-pos rulers :cursor-pos)
-                                                (g/connect view-id :_node-id app-view :scene-view-ids))))]
+                                                (g/connect view-id :_node-id app-view :scene-view-ids)
+                                                (g/connect view-id :viewport grid :viewport))))]
       (when parent
         (let [^Node pane (scene/make-gl-pane! node-id opts)]
           (ui/context! parent :curve-view {:view-id node-id} (SubSelectionProvider. app-view))

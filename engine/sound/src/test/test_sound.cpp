@@ -549,7 +549,7 @@ static float GainToScale(float gain)
     return scale;
 }
 
-// Generate sine wave per given parametyers and resasmple it as needed to mimic runtimes signal path for generated test waves
+// Generate sine wave per given parameters and resample it as needed to mimic runtimes signal path for generated test waves
 static double GenAndMixTone(uint64_t pos, float tone_frq, float sample_rate, float mix_rate, int num_frames, bool ramp_active, float scale)
 {
     static_assert(_pfb_num_phases == 1 << 11, "PFB header does not readily offer this constant - update needed (see below)!");
@@ -606,6 +606,9 @@ TEST_P(dmSoundVerifyTest, Mix)
     ASSERT_EQ(dmSound::RESULT_OK, r);
     ASSERT_NE((dmSound::HSoundInstance) 0, instance);
 
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, dmVMath::Vector4(params.m_Pan,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
     printf("Playing: %d\n", dmSound::IsPlaying(instance));
@@ -621,11 +624,22 @@ TEST_P(dmSoundVerifyTest, Mix)
 
     const double f = 44100.0;
     const int n = (int)(frame_count * (f / mix_rate));
+    const double level = 1.0f;
 
-    const double level = (params.m_Channels == 2) ? 1.0f : sin(M_PI_4); // center panning introduces this (only for mono samples)
+    ASSERT_GE(g_LoopbackDevice->m_AllOutput.Size(), n * 2U);
 
-    assert(g_LoopbackDevice->m_AllOutput.Size() >= n * 2);
 
+
+    // We need to check that the panning works as intended.
+    // Instead of checking the panning cintinuously, we check the -1 (left), 1 (right) and 0 (center)
+    // Note: currently center panning introduces ~3dB loss of signal (see dmSound::GetPanScale())
+
+    // map [-1,1] to [0,1] for use with
+    float pan_01 = dmMath::Max(-1.0f, dmMath::Min(1.0f, params.m_Pan));
+    pan_01 = (pan_01 + 1.0f) * 0.5f;
+
+    float ls, rs;
+    dmSound::GetPanScale(pan_01, &ls, &rs);
     uint64_t delta = (uint64_t)(mix_rate * (1UL << dmSound::RESAMPLE_FRACTION_BITS) / f);
     uint64_t pos = 0;
     for (int32_t i = 0; i < n - 1; i++) {
@@ -634,9 +648,11 @@ TEST_P(dmSoundVerifyTest, Mix)
         pos += delta;
 
         int16_t as = (int16_t)dmMath::Clamp(a, -32768.0, 32767.0);
+        int16_t aleft = as * ls;
+        int16_t aright = as * rs;
 
-        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, 27);
-        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as, 27);
+        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], aleft, 27);
+        ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], aright, 27);
     }
 
     ASSERT_EQ(0u, g_LoopbackDevice->m_AllOutput.Size() % 2);
@@ -649,14 +665,14 @@ TEST_P(dmSoundVerifyTest, Mix)
     dmSound::GetGroupRMS(dmHashString64("master"), params.m_BufferFrameCount / f, &rms_left, &rms_right);
     dmSound::GetGroupRMS(dmHashString64("master"), params.m_BufferFrameCount / f, &rms_left, &rms_right);
     // Theoretical RMS for a sin-function with amplitude a is a / sqrt(2)
-    ASSERT_NEAR(0.8f / sqrtf(2.0f) * level, rms_left, 0.02f);
-    ASSERT_NEAR(0.8f / sqrtf(2.0f) * level, rms_right, 0.02f);
+    ASSERT_NEAR(0.8f / sqrtf(2.0f) * level * ls, rms_left, 0.02f);
+    ASSERT_NEAR(0.8f / sqrtf(2.0f) * level * rs, rms_right, 0.02f);
 
     float peak_left, peak_right;
     dmSound::GetGroupPeak(dmHashString64("master"), params.m_BufferFrameCount / f, &peak_left, &peak_right);
     dmSound::GetGroupPeak(dmHashString64("master"), params.m_BufferFrameCount / f, &peak_left, &peak_right);
-    ASSERT_NEAR(0.8f* level, peak_left, 0.01f);
-    ASSERT_NEAR(0.8f* level, peak_right, 0.01f);
+    ASSERT_NEAR(0.8f* level * ls, peak_left, 0.01f);
+    ASSERT_NEAR(0.8f* level * rs, peak_right, 0.01f);
 
     int expected_queued = (frame_count * (int)f) / ((int) mix_rate * params.m_BufferFrameCount)
                             + dmMath::Min(1U, (frame_count * (int)f) % ((int) mix_rate * params.m_BufferFrameCount));
@@ -840,6 +856,31 @@ TestParams("loopback",
 
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyTest, dmSoundVerifyTest, jc_test_values_in(params_verify_test));
 
+// We also want to test the panning outputs correctly
+const TestParams params_verify_test_pan[] = {
+    TestParams("loopback",
+            MONO_TONE_440_44100_88200_WAV,
+            MONO_TONE_440_44100_88200_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            44100,
+            88200,
+            1056,
+            -1.0f,
+            1.0f),
+    TestParams("loopback",
+            STEREO_TONE_440_44100_88200_WAV,
+            STEREO_TONE_440_44100_88200_WAV_SIZE,
+            dmSound::SOUND_DATA_TYPE_WAV,
+            440,
+            44100,
+            88200,
+            1056,
+            1.0f,
+            1.0f)
+};
+
+INSTANTIATE_TEST_CASE_P(dmSoundVerifyTestPan, dmSoundVerifyTest, jc_test_values_in(params_verify_test_pan));
 
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundTestGroupRampTest, GroupRamp)
@@ -1650,7 +1691,7 @@ INSTANTIATE_TEST_CASE_P(dmSoundVerifyAdpcmTest, dmSoundVerifyAdpcmTest, jc_test_
 #endif
 
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
-TEST_P(dmSoundTestPlayTest, Play)
+TEST_P(dmSoundTestPlayTest, Panning)
 {
 
     TestParams params = GetParam();
@@ -1686,7 +1727,8 @@ TEST_P(dmSoundTestPlayTest, Play)
         if (a > M_PI*2) {
             a-= M_PI*2;
         }
-        r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, dmVMath::Vector4(cosf(a),0,0,0));
+        float pan = cosf(a);
+        r = dmSound::SetParameter(instance, dmSound::PARAMETER_PAN, dmVMath::Vector4(pan,0,0,0));
         ASSERT_EQ(dmSound::RESULT_OK, r);
 
         uint64_t tend = dmTime::GetMonotonicTime();
