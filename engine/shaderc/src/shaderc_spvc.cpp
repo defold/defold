@@ -561,7 +561,7 @@ namespace dmShaderc
                     if (GetFirstFreeBindingIndex(context, &free_binding))
                     {
                         spvc_compiler_set_decoration(compiler->m_SPVCCompiler, num_workgroups_id, SpvDecorationBinding, free_binding);
-                        spvc_compiler_set_decoration(compiler->m_SPVCCompiler, num_workgroups_id, SpvDecorationDescriptorSet, 0);
+                        spvc_compiler_set_decoration(compiler->m_SPVCCompiler, num_workgroups_id, SpvDecorationDescriptorSet, HLSL_NUM_WORKGROUPS_SET);
 
                         hlsl_num_workgroups_id_binding = free_binding;
                     }

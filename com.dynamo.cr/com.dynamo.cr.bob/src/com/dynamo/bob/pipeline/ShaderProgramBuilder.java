@@ -504,16 +504,6 @@ public class ShaderProgramBuilder extends Builder {
     }
 
     static public ShaderDesc.Shader.Builder makeShaderBuilder(Shaderc.ShaderCompileResult result, ShaderDesc.Language language, ShaderDesc.ShaderType type) {
-        /*
-        public static class HLSLResourceEntry {
-        public String name;
-        public long nameHash = 0;
-        public byte hLSLRegister = 0;
-        public byte set = 0;
-        public byte binding = 0;
-        };
-        */
-
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(language);
         builder.setShaderType(type);
@@ -523,7 +513,6 @@ public class ShaderProgramBuilder extends Builder {
             for (Shaderc.HLSLResourceEntry entry : result.hLSLResourceEntries) {
                 ShaderDesc.HLSLResourceBinding.Builder hlslResourcesBuilder = ShaderDesc.HLSLResourceBinding.newBuilder();
 
-                hlslResourcesBuilder.setName(entry.name);
                 hlslResourcesBuilder.setNameHash(entry.nameHash);
                 hlslResourcesBuilder.setRegister(entry.hLSLRegister);
                 hlslResourcesBuilder.setBinding(entry.binding);

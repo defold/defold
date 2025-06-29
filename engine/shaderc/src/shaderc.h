@@ -210,7 +210,6 @@ namespace dmShaderc
     {
         const char* m_Name;
         uint64_t    m_NameHash;
-        uint8_t     m_HLSLRegister;
         uint8_t     m_Set;
         uint8_t     m_Binding;
     };

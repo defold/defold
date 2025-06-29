@@ -47,7 +47,7 @@ def build(bld):
     else:
         shaderc_exclude_sources += 'shaderc_hlsl.cpp'
 
-    shaderc_sources = bld.path.ant_glob("*.cpp", excl = ['materials/*.fp', 'materials/*.vp'])
+    shaderc_sources = bld.path.ant_glob("*.cpp", excl = shaderc_exclude_sources)
     shaderc_sources_no_jni = []
 
     for x in shaderc_sources:

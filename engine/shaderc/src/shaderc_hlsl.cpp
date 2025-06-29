@@ -27,13 +27,14 @@
 
 #include "shaderc_private.h"
 
+// TODO: Oof this feels brittle, how can we avoid it?
 interface DECLSPEC_UUID("5A58797D-A72C-478D-8BA2-EFC6B0EFE88E") ID3D12ShaderReflection;
 
 namespace dmShaderc
 {
-    static const dmhash_t SPIRV_Cross_NumWorkgroups_hash = dmHashString64("SPIRV_Cross_NumWorkgroups");
+    static const dmhash_t HASH_SPIRV_CROSS_NUM_WORKGROUPS = dmHashString64("SPIRV_Cross_NumWorkgroups");
 
-    char* ExtractBaseName(const char* combined_name)
+    static char* ExtractBaseName(const char* combined_name)
     {
         const char* suffix = "_sampler";
         size_t len = strlen(combined_name);
@@ -92,15 +93,17 @@ namespace dmShaderc
             D3D12_SHADER_INPUT_BIND_DESC bindDesc;
             hlsl_reflection->GetResourceBindingDesc(i, &bindDesc);
 
-            // Find the resource by hash
             dmhash_t resource_name_hash = dmHashString64(bindDesc.Name);
-            const ShaderResource* resource = FindShaderResourceUniform(context, resource_name_hash);
-
             memset(&resource_entries[i], 0, sizeof(HLSLResourceEntry));
-
             resource_entries[i].m_Name     = bindDesc.Name;
             resource_entries[i].m_NameHash = resource_name_hash;
 
+            // 1. try to find the resource by name hash
+            const ShaderResource* resource = FindShaderResourceUniform(context, resource_name_hash);
+
+            // 2. For samplers and textures, we try to look into the list of "combined" texture samplers.
+            //    The combined texture samplers is basically an unwrap of a Sampler2D object into a sampler and a texture object.
+            //    We use this information to get the original unwrapped name + resource from the reflection.
             if (!resource)
             {
                 if (bindDesc.Type == D3D_SIT_SAMPLER || bindDesc.Type == D3D_SIT_TEXTURE)
@@ -115,8 +118,8 @@ namespace dmShaderc
                     }
                 }
 
-                // Separated samplers may not be found in the combined samplers array, nor in the general reflection data
-                // So we need to extract the generated base name and check for that instead.
+                // 2.1 Separated samplers may not be found in the combined samplers array, nor in the general reflection data
+                //     So we need to extract the generated base name and check for that instead.
                 if (!resource && bindDesc.Type == D3D_SIT_SAMPLER)
                 {
                     char* base_texture_name = ExtractBaseName(bindDesc.Name);
@@ -131,17 +134,17 @@ namespace dmShaderc
             {
                 dmLogInfo("Found resource %s (set=%d, binding=%d)", bindDesc.Name, resource->m_Set, resource->m_Binding);
 
-                resource_entries[i].m_HLSLRegister = bindDesc.BindPoint;
-                resource_entries[i].m_Set          = resource->m_Set;
-                resource_entries[i].m_Binding      = resource->m_Binding;
+                resource_entries[i].m_Set     = resource->m_Set;
+                resource_entries[i].m_Binding = resource->m_Binding;
             }
-            else if (resource_name_hash == SPIRV_Cross_NumWorkgroups_hash)
+            // 3. For compute shaders, we need to deal with this resource separately, since the gl_NumWorkgroups built-in doesn't
+            //    exist in HLSL. It will be converted into a cbuffer in hlsl, so we need to keep track of that separately.
+            else if (resource_name_hash == HASH_SPIRV_CROSS_NUM_WORKGROUPS)
             {
                 dmLogInfo("Found SPIRV_Cross_NumWorkgroups (binding=%d)", bindDesc.BindPoint);
 
-                resource_entries[i].m_HLSLRegister = bindDesc.BindPoint;
-                resource_entries[i].m_Set          = 0; // note: we set decoration to 0 in shaderc_spvc.cpp
-                resource_entries[i].m_Binding      = bindDesc.BindPoint;
+                resource_entries[i].m_Set     = HLSL_NUM_WORKGROUPS_SET; // note: we set the explicit set decoration in shaderc_spvc.cpp
+                resource_entries[i].m_Binding = bindDesc.BindPoint;
             }
             else
             {
@@ -162,14 +165,14 @@ namespace dmShaderc
             const char* typeStr = "";
             switch (bindDesc.Type)
             {
-            case D3D_SIT_CBUFFER:          typeStr = "CBV"; break;
-            case D3D_SIT_TBUFFER:          typeStr = "TBUFFER"; break;
-            case D3D_SIT_TEXTURE:          typeStr = "SRV (Texture)"; break;
-            case D3D_SIT_SAMPLER:          typeStr = "Sampler"; break;
-            case D3D_SIT_STRUCTURED:       typeStr = "SRV (StructuredBuffer)"; break;
-            case D3D_SIT_UAV_RWTYPED:      typeStr = "UAV"; break;
-            case D3D_SIT_UAV_RWSTRUCTURED: typeStr = "UAV (RWStructuredBuffer)"; break;
-            default:                       typeStr = "UNDEFINED"; break;
+                case D3D_SIT_CBUFFER:          typeStr = "CBV"; break;
+                case D3D_SIT_TBUFFER:          typeStr = "TBUFFER"; break;
+                case D3D_SIT_TEXTURE:          typeStr = "SRV (Texture)"; break;
+                case D3D_SIT_SAMPLER:          typeStr = "Sampler"; break;
+                case D3D_SIT_STRUCTURED:       typeStr = "SRV (StructuredBuffer)"; break;
+                case D3D_SIT_UAV_RWTYPED:      typeStr = "UAV"; break;
+                case D3D_SIT_UAV_RWSTRUCTURED: typeStr = "UAV (RWStructuredBuffer)"; break;
+                default:                       typeStr = "UNDEFINED"; break;
             }
 
             dmLogInfo("  [%u] Name: %-30s Type: %-25s BindPoint: %u  BindCount: %u",
@@ -282,23 +285,6 @@ namespace dmShaderc
         dmSnPrintf(write_str, buffer.Size() - (write_str - buffer.Begin()), suffix);
     }
 
-    static inline void EscapeRootSignatureString(const char* input, char* output) {
-        while (*input)
-        {
-            if (*input == '"')
-            {
-                *output++ = '\\';
-                *output++ = '"';
-            }
-            else
-            {
-                *output++ = *input;
-            }
-            input++;
-        }
-        *output = '\0';
-    }
-
     static bool InjectRootSignatureIntoSource(const char* source, const char* root_signature, dmArray<char>& injected_buffer)
     {
         const char* markers[] = { "SPIRV_Cross_Output main(", "void main(" };
@@ -316,7 +302,7 @@ namespace dmShaderc
         size_t root_sig_len = strlen(root_signature);
         size_t source_len   = strlen(source);
 
-        // Safe estimate: prefix + root + newline + suffix + null
+        // estimate: prefix + root + newline + suffix
         size_t total_len = prefix_len + root_sig_len + 1 + (source_len - prefix_len);
 
         injected_buffer.SetCapacity(total_len);
@@ -328,19 +314,13 @@ namespace dmShaderc
 
         // Insert root signature
         int offset = (int)prefix_len;
-        int written = dmSnPrintf(result + offset, total_len - offset, "%s\n", root_signature);
-        if (written < 0 || written >= (int)(total_len - offset)) {
-            return false;
-        }
-
-        offset += written;
+        offset += dmSnPrintf(result + offset, total_len - offset, "%s\n", root_signature);
 
         // Copy the rest of the source
         size_t rest_len = source_len - prefix_len;
         memcpy(result + offset, source + prefix_len, rest_len);
         offset += rest_len;
 
-        // Now set the actual used size (including null, if you want to preserve it)
         injected_buffer.SetCapacity(offset);
         injected_buffer.SetSize(offset);
 
@@ -354,6 +334,7 @@ namespace dmShaderc
 
         const char* profile = "";
 
+        // TODO: correct versions here
         switch(context->m_Stage)
         {
         case SHADER_STAGE_VERTEX:
@@ -367,18 +348,7 @@ namespace dmShaderc
             break;
         }
 
-        HRESULT hr = D3DCompile(
-            raw_hlsl->m_Data.Begin(),
-            raw_hlsl->m_Data.Size(),
-            NULL, NULL, NULL,
-            "main",
-            profile,
-            D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_WARNINGS_ARE_ERRORS,
-            0,
-            &shader_blob,
-            &error_blob
-        );
-
+        HRESULT hr = D3DCompile(raw_hlsl->m_Data.Begin(), raw_hlsl->m_Data.Size(), NULL, NULL, NULL, "main", profile, D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_WARNINGS_ARE_ERRORS, 0, &shader_blob, &error_blob);
         if (FAILED(hr))
         {
             if (error_blob)
@@ -394,12 +364,7 @@ namespace dmShaderc
         }
 
         ID3D12ShaderReflection* reflection = NULL;
-        hr = D3DReflect(
-            shader_blob->GetBufferPointer(),
-            shader_blob->GetBufferSize(),
-            __uuidof(ID3D12ShaderReflection),
-            (void**)&reflection
-        );
+        hr = D3DReflect(shader_blob->GetBufferPointer(), shader_blob->GetBufferSize(), __uuidof(ID3D12ShaderReflection), (void**)&reflection);
 
         if (FAILED(hr))
         {

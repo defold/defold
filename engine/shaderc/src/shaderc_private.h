@@ -21,6 +21,8 @@
 
 namespace dmShaderc
 {
+    static const uint8_t HLSL_NUM_WORKGROUPS_SET = 0;
+
     struct ShaderContext
     {
         uint8_t*          m_ShaderCode;

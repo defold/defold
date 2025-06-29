@@ -111,7 +111,6 @@ namespace dmGraphics
         dmhash_t m_NameHash; // Debug
         uint8_t  m_Binding;
         uint8_t  m_Set;
-        uint8_t  m_RootParameterIndex;
     };
 
     struct DX12ShaderProgram

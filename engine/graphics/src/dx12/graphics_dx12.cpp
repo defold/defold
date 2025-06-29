@@ -173,19 +173,6 @@ namespace dmGraphics
         }
     }
 
-    /*
-    static void CreateRootSignature(DX12Context* context, CD3DX12_ROOT_SIGNATURE_DESC* desc, DX12ShaderProgram* program)
-    {
-        ID3DBlob* signature;
-        ID3DBlob* error;
-        HRESULT hr = D3D12SerializeRootSignature(desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error);
-        CHECK_HR_ERROR(hr);
-
-        hr = context->m_Device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&program->m_RootSignature));
-        CHECK_HR_ERROR(hr);
-    }
-    */
-
     static void SetupMainRenderTarget(DX12Context* context, DXGI_SAMPLE_DESC sample_desc)
     {
         // Initialize the dummy rendertarget for the main framebuffer
@@ -1165,7 +1152,6 @@ namespace dmGraphics
 
     static inline bool IsRenderTargetbound(DX12Context* context, HRenderTarget rt)
     {
-        //ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, rt);
         return current_rt ? current_rt->m_IsBound : 0;
     }
@@ -2364,7 +2350,7 @@ namespace dmGraphics
         dmLogInfo("Flags: 0x%X\n", desc->Flags);
     }
 
-    static HRESULT MergeRootSignatures(ID3DBlob* blob_a, ID3DBlob* blob_b, ID3DBlob** out_merged_blob)
+    static HRESULT ConcatenateRootSignatures(ID3DBlob* blob_a, ID3DBlob* blob_b, ID3DBlob** out_merged_blob)
     {
         if (!blob_a || !blob_b || !out_merged_blob)
         {
@@ -2526,33 +2512,17 @@ namespace dmGraphics
         {
             program->m_VertexModule = new DX12ShaderModule;
             program->m_FragmentModule = new DX12ShaderModule;
-
             memset(program->m_VertexModule, 0, sizeof(DX12ShaderModule));
             memset(program->m_FragmentModule, 0, sizeof(DX12ShaderModule));
-
-            char* vs_copy = (char*) malloc(ddf_vp->m_Source.m_Count);
-            memcpy(vs_copy, ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count);
-            vs_copy[ddf_vp->m_Source.m_Count-1] = '\0';
-
-            char* fs_copy = (char*) malloc(ddf_fp->m_Source.m_Count);
-            memcpy(fs_copy, ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count);
-            fs_copy[ddf_fp->m_Source.m_Count-1] = '\0';
 
             dmLogInfo("--------");
             dmLogInfo("VS Shader: %s", ddf_vp->m_Source.m_Data);
             dmLogInfo("FS Shader: %s, %d, %d", ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count, strlen(fs_copy));
 
-            HRESULT hr = CreateShaderModule(context, "vs_5_1", vs_copy, ddf_vp->m_Source.m_Count, program->m_VertexModule);
+            HRESULT hr = CreateShaderModule(context, "vs_5_1", ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count, program->m_VertexModule);
             CHECK_HR_ERROR(hr);
 
-            for (int i = ddf_fp->m_Source.m_Count-10; i < ddf_fp->m_Source.m_Count; ++i)
-            {
-                printf("%d,", ddf_fp->m_Source.m_Data[i]);
-            }
-
-            printf("\n");
-
-            hr = CreateShaderModule(context, "ps_5_1", fs_copy, ddf_fp->m_Source.m_Count, program->m_FragmentModule);
+            hr = CreateShaderModule(context, "ps_5_1", ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count, program->m_FragmentModule);
             CHECK_HR_ERROR(hr);
 
             CreateProgramResourceBindings(program, program->m_VertexModule, program->m_FragmentModule, NULL);
@@ -2562,8 +2532,9 @@ namespace dmGraphics
 
             ID3DBlob* merged_signature_blob = 0;
 
-            // We can only use a single root signature, so we have to merge them (TODO: can we do this offline?)
-            MergeRootSignatures(program->m_VertexModule->m_RootSignatureBlob, program->m_FragmentModule->m_RootSignatureBlob, &merged_signature_blob);
+            // We can only use a single root signature, so we have to concat them (TODO: can we do this offline?)
+            hr = ConcatenateRootSignatures(program->m_VertexModule->m_RootSignatureBlob, program->m_FragmentModule->m_RootSignatureBlob, &merged_signature_blob);
+            CHECK_HR_ERROR(hr);
 
             hr = context->m_Device->CreateRootSignature(0, merged_signature_blob->GetBufferPointer(), merged_signature_blob->GetBufferSize(), IID_PPV_ARGS(&program->m_RootSignature));
             CHECK_HR_ERROR(hr);

@@ -433,11 +433,9 @@ message ShaderDesc
 
     message HLSLResourceBinding
     {
-        optional string name      = 1;
-        optional uint64 name_hash = 2;
-        optional uint32 binding   = 3;
-        optional uint32 set       = 4;
-        optional uint32 register  = 5;
+        optional uint64 name_hash = 1;
+        optional uint32 binding   = 2;
+        optional uint32 set       = 3;
     }
 
     message Shader
