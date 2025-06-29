@@ -1063,30 +1063,49 @@ public class Fontc {
         return previewImage;
     }
 
+    private static void Usage() {
+        System.err.println("Usage: fontc fontfile outfile [basedir] [dynamic]");
+        System.exit(1);
+    }
+
     // run with java -cp bob.jar com.dynamo.bob.font.Fontc foobar.font foobar.fontc
     public static void main(String[] args) throws FontFormatException, TextureGeneratorException {
         try {
             System.setProperty("java.awt.headless", "true");
-            if (args.length != 2 && args.length != 3 && args.length != 4)    {
-                System.err.println("Usage: fontc fontfile [basedir] outfile");
-                System.exit(1);
-            }
 
-            String basedir = ".";
-            String outfile = args[1];
-            boolean dynamic = false;
+            File    fontInput   = null;
+            String  outfile     = null;
+            String  basedir     = ".";
+            boolean dynamic     = false;
+
+            if (args.length >= 1) {
+                fontInput = new File(args[0]);
+            }
 
             if (args.length >= 2) {
-                basedir = args[1];
+                outfile = args[1];
             }
+
             if (args.length >= 3) {
-                outfile = args[2];
+                basedir = args[2];
             }
+
             if (args.length >= 4) {
                 dynamic = Boolean.parseBoolean(args[3]);
             }
 
-            final File fontInput = new File(args[0]);
+            if (fontInput == null)
+            {
+                System.err.println("No input .font specified!");
+                Usage();
+            }
+
+            if (outfile == null)
+            {
+                System.err.println("No output file specified!");
+                Usage();
+            }
+
             FileInputStream stream = new FileInputStream(fontInput);
             InputStreamReader reader = new InputStreamReader(stream);
             FontDesc.Builder builder = FontDesc.newBuilder();
@@ -1112,11 +1131,12 @@ public class Fontc {
             }
 
             // Compile fontdesc to fontmap
+            final String parentDir = fontInput.getParent();
             Fontc fontc = new Fontc();
             String fontInputFile = basedir + File.separator + fontDesc.getFont();
             BufferedInputStream fontInputStream = new BufferedInputStream(new FileInputStream(fontInputFile));
             BufferedImage previewImage = fontc.compile(fontInputStream, fontDesc, false, resourceName -> {
-                Path resPath = Paths.get(fontInput.getParent(), resourceName);
+                Path resPath = Paths.get(parentDir, resourceName);
                 BufferedInputStream resStream = new BufferedInputStream(new FileInputStream(resPath.toString()));
 
                 return resStream;

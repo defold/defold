@@ -75,7 +75,7 @@ def material_file(self, node):
     shader_node = node.parent.get_bld().make_node(shader_name)
     shader.set_outputs(shader_node)
 
-waflib.Task.task_factory('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${CONTENT_ROOT} ${TGT}',
+waflib.Task.task_factory('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${TGT} ${CONTENT_ROOT} ${DYNAMIC}',
                          color='PINK',
                          after='proto_gen_py',
                          before='c cxx',
@@ -86,8 +86,12 @@ def font_file(self, node):
     classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
     fontmap = self.create_task('fontmap')
 
-    fontmap.env['CLASSPATH'] = os.pathsep.join(classpath)
+    fontmap.env['CLASSPATH']    = os.pathsep.join(classpath)
     fontmap.env['CONTENT_ROOT'] = fontmap.generator.content_root
+    fontmap.env['DYNAMIC']      = 'false'
+    if hasattr(fontmap.generator, 'dynamic_fonts'):
+        fontmap.env['DYNAMIC']  = 'true' if node.name in fontmap.generator.dynamic_fonts else 'false'
+
     fontmap.set_inputs(node)
     obj_ext = '.fontc'
     out = node.change_ext(obj_ext)
