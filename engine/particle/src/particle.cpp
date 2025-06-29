@@ -564,13 +564,6 @@ namespace dmParticle
         i->m_WorldTransform.SetScale(scale);
     }
 
-    void SetScaleAlongZ(HParticleContext context, HInstance instance, bool scale_along_z)
-    {
-        Instance* i = GetInstance(context, instance);
-        if (!i) return;
-        i->m_ScaleAlongZ = scale_along_z;
-    }
-
     Vector3 GetPosition(HParticleContext context, HInstance instance)
     {
         Instance* i = GetInstance(context, instance);
@@ -877,10 +870,7 @@ namespace dmParticle
             Vector3 emitter_velocity(0.0f);
             if (emitter_ddf->m_Space == EMISSION_SPACE_WORLD)
             {
-                if (instance->m_ScaleAlongZ)
-                    emitter_transform = dmTransform::Mul(instance->m_WorldTransform, emitter_transform);
-                else
-                    emitter_transform = dmTransform::MulNoScaleZ(instance->m_WorldTransform, emitter_transform);
+                emitter_transform = dmTransform::Mul(instance->m_WorldTransform, emitter_transform);
                 emitter_velocity = emitter->m_Velocity * emitter_ddf->m_InheritVelocity;
             }
             for (uint32_t i = 0; i < count; ++i)
@@ -1632,10 +1622,7 @@ namespace dmParticle
         position = emitter_ddf->m_Position + rotate(emitter_ddf->m_Rotation, Vector3(position));
         if (emitter_ddf->m_Space == EMISSION_SPACE_WORLD)
         {
-            if (instance->m_ScaleAlongZ)
-                position = dmTransform::Apply(instance->m_WorldTransform, position);
-            else
-                position = dmTransform::ApplyNoScaleZ(instance->m_WorldTransform, position);
+            position = dmTransform::Apply(instance->m_WorldTransform, position);
         }
         return Point3(position);
     }
@@ -1734,10 +1721,7 @@ namespace dmParticle
                     color.setZ(t);
                 }
                 dmTransform::TransformS1 transform(Vector3(ddf->m_Position), ddf->m_Rotation, 1.0f);
-                if (instance->m_ScaleAlongZ)
-                    transform = dmTransform::Mul(instance->m_WorldTransform, transform);
-                else
-                    transform = dmTransform::MulNoScaleZ(instance->m_WorldTransform, transform);
+                transform = dmTransform::Mul(instance->m_WorldTransform, transform);
 
                 switch (ddf->m_Type)
                 {
@@ -1984,10 +1968,7 @@ namespace dmParticle
 
         dmParticleDDF::Emitter* ddf = &instance->m_Prototype->m_DDF->m_Emitters[emitter_index];
         dmTransform::TransformS1 transform(Vector3(ddf->m_Position), ddf->m_Rotation, 1.0f);
-        if (instance->m_ScaleAlongZ)
-            transform = dmTransform::Mul(instance->m_WorldTransform, transform);
-        else
-            transform = dmTransform::MulNoScaleZ(instance->m_WorldTransform, transform);
+        transform = dmTransform::Mul(instance->m_WorldTransform, transform);
         dmVMath::Matrix4 world = dmTransform::ToMatrix4(transform);
         dmParticle::EmitterPrototype* emitter_proto = &instance->m_Prototype->m_Emitters[emitter_index];
 
@@ -2000,10 +1981,7 @@ namespace dmParticle
         EmitterRenderData& render_data = emitter->m_RenderData;
 
         dmTransform::TransformS1 transform(Vector3(ddf->m_Position), ddf->m_Rotation, 1.0f);
-        if (inst->m_ScaleAlongZ)
-            transform = dmTransform::Mul(inst->m_WorldTransform, transform);
-        else
-            transform = dmTransform::MulNoScaleZ(inst->m_WorldTransform, transform);
+        transform = dmTransform::Mul(inst->m_WorldTransform, transform);
         dmVMath::Matrix4 world = dmTransform::ToMatrix4(transform);
         dmParticle::EmitterPrototype* emitter_proto = &inst->m_Prototype->m_Emitters[emitter_index];
 
@@ -2339,7 +2317,6 @@ namespace dmParticle
     DM_PARTICLE_TRAMPOLINE3(void, SetPosition, HParticleContext, HInstance, const Point3&);
     DM_PARTICLE_TRAMPOLINE3(void, SetRotation, HParticleContext, HInstance, const Quat&);
     DM_PARTICLE_TRAMPOLINE3(void, SetScale, HParticleContext, HInstance, float);
-    DM_PARTICLE_TRAMPOLINE3(void, SetScaleAlongZ, HParticleContext, HInstance, bool);
 
     DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HParticleContext, HInstance);
     DM_PARTICLE_TRAMPOLINE3(void, Update, HParticleContext, float, FetchAnimationCallback);
