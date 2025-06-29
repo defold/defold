@@ -152,7 +152,7 @@
           (TextureSetGenerator/buildConvexHull buffered-image pivot-x pivot-y (sprite-trim-mode->enum sprite-trim-mode)))))))
 
 (defn atlas->texture-set-data
-  [animations images margin inner-padding extrude-borders max-page-size]
+  [layout-result animations images]
   (let [sprite-geometries (mapv make-image-sprite-geometry images)]
     (g/precluding-errors sprite-geometries
       (let [img-to-index (into {}
@@ -170,17 +170,13 @@
                               (let [img (first @anim-imgs-atom)]
                                 (swap! anim-imgs-atom rest)
                                 (img-to-index img)))
-                            ; This generator is run with fake animation (i.e. no valid id's)
-                            ; See atlas.clj produce-texture-set-data for the patchup details
                             (getFrameId [_this] "")
                             (rewind [_this]
                               (reset! anims-atom animations)
                               (reset! anim-imgs-atom [])))
-            rects (mapv texture-set-layout-rect images)
             use-geometries (if (every? #(= :sprite-trim-mode-off (:sprite-trim-mode %)) images) 0 1)
-            result (TextureSetGenerator/calculateLayout
-                     rects sprite-geometries use-geometries anim-iterator margin inner-padding extrude-borders
-                     true false nil (get max-page-size 0) (get max-page-size 1))]
+            result (TextureSetGenerator/calculateTextureSetResult
+                     layout-result sprite-geometries use-geometries anim-iterator)]
         (doto (.builder result)
           (.setTexture "unknown"))
         (TextureSetResult->result result)))))
@@ -323,7 +319,7 @@
         id->image (zipmap (map (fn [x] (format "tile%d" x)) (range)) (split-image image tile-source-attributes))]
     (TextureSetGenerator/layoutImages layout inner-padding extrude-borders id->image)))
 
-(defn calculate-layout-result
+(defn tile-source->layout-result
   [tile-source-attributes]
   (let [image-rects (split-rects tile-source-attributes)
         grid (TextureSetLayout$Grid. (:tiles-per-row tile-source-attributes)
@@ -334,3 +330,13 @@
      (:inner-padding tile-source-attributes)
      (:extrude-borders tile-source-attributes)
      false true grid 0.0 0.0)))
+
+(defn atlas->layout-result
+  [images margin inner-padding extrude-borders max-page-size]
+  (let [rects (mapv texture-set-layout-rect images)]
+    (TextureSetGenerator/calculateLayoutResult
+     rects
+     margin
+     inner-padding
+     extrude-borders
+     true false nil (get max-page-size 0) (get max-page-size 1))))
