@@ -56,7 +56,11 @@
 #endif
 
 // Define SIMD
-#if defined( BOX2D_ENABLE_SIMD )
+#if defined( BOX2D_DISABLE_SIMD )
+	#define B2_SIMD_NONE
+	// note: I tried width of 1 and got no performance change
+	#define B2_SIMD_WIDTH 4
+#else
 	#if defined( B2_CPU_X86_X64 )
 		#if defined( BOX2D_AVX2 )
 			#define B2_SIMD_AVX2
@@ -76,10 +80,6 @@
 		#define B2_SIMD_NONE
 		#define B2_SIMD_WIDTH 4
 	#endif
-#else
-	#define B2_SIMD_NONE
-	// note: I tried width of 1 and got no performance change
-	#define B2_SIMD_WIDTH 4
 #endif
 
 // Define compiler
@@ -116,21 +116,17 @@
 #define B2_SECRET_COOKIE 1152023
 
 // Snoop counters. These should be disabled in optimized builds because they are expensive.
+#if defined( box2d_EXPORTS )
 #define B2_SNOOP_TABLE_COUNTERS B2_DEBUG
 #define B2_SNOOP_PAIR_COUNTERS B2_DEBUG
 #define B2_SNOOP_TOI_COUNTERS B2_DEBUG
+#else
+#define B2_SNOOP_TABLE_COUNTERS 0
+#define B2_SNOOP_PAIR_COUNTERS 0
+#define B2_SNOOP_TOI_COUNTERS 0
+#endif
 
 #define B2_CHECK_DEF( DEF ) B2_ASSERT( DEF->internalValue == B2_SECRET_COOKIE )
-
-void* b2Alloc( int size );
-#define B2_ALLOC_STRUCT( type ) b2Alloc(sizeof(type))
-#define B2_ALLOC_ARRAY( count, type ) b2Alloc(count * sizeof(type))
-
-void b2Free( void* mem, int size );
-#define B2_FREE_STRUCT( mem, type ) b2Free( mem, sizeof(type));
-#define B2_FREE_ARRAY( mem, count, type ) b2Free(mem, count * sizeof(type))
-
-void* b2GrowAlloc( void* oldMem, int oldSize, int newSize );
 
 typedef struct b2AtomicInt
 {
@@ -142,12 +138,12 @@ typedef struct b2AtomicU32
 	uint32_t value;
 } b2AtomicU32;
 
-#if 0
-void b2AtomicStoreInt( b2AtomicInt* a, int value );
-int b2AtomicLoadInt( b2AtomicInt* a );
-int b2AtomicFetchAddInt( b2AtomicInt* a, int increment );
-bool b2AtomicCompareExchangeInt( b2AtomicInt* obj, int expected, int desired );
+void* b2Alloc( int size );
+#define B2_ALLOC_STRUCT( type ) b2Alloc(sizeof(type))
+#define B2_ALLOC_ARRAY( count, type ) b2Alloc(count * sizeof(type))
 
-void b2AtomicStoreU32( b2AtomicU32* a, uint32_t value );
-uint32_t b2AtomicLoadU32( b2AtomicU32* a );
-#endif
+void b2Free( void* mem, int size );
+#define B2_FREE_STRUCT( mem, type ) b2Free( mem, sizeof(type));
+#define B2_FREE_ARRAY( mem, count, type ) b2Free(mem, count * sizeof(type))
+
+void* b2GrowAlloc( void* oldMem, int oldSize, int newSize );

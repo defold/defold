@@ -1517,11 +1517,12 @@ namespace dmPhysics
             f_def.filter.categoryBits = data.m_Group;
             f_def.filter.maskBits     = data.m_Mask;
             f_def.density             = 1.0f;
-            f_def.friction            = data.m_Friction;
-            f_def.restitution         = data.m_Restitution;
+            f_def.material.friction            = data.m_Friction;
+            f_def.material.restitution         = data.m_Restitution;
             f_def.isSensor            = data.m_Type == COLLISION_OBJECT_TYPE_TRIGGER;
             f_def.enableContactEvents = true;
             f_def.enableHitEvents     = true;
+            f_def.enableSensorEvents = true;
 
             switch (s->m_Type)
             {
