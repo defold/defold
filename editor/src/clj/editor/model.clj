@@ -63,7 +63,7 @@
         [])
       (:animation-ids animation-set-info))))
 
-(g/defnk produce-pb-msg [name mesh materials skeleton animations default-animation]
+(g/defnk produce-pb-msg [name mesh materials skeleton animations default-animation create-go-bones]
   (protobuf/make-map-without-defaults ModelProto$ModelDesc
     :mesh (resource/resource->proj-path mesh)
     :materials (mapv
@@ -75,7 +75,8 @@
     :skeleton (resource/resource->proj-path skeleton)
     :animations (resource/resource->proj-path animations)
     :default-animation default-animation
-    :name name))
+    :name name
+    :create-go-bones create-go-bones))
 
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
@@ -136,7 +137,8 @@
             rig-scene-build-target (rig/make-rig-scene-build-target workspace _node-id rig-scene-pb-msg dep-build-targets rig-scene-dep-build-targets)
             rt-pb-msg (-> {:rig-scene (:resource rig-scene-build-target)
                            :default-animation (:default-animation pb-msg)
-                           :materials (:materials pb-msg)}
+                           :materials (:materials pb-msg)
+                           :create-go-bones (:create-go-bones pb-msg)}
                           (update-build-target-vertex-attributes material-binding-infos))
             dep-build-targets (into [rig-scene-build-target] (flatten dep-build-targets))]
         [(pipeline/make-protobuf-build-target _node-id resource ModelProto$Model rt-pb-msg dep-build-targets)])))
@@ -443,6 +445,8 @@
           (g/fnk [material-scene-infos]
             (model-scene/make-material-name->material-scene-info material-scene-infos)))
 
+  (property create-go-bones g/Bool (default (protobuf/default ModelProto$ModelDesc :create-go-bones)))
+
   (property skeleton resource/Resource ; Nil is valid default.
             (value (gu/passthrough skeleton-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -525,14 +529,15 @@
   (when (migrated? model-node-id model-desc evaluation-context)
     (g/flag-nodes-as-migrated! evaluation-context [model-node-id])))
 
-(defn load-model [_project self resource {:keys [name default-animation mesh skeleton animations materials] :as model-desc}]
+(defn load-model [_project self resource {:keys [name default-animation mesh skeleton animations materials create-go-bones] :as model-desc}]
   (concat
     (g/set-properties self
       :name name
       :default-animation default-animation
       :mesh (workspace/resolve-resource resource mesh)
       :skeleton (workspace/resolve-resource resource skeleton)
-      :animations (workspace/resolve-resource resource animations))
+      :animations (workspace/resolve-resource resource animations)
+      :create-go-bones create-go-bones)
     (map-indexed
       (fn [material-index {:keys [name material textures attributes]}]
         (let [material (workspace/resolve-resource resource material)

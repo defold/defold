@@ -599,8 +599,10 @@ namespace dmGameSystem
 
     static bool CreateGOBones(ModelWorld* world, ModelComponent* component)
     {
-        if(!component->m_Resource->m_RigScene->m_SkeletonRes)
+        if ((!component->m_Resource->m_Model->m_CreateGoBones) || (!component->m_Resource->m_RigScene->m_SkeletonRes))
+        {
             return true;
+        }
 
         dmGameObject::HInstance instance = component->m_Instance;
         dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
@@ -925,9 +927,12 @@ namespace dmGameSystem
     {
         dmRig::InstanceCreateParams create_params = {0};
 
-        create_params.m_PoseCallback = CompModelPoseCallback;
-        create_params.m_PoseCBUserData1 = component;
-        create_params.m_PoseCBUserData2 = 0;
+        if (component->m_Resource->m_Model->m_CreateGoBones)
+        {
+            create_params.m_PoseCallback = CompModelPoseCallback;
+            create_params.m_PoseCBUserData1 = component;
+            create_params.m_PoseCBUserData2 = 0;
+        }
         create_params.m_EventCallback = CompModelEventCallback;
         create_params.m_EventCBUserData1 = component;
         create_params.m_EventCBUserData2 = 0;
@@ -991,11 +996,14 @@ namespace dmGameSystem
 
         // Create GO<->bone representation
         // We need to make sure that bone GOs are created before we start the default animation.
-        if (!CreateGOBones(world, component))
+        if (component->m_Resource->m_Model->m_CreateGoBones)
         {
-            dmLogError("Failed to create game objects for bones in model. Consider increasing collection max instances (collection.max_instances).");
-            DestroyComponent(world, index);
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            if (!CreateGOBones(world, component))
+            {
+                dmLogError("Failed to create game objects for bones in model. Consider increasing collection max instances (collection.max_instances).");
+                DestroyComponent(world, index);
+                return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            }
         }
 
         // Create rig instance
@@ -1111,8 +1119,15 @@ namespace dmGameSystem
         }
     }
 
-    static inline void EnsureBindPoseCacheBufferSize(ModelWorld* world, uint32_t max_width, uint32_t max_height)
+    static inline void EnsureBindPoseCacheBufferSize(ModelWorld* world, uint32_t num_bone_pixels)
     {
+        uint32_t max_width  = dmMath::Min(num_bone_pixels, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth);
+        uint32_t max_height = dmMath::Min(num_bone_pixels / world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth + 1, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxHeight);
+        if (num_bone_pixels > (max_width * max_height))
+        {
+            dmLogOnceError("Bone matrix texture cache is too small to fit %d pixels of bone data. Increase model.max_bone_matrix_texture_width and/or max_bone_matrix_texture_height.", num_bone_pixels);
+        }
+
         if (world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentWidth < max_width ||
             world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentHeight < max_height)
         {
@@ -1779,17 +1794,14 @@ namespace dmGameSystem
         // TODO!
         // We should be able to write 4x3 matrices here. The last column will always be (0, 0, 0, 1)
         uint32_t num_bone_pixels = pose_matrix_count * 4;
-        uint32_t max_width  = dmMath::Min(num_bone_pixels, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth);
-        uint32_t max_height = dmMath::Min(num_bone_pixels / world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth + 1, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxHeight);
-
-        EnsureBindPoseCacheBufferSize(world, max_width, max_height);
+        EnsureBindPoseCacheBufferSize(world, num_bone_pixels);
         dmVMath::Matrix4* animation_data_write_ptr = (dmVMath::Matrix4*) world->m_SkinnedAnimationData.m_BindPoseCacheBuffer;
 
         memcpy(animation_data_write_ptr, pose_matrix_read_ptr, pose_matrix_count * sizeof(dmVMath::Matrix4));
 
         dmGraphics::TextureParams tp;
-        tp.m_Width     = max_width;
-        tp.m_Height    = max_height;
+        tp.m_Width     = world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentWidth;
+        tp.m_Height    = world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentHeight;
         tp.m_Depth     = 1;
         tp.m_Format    = BIND_POSE_CACHE_TEXTURE_FORMAT;
         tp.m_Data      = animation_data_write_ptr;
@@ -2392,7 +2404,14 @@ namespace dmGameSystem
 
     dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index)
     {
-        return component->m_NodeInstances[bone_index];
+        if (component->m_Resource->m_Model->m_CreateGoBones)
+        {
+            return component->m_NodeInstances[bone_index];
+        }
+        else
+        {
+            return 0x0;
+        }
     }
 
     bool CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled)
