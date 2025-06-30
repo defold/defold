@@ -14,8 +14,10 @@
 
 (ns editor.model-scene
   (:require [dynamo.graph :as g]
+            [editor.buffers :as buffers]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.buffer :as gl.buffer]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
@@ -37,7 +39,7 @@
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
            [editor.gl.vertex2 VertexBuffer]
-           [java.nio ByteOrder]
+           [java.nio ByteOrder FloatBuffer]
            [javax.vecmath Matrix4d]))
 
 (set! *warn-on-reflection* true)
@@ -132,7 +134,7 @@
               (= component-count (count (peek vectors))))
       vectors)))
 
-(defn mesh->renderable-data [mesh]
+(defn- mesh->renderable-data [mesh]
   (let [positions (flat->vectors 3 (:positions mesh))
         normals (flat->vectors 3 (:normals mesh))
         tangents (flat->vectors 4 (:tangents mesh))
@@ -173,6 +175,176 @@
                 color-data (assoc :color-data color-data)
                 (some some? texcoord-datas) (assoc :texcoord-datas texcoord-datas)))
       (error-values/error-fatal "Failed to produce vertex buffers from mesh set. The scene might contain invalid data."))))
+
+(defn- make-attribute-float-buffer
+  ^FloatBuffer [input-floats input-component-count output-component-count output-component-fill]
+  (let [input-float-count (count input-floats)
+        input-component-count (int input-component-count)
+        output-component-count (int output-component-count)]
+    (assert (pos? input-float-count))
+    (assert (zero? (rem input-float-count input-component-count)))
+    (let [vector-count (quot input-float-count input-component-count)
+          output-float-count (* vector-count output-component-count)]
+      (if (= input-component-count output-component-count)
+        (-> (float-array input-float-count input-floats)
+            (buffers/wrap-float-array))
+        (let [output-component-fill (float output-component-fill)
+              output-float-buffer (buffers/new-float-buffer output-float-count :byte-order/native)]
+          (loop [vector-index 0
+                 input-component-index 0
+                 output-component-index 0]
+            (cond
+              (= vector-count vector-index)
+              (.flip output-float-buffer) ; We're done.
+
+              (< output-component-index output-component-count)
+              (let [output-float
+                    (float
+                      (if (< input-component-index input-component-count)
+                        (let [input-float-index (+ input-component-index (* vector-index input-component-count))]
+                          (nth input-floats input-float-index))
+                        output-component-fill))]
+                (.put output-float-buffer output-float)
+                (recur vector-index
+                       (inc input-component-index)
+                       (inc output-component-index)))
+
+              :else
+              (recur (inc vector-index)
+                     0
+                     0))))))))
+
+(defn make-attribute-buffer-binding
+  ([mesh-request-id mesh input-floats-pb-field input-component-count]
+   (make-attribute-buffer-binding mesh-request-id mesh input-floats-pb-field input-component-count input-component-count 0.0))
+  ([mesh-request-id mesh input-floats-pb-field input-component-count output-component-count output-component-fill]
+   (let [input-floats (get mesh input-floats-pb-field)
+         input-float-count (count input-floats)
+         input-component-count (int input-component-count)]
+     (cond
+       (zero? input-float-count)
+       nil ; We don't have any data for the attribute. Return nil.
+
+       (zero? (rem input-float-count input-component-count))
+       (let [data-buffer (make-attribute-float-buffer input-floats input-component-count output-component-count output-component-fill)
+             attribute-buffer-request-id (conj mesh-request-id input-floats-pb-field)
+             attribute-buffer-data (gl.buffer/make-buffer-data data-buffer :array-buffer :static)]
+         (gl.buffer/make-buffer-binding attribute-buffer-request-id attribute-buffer-data))
+
+       :else
+       (g/error-fatal
+         "Attribute component count mismatch."
+         {:input-component-count input-component-count
+          :input-float-count input-float-count
+          :input-floats-pb-field input-floats-pb-field
+          :mesh-request-id mesh-request-id
+          :mesh mesh})))))
+
+(defn- make-index-buffer-binding
+  [mesh-request-id mesh indices-pb-field]
+  (when-let [^ByteString indices-byte-string (get mesh indices-pb-field)]
+    (let [indices-byte-buffer (.order (.asReadOnlyByteBuffer indices-byte-string) ByteOrder/LITTLE_ENDIAN)
+          indices-byte-size (buffers/item-count indices-byte-buffer)
+          indices-format (:indices-format mesh)]
+      (when (pos? indices-byte-size)
+        (if-let [data-buffer
+                 (case indices-format
+                   :indexbuffer-format-16
+                   (when (zero? (rem indices-byte-size Short/BYTES))
+                     (.asShortBuffer indices-byte-buffer))
+
+                   :indexbuffer-format-32
+                   (when (zero? (rem indices-byte-size Integer/BYTES))
+                     (.asIntBuffer indices-byte-buffer)))]
+          (let [index-buffer-request-id (conj mesh-request-id indices-pb-field)
+                index-buffer-data (gl.buffer/make-buffer-data data-buffer :element-array-buffer :static)]
+            (gl.buffer/make-buffer-binding index-buffer-request-id index-buffer-data))
+          (g/error-fatal
+            "Index byte size mismatch."
+            {:indices-format indices-format
+             :indices-byte-size indices-byte-size
+             :indices-pb-field indices-pb-field
+             :mesh-request-id mesh-request-id
+             :mesh mesh}))))))
+
+(defn- mesh->renderable-buffers [mesh mesh-request-id]
+  (let [texcoord0-component-count (int (:num-texcoord0-components mesh 0))
+        texcoord1-component-count (int (:num-texcoord1-components mesh 0))
+        positions (make-attribute-buffer-binding mesh-request-id mesh :positions 3 4 1.0)
+        normals (make-attribute-buffer-binding mesh-request-id mesh :normals 3 4 0.0)
+        tangents (make-attribute-buffer-binding mesh-request-id mesh :tangents 4 4 1.0)
+        colors (make-attribute-buffer-binding mesh-request-id mesh :colors 4 4 1.0)
+        texcoord0s (make-attribute-buffer-binding mesh-request-id mesh :texcoord0 texcoord0-component-count)
+        texcoord1s (make-attribute-buffer-binding mesh-request-id mesh :texcoord1 texcoord1-component-count)
+        indices (make-index-buffer-binding mesh-request-id mesh :indices)]
+    (g/precluding-errors
+      [positions normals tangents colors texcoord0s texcoord1s indices]
+      (let [position-count (gl.buffer/buffer-binding-vertex-count positions 4)
+            normal-count (gl.buffer/buffer-binding-vertex-count normals 4)
+            tangent-count (gl.buffer/buffer-binding-vertex-count tangents 4)
+            color-count (gl.buffer/buffer-binding-vertex-count colors 4)
+            texcoord0-count (gl.buffer/buffer-binding-vertex-count texcoord0s texcoord0-component-count)
+            texcoord1-count (gl.buffer/buffer-binding-vertex-count texcoord1s texcoord1-component-count)
+            max-index (if (nil? indices)
+                        -1
+                        (->> indices
+                             (gl.buffer/buffer-binding-buffer-data-buffer)
+                             (buffers/reducible)
+                             (transduce
+                               (map (case (:indices-format mesh)
+                                      :indexbuffer-format-16 num/ushort->long
+                                      :indexbuffer-format-32 num/uint->long))
+                               max
+                               -1)
+                             (long)))]
+        (if (zero? position-count)
+          (g/error-fatal
+            "Position data missing."
+            {:mesh-request-id mesh-request-id
+             :mesh mesh})
+          (g/precluding-errors
+            (into (if (< max-index position-count)
+                    []
+                    [(g/error-fatal
+                       "Index out of bounds."
+                       {:position-count position-count
+                        :max-index max-index
+                        :mesh-request-id mesh-request-id
+                        :mesh mesh})])
+                  (keep (fn [[attribute-pb-field ^long attribute-count]]
+                          (when (not= position-count attribute-count)
+                            (ex-info
+                              "Attribute count mismatch."
+                              {:position-count position-count
+                               :attribute-count attribute-count
+                               :attribute-pb-field attribute-pb-field
+                               :mesh-request-id mesh-request-id
+                               :mesh mesh}))))
+                  [[:normals normal-count]
+                   [:tangents tangent-count]
+                   [:colors color-count]
+                   [:texcoord0 texcoord0-count]
+                   [:texcoord1 texcoord1-count]])
+            (let [attribute-buffers
+                  (cond-> {:semantic-type-position [positions]}
+
+                          (pos? normal-count)
+                          (assoc :semantic-type-normal [normals])
+
+                          (pos? tangent-count)
+                          (assoc :semantic-type-tangent [tangents])
+
+                          (pos? color-count)
+                          (assoc :semantic-type-color [colors])
+
+                          (or (pos? texcoord0-count)
+                              (pos? texcoord1-count))
+                          (assoc :semantic-type-texcoord (cond-> [(when (pos? texcoord0-count) texcoord0s)]
+                                                                 (pos? texcoord1-count) (conj texcoord1s))))]
+              (cond-> {:attribute-buffers attribute-buffers}
+
+                      (not (neg? max-index))
+                      (assoc :index-buffer indices)))))))))
 
 (defn populate-vb! [^VertexBuffer vbuf ^Matrix4d world-transform ^Matrix4d normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes mesh-renderable-data]
   (let [mesh-renderable-data
@@ -300,24 +472,35 @@
       default-material-ids
       ret)))
 
-(defn- make-renderable-mesh [mesh mesh-material-index->material-name]
-  (let [mesh-renderable-data (mesh->renderable-data mesh)]
-    (if (g/error-value? mesh-renderable-data)
+(defn- make-renderable-mesh [mesh mesh-request-id mesh-material-index->material-name]
+  (let [mesh-renderable-data (mesh->renderable-data mesh)
+        mesh-renderable-buffers (mesh->renderable-buffers mesh mesh-request-id)]
+    (cond
+      (g/error-value? mesh-renderable-data)
       mesh-renderable-data
+
+      (g/error-value? mesh-renderable-buffers)
+      mesh-renderable-buffers
+
+      :else
       (let [{:keys [aabb-min aabb-max ^int material-index]} mesh
             mesh-aabb (geom/coords->aabb aabb-min aabb-max)
             material-name (mesh-material-index->material-name material-index)]
         {:aabb mesh-aabb
          :material-name material-name
-         :renderable-data mesh-renderable-data}))))
+         :renderable-data mesh-renderable-data
+         :renderable-buffers mesh-renderable-buffers}))))
 
-(defn- make-renderable-model [model mesh-material-index->material-name]
+(defn- make-renderable-model [model model-request-id mesh-material-index->material-name]
   (let [{:keys [translation rotation scale]} (:local model)
         model-transform (math/clj->mat4 translation rotation scale)
 
         renderable-meshes
-        (mapv #(make-renderable-mesh % mesh-material-index->material-name)
-              (:meshes model))]
+        (coll/transfer (:meshes model) []
+          (map-indexed
+            (fn [mesh-index mesh]
+              (let [mesh-request-id (conj model-request-id mesh-index)]
+                (make-renderable-mesh mesh mesh-request-id mesh-material-index->material-name)))))]
 
     (g/precluding-errors renderable-meshes
       (let [model-aabb (transduce
@@ -329,9 +512,11 @@
          :aabb model-aabb
          :renderable-meshes renderable-meshes}))))
 
-(defn- make-renderable-mesh-set [mesh-set mesh-material-index->material-name]
+(defn- make-renderable-mesh-set [mesh-set mesh-set-request-id mesh-material-index->material-name]
   (let [renderable-models
-        (mapv #(make-renderable-model % mesh-material-index->material-name)
+        (mapv (fn [model]
+                (let [model-request-id (conj mesh-set-request-id (:id model))]
+                  (make-renderable-model model model-request-id mesh-material-index->material-name)))
               (:models mesh-set))]
 
     (g/precluding-errors renderable-models
@@ -344,11 +529,19 @@
         {:aabb mesh-set-aabb
          :renderable-models renderable-models}))))
 
-(g/defnk produce-renderable-mesh-set [content]
-  (let [mesh-material-index->material-name
+(g/defnk produce-renderable-mesh-set [_node-id content]
+  (let [mesh-set-request-id [:ModelSceneNode/mesh-set _node-id]
+
+        mesh-material-index->material-name
         (or (some-> content :material-ids not-empty vec)
-            default-material-ids)]
-    (make-renderable-mesh-set (:mesh-set content) mesh-material-index->material-name)))
+            default-material-ids)
+
+        renderable-mesh-set-or-error-value
+        (make-renderable-mesh-set (:mesh-set content) mesh-set-request-id mesh-material-index->material-name)]
+
+    (if (g/error-value? renderable-mesh-set-or-error-value)
+      (assoc renderable-mesh-set-or-error-value :_node-id _node-id :_label :renderable-mesh-set)
+      renderable-mesh-set-or-error-value)))
 
 (defn- make-mesh-scene [renderable-mesh model-scene-resource-node-id]
   (let [{:keys [aabb material-name renderable-data]} renderable-mesh]

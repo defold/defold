@@ -70,8 +70,14 @@
   (^GlBufferData [^Buffer data target usage]
    (make-buffer-data data (System/identityHashCode data) target usage))
   (^GlBufferData [^Buffer data data-version target usage]
-   (if (nil? data)
-     (throw (IllegalArgumentException. "data cannot be nil"))
+   (cond
+     (nil? data)
+     (throw (IllegalArgumentException. "data Buffer cannot be nil"))
+
+     (not (buffers/flipped? data))
+     (throw (IllegalArgumentException. "data Buffer must be flipped"))
+
+     :else
      (let [gl-target (target->gl-target target)
            gl-usage (usage->gl-usage usage)
            data-topology-hash (buffers/topology-hash data)
@@ -86,6 +92,10 @@
     (.-gl-target buffer-data)
     (.-gl-usage buffer-data)
     (.-partial-hash buffer-data)))
+
+(definline buffer-data-buffer
+  ^Buffer [^GlBufferData buffer-data]
+  `(.data ~(with-meta buffer-data {:tag `GlBufferData})))
 
 (defn request-gl-buffer!
   ^long [^GL2 gl request-id ^GlBufferData buffer-data]
@@ -121,6 +131,24 @@
   {:pre [(instance? IHashEq request-id)
          (instance? GlBufferData buffer-data)]}
   (->BufferBinding request-id buffer-data))
+
+(definline buffer-binding-buffer-data
+  ^GlBufferData [^BufferBinding buffer-binding]
+  `(.buffer-data ~(with-meta buffer-binding {:tag `BufferBinding})))
+
+(definline buffer-binding-buffer-data-buffer
+  ^Buffer [^BufferBinding buffer-binding]
+  `(buffer-data-buffer (buffer-binding-buffer-data ~buffer-binding)))
+
+(defn buffer-binding-vertex-count
+  ^long [^BufferBinding buffer-binding ^long items-per-vertex]
+  (if (nil? buffer-binding)
+    0
+    (let [buffer (buffer-binding-buffer-data-buffer buffer-binding)
+          item-count (buffers/item-count buffer)]
+      (if (zero? item-count)
+        0
+        (quot item-count items-per-vertex)))))
 
 (defn- update-gl-buffer!
   [^GL2 gl ^long gl-buffer ^GlBufferData buffer-data]
