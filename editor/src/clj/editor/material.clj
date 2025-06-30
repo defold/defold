@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.material
-  (:require [clojure.string :as string]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.code.data :as code.data]
             [editor.code.shader-compilation :as shader-compilation]
@@ -162,9 +161,6 @@
     :constant-type-worldview :world-view
     :constant-type-worldviewproj :world-view-proj))
 
-(defn- resource-binding-namespaces->regex-str [resource-binding-namespaces]
-  (str "^(" (string/join "|" resource-binding-namespaces) ")\\."))
-
 (defn- transpile-shader-source
   [shader-resource-node-id shader-resource ^String shader-source ^long max-page-count]
   ;; TODO(instancing): The shader-source has been preprocessed and will contain
@@ -197,30 +193,7 @@
                   [vertex-shader-source-info
                    fragment-shader-source-info])]
         (g/precluding-errors augmented-shader-infos
-          (let [shader-type+source-pairs
-                (mapv (fn [{:keys [shader-type transpiled-shader-source]}]
-                        (pair shader-type transpiled-shader-source))
-                      augmented-shader-infos)
-
-                array-sampler-name->slice-sampler-names
-                (coll/transfer augmented-shader-infos {}
-                  (mapcat :array-sampler-names)
-                  (distinct)
-                  (map (fn [array-sampler-name]
-                         (pair array-sampler-name
-                               (mapv (fn [page-index]
-                                       (str array-sampler-name "_" page-index))
-                                     (range max-page-count))))))
-
-                strip-resource-binding-namespace-regex-str
-                (resource-binding-namespaces->regex-str
-                  (coll/transfer augmented-shader-infos (sorted-set)
-                    (mapcat :resource-binding-namespaces)))]
-
-            (shader/make-shader-request-data
-              shader-type+source-pairs
-              array-sampler-name->slice-sampler-names
-              strip-resource-binding-namespace-regex-str))))))
+          (shader/compose-shader-request-data augmented-shader-infos max-page-count)))))
 
 (g/defnk produce-shader [_node-id shader-request-data vertex-constants fragment-constants samplers]
   (let [array-sampler-name->slice-sampler-names (:array-sampler-name->uniform-names shader-request-data)

@@ -101,10 +101,12 @@
     Graphics$ShaderDesc$ShaderDataType/SHADER_TYPE_UVEC3 (pair :vector-type-vec3 :type-unsigned-int)
     Graphics$ShaderDesc$ShaderDataType/SHADER_TYPE_UVEC4 (pair :vector-type-vec4 :type-unsigned-int)))
 
+(defn- shader-resource-type->vector-type+data-type [shader-resource-type]
+  (let [pb-shader-data-type (ShaderProgramBuilder/resourceTypeToShaderDataType shader-resource-type)]
+    (pb-shader-data-type->vector-type+data-type pb-shader-data-type)))
+
 (defn- make-attribute-reflection-info [^Shaderc$ShaderResource attribute]
-  (let [shader-resource-type (.-type attribute)
-        pb-shader-data-type (ShaderProgramBuilder/resourceTypeToShaderDataType shader-resource-type)
-        [vector-type data-type] (pb-shader-data-type->vector-type+data-type pb-shader-data-type)]
+  (let [[vector-type data-type] (shader-resource-type->vector-type+data-type (.-type attribute))]
     ;; We want to keep the keys here in sync with the attribute-info maps in the
     ;; editor.graphics module. The idea is that you should be able to amend this
     ;; map with attribute-info keys from the material to get a fully formed
@@ -144,28 +146,28 @@
     false))
 
 (defn transpile-shader-source
-  [^String shader-path-or-url ^String shader-source ^long max-page-count]
-  {:pre [(string? shader-path-or-url)
-         (pos? (count shader-path-or-url))
+  [^String shader-path ^String shader-source ^long max-page-count]
+  {:pre [(string? shader-path)
+         (pos? (count shader-path))
          (string? shader-source)
          (pos? (count shader-source))]}
-  (let [shader-type (filename->shader-type shader-path-or-url)
+  (let [shader-type (filename->shader-type shader-path)
         pb-shader-type (shader-type->pb-shader-type shader-type)
 
         ^ShaderUtil$Common$GLSLCompileResult glsl-compile-result
         (try
-          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path-or-url shader-source pb-shader-type transpile-target-pb-shader-language max-page-count)
+          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type transpile-target-pb-shader-language max-page-count)
           (catch CompileExceptionError cause
             (let [error-line-number (.getLineNumber cause)
                   error-proj-path (or (some-> cause .getResource .getPath (str "/"))
-                                      shader-path-or-url)]
+                                      shader-path)]
               (throw (decorate-transpile-error
-                       cause shader-type shader-path-or-url shader-source max-page-count
+                       cause shader-type shader-path shader-source max-page-count
                        :error-line-number error-line-number
                        :error-proj-path error-proj-path))))
           (catch Exception cause
             (throw (decorate-transpile-error
-                     cause shader-type shader-path-or-url shader-source max-page-count))))
+                     cause shader-type shader-path shader-source max-page-count))))
 
         transpiled-shader-source (.source glsl-compile-result)
         array-sampler-names (vec (.arraySamplers glsl-compile-result))

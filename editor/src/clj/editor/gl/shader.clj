@@ -96,12 +96,14 @@ Here is an example that uses a uniform variable to be set by the application.
     (setq gl_FragColor (vec4 uv.x uv.y 0.0 1.0))))
 
 There are some examples in the testcases in dynamo.shader.translate-test."
-  (:require [clojure.string :as string]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.walk :as walk]
             [editor.buffers :refer [bbuf->string]]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.protocols :refer [GlBind]]
+            [editor.pipeline.shader-gen :as shader-gen]
             [editor.scene-cache :as scene-cache]
             [util.array :as array]
             [util.coll :as coll :refer [pair]]
@@ -537,6 +539,10 @@ This must be submitted to the driver for compilation before you can use it. See
               (string? shader-source)
               (pos? (count shader-source))))))
 
+(defn- resource-binding-namespaces->regex-str
+  ^String [resource-binding-namespaces]
+  (str "^(" (string/join "|" resource-binding-namespaces) ")\\."))
+
 (defn make-shader-request-data
   ^ShaderRequestData [shader-type+source-pairs array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str]
   {:pre [(every? shader-type+source-pair? shader-type+source-pairs)
@@ -548,6 +554,33 @@ This must be submitted to the driver for compilation before you can use it. See
     (vec shader-type+source-pairs)
     array-sampler-name->uniform-names
     strip-resource-binding-namespace-regex-str))
+
+(defn compose-shader-request-data
+  ^ShaderRequestData [augmented-shader-infos max-page-count]
+  (let [shader-type+source-pairs
+        (coll/transfer augmented-shader-infos []
+          (map (fn [{:keys [shader-type transpiled-shader-source]}]
+                 (pair shader-type transpiled-shader-source))))
+
+        array-sampler-name->slice-sampler-names
+        (coll/transfer augmented-shader-infos {}
+          (mapcat :array-sampler-names)
+          (distinct)
+          (map (fn [array-sampler-name]
+                 (pair array-sampler-name
+                       (mapv (fn [page-index]
+                               (str array-sampler-name "_" page-index))
+                             (range max-page-count))))))
+
+        strip-resource-binding-namespace-regex-str
+        (resource-binding-namespaces->regex-str
+          (coll/transfer augmented-shader-infos (sorted-set)
+            (mapcat :resource-binding-namespaces)))]
+
+    (make-shader-request-data
+      shader-type+source-pairs
+      array-sampler-name->slice-sampler-names
+      strip-resource-binding-namespace-regex-str)))
 
 (defn make-shader-lifecycle
   ^ShaderLifecycle [request-id request-data uniform-values-by-name]
@@ -587,6 +620,44 @@ This must be submitted to the driver for compilation before you can use it. See
            array-sampler-name->uniform-names
            strip-resource-binding-namespace-regex-str)]
      (make-shader-lifecycle request-id request-data uniforms))))
+
+(defn read-shader-request-data
+  ^ShaderRequestData [shader-paths opts shader-path->source]
+  (let [max-page-count (long (or (:max-page-count opts) 0))
+
+        augmented-shader-infos
+        (coll/transfer shader-paths []
+          (map (fn [^String shader-path]
+                 (let [shader-source (shader-path->source shader-path)]
+                   (shader-gen/transpile-shader-source shader-path shader-source max-page-count)))))]
+
+    (compose-shader-request-data augmented-shader-infos max-page-count)))
+
+(defn read-shader
+  ^ShaderLifecycle [shader-paths opts shader-path->source]
+  (let [request-id {:max-page-count (or (:max-page-count opts) 0)
+                    :shader-paths (vec (sort shader-paths))}
+        shader-request-data (read-shader-request-data shader-paths opts shader-path->source)]
+    (make-shader-lifecycle request-id shader-request-data {})))
+
+(defn jar-shader-path->source
+  ^String [^String shader-path]
+  (slurp (io/resource shader-path)))
+
+(defn- parse-opts+shader-paths [maybe-opts-and-shader-paths]
+  (let [opts-or-first-shader-path (first maybe-opts-and-shader-paths)]
+    (if (map? opts-or-first-shader-path)
+      (pair (coll/not-empty opts-or-first-shader-path)
+            (next maybe-opts-and-shader-paths))
+      (pair nil
+            maybe-opts-and-shader-paths))))
+
+(defn jar-shader
+  ^ShaderRequestData [& shader-paths]
+  (let [[opts shader-paths] (parse-opts+shader-paths shader-paths)]
+    (if (coll/empty? shader-paths)
+      (throw (IllegalArgumentException. "At least one shader-path must be supplied."))
+      (read-shader shader-paths opts jar-shader-path->source))))
 
 (defn is-using-array-samplers? [^ShaderLifecycle shader-lifecycle]
   (let [^ShaderRequestData request-data (.-request-data shader-lifecycle)

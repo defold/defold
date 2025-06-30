@@ -21,12 +21,12 @@
             [util.defonce :as defonce])
   (:import [clojure.lang IHashEq]
            [com.jogamp.opengl GL2]
-           [java.nio Buffer]))
+           [java.nio Buffer IntBuffer ShortBuffer]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defonce/type GlBufferData
+(defonce/type ^:private GlBufferData
   [^Buffer data
    ^int data-version
    ^int gl-target
@@ -66,19 +66,23 @@
     :static GL2/GL_STATIC_DRAW
     :dynamic GL2/GL_DYNAMIC_DRAW))
 
-(defn make-buffer-data
-  (^GlBufferData [^Buffer data target usage]
-   (make-buffer-data data (System/identityHashCode data) target usage))
-  (^GlBufferData [^Buffer data data-version target usage]
-   (if (nil? data)
-     (throw (IllegalArgumentException. "data cannot be nil"))
-     (let [gl-target (target->gl-target target)
-           gl-usage (usage->gl-usage usage)
-           data-topology-hash (buffers/topology-hash data)
-           partial-hash (java/combine-hashes gl-target gl-usage data-topology-hash)]
-       (->GlBufferData data data-version gl-target gl-usage partial-hash)))))
+(defn- make-buffer-data
+  ^GlBufferData [^Buffer data data-version target usage]
+  (cond
+    (nil? data)
+    (throw (IllegalArgumentException. "data Buffer cannot be nil"))
 
-(defn invalidate-buffer-data
+    (not (buffers/flipped? data))
+    (throw (IllegalArgumentException. "data Buffer must be flipped"))
+
+    :else
+    (let [gl-target (target->gl-target target)
+          gl-usage (usage->gl-usage usage)
+          data-topology-hash (buffers/topology-hash data)
+          partial-hash (java/combine-hashes gl-target gl-usage data-topology-hash)]
+      (->GlBufferData data data-version gl-target gl-usage partial-hash))))
+
+(defn- invalidate-buffer-data
   ^GlBufferData [^GlBufferData buffer-data]
   (->GlBufferData
     (.-data buffer-data)
@@ -87,24 +91,24 @@
     (.-gl-usage buffer-data)
     (.-partial-hash buffer-data)))
 
-(defn request-gl-buffer!
+(defn- request-gl-buffer!
   ^long [^GL2 gl request-id ^GlBufferData buffer-data]
   (let [gl-buffer (scene-cache/request-object! ::gl-buffer request-id gl buffer-data)]
     gl-buffer))
 
-(defn bind-gl-buffer!
+(defn- bind-gl-buffer!
   ^long [^GL2 gl request-id ^GlBufferData buffer-data]
   (let [gl-target (.-gl-target buffer-data)
         gl-buffer (request-gl-buffer! gl request-id buffer-data)]
     (gl/gl-bind-buffer gl gl-target gl-buffer)
     gl-buffer))
 
-(defn unbind-gl-buffer!
+(defn- unbind-gl-buffer!
   [^GL2 gl ^GlBufferData buffer-data]
   (let [gl-target (.-gl-target buffer-data)]
     (gl/gl-bind-buffer gl gl-target 0)))
 
-(defonce/type BufferBinding
+(defonce/record BufferLifecycle
   [request-id
    ^GlBufferData buffer-data]
 
@@ -116,19 +120,56 @@
   (unbind [_this gl _render-args]
     (unbind-gl-buffer! gl buffer-data)))
 
-(defn make-buffer-binding
-  ^BufferBinding [request-id ^GlBufferData buffer-data]
-  {:pre [(instance? IHashEq request-id)
-         (instance? GlBufferData buffer-data)]}
-  (->BufferBinding request-id buffer-data))
+(defn- request-id? [value]
+  ;; We might want to add support for other values as well.
+  (or (number? value)
+      (instance? IHashEq value)))
+
+(defn- make-buffer
+  ^BufferLifecycle [request-id ^Buffer data target usage]
+  (if (request-id? request-id)
+    (let [data-version (System/identityHashCode data)
+          buffer-data (make-buffer-data data data-version target usage)]
+      (->BufferLifecycle request-id buffer-data))
+    (throw (IllegalArgumentException. "request-id should be a non-nil value that implements efficient hashing"))))
+
+(defn make-attribute-buffer
+  ^BufferLifecycle [request-id ^Buffer data usage]
+  (make-buffer request-id data :array-buffer usage))
+
+(defn make-index-buffer
+  ^BufferLifecycle [request-id ^Buffer data usage]
+  (if (or (instance? ShortBuffer data)
+          (instance? IntBuffer data))
+    (make-buffer request-id data :element-array-buffer usage)
+    (throw (IllegalArgumentException. "data must be either a ShortBuffer or an IntBuffer"))))
+
+(defn data
+  ^Buffer [^BufferLifecycle buffer-lifecycle]
+  (.-data ^GlBufferData (.-buffer-data buffer-lifecycle)))
+
+(defn invalidate
+  ^BufferLifecycle [^BufferLifecycle buffer-lifecycle]
+  (->BufferLifecycle (.-request-id buffer-lifecycle)
+                     (invalidate-buffer-data (.-buffer-data buffer-lifecycle))))
+
+(defn vertex-count
+  ^long [^BufferLifecycle buffer-lifecycle ^long items-per-vertex]
+  (if (nil? buffer-lifecycle)
+    0
+    (let [buffer (data buffer-lifecycle)
+          item-count (buffers/item-count buffer)]
+      (if (zero? item-count)
+        0
+        (quot item-count items-per-vertex)))))
 
 (defn- update-gl-buffer!
   [^GL2 gl ^long gl-buffer ^GlBufferData buffer-data]
   (let [gl-target (.-gl-target buffer-data)
         gl-usage (.-gl-usage buffer-data)
-        data ^Buffer (.-data buffer-data)
+        data (.-data buffer-data)
         data-byte-size (buffers/total-byte-size data)]
-    (assert (zero? (.position data)) "data buffer must be flipped before use")
+    (assert (buffers/flipped? data) "data buffer must be flipped before use")
     (gl/gl-bind-buffer gl gl-target gl-buffer)
     (gl/gl-buffer-data gl gl-target data-byte-size data gl-usage)
     gl-buffer))

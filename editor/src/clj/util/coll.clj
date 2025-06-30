@@ -16,12 +16,16 @@
   (:refer-clojure :exclude [any? bounded-count empty? every? mapcat merge merge-with not-any? not-empty not-every? some])
   (:import [clojure.core Eduction]
            [clojure.lang Cons Cycle IEditableCollection LazySeq MapEntry Repeat]
-           [java.util ArrayList]))
+           [java.util ArrayList Arrays]
+           [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(def empty-map {})
 (def empty-sorted-map (sorted-map))
+(def empty-set #{})
+(def empty-sorted-set (sorted-set))
 
 (defmacro transfer
   "Transfer the sequence supplied as the first argument into the destination
@@ -40,6 +44,13 @@
      `(into ~to
             (comp ~xform ~@xforms)
             ~from))))
+
+(defn comparable-value?
+  "Returns true if the value is compatible with the default comparator used with
+  sorted maps and sets."
+  [value]
+  (or (nil? value)
+      (instance? Comparable value)))
 
 (defn key-set
   "Returns an unordered set with all keys from the supplied map."
@@ -336,6 +347,40 @@
    (reduce deep-merge
            (deep-merge a b)
            maps)))
+
+(defn partition-all-float-arrays
+  "Returns a lazy sequence of float arrays. Like core.partition-all, but creates
+  new float arrays for each partition. Returns a stateful transducer when no
+  collection is provided."
+  ([^long partition-length]
+   (fn [rf]
+     (let [in-progress (float-array partition-length)
+           in-progress-index (AtomicInteger.)]
+       (fn
+         ([] (rf))
+         ([result]
+          (let [finished-length (.getAndSet in-progress-index 0)
+                result (if (zero? finished-length)
+                         result
+                         (let [finished (Arrays/copyOf in-progress finished-length)]
+                           (unreduced (rf result finished))))]
+            (rf result)))
+         ([result input]
+          (let [written-index (.getAndIncrement in-progress-index)
+                finished-length (inc written-index)]
+            (aset-float in-progress written-index input)
+            (if (= partition-length finished-length)
+              (let [finished (Arrays/copyOf in-progress partition-length)]
+                (.set in-progress-index 0)
+                (rf result finished))
+              result)))))))
+  ([^long partition-length coll]
+   (partition-all-float-arrays partition-length partition-length coll))
+  ([^long partition-length ^long step coll]
+   (lazy-seq
+     (when-let [in-progress (seq coll)]
+       (let [finished (float-array (take partition-length in-progress))]
+         (cons finished (partition-all-float-arrays partition-length step (nthrest in-progress step))))))))
 
 (defn partition-all-primitives
   "Returns a lazy sequence of primitive vectors. Like core.partition-all, but

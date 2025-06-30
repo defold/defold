@@ -13,8 +13,10 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.buffers
-  (:require [util.num :as num])
-  (:import [clojure.lang Murmur3 Util]
+  (:refer-clojure :exclude [empty?])
+  (:require [util.defonce :as defonce]
+            [util.num :as num])
+  (:import [clojure.lang IReduceInit Murmur3 Util]
            [com.google.protobuf ByteString]
            [java.nio Buffer ByteBuffer CharBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]
            [java.nio.charset StandardCharsets]))
@@ -43,7 +45,7 @@
   (^String [^ByteBuffer bb ^long offset ^long length]
    (String. (alias-buf-bytes bb) offset length StandardCharsets/UTF_8)))
 
-(defprotocol ByteStringCoding
+(defonce/protocol ByteStringCoding
   (byte-pack [source] "Return a Protocol Buffer compatible ByteString from the given source."))
 
 (defonce ^:private native-java-nio-byte-order (ByteOrder/nativeOrder))
@@ -67,10 +69,20 @@
     (doto (ByteBuffer/wrap byte-array)
       (.order java-nio-byte-order))))
 
-(defprotocol HasByteOrder
+(defn new-float-buffer
+  ^FloatBuffer [capacity byte-order]
+  (let [byte-size (* Float/BYTES (int capacity))
+        byte-buffer (new-byte-buffer byte-size byte-order)]
+    (.asFloatBuffer byte-buffer)))
+
+(defn wrap-float-array
+  ^FloatBuffer [^floats float-array]
+  (FloatBuffer/wrap float-array))
+
+(defonce/protocol HasByteOrder
   "Annoyingly, there is no method on the Buffer interface to retrieve the byte
   order. However, they all have one."
-  (byte-order ^ByteOrder [buffer] "Returns the java.nio.ByteOrder of the buffer."))
+  (byte-order ^ByteOrder [buffer] "Returns the java.nio.ByteOrder of the Buffer."))
 
 (extend-protocol HasByteOrder
   ByteBuffer
@@ -93,6 +105,55 @@
 
   ShortBuffer
   (byte-order [buffer] (.order buffer)))
+
+(defonce/protocol ReducerImpl
+  (read-only [buffer] "Returns a new read-only Buffer that shares the content of this Buffer. The position, limit, and mark states are independent of the original Buffer.")
+  (next-element [buffer] "Returns the element at the current position of the Buffer, then advances the position of the Buffer."))
+
+(extend-protocol ReducerImpl
+  ByteBuffer
+  (read-only [buffer] (.asReadOnlyBuffer buffer))
+  (next-element [buffer] (.get buffer))
+
+  CharBuffer
+  (read-only [buffer] (.asReadOnlyBuffer buffer))
+  (next-element [buffer] (.get buffer))
+
+  DoubleBuffer
+  (read-only [buffer] (.asReadOnlyBuffer buffer))
+  (next-element [buffer] (.get buffer))
+
+  FloatBuffer
+  (read-only [buffer] (.asReadOnlyBuffer buffer))
+  (next-element [buffer] (.get buffer))
+
+  IntBuffer
+  (read-only [buffer] (.asReadOnlyBuffer buffer))
+  (next-element [buffer] (.get buffer))
+
+  LongBuffer
+  (read-only [buffer] (.asReadOnlyBuffer buffer))
+  (next-element [buffer] (.get buffer))
+
+  ShortBuffer
+  (read-only [buffer] (.asReadOnlyBuffer buffer))
+  (next-element [buffer] (.get buffer)))
+
+(defn reducible
+  ^IReduceInit [^Buffer buffer]
+  (when buffer
+    (let [^Buffer view (read-only buffer)]
+      (reify IReduceInit
+        (reduce [_ rf init]
+          (.rewind view)
+          (loop [result init]
+            (if (.hasRemaining view)
+              (let [element (next-element view)
+                    result (rf result element)]
+                (if (reduced? result)
+                  (unreduced result)
+                  (recur result)))
+              result)))))))
 
 (defn copy-buffer ^ByteBuffer [^ByteBuffer b]
   (let [sz      (.capacity b)
@@ -157,6 +218,19 @@
     :float Float/BYTES
     :double Double/BYTES))
 
+(definline item-count [^Buffer buffer]
+  `(int
+     (if-let [^Buffer buffer# ~buffer]
+       (- (.limit buffer#)
+          (.position buffer#))
+       0)))
+
+(definline empty? [^Buffer buffer]
+  `(pos? (item-count ~buffer)))
+
+(definline flipped? [^Buffer buffer]
+  `(zero? (.position ~(with-meta buffer {:tag `Buffer}))))
+
 (defn item-byte-size
   ^long [buffer]
   (condp instance? buffer
@@ -170,7 +244,8 @@
 
 (defn total-byte-size
   ^long [^Buffer buffer]
-  (* (item-byte-size buffer) (.limit buffer)))
+  (* (item-byte-size buffer)
+     (item-count buffer)))
 
 (defn topology-hash
   ^long [^Buffer buffer]
