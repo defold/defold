@@ -429,7 +429,6 @@ namespace dmGraphics
         // Later when a texture is created, we will convert it internally to RGBA.
         context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
 
-        // https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkImageCreateInfo.html
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(texture_formats); ++i)
         {
             TextureFormat texture_format = texture_formats[i];
@@ -438,12 +437,7 @@ namespace dmGraphics
             D3D12_FEATURE_DATA_FORMAT_SUPPORT query = {};
             query.Format = dxgi_format;
 
-            HRESULT hr = context->m_Device->CheckFeatureSupport(
-                D3D12_FEATURE_FORMAT_SUPPORT,
-                &query,
-                sizeof(query)
-            );
-
+            HRESULT hr = context->m_Device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &query, sizeof(query) );
             if (SUCCEEDED(hr))
             {
                 // TODO: Check for more fine-grained support, i.e "query.Support1 & D3D12_FORMAT_SUPPORT1_TEXTURE2D"
@@ -460,11 +454,7 @@ namespace dmGraphics
         query.Flags            = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
         query.NumQualityLevels = 0;
 
-        HRESULT hr = device->CheckFeatureSupport(
-            D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
-            &query,
-            sizeof(query)
-        );
+        HRESULT hr = device->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &query, sizeof(query));
         return SUCCEEDED(hr) && query.NumQualityLevels > 0;
     }
 
@@ -2150,6 +2140,7 @@ namespace dmGraphics
         context->m_CommandList->SetComputeRootSignature(context->m_CurrentProgram->m_RootSignature);
         context->m_CommandList->SetPipelineState(*pipeline);
 
+        // gl_NumWorkGroups is a cbuffer in HLSL, so we need to put the group counts in that special buffer first.
         if (context->m_CurrentProgram->m_NumWorkGroupsResourceIndex != 0xff)
         {
             uint32_t data[] = { group_count_x, group_count_y, group_count_z };
@@ -2295,7 +2286,7 @@ namespace dmGraphics
         hr = D3DGetBlobPart(shader->m_ShaderBlob->GetBufferPointer(), shader->m_ShaderBlob->GetBufferSize(), D3D_BLOB_ROOT_SIGNATURE, 0, &shader->m_RootSignatureBlob);
         if (FAILED(hr))
         {
-            // TODO: Extract reflection and generate root signature that way
+            // TODO: Extract reflection and generate root signature that way. There is no embedded root signature (which can happen when content has been built on non-windows platforms)
         }
 
         HashState64 shader_hash_state;
