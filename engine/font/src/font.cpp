@@ -42,7 +42,8 @@ void DestroyFont(HFont hfont)
 
     switch(font->m_Type)
     {
-    case FONT_TYPE_STBTTF:  DestroyFontTTF(font); break;
+    case FONT_TYPE_STBTTF:
+    case FONT_TYPE_STBOTF:  DestroyFontTTF(font); break;
     default:                assert(false && "Unsupported font type");
     }
     free((void*)path);
@@ -56,6 +57,8 @@ static FontType GetFontType(const char* path)
 
     if (strcmp(ext, ".ttf") == 0 || strcmp(ext, ".TTF") == 0)
         return FONT_TYPE_STBTTF;
+    if (strcmp(ext, ".otf") == 0 || strcmp(ext, ".OTF") == 0)
+        return FONT_TYPE_STBOTF;
 
     return FONT_TYPE_UNKNOWN;
 }
@@ -67,7 +70,8 @@ HFont LoadFontFromMemory(const char* path, void* data, uint32_t data_size, bool 
     FontType type = GetFontType(path);
     switch(type)
     {
-    case FONT_TYPE_STBTTF:  font = LoadFontFromMemoryTTF(path, data, data_size, allocate); break;
+    case FONT_TYPE_STBTTF:
+    case FONT_TYPE_STBOTF:  font = LoadFontFromMemoryTTF(path, data, data_size, allocate); break;
     default:
         {
             const char* ext = strrchr(path, '.');
@@ -107,7 +111,8 @@ uint32_t GetResourceSize(HFont font)
 {
     switch (font->m_Type)
     {
-    case FONT_TYPE_STBTTF: return GetResourceSizeTTF(font);
+    case FONT_TYPE_STBTTF:
+    case FONT_TYPE_STBOTF:  return GetResourceSizeTTF(font);
     default: assert(false && "Unsupported font type"); return 0;
     }
 }
@@ -116,7 +121,8 @@ float GetPixelScaleFromSize(HFont font, float size)
 {
     switch (font->m_Type)
     {
-    case FONT_TYPE_STBTTF: return GetPixelScaleFromSizeTTF(font, size);
+    case FONT_TYPE_STBTTF:
+    case FONT_TYPE_STBOTF: return GetPixelScaleFromSizeTTF(font, size);
     default: assert(false && "Unsupported font type"); return 0;
     }
 }
@@ -125,7 +131,8 @@ float GetAscent(HFont font, float scale)
 {
     switch (font->m_Type)
     {
-    case FONT_TYPE_STBTTF: return GetAscentTTF(font, scale);
+    case FONT_TYPE_STBTTF:
+    case FONT_TYPE_STBOTF: return GetAscentTTF(font, scale);
     default: assert(false && "Unsupported font type"); return 0;
     }
 }
@@ -134,7 +141,8 @@ float GetDescent(HFont font, float scale)
 {
     switch (font->m_Type)
     {
-    case FONT_TYPE_STBTTF: return GetDescentTTF(font, scale);
+    case FONT_TYPE_STBTTF:
+    case FONT_TYPE_STBOTF: return GetDescentTTF(font, scale);
     default: assert(false && "Unsupported font type"); return 0;
     }
 }
@@ -143,7 +151,8 @@ float GetLineGap(HFont font, float scale)
 {
     switch (font->m_Type)
     {
-    case FONT_TYPE_STBTTF: return GetLineGapTTF(font, scale);
+    case FONT_TYPE_STBTTF:
+    case FONT_TYPE_STBOTF: return GetLineGapTTF(font, scale);
     default: assert(false && "Unsupported font type"); return 0;
     }
 }
@@ -154,7 +163,8 @@ FontResult GetGlyph(HFont font, uint32_t codepoint, GlyphOptions* options, Glyph
 {
     switch (font->m_Type)
     {
-    case FONT_TYPE_STBTTF: return GetGlyphTTF(font, codepoint, options, glyph);
+    case FONT_TYPE_STBTTF:
+    case FONT_TYPE_STBOTF: return GetGlyphTTF(font, codepoint, options, glyph);
     default: assert(false && "Unsupported font type"); return RESULT_ERROR;
     }
 }
@@ -163,7 +173,8 @@ FontResult FreeGlyph(HFont font, Glyph* glyph)
 {
     switch (font->m_Type)
     {
-    case FONT_TYPE_STBTTF: return FreeGlyphTTF(font, glyph);
+    case FONT_TYPE_STBTTF:
+    case FONT_TYPE_STBOTF: return FreeGlyphTTF(font, glyph);
     default: assert(false && "Unsupported font type"); return RESULT_ERROR;
     }
 }
@@ -228,7 +239,7 @@ void DebugFont(HFont hfont, float scale, float padding, const char* text)
         dmFont::GetGlyph(hfont, codepoint, &options, &glyph);
         dmFont::DebugGlyph(&glyph, indent+2);
 
-        if (options.m_GenerateImage && type == FONT_TYPE_STBTTF)
+        if (options.m_GenerateImage && (type == FONT_TYPE_STBTTF || type == FONT_TYPE_STBOTF))
         {
             if(glyph.m_Bitmap.m_Data)
             {

@@ -51,12 +51,14 @@ namespace dmFont
      * @name FontType
      * @member FONT_TYPE_UNKNOWN = -1
      * @member FONT_TYPE_STBTTF
+     * @member FONT_TYPE_STBOTF
      * @member FONT_TYPE_MAX
      */
     enum FontType
     {
         FONT_TYPE_UNKNOWN = -1,
         FONT_TYPE_STBTTF,
+        FONT_TYPE_STBOTF,
         FONT_TYPE_MAX
     };
 

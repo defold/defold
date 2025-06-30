@@ -32,8 +32,13 @@ import com.dynamo.render.proto.Font.FontTextureFormat;
 @BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc", paramsForSignature = {"font-runtime-generation"})
 public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
 
-    private boolean useRuntimeGeneration() {
-        return this.project.option("font-runtime-generation", "false").equals("true");
+    private boolean useRuntimeGeneration(FontDesc fontDesc) {
+        boolean enabled = this.project.option("font-runtime-generation", "false").equals("true");
+        if (!enabled)
+            return false;
+
+        String path = fontDesc.getFont().toLowerCase();
+        return path.endsWith(".ttf");
     }
 
     @Override
@@ -41,7 +46,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         FontDesc.Builder builder = getSrcBuilder(input);
         FontDesc fontDesc = builder.build();
 
-        IResource ttfResource = input.getResource(fontDesc.getFont());
+        IResource fontResource = input.getResource(fontDesc.getFont());
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addOutput(input.changeExt(params.outExt()));
@@ -53,15 +58,15 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         createSubTask(fontDesc.getMaterial(),"material", taskBuilder);
 
         Task subTask = null;
-        if (useRuntimeGeneration())
+        if (useRuntimeGeneration(fontDesc))
         {
             // input(2)
-            subTask = createSubTask(ttfResource, CopyBuilders.TTFBuilder.class, taskBuilder);
+            subTask = createSubTask(fontResource, CopyBuilders.TTFBuilder.class, taskBuilder);
         }
         else
         {
             // input(2)
-            taskBuilder.addInput(ttfResource);
+            taskBuilder.addInput(fontResource);
             // input(3)
             subTask = createSubTask(input, GlyphBankBuilder.class, taskBuilder);
         }
@@ -78,7 +83,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         FontMap.Builder fontMapBuilder = FontMap.newBuilder();
 
         BuilderUtil.checkResource(this.project, task.input(1), "material", fontDesc.getMaterial());
-        if (useRuntimeGeneration())
+        if (useRuntimeGeneration(fontDesc))
         {
             BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
             // leave glyphbank field empty, as we use that to check at runtime (to toggle runtime generation or not)

@@ -287,10 +287,6 @@ public class Fontc {
         return StringUtil.toLowerCase(fd.getFont()).endsWith("fnt");
     }
 
-    private static boolean isTrueTypeFont(FontDesc fd) {
-        return StringUtil.toLowerCase(fd.getFont()).endsWith("ttf");
-    }
-
     public void TTFBuilder(InputStream fontStream) throws FontFormatException, IOException {
 
         ArrayList<Integer> characters = new ArrayList<Integer>();
