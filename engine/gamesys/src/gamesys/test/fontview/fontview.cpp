@@ -132,6 +132,7 @@ namespace dmFontView
             window_params.m_Height           = 540;
             window_params.m_Title            = "FontView";
             window_params.m_ContextAlphabits = 8;
+            window_params.m_GraphicsApi      = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
 
             dmPlatform::OpenWindow(context->m_Window, window_params);
 
@@ -173,7 +174,8 @@ namespace dmFontView
                 return false;\
             }\
 
-            REGISTER_RESOURCE_TYPE("fontc", 0, dmGameSystem::ResFontCreate, 0, dmGameSystem::ResFontDestroy, dmGameSystem::ResFontRecreate);
+            //REGISTER_RESOURCE_TYPE("fontc", 0, dmGameSystem::ResFontCreate, 0, dmGameSystem::ResFontDestroy, dmGameSystem::ResFontRecreate);
+            // Link with "fontc" resource type
             REGISTER_RESOURCE_TYPE("spc", dmGameSystem::ResShaderProgramPreload, dmGameSystem::ResShaderProgramCreate, 0, dmGameSystem::ResShaderProgramDestroy, dmGameSystem::ResShaderProgramRecreate);
             REGISTER_RESOURCE_TYPE("materialc", 0, dmGameSystem::ResMaterialCreate, 0, dmGameSystem::ResMaterialDestroy, 0);
 
@@ -197,8 +199,11 @@ namespace dmFontView
 
     void Finalize(Context* context)
     {
-        dmHID::Final(context->m_HidContext);
-        dmHID::DeleteContext(context->m_HidContext);
+        if (context->m_HidContext)
+        {
+            dmHID::Final(context->m_HidContext);
+            dmHID::DeleteContext(context->m_HidContext);
+        }
 
         if (context->m_Factory)
         {
@@ -207,9 +212,13 @@ namespace dmFontView
         }
         if (context->m_RenderContext)
             dmRender::DeleteRenderContext(context->m_RenderContext, 0);
-        dmGraphics::DeleteContext(context->m_GraphicsContext);
+        if (context->m_GraphicsContext)
+            dmGraphics::DeleteContext(context->m_GraphicsContext);
 
-        dmPlatform::CloseWindow(context->m_Window);
-        dmPlatform::DeleteWindow(context->m_Window);
+        if (context->m_Window)
+        {
+            dmPlatform::CloseWindow(context->m_Window);
+            dmPlatform::DeleteWindow(context->m_Window);
+        }
     }
 }

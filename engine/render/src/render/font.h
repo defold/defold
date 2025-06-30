@@ -68,8 +68,6 @@ namespace dmRender
         float m_MaxDescent;
         /// Value to scale SDF texture values with
         float m_SdfSpread;
-        /// Value to offset SDF texture values with
-        float m_SdfOffset;
         /// Distance value where outline should end
         float m_SdfOutline;
         /// Distance value where shadow should end
@@ -91,7 +89,8 @@ namespace dmRender
         uint8_t m_LayerMask;
 
         uint8_t m_IsMonospaced:1;
-        uint8_t m_Padding:7;
+        uint8_t m_IsDynamic:1;
+        uint8_t m_Padding:6;        // Note: Not C struct padding, but actual glyph padding.
 
         dmRenderDDF::FontTextureFormat m_ImageFormat;
     };
@@ -165,7 +164,7 @@ namespace dmRender
      * @param font_map Font map handle
      * @param params Parameters to update
      */
-    void SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params);
+    bool SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params);
 
     /**
      * Get texture from a font map
@@ -203,6 +202,42 @@ namespace dmRender
      * @return size
      */
     uint32_t GetFontMapResourceSize(HFontMap font_map);
+
+    /**
+     * Set the font map's max ascent
+     * @param font_map [type: HFontMap] Font map handle
+     * @param max_ascent [type: float] The max ascent over the base line
+     */
+    void SetFontMapMaxAscent(HFontMap font_map, float max_ascent);
+
+    /**
+     * Set the font map's max descent
+     * @note This is a positive number
+     * @param font_map [type: HFontMap] Font map handle
+     * @param max_descent [type: float] The max descent under the base line (Positive number!)
+     */
+    void SetFontMapMaxDescent(HFontMap font_map, float max_descent);
+
+    /**
+     * Set the outline threshold
+     * @param font_map [type: HFontMap] Font map handle
+     * @param outline [type: float] The outline threshold [0.0 .. 1.0]
+     */
+    void SetFontMapSdfOutlineWidth(HFontMap font_map, float outline);
+
+    /**
+     * Set the shadow threshold
+     * @param font_map [type: HFontMap] Font map handle
+     * @param shadow [type: float] The shadow threshold [0.0 .. 1.0]
+     */
+    void SetFontMapSdfShadow(HFontMap font_map, float shadow);
+
+    /**
+     * Set the spread (padding). It is the sumb of the outline
+     * @param font_map [type: HFontMap] Font map handle
+     * @param padding [type: float] The padding around the glyph bitmap (in pixels)
+     */
+    void SetFontMapSdfSpread(HFontMap font_map, float padding);
 
     /**
      * Set the user data assigned to this font map

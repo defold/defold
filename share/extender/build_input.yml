@@ -13,10 +13,12 @@ context:
                   "opus", "libopus.lib",
                   "decoder_wav", "libdecoder_wav.lib",
                   "decoder_ogg", "libdecoder_ogg.lib",
-                  "decoder_opus", "libdecoder_opus.lib"]
+                  "decoder_opus", "libdecoder_opus.lib",
+                  "fontgen","libfontgen.lib"]
     allowedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "AudioDecoderOpus", "GraphicsAdapterWebGPU",
                     "ProfilerExt", "GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "GraphicsAdapterNull",
                     "LiveUpdateExt", "ScriptBox2DExt", "ScriptImageExt", "ScriptModelExt", "ScriptTypesExt",
+                    "ScriptFontgenExt", "ResourceTypeTTFFont",
                     "ResourceTypeOgg", "ResourceTypeWav", "ResourceTypeOpus"]
     defines: ['DLIB_LOG_DOMAIN="{{extension_name_upper}}"']
 

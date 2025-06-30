@@ -1,0 +1,19 @@
+#! /usr/bin/env python
+
+import os
+import waflib.Task
+import waflib.TaskGen
+from waflib.TaskGen import extension
+from waflib.Options import options
+from waf_dynamo import platform_supports_feature
+
+
+def build(bld):
+    if options.skip_build_tests:
+       return
+
+    bld(features = 'cxx cprogram ddf test',
+        source   = bld.path.ant_glob(['*.cpp']),
+        use      = 'TESTMAIN DLIB PROFILE_NULL font',
+        includes = '. .. ../font',
+        target = 'test_font')

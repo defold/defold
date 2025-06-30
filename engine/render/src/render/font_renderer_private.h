@@ -55,6 +55,8 @@ namespace dmRender
         , m_Cache(0)
         , m_CacheIndices(0)
         , m_CacheCursor(0)
+        , m_CacheMaxWidth(0)
+        , m_CacheMaxHeight(0)
         , m_CacheWidth(0)
         , m_CacheHeight(0)
         , m_CacheCellWidth(0)
@@ -65,9 +67,9 @@ namespace dmRender
         , m_CacheCellCount(0)
         , m_CacheCellPadding(0)
         , m_LayerMask(FACE)
+        , m_Padding(0)
         , m_IsMonospaced(0)
         , m_IsCacheSizeDirty(0)
-        , m_Padding(0)
         {
         }
 
@@ -102,7 +104,6 @@ namespace dmRender
         float                   m_MaxAscent;
         float                   m_MaxDescent;
         float                   m_SdfSpread;
-        float                   m_SdfOffset;
         float                   m_SdfOutline;
         float                   m_SdfShadow;
         float                   m_Alpha;
@@ -120,20 +121,24 @@ namespace dmRender
         dmGraphics::TextureFilter m_MinFilter;
         dmGraphics::TextureFilter m_MagFilter;
 
-        uint32_t                m_CacheWidth;           // In texels
-        uint32_t                m_CacheHeight;          // In texels
-        uint32_t                m_CacheCellWidth;       // In texels
-        uint32_t                m_CacheCellHeight;      // In texels
-        uint32_t                m_CacheCellMaxAscent;   // In texels
-        uint32_t                m_CacheColumns;         // Number of cells in horizontal direction
-        uint32_t                m_CacheRows;            // Number of cells in horizontal direction
-        uint32_t                m_CacheCellCount;       // Number of cells in total
+        uint16_t                m_CacheMaxWidth;        // In texels
+        uint16_t                m_CacheMaxHeight;       // In texels
+        uint16_t                m_CacheWidth;           // In texels
+        uint16_t                m_CacheHeight;          // In texels
+        uint16_t                m_CacheCellWidth;       // In texels
+        uint16_t                m_CacheCellHeight;      // In texels
+        uint16_t                m_CacheCellMaxAscent;   // In texels
+        uint16_t                m_CacheColumns;         // Number of cells in horizontal direction
+        uint16_t                m_CacheRows;            // Number of cells in horizontal direction
+        uint16_t                m_CacheCellCount;       // Number of cells in total
         uint8_t                 m_CacheChannels;        // Number of channels
         uint8_t                 m_CacheCellPadding;
         uint8_t                 m_LayerMask;
+        uint8_t                 m_Padding;              // The padding of the cell
         uint8_t                 m_IsMonospaced:1;
         uint8_t                 m_IsCacheSizeDirty:1;   // if the glyph cell size has changed, or if the layout needs to be recalculated
-        uint8_t                 m_Padding:6;            // The padding of the cell
+        uint8_t                 m_DynamicCacheSize:1;
+        uint8_t                 m_IsCacheSizeTooSmall:1;
     };
 
     ///////////////////////////////////////////////////////////////////////////////
