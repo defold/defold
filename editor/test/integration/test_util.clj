@@ -56,7 +56,7 @@
             [lambdaisland.deep-diff2 :as deep-diff]
             [service.log :as log]
             [support.test-support :as test-support]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.diff :as diff]
             [util.fn :as fn]
             [util.http-server :as http-server]
@@ -68,6 +68,7 @@
            [editor.properties Curve CurveSpread]
            [java.awt.image BufferedImage]
            [java.io ByteArrayOutputStream File FileInputStream FilenameFilter]
+           [java.lang AutoCloseable]
            [java.net URI URL]
            [java.nio.file Files]
            [java.util UUID]
@@ -75,7 +76,7 @@
            [java.util.zip ZipEntry ZipOutputStream]
            [javafx.event ActionEvent]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Cell ColorPicker Control Label ScrollBar Slider TextField ToggleButton]
+           [javafx.scene.control Button Cell ColorPicker Control Label ScrollBar Slider TextField ToggleButton]
            [javafx.scene.layout VBox]
            [javafx.scene.paint Color]
            [javax.imageio ImageIO]
@@ -90,6 +91,16 @@
 (def project-path "test/resources/test_project")
 
 (def ^:private ^:const system-cache-size 1000)
+
+;; String urls that will be added as library dependencies to our test project.
+;; These extensions register additional protobuf resource types that we want to
+;; cover in our tests.
+(def sanctioned-extension-urls
+  (mapv #(System/getProperty %)
+        ["defold.extension.rive.url"
+         "defold.extension.simpledata.url"
+         "defold.extension.spine.url"
+         "defold.extension.texturepacker.url"]))
 
 (defn number-type-preserving? [a b]
   (assert (or (number? a) (vector? a) (instance? Curve a) (instance? CurveSpread a)))
@@ -125,6 +136,7 @@
        (filterv #(and (instance? Control %)
                       (not (or (instance? Cell %)
                                (instance? Label %)
+                               (instance? Button %)
                                (instance? ScrollBar %)))))))
 
 (defmulti set-control-value! (fn [^Control control _num-value] (class control)))
@@ -142,6 +154,27 @@
 
 (defmethod set-control-value! ToggleButton [^ToggleButton toggle-button _num-value]
   (.fire toggle-button))
+
+(defonce temp-directory-path
+  (memoize
+    (fn temp-directory-path []
+      (let [temp-file (fs/create-temp-file!)
+            parent-directory-path (.getCanonicalPath (.getParentFile temp-file))]
+        (fs/delete! temp-file {:fail :silently})
+        parent-directory-path))))
+
+(defn make-directory-deleter
+  "Returns an AutoCloseable that deletes the directory at the specified
+  path when closed. Suitable for use with the (with-open) macro. The
+  directory path must be a temp directory."
+  ^AutoCloseable [directory-path]
+  (let [directory (io/file directory-path)]
+    (assert (string/starts-with? (.getCanonicalPath directory)
+                                 (temp-directory-path))
+            (str "directory-path `" (.getCanonicalPath directory) "` is not a temp directory"))
+    (reify AutoCloseable
+      (close [_]
+        (fs/delete-directory! directory {:fail :silently})))))
 
 (defn make-dir! ^File [^File dir]
   (fs/create-directory! dir))
@@ -251,6 +284,32 @@
               (seq non-editable-directory-proj-paths)
               (assoc :non-editable-directories (vec non-editable-directory-proj-paths))))))
 
+(defn write-defunload-patterns!
+  ^File [project-path patterns]
+  (fs/create-file!
+    (io/file project-path ".defunload")
+    (string/join (System/getProperty "line.separator")
+                 patterns)))
+
+(defn- proj-path-resource-type [basis workspace proj-path]
+  (let [editable-proj-path? (g/raw-property-value basis workspace :editable-proj-path?)
+        editability (editable-proj-path? proj-path)
+        type-ext (resource/filename->type-ext proj-path)]
+    (workspace/get-resource-type workspace editability type-ext)))
+
+(defn write-file-resource!
+  ^File [workspace proj-path save-value]
+  {:pre [(string/starts-with? proj-path "/")]}
+  (let [basis (g/now)
+        resource-type (proj-path-resource-type basis workspace proj-path)
+        project-directory (workspace/project-directory basis workspace)
+        file (io/file project-directory (subs proj-path 1))
+        write-fn (:write-fn resource-type)
+        contents (write-fn save-value)]
+    (test-support/write-until-new-mtime
+      file contents)
+    file))
+
 (defn setup-workspace!
   ([graph]
    (setup-workspace! graph project-path))
@@ -301,6 +360,27 @@
          (workspace/install-validated-libraries! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
+(defn distinct-resource-types-by-editability
+  ([workspace]
+   (distinct-resource-types-by-editability workspace fn/constantly-true))
+  ([workspace resource-type-predicate]
+   (let [editable-protobuf-resource-types
+         (into (sorted-map)
+               (filter (fn [[_ext editable-resource-type]]
+                         (resource-type-predicate editable-resource-type)))
+               (workspace/get-resource-type-map workspace :editable))
+
+         distinctly-non-editable-protobuf-resource-types
+         (into (sorted-map)
+               (filter (fn [[ext non-editable-resource-type]]
+                         (and (resource-type-predicate non-editable-resource-type)
+                              (not (identical? non-editable-resource-type
+                                               (editable-protobuf-resource-types ext))))))
+               (workspace/get-resource-type-map workspace :non-editable))]
+
+     {:editable (mapv val editable-protobuf-resource-types)
+      :non-editable (mapv val distinctly-non-editable-protobuf-resource-types)})))
+
 (defn setup-project!
   ([workspace]
    (let [proj-graph (g/make-graph! :history true :volatility 1)
@@ -318,16 +398,15 @@
      project)))
 
 (defn project-node-resources [project]
-  (g/with-auto-evaluation-context evaluation-context
-    (sort-by resource/proj-path
-             (map (comp #(g/node-value % :resource evaluation-context) first)
-                  (g/sources-of project :node-id+resources)))))
+  (->> (g/node-value project :node-id+resources)
+       (map second)
+       (sort-by resource/proj-path)))
 
-(defrecord FakeFileResource [workspace root ^File file children exists? source-type read-only? content]
+(defrecord FakeFileResource [workspace root ^File file children exists? source-type read-only? loaded? content]
   resource/Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
-  (resource-type [this] (#'resource/get-resource-type workspace this))
+  (resource-type [this] (resource/lookup-resource-type (g/now) workspace this))
   (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)
@@ -339,6 +418,7 @@
   (resource-hash [this] (hash (resource/proj-path this)))
   (openable? [this] (= :file source-type))
   (editable? [this] true)
+  (loaded? [_this] loaded?)
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream content opts))
@@ -349,16 +429,24 @@
 (defn make-fake-file-resource
   ([workspace root file content]
    (make-fake-file-resource workspace root file content nil))
-  ([workspace root file content {:keys [children exists? source-type read-only?]
+  ([workspace root file content {:keys [children exists? source-type read-only? loaded?]
                                  :or {children nil
                                       exists? true
                                       source-type :file
-                                      read-only? false}
+                                      read-only? false
+                                      loaded? true}
                                  :as opts}]
-   (FakeFileResource. workspace root file children exists? source-type read-only? content)))
+   (FakeFileResource. workspace root file children exists? source-type read-only? loaded? content)))
 
-(defn resource-node [project path]
-  (project/get-resource-node project path))
+(defn resource-node
+  "Returns the node-id of the ResourceNode matching the specified Resource or
+  proj-path in the project. Throws an exception if no matching ResourceNode can
+  be found in the project."
+  [project resource-or-proj-path]
+  (or (project/get-resource-node project resource-or-proj-path)
+      (throw (ex-info (str "Resource node not found: " resource-or-proj-path)
+                      {:project project
+                       :resource-or-proj-path resource-or-proj-path}))))
 
 (defn empty-selection? [app-view]
   (let [sel (g/node-value app-view :selected-node-ids)]
@@ -563,6 +651,22 @@
                  ~'app-view (setup-app-view! ~'project)]
              ~@forms))))))
 
+(defmacro with-temp-project-content
+  [save-values-by-proj-path & body]
+  `(let [save-values-by-proj-path# ~save-values-by-proj-path
+         ~'project-path (make-temp-project-copy! "test/resources/empty_project")]
+     (with-open [project-directory-deleter# (make-directory-deleter ~'project-path)]
+       (test-support/with-clean-system {:cache-size ~system-cache-size
+                                        :cache-retain? project/cache-retain?}
+         (let [~'workspace (setup-workspace! ~'world ~'project-path)]
+           (doseq [[proj-path# save-value#] save-values-by-proj-path#]
+             (write-file-resource! ~'workspace proj-path# save-value#))
+           (workspace/resource-sync! ~'workspace)
+           (fetch-libraries! ~'workspace)
+           (let [~'project (setup-project! ~'workspace)
+                 ~'app-view (setup-app-view! ~'project)]
+             ~@body))))))
+
 (defmacro with-ui-run-later-rebound
   [& forms]
   `(let [laters# (atom [])]
@@ -689,6 +793,59 @@
          (every? nat-int? outline-path)]}
   (->OutlineItemIterator root-node-id outline-path))
 
+(defn outline-node-info
+  "Given a node-id, evaluate its :node-outline output and locate the child
+  element addressed by the supplied path of outline-label strings. Return the
+  :node-outline info at the resulting path. Throws an exception if the path does
+  not lead up to a valid node."
+  [node-id & outline-labels]
+  {:pre [(every? string? outline-labels)]}
+  (reduce (fn [node-outline outline-label]
+            (or (some (fn [child-outline]
+                        (when (= outline-label (:label child-outline))
+                          child-outline))
+                      (:children node-outline))
+                (let [candidates (into (sorted-set)
+                                       (map :label)
+                                       (:children node-outline))]
+                  (throw (ex-info (format "node-outline for %s '%s' has no child-outline '%s'. Candidates: %s"
+                                          (symbol (g/node-type-kw node-id))
+                                          (:label node-outline)
+                                          outline-label
+                                          (string/join ", " (map #(str \' % \') candidates)))
+                                  {:start-node-type-kw (g/node-type-kw node-id)
+                                   :outline-labels (vec outline-labels)
+                                   :failed-outline-label outline-label
+                                   :failed-outline-label-candidates candidates
+                                   :failed-node-outline node-outline})))))
+          (g/valid-node-value node-id :node-outline)
+          outline-labels))
+
+(defn outline-node-id
+  "Given a node-id, evaluate its :node-outline output and locate the child
+  element addressed by the supplied path of outline-label strings. Return its
+  node-id. Throws an exception if the path does not lead up to a valid node."
+  [node-id & outline-labels]
+  (:node-id (apply outline-node-info node-id outline-labels)))
+
+(defn resource-outline-node-info
+  "Looks up a resource node in the project, evaluates its :node-outline output,
+  and locates the child element addressed by the supplied path of outline-label
+  strings. Returns the :node-outline info at the resulting path. Throws an
+  exception if the resource does not exist, or the outline-label path does not
+  lead up to a valid node."
+  [project resource-or-proj-path & outline-labels]
+  (let [resource-node-id (resource-node project resource-or-proj-path)]
+    (apply outline-node-info resource-node-id outline-labels)))
+
+(defn resource-outline-node-id
+  "Looks up a resource node in the project, evaluates its :node-outline output,
+  and locates the child element addressed by the supplied path of outline-label
+  strings. Returns its node-id. Throws an exception if the resource does not
+  exist, or the outline-label path does not lead up to a valid node."
+  [project resource-or-proj-path & outline-labels]
+  (:node-id (apply resource-outline-node-info project resource-or-proj-path outline-labels)))
+
 (defn outline-copy
   "Return a serialized a data representation of the specified parts of the
   edited scene. The returned value could be placed on the clipboard and later
@@ -784,8 +941,9 @@
 (defn resource [workspace path]
   (workspace/file-resource workspace path))
 
-(defn file ^File [workspace ^String path]
-  (File. (workspace/project-path workspace) path))
+(defn file
+  ^File [workspace ^String path]
+  (File. (workspace/project-directory workspace) path))
 
 (defn selection [app-view]
   (-> app-view
@@ -794,32 +952,29 @@
 
 ;; Extension library server
 
-(defn ->lib-server []
-  (doto (http-server/->server 0 {"/lib" (fn [request]
-                                          (let [lib (subs (:url request) 5)
-                                                path-offset (count (format "test/resources/%s/" lib))
-                                                ignored #{".internal" "build"}
-                                                file-filter (reify FilenameFilter
-                                                              (accept [this file name] (not (contains? ignored name))))
-                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (io/file (format "test/resources/%s" lib)))
-                                                        (filter (fn [^File f] (not (.isDirectory f)))))]
-                                            (with-open [byte-stream (ByteArrayOutputStream.)
-                                                        out (ZipOutputStream. byte-stream)]
-                                              (doseq [^File f files]
-                                                (with-open [in (FileInputStream. f)]
-                                                  (let [entry (doto (ZipEntry. (subs (.getPath f) path-offset))
-                                                                (.setSize (.length f)))]
-                                                    (.putNextEntry out entry)
-                                                    (IOUtils/copy in out)
-                                                    (.closeEntry out))))
-                                              (.finish out)
-                                              (let [bytes (.toByteArray byte-stream)]
-                                                {:headers {"ETag" "tag"}
-                                                 :body bytes}))))})
-    (http-server/start!)))
-
-(defn kill-lib-server [server]
-  (http-server/stop! server))
+(def lib-server-handler
+  (http-server/router-handler
+    {"/lib/{*lib}"
+     {"GET" (fn [request]
+              (let [lib (-> request :path-params :lib)
+                    path-offset (count (format "test/resources/%s/" lib))
+                    ignored #{".internal" "build"}
+                    file-filter (reify FilenameFilter
+                                  (accept [this file name] (not (contains? ignored name))))
+                    files (->> (tree-seq (fn [^File f] (.isDirectory f))
+                                         (fn [^File f] (.listFiles f ^FilenameFilter file-filter))
+                                         (io/file (format "test/resources/%s" lib)))
+                               (filter (fn [^File f] (not (.isDirectory f)))))
+                    baos (ByteArrayOutputStream.)]
+                (with-open [out (ZipOutputStream. baos)]
+                  (doseq [^File f files]
+                    (with-open [in (FileInputStream. f)]
+                      (let [entry (doto (ZipEntry. (subs (.getPath f) path-offset))
+                                    (.setSize (.length f)))]
+                        (.putNextEntry out entry)
+                        (IOUtils/copy in out)
+                        (.closeEntry out)))))
+                (http-server/response 200 {"etag" "tag"} (.toByteArray baos))))}}))
 
 (defn lib-server-uri [server lib]
   (format "%s/lib/%s" (http-server/local-url server) lib))
@@ -848,44 +1003,40 @@
          (finally
            (prop! ~node-id# ~property# old-value#))))))
 
-(def temp-directory-path
-  (memoize
-    (fn temp-directory-path []
-      (let [temp-file (fs/create-temp-file!)
-            parent-directory-path (.getCanonicalPath (.getParentFile temp-file))]
-        (fs/delete! temp-file {:fail :silently})
-        parent-directory-path))))
-
-(defn make-directory-deleter
-  "Returns an AutoCloseable that deletes the directory at the specified
-  path when closed. Suitable for use with the (with-open) macro. The
-  directory path must be a temp directory."
-  ^java.lang.AutoCloseable [directory-path]
-  (let [directory (io/file directory-path)]
-    (assert (string/starts-with? (.getCanonicalPath directory)
-                                 (temp-directory-path))
-            (str "directory-path `" (.getCanonicalPath directory) "` is not a temp directory"))
-    (reify java.lang.AutoCloseable
-      (close [_]
-        (fs/delete-directory! directory {:fail :silently})))))
-
 (defn make-graph-reverter
-  "Returns an AutoCloseable that reverts the specified graph to
-  the state it was at construction time when its close method
-  is invoked. Suitable for use with the (with-open) macro."
-  ^java.lang.AutoCloseable [graph-id]
+  "Returns an AutoCloseable that reverts the specified graph to the state it was
+  at construction time when its close method is invoked. Suitable for use with
+  the (with-open) macro."
+  ^AutoCloseable [graph-id]
   (let [initial-undo-stack-count (g/undo-stack-count graph-id)]
-    (reify java.lang.AutoCloseable
+    (reify AutoCloseable
       (close [_]
         (loop [undo-stack-count (g/undo-stack-count graph-id)]
           (when (< initial-undo-stack-count undo-stack-count)
             (g/undo! graph-id)
             (recur (g/undo-stack-count graph-id))))))))
 
+(defn make-project-graph-reverter
+  "Returns an AutoCloseable that reverts the project graph to the state it was
+  at construction time when its close method is invoked. Suitable for use with
+  the (with-open) macro."
+  ^AutoCloseable [project]
+  {:pre [(g/node-instance? project/Project project)]}
+  (let [project-graph-id (g/node-id->graph-id project)]
+    (make-graph-reverter project-graph-id)))
+
 (defn- throw-invalid-component-resource-node-id-exception [basis node-id]
   (throw (ex-info "The specified node cannot be resolved to a component ResourceNode."
                   {:node-id node-id
                    :node-type (g/node-type* basis node-id)})))
+
+(defmacro with-changes-reverted
+  "Evaluates the body expressions in a try expression, and reverts any changes
+  to the project graph in the finally clause. Returns the result of the last
+  body expression."
+  [project & body]
+  `(with-open [project-graph-reverter# (make-project-graph-reverter ~project)]
+     ~@body))
 
 (defn- validate-component-resource-node-id
   ([node-id]
@@ -914,7 +1065,6 @@
      game-object/ReferencedComponent
      (validate-component-resource-node-id basis (g/node-feeding-into basis node-id :source-resource))
 
-     :else
      (throw-invalid-component-resource-node-id-exception basis node-id))))
 
 (defn to-game-object-node-id
@@ -929,7 +1079,6 @@
      collection/GameObjectInstanceNode
      (g/node-feeding-into basis node-id :source-resource)
 
-     :else
      (throw (ex-info "The specified node cannot be resolved to a GameObjectNode."
                      {:node-id node-id
                       :node-type (g/node-type* basis node-id)})))))
@@ -946,7 +1095,6 @@
      collection/CollectionInstanceNode
      (g/node-feeding-into basis node-id :source-resource)
 
-     :else
      (throw (ex-info "The specified node cannot be resolved to a CollectionNode."
                      {:node-id node-id
                       :node-type (g/node-type* basis node-id)})))))
@@ -1174,7 +1322,7 @@
     build-result))
 
 (defn build!
-  ^java.lang.AutoCloseable [resource-node]
+  ^AutoCloseable [resource-node]
   (let [resource (resource-node/resource resource-node)
         workspace (resource/workspace resource)
         build-directory (workspace/build-path workspace)]
@@ -1257,7 +1405,7 @@
              {:tag pb-class}))
 
 (defn- make-build-output-infos-by-path-impl [workspace resource-types-by-build-ext ^String build-output-path]
-  (let [build-ext (FilenameUtils/getExtension build-output-path)
+  (let [build-ext (resource/filename->type-ext build-output-path)
         resource-type (some (fn [[_ resource-type]]
                               (when (= build-ext (:build-ext resource-type))
                                 resource-type))

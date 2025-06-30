@@ -34,8 +34,8 @@
  *
  * @document
  * @name Array
- * @namespace dmArray
  * @path engine/dlib/src/dmsdk/dlib/array.h
+ * @language C++
  */
 
 /**
@@ -60,7 +60,7 @@ char (&ArraySizeHelper(T (&a)[N]))[N];
 /*# get number of elements in C array
  * @macro
  * @name DM_ARRAY_SIZE
- * @param Array [type:]
+ * @param A [type:T] C array to count
  * @return Number of elements
  */
 #define DM_ARRAY_SIZE(A) (sizeof(ArraySizeHelper(A)))
@@ -72,7 +72,7 @@ char (&ArraySizeHelper(T (&a)[N]))[N];
  *
  * @class
  * @name dmArray
- * @tparam T [type:typename T] Contained type, must obey memcpy semantics
+ * @tparam T Contained type, must obey memcpy semantics
  */
 template <typename T>
 class dmArray
@@ -207,7 +207,7 @@ public:
      * The array is full when the size is equal to the capacity.
      *
      * @name Full
-     * @return boolean [type:boolean] true if the array is full
+     * @return boolean [type:bool] true if the array is full
      */
     bool Full() const;
 
@@ -217,7 +217,7 @@ public:
      * The array is empty when the size is zero.
      *
      * @name Empty
-     * @return boolean [type:boolean] true if the array is empty
+     * @return boolean [type:bool] true if the array is empty
      */
     bool Empty() const;
 
@@ -334,7 +334,7 @@ public:
      * Only allowed when the capacity is larger than size + count
      *
      * @name PushArray
-     * @param array [type:const T&] array of elements to add
+     * @param array [type:const T*] array of elements to add
      * @param count [type:uint32_t] amount of elements in the array
      */
     void PushArray(const T* array, uint32_t count);
@@ -354,15 +354,15 @@ public:
      * Swap the content of two arrays
      *
      * @name Swap
-     * @param rhs [type:dmArray`<T>`&] reference to array to swap content with
+     * @param rhs [type:dmArray<T>&] reference to array to swap content with
      */
     void Swap(dmArray<T>& rhs);
 
     /*# map a function on all values
      * map a function on all values
      * @name Map
-     * @param fn function that will be called for each element
-     * @param ctx user defined context that will be passed in with each callback
+     * @param fn [type:void*]function that will be called for each element
+     * @param ctx [type:void*] user defined context that will be passed in with each callback
      */
     void Map(void (*fn)(T* value, void* ctx), void* ctx);
 

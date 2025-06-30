@@ -31,14 +31,12 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
-@BuilderParams(name = "Ogg", inExts = ".ogg", outExt = ".oggc")
+@BuilderParams(name = "Ogg", inExts = ".ogg", outExt = ".oggc", paramsForSignature = {"sound-stream-enabled"})
 public class OggBuilder extends CopyBuilder{
+    private static String oggzValidateExePath;
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        Platform curr_platform = Platform.getHostPlatform();
-        List<String> deps = List.of("libogg", "liboggz");
-        Bob.unpackSharedLibraries(curr_platform, deps);
         File tmpOggFile = null;
         try {
             tmpOggFile = File.createTempFile("ogg_tmp", null, Bob.getRootFolder());
@@ -52,9 +50,8 @@ public class OggBuilder extends CopyBuilder{
             throw new CompileExceptionError(input, 0, 
                 String.format("Cannot copy ogg file to further process", new String(exc.getMessage())));
         }
-        Result result = Exec.execResult(Bob.getExe(curr_platform, "oggz-validate"),
-            tmpOggFile.getAbsolutePath()
-        );
+        oggzValidateExePath = Bob.getHostExeOnce("oggz-validate", oggzValidateExePath);
+        Result result = Exec.execResult(oggzValidateExePath, tmpOggFile.getAbsolutePath());
 
         if (result.ret != 0) {
             throw new CompileExceptionError(input, 0, 
@@ -68,7 +65,7 @@ public class OggBuilder extends CopyBuilder{
     public void build(Task task) throws IOException {
         super.build(task);
 
-        boolean soundStreaming = project.getProjectProperties().getBooleanValue("sound", "stream_enabled", false); // if no value set use old hardcoded path (backward compatability)
+        boolean soundStreaming = this.project.option("sound-stream-enabled", "false").equals("true"); // if no value set use old hardcoded path (backward compatability)
         boolean compressSounds = soundStreaming ? false : true; // We want to be able to read directly from the files as-is (without compression)
         for(IResource res : task.getOutputs()) {
             if (!compressSounds) {

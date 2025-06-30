@@ -27,7 +27,21 @@
                     :doc "Either resource path (e.g. <code>\"/main/game.script\"</code>), or internal node id passed to the script by the editor"}
         property-param {:name "property"
                         :types ["string"]
-                        :doc "Either <code>\"path\"</code>, <code>\"text\"</code>, or a property from the Outline view (hover the label to see its editor script name)"}]
+                        :doc "Either <code>\"path\"</code>, <code>\"text\"</code>, or a property from the Outline view (hover the label to see its editor script name)"}
+        http-status-param {:name "[status]"
+                           :types ["integer"]
+                           :doc "HTTP status code, an integer, default 200"}
+        http-headers-param {:name "[headers]"
+                            :types ["table&lt;string,string&gt;"]
+                            :doc "HTTP response headers, a table from lower-case header names to header values"}
+        http-response-param {:name "response" :types ["response"] :doc "HTTP response value, userdata"}
+        resource-path-param {:name "resource_path"
+                             :types ["string"]
+                             :doc "Resource path (starting with <code>/</code>)"}
+        transaction-step-param {:name "tx"
+                                :types ["transaction_step"]
+                                :doc "A transaction step"}
+        boolean-ret-param {:name "value" :types ["boolean"] :doc ""}]
     (vec
       (e/concat
         [{:name "editor"
@@ -43,23 +57,94 @@
          {:name "editor.can_get"
           :type :function
           :parameters [node-param property-param]
-          :returnvalues [{:name "value"
-                          :types ["boolean"]
-                          :doc ""}]
+          :returnvalues [boolean-ret-param]
           :description "Check if you can get this property so `editor.get()` won't throw an error"}
+         {:name "editor.can_add"
+          :type :function
+          :parameters [node-param property-param]
+          :returnvalues [boolean-ret-param]
+          :description "Check if `editor.tx.add()` (as well as `editor.tx.clear()` and `editor.tx.remove()`) transaction with this property won't throw an error"}
          {:name "editor.can_set"
           :type :function
           :parameters [node-param property-param]
-          :returnvalues [{:name "value"
-                          :types ["boolean"]
+          :returnvalues [boolean-ret-param]
+          :description "Check if `editor.tx.set()` transaction with this property won't throw an error"}
+         {:name "editor.can_reorder"
+          :type :function
+          :parameters [node-param property-param]
+          :returnvalues [boolean-ret-param]
+          :description "Check if `editor.tx.reorder()` transaction with this property won't throw an error"}
+         {:name "editor.can_reset"
+          :type :function
+          :parameters [node-param property-param]
+          :returnvalues [boolean-ret-param]
+          :description "Check if `editor.tx.reset()` transaction with this property won't throw an error"}
+         {:name "editor.command"
+          :type :function
+          :description "Create an editor command"
+          :parameters [{:name "opts"
+                        :types ["table"]
+                        :doc (str "A table with the following keys:"
+                                  (lua-completion/args-doc-html
+                                    [{:name "label"
+                                      :types ["string"]
+                                      :doc "required, user-visible command name"}
+                                     {:name "locations"
+                                      :types ["string[]"]
+                                      :doc "required, a non-empty list of locations where the command is displayed in the editor, values are either <code>\"Edit\"</code>, <code>\"View\"</code>, <code>\"Project\"</code>, <code>\"Debug\"</code> (the editor menubar), <code>\"Assets\"</code> (the assets pane), or <code>\"Outline\"</code> (the outline pane)"}
+                                     {:name "query"
+                                      :types ["table"]
+                                      :doc (str "optional, a query that both controls the command availability and provides additional information to the command handler functions; a table with the following keys:"
+                                                (lua-completion/args-doc-html
+                                                  [{:name "selection"
+                                                    :types ["table"]
+                                                    :doc (str "current selection, a table with the following keys:"
+                                                              (lua-completion/args-doc-html
+                                                                [{:name "type"
+                                                                  :types ["string"]
+                                                                  :doc "either <code>\"resource\"</code> (selected resource) or <code>\"outline\"</code> (selected outline node)"}
+                                                                 {:name "cardinality"
+                                                                  :types ["string"]
+                                                                  :doc "either <code>\"one\"</code> (will use first selected item) or <code>\"many\"</code> (will use all selected items)"}]))}
+                                                   {:name "argument"
+                                                    :types ["table"]
+                                                    :doc "the command argument"}]))}
+                                     {:name "id"
+                                      :types ["string"]
+                                      :doc "optional, keyword identifier that may be used for assigning a shortcut to a command; should be a dot-separated identifier string, e.g. <code>\"my-extension.do-stuff\"</code>"}
+                                     {:name "active"
+                                      :types ["function"]
+                                      :doc "optional function that additionally checks if a command is active in the current context; will receive opts table with values populated by the query; should be fast to execute since the editor might invoke it in response to UI interactions (on key typed, mouse clicked)"}
+                                     {:name "run"
+                                      :types ["function"]
+                                      :doc "optional function that is invoked when the user decides to execute the command; will receive opts table with values populated by the query"}]))}]
+          :returnvalues [{:name "command"
+                          :types ["command"]
                           :doc ""}]
-          :description "Check if `\"set\"` action with this property won't throw an error"}
+          :examples "Print Git history for a file:
+```
+editor.command({
+  label = \"Git History\",
+  query = {
+    selection = {
+      type = \"resource\",
+      cardinality = \"one\"
+    }
+  },
+  run = function(opts)
+    editor.execute(
+      \"git\",
+      \"log\",
+      \"--follow\",
+      \".\" .. editor.get(opts.selection, \"path\"),
+      {reload_resources=false})
+  end
+})
+```"}
          {:name "editor.resource_attributes"
           :type :function
           :description "Query information about a project resource"
-          :parameters [{:name "resource_path"
-                        :types ["string"]
-                        :doc "Resource path (starting with <code>/</code>) of a resource to look up"}]
+          :parameters [resource-path-param]
           :returnvalues [{:name "value"
                           :types ["table"]
                           :doc (str "A table with the following keys:"
@@ -75,16 +160,12 @@
                                         :doc "whether the resource represents a directory"}]))}]}
          {:name "editor.create_directory"
           :type :function
-          :parameters [{:name "resource_path"
-                        :types ["string"]
-                        :doc "Resource path (starting with <code>/</code>) of a directory to create"}]
+          :parameters [resource-path-param]
           :description "Create a directory if it does not exist, and all non-existent parent directories.\n\nThrows an error if the directory can't be created."
           :examples "```\neditor.create_directory(\"/assets/gen\")\n```"}
          {:name "editor.delete_directory"
           :type :function
-          :parameters [{:name "resource_path"
-                        :types ["string"]
-                        :doc "Resource path (starting with <code>/</code>) of a directory to delete"}]
+          :parameters [resource-path-param]
           :description "Delete a directory if it exists, and all existent child directories and files.\n\nThrows an error if the directory can't be deleted."
           :examples "```\neditor.delete_directory(\"/assets/gen\")\n```"}
          {:name "editor.external_file_attributes"
@@ -200,10 +281,36 @@
                        {:name "value"
                         :types ["any"]
                         :doc "A new value for the property"}]
-          :returnvalues [{:name "result"
-                          :types ["transaction_step"]
-                          :doc "A transaction step"}]
-          :description "Create a set transaction step.\n\nWhen the step is transacted using `editor.transact()`, it will set the node's property to a supplied value"}
+          :returnvalues [transaction-step-param]
+          :description "Create transaction step that will set the node's property to a supplied value when transacted with `editor.transact()`."}
+         {:name "editor.tx.add"
+          :type :function
+          :parameters [node-param
+                       property-param
+                       {:name "value"
+                        :types ["any"]
+                        :doc "Added item for the property, a table from property key to either a valid <code>editor.tx.set()</code>-able value, or an array of valid <code>editor.tx.add()</code>-able values"}]
+          :description "Create a transaction step that will add a child item to a node's list property when transacted with `editor.transact()`."}
+         {:name "editor.tx.clear"
+          :type :function
+          :parameters [node-param property-param]
+          :returnvalues [transaction-step-param]
+          :description "Create a transaction step that will remove all items from node's list property when transacted with `editor.transact()`."}
+         {:name "editor.tx.remove"
+          :type :function
+          :parameters [node-param property-param (assoc node-param :name "child_node")]
+          :returnvalues [transaction-step-param]
+          :description "Create a transaction step that will remove a child node from the node's list property when transacted with `editor.transact()`."}
+         {:name "editor.tx.reorder"
+          :type :function
+          :parameters [node-param property-param {:name "child_nodes" :types ["table"] :doc "array of child nodes (the same as returned by <code>editor.get(node, property)</code>) in new order"}]
+          :returnvalues [transaction-step-param]
+          :description "Create a transaction step that reorders child nodes in a node list defined by the property if supported (see <code>editor.can_reorder()</code>)"}
+         {:name "editor.tx.reset"
+          :type :function
+          :parameters [node-param property-param]
+          :returnvalues [transaction-step-param]
+          :description "Create a transaction step that will reset an overridden property to its default value when transacted with `editor.transact()`."}
          {:name "editor.version"
           :type :variable
           :description "A string, version name of Defold"}
@@ -219,9 +326,7 @@
          {:name "editor.ui.open_resource"
           :type :function
           :description "Open a resource, either in the editor or in a third-party app"
-          :parameters [{:name "resource_path"
-                        :types ["string"]
-                        :doc "Resource path (starting with <code>/</code>) of a resource to open"}]}]
+          :parameters [resource-path-param]}]
         (e/mapcat
           (fn [[enum-id enum-values]]
             (let [id (ui-docs/->screaming-snake-case enum-id)]
@@ -243,7 +348,7 @@
         (prefs-docs/script-docs)
         [{:name "http"
           :type :module
-          :description "Functions for performing HTTP requests"}
+          :description "HTTP client and editor's HTTP server-related functionality"}
          {:name "http.request"
           :type :function
           :description "Perform an HTTP request"
@@ -265,7 +370,7 @@
                                       :doc "request body"}
                                      {:name "as"
                                       :types ["string"]
-                                      :doc "Response body converter, either <code>\"string\"</code> or <code>\"json\"</code>"}]))}]
+                                      :doc "response body converter, either <code>\"string\"</code> or <code>\"json\"</code>"}]))}]
           :returnvalues [{:name "response"
                           :types ["table"]
                           :doc (str "HTTP response, a table with the following keys:"
@@ -279,6 +384,120 @@
                                        {:name "body"
                                         :types ["string" "any" "nil"]
                                         :doc "response body, present only when <code>as</code> option was provided, either a string or a parsed json value"}]))}]}
+         {:name "http.server"
+          :type :module
+          :description "Editor's HTTP server-related functionality"}
+         {:name "http.server.local_url"
+          :type :constant
+          :description "Editor's HTTP server local url"}
+         {:name "http.server.port"
+          :type :constant
+          :description "Editor's HTTP server port"}
+         {:name "http.server.url"
+          :type :constant
+          :description "Editor's HTTP server url"}
+         {:name "http.server.external_file_response"
+          :type :function
+          :description "Create HTTP response that will stream the content of a file defined by the path"
+          :parameters [{:name "path"
+                        :types ["string"]
+                        :doc "External file path, resolved against project root if relative"}
+                       http-status-param
+                       http-headers-param]
+          :returnvalues [http-response-param]}
+         {:name "http.server.json_response"
+          :type :function
+          :description "Create HTTP response with a JSON value"
+          :parameters [{:name "value"
+                        :types ["any"]
+                        :doc "Any Lua value that may be represented as JSON"}
+                       http-status-param
+                       http-headers-param]
+          :returnvalues [http-response-param]}
+         {:name "http.server.resource_response"
+          :type :function
+          :description "Create HTTP response that will stream the content of a resource defined by the resource path"
+          :parameters [resource-path-param
+                       http-status-param
+                       http-headers-param]
+          :returnvalues [http-response-param]}
+         {:name "http.server.response"
+          :type :function
+          :description "Create HTTP response"
+          :parameters [http-status-param
+                       http-headers-param
+                       {:name "[body]"
+                        :types ["string"]
+                        :doc "HTTP response body"}]
+          :returnvalues [http-response-param]}
+         {:name "http.server.route"
+          :type :function
+          :description "Create route definition for the editor's HTTP server"
+          :parameters [{:name "path"
+                        :types ["string"]
+                        :doc "HTTP URI path, starts with <code>/</code>; may include path patterns (<code>{name}</code> for a single segment and <code>{*name}</code> for the rest of the request path) that will be extracted from the path and provided to the handler as a part of the request"}
+                       {:name "[method]"
+                        :types ["string"]
+                        :doc "HTTP request method, default <code>\"GET\"</code>"}
+                       {:name "[as]"
+                        :types ["string"]
+                        :doc "Request body converter, either <code>\"string\"</code> or <code>\"json\"</code>; the body will be discarded if not specified"}
+                       {:name "handler"
+                        :types ["function"]
+                        :doc (str "Request handler function, will receive request argument, a table with the following keys:"
+                                  (lua-completion/args-doc-html
+                                    [{:name "path"
+                                      :types ["string"]
+                                      :doc "full matched path, a string starting with <code>/</code>"}
+                                     {:name "method"
+                                      :types ["string"]
+                                      :doc "HTTP request method, e.g. <code>\"POST\"</code>"}
+                                     {:name "headers"
+                                      :types ["table&lt;string,(string|string[])&gt;"]
+                                      :doc "HTTP request headers, a table from lower-case header names to header values"}
+                                     {:name "query"
+                                      :types ["string"]
+                                      :doc "optional query string"}
+                                     {:name "body"
+                                      :types ["string" "any"]
+                                      :doc "optional request body, depends on the <code>as</code> argument"}])
+                                  "\nHandler function should return either a single response value, or 0 or more arguments to the <code>http.server.response()</code> function")}]
+          :returnvalues [{:name "route" :types ["route"] :doc "HTTP server route"}]
+          :examples "Receive JSON and respond with JSON:
+```
+http.server.route(
+  \"/json\", \"POST\", \"json\",
+  function(request)
+    pprint(request.body)
+    return 200
+  end
+)
+```
+Extract parts of the path:
+```
+http.server.route(
+  \"/users/{user}/orders\",
+  function(request)
+    print(request.user)
+  end
+)
+```
+Simple file server:
+```
+http.server.route(
+  \"/files/{*file}\",
+  function(request)
+    local attrs = editor.external_file_attributes(request.file)
+    if attrs.is_file then
+      return http.server.external_file_response(request.file)
+    elseif attrs.is_directory then
+      return 400
+    else
+      return 404
+    end
+  end
+)
+```"}
          {:name "json"
           :type :module
           :description "Module for encoding or decoding values in JSON format"}
@@ -300,13 +519,13 @@
           :description "Encode Lua value to JSON string"
           :parameters [{:name "value"
                         :types ["any"]
-                        :doc "any lua value that may be represented as JSON"}]}
+                        :doc "any Lua value that may be represented as JSON"}]}
          {:name "pprint"
           :type :function
           :description "Pretty-print a Lua value"
           :parameters [{:name "value"
                         :types ["any"]
-                        :doc "any lua value to pretty-print"}]}]
+                        :doc "any Lua value to pretty-print"}]}]
         (when-not (System/getProperty "defold.version")
           ;; Dev-only docs
           [{:name "editor.bundle.abort_message"
@@ -506,6 +725,74 @@
                                                                           {:name "build_report" :types ["boolean"]}
                                                                           {:name "liveupdate" :types ["boolean"]}
                                                                           {:name "contentless" :types ["boolean"]}]))}]}])
+        (let [tiles-param {:name "tiles" :types ["tiles"] :doc "unbounded 2d grid of tiles"}
+              x-param {:name "x" :types ["integer"] :doc "x coordinate of a tile"}
+              y-param {:name "y" :types ["integer"] :doc "y coordinate of a tile"}
+              tile-doc "1-indexed tile index of a tilemap's tilesource"
+              info-doc (str "full tile information table with the following keys:"
+                            (lua-completion/args-doc-html
+                              [{:name "index" :types ["integer"] :doc tile-doc}
+                               {:name "h_flip" :types ["boolean"] :doc "horizontal flip"}
+                               {:name "v_flip" :types ["boolean"] :doc "vertical flip"}
+                               {:name "rotate_90" :types ["boolean"] :doc "whether the tile is rotated 90 degrees clockwise"}]))
+              tile-param {:name "tile_index" :types ["integer"] :doc tile-doc}
+              info-param {:name "info" :types ["table"] :doc info-doc}]
+          [{:name "tilemap"
+            :type :module
+            :description "Module for manipulating tilemaps"}
+           {:name "tilemap.tiles"
+            :type :module
+            :description "Module for manipulating tiles on a tilemap layer"}
+           {:name "tilemap.tiles.new"
+            :type :function
+            :description "Create a new unbounded 2d grid data structure for storing tilemap layer tiles"
+            :parameters []
+            :returnvalues [tiles-param]}
+           {:name "tilemap.tiles.get_tile"
+            :type :function
+            :description "Get a tile index at a particular coordinate"
+            :parameters [tiles-param x-param y-param]
+            :returnvalues [tile-param]}
+           {:name "tilemap.tiles.get_info"
+            :type :function
+            :description "Get full information from a tile at a particular coordinate"
+            :parameters [tiles-param x-param y-param]
+            :returnvalues [info-param]}
+           {:name "tilemap.tiles.iterator"
+            :type :function
+            :description "Create an iterator over all tiles in a tiles data structure\n\nWhen iterating using for loop, each iteration returns x, y and tile index of a tile in a tile map"
+            :parameters [tiles-param]
+            :returnvalues [{:name "iter" :types ["function"] :doc "iterator"}]
+            :examples "Iterate over all tiles in a tile map:
+```
+local layers = editor.get(\"/level.tilemap\", \"layers\")
+for i = 1, #layers do
+  local tiles = editor.get(layers[i], \"tiles\")
+  for x, y, i in tilemap.tiles.iterator(tiles) do
+    print(x, y, i)
+  end
+end
+```"}
+           {:name "tilemap.tiles.clear"
+            :type :function
+            :description "Remove all tiles"
+            :parameters [tiles-param]
+            :returnvalues [tiles-param]}
+           {:name "tilemap.tiles.set"
+            :type :function
+            :description "Set a tile at a particular coordinate"
+            :parameters [tiles-param
+                         x-param
+                         y-param
+                         {:name "tile_or_info"
+                          :types ["integer" "table"]
+                          :doc (str "Either " tile-doc " or " info-doc)}]
+            :returnvalues [tiles-param]}
+           {:name "tilemap.tiles.remove"
+            :type :function
+            :description "Remove a tile at a particular coordinate"
+            :parameters [tiles-param x-param y-param]
+            :returnvalues [tiles-param]}])
         [{:name "zip"
           :type :module
           :description "Module for manipulating zip archives"}

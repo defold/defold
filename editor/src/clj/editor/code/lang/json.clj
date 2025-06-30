@@ -14,8 +14,7 @@
 
 (ns editor.code.lang.json
   (:require [clojure.data.json :as json]
-            [editor.code.data :as data])
-  (:import [java.io PushbackReader]))
+            [editor.code.data :as data]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -27,6 +26,14 @@
    ;; https://github.com/textmate/json.tmbundle/blob/master/Preferences/Miscellaneous.tmPreferences
    :indent {:begin #"^.*(\{[^}]*|\[[^\]]*)$"
             :end #"^\s*[}\]],?\s*$"}
+   :auto-insert {:characters {\{ \}
+                              \[ \]
+                              \" \"}
+                 :close-characters #{\} \] \"}
+                 :exclude-scopes #{"punctuation.definition.string.begin.json"
+                                   "string.quoted.double.json"}
+                 :open-scopes {\" "punctuation.definition.string.begin.json"}
+                 :close-scopes {\" "punctuation.definition.string.end.json"}}
    :patterns [{:match #"\b(?:true|false|null)\b"
                :name "constant.language.json"}
               {:match #"(?x)-?(?:0|[1-9]\d*)(?:\n(?:\n\.\d+)?(?:[eE][+-]?\d+)?)?"

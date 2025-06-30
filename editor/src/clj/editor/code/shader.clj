@@ -15,18 +15,14 @@
 (ns editor.code.shader
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.build-target :as bt]
             [editor.code.resource :as r]
+            [editor.code.shader-compilation :as shader-compilation]
             [editor.defold-project :as project]
-            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.types :as types]
             [editor.workspace :as workspace]
-            [schema.core :as s])
-  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor ]
-           [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderType]
-           [com.dynamo.bob.pipeline.shader ShaderCompilePipeline$ShaderModuleDesc]))
+            [schema.core :as s]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -37,6 +33,10 @@
    :indent {:begin #"^.*\{[^}\"\']*$|^.*\([^\)\"\']*$|^\s*\{\}$"
             :end #"^\s*(\s*/[*].*[*]/\s*)*\}|^\s*(\s*/[*].*[*]/\s*)*\)"}
    :line-comment "//"
+   :auto-insert {:characters {\{ \}
+                              \( \)
+                              \[ \]}
+                 :close-characters #{\} \) \]}}
    :patterns [{:captures {1 {:name "storage.type.glsl"}
                           2 {:name "entity.name.function.glsl"}}
                :match #"^([a-zA-Z_][\w\s]*)\s+([a-zA-Z_]\w*)(?=\s*\()"
@@ -104,67 +104,6 @@
                    :view-types [:code :default]
                    :view-opts glsl-opts}])
 
-(defn shader-type-from-ext
-  ^Graphics$ShaderDesc$ShaderType [^String resource-ext]
-  (case resource-ext
-    "fp" Graphics$ShaderDesc$ShaderType/SHADER_TYPE_FRAGMENT
-    "vp" Graphics$ShaderDesc$ShaderType/SHADER_TYPE_VERTEX
-    "cp" Graphics$ShaderDesc$ShaderType/SHADER_TYPE_COMPUTE))
-
-(defn shader-language-to-java
-  ^Graphics$ShaderDesc$Language [language]
-  (case language
-    :language-glsl-sm120 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM120
-    :language-glsl-sm430 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM430
-    :language-gles-sm100 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM100
-    :language-gles-sm300 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM300
-    :language-glsl-sm330 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM330
-    :language-spirv Graphics$ShaderDesc$Language/LANGUAGE_SPIRV))
-
-(defn- error-string->error-value [^String error-string]
-  (g/error-fatal (string/trim error-string)))
-
-(defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" java-shader-languages-with-spirv
-  (into-array Graphics$ShaderDesc$Language
-              (map shader-language-to-java
-                   ;; TODO: WGSL support (:language-wgsl)
-                   [:language-glsl-sm330 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv])))
-
-(defn- build-shader [build-resource _dep-resources user-data]
-  (let [resource-path (resource/path build-resource)
-        max-page-count (:max-page-count user-data)
-        shader-module-descs (into-array ShaderCompilePipeline$ShaderModuleDesc
-                                        (mapv (fn [shader-info]
-                                                (let [shader-module-desc (ShaderCompilePipeline$ShaderModuleDesc.)]
-                                                  (set! (. shader-module-desc source) (:source shader-info))
-                                                  (set! (. shader-module-desc resourcePath) (:resource-path shader-info))
-                                                  (set! (. shader-module-desc type) (shader-type-from-ext (:ext shader-info)))
-                                                  shader-module-desc))
-                                              (:shader-infos user-data)))
-        result (ShaderProgramBuilderEditor/makeShaderDescWithVariants resource-path shader-module-descs java-shader-languages-with-spirv max-page-count)
-        compile-warning-messages (.-buildWarnings result)
-        compile-error-values (mapv error-string->error-value compile-warning-messages)]
-    (g/precluding-errors compile-error-values
-      {:resource build-resource
-       :content (protobuf/pb->bytes (.-shaderDesc result))})))
-
-(defn make-shader-build-target [node-id shader-source-infos max-page-count]
-  {:pre [(vector? shader-source-infos)
-         (pos? (count shader-source-infos))
-         (integer? max-page-count)]}
-  (let [workspace (resource/workspace (:resource (first shader-source-infos)))
-        user-data {:max-page-count max-page-count
-                   :shader-infos (mapv (fn [shader-source-info]
-                                         {:source (:shader-source shader-source-info)
-                                          :resource-path (resource/proj-path (:resource shader-source-info))
-                                          :ext (resource/type-ext (:resource shader-source-info))})
-                                       shader-source-infos)}]
-    (bt/with-content-hash
-      {:node-id node-id
-       :resource (workspace/make-placeholder-build-resource workspace "sp")
-       :build-fn build-shader
-       :user-data user-data})))
-
 (def ^:private include-pattern #"^\s*\#include\s+(?:<([^\"<>]+)>|\"([^\"<>]+)\")\s*(?:\/\/.*)?$")
 
 (defn- try-parse-include [^String line]
@@ -227,7 +166,7 @@
   (input included-proj-paths+full-lines ProjPath+Lines :array)
 
   (output proj-path->full-lines g/Any (g/fnk [included-proj-paths+full-lines]
-                                                (into {} included-proj-paths+full-lines)))
+                                        (into {} included-proj-paths+full-lines)))
   (output proj-path+full-lines ProjPath+Lines :cached produce-proj-path+full-lines)
   (output shader-source-info g/Any :cached produce-shader-source-info))
 
@@ -237,6 +176,6 @@
    (for [def shader-defs
          :let [args (assoc def
                       :node-type ShaderNode
-                      :built-pb-class Graphics$ShaderDesc
+                      :built-pb-class shader-compilation/built-pb-class
                       :lazy-loaded false)]]
      (apply r/register-code-resource-type workspace (mapcat identity args)))])

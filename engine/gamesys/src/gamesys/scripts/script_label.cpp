@@ -35,6 +35,7 @@ namespace dmGameSystem
  * @document
  * @name Label
  * @namespace label
+ * @language Lua
  */
 
 /*# [type:vector4] label color
@@ -229,7 +230,7 @@ namespace dmGameSystem
  * ```
  */
 
-/*# [type:bool] label line break
+/*# [type:boolean] label line break
  *
  * The line break of the label.
  * This value is used to adjust the vertical spacing of characters in the text.

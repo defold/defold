@@ -34,6 +34,7 @@
             [editor.game-object :as game-object]
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
+            [editor.handler :as handler]
             [editor.math :as math]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
@@ -79,13 +80,16 @@
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
            [java.lang.reflect Modifier]
            [java.nio ByteBuffer]
+           [javafx.scene Node]
            [javafx.stage Window]
            [javax.vecmath Matrix3d Matrix4d Point2d Point3d Point4d Quat4d Vector2d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(namespaces/import-vars [util.debug-util stack-trace])
+(namespaces/import-vars
+  [util.debug-util stack-trace]
+  [integration.test-util outline-node-id outline-node-info resource-outline-node-id resource-outline-node-info])
 
 (defn javafx-tree [obj]
   (jfx/info-tree obj))
@@ -113,7 +117,11 @@
           (g/node-value :active-view)))
 
 (defn resource-node [path-or-resource]
-  (project/get-resource-node (project) path-or-resource))
+  (let [resource-node (project/get-resource-node (project) path-or-resource)]
+    (if (some? resource-node)
+      resource-node
+      (throw (ex-info (str "Resource not found: '" path-or-resource "'")
+                      {:path-or-resource path-or-resource})))))
 
 (defn selection []
   (->> (g/node-value (project) :selected-node-ids-by-resource-node)
@@ -147,37 +155,10 @@
              (coll/not-empty override-node-ids)
              (assoc :override-node-ids override-node-ids)))))
 
-(defn node-outline [node-id & outline-labels]
-  {:pre [(not (g/error? node-outline))
-         (every? string? outline-labels)]}
-  (reduce (fn [node-outline outline-label]
-            (or (some (fn [child-outline]
-                        (when (= outline-label (:label child-outline))
-                          child-outline))
-                      (:children node-outline))
-                (let [candidates (into (sorted-set)
-                                       (map :label)
-                                       (:children node-outline))]
-                  (throw (ex-info (format "node-outline for %s '%s' has no child-outline '%s'. Candidates: %s"
-                                          (symbol (g/node-type-kw node-id))
-                                          (:label node-outline)
-                                          outline-label
-                                          (string/join ", " (map #(str \' % \') candidates)))
-                                  {:start-node-type-kw (g/node-type-kw node-id)
-                                   :outline-labels (vec outline-labels)
-                                   :failed-outline-label outline-label
-                                   :failed-outline-label-candidates candidates
-                                   :failed-node-outline node-outline})))))
-          (g/node-value node-id :node-outline)
-          outline-labels))
-
-(defn outline-node-id [node-id & outline-labels]
-  (:node-id (apply node-outline node-id outline-labels)))
-
 (defn outline-labels [node-id & outline-labels]
   (into (sorted-set)
         (map :label)
-        (:children (apply node-outline node-id outline-labels))))
+        (:children (apply outline-node-info node-id outline-labels))))
 
 (defn- throw-invalid-component-resource-node-id-exception [basis node-id]
   (throw (ex-info "The specified node cannot be resolved to a component ResourceNode."
@@ -210,7 +191,6 @@
      game-object/ReferencedComponent
      (validate-component-resource-node-id basis (g/node-feeding-into basis node-id :source-resource))
 
-     :else
      (throw-invalid-component-resource-node-id-exception basis node-id))))
 
 (defn to-game-object-node-id
@@ -225,7 +205,6 @@
      collection/GameObjectInstanceNode
      (g/node-feeding-into basis node-id :source-resource)
 
-     :else
      (throw (ex-info "The specified node cannot be resolved to a GameObjectNode."
                      {:node-id node-id
                       :node-type (g/node-type* basis node-id)})))))
@@ -242,13 +221,12 @@
      collection/CollectionInstanceNode
      (g/node-feeding-into basis node-id :source-resource)
 
-     :else
      (throw (ex-info "The specified node cannot be resolved to a CollectionNode."
                      {:node-id node-id
                       :node-type (g/node-type* basis node-id)})))))
 
 (defn prefs []
-  (prefs/project (g/node-value (workspace) :root)))
+  (prefs/project (workspace/project-directory (workspace))))
 
 (declare ^:private exclude-keys-deep-helper)
 
@@ -330,6 +308,27 @@
 
 (defn windows []
   (Window/getWindows))
+
+(defn focused-control
+  ^Node []
+  (some-> (ui/main-scene)
+          (ui/focus-owner)))
+
+(defn command-contexts
+  ([]
+   (when-some [focused-control (focused-control)]
+     (command-contexts focused-control)))
+  ([^Node control]
+   (ui/node-contexts control true)))
+
+(defn command-env
+  ([command]
+   (command-env (command-contexts) command nil))
+  ([command user-data]
+   (command-env (command-contexts) command user-data))
+  ([command-contexts command user-data]
+   (let [[_handler command-context] (handler/active command command-contexts user-data)]
+     (:env command-context))))
 
 (def assets-view (partial view-of-type asset-browser/AssetBrowser))
 (def changed-files-view (partial view-of-type changes-view/ChangesView))
@@ -1030,6 +1029,30 @@
       (pair context-id entry-count))
     (scene-cache/cache-stats)))
 
+(defn clear-caches!
+  "Clears the various caches used to enhance the performance of the editor and
+  the tests. You can specify which caches to clear. When called with no
+  arguments, clears all caches except the downloaded library dependency cache.
+
+  Optional args:
+    :library  Clear the downloaded library dependency cache.
+    :project  Clear the loaded project cache used by tests.
+    :scene    Clear the scene cache used to render Scene Views.
+    :system   Clear the system cache used to cache node outputs."
+  ([]
+   (clear-caches! :project :scene :system))
+  ([& cache-kws]
+   (let [clear-cache? (set cache-kws)]
+     (when (clear-cache? :library)
+       (test-util/clear-cached-libraries!))
+     (when (clear-cache? :project)
+       (test-util/clear-cached-projects!))
+     (when (clear-cache? :scene)
+       (scene-cache/clear-all!))
+     (when (and (g/cache)
+                (clear-cache? :system))
+       (g/clear-system-cache!)))))
+
 (set! *warn-on-reflection* false)
 
 (defn- buf-clj-attribute-data [^ByteBuffer buf ^long buf-vertex-attribute-offset ^long attribute-byte-size component-data-type]
@@ -1130,7 +1153,7 @@
 
              (namespaced-class-symbol RenderPass)
              (fn render-pass-pprint-handler [printer ^RenderPass render-pass]
-               (fmt-doc printer (symbol "pass" (.nm render-pass))))
+               (fmt-doc printer (symbol "pass" (.name render-pass))))
 
              (namespaced-class-symbol VertexBuffer)
              (partial object-data-pprint-handler nil vertex-buffer-print-data)}
@@ -1442,12 +1465,12 @@
    :header {:fx/type fx.h-box/lifecycle
             :style-class "spacing-default"
             :alignment :center-left
-            :children [{:fx/type fxui/label
+            :children [{:fx/type fxui/legacy-label
                         :variant :header
                         :text header-text}]}
    :content {:fx/type fx.v-box/lifecycle
              :style-class ["dialog-content-padding" "spacing-smaller"]
-             :children [{:fx/type fxui/label
+             :children [{:fx/type fxui/legacy-label
                          :wrap-text false
                          :text (:message progress)}
                         {:fx/type fx.progress-bar/lifecycle
@@ -1519,44 +1542,45 @@
   ([node-load-infos-by-proj-path recursive include-dependency-resource?]
    {:pre [(map? node-load-infos-by-proj-path)
           (ifn? include-dependency-resource?)]}
-   (g/with-auto-evaluation-context evaluation-context
-     (let [workspace
-           (some (fn [[_proj-path node-load-info]]
-                   (some-> (:resource node-load-info)
-                           (resource/workspace)))
-                 node-load-infos-by-proj-path)
+   (let [basis (g/now)
 
-           include-dependency-proj-path?
-           (fn include-dependency-proj-path? [dependency-proj-path]
-             (include-dependency-resource?
-               (if-some [dependency-node-info (node-load-infos-by-proj-path dependency-proj-path)]
-                 (:resource dependency-node-info)
-                 (workspace/file-resource workspace dependency-proj-path evaluation-context))))] ; Referencing a missing resource.
+         workspace
+         (some (fn [[_proj-path node-load-info]]
+                 (some-> (:resource node-load-info)
+                         (resource/workspace)))
+               node-load-infos-by-proj-path)
 
-       (if recursive
-         (let [referencing-proj-path-sets-by-proj-path (referencing-proj-path-sets-by-proj-path node-load-infos-by-proj-path)]
-           (letfn [(recursive-referencing-entries [dependency-proj-path]
-                     (e/mapcat
-                       (fn [referencing-proj-path]
-                         (cons (pair referencing-proj-path dependency-proj-path)
-                               (recursive-referencing-entries referencing-proj-path)))
-                       (referencing-proj-path-sets-by-proj-path dependency-proj-path)))]
-             (util/group-into
-               (sorted-map) (sorted-set) key val
-               (e/mapcat
-                 (fn [[dependency-proj-path]]
-                   (when (include-dependency-proj-path? dependency-proj-path)
-                     (recursive-referencing-entries dependency-proj-path)))
-                 referencing-proj-path-sets-by-proj-path))))
-         (into (sorted-map)
-               (keep
-                 (fn [[proj-path node-load-info]]
-                   (some->> (:dependency-proj-paths node-load-info)
-                            (into (sorted-set)
-                                  (filter include-dependency-proj-path?))
-                            (coll/not-empty)
-                            (pair proj-path))))
-               node-load-infos-by-proj-path))))))
+         include-dependency-proj-path?
+         (fn include-dependency-proj-path? [dependency-proj-path]
+           (include-dependency-resource?
+             (if-some [dependency-node-info (node-load-infos-by-proj-path dependency-proj-path)]
+               (:resource dependency-node-info)
+               (workspace/file-resource basis workspace dependency-proj-path))))] ; Referencing a missing resource.
+
+     (if recursive
+       (let [referencing-proj-path-sets-by-proj-path (referencing-proj-path-sets-by-proj-path node-load-infos-by-proj-path)]
+         (letfn [(recursive-referencing-entries [dependency-proj-path]
+                   (e/mapcat
+                     (fn [referencing-proj-path]
+                       (cons (pair referencing-proj-path dependency-proj-path)
+                             (recursive-referencing-entries referencing-proj-path)))
+                     (referencing-proj-path-sets-by-proj-path dependency-proj-path)))]
+           (util/group-into
+             (sorted-map) (sorted-set) key val
+             (e/mapcat
+               (fn [[dependency-proj-path]]
+                 (when (include-dependency-proj-path? dependency-proj-path)
+                   (recursive-referencing-entries dependency-proj-path)))
+               referencing-proj-path-sets-by-proj-path))))
+       (into (sorted-map)
+             (keep
+               (fn [[proj-path node-load-info]]
+                 (some->> (:dependency-proj-paths node-load-info)
+                          (into (sorted-set)
+                                (filter include-dependency-proj-path?))
+                          (coll/not-empty)
+                          (pair proj-path))))
+             node-load-infos-by-proj-path)))))
 
 (defn dependency-proj-path-tree
   ([dependency-proj-path-sets-by-proj-path]

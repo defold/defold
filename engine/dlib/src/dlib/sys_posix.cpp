@@ -49,6 +49,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#if defined(__linux__)
+#include "dalloca.h"
+#endif
+
 #ifndef S_ISREG
 #define S_ISREG(mode) (((mode)&S_IFMT) == S_IFREG)
 #endif
@@ -163,6 +167,86 @@ namespace dmSys
 
 #elif defined(_WIN32)
 
+    static const wchar_t* SkipSlashesW(const wchar_t* path)
+    {
+        while (*path && (*path == L'/' || *path == L'\\'))
+        {
+            ++path;
+        }
+        return path;
+    }
+
+    // Is a path contains unicode characters, we need to make it 8.3 in order to properly use char* functions
+    static bool MakePath_8_3(const wchar_t* wpath, wchar_t* out)
+    {
+        wchar_t tmp[MAX_PATH] = { 0 };
+        dmPath::NormalizeW(wpath, tmp, MAX_PATH);
+        out[0] = L'\0';
+
+        int has_drive = 0;
+        wchar_t* cursor = tmp;
+        while (*cursor != L'\0')
+        {
+            if (!has_drive)
+            {
+                cursor = wcschr(cursor, L':');
+                if (!cursor)
+                {
+                    dmLogError("Failed to find drive in path: '%ls'\n", wpath);
+                    return false;
+                }
+                has_drive = 1;
+                cursor++; // Skip past the ':'"
+
+                // Copy the drive "C:"
+                wchar_t c = *cursor;
+                *cursor = L'\0';
+                wcscpy(out, tmp);
+
+                *cursor = c;
+                cursor = (wchar_t*)SkipSlashesW(cursor+1);
+                continue;
+            }
+
+            wchar_t* sep = wcschr(cursor, L'\\');
+            if (!sep)
+                sep = wcschr(cursor, L'/');
+
+            // Temporarily null terminate the string
+            if (sep)
+                *sep = L'\0';
+
+            // Create a version of the previously parsed path, and the latest (untransformed) directory name
+            wchar_t testpath[MAX_PATH] = { 0 };
+            wcscpy(testpath, out); // The previously path with 8.3 names
+            wcscat(testpath, L"/");
+            wcscat(testpath, cursor); // The last folder to test
+
+            WIN32_FIND_DATAW fd{0};
+            HANDLE h = FindFirstFileW( tmp, &fd );
+            if (h == INVALID_HANDLE_VALUE)
+            {
+                dmLogError("FindFirstFileW failed\n");
+                return false;
+            }
+
+            wcscat(out, L"/");
+            if (fd.cAlternateFileName[0] == L'\0')
+                wcscat(out, fd.cFileName);
+            else
+                wcscat(out, fd.cAlternateFileName);
+
+            if (sep)
+                *sep = L'/';
+            else
+                break;
+
+            cursor = sep + 1;
+        }
+
+        return true;
+    }
+
     Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
     {
         return GetApplicationSupportPath(application_name, path, path_len);
@@ -170,20 +254,37 @@ namespace dmSys
 
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
-        char tmp_path[MAX_PATH];
+        wchar_t tmp_wpath[MAX_PATH];
 
-        if(SUCCEEDED(SHGetFolderPathA(NULL,
+        if(SUCCEEDED(SHGetFolderPathW(NULL,
                                      CSIDL_APPDATA | CSIDL_FLAG_CREATE,
                                      NULL,
                                      0,
-                                     tmp_path)))
+                                     tmp_wpath)))
         {
+            // Make any unicode directories into 8.3 format if necessary
+            wchar_t short_path[MAX_PATH];
+            MakePath_8_3(tmp_wpath, short_path);
+
+            int wlength = (int)wcslen(short_path);
+            int size_needed = WideCharToMultiByte(CP_UTF8, 0, short_path, wlength, NULL, 0, NULL, NULL);
+            if (size_needed == 0)
+            {
+                dmLogError("Failed converting wchar_t -> char\n");
+                return RESULT_UNKNOWN;
+            }
+
+            char* tmp_path = (char*)_alloca(size_needed + 1);
+            WideCharToMultiByte(CP_UTF8, 0, short_path, wlength, tmp_path, size_needed, NULL, NULL);
+            tmp_path[size_needed] = 0;
+
             if (dmStrlCpy(path, tmp_path, path_len) >= path_len)
                 return RESULT_INVAL;
-            if (dmStrlCat(path, "\\", path_len) >= path_len)
+            if (dmStrlCat(path, "/", path_len) >= path_len)
                 return RESULT_INVAL;
             if (dmStrlCat(path, application_name, path_len) >= path_len)
                 return RESULT_INVAL;
+
             Result r =  Mkdir(path, 0755);
             if (r == RESULT_EXIST)
                 return RESULT_OK;
@@ -414,30 +515,66 @@ namespace dmSys
         return GetApplicationSupportPath(application_name, path, path_len);
     }
 
-    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
+    Result GetApplicationSupportPath(const char* application_name, char* path_out, uint32_t path_len)
     {
+        const char* xdg_env = dmSys::GetEnv("XDG_DATA_HOME");
+        const char* xdg = xdg_env ? xdg_env : dmSys::GetEnv("HOME");
+        char* xdg_buf = (char*)dmAlloca(path_len);
+
+        dmStrlCpy(xdg_buf, xdg, path_len);
+        //The spec expects us to make $HOME/.local/share with 0700 if it doesn't exist.
+        if (!xdg_env)
+        {
+            dmStrlCat(xdg_buf, "/.local", path_len);
+            dmSys::Mkdir(xdg_buf, 0700);
+            dmStrlCat(xdg_buf, "/share", path_len);
+            dmSys::Mkdir(xdg_buf, 0700);
+        }
+        dmStrlCat(xdg_buf, "/", path_len);
+        if (dmStrlCat(xdg_buf, application_name, path_len) >= path_len)
+            return RESULT_INVAL;
+
+        // No need to continue if {application_name} dir already exists
+        if (realpath(xdg_buf, path_out))
+            return RESULT_OK;
+
         const char* dirs[] = {"HOME", "TMPDIR", "TMP", "TEMP"}; // Added common temp directories since server instances usually don't have a HOME set
         size_t count = sizeof(dirs)/sizeof(dirs[0]);
         const char* home = 0;
-        for (size_t i = 0; i < count; ++i)
+
+        for (size_t i = 0; i < count; i++)
         {
-            home = getenv(dirs[i]);
+            home = dmSys::GetEnv(dirs[i]);
             if (home)
                 break;
         }
-        if (!home) {
-            home = "."; // fall back to current directory, because the server instance might not have any of those paths set
+
+        if (!home){
+               home = "."; // fall back to current directory, because the server instance might not have any of those paths set
         }
 
-        if (dmStrlCpy(path, home, path_len) >= path_len)
+        char home_buf[path_len];
+        if (dmStrlCpy(home_buf, home, path_len) >= path_len)
             return RESULT_INVAL;
-        if (dmStrlCat(path, "/", path_len) >= path_len)
+        if (dmStrlCat(home_buf, "/", path_len) >= path_len)
             return RESULT_INVAL;
-        if (dmStrlCat(path, ".", path_len) >= path_len)
+        if (dmStrlCat(home_buf, ".", path_len) >= path_len)
             return RESULT_INVAL;
-        if (dmStrlCat(path, application_name, path_len) >= path_len)
+        if (dmStrlCat(home_buf, application_name, path_len) >= path_len)
             return RESULT_INVAL;
-        Result r =  Mkdir(path, 0755);
+
+        // If {home}/.{application_name exists}, return it here
+        if (realpath(home_buf, path_out))
+        {
+            if (dmStrlCpy(path_out, home_buf, path_len) >= path_len)
+                return RESULT_INVAL;
+            return RESULT_OK;
+        }
+        // Default to $HOME/.local/store or $XDG_DATA_DIR
+        if (dmStrlCpy(path_out, xdg_buf, path_len) >= path_len)
+            return RESULT_INVAL;
+
+        Result r = dmSys::Mkdir(path_out, 0755);
         if (r == RESULT_EXIST)
             return RESULT_OK;
         else
@@ -613,40 +750,45 @@ namespace dmSys
 #endif
     }
 
-#if (defined(__linux__) && !defined(__ANDROID__)) || defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__)
+    void GetSystemInfo(SystemInfo* info)
+    {
+        memset(info, 0, sizeof(*info));
+
+        dmStrlCpy(info->m_SystemName, "HTML5", sizeof(info->m_SystemName));
+
+        const char* default_lang = "en_US";
+        info->m_UserAgent = dmSysGetUserAgent(); // transfer ownership to SystemInfo struct
+        const char* const lang = dmSysGetUserPreferredLanguage(default_lang);
+        FillLanguageTerritory(lang, info);
+        FillTimeZone(info);
+
+        free((void*)lang);
+    }
+
+    void GetSecureInfo(SystemInfo* info)
+    {
+    }
+
+#elif defined(__linux__) && !defined(__ANDROID__)
     void GetSystemInfo(SystemInfo* info)
     {
         memset(info, 0, sizeof(*info));
         struct utsname uts;
-#if !defined(__EMSCRIPTEN__)
         uname(&uts);
-#endif
 
-#if defined(__EMSCRIPTEN__)
-        dmStrlCpy(info->m_SystemName, "HTML5", sizeof(info->m_SystemName));
-#else
         dmStrlCpy(info->m_SystemName, "Linux", sizeof(info->m_SystemName));
-#endif
         dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
-        info->m_DeviceModel[0] = '\0';
 
         const char* default_lang = "en_US";
-#if defined(__EMSCRIPTEN__)
-        info->m_UserAgent = dmSysGetUserAgent(); // transfer ownership to SystemInfo struct
-        const char* const lang = dmSysGetUserPreferredLanguage(default_lang);
-#else
         const char* lang = getenv("LANG");
-        if (!lang) {
+        if (!lang)
+        {
             dmLogWarning("Variable LANG not set");
             lang = default_lang;
         }
-#endif
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
-
-#if defined(__EMSCRIPTEN__)
-        free((void*)lang);
-#endif
     }
 
     void GetSecureInfo(SystemInfo* info)

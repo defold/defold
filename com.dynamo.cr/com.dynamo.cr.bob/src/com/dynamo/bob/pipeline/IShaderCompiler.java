@@ -27,6 +27,7 @@ public interface IShaderCompiler {
         public ArrayList<ShaderDesc.Language> forceIncludeShaderLanguages = new ArrayList<>();
         public int maxPageCount;
         public boolean forceSplitSamplers;
+        public boolean excludeGlesSm100;
     };
 
     ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, CompileOptions options) throws IOException, CompileExceptionError;

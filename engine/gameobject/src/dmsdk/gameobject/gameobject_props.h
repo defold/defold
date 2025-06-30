@@ -23,6 +23,7 @@
  * @name PropertyContainer
  * @namespace dmGameObject
  * @path engine/gameobject/src/dmsdk/gameobject/gameobject_props.h
+ * @language C++
  */
 
 #include <stdint.h>
@@ -47,22 +48,23 @@ namespace dmGameObject
      */
     typedef struct PropertyContainerBuilder* HPropertyContainerBuilder;
 
-    /*# PropertyContainerBuilderParams
+    /*#
+     * PropertyContainerBuilderParams
      *
      * Helper struct to create a property container builder.
      * It is required to fill out how many items of each type that is wanted.
      *
      * @struct
      * @name PropertyContainerBuilderParams
-     * @name m_NumberCount [type:int32_t] Number of items of type float
-     * @name m_HashCount [type:int32_t] Number of items of type dmhash_t
-     * @name m_URLStringCount [type:int32_t] Number of items of type const char*
-     * @name m_URLStringSize [type:int32_t] Size of all url strings combined, including null terminators
-     * @name m_URLCount [type:int32_t] Number of items of type dmMessage::URL
-     * @name m_Vector3Count [type:int32_t] Number of items of type vector3 (float[3])
-     * @name m_Vector4Count [type:int32_t] Number of items of type vector4 (float[4])
-     * @name m_QuatCount [type:int32_t] Number of items of type quaternion (float[4])
-     * @name m_BoolCount [type:int32_t] Number of items of type bool
+     * @param m_NumberCount [type:int32_t] Number of items of type float
+     * @param m_HashCount [type:int32_t] Number of items of type dmhash_t
+     * @param m_URLStringCount [type:int32_t] Number of items of type const char*
+     * @param m_URLStringSize [type:int32_t] Size of all url strings combined, including null terminators
+     * @param m_URLCount [type:int32_t] Number of items of type dmMessage::URL
+     * @param m_Vector3Count [type:int32_t] Number of items of type vector3 (float[3])
+     * @param m_Vector4Count [type:int32_t] Number of items of type vector4 (float[4])
+     * @param m_QuatCount [type:int32_t] Number of items of type quaternion (float[4])
+     * @param m_BoolCount [type:int32_t] Number of items of type bool
      */
     struct PropertyContainerBuilderParams
     {

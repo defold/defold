@@ -131,8 +131,8 @@
           atlas-path2 "/atlas/single2.atlas"
           atlas-res2 (workspace/resolve-workspace-resource workspace atlas-path2)
           [atlas scene-view] (test-util/open-scene-view! project app-view atlas-path 64 64)
-          proj-path (.getAbsolutePath (workspace/project-path workspace))
-          git (init-git proj-path)
+          project-path (.getAbsolutePath (workspace/project-directory workspace))
+          git (init-git project-path)
           atlas-outline (fn [path] (test-util/outline (g/node-value app-view :active-resource-node) path))]
       (is (= atlas-res (g/node-value app-view :active-resource)))
       (test-util/move-file! workspace atlas-path atlas-path2)

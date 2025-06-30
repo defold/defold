@@ -174,6 +174,11 @@
              {:log-port log-port
               :address loopback-address}))))
 
+;; Parse a line from engine output to extract engine version info.
+(defn parse-engine-version-line [line]
+  (when (re-find #"INFO:ENGINE: Defold Engine ([^\s]+) \(([^)]+)\)" line)
+    line))
+
 (defn- dmengine-filename
   ^String [^String platform]
   ;; Only the WasmWeb platform use two binary names, '.js' and '.wasm'.
@@ -211,9 +216,7 @@
   [project evaluation-context prefs platform]
   (or (dev-custom-engine prefs platform)
       (if (native-extensions/has-engine-extensions? project evaluation-context)
-        (let [build-server-url (native-extensions/get-build-server-url prefs project evaluation-context)
-              build-server-headers (native-extensions/get-build-server-headers prefs)]
-          (native-extensions/get-engine-archive project evaluation-context platform build-server-url build-server-headers))
+        (native-extensions/get-engine-archive project platform prefs evaluation-context)
         (bundled-engine platform))))
 
 (defn- unpack-dmengine!

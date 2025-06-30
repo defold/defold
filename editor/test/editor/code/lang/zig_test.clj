@@ -28,7 +28,9 @@
           [9 "source.zig"]
           [12 "support.function.builtin.zig"]
           [19 "source.zig"]
-          [20 "string.quoted.double.zig"]
+          [20 "punctuation.definition.string.quoted.begin.zig"]
+          [21 "string.quoted.double.zig"]
+          [24 "punctuation.definition.string.quoted.end.zig"]
           [25 "source.zig"]]
          (analyze-runs "const std = @import(\"std\");"))))
 
@@ -83,8 +85,9 @@
           [10 "source.zig"]
           [11 "entity.name.function.zig"]
           [19 "source.zig"]
-          [20 "string.quoted.double.zig"]
+          [20 "punctuation.definition.string.quoted.begin.zig"]
+          [21 "string.quoted.double.zig"]
           [32 "constant.character.escape.zig"]
-          [34 "string.quoted.double.zig"]
+          [34 "punctuation.definition.string.quoted.end.zig"]
           [35 "source.zig"]]
          (analyze-runs "try stdOut.writeAll(\"Hello World\\n\");"))))

@@ -28,9 +28,10 @@
             [editor.editor-extensions.commands :as commands]
             [editor.editor-extensions.error-handling :as error-handling]
             [editor.editor-extensions.graph :as graph]
-            [editor.editor-extensions.prefs-docs :as prefs-docs]
+            [editor.editor-extensions.http-server :as ext.http-server]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
+            [editor.editor-extensions.tile-map :as tile-map]
             [editor.editor-extensions.ui-components :as ui-components]
             [editor.editor-extensions.zip :as zip]
             [editor.fs :as fs]
@@ -45,9 +46,13 @@
             [editor.resource :as resource]
             [editor.system :as system]
             [editor.ui :as ui]
+            [editor.util :as util]
+            [editor.web-server :as web-server]
             [editor.workspace :as workspace]
+            [util.coll :as coll]
             [util.eduction :as e]
-            [util.http-client :as http])
+            [util.http-client :as http]
+            [util.http-server :as http-server])
   (:import [com.dynamo.bob Platform]
            [com.dynamo.bob.bundle BundleHelper]
            [java.io PrintStream PushbackReader]
@@ -58,7 +63,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- ext-state
+(defn ext-state
   "Returns an extension state, a map with the following keys:
     :reload-resources!     0-arg function used to reload resources
     :display-output!       2-arg function used to display extension-related
@@ -123,11 +128,13 @@
   (rt/lua-fn ext-get [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
     (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
-          node-id (graph/node-id-or-path->node-id node-id-or-path project evaluation-context)
-          getter (graph/ext-value-getter node-id property evaluation-context)]
+          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)
+          getter (graph/ext-value-getter node-id-or-resource property project evaluation-context)]
       (if getter
         (getter)
-        (throw (LuaError. (str (name (graph/node-id->type-keyword node-id evaluation-context))
+        (throw (LuaError. (str (if (resource/resource? node-id-or-resource)
+                                 (resource/proj-path node-id-or-resource)
+                                 (name (graph/node-id->type-keyword node-id-or-resource evaluation-context)))
                                " has no \""
                                property
                                "\" property")))))))
@@ -136,23 +143,24 @@
   (rt/lua-fn ext-can-get [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
     (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
-          node-id (graph/node-id-or-path->node-id node-id-or-path project evaluation-context)]
-      (some? (graph/ext-value-getter node-id property evaluation-context)))))
+          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)]
+      (some? (graph/ext-value-getter node-id-or-resource property project evaluation-context)))))
 
 (defn- make-ext-can-set-fn [project]
   (rt/lua-fn ext-can-set [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
     (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
-          node-id (graph/node-id-or-path->node-id node-id-or-path project evaluation-context)]
-      (some? (graph/ext-lua-value-setter node-id property rt project evaluation-context)))))
+          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)]
+      (and (not (resource/resource? node-id-or-resource))
+           (some? (graph/ext-lua-value-setter node-id-or-resource property rt project evaluation-context))))))
 
 (defn- make-ext-create-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-create-directory [{:keys [rt evaluation-context]} lua-proj-path]
     (let [^String proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)]
-      (let [root-path (-> project
-                          (project/workspace evaluation-context)
-                          (workspace/project-path evaluation-context)
-                          fs/real-path)
+      (let [basis (:basis evaluation-context)
+            workspace (project/workspace project evaluation-context)
+            root-path (-> (workspace/project-directory basis workspace)
+                          (fs/real-path))
             dir-path (-> (str root-path proj-path)
                          (fs/as-path)
                          (.normalize))]
@@ -168,11 +176,11 @@
 
 (defn- make-ext-delete-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-delete-directory [{:keys [rt evaluation-context]} lua-proj-path]
-    (let [proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)
-          root-path (-> project
-                        (project/workspace evaluation-context)
-                        (workspace/project-path evaluation-context)
-                        fs/real-path)
+    (let [basis (:basis evaluation-context)
+          proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)
+          workspace (project/workspace project evaluation-context)
+          root-path (-> (workspace/project-directory basis workspace)
+                        (fs/real-path))
           dir-path (-> (str root-path proj-path)
                        (fs/as-path)
                        (.normalize))
@@ -406,20 +414,10 @@
       ([{:keys [rt]} lua-string lua-options]
        (decode lua-string (rt/->clj rt json-decode-options-coercer lua-options))))))
 
-(def json-value-coercer
-  (coerce/recursive
-    #(coerce/one-of
-       coerce/null
-       coerce/boolean
-       coerce/number
-       coerce/string
-       (coerce/vector-of % :min-count 1)
-       (coerce/map-of coerce/string %))))
-
 (def ext-json-encode
   (rt/lua-fn ext-json-decode
     ([{:keys [rt]} lua-value]
-     (json/write-str (rt/->clj rt json-value-coercer lua-value)))))
+     (json/write-str (rt/->clj rt ext.http-server/json-value-coercer lua-value)))))
 
 ;; endregion
 
@@ -587,21 +585,7 @@
 ;; region reload
 
 (def commands-coercer
-  (coerce/vector-of
-    (coerce/hash-map
-      :req {:label coerce/string
-            :locations (coerce/vector-of
-                         (coerce/enum "Edit" "View" "Assets" "Outline" "Bundle")
-                         :distinct true
-                         :min-count 1)}
-      :opt {:query (coerce/hash-map
-                     :opt {:selection (coerce/hash-map
-                                        :req {:type (coerce/enum :resource :outline)
-                                              :cardinality (coerce/enum :one :many)})
-                           :argument (coerce/const true)})
-            :id prefs-docs/serializable-keyword-coercer
-            :active coerce/function
-            :run coerce/function})))
+  (coerce/vector-of commands/command-coercer))
 
 (defn- reload-commands! [project state evaluation-context]
   (let [{:keys [display-output! rt]} state]
@@ -654,6 +638,76 @@
     (when schema
       (prefs/register-project-schema! project-path schema))))
 
+(defn- reload-server-routes! [state evaluation-context]
+  (let [{:keys [display-output! rt web-server]} state
+        dynamic-routes
+        (->> (execute-all-top-level-functions state :get_http_server_routes nil evaluation-context)
+             (e/mapcat
+               (fn [[proj-path lua-ret]]
+                 (error-handling/try-with-extension-exceptions
+                   :display-output! display-output!
+                   :label (str "Reloading server routes in " proj-path)
+                   :catch nil
+                   (e/map
+                     #(assoc % :proj-path proj-path)
+                     (rt/->clj rt ext.http-server/routes-coercer lua-ret)))))
+             (group-by (juxt :path :method))
+             (reduce-kv
+               (fn [acc [path method :as path+method] routes]
+                 (if (= 1 (count routes))
+                   (let [{:keys [handler proj-path]} (routes 0)]
+                     (assoc-in acc path+method (with-meta handler {:proj-path proj-path})))
+                   (do
+                     (display-output! :err (str "Omitting conflicting routes for '"
+                                                method " " path "' defined in "
+                                                (->> routes
+                                                     (map :proj-path)
+                                                     (distinct)
+                                                     sort
+                                                     (util/join-words ", " " and "))))
+                     acc)))
+               {}))
+        handler (http-server/handler web-server)]
+    (try
+      (web-server/set-dynamic-routes! handler dynamic-routes)
+      (catch Exception e
+        (let [{:keys [type data]} (ex-data e)]
+          (if (= :path-conflicts type)
+            (web-server/set-dynamic-routes!
+              handler
+              ;; Use the path conflict data to notify the user about the conflict and
+              ;; exclude the conflicting routes from the dynamic routes set
+              (->> data
+                   (e/mapcat
+                     (fn [[[a-path a-method->handler] conflicting-routes]]
+                       (let [a-proj-paths (->> a-method->handler
+                                               (e/keep #(:proj-path (meta (val %))))
+                                               set)
+                             a-is-dynamic (not (coll/empty? a-proj-paths))]
+                         (e/mapcat
+                           (fn [[b-path b-method->handler]]
+                             (let [b-proj-paths (->> b-method->handler
+                                                     (e/keep #(:proj-path (meta (val %))))
+                                                     set)
+                                   b-is-dynamic (not (coll/empty? b-proj-paths))
+                                   excluded-paths (cond
+                                                    (and a-is-dynamic b-is-dynamic) [a-path b-path]
+                                                    a-is-dynamic [a-path]
+                                                    b-is-dynamic [b-path]
+                                                    :else (throw (ex-info "Didn't expect 2 built-in routes to conflict" {:a a-path :b b-path})))]
+                               (display-output!
+                                 :err
+                                 (str "Omitting conflicting routes for "
+                                      (util/join-words ", " " and " (map #(str "'" % "'") excluded-paths))
+                                      " defined in "
+                                      (util/join-words ", " " and " (sort (into a-proj-paths b-proj-paths)))
+                                      (when-not (= a-is-dynamic b-is-dynamic)
+                                        " (conflict with the editor's built-in routes)")))
+                               excluded-paths))
+                           conflicting-routes))))
+                   (reduce dissoc dynamic-routes)))
+            (throw e)))))))
+
 (defn- add-all-entry [m path module]
   (reduce-kv
     (fn [acc k v]
@@ -667,6 +721,7 @@
   (coerce/hash-map :opt {:get_commands coerce/function
                          :get_language_servers coerce/function
                          :get_prefs_schema coerce/function
+                         :get_http_server_routes coerce/function
                          :on_build_started coerce/function
                          :on_build_finished coerce/function
                          :on_bundle_started coerce/function
@@ -742,6 +797,7 @@
     kind       which scripts to reload, either :all, :library or :project
 
   Required kv-args:
+    :web-server           http server associated with the project
     :prefs                editor prefs
     :reload-resources!    0-arg function that asynchronously reloads the editor
                           resources, returns a CompletableFuture (that might
@@ -768,13 +824,14 @@
                                                   strings
                             evaluation-context    evaluation context of the
                                                   invocation"
-  [project kind & {:keys [prefs reload-resources! display-output! save! open-resource! invoke-bob!] :as opts}]
-  {:pre [prefs reload-resources! display-output! save! open-resource! invoke-bob!]}
+  [project kind & {:keys [web-server prefs reload-resources! display-output! save! open-resource! invoke-bob!] :as opts}]
+  {:pre [web-server prefs reload-resources! display-output! save! open-resource! invoke-bob!]}
   (g/with-auto-evaluation-context evaluation-context
-    (let [extensions (g/node-value project :editor-extensions evaluation-context)
+    (let [basis (:basis evaluation-context)
+          extensions (g/node-value project :editor-extensions evaluation-context)
           old-state (ext-state project evaluation-context)
           workspace (project/workspace project evaluation-context)
-          project-path (.toPath (workspace/project-path workspace evaluation-context))
+          project-path (.toPath (workspace/project-directory basis workspace))
           rt (rt/make
                :find-resource (partial find-resource project)
                :resolve-file (partial resolve-file project-path)
@@ -784,8 +841,12 @@
                :err (line-writer #(display-output! :err %))
                :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
                                "get" (make-ext-get-fn project)
+                               "can_add" (graph/make-ext-can-add-fn project)
                                "can_get" (make-ext-can-get-fn project)
+                               "can_reorder" (graph/make-ext-can-reorder-fn project)
+                               "can_reset" (graph/make-ext-can-reset-fn project)
                                "can_set" (make-ext-can-set-fn project)
+                               "command" commands/ext-command-fn
                                "create_directory" (make-ext-create-directory-fn project reload-resources!)
                                "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
                                "resource_attributes" (make-ext-resource-attributes-fn project)
@@ -798,14 +859,20 @@
                                "prefs" (prefs-functions/env prefs)
                                "save" (make-ext-save-fn save!)
                                "transact" ext-transact
-                               "tx" {"set" (make-ext-tx-set-fn project)}
+                               "tx" {"set" (make-ext-tx-set-fn project)
+                                     "add" (graph/make-ext-add-fn project)
+                                     "clear" (graph/make-ext-clear-fn project)
+                                     "remove" (graph/make-ext-remove-fn project)
+                                     "reorder" (graph/make-ext-reorder-fn project)
+                                     "reset" (graph/make-ext-reset-fn project)}
                                "ui" (assoc
                                       (ui-components/env workspace project project-path)
                                       "open_resource" (make-open-resource-fn workspace open-resource!))
                                "version" (system/defold-version)
                                "engine_sha1" (system/defold-engine-sha1)
                                "editor_sha1" (system/defold-editor-sha1)}
-                     "http" {"request" ext-http-request}
+                     "http" {"request" ext-http-request
+                             "server" (ext.http-server/env workspace project-path web-server)}
                      "json" {"decode" ext-json-decode
                              "encode" ext-json-encode}
                      "io" {"tmpfile" nil}
@@ -816,6 +883,7 @@
                            "setlocale" nil
                            "tmpname" nil}
                      "pprint" ext-pprint
+                     "tilemap" tile-map/env
                      "zip" (zip/env project-path reload-resources!)})
           _ (rt/invoke-immediate rt (rt/bind rt prelude-prototype) evaluation-context)
           new-state (re-create-ext-state
@@ -832,6 +900,7 @@
       (reload-prefs! project-path new-state evaluation-context)
       (reload-language-servers! project new-state evaluation-context)
       (reload-commands! project new-state evaluation-context)
+      (reload-server-routes! new-state evaluation-context)
       nil)))
 
 (defn- hook-exception->error [^Throwable ex project hook-keyword]

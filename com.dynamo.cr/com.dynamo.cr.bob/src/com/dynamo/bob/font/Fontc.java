@@ -48,7 +48,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -575,11 +574,6 @@ public class Fontc {
             cell_max_descent = Math.max(cell_max_descent, descent);
         }
 
-        // Make sure it fits future glyphs (provided at runtime)
-        cell_max_ascent  = (int)Math.ceil(Math.max(cell_max_ascent, glyphBankBuilder.getMaxAscent()));
-        cell_max_descent = (int)Math.ceil(Math.max(cell_max_descent, glyphBankBuilder.getMaxDescent()));
-        cell_width = (int)Math.ceil(Math.max(cell_width, glyphBankBuilder.getMaxWidth()));
-
         cell_height       = cell_max_ascent + cell_max_descent + padding * 2 + cell_padding * 2;
         cell_max_ascent  += padding;
 
@@ -739,13 +733,19 @@ public class Fontc {
                 throw new FontFormatException("Could not generate font preview: " + e.getMessage());
             }
         }
-        boolean is_monospaced = true;
-        float base_advance = include_glyph_count > 0 ? glyphs.get(0).advance : 0;
+
+        boolean monospace = true;
+        int prevAdvance = -1;
+
         for (int i = 0; i < include_glyph_count; i++) {
             Glyph glyph = glyphs.get(i);
+            // The Defold generator clips the SDF image but the stb generator does not.
+            // So, we need to have a width, and an image width, in order to handle the different values at runtime
+            int width = glyph.width + (glyph.width > 0 ? padding * 2 : 0);
             GlyphBank.Glyph.Builder glyphBuilder = GlyphBank.Glyph.newBuilder()
                 .setCharacter(glyph.c)
-                .setWidth(glyph.width + (glyph.width > 0 ? padding * 2 : 0))
+                .setWidth(width)
+                .setImageWidth(width)
                 .setAdvance(glyph.advance)
                 .setLeftBearing(glyph.leftBearing)
                 .setAscent(glyph.ascent + padding)
@@ -760,12 +760,18 @@ public class Fontc {
             }
 
             glyphBankBuilder.addGlyphs(glyphBuilder);
-            if (base_advance != glyph.advance)
-            {
-                is_monospaced = false;
-            }
+
+            if (prevAdvance == -1)
+                prevAdvance = glyph.advance;
+
+            monospace = monospace && (prevAdvance == glyph.advance);
+            prevAdvance = glyph.advance;
         }
-        glyphBankBuilder.setIsMonospaced(is_monospaced);
+
+        if (include_glyph_count <= 1)
+            monospace = false; // it's likely a dynamic font
+
+        glyphBankBuilder.setIsMonospaced(monospace);
         glyphBankBuilder.setPadding(padding);
         return previewImage;
 

@@ -131,7 +131,7 @@
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane Doe" (g/node-value combiner :derived-value)))
         (expect-call-when combiner 'compute-derived-value
-                          (g/transact (it/update-property name1 :scalar (constantly "John") []))
+                          (g/transact (it/update-property name1 :scalar (constantly "John") [] nil))
                           (is (= "John Doe" (g/node-value combiner :derived-value)))))))
 
   (testing "cached values are distinct"
@@ -145,10 +145,10 @@
       (let [[name1 name2 combiner expensive] (build-sample-project world)]
         (is (= "Jane" (g/node-value combiner :nickname)))
         (expect-call-when combiner 'passthrough-first-name
-                          (g/transact (it/update-property name1 :scalar (constantly "Mark") []))
+                          (g/transact (it/update-property name1 :scalar (constantly "Mark") [] nil))
                           (is (= "Mark" (g/node-value combiner :nickname))))
         (expect-no-call-when combiner 'passthrough-first-name
-                             (g/transact (it/update-property name2 :scalar (constantly "Brandenburg") []))
+                             (g/transact (it/update-property name2 :scalar (constantly "Brandenburg") [] nil))
                              (is (= "Mark" (g/node-value combiner :nickname)))
                              (is (= "Mark Brandenburg" (g/node-value combiner :derived-value))))))))
 

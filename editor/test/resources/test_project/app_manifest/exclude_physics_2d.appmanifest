@@ -1,118 +1,112 @@
-# App manifest generated Fri Sep 02 2022 16:09:29 GMT+0200 (Central European Summer Time)
-# Settings: Physics2D,OpenGL
 platforms:
-    arm64-osx:
-        context:
-            excludeLibs: ["physics","Box2D","script_box2d"]
-            excludeSymbols: ["ScriptBox2DExt"]
-            symbols: []
-            libs: ["physics_3d"]
-            frameworks: []
-            linkFlags: []
-
-    x86_64-osx:
-        context:
-            excludeLibs: ["physics","Box2D","script_box2d"]
-            excludeSymbols: ["ScriptBox2DExt"]
-            symbols: []
-            libs: ["physics_3d"]
-            frameworks: []
-            linkFlags: []
-
-    x86_64-linux:
-        context:
-            excludeLibs: ["physics","Box2D","script_box2d"]
-            excludeSymbols: ["ScriptBox2DExt"]
-            symbols: []
-            libs: ["physics_3d"]
-            linkFlags: []
-
-    arm64-linux:
-        context:
-            excludeLibs: ["physics","Box2D","script_box2d"]
-            excludeSymbols: ["ScriptBox2DExt"]
-            symbols: []
-            libs: ["physics_3d"]
-            linkFlags: []
-
-    js-web:
-        context:
-            excludeLibs: ["physics","Box2D","script_box2d"]
-            excludeJsLibs: []
-            excludeSymbols: ["ScriptBox2DExt"]
-            symbols: []
-            libs: ["physics_3d"]
-            linkFlags: []
-
-    wasm-web:
-        context:
-            excludeLibs: ["physics","Box2D","script_box2d"]
-            excludeJsLibs: []
-            excludeSymbols: ["ScriptBox2DExt"]
-            symbols: []
-            libs: ["physics_3d"]
-            linkFlags: []
-
-    x86-win32:
-        context:
-            excludeLibs: ["libphysics","libBox2D","libscript_box2d"]
-            excludeSymbols: ["ScriptBox2DExt"]
-            symbols: []
-            libs: ["libphysics_3d.lib"]
-            linkFlags: []
-
-    x86_64-win32:
-        context:
-            excludeLibs: ["libphysics","libBox2D","libscript_box2d"]
-            excludeSymbols: ["ScriptBox2DExt"]
-            symbols: []
-            libs: ["libphysics_3d.lib"]
-            linkFlags: []
-
-    armv7-android:
-        context:
-            excludeLibs: ["physics","Box2D","script_box2d"]
-            excludeJars: []
-            excludeSymbols: ["ScriptBox2DExt"]
-            symbols: []
-            libs: ["physics_3d"]
-            linkFlags: []
-            jetifier: true
-
-    arm64-android:
-        context:
-            excludeLibs: ["physics","Box2D","script_box2d"]
-            excludeJars: []
-            excludeSymbols: ["ScriptBox2DExt"]
-            symbols: []
-            libs: ["physics_3d"]
-            linkFlags: []
-            jetifier: true
-
     armv7-ios:
         context:
-            excludeLibs: ["physics","Box2D","script_box2d"]
-            excludeSymbols: ["ScriptBox2DExt"]
+            excludeLibs: [physics, box2d, box2d_defold, script_box2d, script_box2d_defold]
+            excludeSymbols: [ScriptBox2DExt]
             symbols: []
-            libs: ["physics_3d"]
+            libs: [physics_3d]
             frameworks: []
             linkFlags: []
-
     arm64-ios:
         context:
-            excludeLibs: ["physics","Box2D","script_box2d"]
-            excludeSymbols: ["ScriptBox2DExt"]
+            excludeLibs: [physics, box2d, box2d_defold, script_box2d, script_box2d_defold]
+            excludeSymbols: [ScriptBox2DExt]
             symbols: []
-            libs: ["physics_3d"]
+            libs: [physics_3d]
             frameworks: []
             linkFlags: []
-
     x86_64-ios:
         context:
-            excludeLibs: ["physics","Box2D","script_box2d"]
-            excludeSymbols: ["ScriptBox2DExt"]
+            excludeLibs: [physics, box2d, box2d_defold, script_box2d, script_box2d_defold]
+            excludeSymbols: [ScriptBox2DExt]
             symbols: []
-            libs: ["physics_3d"]
+            libs: [physics_3d]
             frameworks: []
             linkFlags: []
+    armv7-android:
+        context:
+            excludeLibs: [physics, box2d, box2d_defold, script_box2d, script_box2d_defold]
+            excludeJars: []
+            excludeSymbols: [ScriptBox2DExt]
+            symbols: []
+            libs: [physics_3d]
+            linkFlags: []
+            jetifier: true
+    arm64-android:
+        context:
+            excludeLibs: [physics, box2d, box2d_defold, script_box2d, script_box2d_defold]
+            excludeJars: []
+            excludeSymbols: [ScriptBox2DExt]
+            symbols: []
+            libs: [physics_3d]
+            linkFlags: []
+            jetifier: true
+    arm64-osx:
+        context:
+            excludeLibs: [physics, box2d, box2d_defold, script_box2d, script_box2d_defold]
+            excludeSymbols: [ScriptBox2DExt]
+            symbols: []
+            libs: [physics_3d]
+            frameworks: []
+            linkFlags: []
+    x86_64-osx:
+        context:
+            excludeLibs: [physics, box2d, box2d_defold, script_box2d, script_box2d_defold]
+            excludeSymbols: [ScriptBox2DExt]
+            symbols: []
+            libs: [physics_3d]
+            frameworks: []
+            linkFlags: []
+    x86_64-linux:
+        context:
+            excludeLibs: [physics, box2d, box2d_defold, script_box2d, script_box2d_defold]
+            excludeSymbols: [ScriptBox2DExt]
+            symbols: []
+            libs: [physics_3d]
+            linkFlags: []
+    arm64-linux:
+        context:
+            excludeLibs: [physics, box2d, box2d_defold, script_box2d, script_box2d_defold]
+            excludeSymbols: [ScriptBox2DExt]
+            symbols: []
+            libs: [physics_3d]
+            linkFlags: []
+    x86-win32:
+        context:
+            excludeLibs: [libphysics, libbox2d, libbox2d_defold, libscript_box2d, libscript_box2d_defold]
+            excludeSymbols: [ScriptBox2DExt]
+            symbols: []
+            libs: [libphysics_3d.lib]
+            linkFlags: []
+    x86_64-win32:
+        context:
+            excludeLibs: [libphysics, libbox2d, libbox2d_defold, libscript_box2d, libscript_box2d_defold]
+            excludeSymbols: [ScriptBox2DExt]
+            symbols: []
+            libs: [libphysics_3d.lib]
+            linkFlags: []
+    js-web:
+        context:
+            excludeLibs: [physics, box2d, box2d_defold, script_box2d, script_box2d_defold]
+            excludeJsLibs: []
+            excludeSymbols: [ScriptBox2DExt]
+            symbols: []
+            libs: [physics_3d]
+            linkFlags: []
+    wasm-web:
+        context:
+            excludeLibs: [physics, box2d, box2d_defold, script_box2d, script_box2d_defold]
+            excludeJsLibs: []
+            excludeSymbols: [ScriptBox2DExt]
+            symbols: []
+            libs: [physics_3d]
+            linkFlags: []
 
+    wasm_pthread-web:
+        context:
+            excludeLibs: [physics, box2d, box2d_defold, script_box2d, script_box2d_defold]
+            excludeJsLibs: []
+            excludeSymbols: [ScriptBox2DExt]
+            symbols: []
+            libs: [physics_3d]
+            linkFlags: []

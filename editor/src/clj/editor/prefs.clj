@@ -22,6 +22,7 @@
     :any           anything goes, no validation is performed
     :boolean       a boolean value
     :string        a string
+    :password      a string, stored encrypted
     :keyword       a keyword
     :integer       an integer
     :number        floating point number
@@ -37,23 +38,34 @@
                    positional schemas
 
   Additionally, each schema map supports these optional keys:
-    :default        explicit default value to use instead of a type default
-    :scope          either :global or :project
-    :label          short description of the schema, a string
-    :description    longer description of the schema, a string
+    :default    explicit default value to use instead of a type default
+    :scope      either :global or :project
+    :ui         the ui configuration, a map with the following keys:
+                  :label          short description of the schema, a string
+                  :description    longer description of the schema, a string
+                  :multiline      for string inputs: whether to show a multiline
+                                  text-area, a boolean
+                  :prompt         for string inputs: prompt text
+                  :type           different schema type, the input should
+                                  support the value
 
   See also:
     https://code.visualstudio.com/api/references/contribution-points#contributes.configuration
     https://docs.google.com/document/d/17ke9huzMaagHAYmdzGGGRHnDD5ViLZrChT3OYaEXZuU/edit
     https://json-schema.org/understanding-json-schema/reference"
   (:refer-clojure :exclude [get set?])
-  (:require [clojure.edn :as edn]
+  (:require [camel-snake-kebab :as camel]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
+            [clojure.string :as string]
             [cognitect.transit :as transit]
+            [editor.connection-properties :as connection-properties]
             [editor.fs :as fs]
             [editor.os :as os]
+            [service.log :as log]
             [util.coll :as coll]
+            [util.crypto :as crypto]
             [util.eduction :as e]
             [util.fn :as fn])
   (:import [java.io ByteArrayInputStream PushbackReader]
@@ -66,25 +78,36 @@
 
 ;; All types, for reference:
 
-#_[:any :boolean :string :keyword :integer :number :array :set :object :object-of :enum :tuple]
+#_[:any :boolean :string :password :keyword :integer :number :array :set :object :object-of :enum :tuple]
 
 (def default-schema
   {:type :object
    :properties
    {:asset-browser {:type :object
                     :properties
-                    {:track-active-tab {:type :boolean :label "Track Active Tab in Asset Browser"}}}
+                    {:track-active-tab {:type :boolean
+                                        :ui {:label "Track Active Tab in Asset Browser"}}}}
     :input {:type :object
             :properties
-            {:keymap-path {:type :string :label "Path to Custom Keymap"}}}
+            {:keymap-path {:type :string
+                           :ui {:label "Path to Custom Keymap"}}}}
     :code {:type :object
            :properties
            {:custom-editor {:type :string}
             :open-file {:type :string :default "{file}"}
-            :open-file-at-line {:type :string :default "{file}:{line}" :label "Open File at Line"}
+            :open-file-at-line {:type :string
+                                :default "{file}:{line}"
+                                :ui {:label "Open File at Line"}}
+            :zoom-on-scroll {:type :boolean :ui {:label "Zoom on Scroll"}}
+            :hover {:type :boolean
+                    :default true
+                    :ui {:label "Hover popup"
+                         :description "Show code documentation popup on hover"}}
             :font {:type :object
                    :properties
-                   {:name {:type :string :default "Dejavu Sans Mono"}
+                   {:name {:type :string
+                           :default "Dejavu Sans Mono"
+                           :ui {:label "Code Editor Font (Requires Restart)"}}
                     :size {:type :number :default 12.0}}}
             :find {:type :object
                    :scope :project
@@ -102,15 +125,19 @@
     :tools {:type :object
             :properties
             {:adb-path {:type :string
-                        :label "ADB path"
-                        :description "Path to ADB command that might be used to install and launch the Android app when it's bundled"}
+                        :ui {:label "ADB path"
+                             :description "Path to ADB command that might be used to install and launch the Android app when it's bundled"}}
              :ios-deploy-path {:type :string
-                               :label "ios-deploy path"
-                               :description "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}}}
+                               :ui {:label "ios-deploy path"
+                                    :description "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}}}}
     :extensions {:type :object
                  :properties
-                 {:build-server {:type :string}
-                  :build-server-headers {:type :string}}}
+                 {:build-server {:type :string
+                                 :ui {:prompt connection-properties/defold-build-server-url}}
+                  :build-server-username {:type :string}
+                  :build-server-password {:type :password}
+                  :build-server-headers {:type :string
+                                         :ui {:multiline true}}}}
     :search-in-files {:type :object
                       :scope :project
                       :properties
@@ -124,47 +151,84 @@
     :build {:type :object
             :scope :project
             :properties
-            {:lint-code {:type :boolean :default true :label "Lint Code on Build"}
-             :texture-compression {:type :boolean}
-             :open-html5-build {:type :boolean :default true :label "Open Browser After `Build HTML5`"}}}
+            {:lint-code {:type :boolean
+                         :default true
+                         :ui {:label "Lint Code on Build"}}
+             :texture-compression {:type :boolean
+                                   :ui {:label "Enable Texture Compression"}}
+             :open-html5-build {:type :boolean
+                                :default true
+                                :ui {:label "Open Browser After `Build HTML5`"}}}}
     :bundle {:type :object
              :scope :project
              :properties
              {:last-bundle-command {:type :any}
               :output-directory {:type :string}
-              :open-output-directory {:type :boolean :default true}}}
+              :open-output-directory {:type :boolean
+                                      :default true
+                                      :ui {:label "Open Bundle Target Folder"}}}}
     :window {:type :object
              :properties
              {:dimensions {:type :any}
               :split-positions {:type :any}
-              :hidden-panes {:type :set :item {:type :keyword}}}}
+              :hidden-panes {:type :set :item {:type :keyword}}
+              :keymap {:type :object-of
+                       :key {:type :keyword} ;; command
+                       :val {:type :object
+                             :properties {;; custom shortcuts to add to keymap
+                                          :add {:type :set :item {:type :string}}
+                                          ;; built-in shortcuts to remove from keymap
+                                          :remove {:type :set :item {:type :string}}}}}}}
     :workflow {:type :object
                :properties
                {:load-external-changes-on-app-focus {:type :boolean
                                                      :default true
-                                                     :label "Load External Changes on App Focus"}
+                                                     :ui {:label "Load External Changes on App Focus"}}
                 :recent-files {:type :array
                                :item {:type :tuple :items [{:type :string} {:type :keyword}]}
+                               :scope :project}
+                :saved-colors {:type :array
+                               :item {:type :string}
                                :scope :project}}}
     :console {:type :object
               :properties
-              {:filters {:type :array
+              {:filtering {:type :boolean :default true}
+               :filters {:type :array
                          :item {:type :tuple :items [{:type :string} {:type :boolean}]}}}}
     :run {:type :object
           :properties
           {:instance-count {:type :integer :default 1 :scope :project}
            :selected-target-id {:type :any}
            :manual-target-ip+port {:type :string}
-           :quit-on-escape {:type :boolean :label "Escape Quits Game"}
+           :quit-on-escape {:type :boolean
+                            :ui {:label "Escape Quits Game"}}
            :simulate-rotated-device {:type :boolean :scope :project}
            :simulated-resolution {:type :any :scope :project}
-           :engine-arguments {:type :string :scope :project}}}
+           :engine-arguments {:type :string
+                              :scope :project
+                              :ui {:multiline true
+                                   :prompt "One argument per line"
+                                   :description "Arguments that will be passed to the dmengine executables when the editor builds and runs.\n Use one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan"}}}}
     :scene {:type :object
             :properties
-            {:move-whole-pixels {:type :boolean :default true}}}
+            {:move-whole-pixels {:type :boolean :default true}
+             :grid {:type :object
+                    :scope :project
+                    :properties {:size {:type :object
+                                        :scope :project
+                                        :properties
+                                        {:x {:type :number :default 1.0}
+                                         :y {:type :number :default 1.0}
+                                         :z {:type :number :default 1.0}}}
+                                 :active-plane {:type :keyword :default :z}
+                                 :opacity {:type :number :default 0.25}
+                                 :color {:type :tuple
+                                         :items [{:type :number} {:type :number} {:type :number} {:type :number}]
+                                         :default [0.5 0.5 0.5 1.0]}}}}}
     :dev {:type :object
           :properties
-          {:custom-engine {:type :any}}}
+          {:custom-engine {:type :any
+                           :ui {:type :string}}}}
     :git {:type :object
           :properties
           {:credentials {:type :any :scope :project}}}
@@ -182,6 +246,7 @@
     :any true
     :boolean (boolean? value)
     :string (string? value)
+    :password (string? value)
     :keyword (keyword? value)
     :integer (int? value)
     :number (number? value)
@@ -216,6 +281,7 @@
         :any nil
         :boolean false
         :string ""
+        :password ""
         :keyword nil
         :integer 0
         :number 0.0
@@ -227,6 +293,38 @@
         :tuple (mapv default-value (:items schema)))
       explicit-default)))
 
+
+;; endregion
+
+;; region storage values
+
+(def ^:private secret-delay
+  (delay (crypto/secret-bytes (.getBytes (System/getProperty "user.name") StandardCharsets/UTF_8)
+                              (byte-array [0x9F 0x4B 0x7E 0x22 0xED 0xC1 0xA5 0x71
+                                           0x4E 0x96 0xC0 0xA7 0xD4 0xFD 0xBF 0x11
+                                           0x41 0xD0 0xE8 0x2D 0x25 0xAB 0x7F 0xBA
+                                           0x69 0x33 0xBB 0x47 0xBF 0xC2 0x4D 0x39]))))
+
+(defn- storage-value->value [schema storage-value]
+  (case (:type schema)
+    :password (crypto/decrypt-string-base64 storage-value @secret-delay)
+    storage-value))
+
+(defn- value->storage-value [schema value]
+  (case (:type schema)
+    :password (crypto/encrypt-string-base64 value @secret-delay)
+    value))
+
+(defn- storage-value-valid? [schema value]
+  (case (:type schema)
+    :password (and (string? value)
+                   (try
+                     (crypto/base64->bytes value)
+                     true
+                     (catch IllegalArgumentException _
+                       false)))
+    (valid? schema value)))
+
 ;; endregion
 
 ;; region spec
@@ -234,16 +332,20 @@
 (defn- default-valid? [schema]
   (let [v (:default schema ::not-found)]
     (or (identical? v ::not-found) (valid? schema v))))
-(defmulti type-spec :type)
 (s/def ::label string?)
 (s/def ::description string?)
+(s/def ::multiline boolean?) ;; for string schemas
+(s/def ::prompt string?) ;; for textual inputs
+(s/def ::ui
+  (s/keys :opt-un [::label ::description ::multiline ::prompt ::type]))
 (s/def ::default any?)
 (s/def ::scope #{:global :project})
-(s/def ::type #{:any :boolean :string :keyword :integer :number :array :set :object :object-of :enum :tuple})
+(s/def ::type #{:any :boolean :string :password :keyword :integer :number :array :set :object :object-of :enum :tuple})
+(defmulti type-spec :type)
 (s/def ::schema
   (s/and
     (s/multi-spec type-spec :type)
-    (s/keys :req-un [::type] :opt-un [::label ::description ::default ::scope])
+    (s/keys :req-un [::type] :opt-un [::default ::scope ::ui])
     default-valid?))
 (defmethod type-spec :default [_] any?)
 (s/def ::item ::schema)
@@ -272,7 +374,11 @@
     (with-open [rdr (PushbackReader. (io/reader path))]
       (try
         (edn/read {:default fn/constantly-nil} rdr)
-        (catch Throwable _ ::not-found)))
+        (catch Throwable e
+          (let [content (try (slurp path) (catch Throwable _ ""))]
+            (when-not (= content "")
+              (log/error :message "Failed to read config" :content content :exception e)))
+          ::not-found)))
     ::not-found))
 
 (defn- array? [x]
@@ -346,7 +452,8 @@
                            (assoc acc file-path config)))
                        storage
                        events))))]
-      (swap! global-state incorporate-updated-storage updated-storage))))
+      (swap! global-state incorporate-updated-storage updated-storage)))
+  nil)
 
 (def ^:private ^ScheduledExecutorService sync-executor
   (Executors/newSingleThreadScheduledExecutor
@@ -377,7 +484,7 @@
                                             (coll/pair-map-by key #(resolve-schema (val %) scope) m)))
        schema))))
 
-(def global-state
+(defonce global-state
   ;; global state value is a map with the following keys:
   ;;   :storage     a map from absolute file Path to its prefs map
   ;;   :registry    a map from schema id (anything) to a schema map (schema)
@@ -417,11 +524,11 @@
       key
       #(lookup-valid-value-at-path scopes storage (val %) (conj path (key %)))
       (:properties schema))
-    (let [value (-> schema :scope scopes storage (get-in path ::not-found))]
-      (if (or (identical? value ::not-found)
-              (not (valid? schema value)))
+    (let [storage-value (-> schema :scope scopes storage (get-in path ::not-found))]
+      (if (or (identical? storage-value ::not-found)
+              (not (storage-value-valid? schema storage-value)))
         (default-value schema)
-        value))))
+        (storage-value->value schema storage-value)))))
 
 (defn- value-at-path-set? [scopes storage schema path]
   (if (= :object (:type schema))
@@ -429,9 +536,9 @@
       (coll/some
         #(value-at-path-set? scopes storage (val %) (conj path (key %)))
         (:properties schema)))
-    (let [value (-> schema :scope scopes storage (get-in path ::not-found))]
-      (and (not (identical? value ::not-found))
-           (valid? schema value)))))
+    (let [storage-value (-> schema :scope scopes storage (get-in path ::not-found))]
+      (and (not (identical? storage-value ::not-found))
+           (storage-value-valid? schema storage-value)))))
 
 (defn merge-schemas
   "Similar to clojure.core/merge-with, but for schemas
@@ -546,8 +653,17 @@
           value))
       (throw (value-error path value schema)))
     (if (valid? schema value)
-      [[(-> schema :scope scopes) path value]]
+      [[(-> schema :scope scopes) path (value->storage-value schema value)]]
       (throw (value-error path value schema)))))
+
+(defn- set-value-at-path [current-state scopes schema path value]
+  (reduce
+    (fn [acc [file-path config-path storage-value]]
+      (-> acc
+          (update-in [:storage file-path] safe-assoc-in config-path storage-value)
+          (assoc-in [:events file-path config-path] storage-value)))
+    current-state
+    (set-value-events scopes schema path value)))
 
 ;; endregion
 
@@ -580,18 +696,22 @@
   invalid (unregistered) path is provided. Does not perform file IO.
 
   Using [] as a path will return the full preference map"
-  [prefs path]
-  {:pre [(vector? path)]}
-  (let [{:keys [registry storage]} @global-state
-        schema (combined-schema-at-path registry prefs path)]
-    (lookup-valid-value-at-path (:scopes prefs) storage schema path)))
+  ([prefs path]
+   (get @global-state prefs path))
+  ([current-state prefs path]
+   {:pre [(vector? path)]}
+   (let [{:keys [registry storage]} current-state
+         schema (combined-schema-at-path registry prefs path)]
+     (lookup-valid-value-at-path (:scopes prefs) storage schema path))))
 
 (defn set?
   "Check if there is an explicit prefs value set for the path"
-  [prefs path]
-  (let [{:keys [registry storage]} @global-state
-        schema (combined-schema-at-path registry prefs path)]
-    (value-at-path-set? (:scopes prefs) storage schema path)))
+  ([prefs path]
+   (set? @global-state prefs path))
+  ([current-state prefs path]
+   (let [{:keys [registry storage]} current-state
+         schema (combined-schema-at-path registry prefs path)]
+     (value-at-path-set? (:scopes prefs) storage schema path))))
 
 (defn set!
   "Set a value in preferences at a specified assoc-in path
@@ -604,20 +724,40 @@
   (let [{:keys [scopes]} prefs]
     (swap! global-state (fn [{:keys [registry] :as m}]
                           (let [schema (combined-schema-at-path registry prefs path)]
-                            (->> value
-                                 (set-value-events scopes schema path)
-                                 (reduce
-                                   (fn [acc [file-path config-path value]]
-                                     (-> acc
-                                         (update-in [:storage file-path] safe-assoc-in config-path value)
-                                         (assoc-in [:events file-path config-path] value)))
-                                   m)))))
+                            (set-value-at-path m scopes schema path value))))
+    nil))
+
+(defn update!
+  "Atomically update a value in preferences at a specified assoc-in path
+
+  The new value must satisfy the combined schema. Will throw if invalid
+  (unregistered) path is provided. Does not perform file IO.
+
+  Using [] as a path allows changing the whole preference state"
+  [prefs path f & args]
+  (let [{:keys [scopes]} prefs]
+    (swap! global-state (fn [{:keys [registry storage] :as m}]
+                          (let [schema (combined-schema-at-path registry prefs path)
+                                value (lookup-valid-value-at-path scopes storage schema path)]
+                            (set-value-at-path m scopes schema path (apply f value args)))))
     nil))
 
 (defn schema
   "Get a preference schema at a specified get-in path"
-  [prefs path]
-  (combined-schema-at-path (:registry @global-state) prefs path))
+  ([prefs path]
+   (schema @global-state prefs path))
+  ([current-state prefs path]
+   (combined-schema-at-path (:registry current-state) prefs path)))
+
+(defn label
+  ([prefs path]
+   (label @global-state prefs path))
+  ([current-state prefs path]
+   {:pre [(vector? path)]}
+   (or (:label (:ui (schema current-state prefs path)))
+       (if-let [path-keyword (peek path)]
+         (string/trim (camel/->TitleCase (name path-keyword)))
+         "Value"))))
 
 (defn register-schema!
   "Register a new schema, e.g. a project-specific one"
@@ -787,6 +927,7 @@
                                "bundle-ios-launch-app?" [:bundle :ios :launch]
                                "bundle-html5-architecture-js-web?" [:bundle :html5 :architecture :js-web]
                                "bundle-html5-architecture-wasm-web?" [:bundle :html5 :architecture :wasm-web]
+                               "bundle-html5-architecture-wasm_pthread-web?" [:bundle :html5 :architecture :wasm_pthread-web]
                                "bundle-windows-platform" [:bundle :windows :platform]
                                "project-git-credentials" [:git :credentials]}
                               ;; these prefs already used project scope

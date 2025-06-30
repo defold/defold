@@ -24,16 +24,16 @@ platforms:
             excludeLibs: ["graphics"]
             excludeSymbols: ["GraphicsAdapterOpenGL"]
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["graphics_vulkan","X11-xcb"]
+            libs: ["platform_vulkan", "graphics_vulkan","X11-xcb"]
             dynamicLibs: ["vulkan"]
             linkFlags: []
 
     arm64-linux:
         context:
-            excludeLibs: ["graphics"]
-            excludeSymbols: ["GraphicsAdapterOpenGLES"]
+            excludeLibs: ["graphics", "graphics_opengles"]
+            excludeSymbols: ["GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES"]
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["graphics_vulkan","X11-xcb"]
+            libs: ["platform_vulkan", "graphics_vulkan","X11-xcb"]
             dynamicLibs: ["vulkan"]
             linkFlags: []
 
@@ -47,6 +47,15 @@ platforms:
             linkFlags: []
 
     wasm-web:
+        context:
+            excludeLibs: []
+            excludeJsLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            linkFlags: []
+
+    wasm_pthread-web:
         context:
             excludeLibs: []
             excludeJsLibs: []

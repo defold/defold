@@ -133,4 +133,88 @@ $ext-line-height: 26px;
             &:focused { -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim; }
         }
     }
+    &-text-area {
+        -fx-border-radius: 2px;
+        -fx-background-radius: 2px;
+        -fx-border-width: 1px;
+        -fx-border-color: -df-component-dark;
+        -fx-prompt-text-fill: -df-text-dark;
+        -fx-highlight-fill: -df-background-input;
+        -fx-highlight-text-fill: -df-text-selected;
+        -fx-padding: 1px 1px;
+        &:hover { -fx-border-color: -df-component-light; }
+        &:focused {
+            -fx-border-width: 1px 1px 2px 1px;
+            -fx-padding: 1px 1px -1px 1px;
+            -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+            -fx-background-color: -df-background;
+            -fx-highlight-fill: -df-component-light;
+        }
+        &:warning {
+            -fx-border-color: -df-error-severity-warning-dim;
+            &:hover { -fx-border-color: -df-error-severity-warning; }
+            &:focused { -fx-border-color: -df-error-severity-warning-dim -df-error-severity-warning-dim -df-error-severity-warning -df-error-severity-warning-dim; }
+        }
+        &:error {
+            -fx-border-color: -df-error-severity-fatal-dim;
+            &:hover { -fx-border-color: -df-error-severity-fatal; }
+            &:focused { -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim; }
+        }
+        & > .scroll-pane > .scroll-bar > .thumb {
+            -fx-background-color: -df-component-dark;
+            &:hover { -fx-background-color: -df-component-light; }
+            &:pressed { -fx-background-color: -df-component-lighter; }
+        }
+    }
+    &-table-view {
+        -fx-border-width: 1;
+        -fx-padding: 1px;
+        -fx-border-color: -df-component-dark;
+        -fx-background-insets: 0;
+        -fx-background-color: -df-background-input;
+        &:hover { -fx-border-color: -df-component-light; }
+        &:focused {
+            -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
+            -fx-border-width: 1px 1px 2px 1px;
+            -fx-padding: 1px 1px 0 1px;
+            -fx-background-color: -df-background;
+            & > .virtual-flow > .clipped-container > .sheet > .table-row-cell:selected {
+                -fx-background-color: -df-background-lighter;
+                & > .table-cell { -fx-text-fill: -df-text-selected; }
+            }
+        }
+        & > .column-header-background {
+            -fx-border-width: 0 0 1 0;
+            -fx-border-color: -df-component-dark;
+            -fx-background-color: transparent;
+            & > .filler {
+                -fx-background-color: transparent;
+            }
+            & > .nested-column-header > .column-header {
+                -fx-background-color: transparent;
+                -fx-border-width: 0 1 0 0;
+                -fx-border-color: -df-component-dark;
+                & > .label {
+                    -fx-text-fill: -df-text;
+                    -fx-alignment: center-left;
+                }
+            }
+        }
+        & > .virtual-flow {
+            & > .clipped-container > .sheet > .table-row-cell {
+                -fx-background-color: transparent;
+                & > .table-cell {
+                    -fx-border-width: 0 1 0 0;
+                    -fx-border-color: -df-component-dark;
+                    -fx-text-fill: -df-text;
+                    -fx-padding: 0 2px;
+                }
+            }
+            & > .scroll-bar > .thumb {
+                -fx-background-color: -df-component-dark;
+                &:hover { -fx-background-color: -df-component-light; }
+                &:pressed { -fx-background-color: -df-component-lighter; }
+            }
+        }
+    }
 }

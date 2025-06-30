@@ -69,7 +69,7 @@ import com.dynamo.rig.proto.Rig.AnimationSet;
 import static com.dynamo.bob.util.ComponentsCounter.isCompCounterStorage;
 
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", paramsForSignature = {"liveupdate", "variant", "archive", "archive-resource-padding",
-                "platform", "manifest-private-key", "manifest-public-key"})
+                "platform", "manifest-private-key", "manifest-public-key", "build-report-json", "build-report-html"})
 public class GameProjectBuilder extends Builder {
 
     // Root nodes to follow (default values from engine.cpp)
@@ -80,8 +80,6 @@ public class GameProjectBuilder extends Builder {
             {"input", "game_binding", "/input/game.input_bindingc"},
             {"input", "gamepads", "/builtins/input/default.gamepadsc"},
             {"display", "display_profiles", "/builtins/render/default.display_profilesc"}};
-
-    static final String[] UNSUPPORTED_ARCHIVE_EXT = new String[] {".vp", ".fp" };
 
     static String[] gameProjectDependencies;
 
@@ -123,8 +121,7 @@ public class GameProjectBuilder extends Builder {
         ProtoBuilder.addMessageClass(".skeletonc", Skeleton.class);
         ProtoBuilder.addMessageClass(".texturesetc", TextureSet.class);
 
-        boolean shouldPublish = project.option("liveupdate", "false").equals("true");
-        project.createPublisher(shouldPublish);
+        project.createPublisher();
         TaskBuilder builder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
@@ -162,7 +159,12 @@ public class GameProjectBuilder extends Builder {
         }
 
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles", "/builtins/graphics/default.texture_profiles");
-        createSubTask(textureProfilesPath, "", builder);
+        createSubTask(textureProfilesPath, "graphics.texture_profiles", builder);
+
+        IResource publisherSettingsResorce = project.getPublisher().getPublisherSettingsResorce();
+        if (publisherSettingsResorce != null) {
+            builder.addInput(publisherSettingsResorce);
+        }
 
         return builder.build();
     }
@@ -339,20 +341,6 @@ public class GameProjectBuilder extends Builder {
         properties.putStringValue("project", "title_as_file_name", fileNameTitle);
     }
 
-    private boolean isUnsupportedArchiveFileType(String path) {
-        String ext = ResourceUtil.getExt(path);
-        for (String unsupportedExt : UNSUPPORTED_ARCHIVE_EXT) {
-            if (ext.equals(unsupportedExt)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private void excludeUnsupportedArchiveFileTypes(Set<IResource> resources) {
-        resources.removeIf(resource -> isCompCounterStorage(resource.getAbsPath()) || isUnsupportedArchiveFileType(resource.getAbsPath()));
-    }
-
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         FileInputStream archiveIndexInputStream = null;
@@ -385,8 +373,6 @@ public class GameProjectBuilder extends Builder {
                     resources.remove(resource);
                 }
 
-                excludeUnsupportedArchiveFileTypes(resources);
-
                 TimeProfiler.start("Create excluded resources");
                 logger.info("Creation of the excluded resources list.");
                 tstart = System.currentTimeMillis();
@@ -416,6 +402,7 @@ public class GameProjectBuilder extends Builder {
                 ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
                 createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources);
                 byte[] manifestFile = manifestBuilder.buildManifest();
+                this.project.setArchiveBuilder(archiveBuilder);
 
                 // Write outputs to the build system
                 // game.arci

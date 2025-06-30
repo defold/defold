@@ -35,6 +35,7 @@ namespace dmBuffer
  * @name GameSystem Gui
  * @namespace dmGameSystem
  * @path engine/gamesys/src/dmsdk/gamesys/gui.h
+ * @language C++
  */
 
 namespace dmGameSystem
@@ -52,7 +53,7 @@ namespace dmGameSystem
     struct CompGuiNodeType;
 
     /*#
-     * @name GuiNodeTypeDestroyFunction
+     * @name GuiNodeTypeCreateFunction
      * @type typedef
      */
     typedef dmGameObject::Result (*GuiNodeTypeCreateFunction)(const struct CompGuiNodeTypeCtx* ctx, CompGuiNodeType* type);
@@ -104,7 +105,7 @@ namespace dmGameSystem
     /*# Registers a new gui node type to the Gui component
      * @name DM_DECLARE_COMPGUI_TYPE
      * @type macro
-     * @param symbol [type:C++ symbol name] The unique C++ symbol name
+     * @param symbol [type:symbol] The unique C++ symbol name
      * @param name [type:const char*] The name of the node type
      * @param type_create_fn [type:GuiNodeTypeCreateFunction] the create function
      * @param type_destroy_fn [type:GuiNodeTypeDestroyFunction] the destroy function. May be 0
@@ -141,7 +142,7 @@ namespace dmGameSystem
     void CompGuiNodeTypeSetCloneFn(CompGuiNodeType* type, CompGuiNodeCloneFn fn);
     void CompGuiNodeTypeSetNodeDescFn(CompGuiNodeType* type, CompGuiNodeSetNodeDescFn fn);
     void CompGuiNodeTypeSetUpdateFn(CompGuiNodeType* type, CompGuiNodeUpdateFn fn);
-    /*#
+    /**
      * Get the vertices in local space
      */
     void CompGuiNodeTypeSetGetVerticesFn(CompGuiNodeType* type, CompGuiNodeGetVerticesFn fn);

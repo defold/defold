@@ -27,7 +27,7 @@ extern "C"
     #include <lua/lauxlib.h>
 
     // Defined in luacjson/lua_cjson.c
-    int lua_cjson_decode(lua_State* L, const char* json_string, size_t json_len);
+    int lua_cjson_decode(lua_State* L, const char* json_string, size_t json_len, int protected_mode, char* errbuf, size_t errbuf_len);
     int lua_cjson_encode(lua_State* L, char** json_str, size_t* json_length);
 }
 
@@ -43,18 +43,36 @@ namespace dmScript
      * @document
      * @name JSON
      * @namespace json
+     * @language Lua
      */
 
-    int JsonToLua(lua_State* L, const char* json, size_t json_len)
+    static int JsonToLuaInternal(lua_State* L, const char* json, size_t json_len, int protected_mode)
     {
         int top = lua_gettop(L);
-        int ret = lua_cjson_decode(L, json, json_len);
+        char buffer[256] = {0};
+        int ret = lua_cjson_decode(L, json, json_len, protected_mode, buffer, sizeof(buffer));
         if (ret != 1)
         {
             lua_pop(L, lua_gettop(L) - top);
         }
-        assert(top + 1 == lua_gettop(L));
+
+        if (protected_mode)
+        {
+            assert(top + 1 == lua_gettop(L));
+        }
+        else if(!protected_mode && (ret == 0)) // let's restore the stack if we couldn't create
+        {
+            int num_to_pop = lua_gettop(L) - top;
+            lua_pop(L, num_to_pop);
+
+            dmLogError("%s", buffer);
+        }
         return ret;
+    }
+
+    int JsonToLua(lua_State* L, const char* json, size_t json_len)
+    {
+        return JsonToLuaInternal(L, json, json_len, 0);
     }
 
     int LuaToJson(lua_State* L, char** json, size_t* json_len)
@@ -70,7 +88,7 @@ namespace dmScript
      * @param json [type:string] json data
      * @param [options] [type:table] table with decode options
      *
-     * - [type:bool] `decode_null_as_userdata`: wether to decode a JSON null value as json.null or nil (default is nil)
+     * - [type:boolean] `decode_null_as_userdata`: wether to decode a JSON null value as json.null or nil (default is nil)
      *
      * @return data [type:table] decoded json
      *
@@ -111,7 +129,7 @@ namespace dmScript
 
         size_t json_len;
         const char* json = luaL_checklstring(L, 1, &json_len);
-        return JsonToLua(L, json, json_len);
+        return JsonToLuaInternal(L, json, json_len, 1);
     }
 
     /*# encode a lua table to a JSON string

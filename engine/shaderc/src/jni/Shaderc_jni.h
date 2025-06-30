@@ -26,7 +26,6 @@ struct ShaderCompilerOptionsJNI {
     jclass cls;
     jfieldID version;
     jfieldID entryPoint;
-    jfieldID stage;
     jfieldID removeUnusedVariables;
     jfieldID no420PackExtension;
     jfieldID glslEmitUboAsPlainUniforms;
@@ -72,6 +71,7 @@ struct ShaderResourceJNI {
     jfieldID location;
     jfieldID binding;
     jfieldID set;
+    jfieldID stageFlags;
 };
 struct ShaderReflectionJNI {
     jclass cls;
@@ -85,6 +85,7 @@ struct ShaderReflectionJNI {
 struct ShaderCompileResultJNI {
     jclass cls;
     jfieldID data;
+    jfieldID lastError;
 };
 struct TypeInfos {
     ShaderCompilerOptionsJNI m_ShaderCompilerOptionsJNI;

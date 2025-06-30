@@ -120,6 +120,7 @@ namespace dmGraphics
         uint16_t              m_TextureSamplerIndex : 10;
         uint16_t              m_MipMapCount : 5;
         uint8_t               m_UsageHintFlags;
+        uint8_t               m_PageCount; // page count of texture array
         uint8_t               m_Destroyed : 1;
     };
 
@@ -208,7 +209,6 @@ namespace dmGraphics
         WGPUQueue                          m_Queue;
         WGPUSurface                        m_Surface;
         WGPUTextureFormat                  m_Format;
-        WGPUSwapChain                      m_SwapChain;
         WGPUCommandEncoder                 m_CommandEncoder;
         uint32_t                           m_RenderPasses;
         uint32_t                           m_LastSubmittedRenderPass;

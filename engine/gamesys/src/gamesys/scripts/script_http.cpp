@@ -53,6 +53,7 @@ namespace dmGameSystem
      * @document
      * @name HTTP
      * @namespace http
+     * @language Lua
      */
 
     static dmHttpService::HHttpService g_Service = 0;

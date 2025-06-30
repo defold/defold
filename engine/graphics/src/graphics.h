@@ -135,12 +135,15 @@ namespace dmGraphics
     {
         TEXTURE_TYPE_2D               = 0,
         TEXTURE_TYPE_2D_ARRAY         = 1,
-        TEXTURE_TYPE_CUBE_MAP         = 2,
-        TEXTURE_TYPE_IMAGE_2D         = 3,
-        TEXTURE_TYPE_SAMPLER          = 4,
-        TEXTURE_TYPE_TEXTURE_2D       = 5,
-        TEXTURE_TYPE_TEXTURE_2D_ARRAY = 6,
-        TEXTURE_TYPE_TEXTURE_CUBE     = 7
+        TEXTURE_TYPE_3D               = 2,
+        TEXTURE_TYPE_CUBE_MAP         = 3,
+        TEXTURE_TYPE_IMAGE_2D         = 4,
+        TEXTURE_TYPE_IMAGE_3D         = 5,
+        TEXTURE_TYPE_SAMPLER          = 6,
+        TEXTURE_TYPE_TEXTURE_2D       = 7,
+        TEXTURE_TYPE_TEXTURE_2D_ARRAY = 8,
+        TEXTURE_TYPE_TEXTURE_3D       = 9,
+        TEXTURE_TYPE_TEXTURE_CUBE     = 10,
     };
 
     // Texture filter
@@ -186,6 +189,7 @@ namespace dmGraphics
         CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
         CONTEXT_FEATURE_VSYNC                  = 4,
         CONTEXT_FEATURE_INSTANCING             = 5,
+        CONTEXT_FEATURE_3D_TEXTURES            = 6,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -204,6 +208,8 @@ namespace dmGraphics
         , m_Depth(1)
         , m_OriginalWidth(0)
         , m_OriginalHeight(0)
+        , m_OriginalDepth(1)
+        , m_LayerCount(1)
         , m_MipMapCount(1)
         , m_UsageHintBits(TEXTURE_USAGE_FLAG_SAMPLE)
         {}
@@ -214,6 +220,8 @@ namespace dmGraphics
         uint16_t    m_Depth;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
+        uint16_t    m_OriginalDepth;
+        uint8_t     m_LayerCount;
         uint8_t     m_MipMapCount;
         uint8_t     m_UsageHintBits;
     };
@@ -231,9 +239,11 @@ namespace dmGraphics
         , m_X(0)
         , m_Y(0)
         , m_Z(0)
+        , m_Slice(0)
         , m_Width(0)
         , m_Height(0)
         , m_Depth(0)
+        , m_LayerCount(0)
         , m_MipMap(0)
         , m_SubUpdate(false)
         {}
@@ -249,11 +259,13 @@ namespace dmGraphics
         // For sub texture updates
         uint32_t m_X;
         uint32_t m_Y;
-        uint32_t m_Z; // For array texture, this is the slice to set
+        uint32_t m_Z;
+        uint32_t m_Slice;
 
         uint16_t m_Width;
         uint16_t m_Height;
-        uint16_t m_Depth; // For array texture, this is slice count
+        uint16_t m_Depth;
+        uint8_t  m_LayerCount; // For array texture, this is page count
         uint8_t  m_MipMap    : 7;
         uint8_t  m_SubUpdate : 1;
     };
@@ -642,7 +654,7 @@ namespace dmGraphics
 
     float            VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr);
     uint8_t*         WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type);
-    uint8_t*         WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, const WriteAttributeParams& params);
+    uint8_t*         WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, uint32_t vertex_count, const WriteAttributeParams& params);
 
     // Uniforms
     uint32_t         GetUniformCount(HProgram prog);
@@ -722,12 +734,22 @@ namespace dmGraphics
     TextureType GetTextureType(HTexture texture);
     uint8_t     GetNumTextureHandles(HTexture texture);
     uint32_t    GetTextureUsageHintFlags(HTexture texture);
+    uint8_t     GetTexturePageCount(HTexture texture);
+
+    /**
+     * Get status of texture.
+     *
+     * @name GetTextureStatusFlags
+     * @param texture HTexture
+     * @return  TextureStatusFlags enumerated status bit flags
+     */
+    uint32_t    GetTextureStatusFlags(HTexture texture);
+    void        EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
+    void        DisableTexture(HContext context, uint32_t unit, HTexture texture);
 
     const char* GetTextureTypeLiteral(TextureType texture_type);
     const char* GetTextureFormatLiteral(TextureFormat format);
     uint32_t    GetMaxTextureSize(HContext context);
-    void        EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
-    void        DisableTexture(HContext context, uint32_t unit, HTexture texture);
 
     // Calculating mipmap info helpers
     uint16_t    GetMipmapSize(uint16_t size_0, uint8_t mipmap);
@@ -822,17 +844,49 @@ namespace dmGraphics
     static inline bool IsTypeTextureType(Type type)
     {
         return type == TYPE_SAMPLER_2D ||
-               type == TYPE_SAMPLER_CUBE ||
                type == TYPE_SAMPLER_2D_ARRAY ||
                type == TYPE_TEXTURE_2D ||
                type == TYPE_TEXTURE_2D_ARRAY ||
-               type == TYPE_TEXTURE_CUBE ||
-               type == TYPE_IMAGE_2D;
+               type == TYPE_IMAGE_2D ||
+
+               type == TYPE_SAMPLER_3D ||
+               type == TYPE_SAMPLER_3D_ARRAY ||
+               type == TYPE_TEXTURE_3D ||
+               type == TYPE_IMAGE_3D ||
+
+               type == TYPE_SAMPLER_CUBE ||
+               type == TYPE_TEXTURE_CUBE;
+    }
+
+    static inline bool IsTextureType3D(TextureType type)
+    {
+        return type == TEXTURE_TYPE_3D || type == TEXTURE_TYPE_3D || type == TEXTURE_TYPE_IMAGE_3D;
     }
 
     static inline uint32_t GetLayerCount(TextureType type)
     {
         return type == TEXTURE_TYPE_CUBE_MAP ? 6 : 1;
+    }
+
+    static inline TextureType TypeToTextureType(Type type)
+    {
+        switch(type)
+        {
+            case TYPE_SAMPLER_2D:       return TEXTURE_TYPE_2D;
+            case TYPE_SAMPLER_3D:       return TEXTURE_TYPE_3D;
+            case TYPE_SAMPLER_2D_ARRAY: return TEXTURE_TYPE_2D_ARRAY;
+            case TYPE_SAMPLER_CUBE:     return TEXTURE_TYPE_CUBE_MAP;
+            case TYPE_IMAGE_2D:         return TEXTURE_TYPE_IMAGE_2D;
+            case TYPE_IMAGE_3D:         return TEXTURE_TYPE_IMAGE_3D;
+            case TYPE_TEXTURE_2D:       return TEXTURE_TYPE_TEXTURE_2D;
+            case TYPE_TEXTURE_3D:       return TEXTURE_TYPE_TEXTURE_3D;
+            case TYPE_TEXTURE_2D_ARRAY: return TEXTURE_TYPE_TEXTURE_2D_ARRAY;
+            case TYPE_TEXTURE_CUBE:     return TEXTURE_TYPE_TEXTURE_CUBE;
+            case TYPE_SAMPLER:          return TEXTURE_TYPE_SAMPLER;
+            default:break;
+        }
+        assert(0);
+        return (TextureType) -1;
     }
 
     static inline uint32_t VectorTypeToElementCount(VertexAttribute::VectorType vector_type)
@@ -868,18 +922,9 @@ namespace dmGraphics
 
     void InvalidateGraphicsHandles(HContext context);
 
-    /**
-     * Get status of texture.
-     *
-     * @name GetTextureStatusFlags
-     * @param texture HTexture
-     * @return  TextureStatusFlags enumerated status bit flags
-     */
-    uint32_t GetTextureStatusFlags(HTexture texture);
-
     /** checks if the texture format is compressed
      * @name IsFormatTranscoded
-     * @param format dmGraphics::TextureImage::CompressionType
+     * @param format TextureImage::CompressionType
      * @return true if the format is compressed
      */
     bool IsFormatTranscoded(TextureImage::CompressionType format);
@@ -892,17 +937,10 @@ namespace dmGraphics
      * @param images An array of transcoded mipmaps
      * @param sizes An array of transcoded mipmap sizes
      * @param num_transcoded_mips (in) the size of the input arrays, (out) the number of mipmaps stored in the arrays
-     * @param format dmGraphics::TextureImage::CompressionType
+     * @param format TextureImage::CompressionType
      * @return true if the format is transcoded
      */
     bool Transcode(const char* path, TextureImage::Image* image, uint8_t image_count, uint8_t* image_bytes, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips);
-
-    /**
-     * Read frame buffer pixels in BGRA format
-     * @param buffer buffer to read to
-     * @param buffer_size buffer size
-     */
-    void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
 
     uint32_t    GetTypeSize(Type type);
     const char* GetGraphicsTypeLiteral(Type type);

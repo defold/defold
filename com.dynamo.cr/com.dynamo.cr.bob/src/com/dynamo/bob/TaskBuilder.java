@@ -19,7 +19,6 @@ import com.dynamo.bob.cache.ResourceCacheKey;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
 import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.cache.ResourceCache;
 import com.dynamo.bob.logging.Logger;
@@ -144,7 +143,6 @@ public class TaskBuilder {
 
         TaskResult taskResult = new TaskResult(task);
         taskResult.setResult(Result.SUCCESS);
-        taskResult.setProfilingScope(TimeProfiler.getCurrentScope());
 
         try {
             final List<IResource> outputResources = task.getOutputs();
@@ -235,10 +233,11 @@ public class TaskBuilder {
             taskResult.setMessage(e.getMessage());
             taskResult.setException(e);
             e.printStackTrace(new java.io.PrintStream(System.out));
+        } finally {
+            TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
+            TimeProfiler.addData("type", "buildTask");
+            TimeProfiler.stop();
         }
-        TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
-        TimeProfiler.addData("type", "buildTask");
-        TimeProfiler.stop();
         return taskResult;
     }
 
@@ -274,7 +273,7 @@ public class TaskBuilder {
             for (Task task : tasks) {
                 if (task.getBuilder().isGameProjectBuilder() && remainingTasksCount > 1) continue;
                 String taskName = task.getName();
-                if (taskName.equals("FragmentProgram") || taskName.equals("VertexProgram") || taskName.equals("Material")) taskName = "Shader";
+                if (taskName.equals("FragmentProgram") || taskName.equals("VertexProgram") || taskName.equals("Material") || taskName.equals("ShaderProgram")) taskName = "Shader";
                 if (taskName.equals("TileSet")) taskName = "Atlas";
                 int count = taskNameCounter.getOrDefault(taskName, 0);
                 if (taskName.equals("Atlas") && (count == maxConcurrentHighMemoryTasks)) continue;
@@ -304,8 +303,6 @@ public class TaskBuilder {
 
                     results.add(result);
                     if (result.isOk()) {
-                        ProfilingScope taskScope = result.getProfilingScope();
-                        TimeProfiler.addScopeToCurrentThread(taskScope);
                         completedTasks.add(task);
                         completedOutputs.addAll(task.getOutputs());
                         boolean success = tasks.remove(task);

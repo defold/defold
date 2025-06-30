@@ -70,14 +70,32 @@
   (await-lsp
     (tu/handler-run command [{:name :global :env {:project-graph (project/graph project)}}] {})))
 
-(def ^:private undo! (partial handler-run! :undo))
+(def ^:private undo! (partial handler-run! :edit.undo))
 
-(def ^:private redo! (partial handler-run! :redo))
+(def ^:private redo! (partial handler-run! :edit.redo))
 
 (defn- pull-diagnostics! [lsp & args]
   (await-lsp
     (let [ret (promise)]
       (apply lsp/pull-workspace-diagnostics! lsp ret args)
+      @ret)))
+
+(defn- hover! [lsp resource cursor]
+  (await-lsp
+    (let [ret (promise)]
+      (lsp/hover! lsp resource cursor ret)
+      @ret)))
+
+(defn- prepare-rename [lsp resource cursor]
+  (await-lsp
+    (let [ret (promise)]
+      (lsp/prepare-rename lsp resource cursor ret)
+      @ret)))
+
+(defn- rename [lsp prepared-range new-name]
+  (await-lsp
+    (let [ret (promise)]
+      (lsp/rename lsp prepared-range new-name ret)
       @ret)))
 
 (defn- make-test-server-launcher [request-handlers]
@@ -141,7 +159,9 @@
                                        :change :incremental}
                   :pull-diagnostics :none
                   :goto-definition false
-                  :find-references false}]
+                  :find-references false
+                  :hover false
+                  :rename false}]
                 [:on-publish-diagnostics
                  (tu/resource workspace "/foo.json")
                  {:items [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
@@ -545,3 +565,60 @@
         (await-lsp
           (set-servers! lsp #{})
           (is (true? (deref exit-promise 1100 false))))))))
+
+(deftest hover-test
+  (tu/with-scratch-project "test/resources/lsp_project"
+    (let [unmatched-promise (promise)
+          matched-promise (promise)
+          lsp (lsp/get-node-lsp project)
+          _ (set-servers! lsp #{;; this server should NOT be asked for hovers
+                                {:languages #{"json"}
+                                 :launcher (make-test-server-launcher
+                                             {"initialize" (constantly {:capabilities {:hoverProvider false}})
+                                              "initialized" (constantly nil)
+                                              "shutdown" (constantly nil)
+                                              "textDocument/hover" (fn [request _]
+                                                                     (deliver unmatched-promise request))
+                                              "exit" (constantly nil)})}
+                                ;; this server SHOULD be asked for hovers
+                                {:languages #{"json"}
+                                 :launcher (make-test-server-launcher
+                                             {"initialize" (constantly {:capabilities {:hoverProvider true}})
+                                              "initialized" (constantly nil)
+                                              "shutdown" (constantly nil)
+                                              "textDocument/hover" (fn [request _]
+                                                                     (deliver matched-promise request)
+                                                                     {:contents {:kind :markdown :value "hover"}})
+                                              "exit" (constantly nil)})}})]
+      (is (= [(data/map->CursorRange {:from (data/->Cursor 0 1)
+                                      :to (data/->Cursor 0 2)
+                                      :type :hover
+                                      :hoverable true
+                                      :content (lsp.server/->MarkupContent :markdown "hover")})]
+             (hover! lsp (tu/resource workspace "/foo.json") (data/->Cursor 0 1))))
+      (is (realized? matched-promise))
+      (is (not (realized? unmatched-promise)))
+      (await-lsp (set-servers! lsp #{})))))
+
+(deftest rename-test
+  (tu/with-scratch-project "test/resources/lsp_project"
+    (let [lsp (lsp/get-node-lsp project)
+          _ (set-servers! lsp #{{:languages #{"json"}
+                                 :launcher (make-test-server-launcher
+                                             {"initialize" (constantly {:capabilities {:renameProvider {:prepareProvider true}}})
+                                              "initialized" (constantly nil)
+                                              "textDocument/prepareRename" (fn [{:keys [position]} _]
+                                                                             {:range {:start position
+                                                                                      :end (update position :character inc)}})
+                                              "textDocument/rename" (fn [{:keys [position newName textDocument]} _]
+                                                                      {:changes {(:uri textDocument) [{:range {:start position
+                                                                                                               :end (update position :character inc)}
+                                                                                                       :newText newName}]}})
+                                              "shutdown" (constantly nil)
+                                              "exit" (constantly nil)})}})]
+      (let [resource (tu/resource workspace "/foo.json")
+            rename-region (prepare-rename lsp resource (data/->Cursor 0 0))]
+        (is (= #code/range[[0 0] [0 1]] rename-region))
+        (is (= {resource [[#code/range [[0 0] [0 1]] ["foo"]]]}
+               (rename lsp rename-region "foo")))
+        (await-lsp (set-servers! lsp #{}))))))

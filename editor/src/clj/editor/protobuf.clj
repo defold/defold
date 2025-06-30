@@ -26,6 +26,7 @@ Macros currently mean no foreseeable performance gain, however."
             [editor.util :as util]
             [internal.java :as java]
             [util.coll :as coll :refer [pair]]
+            [util.defonce :as defonce]
             [util.digest :as digest]
             [util.fn :as fn]
             [util.text-util :as text-util])
@@ -45,14 +46,19 @@ Macros currently mean no foreseeable performance gain, however."
        (system/defold-dev?)
        (not (Boolean/getBoolean "defold.exception.decorate.disable"))))
 
-(defprotocol GenericDescriptor
+(def ^:private enforce-strict-pb-map-keys
+  (and *assert*
+       (system/defold-dev?)
+       (Boolean/getBoolean "defold.protobuf.strict.enable")))
+
+(defonce/protocol GenericDescriptor
   (proto ^Message [this])
   (desc-name ^String [this])
   (full-name ^String [this])
   (file ^Descriptors$FileDescriptor [this])
   (containing-type ^Descriptors$Descriptor [this]))
 
-(defprotocol PbConverter
+(defonce/protocol PbConverter
   (msg->vecmath [^Message pb v] "Return the javax.vecmath equivalent for the Protocol Buffer message")
   (msg->clj [^Message pb v]))
 
@@ -623,6 +629,11 @@ Macros currently mean no foreseeable performance gain, however."
 
 (def default-value (fn/memoize default-value-raw))
 
+(defn- required-default-value-raw [^Class cls]
+  (default-message cls #{:required}))
+
+(def required-default-value (fn/memoize required-default-value-raw))
+
 (defn default
   ([^Class cls field]
    (let [field-default (get (default-value cls) field ::not-found)]
@@ -635,6 +646,16 @@ Macros currently mean no foreseeable performance gain, however."
                         :field field})))))
   ([^Class cls field not-found]
    (get (default-value cls) field not-found)))
+
+(defn required-default [^Class cls field]
+  (let [field-default (get (required-default-value cls) field ::not-found)]
+    (if (not= ::not-found field-default)
+      field-default
+      (throw (ex-info (format "Field '%s' is not required in protobuf class '%s'."
+                              field
+                              (.getName cls))
+                      {:pb-class cls
+                       :field field})))))
 
 (defn- desc->proto-cls ^Class [desc]
   (let [cls-name (if-let [containing (containing-type desc)]
@@ -737,14 +758,32 @@ Macros currently mean no foreseeable performance gain, however."
                                        (let [value (value-fn v)]
                                          (.invoke field-set-method b (object-array [value]))))))))
                       field-descs)
-        builder-fn (fn builder-fn [m]
-                     (let [b (new-builder class)]
-                       (doseq [[k v] m
-                               :when (some? v)
-                               :let [setter! (get setters k)]
-                               :when setter!]
-                         (setter! b v))
-                       (.build b)))]
+        builder-fn (if enforce-strict-pb-map-keys
+                     (fn builder-fn [pb-map]
+                       (let [builder (new-builder class)]
+                         (doseq [[field-key clj-value] pb-map
+                                 :when (some? clj-value)
+                                 :let [setter! (get setters field-key)]]
+                           (if setter!
+                             (setter! builder clj-value)
+                             (throw
+                               (ex-info
+                                 (format "Failed to assign unknown protobuf field %s from value: %s"
+                                         field-key
+                                         clj-value)
+                                 {:pb-class class
+                                  :pb-field field-key
+                                  :pb-field-candidates (vec (sort (keys setters)))
+                                  :clj-value clj-value}))))
+                         (.build builder)))
+                     (fn builder-fn [pb-map]
+                       (let [builder (new-builder class)]
+                         (doseq [[field-key clj-value] pb-map
+                                 :when (some? clj-value)
+                                 :let [setter! (get setters field-key)]
+                                 :when setter!]
+                           (setter! builder clj-value))
+                         (.build builder))))]
     (if-some [vector->map (vector-to-map-conversions class)]
       (comp builder-fn vector->map)
       builder-fn)))

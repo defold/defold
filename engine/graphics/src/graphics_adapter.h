@@ -138,7 +138,7 @@ namespace dmGraphics
     typedef void (*DisableTextureFn)(HContext context, uint32_t unit, HTexture texture);
     typedef uint32_t (*GetMaxTextureSizeFn)(HContext context);
     typedef uint32_t (*GetTextureStatusFlagsFn)(HTexture texture);
-    typedef void (*ReadPixelsFn)(HContext context, void* buffer, uint32_t buffer_size);
+    typedef void (*ReadPixelsFn)(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size);
     typedef void (*RunApplicationLoopFn)(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running);
     typedef HandleResult (*GetTextureHandleFn)(HTexture texture, void** out_handle);
     typedef bool (*IsExtensionSupportedFn)(HContext context, const char* extension);
@@ -146,9 +146,11 @@ namespace dmGraphics
     typedef const char* (*GetSupportedExtensionFn)(HContext context, uint32_t index);
     typedef uint8_t (*GetNumTextureHandlesFn)(HTexture texture);
     typedef uint32_t (*GetTextureUsageHintFlagsFn)(HTexture texture);
+    typedef uint8_t (*GetTexturePageCountFn)(HTexture texture);
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
     typedef void (*InvalidateGraphicsHandlesFn)(HContext context);
+    typedef void (*GetViewportFn)(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height);
 
     struct GraphicsAdapterFunctionTable
     {
@@ -248,10 +250,12 @@ namespace dmGraphics
         GetSupportedExtensionFn m_GetSupportedExtension;
         GetNumTextureHandlesFn m_GetNumTextureHandles;
         GetTextureUsageHintFlagsFn m_GetTextureUsageHintFlags;
+        GetTexturePageCountFn m_GetTexturePageCount;
         GetPipelineStateFn m_GetPipelineState;
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
         IsAssetHandleValidFn m_IsAssetHandleValid;
         InvalidateGraphicsHandlesFn m_InvalidateGraphicsHandles;
+        GetViewportFn m_GetViewport;
     };
 
     #define DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, fn_name) \
@@ -353,10 +357,12 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetSupportedExtension); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetNumTextureHandles); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureUsageHintFlags); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTexturePageCount); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetPipelineState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsContextFeatureSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateGraphicsHandles);
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateGraphicsHandles); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetViewport);
 }
 
 #endif

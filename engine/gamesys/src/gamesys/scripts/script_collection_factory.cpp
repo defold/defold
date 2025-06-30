@@ -50,6 +50,7 @@ namespace dmGameSystem
      * @document
      * @name Collection factory
      * @namespace collectionfactory
+     * @language Lua
      */
 
     static int HashTableIndex(lua_State* L)
@@ -93,17 +94,17 @@ namespace dmGameSystem
     /*# unloaded
      *
      * @name collectionfactory.STATUS_UNLOADED
-     * @variable
+     * @constant
      */
     /*# loading
      *
      * @name collectionfactory.STATUS_LOADING
-     * @variable
+     * @constant
      */
     /*# loaded
      *
      * @name collectionfactory.STATUS_LOADED
-     * @variable
+     * @constant
      */
     static int CollectionFactoryComp_GetStatus(lua_State* L)
     {
@@ -314,8 +315,8 @@ namespace dmGameSystem
             rotation = dmGameObject::GetWorldRotation(sender_instance);
         }
 
-        dmGameObject::InstancePropertyBuffers prop_bufs;
-        prop_bufs.SetCapacity(8, 32);
+        dmGameObject::InstancePropertyContainers props;
+        props.SetCapacity(8, 32);
 
         if (top >= 4 && !lua_isnil(L, 4))
         {
@@ -330,7 +331,7 @@ namespace dmGameSystem
                     dmhash_t instance_id = dmScript::CheckHash(L, -2);
                     dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
 
-                    prop_bufs.Put(instance_id, properties);
+                    props.Put(instance_id, properties);
                     lua_pop(L, 1);
                 }
                 lua_pop(L, 1);
@@ -365,15 +366,14 @@ namespace dmGameSystem
         int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         dmGameObject::InstanceIdMap instances;
-        bool success = dmGameObject::SpawnFromCollection(collection, CompCollectionFactoryGetResource(component)->m_CollectionDesc, &prop_bufs,
-                                                         position, rotation, scale, &instances);
+        dmGameObject::Result result = dmGameSystem::CompCollectionFactorySpawn(world, component, collection, nullptr, position, rotation, scale, &props, &instances);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
         dmScript::SetInstance(L);
         dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
 
         // Construct return table
-        if (success)
+        if (result == dmGameObject::RESULT_OK)
         {
             lua_newtable(L);
             lua_createtable(L, 0, 1);
@@ -389,7 +389,7 @@ namespace dmGameSystem
         }
 
         // Free the property containers
-        dmGameObject::InstancePropertyBuffers::Iterator iter(prop_bufs);
+        dmGameObject::InstancePropertyContainers::Iterator iter(props);
         while (iter.Next())
         {
             dmGameObject::PropertyContainerDestroy(iter.GetValue());

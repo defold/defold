@@ -39,6 +39,7 @@ namespace dmCrash
      * @document
      * @name Crash
      * @namespace crash
+     * @language Lua
      */
 
     static HDump CheckHandle(lua_State* L, int index)
@@ -333,77 +334,77 @@ namespace dmCrash
         /*# engine version as release number
          *
          * @name crash.SYSFIELD_ENGINE_VERSION
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_ENGINE_VERSION);
 
         /*# engine version as hash
          *
          * @name crash.SYSFIELD_ENGINE_HASH
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_ENGINE_HASH);
 
         /*# device model as reported by sys.get_sys_info
          *
          * @name crash.SYSFIELD_DEVICE_MODEL
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_DEVICE_MODEL);
 
         /*# device manufacturer as reported by sys.get_sys_info
          *
          * @name crash.SYSFIELD_MANUFACTURER
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_MANUFACTURER);
 
         /*# system name as reported by sys.get_sys_info
          *
          * @name crash.SYSFIELD_SYSTEM_NAME
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_SYSTEM_NAME);
 
         /*# system version as reported by sys.get_sys_info
          *
          * @name crash.SYSFIELD_SYSTEM_VERSION
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_SYSTEM_VERSION);
 
         /*# system language as reported by sys.get_sys_info
          *
          * @name crash.SYSFIELD_LANGUAGE
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_LANGUAGE);
 
         /*# system device language as reported by sys.get_sys_info
          *
          * @name crash.SYSFIELD_DEVICE_LANGUAGE
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_DEVICE_LANGUAGE);
 
         /*# system territory as reported by sys.get_sys_info
          *
          * @name crash.SYSFIELD_TERRITORY
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_TERRITORY);
 
         /*# android build fingerprint
          *
          * @name crash.SYSFIELD_ANDROID_BUILD_FINGERPRINT
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_ANDROID_BUILD_FINGERPRINT);
 
         /*# The max number of sysfields.
          *
          * @name crash.SYSFIELD_MAX
-         * @variable
+         * @constant
          */
         SETCONSTANT(SYSFIELD_MAX);
 
@@ -417,14 +418,14 @@ namespace dmCrash
         /*# The max number of user fields.
          *
          * @name crash.USERFIELD_MAX
-         * @variable
+         * @constant
          */
         SETCUSTOMCONSTANT(USERFIELD_MAX, AppState::USERDATA_SLOTS);
 
         /*# The max size of a single user field.
          *
          * @name crash.USERFIELD_SIZE
-         * @variable
+         * @constant
          */
         SETCUSTOMCONSTANT(USERFIELD_SIZE, AppState::USERDATA_SIZE-1);
 

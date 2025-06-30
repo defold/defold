@@ -1,6 +1,6 @@
 # Debugging
 
-## Get the _crash / .dmp files
+## Get the \_crash / .dmp files
 
 ### Android
 

@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.attachment :as attachment]
             [editor.build-target :as bt]
             [editor.camera :as camera]
             [editor.colors :as colors]
@@ -30,6 +31,7 @@
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
             [editor.handler :as handler]
+            [editor.id :as id]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -276,9 +278,9 @@
 ; Modifier geometry
 
 (def drag-geom-data (let [top (->> geom/origin-geom
-                                (geom/transl [0 10 0])
-                                (geom/chain 4 (partial geom/transl [15 10 0])))
-                         bottom (geom/scale [1 -1 1] top)]
+                                   (geom/transl [0 10 0])
+                                   (geom/chain 4 (partial geom/transl [15 10 0])))
+                          bottom (geom/scale [1 -1 1] top)]
                       (interleave top bottom)))
 
 (def vortex-geom-data (let [ps (->> geom/origin-geom
@@ -387,7 +389,7 @@
   (property magnitude CurveSpread (default props/default-curve-spread))
   (property max-distance Curve (default props/default-curve)
             (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
-  (property node-outline-key g/Str (dynamic visible (g/constantly false))) ; Always assigned in load-fn.
+  (property node-outline-key g/Str (dynamic visible (g/constantly false))) ; Either assigned in load-fn or generated when attached
 
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output pb-msg g/Any produce-modifier-pb)
@@ -431,41 +433,41 @@
                                        :geom-data-world (fn [size-x size-y _]
                                                           (geom/scale [size-x size-y 1] box-geom-data))}})
 
-(defn- convert-blend-mode [blend-mode-index]
-  (protobuf/pb-enum->val (.getValueDescriptor (Particle$BlendMode/valueOf ^int blend-mode-index))))
+(defn- convert-blend-mode [^long blend-mode-index]
+  (protobuf/pb-enum->val (.getValueDescriptor (Particle$BlendMode/forNumber blend-mode-index))))
 
 (defn- render-emitters-sim [^GL2 gl render-args renderables _rcount]
   (doseq [renderable renderables]
-    (let [user-data (:user-data renderable)
-          {:keys [emitter-sim-data emitter-index color max-particle-count]} user-data
-          shader (:shader emitter-sim-data)
-          shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index :color] :coordinate-space-world)
-          vertex-description (graphics/make-vertex-description shader-bound-attributes)
-          vertex-attribute-bytes (:vertex-attribute-bytes user-data)
-          pfx-sim-request-id (some-> renderable :updatable :node-id)]
-      (when-let [pfx-sim-atom (when (and emitter-sim-data pfx-sim-request-id)
-                                (:pfx-sim (scene-cache/lookup-object ::pfx-sim pfx-sim-request-id nil)))]
-        (let [pfx-sim @pfx-sim-atom
-              raw-vbuf (plib/gen-emitter-vertex-data pfx-sim emitter-index color max-particle-count vertex-description shader-bound-attributes vertex-attribute-bytes)
-              context (:context pfx-sim)
-              vbuf (vtx/wrap-vertex-buffer vertex-description :static raw-vbuf)
-              all-raw-vbufs (assoc (:raw-vbufs pfx-sim) emitter-index raw-vbuf)]
-          ;; TODO: We have to update the "raw-vbufs" here because we will
-          ;;       at some point create the GPU vertex buffer from this call.
-          ;;       This is due to the fact that we don't know how big the vertex buffer
-          ;;       will be until we have a valid GL context: We don't have the correct information
-          ;;       until the shader has been compiled. In the future we could perhaps use the meta-data
-          ;;       we get from the SPIR-V toolchain to figure this out beforehand.
-          (swap! pfx-sim-atom assoc :raw-vbufs all-raw-vbufs)
-          (when-let [render-data (plib/render-emitter pfx-sim emitter-index)]
-            (let [gpu-texture (:gpu-texture emitter-sim-data)
-                  vtx-binding (vtx/use-with context vbuf shader)
-                  blend-mode (convert-blend-mode (:blend-mode render-data))]
-              (gl/with-gl-bindings gl render-args [shader vtx-binding gpu-texture]
-                (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
-                (gl/set-blend-mode gl blend-mode)
-                (gl/gl-draw-arrays gl GL/GL_TRIANGLES (:v-index render-data) (:v-count render-data))
-                (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))))))
+    (let [{:keys [color emitter-index emitter-sim-data material-attribute-infos max-particle-count vertex-attribute-bytes]} (:user-data renderable)]
+      (when-let [shader (:shader emitter-sim-data)]
+        (let [shader-attribute-infos-by-name (shader/attribute-infos shader gl)
+              manufactured-attribute-keys [:position :texcoord0 :page-index :color]
+              shader-bound-attributes (graphics/shader-bound-attributes shader-attribute-infos-by-name material-attribute-infos manufactured-attribute-keys :coordinate-space-world)
+              vertex-description (graphics/make-vertex-description shader-bound-attributes)
+              pfx-sim-request-id (some-> renderable :updatable :node-id)]
+          (when-let [pfx-sim-atom (when (and emitter-sim-data pfx-sim-request-id)
+                                    (:pfx-sim (scene-cache/lookup-object ::pfx-sim pfx-sim-request-id nil)))]
+            (let [pfx-sim @pfx-sim-atom
+                  raw-vbuf (plib/gen-emitter-vertex-data pfx-sim emitter-index color max-particle-count vertex-description shader-bound-attributes vertex-attribute-bytes)
+                  context (:context pfx-sim)
+                  vbuf (vtx/wrap-vertex-buffer vertex-description :static raw-vbuf)
+                  all-raw-vbufs (assoc (:raw-vbufs pfx-sim) emitter-index raw-vbuf)]
+              ;; TODO: We have to update the "raw-vbufs" here because we will
+              ;;       at some point create the GPU vertex buffer from this call.
+              ;;       This is due to the fact that we don't know how big the vertex buffer
+              ;;       will be until we have a valid GL context: We don't have the correct information
+              ;;       until the shader has been compiled. In the future we could perhaps use the meta-data
+              ;;       we get from the SPIR-V toolchain to figure this out beforehand.
+              (swap! pfx-sim-atom assoc :raw-vbufs all-raw-vbufs)
+              (when-let [render-data (plib/render-emitter pfx-sim emitter-index)]
+                (let [gpu-texture (:gpu-texture emitter-sim-data)
+                      vtx-binding (vtx/use-with context vbuf shader)
+                      blend-mode (convert-blend-mode (:blend-mode render-data))]
+                  (gl/with-gl-bindings gl render-args [shader vtx-binding gpu-texture]
+                    (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
+                    (gl/set-blend-mode gl blend-mode)
+                    (gl/gl-draw-arrays gl GL/GL_TRIANGLES (:v-index render-data) (:v-count render-data))
+                    (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))))))))
 
 (defn- render-emitters [^GL2 gl render-args renderables _rcount]
   (let [pass (:pass render-args)]
@@ -741,24 +743,33 @@
       :attributes-save-values attributes-save-values
       :attributes-build-target attributes-build-target)))
 
-(defn- attach-modifier [self-id parent-id modifier-id resolve-node-outline-key?]
-  (concat
-    (for [[from to] [[:_node-id :nodes]]]
-      (g/connect modifier-id from self-id to))
-    (let [conns [[:node-outline :child-outlines]
-                 [:scene :child-scenes]
-                 [:pb-msg :modifier-msgs]]]
-      (for [[from to] conns]
-        (g/connect modifier-id from parent-id to)))
-    (when resolve-node-outline-key?
-      (g/update-property modifier-id :node-outline-key outline/next-node-outline-key (outline/taken-node-outline-keys parent-id)))))
+(defn- resolve-modifier-node-outline-key [evaluation-context modifier-id parent-id]
+  (let [type-label (:label (mod-types (g/node-value modifier-id :type evaluation-context)))
+        taken-keys (outline/taken-node-outline-keys parent-id evaluation-context)]
+    (g/update-property modifier-id :node-outline-key (fnil outline/next-node-outline-key type-label) taken-keys)))
+
+(defn- attach-modifier
+  ([parent-id modifier-id]
+   (attach-modifier parent-id modifier-id true))
+  ([parent-id modifier-id resolve-node-outline-key?]
+   (concat
+     (when resolve-node-outline-key?
+       ;; resolve the node outline key before connecting the modifiers so taken
+       ;; node outline keys don't include the modifier key
+       (g/expand-ec resolve-modifier-node-outline-key modifier-id parent-id))
+     (let [conns [[:_node-id :nodes]
+                  [:node-outline :child-outlines]
+                  [:scene :child-scenes]
+                  [:pb-msg :modifier-msgs]]]
+       (for [[from to] conns]
+         (g/connect modifier-id from parent-id to))))))
 
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
 (defn- validate-material [_node-id material material-max-page-count material-shader texture-page-count]
-  (let [is-paged-material (shader/is-using-array-samplers? material-shader)]
+  (let [is-paged-material (boolean (some-> material-shader shader/is-using-array-samplers?))]
     (or (prop-resource-error :fatal _node-id :material material "Material")
         (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count "Image"))))
 
@@ -781,6 +792,7 @@
 (def ^:private default-start-delay (pair pb-default-start-delay pb-default-start-delay-spread))
 
 (g/defnode EmitterNode
+  (inherits core/Scope)
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
   (inherits EmitterProperties)
@@ -905,8 +917,7 @@
                                                       :children (outline/natural-sort child-outlines)
                                                       :child-reqs [{:node-type ModifierNode
                                                                     :tx-attach-fn (fn [self-id child-id]
-                                                                                    (let [pfx-id (core/scope-of-type self-id ParticleFXNode)]
-                                                                                      (attach-modifier pfx-id self-id child-id true)))}]}))
+                                                                                    (attach-modifier self-id child-id true))}]}))
   (output aabb AABB produce-emitter-aabb)
   (output visibility-aabb AABB produce-emitter-visibility-aabb)
   (output emitter-sim-data g/Any :cached
@@ -990,21 +1001,28 @@
                   (swap! pfx-sim-ref plib/simulate dt fetch-anim-fn [world-transform])
                   state))})
 
-(defn- attach-emitter [self-id emitter-id resolve-id?]
-  (concat
-    (for [[from to] [[:_node-id :nodes]
-                     [:node-outline :child-outlines]
-                     [:scene :child-scenes]
-                     [:pb-msg :emitter-msgs]
-                     [:emitter-sim-data :emitter-sim-data]
-                     [:id :ids]
-                     [:build-targets :dep-build-targets]]]
-      (g/connect emitter-id from self-id to))
-    (for [[from to] [[:default-tex-params :default-tex-params]
-                     [:emitter-indices :emitter-indices]]]
-      (g/connect self-id from emitter-id to))
-    (when resolve-id?
-      (g/update-property emitter-id :id outline/resolve-id (g/node-value self-id :ids)))))
+(defn- resolve-emitter-id [evaluation-context self-id emitter-id]
+  (g/update-property emitter-id :id id/resolve (g/node-value self-id :ids evaluation-context)))
+
+(defn- attach-emitter
+  ([self-id emitter-id]
+   (attach-emitter self-id emitter-id false))
+  ([self-id emitter-id resolve-id?]
+   (concat
+     (when resolve-id?
+       ;; resolve id before connecting the emitter so :ids don't include the emitter id
+       (g/expand-ec resolve-emitter-id self-id emitter-id))
+     (for [[from to] [[:_node-id :nodes]
+                      [:node-outline :child-outlines]
+                      [:scene :child-scenes]
+                      [:pb-msg :emitter-msgs]
+                      [:emitter-sim-data :emitter-sim-data]
+                      [:id :ids]
+                      [:build-targets :dep-build-targets]]]
+       (g/connect emitter-id from self-id to))
+     (for [[from to] [[:default-tex-params :default-tex-params]
+                      [:emitter-indices :emitter-indices]]]
+       (g/connect self-id from emitter-id to)))))
 
 (g/defnode ParticleFXNode
   (inherits resource-node/ResourceNode)
@@ -1027,36 +1045,45 @@
   (output rt-pb-data g/Any :cached (g/fnk [pb-data]
                                      (particle-fx-transform (select-attribute-values pb-data :attributes-build-target))))
   (output emitter-sim-data g/Any :cached (gu/passthrough emitter-sim-data))
-  (output emitter-indices g/Any :cached (g/fnk [nodes]
-                                               (into {}
-                                                     (comp
-                                                       (filter #(g/node-instance? EmitterNode %))
-                                                       (map-indexed (fn [index emitter-node]
-                                                                      [emitter-node index])))
-                                                     nodes)))
+  (output emitter-indices g/Any :cached
+          (g/fnk [^:unsafe _evaluation-context nodes]
+            ;; We use unsafe evaluation context to get child node types: these
+            ;; should never change
+            (let [basis (:basis _evaluation-context)]
+              (into {}
+                    (comp
+                      (filter #(g/node-instance? basis EmitterNode %))
+                      (map-indexed (fn [index emitter-node]
+                                     [emitter-node index])))
+                    nodes))))
 
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
   (output scene-updatable g/Any :cached produce-scene-updatable)
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id child-outlines]
-                                                     (let [[mod-outlines emitter-outlines] (let [outlines (group-by #(g/node-instance? ModifierNode (:node-id %)) child-outlines)]
-                                                                                             [(get outlines true) (get outlines false)])]
-                                                       {:node-id _node-id
-                                                        :node-outline-key "ParticleFX"
-                                                        :label "ParticleFX"
-                                                        :icon particle-fx-icon
-                                                        :children (into (outline/natural-sort emitter-outlines) (outline/natural-sort mod-outlines))
-                                                        :child-reqs [{:node-type EmitterNode
-                                                                      :tx-attach-fn (fn [self-id child-id]
-                                                                                      (attach-emitter self-id child-id true))}
-                                                                     {:node-type ModifierNode
-                                                                      :tx-attach-fn (fn [self-id child-id]
-                                                                                      (attach-modifier self-id self-id child-id true))}]})))
+  (output node-outline outline/OutlineData :cached
+          (g/fnk [^:unsafe _evaluation-context _node-id child-outlines]
+            ;; We use unsafe evaluation context to get child node types: these
+            ;; should never change
+            (let [basis (:basis _evaluation-context)
+                  outlines (group-by #(g/node-instance? basis ModifierNode (:node-id %)) child-outlines)
+                  mod-outlines (get outlines true)
+                  emitter-outlines (get outlines false)]
+              {:node-id _node-id
+               :node-outline-key "ParticleFX"
+               :label "ParticleFX"
+               :icon particle-fx-icon
+               :children (into (outline/natural-sort emitter-outlines) (outline/natural-sort mod-outlines))
+               :child-reqs [{:node-type EmitterNode
+                             :tx-attach-fn (fn [self-id child-id]
+                                             (attach-emitter self-id child-id true))}
+                            {:node-type ModifierNode
+                             :tx-attach-fn (fn [self-id child-id]
+                                             (attach-modifier self-id child-id true))}]})))
   (output fetch-anim-fn Runnable :cached (g/fnk [emitter-sim-data] (fn [index] (get emitter-sim-data index)))))
 
 (defn- make-modifier
-  [self parent-id modifier node-outline-key]
-  (let [graph-id (g/node-id->graph-id self)]
+  [parent-id modifier node-outline-key]
+  (let [graph-id (g/node-id->graph-id parent-id)]
     (g/make-nodes graph-id [mod-node [ModifierNode :node-outline-key node-outline-key]]
       (gu/set-properties-from-pb-map mod-node Particle$Modifier modifier
         position :position
@@ -1070,9 +1097,9 @@
                         :modifier-key-max-distance (g/set-property mod-node :max-distance (pb-property->curve property))
                         nil)))
             (:properties modifier))
-      (attach-modifier self parent-id mod-node false))))
+      (attach-modifier parent-id mod-node false))))
 
-(defn- add-modifier-handler [self parent-id type select-fn]
+(defn- add-modifier-handler [parent-id type select-fn]
   (when-some [modifier (get-in mod-types [type :template])]
     (let [node-outline-key (outline/next-node-outline-key (modifier-type-label type)
                                                           (outline/taken-node-outline-keys parent-id))
@@ -1082,7 +1109,7 @@
                               (concat
                                 (g/operation-label "Add Modifier")
                                 (g/operation-sequence op-seq)
-                                (make-modifier self parent-id modifier node-outline-key)))))]
+                                (make-modifier parent-id modifier node-outline-key)))))]
       (when (some? select-fn)
         (g/transact
           (concat
@@ -1095,23 +1122,21 @@
 (defn- selection->particlefx [selection]
   (handler/adapt-single selection ParticleFXNode))
 
-(handler/defhandler :add-secondary :workbench
+(handler/defhandler :edit.add-secondary-embedded-component :workbench
   (active? [selection] (or (selection->emitter selection)
                            (selection->particlefx selection)))
   (label [user-data] (if-not user-data
                        "Add Modifier"
                        (->> user-data :modifier-type mod-types :label)))
   (run [selection user-data app-view]
-    (let [[self parent-id] (if-let [pfx (selection->particlefx selection)]
-                             [pfx pfx]
-                             (let [emitter (selection->emitter selection)]
-                               [(core/scope emitter) emitter]))]
-      (add-modifier-handler self parent-id (:modifier-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
+    (let [parent-id (or (selection->particlefx selection)
+                        (selection->emitter selection))]
+      (add-modifier-handler parent-id (:modifier-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
     (when (not user-data)
       (mapv (fn [[type data]] {:label (:label data)
                                :icon modifier-icon
-                               :command :add-secondary
+                               :command :edit.add-secondary-embedded-component
                                :user-data {:modifier-type type}}) mod-types))))
 
 (defn- make-emitter
@@ -1157,7 +1182,7 @@
        (coll/mapcat #(g/set-property emitter-node (:key %) (pb-property->curve %))
                     (:particle-properties emitter))
        (attach-emitter self emitter-node resolve-id?)
-       (map (partial make-modifier self emitter-node)
+       (map (partial make-modifier emitter-node)
             (:modifiers emitter)
             (outline/gen-node-outline-keys
               (map (comp modifier-type-label :type)
@@ -1173,7 +1198,7 @@
           (g/operation-label "Add Emitter")
           (make-emitter self (assoc emitter :type type) select-fn true))))))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection] (selection->particlefx selection))
   (label [user-data] (if-not user-data
                        "Add Emitter"
@@ -1185,7 +1210,7 @@
              (let [self (selection->particlefx selection)]
                (mapv (fn [[type data]] {:label (:label data)
                                         :icon emitter-icon
-                                        :command :add
+                                        :command :edit.add-embedded-component
                                         :user-data {:emitter-type type}}) emitter-types)))))
 
 
@@ -1219,7 +1244,7 @@
         new-x (update-curve-spread-start-value old-x #(props/scale-by-absolute-value-and-round % (.getX delta)))
         new-y (update-curve-spread-start-value old-y #(props/scale-by-absolute-value-and-round % (.getY delta)))
         new-z (update-curve-spread-start-value old-z #(props/scale-by-absolute-value-and-round % (.getZ delta)))]
-    (g/set-property node-id
+    (g/set-properties node-id
       :emitter-key-size-x new-x
       :emitter-key-size-y new-y
       :emitter-key-size-z new-z)))
@@ -1230,7 +1255,7 @@
     (g/connect project :default-tex-params self :default-tex-params)
     (map (partial make-emitter self)
          (:emitters pb))
-    (map (partial make-modifier self self)
+    (map (partial make-modifier self)
          (:modifiers pb)
          (outline/gen-node-outline-keys (map (comp modifier-type-label :type)
                                              (:modifiers pb))))))
@@ -1263,19 +1288,32 @@
       (protobuf/sanitize-repeated :modifiers sanitize-modifier)))
 
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext particlefx-ext
-    :label "Particle FX"
-    :node-type ParticleFXNode
-    :ddf-type Particle$ParticleFX
-    :load-fn load-particle-fx
-    :sanitize-fn sanitize-particle-fx
-    :icon particle-fx-icon
-    :icon-class :design
-    :tags #{:component :non-embeddable}
-    :tag-opts {:component {:transform-properties #{:position :rotation}}}
-    :view-types [:scene :text]
-    :view-opts {:scene {:grid true}}))
+  (concat
+    (attachment/register
+      workspace EmitterNode :modifiers
+      :add {ModifierNode attach-modifier}
+      :get attachment/nodes-getter)
+    (attachment/register
+      workspace ParticleFXNode :emitters
+      :add {EmitterNode attach-emitter}
+      :get (attachment/nodes-by-type-getter EmitterNode))
+    (attachment/register
+      workspace ParticleFXNode :modifiers
+      :add {ModifierNode attach-modifier}
+      :get (attachment/nodes-by-type-getter ModifierNode))
+    (resource-node/register-ddf-resource-type workspace
+      :ext particlefx-ext
+      :label "Particle FX"
+      :node-type ParticleFXNode
+      :ddf-type Particle$ParticleFX
+      :load-fn load-particle-fx
+      :sanitize-fn sanitize-particle-fx
+      :icon particle-fx-icon
+      :icon-class :design
+      :tags #{:component :non-embeddable}
+      :tag-opts {:component {:transform-properties #{:position :rotation}}}
+      :view-types [:scene :text]
+      :view-opts {:scene {:grid true}})))
 
 (defn- make-pfx-sim [_ data]
   (let [[max-emitter-count max-particle-count rt-pb-data world-transform] data]

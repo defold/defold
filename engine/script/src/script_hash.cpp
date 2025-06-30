@@ -39,6 +39,7 @@ namespace dmScript
      * @document
      * @name Built-ins
      * @namespace builtins
+     * @language Lua
      */
 
     #define SCRIPT_TYPE_NAME_HASH "hash"
@@ -141,6 +142,57 @@ namespace dmScript
         return 1;
     }
 
+    static int CreateLuaHashUserdata(lua_State* L, dmhash_t hash)
+    {
+        HContext context = dmScript::GetScriptContext(L);
+        dmhash_t* lua_hash = (dmhash_t*)lua_newuserdata(L, sizeof(dmhash_t));
+        *lua_hash = hash;
+        luaL_getmetatable(L, SCRIPT_TYPE_NAME_HASH);
+        lua_setmetatable(L, -2);
+
+        // [-1] hash
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+        // [-2] hash
+        // [-1] Context table
+        lua_pushvalue(L, -2);
+        // [-3] hash
+        // [-2] Context table
+        // [-1] hash
+        int ref = luaL_ref(L, -2);
+        // [-2] hash
+        // [-1] Context table
+        lua_pop(L, 1);
+        // [-1] hash
+
+        dmHashTable64<int>* instances = &context->m_HashInstances;
+        if (instances->Full())
+        {
+            instances->SetCapacity(instances->Size(), instances->Capacity() + 256);
+        }
+        instances->Put(hash, ref);
+
+        // Also store the value in the weak table with the hash as key
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
+        // [-2] userdata
+        // [-1] weak_table
+        lua_pushinteger(L, (lua_Integer)hash);
+        // [-3] userdata
+        // [-2] weak_table
+        // [-1] key
+        lua_pushvalue(L, -3);
+        // [-4] userdata
+        // [-3] weak_table
+        // [-2] key
+        // [-1] value
+        lua_settable(L, -3); // weak_table[hash] = userdata
+        // [-2] userdata
+        // [-1] weak_table
+        lua_pop(L, 1);
+        // [-1] userdata
+
+        return lua_gettop(L); // return stack index of the new userdata
+    }
+
     void PushHash(lua_State* L, dmhash_t hash)
     {
         int top = lua_gettop(L);
@@ -149,43 +201,35 @@ namespace dmScript
 
         dmHashTable64<int>* instances = &context->m_HashInstances;
         int* refp = instances->Get(hash);
+
         if (refp)
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
-            // [-1] Context table
-            lua_rawgeti(L, -1, *refp);
-            // [-2] Context table
-            // [-1] hash
-            lua_remove(L, -2);
-            // [-1] hash
+            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
+            // [-1] weak_table
+            lua_pushinteger(L, (lua_Integer)hash);
+            // [-2] weak_table
+            // [-1] key
+            lua_gettable(L, -2);
+            // [-2] weak_table
+            // [-1] value or nil
+            if (lua_isnil(L, -1))
+            {
+                lua_pop(L, 1); // remove nil
+                //[-1] weak_table
+
+                // Create new userdata and re-register it
+                lua_pop(L, 1); // remove weak_table
+                CreateLuaHashUserdata(L, hash);
+            }
+            else
+            {
+                lua_remove(L, -2); // remove weak_table
+                // [-1] hash
+            }
         }
         else
         {
-            dmhash_t* lua_hash = (dmhash_t*)lua_newuserdata(L, sizeof(dmhash_t));
-            *lua_hash = hash;
-            luaL_getmetatable(L, SCRIPT_TYPE_NAME_HASH);
-            // [-2] hash
-            // [-1] meta table
-            lua_setmetatable(L, -2);
-            // [-1] hash
-            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
-            // [-2] hash
-            // [-1] Context table
-            lua_pushvalue(L, -2);
-            // [-3] hash
-            // [-2] Context table
-            // [-1] hash
-            int ref = luaL_ref(L, -2);
-            // [-2] hash
-            // [-1] Context table
-            lua_pop(L, 1);
-            // [-1] hash
-
-            if (instances->Full())
-            {
-                instances->SetCapacity(instances->Size(), instances->Capacity() + 256);
-            }
-            instances->Put(hash, ref);
+            CreateLuaHashUserdata(L, hash);
         }
 
         assert(top + 1 == lua_gettop(L));
@@ -194,17 +238,40 @@ namespace dmScript
     void ReleaseHash(lua_State* L, dmhash_t hash)
     {
         int top = lua_gettop(L);
+
         HContext context = dmScript::GetScriptContext(L);
         dmHashTable64<int>* instances = &context->m_HashInstances;
         int* refp = instances->Get(hash);
-        if (refp != 0x0)
+        if (!refp)
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
-            // [-1] context table
-            luaL_unref(L, -1, *refp);
-            lua_pop(L, 1);
-            instances->Erase(hash);
+            assert(top == lua_gettop(L));
+            return;
         }
+
+        int ref = *refp;
+        // Retrieve the value from the strong table
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+        // [-1] context_table
+        lua_rawgeti(L, -1, ref);
+        // [-2] context_table
+        // [-1] value
+
+        if (!lua_isuserdata(L, -1))
+        {
+            lua_pop(L, 2);
+            return;
+        }
+
+        lua_remove(L, -2);
+        // [-1] value
+
+        // Remove value from strong table
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+        // [-2] value
+        // [-1] context_table
+        luaL_unref(L, -1, ref);
+        lua_pop(L, 2);
+        // stack balanced
 
         assert(top == lua_gettop(L));
     }
@@ -265,6 +332,14 @@ namespace dmScript
         return 1;
     }
 
+    static int Hash_lt(lua_State* L)
+    {
+        dmhash_t hash_1 = CheckHash(L, 1);
+        dmhash_t hash_2 = CheckHash(L, 2);
+        lua_pushboolean(L, hash_1 < hash_2);
+        return 1;
+    }
+
     static int Hash_tostring(lua_State* L)
     {
         dmhash_t hash = CheckHash(L, 1);
@@ -311,6 +386,31 @@ namespace dmScript
         {0, 0}
     };
 
+    static int Hash_gc(lua_State* L)
+    {
+        dmhash_t hash = *(dmhash_t*)lua_touserdata(L, 1);
+        HContext context = dmScript::GetScriptContext(L);
+        if (context)
+        {
+            int* refp = context->m_HashInstances.Get(hash);
+            if (refp && context->m_ContextWeakTableRef != LUA_NOREF)
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
+                // [-1] weak_table
+                lua_rawgeti(L, -1, (lua_Integer)hash);
+                // [-2] weak_table
+                // [-1] hash
+                if (lua_isnil(L, -1))
+                {
+                    context->m_HashInstances.Erase(hash);
+                    dmHashReverseErase64(hash);
+                }
+                lua_pop(L, 2);
+            }
+        }
+        return 0;
+    }
+
     void InitializeHash(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -330,6 +430,14 @@ namespace dmScript
 
         lua_pushliteral(L, "__concat");
         lua_pushcfunction(L, Hash_concat);
+        lua_settable(L, -3);
+
+        lua_pushliteral(L, "__lt");
+        lua_pushcfunction(L, Hash_lt);
+        lua_settable(L, -3);
+
+        lua_pushliteral(L, "__gc");
+        lua_pushcfunction(L, Hash_gc);
         lua_settable(L, -3);
 
         lua_pushcfunction(L, Hash_new);

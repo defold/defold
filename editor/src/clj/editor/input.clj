@@ -15,7 +15,7 @@
 (ns editor.input
   (:require [schema.core :as s])
   (:import [javafx.event EventType]
-           [javafx.scene.input InputEvent MouseEvent MouseButton ScrollEvent]))
+           [javafx.scene.input DragEvent InputEvent MouseEvent MouseButton ScrollEvent TransferMode]))
 
 (set! *warn-on-reflection* true)
 
@@ -28,7 +28,9 @@
                  MouseEvent/MOUSE_RELEASED :mouse-released
                  MouseEvent/MOUSE_CLICKED :mouse-clicked
                  MouseEvent/MOUSE_MOVED :mouse-moved
-                 MouseEvent/MOUSE_DRAGGED :mouse-moved})
+                 MouseEvent/MOUSE_DRAGGED :mouse-moved
+                 DragEvent/DRAG_OVER :drag-over
+                 DragEvent/DRAG_DROPPED :drag-dropped})
 
 (defn translate-action [^EventType jfx-action]
   (get action-map jfx-action :undefined))
@@ -43,29 +45,45 @@
 
 (defn action-from-jfx [^InputEvent jfx-event]
   (let [type (translate-action (.getEventType jfx-event))
-        action {:type type}]
+        action {:type type
+                :event jfx-event}]
     (case type
       :undefined action
       :scroll (let [scroll-event ^ScrollEvent jfx-event]
                 (assoc action
-                       :x (.getX scroll-event)
-                       :y (.getY scroll-event)
-                       :delta-x (.getDeltaX scroll-event)
-                       :delta-y (.getDeltaY scroll-event)
-                       :alt (.isAltDown scroll-event)
-                       :shift (.isShiftDown scroll-event)
-                       :meta (.isMetaDown scroll-event)
-                       :control (.isControlDown scroll-event)))
+                  :x (.getX scroll-event)
+                  :y (.getY scroll-event)
+                  :delta-x (.getDeltaX scroll-event)
+                  :delta-y (.getDeltaY scroll-event)
+                  :alt (.isAltDown scroll-event)
+                  :shift (.isShiftDown scroll-event)
+                  :meta (.isMetaDown scroll-event)
+                  :control (.isControlDown scroll-event)))
+      :drag-over (let [drag-event ^DragEvent jfx-event]
+                   (.acceptTransferModes drag-event TransferMode/ANY)
+                   (assoc action
+                     :x (.getX drag-event)
+                     :y (.getY drag-event)))
+      :drag-dropped (let [drag-event ^DragEvent jfx-event
+                          dragboard (.getDragboard drag-event)]
+                      (assoc action
+                        :x (.getX drag-event)
+                        :y (.getY drag-event)
+                        :files (.getFiles dragboard)
+                        :string (.getString dragboard)
+                        :transfer-mode (.getTransferMode drag-event)
+                        :gesture-target (.getGestureTarget drag-event)
+                        :gesture-source (.getGestureSource drag-event)))
       (let [mouse-event ^MouseEvent jfx-event]
         (assoc action
-               :button (translate-button (.getButton mouse-event))
-               :x (.getX mouse-event)
-               :y (.getY mouse-event)
-               :alt (.isAltDown mouse-event)
-               :shift (.isShiftDown mouse-event)
-               :meta (.isMetaDown mouse-event)
-               :control (.isControlDown mouse-event)
-               :click-count (.getClickCount mouse-event)
-               :target (.getTarget mouse-event)
-               :screen-x (.getScreenX mouse-event)
-               :screen-y (.getScreenY mouse-event))))))
+          :button (translate-button (.getButton mouse-event))
+          :x (.getX mouse-event)
+          :y (.getY mouse-event)
+          :alt (.isAltDown mouse-event)
+          :shift (.isShiftDown mouse-event)
+          :meta (.isMetaDown mouse-event)
+          :control (.isControlDown mouse-event)
+          :click-count (.getClickCount mouse-event)
+          :target (.getTarget mouse-event)
+          :screen-x (.getScreenX mouse-event)
+          :screen-y (.getScreenY mouse-event))))))

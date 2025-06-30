@@ -206,7 +206,7 @@ namespace dmShaderc
         return type_index;
     }
 
-    static void SetReflectionResourceForType(ShaderReflection& reflection, spvc_compiler compiler, spvc_resources resources, spvc_resource_type type, dmArray<ShaderResource>& resources_out)
+    static void SetReflectionResourceForType(ShaderStage stage, ShaderReflection& reflection, spvc_compiler compiler, spvc_resources resources, spvc_resource_type type, dmArray<ShaderResource>& resources_out)
     {
         const spvc_reflected_resource *list = NULL;
         size_t count = 0;
@@ -239,6 +239,7 @@ namespace dmShaderc
             resource.m_Set              = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationDescriptorSet);
             resource.m_Binding          = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationBinding);
             resource.m_Location         = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationLocation);
+            resource.m_StageFlags       = (int) stage;
 
             if (base_type == SPVC_BASETYPE_STRUCT)
             {
@@ -281,25 +282,40 @@ namespace dmShaderc
 
     static void SetReflectionInternal(HShaderContext context)
     {
-        SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STAGE_INPUT, context->m_Reflection.m_Inputs);
-        SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STAGE_OUTPUT, context->m_Reflection.m_Outputs);
-        SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, context->m_Reflection.m_UniformBuffers);
-        SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STORAGE_BUFFER, context->m_Reflection.m_StorageBuffers);
+        SetReflectionResourceForType(context->m_Stage, context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STAGE_INPUT, context->m_Reflection.m_Inputs);
+        SetReflectionResourceForType(context->m_Stage, context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STAGE_OUTPUT, context->m_Reflection.m_Outputs);
+        SetReflectionResourceForType(context->m_Stage, context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, context->m_Reflection.m_UniformBuffers);
+        SetReflectionResourceForType(context->m_Stage, context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STORAGE_BUFFER, context->m_Reflection.m_StorageBuffers);
 
-        SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STORAGE_IMAGE, context->m_Reflection.m_Textures);
-        SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, context->m_Reflection.m_Textures);
-        SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, context->m_Reflection.m_Textures);
-        SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, context->m_Reflection.m_Textures);
+        SetReflectionResourceForType(context->m_Stage, context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STORAGE_IMAGE, context->m_Reflection.m_Textures);
+        SetReflectionResourceForType(context->m_Stage, context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, context->m_Reflection.m_Textures);
+        SetReflectionResourceForType(context->m_Stage, context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, context->m_Reflection.m_Textures);
+        SetReflectionResourceForType(context->m_Stage, context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, context->m_Reflection.m_Textures);
     }
 
-    HShaderContext NewShaderContext(const void* source, uint32_t source_size)
+    HShaderContext NewShaderContext(ShaderStage stage, const void* source, uint32_t source_size)
     {
         ShaderContext* context = (ShaderContext*) malloc(sizeof(ShaderContext));
         memset(context, 0, sizeof(ShaderContext));
 
-        context->m_ShaderCode = (uint8_t*) malloc(source_size);
+        context->m_ShaderCode     = (uint8_t*) malloc(source_size);
         context->m_ShaderCodeSize = source_size;
+        context->m_Stage          = stage;
         memcpy(context->m_ShaderCode, source, source_size);
+
+        switch(context->m_Stage)
+        {
+        case SHADER_STAGE_VERTEX:
+            context->m_ExecutionModel = SpvExecutionModelVertex;
+            break;
+        case SHADER_STAGE_FRAGMENT:
+            context->m_ExecutionModel = SpvExecutionModelFragment;
+            break;
+        case SHADER_STAGE_COMPUTE:
+            context->m_ExecutionModel = SpvExecutionModelGLCompute;
+            break;
+        default: break;
+        }
 
         SpvId* as_spv_ptr = (SpvId*) source;
         size_t word_count = source_size / sizeof(SpvId);
@@ -450,7 +466,7 @@ namespace dmShaderc
         {
             spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_HLSL_SHADER_MODEL, options.m_Version);
 
-            if (options.m_Stage == SHADER_STAGE_COMPUTE)
+            if (context->m_Stage == SHADER_STAGE_COMPUTE)
             {
                 if (spvc_compiler_hlsl_remap_num_workgroups_builtin(compiler->m_SPVCCompiler))
                 {
@@ -465,23 +481,7 @@ namespace dmShaderc
 
         spvc_compiler_install_compiler_options(compiler->m_SPVCCompiler, spv_options);
 
-        SpvExecutionModel stage;
-
-        switch(options.m_Stage)
-        {
-        case SHADER_STAGE_VERTEX:
-            stage = SpvExecutionModelVertex;
-            break;
-        case SHADER_STAGE_FRAGMENT:
-            stage = SpvExecutionModelFragment;
-            break;
-        case SHADER_STAGE_COMPUTE:
-            stage = SpvExecutionModelGLCompute;
-            break;
-        default: break;
-        }
-
-        spvc_compiler_set_entry_point(compiler->m_SPVCCompiler, options.m_EntryPoint, stage);
+        spvc_compiler_set_entry_point(compiler->m_SPVCCompiler, options.m_EntryPoint, context->m_ExecutionModel);
 
         spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
 
@@ -498,11 +498,17 @@ namespace dmShaderc
         memset(result, 0, sizeof(ShaderCompileResult));
         result->m_Data.SetCapacity(compile_result_size);
         result->m_Data.SetSize(compile_result_size);
+        result->m_LastError = "";
 
         if (compile_result)
         {
             memcpy(result->m_Data.Begin(), compile_result, result->m_Data.Size());
         }
+        else
+        {
+            result->m_LastError = spvc_context_get_last_error_string(context->m_SPVCContext);
+        }
+
         return result;
     }
 

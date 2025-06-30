@@ -75,12 +75,12 @@ namespace dmGraphics
     static bool SelectAdapterByPriority()
     {
         GraphicsAdapter* next     = g_adapter_list;
-        GraphicsAdapter* selected = next;
+        GraphicsAdapter* selected = 0x0;
 
         while(next)
         {
             bool is_supported = next->m_IsSupportedCb();
-            if (next->m_Priority < selected->m_Priority && is_supported)
+            if (is_supported && ((selected != 0x0 && next->m_Priority < selected->m_Priority) || selected == 0x0))
             {
                 selected = next;
             }
@@ -318,7 +318,20 @@ namespace dmGraphics
         return GetRenderTargetTexture(render_target, GetAttachmentBufferType(attachment));
     }
 
-    static inline ShaderDesc::Shader* GetShader(HContext context, ShaderDesc* shader_desc, ShaderDesc::ShaderType shader_type)
+    static ShaderDesc::Shader* HasShader(ShaderDesc* shader_desc, ShaderDesc::ShaderType shader_type)
+    {
+        for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
+        {
+            ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
+            if (shader->m_ShaderType == shader_type)
+            {
+                return shader;
+            }
+        }
+        return 0;
+    }
+
+    static ShaderDesc::Shader* GetShader(HContext context, ShaderDesc* shader_desc, ShaderDesc::ShaderType shader_type)
     {
         ShaderDesc::Shader* selected_shader = 0x0;
 
@@ -366,7 +379,13 @@ namespace dmGraphics
             return true;
         }
 
-        dmLogError("Unable to get a valid shader from a ShaderDesc for this context.");
+        const char* extra_msg = "";
+        if (HasShader(shader_desc, ShaderDesc::SHADER_TYPE_COMPUTE) != 0x0 && !IsContextFeatureSupported(context, CONTEXT_FEATURE_COMPUTE_SHADER))
+        {
+            extra_msg = "Reason: Compute shaders are not supported.";
+        }
+
+        dmLogError("Unable to get a valid shader from a ShaderDesc for this context. %s", extra_msg);
         return 0;
     }
 
@@ -492,13 +511,20 @@ namespace dmGraphics
             case ShaderDesc::SHADER_TYPE_MAT3:            return TYPE_FLOAT_MAT3;
             case ShaderDesc::SHADER_TYPE_MAT4:            return TYPE_FLOAT_MAT4;
             case ShaderDesc::SHADER_TYPE_SAMPLER:         return TYPE_SAMPLER;
-            case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
+            case ShaderDesc::SHADER_TYPE_TEXTURE_CUBE:    return TYPE_TEXTURE_CUBE;
+            // 2D
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             case ShaderDesc::SHADER_TYPE_IMAGE2D:         return TYPE_IMAGE_2D;
             case ShaderDesc::SHADER_TYPE_TEXTURE2D:       return TYPE_TEXTURE_2D;
             case ShaderDesc::SHADER_TYPE_TEXTURE2D_ARRAY: return TYPE_TEXTURE_2D_ARRAY;
-            case ShaderDesc::SHADER_TYPE_TEXTURE_CUBE:    return TYPE_TEXTURE_CUBE;
+            // 3D
+            case ShaderDesc::SHADER_TYPE_SAMPLER3D:       return TYPE_SAMPLER_3D;
+            case ShaderDesc::SHADER_TYPE_SAMPLER3D_ARRAY: return TYPE_SAMPLER_3D_ARRAY;
+            case ShaderDesc::SHADER_TYPE_IMAGE3D:         return TYPE_IMAGE_3D;
+            case ShaderDesc::SHADER_TYPE_TEXTURE3D:       return TYPE_TEXTURE_3D;
+            case ShaderDesc::SHADER_TYPE_TEXTURE3D_ARRAY: return TYPE_TEXTURE_3D_ARRAY;
             default: break;
         }
 
@@ -843,7 +869,7 @@ namespace dmGraphics
         ps.m_WriteDepth               = 1;
         ps.m_PrimtiveType             = PRIMITIVE_TRIANGLES;
         ps.m_DepthTestEnabled         = 1;
-        ps.m_DepthTestFunc            = COMPARE_FUNC_LEQUAL;
+        ps.m_DepthTestFunc            = COMPARE_FUNC_LESS;
         ps.m_BlendEnabled             = 0;
         ps.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
         ps.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
@@ -1817,9 +1843,9 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureStatusFlags(texture);
     }
-    void ReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+    void ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
-        g_functions.m_ReadPixels(context, buffer, buffer_size);
+        g_functions.m_ReadPixels(context, x, y, width, height, buffer, buffer_size);
     }
     void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
@@ -1862,6 +1888,10 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureUsageHintFlags(texture);
     }
+    uint8_t GetTexturePageCount(HTexture texture)
+    {
+        return g_functions.m_GetTexturePageCount(texture);
+    }
     bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
     {
         assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
@@ -1870,6 +1900,10 @@ namespace dmGraphics
     void InvalidateGraphicsHandles(HContext context)
     {
         g_functions.m_InvalidateGraphicsHandles(context);
+    }
+    void GetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
+    {
+        g_functions.m_GetViewport(context, x, y, width, height);
     }
 
 #if defined(DM_PLATFORM_IOS)

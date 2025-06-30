@@ -46,10 +46,13 @@ namespace dmGraphics
         uint16_t            m_Width;
         uint16_t            m_Height;
         uint16_t            m_Depth;
+        uint16_t            m_LayerCount;
         uint16_t            m_OriginalWidth;
         uint16_t            m_OriginalHeight;
+        uint16_t            m_OriginalDepth;
         uint16_t            m_MipMapCount         : 5;
         uint16_t            m_TextureSamplerIndex : 10;
+        uint8_t             m_PageCount; // page count of texture array
     };
 
     struct DX12TextureSampler
@@ -115,9 +118,8 @@ namespace dmGraphics
 
     struct DX12RenderTarget
     {
-        ID3D12Resource*       m_Resource;
         ID3D12DescriptorHeap* m_ColorAttachmentDescriptorHeap;
-        ID3D12DescriptorHeap* m_DepthStencilAttachmentDescriptorHeap;
+        ID3D12DescriptorHeap* m_DepthStencilDescriptorHeap;
 
         TextureParams         m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams         m_DepthStencilTextureParams;
@@ -172,7 +174,10 @@ namespace dmGraphics
 
     struct DX12FrameResource
     {
+        HTexture                m_TextureColor;
+        HTexture                m_TextureDepthStencil;
         DX12RenderTarget        m_RenderTarget;
+        ID3D12Resource*         m_MsaaRenderTarget;
         ID3D12CommandAllocator* m_CommandAllocator;
         ID3D12Fence*            m_Fence;
         DX12ScratchBuffer       m_ScratchBuffer;
@@ -196,11 +201,13 @@ namespace dmGraphics
         IDXGISwapChain3*                   m_SwapChain;
         ID3D12CommandQueue*                m_CommandQueue;
         ID3D12DescriptorHeap*              m_RtvDescriptorHeap;
+        ID3D12DescriptorHeap*              m_DsvDescriptorHeap;
         ID3D12GraphicsCommandList*         m_CommandList;
         ID3D12Debug*                       m_DebugInterface;
         HANDLE                             m_FenceEvent;
         DX12FrameResource                  m_FrameResources[MAX_FRAMEBUFFERS];
         CD3DX12_CPU_DESCRIPTOR_HANDLE      m_RtvHandle;
+        CD3DX12_CPU_DESCRIPTOR_HANDLE      m_DsvHandle;
 
         dmPlatform::HWindow                m_Window;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
@@ -228,6 +235,7 @@ namespace dmGraphics
         uint32_t                           m_Height;
         uint32_t                           m_CurrentFrameIndex;
         uint32_t                           m_RtvDescriptorSize;
+        uint32_t                           m_DsvDescriptorSize;
         uint32_t                           m_NumFramesInFlight    : 2;
         uint32_t                           m_FrameBegun           : 1;
         uint32_t                           m_CullFaceChanged      : 1;
@@ -235,6 +243,7 @@ namespace dmGraphics
         uint32_t                           m_VerifyGraphicsCalls  : 1;
         uint32_t                           m_UseValidationLayers  : 1;
         uint32_t                           m_PrintDeviceInfo      : 1;
+        uint32_t                           m_MSAASampleCount      : 8;
     };
 }
 

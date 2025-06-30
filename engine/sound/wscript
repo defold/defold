@@ -32,6 +32,7 @@ def configure(conf):
     conf.env.append_value('INCLUDES', "default/src")
     conf.env['STLIB_SCRIPT'] = 'script'
     conf.env['STLIB_TREMOLO'] = 'tremolo'
+    conf.env['STLIB_OPUS'] = 'opus'
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="SOUND"')
 

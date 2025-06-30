@@ -16,8 +16,8 @@
 #include <dlib/log.h>
 #include <dlib/hashtable.h>
 #include <dlib/static_assert.h>
-#include <dmsdk/extension/extension.h>
 
+#include <dmsdk/dlib/profile.h>
 #include <dmsdk/extension/extension.h>
 #include "extension.hpp"
 
@@ -169,6 +169,11 @@ void* ExtensionAppParamsGetContext(ExtensionAppParams* params, dmhash_t name_has
 void* ExtensionAppParamsGetContextByName(ExtensionAppParams* params, const char* name)
 {
     return GetContext(&params->m_Impl->m_Contexts, dmHashString64(name));
+}
+
+ExtensionAppExitCode ExtensionAppParamsGetAppExitCode(ExtensionAppParams* app_params)
+{
+    return app_params->m_ExitStatus;
 }
 
 int ExtensionParamsSetContext(ExtensionParams* params, const char* name, void* context)
@@ -328,6 +333,7 @@ namespace dmExtension
         while (ed) {
             if (ed->m_Update && ed->m_Initialized)
             {
+                DM_PROFILE_DYN(ed->m_Name, 0);
                 ExtensionResult r = ed->m_Update(params);
                 if (r != EXTENSION_RESULT_OK) {
                     dmLogError("Failed to update extension: %s", ed->m_Name);
@@ -363,6 +369,11 @@ namespace dmExtension
             }
             ed = dmExtension::GetNextExtension(ed);
         }
+    }
+
+    AppExitCode AppParamsGetAppExitCode(AppParams * app_params)
+    {
+        return (AppExitCode)ExtensionAppParamsGetAppExitCode(app_params);
     }
 
 }

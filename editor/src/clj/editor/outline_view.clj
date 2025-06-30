@@ -18,6 +18,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.icons :as icons]
+            [editor.menu-items :as menu-items]
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.scene-visibility :as scene-visibility]
@@ -28,7 +29,7 @@
            [javafx.event Event]
            [javafx.geometry Orientation]
            [javafx.scene Node]
-           [javafx.scene.control ScrollBar SelectionMode TreeItem TreeView ToggleButton Label]
+           [javafx.scene.control Label ScrollBar SelectionMode ToggleButton TreeItem TreeView]
            [javafx.scene.image ImageView]
            [javafx.scene.input Clipboard DataFormat DragEvent MouseEvent TransferMode]
            [javafx.scene.layout AnchorPane HBox]
@@ -218,72 +219,69 @@
                                                   (alt-selection tree-selection))))
 
 (handler/register-menu! ::outline-menu
-  [{:label "Open"
-    :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :open}
-   {:label "Open As"
-    :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :open-as}
-   {:label :separator}
-   {:label "Copy Project Path"
-    :command :copy-project-path}
+  [menu-items/open-selected
+   menu-items/open-as
+   menu-items/separator
+   {:label "Copy Resource Path"
+    :command :edit.copy-resource-path}
    {:label "Copy Full Path"
-    :command :copy-full-path}
+    :command :edit.copy-absolute-path}
    {:label "Copy Require Path"
-    :command :copy-require-path}
-   {:label :separator}
+    :command :edit.copy-require-path}
+   menu-items/separator
    {:label "Show in Asset Browser"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :show-in-asset-browser}
+    :command :file.show-in-assets}
    {:label "Show in Desktop"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :show-in-desktop}
+    :command :file.show-in-desktop}
    {:label "Referencing Files..."
-    :command :referencing-files}
+    :command :file.show-references}
    {:label "Dependencies..."
-    :command :dependencies}
-   {:label "Show Overrides"
-    :command :show-overrides}
-   {:label :separator}
+    :command :file.show-dependencies}
+   menu-items/separator
+   menu-items/show-overrides
+   menu-items/pull-up-overrides
+   menu-items/push-down-overrides
+   menu-items/separator
    {:label "Add"
     :icon "icons/32/Icons_M_07_plus.png"
-    :command :add
-    :expand? true}
+    :command :edit.add-embedded-component
+    :expand true}
    {:label "Add From File"
     :icon "icons/32/Icons_M_07_plus.png"
-    :command :add-from-file}
+    :command :edit.add-referenced-component}
    {:label "Add Secondary"
     :icon "icons/32/Icons_M_07_plus.png"
-    :command :add-secondary}
+    :command :edit.add-secondary-embedded-component}
    {:label "Add Secondary From File"
     :icon "icons/32/Icons_M_07_plus.png"
-    :command :add-secondary-from-file}
-   {:label :separator}
+    :command :edit.add-secondary-referenced-component}
+   menu-items/separator
    {:label "Cut"
-    :command :cut}
+    :command :edit.cut}
    {:label "Copy"
-    :command :copy}
+    :command :edit.copy}
    {:label "Paste"
-    :command :paste}
+    :command :edit.paste}
    {:label "Delete"
     :icon "icons/32/Icons_M_06_trash.png"
-    :command :delete}
-   {:label :separator}
+    :command :edit.delete}
+   menu-items/separator
    {:label "Move Up"
-    :command :move-up}
+    :command :edit.reorder-up}
    {:label "Move Down"
-    :command :move-down}
-   {:label :separator}
+    :command :edit.reorder-down}
+   menu-items/separator
    {:label "Show/Hide Objects"
-    :command :hide-toggle-selected}
+    :command :scene.visibility.toggle-selection}
    {:label "Hide Unselected Objects"
-    :command :hide-unselected}
+    :command :scene.visibility.hide-unselected}
    {:label "Show Last Hidden Objects"
-    :command :show-last-hidden}
+    :command :scene.visibility.show-last-hidden}
    {:label "Show All Hidden Objects"
-    :command :show-all-hidden}
-   {:label :separator
-    :id ::context-menu-end}])
+    :command :scene.visibility.show-all}
+   (menu-items/separator-with-id ::context-menu-end)])
 
 (defn- selection->nodes [selection]
   (handler/adapt-every selection Long))
@@ -295,7 +293,7 @@
   ([outline-view evaluation-context]
    (g/node-value outline-view :tree-selection-root-its evaluation-context)))
 
-(handler/defhandler :delete :workbench
+(handler/defhandler :edit.delete :workbench
   (active? [selection] (handler/selection->node-ids selection))
   (enabled? [selection outline-view evaluation-context]
             (and (< 0 (count selection))
@@ -328,7 +326,7 @@
 (defn- set-paste-parent! [root-its]
   (alter-var-root #'*paste-into-parent* (constantly (some-> (single-parent-it root-its) outline/value :node-id))))
 
-(handler/defhandler :copy :workbench
+(handler/defhandler :edit.copy :workbench
   (active? [selection] (handler/selection->node-ids selection))
   (enabled? [selection] (< 0 (count selection)))
   (run [outline-view project]
@@ -344,7 +342,7 @@
           single-parent)
       (first item-iterators))))
 
-(handler/defhandler :paste :workbench
+(handler/defhandler :edit.paste :workbench
   (active? [selection] (handler/selection->node-ids selection))
   (enabled? [project selection outline-view evaluation-context]
             (let [cb (Clipboard/getSystemClipboard)
@@ -360,7 +358,7 @@
       (outline/paste! project target-item-it (.getContent cb data-format) (partial app-view/select app-view))
       (set-paste-parent! (root-iterators outline-view)))))
 
-(handler/defhandler :cut :workbench
+(handler/defhandler :edit.cut :workbench
   (active? [selection] (handler/selection->node-ids selection))
   (enabled? [selection outline-view evaluation-context]
             (let [item-iterators (root-iterators outline-view evaluation-context)]
@@ -466,7 +464,7 @@
       (ui/user-data! cell :future-expand nil))))
 
 (defn- toggle-visibility! [node-outline-key-path ^MouseEvent event]
-  (ui/run-command (.getSource event) :hide-toggle {:node-outline-key-path node-outline-key-path}))
+  (ui/run-command (.getSource event) :private/hide-toggle {:node-outline-key-path node-outline-key-path}))
 
 (defn add-scroll-listeners!
   [visibility-button ^TreeView tree-view]
@@ -488,10 +486,9 @@
         image-view-icon (ImageView.)
         visibility-button (doto (ToggleButton.)
                             (ui/add-style! "visibility-toggle")
-                            (.addEventFilter MouseEvent/MOUSE_PRESSED ui/ignore-event-filter)
                             (AnchorPane/setRightAnchor 0.0))
         text-label (doto (Label.)
-                     (ui/bind-double-click! :open))
+                     (ui/bind-double-click! :file.open-selected))
         h-box (doto (HBox. 5 (ui/node-array [image-view-icon text-label]))
                 (ui/add-style! "h-box")
                 (AnchorPane/setRightAnchor 0.0)
@@ -584,6 +581,7 @@
       (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
       (ui/observe-selection #(propagate-selection %2 app-view))
       (ui/register-context-menu ::outline-menu)
+      (ui/bind-key-commands! {"Enter" :file.open-selected})
       (ui/context! :outline {} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
                                                                      resource/Resource :link}))))
 

@@ -20,6 +20,7 @@
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.coerce :as coerce]
+            [editor.editor-extensions.graph :as graph]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.vm :as vm]
@@ -30,14 +31,15 @@
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.process :as process]
+            [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.ui :as ui]
+            [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [ring.adapter.jetty :as jetty]
-            [ring.util.response :as response]
             [support.test-support :as test-support]
-            [util.diff :as diff])
+            [util.diff :as diff]
+            [util.http-server :as http-server])
   (:import [java.util.zip ZipEntry]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
            [org.luaj.vm2 LuaError]))
@@ -282,16 +284,21 @@
         (when (or (:error ret) (:exception ret))
           (throw (LuaError. "Bob invocation failed")))))))
 
-(defn- reload-editor-scripts! [project & {:keys [display-output! open-resource! prefs]
+(def ^:private stopped-server
+  (http-server/stop! (http-server/start! (web-server/make-dynamic-handler [])) 0))
+
+(defn- reload-editor-scripts! [project & {:keys [display-output! open-resource! prefs web-server]
                                           :or {display-output! println
-                                               open-resource! open-resource-noop!}}]
+                                               open-resource! open-resource-noop!
+                                               web-server stopped-server}}]
   (extensions/reload! project :all
                       :prefs (or prefs (test-util/make-test-prefs))
                       :reload-resources! (make-reload-resources-fn (project/workspace project))
                       :display-output! display-output!
                       :save! (make-save-fn project)
                       :open-resource! open-resource!
-                      :invoke-bob! (make-invoke-bob-fn project)))
+                      :invoke-bob! (make-invoke-bob-fn project)
+                      :web-server web-server))
 
 (deftest editor-scripts-commands-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
@@ -448,7 +455,7 @@
 
 (deftest coercer-test
   (let [vm (vm/make)
-        coerce #(coerce/coerce vm %1 (vm/->lua %2))]
+        coerce #(coerce/coerce vm %1 (apply rt/->varargs %&))]
 
     (testing "enum"
       (let [foo-str "foo"
@@ -596,7 +603,39 @@
         (is (thrown? LuaError (coerce by-key {"type" "dot"})))
         (is (thrown? LuaError (coerce by-key {"kind" "rect"})))
         (is (thrown? LuaError (coerce by-key "not a table")))
-        (is (thrown? LuaError (coerce by-key 42)))))))
+        (is (thrown? LuaError (coerce by-key 42)))))
+
+    (testing "regex"
+      (let [empty (coerce/regex)]
+        (is (= {} (coerce empty)))
+        (is (thrown-with-msg? LuaError #"nil is unexpected" (coerce empty nil)))
+        (is (thrown-with-msg? LuaError #"1 is unexpected" (coerce empty 1))))
+      (let [all-required (coerce/regex :first-name coerce/string
+                                       :last-name coerce/string
+                                       :age coerce/integer)]
+        (is (= {:first-name "Foo"
+                :last-name "Bar"
+                :age 18}
+               (coerce all-required "Foo" "Bar" 18)))
+        (is (thrown-with-msg? LuaError #"more arguments expected" (coerce all-required "Foo" "Bar")))
+        (is (thrown-with-msg? LuaError #"0 is unexpected" (coerce all-required "Foo" "Bar" 12 0))))
+
+      (let [some-optional (coerce/regex :path coerce/string
+                                        :method :? (coerce/enum :get :post :put :delete :head :options)
+                                        :as :? (coerce/enum :string :json))]
+        (is (= {:path "/foo" :method :get :as :json}
+               (coerce some-optional "/foo" :get :json)))
+        (is (= {:path "/foo" :as :json} (coerce some-optional "/foo" :json)))
+        (is (= {:path "/foo" :method :options} (coerce some-optional "/foo" :options)))
+        (is (= {:path "/foo"} (coerce some-optional "/foo")))
+        (is (thrown-with-msg? LuaError #"true is not a string" (coerce some-optional true))))
+      (let [required-after-optional (coerce/regex :string coerce/string
+                                                  :boolean :? coerce/boolean
+                                                  :integer coerce/integer)]
+        (is (= {:string "foo" :boolean true :integer 1} (coerce required-after-optional "foo" true 1)))
+        (is (= {:string "foo" :integer 1} (coerce required-after-optional "foo" 1)))
+        (is (thrown-with-msg? LuaError #"more arguments expected" (coerce required-after-optional "foo")))
+        (is (thrown-with-msg? LuaError #"(\"bar\" is not a boolean)\n.+(\"bar\" is not an integer)" (coerce required-after-optional "foo" "bar")))))))
 
 (deftest external-file-attributes-test
   (test-util/with-loaded-project "test/resources/editor_extensions/external_file_attributes_project"
@@ -677,6 +716,8 @@
               [:out "set: table foo = true, bar = nil"]
               [:out "string: a string"]
               [:out "string: another_string"]
+              [:out "password: password"]
+              [:out "password: another_password"]
               [:out "tuple: a string 12"]
               [:out "tuple: another string 42"]]
              @output)))))
@@ -815,20 +856,27 @@ nesting:
 }
 ")
 
+(defn- normalize-pprint-output [output-string]
+  (let [hash->stable-id (volatile! {})]
+    (string/replace
+      output-string
+      #"0x[0-9a-f]+"
+      (fn [s]
+        (or (@hash->stable-id s)
+            ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
+
+(defn- expect-script-output [expected actual]
+  (let [actual (normalize-pprint-output (str actual))]
+    (let [output-matches-expectation (= expected actual)]
+      (when-not output-matches-expectation
+        (is output-matches-expectation (string/join "\n" (diff/make-diff-output-lines actual expected 3)))))))
+
 (deftest pprint-test
   (test-util/with-loaded-project "test/resources/editor_extensions/pprint-test"
     (let [out (StringBuilder.)]
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
-      (let [hash->stable-id (volatile! {})
-            actual (string/replace
-                     (str out)
-                     #"0x[0-9a-f]+"
-                     (fn [s]
-                       (or (@hash->stable-id s)
-                           ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))]
-        (is (= actual expected-pprint-output)
-            (string/join "\n" (diff/make-diff-output-lines actual expected-pprint-output 3)))))))
+      (expect-script-output expected-pprint-output out))))
 
 (def expected-http-test-output
   "GET http://localhost:23000 => error (ConnectException)
@@ -855,37 +903,27 @@ POST http://localhost:23456/echo hello world! as string => 200
 
 (deftest http-test
   (test-util/with-loaded-project "test/resources/editor_extensions/http_project"
-    (let [server (jetty/run-jetty
-                   (fn [request]
-                     (case (:uri request)
-                       "/redirect/foo" (response/redirect "/foo")
-                       "/foo" (response/response "successfully redirected")
-                       "/" (response/response "")
-                       "/json" (response/response "{\"a\": 1, \"b\": [true]}")
-                       "/echo" (response/response (slurp (:body request)))
-                       (response/not-found "404")))
-                   {:port 23456 :join? false})
+    (let [server (http-server/start!
+                   (http-server/router-handler
+                     {"/redirect/foo" {"GET" (constantly (http-server/redirect "/foo"))}
+                      "/foo" {"GET" (constantly (http-server/response 200 "successfully redirected"))}
+                      "/" {"GET" (constantly (http-server/response 200 ""))}
+                      "/json" {"GET" (constantly (http-server/json-response {:a 1 :b [true]}))}
+                      "/echo" {"POST" (fn [request] (http-server/response 200 (:body request)))}})
+                   :port 23456)
           out (StringBuilder.)]
       (try
         (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
         ;; See test.editor_script: the test invokes http.request with various options and prints results
         (run-edit-menu-test-command!)
-        (let [hash->stable-id (volatile! {})
-              actual (string/replace
-                       (str out)
-                       #"0x[0-9a-f]+"
-                       (fn [s]
-                         (or (@hash->stable-id s)
-                             ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))]
-          (is (= actual expected-http-test-output)
-              (string/join "\n" (diff/make-diff-output-lines actual expected-http-test-output 3))))
+        (expect-script-output expected-http-test-output out)
         (finally
-          (.stop server))))))
+          (http-server/stop! server 0))))))
 
 (deftest zip-test
   (test-util/with-scratch-project "test/resources/editor_extensions/zip_project"
     (let [output (atom [])
-          root (g/node-value workspace :root)
+          root (workspace/project-directory workspace)
           list-entries (fn list-entries [path-str]
                          (with-open [zis (ZipArchiveInputStream. (io/input-stream (fs/path root path-str)))]
                            (loop [acc (transient #{})]
@@ -990,3 +1028,596 @@ POST http://localhost:23456/echo hello world! as string => 200
               "stored/long.txt" :stored
               "stored/subdir/baz.txt" :stored}
              (list-methods "mixed.zip"))))))
+
+(def expected-http-server-test-output
+  "Omitting conflicting routes for 'GET /test/conflict/same-path-and-method' defined in /test.editor_script
+Omitting conflicting routes for '/command/{param}' defined in /test.editor_script (conflict with the editor's built-in routes)
+Omitting conflicting routes for '/test/conflict/{param}' and '/test/conflict/no-param' defined in /test.editor_script
+POST /test/echo/string 'hello' as string => 200
+< content-length: 5
+< content-type: text/plain; charset=utf-8
+\"hello\"
+POST /test/echo/json '{\"a\": 1}' as json => 200
+< content-length: 7
+< content-type: application/json
+{ --[[0x0]]
+  a = 1
+}
+GET /test/route-merging as string => 200
+< content-length: 3
+< content-type: text/plain; charset=utf-8
+\"get\"
+POST /test/route-merging as string => 200
+< content-length: 4
+< content-type: text/plain; charset=utf-8
+\"post\"
+PUT /test/route-merging as string => 200
+< content-length: 3
+< content-type: text/plain; charset=utf-8
+\"put\"
+GET /test/path-pattern/foo/bar as string => 200
+< content-length: 22
+< content-type: text/plain; charset=utf-8
+\"key = foo, value = bar\"
+GET /test/rest-pattern/a/b/c as string => 200
+< content-length: 5
+< content-type: text/plain; charset=utf-8
+\"a/b/c\"
+GET /test/files/not-found.txt as string => 404
+< content-length: 0
+\"\"
+GET /test/files/test.txt as string => 200
+< content-length: 9
+< content-type: text/plain
+\"test file\"
+GET /test/files/test.json as json => 200
+< content-length: 14
+< content-type: application/json
+{ --[[0x1]]
+  test = true
+}
+GET /test/resources/not-found.txt as string => 404
+< content-length: 0
+\"\"
+GET /test/resources/test.txt as string => 200
+< content-length: 9
+< content-type: text/plain
+\"test file\"
+GET /test/resources/test.json as json => 200
+< content-length: 14
+< content-type: application/json
+{ --[[0x2]]
+  test = true
+}
+")
+
+(deftest http-server-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/http_server_project"
+    (with-open [server (http-server/start!
+                         (web-server/make-dynamic-handler
+                           ;; for testing conflicts with the built-in handlers
+                           {"/command" {"GET" (constantly http-server/not-found)}
+                            "/command/{command}" {"POST" (constantly http-server/not-found)}}))]
+      (let [out (StringBuilder.)]
+        (reload-editor-scripts! project
+                                :display-output! #(doto out (.append %2) (.append \newline))
+                                :web-server server)
+        (run-edit-menu-test-command!)
+        (expect-script-output expected-http-server-test-output out)))))
+
+(deftest property-availability-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/property_availability_project"
+    (reload-editor-scripts! project)
+    (g/with-auto-evaluation-context ec
+      (let [{:keys [rt]} (extensions/ext-state project ec)]
+        (->> (g/node-value project :nodes ec)
+             (map #(g/node-value % :node-outline ec))
+             (mapcat #(tree-seq :children :children %))
+             (mapcat (fn [outline]
+                       (->> [(g/node-value (:node-id outline) :_properties ec)]
+                            properties/coalesce
+                            :properties
+                            vals
+                            (map #(assoc % :outline outline)))))
+             (run! (fn [{:keys [outline key] :as p}]
+                     (let [{:keys [node-id]} outline
+                           ext-key (string/replace (name key) \- \_)]
+                       (is (some? (graph/ext-value-getter node-id ext-key project ec)))
+                       (when-not (properties/read-only? p)
+                         (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))))))
+
+(def ^:private expected-tilemap-test-output
+  "new => {
+}
+fill 3x3 => {
+  [1, 1] = 2
+  [2, 1] = 2
+  [3, 1] = 2
+  [1, 2] = 2
+  [2, 2] = 2
+  [3, 2] = 2
+  [1, 3] = 2
+  [2, 3] = 2
+  [3, 3] = 2
+}
+remove center => {
+  [1, 1] = 2
+  [2, 1] = 2
+  [3, 1] = 2
+  [1, 2] = 2
+  [3, 2] = 2
+  [1, 3] = 2
+  [2, 3] = 2
+  [3, 3] = 2
+}
+clear => {
+}
+set using table => {
+  [8, 8] = 1
+}
+get tile: 1
+get info:
+  h_flip: true
+  index: 1
+  v_flip: true
+  rotate_90: true
+non-existent tile: nil
+non-existent info: nil
+negative keys => {
+  [-100, -100] = 1
+  [8, 8] = 1
+}
+create a layer with tiles...
+tiles from the graph => {
+  [-100, -100] = 1
+  [8, 8] = 1
+}
+set layer tiles to new value...
+new tiles from the graph => {
+  [8, 8] = 2
+}
+")
+
+(deftest tile-map-editing-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/tilemap_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-tilemap-test-output out))))
+
+(def ^:private expected-attachment-test-output
+  "Atlas initial state:
+  images: 0
+  animations: 0
+  can add images: true
+  can add animations: true
+Transaction: add image and animation
+After transaction (add):
+  images: 1
+    image: /builtins/assets/images/logo/logo_256.png
+  animations: 1
+    animation id: logos
+    animation images: 2
+      animation image: /builtins/assets/images/logo/logo_blue_256.png
+      animation image: /builtins/assets/images/logo/logo_256.png
+Transaction: remove image
+After transaction (remove image):
+  images: 0
+  animations: 1
+    animation id: logos
+    animation images: 2
+      animation image: /builtins/assets/images/logo/logo_blue_256.png
+      animation image: /builtins/assets/images/logo/logo_256.png
+Transaction: clear animation images
+After transaction (clear):
+  images: 0
+  animations: 1
+    animation id: logos
+    animation images: 0
+Transaction: remove animation
+After transaction (remove animation):
+  images: 0
+  animations: 0
+Expected errors:
+  Wrong list name to add => AtlasNode does not define \"layers\"
+  Wrong list name to remove => AtlasNode does not define \"layers\"
+  Wrong list item to remove => /test.atlas is not in the \"images\" list of /test.atlas
+  Wrong list name to clear => AtlasNode does not define \"layers\"
+  Wrong child property name => Can't set property \"no_such_prop\" of AtlasAnimation
+  Added value is not a table => \"/foo.png\" is not a table
+  Added nested value is not a table => \"/foo.png\" is not a table
+  Added node has invalid property value => \"invalid-pivot\" is not a tuple
+  Added resource has wrong type => resource extension should be jpg or png
+Tilesource initial state:
+  animations: 0
+  collision groups: 0
+  tile collision groups: 0
+Transaction: add animations and collision groups
+After transaction (add animations and collision groups):
+  animations: 2
+    animation: idle
+    animation: walk
+  collision groups: 4
+    collision group: obstacle
+    collision group: character
+    collision group: collision_group
+    collision group: collision_group1
+  tile collision groups: 2
+    tile collision group: 1 obstacle
+    tile collision group: 3 character
+Transaction: set tile_collision_groups to its current value
+After transaction (tile_collision_groups roundtrip):
+  animations: 2
+    animation: idle
+    animation: walk
+  collision groups: 4
+    collision group: obstacle
+    collision group: character
+    collision group: collision_group
+    collision group: collision_group1
+  tile collision groups: 2
+    tile collision group: 1 obstacle
+    tile collision group: 3 character
+Expected errors
+  Using non-existent collision group => Collision group \"does-not-exist\" is not defined in the tilesource
+Transaction: clear tilesource
+After transaction (clear):
+  animations: 0
+  collision groups: 0
+  tile collision groups: 0
+Tilemap initial state:
+  layers: 0
+Transaction: add 2 layers
+After transaction (add 2 layers):
+  layers: 2
+    layer: background
+    tiles: {
+      [1, 1] = 1
+      [2, 1] = 2
+      [3, 1] = 3
+      [1, 2] = 2
+      [2, 2] = 2
+      [3, 2] = 3
+      [1, 3] = 3
+      [2, 3] = 3
+      [3, 3] = 3
+    }
+    layer: items
+    tiles: {
+      [2, 2] = 3
+    }
+Transaction: clear tilemap
+After transaction (clear):
+  layers: 0
+Particlefx initial state:
+  emitters: 0
+  modifiers: 0
+Transaction: add emitter and modifier
+After transaction (add emitter and modifier):
+  emitters: 1
+    emitter: emitter
+    modifiers: 2
+      modifier: modifier-type-vortex
+      modifier: modifier-type-drag
+  modifiers: 1
+    modifier: modifier-type-acceleration
+Transaction: clear particlefx
+After transaction (clear):
+  emitters: 0
+  modifiers: 0
+Collision object initial state:
+  shapes: 0
+Transaction: add 3 shapes
+After transaction (add 3 shapes):
+  shapes: 3
+  - id: box
+    type: shape-type-box
+    dimensions: 20 20 20
+  - id: sphere
+    type: shape-type-sphere
+    diameter: 20
+  - id: capsule
+    type: shape-type-capsule
+    diameter: 20
+    height: 40
+Transaction: clear
+After transaction (clear):
+  shapes: 0
+Expected errors:
+  missing type => type is required
+  wrong type => box is not shape-type-box, shape-type-capsule or shape-type-sphere
+GUI initial state:
+  layers: 0
+  materials: 0
+  particlefxs: 0
+  textures: 0
+  layouts: 0
+  spine scenes: 0
+  fonts: 0
+  nodes: 0
+Transaction: edit GUI
+After transaction (edit):
+  layers: 2
+    layer: bg
+    layer: fg
+  materials: 4
+    material: material
+    material: test /test.material
+    material: test1 /test.material
+    material: material1
+  particlefxs: 3
+    particlefx: particlefx
+    particlefx: test /test.particlefx
+    particlefx: particlefx1
+  textures: 2
+    texture: test /test.tilesource
+    texture: test1 /test.atlas
+  layouts: 2
+    layout: Landscape
+    layout: Portrait
+  spine scenes: 4
+    spine scene: spine_scene
+    spine scene: explicit name
+    spine scene: template /defold-spine/assets/template/template.spinescene
+    spine scene: spine_scene1
+  fonts: 3
+    font: test /test.font
+    font: font
+    font: font1
+  nodes: 2
+  - type: gui-node-type-box
+    id: box
+    nodes: 5
+    - type: gui-node-type-pie
+      id: pie
+      nodes: 0
+    - type: gui-node-type-text
+      id: text
+      nodes: 0
+    - type: gui-node-type-template
+      id: button
+      nodes: 2
+      - type: gui-node-type-box
+        id: button/box
+        nodes: 0
+      - type: gui-node-type-text
+        id: button/text
+        nodes: 0
+    - type: gui-node-type-particlefx
+      id: particlefx
+      nodes: 0
+    - type: gui-node-type-spine
+      id: spine
+      nodes: 1
+      - type: gui-node-type-box
+        id: box1
+        nodes: 0
+  - type: gui-node-type-text
+    id: text1
+    nodes: 0
+Transaction: set Landscape position
+  position = {10, 10, 10}, can reset = false
+  Landscape:position = {20, 20, 20}, can reset = true
+  Portrait:position = {10, 10, 10}, can reset = false
+Transaction: reset Landscape position
+  position = {10, 10, 10}, can reset = false
+  Landscape:position = {10, 10, 10}, can reset = false
+  Portrait:position = {10, 10, 10}, can reset = false
+Template node: button
+  can add: false
+  can reorder: false
+Override text node: button/text
+  can add: false
+  can reorder: false
+Transaction: set override node property
+  text: custom text
+  can reset: true
+Transaction: reset override node property
+  text: <text>
+  can reset: false
+Transaction: set override position and layout position properties
+  position = {10, 10, 10}, can reset = true
+  Landscape:position = {20, 20, 20}, can reset = true
+  Portrait:position = {10, 10, 10}, can reset = false
+can reorder layers: true
+can reorder nodes: true
+Transaction: reorder
+After transaction (reorder):
+  layers: 2
+    layer: fg
+    layer: bg
+  materials: 4
+    material: material
+    material: test /test.material
+    material: test1 /test.material
+    material: material1
+  particlefxs: 3
+    particlefx: particlefx
+    particlefx: test /test.particlefx
+    particlefx: particlefx1
+  textures: 2
+    texture: test /test.tilesource
+    texture: test1 /test.atlas
+  layouts: 2
+    layout: Landscape
+    layout: Portrait
+  spine scenes: 4
+    spine scene: spine_scene
+    spine scene: explicit name
+    spine scene: template /defold-spine/assets/template/template.spinescene
+    spine scene: spine_scene1
+  fonts: 3
+    font: test /test.font
+    font: font
+    font: font1
+  nodes: 2
+  - type: gui-node-type-text
+    id: text1
+    nodes: 0
+  - type: gui-node-type-box
+    id: box
+    nodes: 5
+    - type: gui-node-type-pie
+      id: pie
+      nodes: 0
+    - type: gui-node-type-text
+      id: text
+      nodes: 0
+    - type: gui-node-type-template
+      id: button
+      nodes: 2
+      - type: gui-node-type-box
+        id: button/box
+        nodes: 0
+      - type: gui-node-type-text
+        id: button/text
+        nodes: 0
+    - type: gui-node-type-particlefx
+      id: particlefx
+      nodes: 0
+    - type: gui-node-type-spine
+      id: spine
+      nodes: 1
+      - type: gui-node-type-box
+        id: box1
+        nodes: 0
+Expected reorder errors:
+  undefined property => GuiSceneNode does not define \"not-a-property\"
+  reorder not defined => CollisionObjectNode does not support \"shapes\" reordering
+  duplicates => Reordered child nodes are not the same as current child nodes
+  missing children => Reordered child nodes are not the same as current child nodes
+  wrong child nodes => Reordered child nodes are not the same as current child nodes
+  add to template node => \"nodes\" is not editable
+  reorder template node => \"nodes\" is not editable
+  add to overridden text node => \"nodes\" is read-only
+  reorder overridden text node => \"nodes\" is read-only
+  reset unresettable => Can't reset property \"text\" of TextNode
+Transaction: clear GUI
+Expected layout errors:
+  no name => layout name is required
+  unknown profile => \"Not a profile\" is not \"Landscape\" or \"Portrait\"
+  duplicates => \"Landscape\" is not \"Portrait\"
+After transaction (clear):
+  layers: 0
+  materials: 0
+  particlefxs: 0
+  textures: 0
+  layouts: 0
+  spine scenes: 0
+  fonts: 0
+  nodes: 0
+")
+
+(deftest attachment-properties-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/transact_attachment_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-attachment-test-output out))))
+
+(def ^:private expected-resources-as-nodes-test-output
+  "Directory read:
+  can get path: true
+  can set path: false
+  can get children: true
+  can set children: false
+  can add children: false
+Assets path:
+  /assets
+Assets images:
+  /assets/a.png
+  /assets/b.png
+Expected errors:
+  Setting a property => /assets is not a file resource
+")
+
+(deftest resources-as-nodes-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/resources_as_nodes_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-resources-as-nodes-test-output out))))
+
+(def ^:private expected-particlefx-test-output
+  "Initial state:
+emitters: 0
+After setup:
+emitters: 1
+  type: emitter-type-circle
+  blend mode: blend-mode-add
+  spawn rate: {0, 100, 1, 0}
+  initial red: {0, 0.5, 1, 0}
+  initial green: {0, 0.8, 1, 0}
+  initial blue: {0, 1, 1, 0}
+  initial alpha: {0, 0.2, 1, 0}
+  life alpha: {0, 0, 0.1, 0.995} {0.2, 1, 1, 0} {1, 0, 1, 0}
+  modifiers: 1
+    type: modifier-type-acceleration
+    magnitude: {0, 1, 1, 0}
+    rotation: {0, 0, -180}
+Expected errors:
+  empty points => {points = {}} does not satisfy any of its requirements:
+    - {points = {}} is not a number
+    - {} needs at least 1 element
+  x outside of range => {points = {{y = 1, tx = 1, x = -1, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = -1, ty = 0}}} is not a number
+    - -1 is not between 0 and 1
+  tx outside of range => {points = {{y = 1, tx = -0.5, x = 0, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = -0.5, x = 0, ty = 0}}} is not a number
+    - -0.5 is not between 0 and 1
+  ty outside of range => {points = {{y = 1, tx = 1, x = 0, ty = 2}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = 0, ty = 2}}} is not a number
+    - 2 is not between -1 and 1
+  xs not from 0 to 1 (upper) => {points = {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0.5, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0.5, ty = 0}}} is not a number
+    - {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0.5, ty = 0}} does not increase xs monotonically from 0 to 1
+  xs not from 0 to 1 (lower) => {points = {{y = 1, tx = 1, x = 0.5, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = 0.5, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}}} is not a number
+    - {{y = 1, tx = 1, x = 0.5, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}} does not increase xs monotonically from 0 to 1
+  xs not from 0 to 1 (duplicates) => {points = {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}}} does not satisfy any of its requirements:
+    - {points = {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}}} is not a number
+    - {{y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 0, ty = 0}, {y = 1, tx = 1, x = 1, ty = 0}} does not increase xs monotonically from 0 to 1
+After clear:
+emitters: 0
+")
+
+(deftest particlefx-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/particlefx_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-particlefx-test-output out))))
+
+(deftest inheritance-chain-test
+  (testing "hierarchy adherence"
+    (let [h-ref (atom (-> (make-hierarchy)
+                          (derive :mammal :animal)
+                          (derive :bird :animal)
+                          (derive :dog :mammal)
+                          (derive :cat :mammal)
+                          (derive :sparrow :bird)
+                          (derive :eagle :bird)))
+          sound-chain (graph/make-inheritance-chain h-ref)]
+      (sound-chain :animal (constantly :grunt))
+      (sound-chain :mammal (constantly :roar))
+      (sound-chain :bird (constantly :chirp))
+      (sound-chain :cat #(when (:happy %) :meow))
+      (sound-chain :eagle (constantly :screech))
+      (is (= :chirp ((sound-chain :sparrow) {})))
+      (is (= :screech ((sound-chain :eagle) {})))
+      (is (= :roar ((sound-chain :dog) {})))
+      (is (= :roar ((sound-chain :cat) {})))
+      (is (= :meow ((sound-chain :cat) {:happy true})))))
+  (testing "hierarchy modification"
+    (let [h-ref (atom (derive (make-hierarchy) :mammal :animal))
+          sound-chain (graph/make-inheritance-chain h-ref)]
+      (sound-chain :animal (constantly :grunt))
+      (sound-chain :mammal (constantly :roar))
+      (is (= :roar ((sound-chain :mammal) {})))
+      (is (nil? ((sound-chain :cat) {})))
+      ;; hierarchy is modified
+      (swap! h-ref derive :cat :mammal)
+      (is (= :roar ((sound-chain :cat) {})))
+      ;; chain is modified
+      (sound-chain :cat (constantly :meow))
+      (is (= :meow ((sound-chain :cat) {}))))))

@@ -6,6 +6,7 @@ on:
       - 'skip-ci-*'
       - 'DEFEDIT-*'
       - 'editor-dev'
+
   repository_dispatch: {}
 
 env:
@@ -33,6 +34,7 @@ jobs:
         platform: [win32, x86_64-win32]
 
     runs-on: windows-latest
+    timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
@@ -58,6 +60,7 @@ jobs:
       matrix:
         platform: [x86_64-macos, arm64-macos, arm64-ios, x86_64-ios]
     runs-on: macos-14
+    timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
@@ -80,14 +83,15 @@ jobs:
   bld-eng-web:
     strategy:
       matrix:
-        platform: [js-web, wasm-web]
+        platform: [js-web, wasm-web, wasm_pthread-web]
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
       { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
-      { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@v14, with: {version: '3.1.65'}},
+      { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@v14, with: {version: '4.0.6'}},
       { name: 'Verify emsdk',
         run: 'emcc -v && export | grep EM'
       },
@@ -111,6 +115,7 @@ jobs:
       matrix:
         platform: [armv7-android, arm64-android]
     runs-on: ubuntu-22.04
+    timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
@@ -135,6 +140,7 @@ jobs:
       matrix:
         platform: [x86_64-linux]
     runs-on: ubuntu-22.04
+    timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
@@ -159,6 +165,7 @@ jobs:
       matrix:
         platform: [arm64-linux]
     runs-on: ubuntu-22.04-arm
+    timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
@@ -183,6 +190,7 @@ jobs:
       matrix:
         platform: [arm64-nx64]
     runs-on: windows-latest
+    timeout-minutes: 60
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
@@ -208,6 +216,7 @@ jobs:
       matrix:
         platform: [x86_64-ps4, x86_64-ps5]
     runs-on: windows-latest
+    timeout-minutes: 60
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
@@ -233,6 +242,7 @@ jobs:
   build-bob:
     needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps]
     runs-on: ubuntu-22.04
+    timeout-minutes: 15
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
@@ -263,6 +273,7 @@ jobs:
   build-sdk:
     needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps]
     runs-on: ubuntu-22.04
+    timeout-minutes: 10
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.13} },
@@ -284,6 +295,7 @@ jobs:
   build-editor:
     needs: [build-bob]
     runs-on: ubuntu-22.04
+    timeout-minutes: 60
     steps: [
       {
         name: 'Checkout',
@@ -318,6 +330,7 @@ jobs:
   sign-editor-darwin:
     needs: [build-editor]
     runs-on: macOS-14
+    timeout-minutes: 60
     strategy:
       matrix:
         platform: [x86_64-macos, arm64-macos]
@@ -362,6 +375,7 @@ jobs:
   sign-editor-windows:
     needs: [build-editor]
     runs-on: ubuntu-22.04
+    timeout-minutes: 15
     strategy:
       matrix:
         platform: [x86_64-win32]

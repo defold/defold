@@ -25,66 +25,36 @@
             [editor.view :as view]
             [editor.workspace :as workspace]
             [service.log :as log]
-            [util.http-server :as http-server]
-            [util.http-util :as http-util])
+            [util.http-server :as http-server])
   (:import [java.net URI URLDecoder]
+           [javafx.beans.value ChangeListener]
+           [javafx.concurrent Worker$State]
            [javafx.scene Parent]
            [javafx.scene.control Tab]
-           [javafx.scene.web WebEngine WebView WebEvent]
-           [javafx.concurrent Worker$State]
+           [javafx.scene.web WebEngine WebEvent WebView]
            [org.w3c.dom Document Element NodeList]
            [org.w3c.dom.events Event EventListener EventTarget]))
 
 (set! *warn-on-reflection* true)
 
-;; TODO: stop on closing, restart with new project id on new project.
-(defonce http-server (atom nil))
-
-(def ^:private known-content-types
-  {"jpg"  "image/jpeg"
-   "jpeg" "image/jpeg"
-   "png"  "image/png"
-   "js"   "application/javascript"
-   "css"  "text/css"})
-
-(defn- resource-handler [project request]
-  (if-let [node (project/get-resource-node project (:url request))]
-    (let [resource      (g/node-value node :resource)
-          resource-type (resource/resource-type resource)
-          resource-ext  (resource/type-ext resource)
-          view-types    (map :id (:view-types resource-type))]
-      (cond
-        (some #{:html} view-types)
-        (let [body (g/node-value node :html)]
-          (if-let [error (g/error? body)]
-            {:code    500
-             :headers {"Content-Type" "text/html; charset=utf-8"}
-             :body    (format "Couldn't render %s: %s\n"
-                              (resource/resource->proj-path resource)
-                              (or (:message error) "Unknown reason"))}
-            {:code    200
-             :headers {"Content-Type" "text/html; charset=utf-8"}
-             :body    body}))
-
-        (contains? known-content-types resource-ext)
-        {:code    200
-         :headers {"Content-Type" (known-content-types resource-ext)}
-         :body    resource}
-
-        :else
-        (do (log/warn :message (format "Unknown content-type %s for %s" resource-ext resource))
-            http-util/not-found-response)))
-    (do (log/warn :message (format "Cannot find resource for %s" (:url request)))
-        http-util/not-found-response)))
-
-(defn- get-http-server!
-  [project]
-  (when-not @http-server
-    (let [http-handlers {"/", (partial resource-handler project)}
-          server (http-server/->server "127.0.0.1" 0 http-handlers)]
-      (http-server/start! server)
-      (reset! http-server server)))
-  @http-server)
+(defn- make-resource-server [project]
+  (http-server/start!
+    (http-server/router-handler
+      {"{*path}"
+       {"GET" (fn [{:keys [path]}]
+                (if-let [node (project/get-resource-node project path)]
+                  (let [resource (g/node-value node :resource)]
+                    (if (resource/has-view-type? resource :html)
+                      (let [body (g/node-value node :html)]
+                        (if-let [error (g/error? body)]
+                          (http-server/response 500 (format "Couldn't render %s: %s\n"
+                                                            (resource/resource->proj-path resource)
+                                                            (or (:message error) "Unknown reason")))
+                          (http-server/response 200 {"content-type" "text/html; charset=utf-8"} body)))
+                      (http-server/response 200 resource)))
+                  (do (log/warn :message (format "Cannot find resource for %s" path))
+                      http-server/not-found)))}})
+    :host "127.0.0.1"))
 
 ;; make NodeList reducible
 
@@ -131,17 +101,15 @@
 (defmethod url->command "open"
   [^URI uri {:keys [project]}]
   (let [params (query-params->map (.getQuery uri))
-        proj-path (:path params)
-        resource-id (project/get-resource-node project proj-path)
-        resource (g/node-value resource-id :resource)]
-    {:command   :open
-     :user-data {:resources [resource]}}))
+        proj-path (:path params)]
+    {:command   :file.open
+     :user-data proj-path}))
 
 (defmethod url->command "add-dependency"
   [^URI uri {:keys [project]}]
   (let [params (query-params->map (.getQuery uri))
         dep-url (:url params)]
-    {:command   :add-dependency
+    {:command   :private/add-dependency
      :user-data {:dep-url dep-url}}))
 
 (defmethod url->command :default
@@ -230,35 +198,28 @@
                     nil)))
     web-view))
 
-(defn- resource-url [http-server resource]
-  (when resource
-    (str (http-server/url http-server)
-         (resource/proj-path resource))))
-
-(g/defnk produce-update-web-view! [^WebView web-view resource-node _node-id html]
+(g/defnk produce-update-web-view! [^WebView web-view resource-node server-url _node-id html]
   (when resource-node
     (let [web-engine (.getEngine web-view)
-          resource (g/node-value resource-node :resource)
-          project (project/get-project resource-node)
-          url (resource-url (get-http-server! project) resource)]
-      (.load web-engine url))))
+          resource (g/node-value resource-node :resource)]
+      (.load web-engine (str server-url (resource/proj-path resource))))))
 
-(defn- handle-location-change! [project view-id new-location]
-  (let [url (http-server/url (get-http-server! project))]
-    (if-let [new-resource-node
-             (when (string/starts-with? new-location url)
-               (let [resource-path (URLDecoder/decode (subs new-location (count url)))
-                     resource-node (project/get-resource-node project resource-path)]
-                 (when-let [resource (g/node-value resource-node :resource)]
-                   (when (resource/has-view-type? resource :html)
-                     resource-node))))]
-      (g/transact [(g/connect new-resource-node :html view-id :html)
-                   (view/connect-resource-node view-id new-resource-node)])
-      (log/warn :message (format "Moving to non-local url or missing resource: %s" new-location)))))
+(defn- handle-location-change! [url project view-id new-location]
+  (if-let [new-resource-node
+           (when (string/starts-with? new-location url)
+             (let [resource-path (URLDecoder/decode (subs new-location (count url)))
+                   resource-node (project/get-resource-node project resource-path)]
+               (when-let [resource (g/node-value resource-node :resource)]
+                 (when (resource/has-view-type? resource :html)
+                   resource-node))))]
+    (g/transact [(g/connect new-resource-node :html view-id :html)
+                 (view/connect-resource-node view-id new-resource-node)])
+    (log/warn :message (format "Moving to non-local url or missing resource: %s" new-location))))
 
 (g/defnode WebViewNode
   (inherits view/WorkbenchView)
   (property web-view WebView)
+  (property server-url g/Str)
   (input html g/Str)
   (output update-web-view g/Any :cached produce-update-web-view!)) 
 
@@ -267,18 +228,20 @@
   (let [project (or (:project opts) (project/get-project html-node))
         web-view (make-web-view project)
         web-engine (.getEngine web-view)
-        view-id (g/make-node! graph WebViewNode :web-view web-view)
+        server (make-resource-server project)
+        server-url (http-server/url server)
+        view-id (g/make-node! graph WebViewNode :web-view web-view :server-url server-url)
+        ^Tab tab (:tab opts)
         repainter (ui/->timer 30 "update-web-view!" (fn [_ _ _]
-                                                      (when (.isSelected ^Tab (:tab opts))
+                                                      (when (.isSelected tab)
                                                         (g/node-value view-id :update-web-view))))]
 
     (.addListener (.locationProperty web-engine)
-                  (ui/change-listener _ _ new-location (handle-location-change! project view-id new-location)))
+                  ^ChangeListener
+                  (ui/change-listener _ _ new-location (handle-location-change! server-url project view-id new-location)))
 
     (ui/children! parent [web-view])
     (ui/fill-control web-view)
-
-    (ui/context! web-view :browser {:web-engine web-engine} nil)
 
     (doto web-engine
       (.setOnAlert (ui/event-handler ev
@@ -288,8 +251,9 @@
                         :header (.getData ^WebEvent ev)})))
       (.setUserStyleSheetLocation (str (io/resource "markdown.css"))))
     (ui/timer-start! repainter)
-    (when-some [^Tab tab (:tab opts)]
-      (ui/timer-stop-on-closed! tab repainter))
+    (ui/on-closed! tab (fn [_]
+                         (ui/timer-stop! repainter)
+                         (http-server/stop! server 0)))
     view-id))
 
 (defn register-view-types [workspace]
@@ -297,10 +261,3 @@
                                 :id :html
                                 :label "Web"
                                 :make-view-fn make-view))
-
-(handler/defhandler :reload :browser
-  (run [^WebEngine web-engine]
-    (.reload web-engine)))
-
-(handler/register-menu! ::menubar :editor.app-view/edit-end
-  [{:command :reload :label "Reload"}])

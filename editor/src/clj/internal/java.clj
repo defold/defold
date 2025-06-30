@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.java
-  (:import [clojure.lang DynamicClassLoader]
+  (:import [clojure.lang DynamicClassLoader Util]
            [java.lang.reflect Constructor Method Modifier]))
 
 (set! *warn-on-reflection* true)
@@ -80,3 +80,20 @@
 
 (defn load-class! [class-name]
   (Class/forName class-name true class-loader))
+
+(defn- combine-comparisons-syntax [exp & rest-exps]
+  (if (empty? rest-exps)
+    exp
+    (let [comparison-sym (gensym "comparison")]
+      `(let [~comparison-sym ~exp]
+         (if (zero? ~comparison-sym)
+           ~(apply combine-comparisons-syntax rest-exps)
+           ~comparison-sym)))))
+
+(defmacro combine-comparisons [& exps]
+  (apply combine-comparisons-syntax exps))
+
+(defmacro combine-hashes [exp & rest-exps]
+  (list* `-> exp
+         (map #(list `Util/hashCombine %)
+              rest-exps)))

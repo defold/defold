@@ -38,7 +38,8 @@ HConstant NewConstant(dmhash_t name_hash)
 
 void DeleteConstant(HConstant constant)
 {
-    dmMemory::AlignedFree(constant->m_Values);
+   if (constant->m_AllocatedValues)
+        dmMemory::AlignedFree(constant->m_Values);
     delete constant;
 }
 
@@ -57,12 +58,27 @@ Result SetConstantValues(HConstant constant, dmVMath::Vector4* values, uint32_t 
         {
             return RESULT_OUT_OF_RESOURCES;
         }
-        dmMemory::AlignedFree(constant->m_Values);
+        if (constant->m_AllocatedValues)
+            dmMemory::AlignedFree(constant->m_Values);
         constant->m_Values = newmem;
     }
 
     memcpy(constant->m_Values, values, num_values * sizeof(dmVMath::Vector4));
     constant->m_NumValues = num_values;
+    constant->m_AllocatedValues = 1;
+
+    return dmRender::RESULT_OK;
+}
+
+Result SetConstantValuesRef(HConstant constant, dmVMath::Vector4* values, uint32_t num_values)
+{
+   if (constant->m_AllocatedValues)
+        dmMemory::AlignedFree(constant->m_Values);
+
+    constant->m_AllocatedValues = 0;
+    constant->m_NumValues = num_values;
+    constant->m_Values    = values;
+
     return dmRender::RESULT_OK;
 }
 
@@ -341,7 +357,7 @@ static inline void IterateConstants(IterateConstantCtx* context, const uint64_t*
     context->m_Callback(constant->m_NameHash, context->m_Ctx);
 }
 
-void IterateNamedConstants(HNamedConstantBuffer buffer, void (*callback)(dmhash_t name_hash, void* ctx), void* ctx)
+void IterateNamedConstants(HNamedConstantBuffer buffer, IterateNamedConstantsFn callback, void* ctx)
 {
     IterateConstantCtx context;
     context.m_Ctx = ctx;

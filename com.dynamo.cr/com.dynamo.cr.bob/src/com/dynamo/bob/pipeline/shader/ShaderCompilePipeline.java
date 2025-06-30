@@ -14,7 +14,6 @@
 
 package com.dynamo.bob.pipeline.shader;
 
-import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 import java.io.File;
 import java.io.IOException;
@@ -37,6 +36,7 @@ import org.apache.commons.io.FileUtils;
 public class ShaderCompilePipeline {
     public static class Options {
         public boolean splitTextureSamplers;
+        public ArrayList<String> defines = new ArrayList<>();
     }
 
     public static class ShaderModuleDesc {
@@ -64,22 +64,20 @@ public class ShaderCompilePipeline {
     private static String tintExe = null;
     private static String glslangExe = null;
     private static String spirvOptExe = null;
+    private static String spirvCrossExe = null;
 
     public ShaderCompilePipeline(String pipelineName) throws IOException {
         this.pipelineName = pipelineName;
-        if (tintExe == null)
-            tintExe = Bob.getExe(Platform.getHostPlatform(), "tint");
-        if (glslangExe == null)
-            glslangExe = Bob.getExe(Platform.getHostPlatform(), "glslang");
-        if (spirvOptExe == null)
-            spirvOptExe = Bob.getExe(Platform.getHostPlatform(), "spirv-opt");
+        tintExe = Bob.getHostExeOnce("tint", tintExe);
+        glslangExe = Bob.getHostExeOnce("glslang", glslangExe);
+        spirvOptExe = Bob.getHostExeOnce("spirv-opt", spirvOptExe);
     }
 
     protected void reset() {
         shaderModules.clear();
     }
 
-    private static String shaderTypeToSpirvStage(ShaderDesc.ShaderType shaderType) {
+    private static String ShaderTypeToSpirvStage(ShaderDesc.ShaderType shaderType) {
         return switch (shaderType) {
             case SHADER_TYPE_VERTEX -> "vert";
             case SHADER_TYPE_FRAGMENT -> "frag";
@@ -87,7 +85,7 @@ public class ShaderCompilePipeline {
         };
     }
 
-    private static Integer shaderLanguageToVersion(ShaderDesc.Language shaderLanguage) {
+    private static Integer ShaderLanguageToVersion(ShaderDesc.Language shaderLanguage) {
         return switch (shaderLanguage) {
             case LANGUAGE_GLSL_SM120 -> 120;
             case LANGUAGE_GLES_SM100 -> 100;
@@ -99,7 +97,15 @@ public class ShaderCompilePipeline {
         };
     }
 
-    protected static boolean shaderLanguageIsGLSL(ShaderDesc.Language shaderLanguage) {
+    protected static int ToShadercShaderStageValue(ShaderDesc.ShaderType type) {
+        return switch (type) {
+            case SHADER_TYPE_VERTEX -> Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue();
+            case SHADER_TYPE_FRAGMENT -> Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
+            case SHADER_TYPE_COMPUTE -> Shaderc.ShaderStage.SHADER_STAGE_COMPUTE.getValue();
+        };
+    }
+
+    protected static boolean ShaderLanguageIsGLSL(ShaderDesc.Language shaderLanguage) {
         return shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ||
@@ -107,13 +113,13 @@ public class ShaderCompilePipeline {
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM430;
     }
 
-    protected static boolean canBeCrossCompiled(ShaderDesc.Language shaderLanguage) {
-        return shaderLanguageIsGLSL(shaderLanguage) ||
+    protected static boolean CanBeCrossCompiled(ShaderDesc.Language shaderLanguage) {
+        return ShaderLanguageIsGLSL(shaderLanguage) ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL;
     }
 
-    private static byte[] remapTextureSamplers(ArrayList<Shaderc.ShaderResource> textures, String source) {
+    private static byte[] RemapTextureSamplers(ArrayList<Shaderc.ShaderResource> textures, String source) {
         // Textures are remapped via spirv-cross according to:
         //   SPIRV_Cross_Combined<TEXTURE_NAME><SAMPLER_NAME>
         //
@@ -138,6 +144,9 @@ public class ShaderCompilePipeline {
     protected static String intermediateResourceToProjectPath(String message, String projectPath) {
         String[] knownFileExtensions = new String[] { "glsl", "spv", "wgsl", "hlsl" };
         String replacementRegex = String.format("/[^\\s:]+\\.(%s)(?=:)", String.join("|", knownFileExtensions));
+        if (projectPath == null) {
+            return message;
+        }
         return message.replaceAll(replacementRegex, projectPath);
     }
 
@@ -162,27 +171,39 @@ public class ShaderCompilePipeline {
     }
 
     protected static void generateHLSL(String resourcePath, String pathFileInSpv, String pathFileOutHLSL) throws IOException, CompileExceptionError {
+        spirvCrossExe = Bob.getHostExeOnce("spirv-cross", spirvCrossExe);
         Result result = Exec.execResult(
-            Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
+            spirvCrossExe,
             pathFileInSpv,
             "--output", pathFileOutHLSL,
             "--hlsl",
-            "--shader-model", shaderLanguageToVersion(ShaderDesc.Language.LANGUAGE_HLSL).toString());
+            "--shader-model", ShaderLanguageToVersion(ShaderDesc.Language.LANGUAGE_HLSL).toString());
         checkResult(resourcePath, result);
     }
 
     private void generateSPIRv(String resourcePath, ShaderDesc.ShaderType shaderType, String pathFileInGLSL, String pathFileOutSpv) throws IOException, CompileExceptionError {
-        Result result = Exec.execResult(glslangExe,
-            "-w",
-            "--entry-point", "main",
-            "--auto-map-bindings",
-            "--auto-map-locations",
-            "-Os",
-            "--resource-set-binding", "frag", "1",
-            "-S", shaderTypeToSpirvStage(shaderType),
-            "-o", pathFileOutSpv,
-            "-V",
-            pathFileInGLSL);
+        ArrayList<String> args = new ArrayList<>();
+        args.add(glslangExe);
+        args.add("-w");
+        args.add("--entry-point");
+        args.add("main");
+        args.add("--auto-map-bindings");
+        args.add("--auto-map-locations");
+        args.add("-Os");
+        args.add("--resource-set-binding");
+        args.add("frag");
+        args.add("1");
+        args.add("-S");
+        args.add(ShaderTypeToSpirvStage(shaderType));
+        args.add("-o");
+        args.add(pathFileOutSpv);
+        args.add("-V");
+        for (String define : this.options.defines) {
+            args.add("-D" + define);
+        }
+        args.add(pathFileInGLSL);
+
+        Result result = Exec.execResult(args.toArray(new String[0]));
         checkResult(resourcePath, result);
     }
 
@@ -204,7 +225,7 @@ public class ShaderCompilePipeline {
         return null;
     }
 
-    protected byte[] generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut) {
+    protected Shaderc.ShaderCompileResult generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut) {
 
         long compiler = 0;
 
@@ -223,12 +244,6 @@ public class ShaderCompilePipeline {
         opts.removeUnusedVariables = 1;
         opts.no420PackExtension    = 1;
 
-        switch (shaderType) {
-            case SHADER_TYPE_VERTEX -> opts.stage = Shaderc.ShaderStage.SHADER_STAGE_VERTEX;
-            case SHADER_TYPE_FRAGMENT -> opts.stage = Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT;
-            case SHADER_TYPE_COMPUTE -> opts.stage = Shaderc.ShaderStage.SHADER_STAGE_COMPUTE;
-        }
-
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120) {
             opts.glslEmitUboAsPlainUniforms = 1;
         }
@@ -237,7 +252,7 @@ public class ShaderCompilePipeline {
             opts.glslEs = 1;
         }
 
-        byte[] result = ShadercJni.Compile(module.spirvContext, compiler, opts);
+        Shaderc.ShaderCompileResult result = ShadercJni.Compile(module.spirvContext, compiler, opts);
         ShadercJni.DeleteShaderCompiler(compiler);
         return result;
     }
@@ -251,9 +266,12 @@ public class ShaderCompilePipeline {
             return;
         }
 
+        ShaderModule vertexModule = null;
+        ShaderModule fragmentModule = null;
+
         // Generate SPIR-V for each module
         for (ShaderModule module : this.shaderModules) {
-            String baseName = this.pipelineName + "." + shaderTypeToSpirvStage(module.desc.type);
+            String baseName = this.pipelineName + "." + ShaderTypeToSpirvStage(module.desc.type);
 
             File fileInGLSL = File.createTempFile(baseName, ".glsl");
             FileUtil.deleteOnExit(fileInGLSL);
@@ -275,17 +293,136 @@ public class ShaderCompilePipeline {
             generateSPIRvOptimized(module.desc.resourcePath, fileOutSpv.getAbsolutePath(), fileOutSpvOpt.getAbsolutePath());
 
             module.spirvFile = fileOutSpvOpt;
-            module.spirvContext = ShadercJni.NewShaderContext(FileUtils.readFileToByteArray(fileOutSpvOpt));
+            module.spirvContext = ShadercJni.NewShaderContext(ToShadercShaderStageValue(module.desc.type), FileUtils.readFileToByteArray(fileOutSpvOpt));
             module.spirvReflector = new SPIRVReflector(module.spirvContext, module.desc.type);
             module.shaderInfo = ShaderUtil.Common.getShaderInfo(module.desc.source);
+
+            if (module.desc.type == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX) {
+                vertexModule = module;
+            } else if (module.desc.type == ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT) {
+                fragmentModule = module;
+            }
         }
+
+        // Potentially post-fix the modules so they are compatible in runtime
+        if (vertexModule != null && fragmentModule != null) {
+            ArrayList<Long> mergedResources = new ArrayList<>();
+            long compilerFs = remapOutputsAndInputs(vertexModule, fragmentModule);
+            compilerFs = mergeResources(vertexModule, fragmentModule, compilerFs, mergedResources);
+
+            // If we remapped the input/outputs or the resources, we need to re-generate the spir-v
+            if (compilerFs != 0) {
+                Shaderc.ShaderCompilerOptions opts = new Shaderc.ShaderCompilerOptions();
+                opts.entryPoint = "main";
+
+                Shaderc.ShaderCompileResult remappedSpv = ShadercJni.Compile(fragmentModule.spirvContext, compilerFs, opts);
+                long remappedSpvContext = ShadercJni.NewShaderContext(ToShadercShaderStageValue(fragmentModule.desc.type), remappedSpv.data);
+
+                ShadercJni.DeleteShaderCompiler(compilerFs);
+                ShadercJni.DeleteShaderContext(fragmentModule.spirvContext);
+
+                String baseName = this.pipelineName + "." + ShaderTypeToSpirvStage(fragmentModule.desc.type);
+                File remappedSpvFile = File.createTempFile(baseName, ".remapped.spv");
+                FileUtil.deleteOnExit(remappedSpvFile);
+                FileUtils.writeByteArrayToFile(remappedSpvFile, remappedSpv.data);
+
+                fragmentModule.spirvContext = remappedSpvContext;
+                fragmentModule.spirvReflector = new SPIRVReflector(remappedSpvContext, fragmentModule.desc.type);
+                fragmentModule.spirvFile = remappedSpvFile;
+
+                // Update the reflection for the vertex module
+                vertexModule.spirvReflector = new SPIRVReflector(vertexModule.spirvContext, vertexModule.desc.type);
+
+                for (Long mergedResource : mergedResources) {
+                    fragmentModule.spirvReflector.removeResourceByNameHash(mergedResource);
+                }
+
+                // TODO!
+                // We can improve the "merge process" here by also merging the reflection data.
+                // If two resources are merged, we don't need to keep the type data in both SPIRVReflectors.
+                // But as this is a bit more complicated (we need to adjust resources indices and whatnot), this
+                // can wait a bit until we are certain the merging works.
+            }
+        }
+    }
+
+    private long mergeResources(ShaderModule vertexModule, ShaderModule fragmentModule, long compiler, ArrayList<Long> mergedResources) throws CompileExceptionError {
+        // Check the resources to see if we can merge resources from one stage to another
+        int mergedStageFlags = Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue() + Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
+
+        for (Shaderc.ShaderResource vsUbo : vertexModule.spirvReflector.getUBOs()) {
+            for (Shaderc.ShaderResource fsUbo : fragmentModule.spirvReflector.getUBOs()) {
+
+                if (SPIRVReflector.CanMergeResources(vertexModule.spirvReflector, fragmentModule.spirvReflector, vsUbo, fsUbo)) {
+                    if (compiler == 0) {
+                        compiler = ShadercJni.NewShaderCompiler(fragmentModule.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_SPIRV.getValue());
+                    }
+                    ShadercJni.SetResourceBinding(fragmentModule.spirvContext, compiler, vsUbo.nameHash, vsUbo.binding);
+                    ShadercJni.SetResourceSet(fragmentModule.spirvContext, compiler, vsUbo.nameHash, vsUbo.set);
+                    ShadercJni.SetResourceStageFlags(vertexModule.spirvContext, vsUbo.nameHash, mergedStageFlags);
+
+                    mergedResources.add(vsUbo.nameHash);
+                }
+            }
+        }
+
+        for (Shaderc.ShaderResource vsTexture : vertexModule.spirvReflector.getTextures()) {
+            for (Shaderc.ShaderResource fsTexture : fragmentModule.spirvReflector.getTextures()) {
+
+                if (SPIRVReflector.CanMergeResources(vertexModule.spirvReflector, fragmentModule.spirvReflector, vsTexture, fsTexture)) {
+                    if (compiler == 0) {
+                        compiler = ShadercJni.NewShaderCompiler(fragmentModule.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_SPIRV.getValue());
+                    }
+                    ShadercJni.SetResourceBinding(fragmentModule.spirvContext, compiler, vsTexture.nameHash, vsTexture.binding);
+                    ShadercJni.SetResourceSet(fragmentModule.spirvContext, compiler, vsTexture.nameHash, vsTexture.set);
+                    ShadercJni.SetResourceStageFlags(vertexModule.spirvContext, vsTexture.nameHash, mergedStageFlags);
+
+                    mergedResources.add(vsTexture.nameHash);
+                }
+            }
+        }
+
+        for (Shaderc.ShaderResource vsSsbo : vertexModule.spirvReflector.getSsbos()) {
+            for (Shaderc.ShaderResource fsSsbo : fragmentModule.spirvReflector.getSsbos()) {
+
+                if (SPIRVReflector.CanMergeResources(vertexModule.spirvReflector, fragmentModule.spirvReflector, vsSsbo, fsSsbo)) {
+                    if (compiler == 0) {
+                        compiler = ShadercJni.NewShaderCompiler(fragmentModule.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_SPIRV.getValue());
+                    }
+                    ShadercJni.SetResourceBinding(fragmentModule.spirvContext, compiler, vsSsbo.nameHash, vsSsbo.binding);
+                    ShadercJni.SetResourceSet(fragmentModule.spirvContext, compiler, vsSsbo.nameHash, vsSsbo.set);
+                    ShadercJni.SetResourceStageFlags(vertexModule.spirvContext, vsSsbo.nameHash, mergedStageFlags);
+
+                    mergedResources.add(vsSsbo.nameHash);
+                }
+            }
+        }
+
+        return compiler;
+    }
+
+    private long remapOutputsAndInputs(ShaderModule vertexModule, ShaderModule fragmentModule) {
+        long compiler = 0;
+        // Check the inputs / output to see if we need to remap locations from vs module outputs -> inputs
+        for (Shaderc.ShaderResource output : vertexModule.spirvReflector.getOutputs()) {
+            for (Shaderc.ShaderResource input : fragmentModule.spirvReflector.getInputs()) {
+                if (output.name.equals(input.name) && output.location != input.location) {
+                    // Location mismatch!
+                    if (compiler == 0) {
+                        compiler = ShadercJni.NewShaderCompiler(fragmentModule.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_SPIRV.getValue());
+                    }
+                    ShadercJni.SetResourceLocation(fragmentModule.spirvContext, compiler, input.nameHash, output.location);
+                }
+            }
+        }
+        return compiler;
     }
 
     //////////////////////////
     // PUBLIC API
     //////////////////////////
     public byte[] crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws IOException, CompileExceptionError {
-        int version = shaderLanguageToVersion(shaderLanguage);
+        int version = ShaderLanguageToVersion(shaderLanguage);
 
         ShaderModule module = getShaderModule(shaderType);
         assert module != null;
@@ -295,7 +432,7 @@ public class ShaderCompilePipeline {
             return FileUtils.readFileToByteArray(module.spirvFile);
         } else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
             // TODO: Move this into the crosscompile function, since we are actually crosscompiling.
-            String shaderTypeStr = shaderTypeToSpirvStage(shaderType);
+            String shaderTypeStr = ShaderTypeToSpirvStage(shaderType);
             String versionStr    = "v" + version;
 
             File fileCrossCompiled = File.createTempFile(this.pipelineName, "." + versionStr + "." + shaderTypeStr);
@@ -303,13 +440,21 @@ public class ShaderCompilePipeline {
 
             generateWGSL(module.desc.resourcePath, module.spirvFile.getAbsolutePath(), fileCrossCompiled.getAbsolutePath());
             return FileUtils.readFileToByteArray(fileCrossCompiled);
-        } else if (canBeCrossCompiled(shaderLanguage)) {
-            byte[] bytes = generateCrossCompiledShader(shaderType, shaderLanguage, version);
+        } else if (CanBeCrossCompiled(shaderLanguage)) {
+            Shaderc.ShaderCompileResult result = generateCrossCompiledShader(shaderType, shaderLanguage, version);
+
+            if (!result.lastError.isEmpty()) {
+                String excludeKey = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ? "exclude_gles_sm100" : null;
+                String exclusionMessage = excludeKey != null ? "\nEnable the 'shader." + excludeKey + "' option in game.project if you don't intend to use this language." : "";
+                throw new CompileExceptionError("Cross-compilation of shader type: " + shaderType + ", to language: " + shaderLanguage + " failed, reason: " + result.lastError + exclusionMessage);
+            }
+
+            byte[] bytes = result.data;
 
             // JG: spirv-cross renames samplers for GLSL based shaders, so we have to run a second pass to force renaming them back.
             //     There doesn't seem to be a simpler way to do this in spirv-cross from what I can understand.
-            if (shaderLanguageIsGLSL(shaderLanguage)) {
-                bytes = remapTextureSamplers(module.spirvReflector.getTextures(), new String(bytes));
+            if (ShaderLanguageIsGLSL(shaderLanguage)) {
+                bytes = RemapTextureSamplers(module.spirvReflector.getTextures(), new String(bytes));
             }
 
             return bytes;

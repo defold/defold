@@ -37,8 +37,8 @@
  *
  * @document
  * @name Hash
- * @namespace dmHash
  * @path engine/dlib/src/dmsdk/dlib/hash.h
+ * @language C++
  */
 
 /*# dmhash_t type definition
@@ -243,7 +243,7 @@ DM_DLLEXPORT void dmHashRelease32(HashState32* hash_state);
  * Initialize hash-state for 64-bit incremental hashing
  * @name dmHashInit64
  * @param hash_state [type: HashState64*] Hash state
- * @param reverse_hash true to enable reverse hashing of buffers up to ::DMHASH_MAX_REVERSE_LENGTH
+ * @param reverse_hash [type: bool] true to enable reverse hashing of buffers up to ::DMHASH_MAX_REVERSE_LENGTH
  */
 DM_DLLEXPORT void dmHashInit64(HashState64* hash_state, bool reverse_hash);
 
@@ -252,7 +252,7 @@ DM_DLLEXPORT void dmHashInit64(HashState64* hash_state, bool reverse_hash);
  * @name dmHashClone64
  * @param hash_state [type: HashState64*] Hash state
  * @param source_hash_state [type: HashState64*] Source hash state
- * @param reverse_hash true [type: bool] to enable reverse hashing of buffers up to ::DMHASH_MAX_REVERSE_LENGTH. Ignored if source state reverse hashing is disabled.
+ * @param reverse_hash [type: bool] true to enable reverse hashing of buffers up to ::DMHASH_MAX_REVERSE_LENGTH. Ignored if source state reverse hashing is disabled.
  */
 DM_DLLEXPORT void dmHashClone64(HashState64* hash_state, const HashState64* source_hash_state, bool reverse_hash);
 

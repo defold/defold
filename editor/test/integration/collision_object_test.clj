@@ -41,17 +41,17 @@
             outline   (g/node-value node-id :node-outline)
             scene     (g/node-value node-id :scene)]
         (is (= 3 (count (:children scene))))
-        (is (= ["Collision Object" "Box" "Capsule" "Sphere"] (outline-seq outline)))))))
+        (is (= ["Collision Object" "<Unnamed Box>" "<Unnamed Capsule>" "<Unnamed Sphere>"] (outline-seq outline)))))))
 
 (deftest add-shapes
   (testing "Adding a sphere"
     (test-util/with-loaded-project
       (let [node-id   (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
         (app-view/select! app-view [node-id])
-        (test-util/handler-run :add [{:name :workbench :env {:selection [node-id] :app-view app-view}}] {:shape-type :type-sphere})
+        (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [node-id] :app-view app-view}}] {:shape-type :type-sphere})
         (let [outline (g/node-value node-id :node-outline)]
           (is (= 4 (count (:children outline))))
-          (is (= "Sphere" (last (outline-seq outline)))))))))
+          (is (= "<Unnamed Sphere>" (last (outline-seq outline)))))))))
 
 (deftest validation
   (test-util/with-loaded-project
@@ -101,7 +101,7 @@
       (testing "Capsule Shape"
         (doseq [original-value [(float 10.0) (double 10.0)]]
           (with-open [_ (test-util/make-graph-reverter project-graph)]
-            (g/set-property! capsule-shape :diameter original-value :height original-value)
+            (g/set-properties! capsule-shape :diameter original-value :height original-value)
             (test-util/manip-scale! capsule-shape [2.0 2.0 2.0])
             (test-util/ensure-number-type-preserving! original-value (g/node-value capsule-shape :diameter))
             (test-util/ensure-number-type-preserving! original-value (g/node-value capsule-shape :height))))))))

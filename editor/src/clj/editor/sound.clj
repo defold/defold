@@ -38,7 +38,7 @@
 
 (def sound-icon "icons/32/Icons_26-AT-Sound.png")
 
-(def supported-audio-formats #{"wav" "ogg"})
+(def supported-audio-formats #{"wav" "ogg" "opus"})
 
 (defn- resource->bytes [resource]
   (with-open [in (io/input-stream resource)]
@@ -56,7 +56,7 @@
             (aget (.getExeSuffixes platform) 0))))
 
 (defn validate-if-ogg [_node-id resource]
-  (when (= "ogg" (resource/ext resource))
+  (when (some #{(resource/ext resource)} ["ogg" "opus"])
     (let [temp-file (fs/create-temp-file! "sound" ".ogg")]
       (try
         (with-open [is (io/input-stream resource)]

@@ -17,6 +17,7 @@ function M.get_prefs_schema()
         }),
         ["test.set"] = editor.prefs.schema.set({item = editor.prefs.schema.string()}),
         ["test.string"] = editor.prefs.schema.string(),
+        ["test.password"] = editor.prefs.schema.password(),
         ["test.tuple"] = editor.prefs.schema.tuple({items = {
             editor.prefs.schema.string(),
             editor.prefs.schema.integer(),
@@ -100,6 +101,13 @@ function M.get_commands()
             editor.prefs.set("test.string", "another_string")
             string = editor.prefs.get("test.string")
             print(("string: %s"):format(string))
+
+            editor.prefs.set("test.password", "password")
+            local password = editor.prefs.get("test.password")
+            print(("password: %s"):format(password))
+            editor.prefs.set("test.password", "another_password")
+            password = editor.prefs.get("test.password")
+            print(("password: %s"):format(password))
             
             editor.prefs.set("test.tuple", {"a string", 12})
             local tuple = editor.prefs.get("test.tuple")

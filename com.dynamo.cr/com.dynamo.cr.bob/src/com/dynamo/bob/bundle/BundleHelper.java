@@ -333,7 +333,12 @@ public class BundleHelper {
         List<ExtenderResource> resources = new ArrayList<>();
 
         if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
-            File packagesDir = new File(buildDir, "packages");
+            File platformDir = new File(buildDir, platform.toString());
+            if (!platformDir.exists()) {
+                platformDir.mkdirs();
+            }
+
+            File packagesDir = new File(platformDir, "packages");
             packagesDir.mkdir();
 
             File resDir = new File(packagesDir, "com.defold.android/res");
@@ -346,7 +351,7 @@ public class BundleHelper {
             Map<String, IResource> androidResources = ExtenderUtil.getAndroidResources(project);
             ExtenderUtil.storeResources(packagesDir, androidResources);
 
-            resources.addAll(ExtenderUtil.listFilesRecursive(buildDir, packagesDir));
+            resources.addAll(ExtenderUtil.listFilesRecursive(platformDir, packagesDir));
         }
 
         return resources;
@@ -965,7 +970,9 @@ public class BundleHelper {
         if (publisher != null && publisher.shouldBeMovedIntoBundleFolder() && publisher instanceof ZipPublisher) {
             ZipPublisher zipPublisher = (ZipPublisher) publisher;
             File zipFile = zipPublisher.getZipFile();
-            Files.move(zipFile.toPath(), (new File(bundleDir, zipFile.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
+            if (zipFile != null && zipFile.exists()) {
+                Files.move(zipFile.toPath(), (new File(bundleDir, zipFile.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
         }
     }
 

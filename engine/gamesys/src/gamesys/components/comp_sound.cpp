@@ -37,7 +37,7 @@ DM_PROPERTY_U32(rmtp_SoundPlaying, 0, PROFILE_PROPERTY_FRAME_RESET, "# sounds pl
 
 namespace dmGameSystem
 {
-    static const dmhash_t SOUND_EXT_HASHES[] = { dmHashString64("wavc"), dmHashString64("oggc") };
+    static const dmhash_t SOUND_EXT_HASHES[] = { dmHashString64("wavc"), dmHashString64("oggc"), dmHashString64("opusc") };
 
     struct PlayEntry
     {
@@ -275,107 +275,8 @@ namespace dmGameSystem
                 update_result = HandleEntryFinishedPlaying(world, entry, i);
             }
         }
-        dmSound::Update();
         return update_result;
     }
-
-    /*# Sound API documentation
-     *
-     * @document
-     * @name Sound
-     * @namespace sound
-     */
-
-    /*# plays a sound
-     * Post this message to a sound-component to make it play its sound. Multiple voices is supported. The limit is set to 32 voices per sound component.
-     *
-     * [icon:attention] Note that gain is in linear scale, between 0 and 1.
-     * To get the dB value from the gain, use the formula `20 * log(gain)`.
-     * Inversely, to find the linear value from a dB value, use the formula
-     * <code>10<sup>db/20</sup></code>.
-     *
-     * [icon:attention] A sound will continue to play even if the game object the sound component belonged to is deleted. You can send a `stop_sound` to stop the sound.
-     *
-     * [icon:attention] `play_id` should be specified in case you want to receive `sound_done` or `sound_stopped` in `on_message()`.
-     *
-     * @message
-     * @name play_sound
-     * @param [delay] [type:number] delay in seconds before the sound starts playing, default is 0.
-     * @param [gain] [type:number] sound gain between 0 and 1, default is 1.
-     * @param [play_id] [type:number] the identifier of the sound, can be used to distinguish between consecutive plays from the same component.
-     * @examples
-     *
-     * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:
-     *
-     * ```lua
-     * msg.post("#sound", "play_sound", {delay = 1, gain = 0.5})
-     * ```
-     *
-     * ```lua
-     * -- use `play_id` and `msg.post()` if you want to recieve `sound_done` or `sound_stopped` in on_message() 
-     * function init()
-     *  msg.post("#sound", "play_sound", {play_id = 1, delay = 1, gain = 0.5})
-     * end
-     *
-     * function on_message(self, message_id, message)
-     *  if message_id == hash("sound_done") then
-     *      print("Sound play id: "..message.play_id)
-     *  end
-     * end
-     * ```
-     */
-
-    /*# stop a playing a sound(s)
-     * Post this message to a sound-component to make it stop playing all active voices
-     *
-     * @message
-     * @name stop_sound
-     * @examples
-     *
-     * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component stop all playing voices:
-     *
-     * ```lua
-     * msg.post("#sound", "stop_sound")
-     * ```
-     */
-
-    /*# set sound gain
-     * Post this message to a sound-component to set gain on all active playing voices.
-     *
-     * [icon:attention] Note that gain is in linear scale, between 0 and 1.
-     * To get the dB value from the gain, use the formula `20 * log(gain)`.
-     * Inversely, to find the linear value from a dB value, use the formula
-     * <code>10<sup>db/20</sup></code>.
-     *
-     * @message
-     * @name set_gain
-     * @param [gain] [type:number] sound gain between 0 and 1, default is 1.
-     * @examples
-     *
-     * Assuming the script belongs to an instance with a sound-component with id "sound", this will set the gain to 0.5
-     *
-     * ```lua
-     * msg.post("#sound", "set_gain", {gain = 0.5})
-     * ```
-     */
-
-    /*# reports when a sound has finished playing
-     * This message is sent back to the sender of a `play_sound` message 
-     * if the sound could be played to completion and a `play_id` was provided with the `play_sound` message.
-     *
-     * @message
-     * @name sound_done
-     * @param [play_id] [type:number] id number supplied when the message was posted.
-     */
-
-    /*# reports when a sound has been manually stopped
-     * This message is sent back to the sender of a `play_sound` message, if the sound
-     * has been manually stopped and a `play_id` was provided with the `play_sound` message.
-     *
-     * @message
-     * @name sound_stopped
-     * @param [play_id] [type:number] id number supplied when the message was posted.
-     */
 
     static dmGameObject::PropertyResult SoundSetParameter(SoundWorld* world, dmGameObject::HInstance instance, SoundComponent* component, dmSound::Parameter type, float value)
     {

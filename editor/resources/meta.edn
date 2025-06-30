@@ -85,7 +85,7 @@
    :path ["engine" "fixed_update_frequency"]}
   {:type :number,
    :help "If the time step is too large, it will be capped to this max value (seconds)",
-   :default 0.5,
+   :default 0.033333,
    :path ["engine" "max_time_step"]}
   {:type :integer,
    :help
@@ -339,6 +339,11 @@
    :deprecated true,
    :label "Output SPIR-V"
    :path ["shader" "output_spirv"]}
+  {:type :boolean
+   :help "Don't compile shaders for devices running OpenGLES 2.0 / WebGL 1.0"
+   :default false
+   :label "Exclude GLES 2.0"
+   :path ["shader" "exclude_gles_sm100"]}
   {:type :number,
    :help
    "seconds to wait before treating a held down keyboard-key to start repeating itself",
@@ -412,6 +417,10 @@
    :help "global gain (volume), 1 by default",
    :default 1.0,
    :path ["sound" "gain"]}
+  {:type :boolean,
+   :help "if enabled, gain is linear. if disabled, uses exponential curve (e.g. 0.5 is 'half volume'). true by default.",
+   :default true,
+   :path ["sound" "use_linear_gain"]}
   {:type :integer,
    :help "max number of different sounds, 128 by default",
    :default 128,
@@ -440,6 +449,22 @@
    :help "Enables sound threading",
    :default true,
    :path ["sound" "use_thread"]}
+  {:type :boolean,
+   :help "Enables sound streaming",
+   :default false,
+   :path ["sound" "stream_enabled"]}
+  {:type :integer,
+   :help "Size in bytes of each chunk that is loaded from a sound file, 16384 by default",
+   :default 16384,
+   :path ["sound" "stream_chunk_size"]}
+  {:type :integer,
+   :help "Size in bytes of the initial chunk that is loaded from each sound file, 16384 by default",
+   :default 16384,
+   :path ["sound" "stream_preload_size"]}
+  {:type :integer,
+   :help "Size in bytes of the sound streaming cache containing all chunks, 2097152 by default",
+   :default 2097152,
+   :path ["sound" "stream_cache_size"]}
   {:type :integer,
    :help "max number of sprites, 128 by default",
    :default 128,
@@ -457,6 +482,14 @@
    :help "Split meshes with more than 65536 vertices into new meshes. 0 by default",
    :default false,
    :path ["model" "split_meshes"]}
+  {:type :integer,
+   :help "Max width of the bone matrix texture, 1024 by default. only the size needed for the animations will be used, and the value will rounded up to nearest PO2.",
+   :default 1024,
+   :path ["model" "max_bone_matrix_texture_width"]}
+  {:type :integer,
+   :help "Max height of the bone matrix texture, 1024 by default. only the size needed for the animations will be used, and the value will rounded up to nearest PO2.",
+   :default 1024,
+   :path ["model" "max_bone_matrix_texture_height"]}
   {:type :integer,
    :help "max number of mesh components, 128 by default",
    :default 128,
@@ -500,10 +533,6 @@
    :help "max number of particle fx emitters, 64 by default",
    :default 64,
    :path ["particle_fx" "max_emitter_count"]}
-  {:type :integer,
-   :help "max total number of living particles, 1024 by default",
-   :default 1024,
-   :path ["particle_fx" "max_particle_count"]}
   {:type :integer,
    :help "max number of collection proxies, 8 by default",
    :default 8,
@@ -907,17 +936,25 @@
    :help "enable CPU usage sampling in release"
    :default false
    :path ["profiler" "track_cpu"]}
+  {:type :boolean
+   :help "enable in game profiler"
+   :default true
+   :path ["profiler" "enabled"]}
   {:type :integer
    :help "Number of milliseconds to sleep between server updates"
    :default 0
    :path ["profiler" "sleep_between_server_updates"]}
+  {:type :boolean
+   :help "enable in browser performance timeline"
+   :default false
+   :path ["profiler" "performance_timeline_enabled"]}
   {:type :resource
    :filter "settings"
    :default "/liveupdate.settings"
    :help "liveupdate settings"
    :preserve-extension true,
    :path ["liveupdate" "settings"]}
-   {:type :boolean
+  {:type :boolean
    :filter "settings"
    :default true
    :help "enables auto-mount of previously mounted resources when the application starts"

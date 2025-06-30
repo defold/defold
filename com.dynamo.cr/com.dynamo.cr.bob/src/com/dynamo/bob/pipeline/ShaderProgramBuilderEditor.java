@@ -15,6 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.pipeline.shader.SPIRVReflector;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics;
 
@@ -35,18 +36,11 @@ public class ShaderProgramBuilderEditor {
         shaderDescs.add(module);
 
         ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
-        ShaderCompilePipeline pipeline;
+        options.defines.add("EDITOR");
 
-        try {
-            pipeline = ShaderProgramBuilder.newShaderPipeline(resourcePath, shaderDescs, options);
-        } catch (Exception e) {
-            // We don't have a graceful way to handle shader errors in the editor except for building/bundling
-            return new ShaderUtil.Common.GLSLCompileResult(source);
-        }
-
+        ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourcePath, shaderDescs, options);
         byte[] result = pipeline.crossCompile(shaderType, shaderLanguage);
         String compiledSource = new String(result);
-
         ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(compiledSource, maxPageCount);
 
         // If the variant transformation didn't do anything, we pass the original source but without array samplers
@@ -102,7 +96,14 @@ public class ShaderProgramBuilderEditor {
                     shaderTypeKeys.put(shaderModule.type, true);
                 }
 
-                byte[] source = pipeline.crossCompile(shaderModule.type, shaderLanguage);
+                byte[] source;
+                try {
+                    source = pipeline.crossCompile(shaderModule.type, shaderLanguage);
+                } catch (CompileExceptionError e) {
+                    shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(new String[]{e.getMessage()}));
+                    continue;
+                }
+
                 boolean variantTextureArray = false;
 
                 if (ShaderUtil.VariantTextureArrayFallback.isRequired(shaderLanguage)) {
@@ -127,11 +128,13 @@ public class ShaderProgramBuilderEditor {
         ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
 
         for(Graphics.ShaderDesc.ShaderType type : shaderTypeKeys.keySet()) {
-            compileResult.reflectors.add(pipeline.getReflectionData(type));
+            SPIRVReflector reflector = pipeline.getReflectionData(type);
+            if (reflector != null) {
+                compileResult.reflectors.add(reflector);
+            }
         }
 
         compileResult.shaderBuildResults = shaderBuildResults;
-
         return buildResultsToShaderDescBuildResults(compileResult);
     }
 }

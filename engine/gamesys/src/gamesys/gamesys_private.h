@@ -67,6 +67,8 @@ namespace dmGameSystem
     static const dmhash_t PROP_TEXTURES = dmHashString64("textures");
     static const dmhash_t PROP_TILE_SOURCE = dmHashString64("tile_source");
 
+    static const dmGraphics::TextureFormat BIND_POSE_CACHE_TEXTURE_FORMAT = dmGraphics::TEXTURE_FORMAT_RGBA32F;
+
     struct EmitterStateChangedScriptData
     {
         EmitterStateChangedScriptData()
@@ -145,11 +147,13 @@ namespace dmGameSystem
         dmGraphics::TextureImage::CompressionType m_CompressionType;
         dmBuffer::HBuffer                         m_Buffer;
         const void*                               m_Data;
-        uint32_t                                  m_Width;
-        uint32_t                                  m_Height;
-        uint32_t                                  m_MaxMipMaps;
-        uint32_t                                  m_TextureBpp;
-        uint32_t                                  m_UsageFlags;
+        uint16_t                                  m_Width;
+        uint16_t                                  m_Height;
+        uint16_t                                  m_Depth;
+        uint16_t                                  m_MaxMipMaps;
+        uint16_t                                  m_TextureBpp;
+        uint16_t                                  m_UsageFlags;
+        uint8_t                                   m_LayerCount;
     };
 
     struct SetTextureResourceParams
@@ -160,12 +164,15 @@ namespace dmGameSystem
         dmGraphics::TextureImage::CompressionType m_CompressionType;
         const void*                               m_Data;
         size_t                                    m_DataSize;
-        uint32_t                                  m_Width;
-        uint32_t                                  m_Height;
-        uint32_t                                  m_X;
-        uint32_t                                  m_Y;
-        uint32_t                                  m_MipMap;
-        bool                                      m_SubUpdate;
+        uint16_t                                  m_Width;
+        uint16_t                                  m_Height;
+        uint16_t                                  m_Depth;
+        uint16_t                                  m_X;
+        uint16_t                                  m_Y;
+        uint16_t                                  m_Z;
+        uint16_t                                  m_Slice;
+        uint16_t                                  m_MipMap : 15;
+        bool                                      m_SubUpdate : 1;
     };
 
     dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageFormat(dmGraphics::TextureFormat textureformat);
@@ -175,7 +182,6 @@ namespace dmGameSystem
     void FillTextureResourceBuffer(const dmGraphics::TextureImage* texture_image, dmArray<uint8_t>& texture_resource_buffer);
     dmResource::Result CreateTextureResource(dmResource::HFactory factory, const CreateTextureResourceParams& create_params, void** resource_out);
     dmResource::Result SetTextureResource(dmResource::HFactory factory, const SetTextureResourceParams& params);
-    dmResource::Result ReleaseDynamicResource(dmResource::HFactory factory, dmGameObject::HCollection collection, dmhash_t path_hash);
 }
 
 #endif // DM_GAMESYS_PRIVER_H

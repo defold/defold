@@ -564,7 +564,7 @@ namespace dmGameObject
                 lua_settable(L, -3);
             }
 
-            if (params.m_InputAction->m_ActionId != 0)
+            if (params.m_InputAction->m_ActionId != 0 && !params.m_InputAction->m_HasText)
             {
                 lua_pushliteral(L, "value");
                 lua_pushnumber(L, params.m_InputAction->m_Value);

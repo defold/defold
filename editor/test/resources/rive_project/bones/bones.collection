@@ -13,6 +13,7 @@ embedded_instances {
   "default_animation: \\\"Animation1\\\"\\n"
   "material: \\\"/defold-rive/assets/rivemodel.material\\\"\\n"
   "create_go_bones: true\\n"
+  "artboard: \\\"New Artboard\\\"\\n"
   "\"\n"
   "}\n"
   "embedded_components {\n"

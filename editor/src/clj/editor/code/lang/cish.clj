@@ -291,6 +291,29 @@ U[a-fA-F0-9]{0,8} )"
    :indent {:begin #"^.*\{[^}\"\']*$|^.*\([^\)\"\']*$|^\s*\{\}$"
             :end #"^\s*(\s*/[*].*[*]/\s*)*\}|^\s*(\s*/[*].*[*]/\s*)*\)"}
    :line-comment "//"
+   :auto-insert {:characters {\[ \]
+                              \{ \}
+                              \( \)
+                              \' \'
+                              \" \"}
+                 :close-characters #{\] \} \) \' \"}
+                 :exclude-scopes #{"punctuation.definition.string.begin.c"
+                                   "punctuation.definition.string.begin.cpp"
+                                   "string.quoted.single.c"
+                                   "string.quoted.double.c"
+                                   "string.quoted.double.cpp"
+                                   "string.quoted.double.include.c"
+                                   "string.quoted.other.lt-gt.include.c"
+                                   "constant.character.escape.c"
+                                   "constant.character.escape.cpp"
+                                   "constant.character.escape.line-continuation.c"
+                                   "constant.other.placeholder.c"
+                                   "invalid.illegal.unknown-escape.c"
+                                   "invalid.illegal.placeholder.c"}
+                 :open-scopes {\" "punctuation.definition.string.begin.c"
+                               \' "punctuation.definition.string.begin.c"}
+                 :close-scopes {\" "punctuation.definition.string.end.c"
+                                \' "punctuation.definition.string.end.c"}}
    :patterns (concat c-comments-patterns
                      c-storage-types-patterns
                      c-control-keywords-patterns

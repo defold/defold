@@ -58,13 +58,17 @@
 (def ^:private string-patterns
   [{:name "string.quoted.double.zig"
     :begin #"\""
+    :begin-captures {0 {:name "punctuation.definition.string.quoted.begin.zig"}}
     :end #"\""
+    :end-captures {0 {:name "punctuation.definition.string.quoted.end.zig"}}
     :patterns string-content-patterns}
    {:name "string.multiline.zig"
     :begin #"\\\\"
     :end #"$"}
    {:name "string.quoted.single.zig"
-    :match #"'([^'\\]|\\(x\h{2}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.))'"}])
+    :match #"(')([^'\\]|\\(x\h{2}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.))(')"
+    :captures {1 {:name "punctuation.definition.string.quoted.begin.zig"}
+               4 {:name "punctuation.definition.string.quoted.end.zig"}}}])
 
 (def ^:private comment-contents-patterns
   [{:name "keyword.todo.zig"
@@ -155,6 +159,22 @@
    :line-comment "//"
    :indent {:begin #"^.*\{[^}\"\']*$|^.*\([^\)\"\']*$|^\s*\{\}$"
             :end #"^\s*(\s*/[*].*[*]/\s*)*\}|^\s*(\s*/[*].*[*]/\s*)*\)"}
+   :auto-insert {:characters {\[ \]
+                              \( \)
+                              \{ \}
+                              \" \"
+                              \' \'}
+                 :close-characters #{\] \) \} \" \'}
+                 :exclude-scopes #{"punctuation.definition.string.quoted.begin.zig"
+                                   "string.quoted.double.zig"
+                                   "string.quoted.single.zig"
+                                   "string.multiline.zig"
+                                   "constant.character.escape.zig"
+                                   "invalid.illegal.unrecognized-string-escape.zig"}
+                 :open-scopes {\" "punctuation.definition.string.quoted.begin.zig"
+                               \' "punctuation.definition.string.quoted.begin.zig"}
+                 :close-scopes {\" "punctuation.definition.string.quoted.end.zig"
+                                \' "punctuation.definition.string.quoted.end.zig"}}
    :patterns (into []
                    cat
                    [comment-patterns

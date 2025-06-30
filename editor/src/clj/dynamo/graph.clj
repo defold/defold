@@ -28,7 +28,7 @@
             [potemkin.namespaces :as namespaces]
             [schema.core :as s]
             [service.log :as log]
-            [util.coll :as coll]
+            [util.coll :as coll :refer [pair]]
             [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
            [internal.graph.types Arc]
@@ -83,6 +83,12 @@
   ([basis node-id]
    (gt/node-by-id-at basis node-id)))
 
+(defn node-exists?
+  ([node-id]
+   (node-exists? (now) node-id))
+  ([basis node-id]
+   (some? (gt/node-by-id-at basis node-id))))
+
 (defn node-type*
   "Return the node-type given a node-id.  Uses the current basis if not provided."
   ([node-id]
@@ -92,7 +98,7 @@
      (gt/node-type n))))
 
 (defn node-type
-  "Return the node-type given a node. Uses the current basis if not provided."
+  "Return the node-type given a node."
   [node]
   (when node
     (gt/node-type node)))
@@ -107,6 +113,18 @@
 
 (defn node-override? [node]
   (some? (gt/original node)))
+
+(defn own-property-values
+  "Returns a map of property-label property-value for the specified node. If the
+  queried node is an override node, the map will contain overridden properties
+  only. Otherwise, the map will include assigned properties and defaults."
+  [node]
+  (or (if (node-override? node)
+        (gt/overridden-properties node)
+        (coll/merge
+          (in/defaults (gt/node-type node))
+          (gt/assigned-properties node)))
+      {}))
 
 (defn invalidate-counters
   "The current state of the invalidate counters in the system."
@@ -567,15 +585,29 @@
   (transact (delete-node node-id)))
 
 (defn callback
-  "Call the specified function with args when reaching the transaction step"
-  [f & args]
-  (it/callback f args))
+  "Call the specified callback-fn with args when reaching the transaction step."
+  [callback-fn & args]
+  (it/callback callback-fn args nil))
 
 (defn callback-ec
   "Same as callback, but injects the in-transaction evaluation-context
-  as the first argument to the update-fn."
+  as the first argument to the callback-fn."
+  [callback-fn & args]
+  (it/callback callback-fn args it/inject-evaluation-context-opts))
+
+(defn expand
+  "Call the specified function when reaching the transaction step and apply the
+  returned transaction steps in the same transaction"
   [f & args]
-  (it/callback-ec f args))
+  (it/expand f args))
+
+;; SDK api
+(defn expand-ec
+  "Call the specified function when reaching the transaction step with an
+  in-transaction evaluation context as a first argument and apply the
+  returned transaction steps in the same transaction"
+  [f & args]
+  (it/expand-ec f args))
 
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
@@ -634,32 +666,52 @@
    (assert target-id)
    (it/disconnect-sources basis target-id target-label)))
 
-(defn- set-value-from-first-arg [_ b] b)
+(defn set-properties
+  "Creates transaction steps to assign multiple values to a node's properties.
+  You must call the transact function on the return value to see the effects.
+
+  Example:
+  `(transact (set-properties node-id :name \"item\" :opacity 0.5))`"
+  [node-id & kvs]
+  (coll/transfer kvs []
+    (partition-all 2)
+    (mapcat (fn [[property-label new-value]]
+              (it/set-property node-id property-label new-value nil)))))
+
+(defn set-properties!
+  "Creates transaction steps to assign multiple values to a node's properties,
+  then executes them in a transaction. Returns the result of the transaction,
+  (tx-result)"
+  [node-id & kvs]
+  (transact (apply set-properties node-id kvs)))
 
 (defn set-property
-  "Creates the transaction step to assign a value to a node's property (or properties) value(s).  It will take effect when the transaction
-  is applies in a transact.
+  "Creates transaction steps to assign a value to a node property. Additional
+  options may be supplied in a map. You must call the transact function on the
+  return value to see the effects.
 
   Example:
-
-  `(transact (set-property root-id :touched 1))`"
-  [node-id & kvs]
-  (assert node-id)
-  (mapcat
-   (fn [[p v]]
-     (it/update-property node-id p set-value-from-first-arg [v]))
-   (partition-all 2 kvs)))
+  `(transact (set-property node-id :opacity 0.5 {:force true}))`"
+  ([node-id property-label value]
+   (it/set-property node-id property-label value nil))
+  ([node-id property-label value opts]
+   (it/set-property node-id property-label value opts))
+  ([node-id property-label value another-property-label another-value & more]
+   ;; Deprecated. To set multiple properties at once, use set-properties.
+   ;; Kept for compatibility with editor plugins until we can update them.
+   (apply set-properties node-id property-label value another-property-label another-value more)))
 
 (defn set-property!
-  "Creates the transaction step to assign a value to a node's property (or properties) value(s) and applies it in a transaction.
-  It returns the result of the transaction, (tx-result).
+  "Creates transaction steps to assign a value to a node property, then executes
+  them in a transaction. Returns the result of the transaction, (tx-result).
+  Additional options may be supplied in a map.
 
   Example:
-
-  `(set-property! root-id :touched 1)`"
-  [node-id & kvs]
-  (assert node-id)
-  (transact (apply set-property node-id kvs)))
+  `(set-property node-id :opacity 0.5 {:force true})`"
+  ([node-id property-label value]
+   (transact (set-property node-id property-label value)))
+  ([node-id property-label value opts]
+   (transact (set-property node-id property-label value opts))))
 
 (defn update-property
   "Create the transaction step to apply a function to a node's property in a transaction. The
@@ -670,15 +722,13 @@
 
   `(transact (g/update-property node-id :int-prop inc))`"
   [node-id p f & args]
-  (assert node-id)
-  (it/update-property node-id p f args))
+  (it/update-property node-id p f args nil))
 
 (defn update-property-ec
   "Same as update-property, but injects the in-transaction evaluation-context
   as the first argument to the update-fn."
   [node-id p f & args]
-  (assert node-id)
-  (it/update-property-ec node-id p f args))
+  (it/update-property node-id p f args it/inject-evaluation-context-opts))
 
 (defn update-property!
   "Create the transaction step to apply a function to a node's property in a transaction. Then it applies the transaction.
@@ -972,7 +1022,25 @@
            (when-not (error? value)
              value)))))))
 
-(defn tx-cached-node-value
+(defmacro tx-cached-value!
+  "Finds and returns a cached value at the specified key path of the
+  :tx-data-context in the supplied evaluation-context. If no existing value was
+  found in the :tx-data-context, evaluate the value-expr and store the value at
+  the specified key path in the :tx-data-context, then return the value."
+  [evaluation-context-expr tx-data-context-key-path-expr value-expr]
+  `(let [tx-data-context-atom# (:tx-data-context ~evaluation-context-expr)
+         tx-data-context-key-path# ~tx-data-context-key-path-expr
+         cached-value# (-> tx-data-context-atom#
+                           (deref)
+                           (get-in tx-data-context-key-path# :dynamo.graph/not-found))]
+     (case cached-value#
+       :dynamo.graph/not-found
+       (let [evaluated-value# ~value-expr]
+         (swap! tx-data-context-atom# assoc-in tx-data-context-key-path# evaluated-value#)
+         evaluated-value#)
+       cached-value#)))
+
+(defn tx-cached-node-value!
   "Like the node-value function, but caches the result in the :tx-data-context
   of the supplied evaluation-context if it doesn't have a cache. This is mostly
   a workaround for the fact that the evaluation-context supplied to property
@@ -991,18 +1059,33 @@
     (node-value node-id label evaluation-context)
 
     :else
-    (let [tx-data-context-atom (:tx-data-context evaluation-context)
-          cache-key (gt/endpoint node-id label)
-          cached-value (-> tx-data-context-atom
-                           (deref)
-                           (:tx-cache)
-                           (get cache-key ::not-found))]
-      (case cached-value
-        ::not-found
-        (let [evaluated-value (node-value node-id label evaluation-context)]
-          (swap! tx-data-context-atom assoc-in [:tx-cache cache-key] evaluated-value)
-          evaluated-value)
-        cached-value))))
+    (let [tx-data-context-key-path (pair :tx-node-value-cache (gt/endpoint node-id label))]
+      (tx-cached-value! evaluation-context tx-data-context-key-path
+        (node-value node-id label evaluation-context)))))
+
+(definline raw-property-value*
+  "Fast raw property access to the given node. Will bypass the property value
+  fnk if present, but does traverse the override hierarchy. This can be more
+  efficient than the node-value function, as it doesn't need to create an
+  evaluation-context, check output jammers, and so on. It will simply return the
+  value in the property map for the first node in the override chain that
+  provides it. You should only really use this with properties that don't have a
+  value fnk on nodes that you're sure haven't been marked defective."
+  [basis node property-label]
+  `(gt/get-property ~node ~basis ~property-label))
+
+(definline raw-property-value
+  "Fast raw property access to the given node-id. Will bypass the property value
+  fnk if present, but does traverse the override hierarchy. This can be more
+  efficient than the node-value function, as it doesn't need to create an
+  evaluation-context, check output jammers, and so on. It will simply return the
+  value in the property map for the first node in the override chain that
+  provides it. You should only really use this with properties that don't have a
+  value fnk on nodes that you're sure haven't been marked defective."
+  [basis node-id property-label]
+  `(let [basis# ~basis
+         node# (gt/node-by-id-at basis# ~node-id)]
+     (raw-property-value* basis# node# ~property-label)))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.
@@ -1124,6 +1207,12 @@
    (node-instance? (now) type node-id))
   ([basis type node-id]
    (node-instance*? type (gt/node-by-id-at basis node-id))))
+
+(defn node-kw-instance?
+  "Returns true if the node is a member of a given type keyword, including
+   supertypes."
+  [basis type-kw node-id]
+  (isa? (node-type-kw basis node-id) type-kw))
 
 (defn node-instance-match*
   "Returns the first node-type from the provided sequence of node-types that
@@ -1482,7 +1571,7 @@
   ([node-id]
    (override? (now) node-id))
   ([basis node-id]
-   (not (nil? (override-original basis node-id)))))
+   (some? (override-original basis node-id))))
 
 (defn override-id
   ([node-id]
@@ -1510,6 +1599,31 @@
      (property-overridden? basis node-id prop-kw)
      true)))
 
+(defn node-property-dynamic
+  "Returns the value of a dynamic associated with a specific node property
+  If the dynamic does not exist, returns the provided not-found value, or throws
+  an assertion error if there was no not-found value provided"
+  ([node property-label dynamic-label evaluation-context]
+   (let [ret (node-property-dynamic node property-label dynamic-label ::not-found evaluation-context)]
+     (assert (not (identical? ret ::not-found))
+             (format "Dynamic %s not found on property %s in node-type %s." dynamic-label property-label (:k (node-type node))))
+     ret))
+  ([node property-label dynamic-label not-found evaluation-context]
+   (let [node-type (node-type node)
+         property-def (get (in/all-properties node-type) property-label)
+         _ (assert property-def (format "Property %s not found in node-type %s." property-label (:k node-type)))
+         dynamic-fnk (-> property-def (get :dynamics) (get dynamic-label))]
+     (if dynamic-fnk
+       (let [dynamic-fn (:fn dynamic-fnk)
+             dynamic-args (coll/transfer (:arguments dynamic-fnk) {}
+                            (map (fn [arg-label]
+                                     (let [arg-value (case arg-label
+                                                       :_this node
+                                                       (in/node-value node arg-label evaluation-context))]
+                                       (pair arg-label arg-value)))))]
+         (dynamic-fn dynamic-args))
+       not-found))))
+
 (defmulti node-key
   "Used to identify a node uniquely within a scope. This has various uses,
   among them is that we will restore overridden properties during resource sync
@@ -1528,13 +1642,14 @@
   "Returns a map of overridden prop-keywords to property values. Values will be
   produced by property value functions if possible."
   [node-id {:keys [basis] :as evaluation-context}]
-  (let [node-type (node-type* basis node-id)]
+  (let [node (node-by-id basis node-id)
+        node-type (gt/node-type node)]
     (into {}
           (map (fn [[prop-kw raw-prop-value]]
                  [prop-kw (if (has-property? node-type prop-kw)
-                            (node-value node-id prop-kw evaluation-context)
+                            (in/node-value node prop-kw evaluation-context)
                             raw-prop-value)]))
-          (node-value node-id :_overridden-properties evaluation-context))))
+          (in/node-value node :_overridden-properties evaluation-context))))
 
 (defn collect-overridden-properties
   "Collects overridden property values from override nodes originating from the
@@ -1564,7 +1679,11 @@
                                    node-key
                                    node-type-kw)
                            {:node-key node-key
-                            :node-type node-type-kw})))
+                            :node-type node-type-kw
+                            :source-node-id source-node-id
+                            :override-node-id override-node-id
+                            :override-node-key override-node-key
+                            :properties-by-override-node-key (persistent! properties-by-override-node-key)})))
                      (when (seq overridden-properties)
                        (assoc! properties-by-override-node-key
                                override-node-key overridden-properties))))))

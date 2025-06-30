@@ -20,7 +20,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.util :as util]
             [plumbing.core :refer [fnk]]
-            [util.coll :as coll]
+            [util.coll :as coll :refer [pair]]
             [util.eduction :as e])
   (:import [clojure.lang RT]))
 
@@ -33,7 +33,7 @@
     command+context->registration->handler
     (e/mapcat
       (fn [{:keys [contexts command] :as handler}]
-        (e/map #(coll/pair (coll/pair command %) handler) contexts))
+        (e/map #(pair (pair command %) handler) contexts))
       handlers)))
 
 (defn- remove-handlers [command+context->registration->handler command+contexts registration]
@@ -70,6 +70,11 @@
 (defn synthetic-command? [x]
   (= (namespace x) synthetic-command-str))
 
+(defn private-command? [x]
+  (case (namespace x)
+    "private" true
+    false))
+
 (defn- register [state registration menus handlers]
   (let [handlers (mapv (fn [h]
                          (if (contains? h :command)
@@ -83,7 +88,7 @@
                 (e/mapcat
                   (fn [{:keys [command locations]}]
                     (let [menu-item {:command command}]
-                      (e/map #(coll/pair % menu-item) locations)))
+                      (e/map #(pair % menu-item) locations)))
                   handlers))]
     (-> state
         (unregister registration)
@@ -92,7 +97,7 @@
         (update :registrations assoc registration {:locations (vec (keys menus))
                                                    :command+contexts (vec (e/mapcat
                                                                             (fn [{:keys [command contexts]}]
-                                                                              (e/map #(coll/pair command %) contexts))
+                                                                              (e/map #(pair command %) contexts))
                                                                             handlers))}))))
 (def empty-state
   {;; handlers: {command+context {registration handler}
@@ -297,41 +302,52 @@
   ([name env selection-provider dynamics adapters]
    (->Context name env selection-provider dynamics adapters)))
 
-(defn available-commands []
-  (->> @state-atom
-       :handlers
-       keys
-       (e/map first)
-       (into #{})))
+(defn public-commands
+  "Returns a set of user-facing commands that may be e.g. assigned shortcuts"
+  ([]
+   (public-commands @state-atom))
+  ([handler-state]
+   (->> handler-state
+        :handlers
+        keys
+        (e/map first)
+        (e/remove synthetic-command?)
+        (e/remove private-command?)
+        (into #{}))))
 
-(defonce ^:private throwing-handlers (atom #{}))
+(defonce ^:private throwing-handlers (atom {}))
 
 (defn enable-disabled-handlers!
   "Re-enables any handlers that were disabled because they threw an exception."
   []
-  (reset! throwing-handlers #{})
+  (reset! throwing-handlers {})
   nil)
 
 (defn- invoke-fnk [handler fsym command-context default]
-  (let [env (:env command-context)
-        throwing-id [(:command handler) (:name command-context) fsym (:active-resource env)]]
-    (if (contains? @throwing-handlers throwing-id)
-      nil
-      (if-let [f (get handler fsym)]
-        (binding [*adapters* (:adapters command-context)]
-          (try
-            (f env)
-            (catch Exception e
-              (when (not= :run fsym)
-                (swap! throwing-handlers conj throwing-id))
-              (error-reporting/report-exception!
-                (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
-                                 (:command handler) (:name command-context) fsym (.getMessage e))
-                         {:handler handler
-                          :command-context (update command-context :env dissoc :evaluation-context)}
-                         e))
-              nil)))
-        default))))
+  (let [fnk (get handler fsym)]
+    (if (nil? fnk)
+      default
+      (let [env (:env command-context)
+            throwing-id [(:command handler) (:name command-context) fsym (:active-resource env)]
+            throwing-fnk (get @throwing-handlers throwing-id)]
+        (when-not (identical? throwing-fnk fnk)
+          (when (some? throwing-fnk)
+            ;; Looks like the handler was redefined. Clear out the throwing-id,
+            ;; then proceed to give it a go.
+            (swap! throwing-handlers dissoc throwing-id))
+          (binding [*adapters* (:adapters command-context)]
+            (try
+              (fnk env)
+              (catch Exception e
+                (when (not= :run fsym)
+                  (swap! throwing-handlers assoc throwing-id fnk))
+                (error-reporting/report-exception!
+                  (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
+                                   (:command handler) (:name command-context) fsym (.getMessage e))
+                           {:handler handler
+                            :command-context (update command-context :env dissoc :evaluation-context)}
+                           e))
+                nil))))))))
 
 (defn- get-active-handler [state command command-context evaluation-context]
   (let [ctx-name (:name command-context)
@@ -369,12 +385,44 @@
 (defn options [[handler command-context]]
   (invoke-fnk handler :options command-context nil))
 
-(defn- eval-dynamics [context]
+(defn- flatten-menu-item-tree [item]
+  (->> item
+       :children
+       (e/mapcat (fn [child-item]
+                   (-> child-item
+                       (cond-> (not= :separator (:label child-item)) (update :label #(str (:label item) " → " %)))
+                       (flatten-menu-item-tree))))
+       (e/cons item)))
+
+(defn option-items
+  "Produce a flat list of options from menu items returned from options handler
+
+  Returns either a non-empty vector or nil"
+  [[{:keys [command]} :as handler+command-context]]
+  (when-let [opts (options handler+command-context)]
+    (->> opts
+         (e/mapcat flatten-menu-item-tree)
+         (e/remove #(= :separator (:label %)))
+         (e/filter #(= command (:command %)))
+         vec
+         coll/not-empty)))
+
+(defn- eval-dynamics [context evaluation-context]
   (cond-> context
-    (contains? context :dynamics)
-    (update :env merge (into {} (map (fn [[k [node v]]] [k (g/node-value (get-in context [:env node]) v)]) (:dynamics context))))))
+          (contains? context :dynamics)
+          (update :env
+                  (fn [env]
+                    (into env
+                          (map (fn [[dynamic-key [node-key label]]]
+                                 (let [node-id (env node-key)
+                                       value (g/node-value node-id label evaluation-context)]
+                                   (pair dynamic-key value))))
+                          (:dynamics context))))))
 
 (defn active
+  ([command command-contexts]
+   (g/with-auto-evaluation-context evaluation-context
+     (active command command-contexts nil evaluation-context)))
   ([command command-contexts user-data]
    (g/with-auto-evaluation-context evaluation-context
      (active command command-contexts user-data evaluation-context)))
@@ -397,14 +445,19 @@
           [s]))
       [nil])))
 
-(defn- eval-selection-context [context]
+(defn- eval-selection-context [{:keys [name selection-provider] :as context}]
   (let [selections (context-selections context)]
     (mapv (fn [selection]
-            (update context :env assoc :selection selection :selection-context (:name context) :selection-provider (:selection-provider context)))
+            (update context :env assoc
+                    :selection selection
+                    :selection-context name
+                    :selection-provider selection-provider))
           selections)))
 
 (defn eval-contexts [contexts all-selections?]
-  (let [contexts (mapv eval-dynamics contexts)]
+  (let [contexts (g/with-auto-evaluation-context evaluation-context
+                   (mapv #(eval-dynamics % evaluation-context)
+                         contexts))]
     (loop [selection-contexts (mapcat eval-selection-context contexts)
            result []]
       (if-let [ctx (and (or all-selections?
@@ -415,8 +468,8 @@
                              name (:name ctx)
                              selection-provider (:selection-provider ctx)]
                          (into result (map (fn [ctx] (-> ctx
-                                                       (update :env assoc :selection selection :selection-context name :selection-provider selection-provider)
-                                                       (assoc :adapters adapters)))
+                                                         (update :env assoc :selection selection :selection-context name :selection-provider selection-provider)
+                                                         (assoc :adapters adapters)))
                                            selection-contexts)))
                        (conj result ctx))]
           (recur (rest selection-contexts) result))

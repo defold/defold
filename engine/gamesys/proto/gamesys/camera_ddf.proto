@@ -14,6 +14,7 @@ option java_outer_classname = "Camera";
  * @document
  * @name Camera
  * @namespace camera
+ * @language Lua
  */
 
 message CameraDesc
@@ -38,7 +39,7 @@ message CameraDesc
  * @param fov [type:number] field of view of the lens, measured as the angle in radians between the right and left edge
  * @param near_z [type:number] position of the near clipping plane (distance from camera along relative z)
  * @param far_z [type:number] position of the far clipping plane (distance from camera along relative z)
- * @param orthographic_projection [type:bool] set to use an orthographic projection
+ * @param orthographic_projection [type:boolean] set to use an orthographic projection
  * @param orthographic_zoom [type:number] zoom level when the camera is using an orthographic projection
  * @examples
  *

@@ -25,9 +25,8 @@ import java.io.StringWriter;
 import java.io.BufferedWriter;
 
 import com.dynamo.bob.Bob;
-import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.Project;
-import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.ArchiveEntry;
 
 import com.dynamo.bob.archive.publisher.Publisher;
@@ -50,8 +49,6 @@ public class ReportGenerator {
 
     /**
      * Helper class to keep track resources sizes/flags used by a project.
-     * We need our own structure here since they can be filled by either parsing from
-     * DARC or disk.
      */
     private class ResourceEntry {
         String path;
@@ -92,7 +89,10 @@ public class ReportGenerator {
         this.excludedResources = new HashMap<String, ResourceEntry>();
 
         if (project.option("archive", "false").equals("true")) {
-            parseFromDarc();
+            ArchiveBuilder archiveBuilder = project.getArchiveBuilder();
+            if (archiveBuilder != null) {
+                parseArchiveBuilder(archiveBuilder);
+            }
         } else {
             parseFromDisk();
         }
@@ -126,47 +126,6 @@ public class ReportGenerator {
         }
     }
 
-    /**
-     * Gathers file sizes (both compressed and uncompressed) and encryption flags
-     * from file entries stored in a game.darc file.
-     */
-    private void parseFromDarc() throws IOException {
-
-        String rootDir = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
-        String archiveIndex = FilenameUtils.concat(rootDir, "game.arci");
-        String archiveData = FilenameUtils.concat(rootDir, "game.arcd");
-        String manifest = FilenameUtils.concat(rootDir, "game.dmanifest");
-
-        ArchiveReader ar = new ArchiveReader(archiveIndex, archiveData, manifest);
-
-        ar.read();
-
-        List<ArchiveEntry> archiveEntries = ar.getEntries();
-        for (int i = 0; i < archiveEntries.size(); i++) {
-            ArchiveEntry archiveEntry = archiveEntries.get(i);
-            long compressedSize = archiveEntry.getCompressedSize() != -1 ? archiveEntry.getCompressedSize() : archiveEntry.getSize();
-            boolean encrypted = archiveEntry.isEncrypted();
-
-            if (this.resources.containsKey(archiveEntry.getFilename())) {
-                ResourceEntry resEntry = this.resources.get(archiveEntry.getFilename());
-                resEntry.compressedSize = compressedSize;
-                resEntry.size = archiveEntry.getSize();
-                resEntry.encrypted = encrypted;
-            } else {
-                ResourceEntry resEntry = new ResourceEntry(archiveEntry.getFilename(),
-                        archiveEntry.getSize(),
-                        compressedSize,
-                        encrypted);
-
-                this.resources.put(archiveEntry.getFilename(), resEntry);
-            }
-
-        }
-
-        ar.close();
-    }
-
-
     private void parseFromPublisher(Publisher p) {
         Map<String, ArchiveEntry> entries = p.getEntries();
         for (String fileName : entries.keySet()) {
@@ -180,6 +139,51 @@ public class ReportGenerator {
                         compressedSize,
                         encrypted,
                         excluded);
+
+            this.excludedResources.put(archiveEntry.getRelativeFilename(), resEntry);
+        }
+    }
+
+    private void parseArchiveBuilder(ArchiveBuilder archiveBuilder) {
+        List<ArchiveEntry> includedEntries = archiveBuilder.getIncludedEntries();
+        List<ArchiveEntry> excludedEntries = archiveBuilder.getExcludedEntries();
+        int padding = archiveBuilder.getResourcePadding();
+
+        for (ArchiveEntry archiveEntry : includedEntries) {
+            long compressedSize = 0;
+            long size = 0;
+            if (!archiveEntry.isDuplicatedDataBlob()) {
+                compressedSize = archiveEntry.isCompressed() ? archiveEntry.getCompressedSize() : archiveEntry.getSize();
+                compressedSize = ((compressedSize + padding - 1) / padding) * padding;
+                size= archiveEntry.getSize();
+            }
+            boolean encrypted = archiveEntry.isEncrypted();
+            boolean excluded = false;
+
+            ResourceEntry resEntry = new ResourceEntry(archiveEntry.getRelativeFilename(),
+                    size,
+                    compressedSize,
+                    encrypted,
+                    excluded);
+
+            this.resources.put(archiveEntry.getRelativeFilename(), resEntry);
+        }
+
+        for (ArchiveEntry archiveEntry : excludedEntries) {
+            long compressedSize = 0;
+            long size = 0;
+            if (!archiveEntry.isDuplicatedDataBlob()) {
+                compressedSize = archiveEntry.isCompressed() ? archiveEntry.getCompressedSize() : archiveEntry.getSize();
+                size = archiveEntry.getSize();
+            }
+            boolean encrypted = archiveEntry.isEncrypted();
+            boolean excluded = true;
+
+            ResourceEntry resEntry = new ResourceEntry(archiveEntry.getRelativeFilename(),
+                    size,
+                    compressedSize,
+                    encrypted,
+                    excluded);
 
             this.excludedResources.put(archiveEntry.getRelativeFilename(), resEntry);
         }
@@ -274,26 +278,27 @@ public class ReportGenerator {
      * @param jsonReportData JSON report data to be inlined
      */
     public String generateHTML(String jsonReportData) throws IOException {
-
         InputStream templateStream = Bob.class.getResourceAsStream("/lib/report_template.html");
-
-        StringWriter writer = new StringWriter();
         try {
+            StringWriter writer = new StringWriter();
             IOUtils.copy(templateStream, writer);
+            String templateString = writer.toString();
+
+            HashMap<String, Object> ctx = new HashMap<String, Object>();
+            ctx.put("json-data", jsonReportData);
+
+            Template template = Mustache.compiler().compile(templateString);
+            StringWriter sw = new StringWriter();
+            template.execute(ctx, sw);
+            sw.flush();
+
+            return sw.toString();
         } catch (IOException e) {
             throw new IOException("Error while reading report template: " + e.toString());
         }
-        String templateString = writer.toString();
-
-        HashMap<String, Object> ctx = new HashMap<String, Object>();
-        ctx.put("json-data", jsonReportData);
-
-        Template template = Mustache.compiler().compile(templateString);
-        StringWriter sw = new StringWriter();
-        template.execute(ctx, sw);
-        sw.flush();
-
-        return sw.toString();
+        finally {
+            IOUtils.closeQuietly(templateStream);
+        }
     }
 
 }

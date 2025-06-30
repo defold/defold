@@ -21,19 +21,19 @@ import com.dynamo.lua.proto.Lua.LuaModule;
 public class ScriptBuilders {
 
     @ProtoParams(srcClass = LuaModule.class, messageClass = LuaModule.class)
-    @BuilderParams(name = "Lua", inExts = ".lua", outExt = ".luac", paramsForSignature = {"use-uncompressed-lua-source", "use-lua-bytecode-delta", "platform", "architectures", "variant"})
+    @BuilderParams(name = "Lua", inExts = ".lua", outExt = ".luac", paramsForSignature = {"use-uncompressed-lua-source", "use-lua-bytecode-delta", "platform", "architectures", "variant", "prometheus-disabled"})
     public static class LuaScriptBuilder extends LuaBuilder {}
 
     @ProtoParams(srcClass = LuaModule.class, messageClass = LuaModule.class)
-    @BuilderParams(name = "Script", inExts = ".script", outExt = ".scriptc", paramsForSignature = {"use-uncompressed-lua-source", "use-lua-bytecode-delta", "platform", "architectures", "variant"})
+    @BuilderParams(name = "Script", inExts = ".script", outExt = ".scriptc", paramsForSignature = {"use-uncompressed-lua-source", "use-lua-bytecode-delta", "platform", "architectures", "variant", "prometheus-disabled"})
     public static class ScriptBuilder extends LuaBuilder {}
 
     @ProtoParams(srcClass = LuaModule.class, messageClass = LuaModule.class)
-    @BuilderParams(name = "GuiScript", inExts = ".gui_script", outExt = ".gui_scriptc", paramsForSignature = {"use-uncompressed-lua-source", "use-lua-bytecode-delta", "platform", "architectures", "variant"})
+    @BuilderParams(name = "GuiScript", inExts = ".gui_script", outExt = ".gui_scriptc", paramsForSignature = {"use-uncompressed-lua-source", "use-lua-bytecode-delta", "platform", "architectures", "variant", "prometheus-disabled"})
     public static class GuiScriptBuilder extends LuaBuilder {}
 
     @ProtoParams(srcClass = LuaModule.class, messageClass = LuaModule.class)
-    @BuilderParams(name = "RenderScript", inExts = ".render_script", outExt = ".render_scriptc", paramsForSignature = {"use-uncompressed-lua-source", "use-lua-bytecode-delta", "platform", "architectures", "variant"})
+    @BuilderParams(name = "RenderScript", inExts = ".render_script", outExt = ".render_scriptc", paramsForSignature = {"use-uncompressed-lua-source", "use-lua-bytecode-delta", "platform", "architectures", "variant", "prometheus-disabled"})
     public static class RenderScriptBuilder extends LuaBuilder {}
 
 }

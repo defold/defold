@@ -172,7 +172,7 @@ namespace dmDeviceOpenAL
         delete openal;
     }
 
-    dmSound::Result DeviceOpenALQueue(dmSound::HDevice device, const int16_t* samples, uint32_t sample_count)
+    dmSound::Result DeviceOpenALQueue(dmSound::HDevice device, const void* samples, uint32_t sample_count)
     {
         assert(device);
         OpenALDevice* openal = (OpenALDevice*) device;
@@ -184,7 +184,7 @@ namespace dmDeviceOpenAL
         }
         ALuint buffer = openal->m_Buffers[0];
         openal->m_Buffers.EraseSwap(0);
-        alBufferData(buffer, AL_FORMAT_STEREO16, samples, sample_count * 2 * sizeof(int16_t), openal->m_MixRate);
+        alBufferData(buffer, AL_FORMAT_STEREO16, (const int16_t*)samples, sample_count * 2 * sizeof(int16_t), openal->m_MixRate);
         CheckAndPrintError();
 
         alSourceQueueBuffers(openal->m_Source, 1, &buffer);
@@ -225,6 +225,7 @@ namespace dmDeviceOpenAL
         assert(info);
         OpenALDevice* openal = (OpenALDevice*) device;
         info->m_MixRate = openal->m_MixRate;
+        info->m_DSPImplementation = dmSound::DSPIMPL_TYPE_CPU;
     }
 
     void DeviceOpenALStart(dmSound::HDevice device)

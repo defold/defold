@@ -196,22 +196,22 @@
         capsule-cap-longs 32
         sphere-faces (geom/unit-sphere-pos-nrm capsule-cap-lats capsule-cap-longs)
         hemisphere-face-count (/ (* capsule-cap-lats capsule-cap-longs) 2)]
-    (concat
-      ;; Top cap
-      (sequence (comp (take hemisphere-face-count)
-                      (map #(pos-nrm-face->quad % 1.0)))
-                sphere-faces)
+    (vec (concat
+           ;; Top cap
+           (sequence (comp (take hemisphere-face-count)
+                           (map #(pos-nrm-face->quad % 1.0)))
+                     sphere-faces)
 
-      ;; Waist
-      (sequence (comp (drop hemisphere-face-count)
-                      (take capsule-cap-longs)
-                      (map pos-nrm-face->waist-quad))
-                sphere-faces)
+           ;; Waist
+           (sequence (comp (drop hemisphere-face-count)
+                           (take capsule-cap-longs)
+                           (map pos-nrm-face->waist-quad))
+                     sphere-faces)
 
-      ;; Bottom cap
-      (sequence (comp (drop hemisphere-face-count)
-                      (map #(pos-nrm-face->quad % -1.0)))
-                sphere-faces))))
+           ;; Bottom cap
+           (sequence (comp (drop hemisphere-face-count)
+                           (map #(pos-nrm-face->quad % -1.0)))
+                     sphere-faces)))))
 
 (defn- pos-vtx-put-point! [vbuf ^Point4d point]
   (pos-vtx-put! vbuf (.x point) (.y point) (.z point) (.w point)))
@@ -315,3 +315,28 @@
       (gl/gl-draw-arrays gl primitive-type 0 point-count)
       (when-not double-sided
         (gl/gl-disable gl GL2/GL_CULL_FACE)))))
+
+(defn render-points [^GL2 gl render-args renderables _num-renderables]
+  (let [{:keys [selected user-data world-transform]} (first renderables)
+        {:keys [color geometry ^double point-size]} user-data
+        {:keys [primitive-type vbuf]} geometry
+        color (float-array (or (colors/selection-color selected)
+                               (colors/alpha color 1.0)))
+        render-args (merge render-args
+                           (math/derive-render-transforms
+                            world-transform
+                            (:view render-args)
+                            (:projection render-args)
+                            (:texture render-args)))
+        point-count (:point-count user-data (count vbuf))
+        point-scale (:point-scale user-data no-point-scale)
+        point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
+        request-id (System/identityHashCode vbuf)
+        vertex-binding (vtx/use-with request-id vbuf shader)]
+    (gl/with-gl-bindings gl render-args [shader vertex-binding]
+      (.glPointSize gl point-size)
+      (shader/set-uniform shader gl "point_scale" point-scale)
+      (shader/set-uniform shader gl "point_offset_by_w" point-offset-by-w)
+      (shader/set-uniform shader gl "color" color)
+      (gl/gl-draw-arrays gl primitive-type 0 point-count)
+      (.glPointSize gl 1.0))))

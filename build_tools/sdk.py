@@ -48,7 +48,7 @@ MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 VERSION_IPHONEOS_MIN="11.0"
-VERSION_MACOSX_MIN="10.13"
+VERSION_MACOSX_MIN="10.15"
 
 SWIFT_VERSION="5.5"
 
@@ -79,7 +79,7 @@ PACKAGES_WIN32_SDK_10=f"WindowsKits-{VERSION_WINDOWS_SDK_10}"
 ## **********************************************************************************************
 # Emscripten
 
-EMSCRIPTEN_VERSION_STR  =  "3.1.65"
+EMSCRIPTEN_VERSION_STR  =  "4.0.6"
 EMSCRIPTEN_SDK          = f"sdk-{EMSCRIPTEN_VERSION_STR}-64bit"
 PACKAGES_EMSCRIPTEN_SDK = f"emsdk-{EMSCRIPTEN_VERSION_STR}"
 
@@ -140,6 +140,11 @@ def _get_latest_version_from_folders(path, replace_patterns=[]):
 
     dirs.sort(key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')), reverse=True)
     return dirs[0]
+
+def _get_host_exe_suffix():
+    if sys.platform == 'win32':
+        return '.exe'
+    return ''
 
 class SDKException(Exception):
     pass
@@ -232,7 +237,11 @@ def get_android_local_sdk_path(verbose=False):
             path = os.path.expanduser('~/Library/android/sdk')
         elif sys.platform == 'win32':
             path = os.path.expandvars('${LOCALAPPDATA}/Android/Sdk')
-        path = os.path.normpath(path)
+        elif sys.platform == 'linux':
+            path = os.path.expandvars('~/Android/Sdk')
+
+        if path is not None:
+            path = os.path.normpath(path)
 
     if path and os.path.exists(path):
         log_verbose(verbose, f"  Detected sdk path {path}")
@@ -327,6 +336,70 @@ def get_local_compiler_version():
 
 windows_info = None
 
+def _fatal(msg):
+    print("sdk.py: %s" % msg)
+    sys.exit(1)
+
+def get_windows_include_dirs(vs_root, sdk_includes_root):
+    includes = [os.path.join(vs_root,'include'),
+                os.path.join(vs_root,'atlmfc','include'),
+                os.path.join(sdk_includes_root,'ucrt'),
+                os.path.join(sdk_includes_root,'winrt'),
+                os.path.join(sdk_includes_root,'um'),
+                os.path.join(sdk_includes_root,'shared')]
+
+    for x in includes:
+        if not os.path.exists(x):
+            _fatal("Path does not exist: %s" % x)
+
+    return ','.join(includes)
+
+def get_windows_lib_dirs(vs_root, sdk_libs_root, arch):
+    libdirs = [ os.path.join(vs_root,'lib',arch),
+                os.path.join(vs_root,'atlmfc','lib',arch),
+                os.path.join(sdk_libs_root,'ucrt',arch),
+                os.path.join(sdk_libs_root,'um',arch)]
+
+    for x in libdirs:
+        if not os.path.exists(x):
+            _fatal("Path does not exist: %s" % x)
+
+    return ','.join(libdirs)
+
+def get_windows_bin_dirs(vs_root, sdk_bin_root, arch):
+    bindirs = [ os.path.join(vs_root,'bin', 'Host%s'%arch, arch),
+                os.path.join(sdk_bin_root, arch)]
+
+    for x in bindirs:
+        if not os.path.exists(x):
+            _fatal("Path does not exist: %s" % x)
+
+    return ','.join(bindirs)
+
+def get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform):
+    arch = 'x64'
+    if platform == 'win32':
+        arch = 'x86'
+
+    sdk_includes_root = os.path.join(sdk_root, 'Include', sdk_version)
+    sdk_libs_root = os.path.join(sdk_root, 'Lib', sdk_version)
+    sdk_bin_root = os.path.join(sdk_root, 'bin', sdk_version)
+
+    includes = get_windows_include_dirs(vs_root, sdk_includes_root)
+    lib_paths = get_windows_lib_dirs(vs_root, sdk_libs_root, arch)
+    bin_paths = get_windows_bin_dirs(vs_root, sdk_bin_root, arch)
+
+    info = {}
+    info['sdk_root'] = sdk_root
+    info['sdk_version'] = sdk_version
+    info['includes'] = includes
+    info['lib_paths'] = lib_paths
+    info['bin_paths'] = bin_paths
+    info['vs_root'] = vs_root
+    info['vs_version'] = vs_version
+    return info
+
+
 def get_windows_local_sdk_info(platform):
     global windows_info
 
@@ -346,7 +419,7 @@ def get_windows_local_sdk_info(platform):
             print ("Couldn't find executable '%s'" % vswhere_path)
             return None
 
-    sdk_root = run.shell_command('%s --sdk_root' % vswhere_path).strip()
+    sdk_root = run.shell_command('%s --sdk_root' % vswhere_path).strip() # C:\Program Files (x86)\Windows Kits\10\
     sdk_version = run.shell_command('%s --sdk_version' % vswhere_path).strip()
     includes = run.shell_command('%s --includes' % vswhere_path).strip()
     lib_paths = run.shell_command('%s --lib_paths' % vswhere_path).strip()
@@ -354,22 +427,9 @@ def get_windows_local_sdk_info(platform):
     vs_root = run.shell_command('%s --vs_root' % vswhere_path).strip()
     vs_version = run.shell_command('%s --vs_version' % vswhere_path).strip()
 
-    if platform == 'win32':
-        arch64 = 'x64'
-        arch32 = 'x86'
-        bin_paths = bin_paths.replace(arch64, arch32)
-        lib_paths = lib_paths.replace(arch64, arch32)
-
-    info = {}
-    info['sdk_root'] = sdk_root
-    info['sdk_version'] = sdk_version
-    info['includes'] = includes
-    info['lib_paths'] = lib_paths
-    info['bin_paths'] = bin_paths
-    info['vs_root'] = vs_root
-    info['vs_version'] = vs_version
-    windows_info = info
+    windows_info = get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform)
     return windows_info
+
 
 def get_windows_packaged_sdk_info(sdkdir, platform):
     global windows_info
@@ -402,27 +462,10 @@ def get_windows_packaged_sdk_info(sdkdir, platform):
     msvc_path = (os.path.join(msvcdir,'VC', 'Tools', 'MSVC', msvc_version, 'bin', 'Host'+arch, arch),
                 os.path.join(windowskitsdir,'10','bin',ucrt_version,arch))
 
-    includes = [os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'include'),
-                os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','include'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'ucrt'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'winrt'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'um'),
-                os.path.join(windowskitsdir,'10','Include',ucrt_version,'shared')]
+    vs_root = os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version)
+    sdk_root = os.path.join(windowskitsdir,'10')
 
-    libdirs = [ os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'lib',arch),
-                os.path.join(msvcdir,'VC','Tools','MSVC',msvc_version,'atlmfc','lib',arch),
-                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'ucrt',arch),
-                os.path.join(windowskitsdir,'10','Lib',ucrt_version,'um',arch)]
-
-    info = {}
-    info['sdk_root'] = os.path.join(windowskitsdir,'10')
-    info['sdk_version'] = ucrt_version
-    info['includes'] = ','.join(includes)
-    info['lib_paths'] = ','.join(libdirs)
-    info['bin_paths'] = ','.join(msvc_path)
-    info['vs_root'] = msvcdir
-    info['vs_version'] = msvc_version
-    windows_info = info
+    windows_info = get_windows_info(vs_root, msvc_version, sdk_root, ucrt_version, platform)
     return windows_info
 
 def _setup_info_from_windowsinfo(windowsinfo, platform):
@@ -468,13 +511,15 @@ def get_defold_emsdk_config():
     emsdk = get_defold_emsdk()
     return os.path.join(emsdk, '.emscripten')
 
-def get_defold_emsdk_node():
-    emsdk = get_defold_emsdk()
+def _find_node_in_emsdk(emsdk):
     node_dir = _get_latest_version_from_folders(os.path.join(emsdk, 'node'), [('_64bit', '')])
-    node = os.path.join(emsdk, 'node', node_dir, 'bin', 'node')
-    if not os.path.exists(node):
-        raise SDKException(f"Failed to find local EMSDK_NODE installation: {node}")
-    return node
+    node = os.path.join(emsdk, 'node', node_dir, 'bin', 'node' + _get_host_exe_suffix())
+    if os.path.exists(node):
+        return os.path.normpath(node).replace('\\', '/')
+    raise SDKException(f"Failed to find local EMSDK_NODE installation: {node}")
+
+def get_defold_emsdk_node():
+    return _find_node_in_emsdk(get_defold_emsdk())
 
 # ------------------------------------------------------------
 
@@ -494,12 +539,11 @@ def _get_local_emsdk_config():
     emsdk = _get_local_emsdk()
     return os.path.join(emsdk, '.emscripten')
 
-# https://emscripten.org/docs/tools_reference/emcc.html?highlight=em_config
 def _get_local_emsdk_node():
     node = os.environ.get('EMSDK_NODE', None)
-    if node is None:
-        raise SDKException(f"Failed to find local EMSDK_NODE installation")
-    return node
+    if node is not None:
+        return node
+    return _find_node_in_emsdk(_get_local_emsdk())
 
 ## **********************************************************************************************
 
@@ -528,7 +572,7 @@ def check_defold_sdk(sdkfolder, host_platform, platform, verbose=False):
     elif platform in ('x86_64-linux','arm64-linux'):
         folders.append(os.path.join(sdkfolder, host_platform))
 
-    elif platform in ('wasm-web','js-web'):
+    elif platform in ('wasm-web','wasm_pthread-web','js-web'):
         folders.append(get_defold_emsdk())
 
     if not folders:
@@ -612,7 +656,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
         else:
             info['api'] = ANDROID_NDK_API_VERSION
 
-    elif platform in ('js-web', 'wasm-web'):
+    elif platform in ('js-web', 'wasm-web', 'wasm_pthread-web'):
         info['emsdk'] = {}
         info['emsdk']['path'] = get_defold_emsdk()
         info['emsdk']['cache'] = get_defold_emsdk_cache()
@@ -657,7 +701,7 @@ def _get_local_sdk_info(platform, verbose=False):
         else:
             info['api'] = ANDROID_NDK_API_VERSION
 
-    elif platform in ('js-web', 'wasm-web'):
+    elif platform in ('js-web', 'wasm-web', 'wasm_pthread-web'):
         info['emsdk'] = {}
         info['emsdk']['path'] = _get_local_emsdk()
         info['emsdk']['cache'] = _get_local_emsdk_cache()

@@ -22,6 +22,7 @@ def options(opt):
     opt.load('waf_dynamo')
 
 def configure(conf):
+
     conf.load('waf_dynamo')
     conf.load('waf_ddf')
 

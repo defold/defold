@@ -112,6 +112,15 @@ namespace dmEngine
 
     dmEngineService::HEngineService g_EngineService = 0;
 
+    static ExtensionAppExitCode GetAppExitStatusFromAction(int action)
+    {
+        switch(action) {
+        case dmEngine::RunResult::REBOOT:   return EXTENSION_APP_EXIT_CODE_REBOOT;
+        case dmEngine::RunResult::EXIT:     return EXTENSION_APP_EXIT_CODE_EXIT;
+        default:                            return EXTENSION_APP_EXIT_CODE_NONE;
+        }
+    }
+
     struct ScopedExtensionAppParams
     {
         ExtensionAppParams m_AppParams;
@@ -119,6 +128,7 @@ namespace dmEngine
         {
             ExtensionAppParamsInitialize(&m_AppParams);
             m_AppParams.m_ConfigFile = engine->m_Config;
+            m_AppParams.m_ExitStatus = GetAppExitStatusFromAction(engine->m_RunResult.m_Action);
             ExtensionAppParamsSetContext(&m_AppParams, "config", engine->m_Config);
             dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
             ExtensionAppParamsSetContext(&m_AppParams, "webserver", webserver);
@@ -1073,8 +1083,7 @@ namespace dmEngine
 #endif
 
         engine->m_FixedUpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "engine.fixed_update_frequency", 60);
-        engine->m_MaxTimeStep = dmConfigFile::GetFloat(engine->m_Config, "engine.max_time_step", 0.5);
-
+        engine->m_MaxTimeStep = dmConfigFile::GetFloat(engine->m_Config, "engine.max_time_step", 1.0f / 30);
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
 
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0));
@@ -1086,7 +1095,7 @@ namespace dmEngine
         {
             char path[1024];
             dmHttpCache::NewParams cache_params;
-            dmSys::Result sys_result = dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
+            dmSys::Result sys_result = dmSys::GetApplicationSupportPath(DMSYS_APPLICATION_NAME, path, sizeof(path));
             if (sys_result == dmSys::RESULT_OK)
             {
                 dmStrlCat(path, "/http-cache", sizeof(path));
@@ -1099,7 +1108,7 @@ namespace dmEngine
             }
             else
             {
-                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", "defold", sys_result);
+                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", DMSYS_APPLICATION_NAME, sys_result);
             }
         }
 #endif
@@ -1191,7 +1200,7 @@ namespace dmEngine
 
         dmSound::InitializeParams sound_params;
         sound_params.m_OutputDevice = "default";
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
         sound_params.m_UseThread = false;
 #else
         sound_params.m_UseThread = dmConfigFile::GetInt(engine->m_Config, "sound.use_thread", 1) != 0;
@@ -1361,6 +1370,8 @@ namespace dmEngine
         engine->m_ModelContext.m_RenderContext = engine->m_RenderContext;
         engine->m_ModelContext.m_Factory = engine->m_Factory;
         engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
+        engine->m_ModelContext.m_MaxBoneMatrixTextureWidth  = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_width", 1024);
+        engine->m_ModelContext.m_MaxBoneMatrixTextureHeight = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_height", 1024);
 
         engine->m_LabelContext.m_RenderContext      = engine->m_RenderContext;
         engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
@@ -1513,6 +1524,7 @@ namespace dmEngine
         script_lib_context.m_GraphicsContext = engine->m_GraphicsContext;
         script_lib_context.m_JobThread       = engine->m_JobThreadContext;
         script_lib_context.m_ConfigFile      = engine->m_Config;
+        script_lib_context.m_Window          = engine->m_Window;
 
         if (engine->m_SharedScriptContext)
         {
@@ -1730,6 +1742,13 @@ bail:
         return memcount;
     }
 
+    static void Exit(HEngine engine, int32_t code)
+    {
+        engine->m_Alive = false;
+        engine->m_RunResult.m_ExitCode = code;
+        engine->m_RunResult.m_Action = dmEngine::RunResult::EXIT;
+    }
+
     static void StepFrame(HEngine engine, float dt)
     {
         uint64_t frame_start = dmTime::GetMonotonicTime();
@@ -1797,7 +1816,7 @@ bail:
                 dmJobThread::Update(engine->m_JobThreadContext);
 
                 {
-                    DM_PROFILE("Script");
+                    DM_PROFILE("Extension");
 
                     // Script context updates
                     dmGameSystem::ScriptLibContext script_lib_context;
@@ -1854,7 +1873,7 @@ bail:
 
                 if (esc_pressed || !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_OPENED))
                 {
-                    engine->m_Alive = false;
+                    Exit(engine, 0);
                     return;
                 }
 
@@ -1999,11 +2018,12 @@ bail:
                 {
                     if (record_data->m_FrameCount % record_data->m_FramePeriod == 0)
                     {
-                        uint32_t width = dmGraphics::GetWidth(engine->m_GraphicsContext);
-                        uint32_t height = dmGraphics::GetHeight(engine->m_GraphicsContext);
-                        uint32_t buffer_size = width * height * 4;
+                        int32_t x = 0, y = 0;
+                        uint32_t w = 0, h = 0;
+                        dmGraphics::GetViewport(engine->m_GraphicsContext, &x, &y, &w, &h);
+                        uint32_t buffer_size = w * h * 4;
 
-                        dmGraphics::ReadPixels(engine->m_GraphicsContext, record_data->m_Buffer, buffer_size);
+                        dmGraphics::ReadPixels(engine->m_GraphicsContext, x, y, w, h, record_data->m_Buffer, buffer_size);
 
                         dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
                         if (r != dmRecord::RESULT_OK)
@@ -2093,13 +2113,6 @@ bail:
         return engine->m_Alive;
     }
 
-    static void Exit(HEngine engine, int32_t code)
-    {
-        engine->m_Alive = false;
-        engine->m_RunResult.m_ExitCode = code;
-        engine->m_RunResult.m_Action = dmEngine::RunResult::EXIT;
-    }
-
     static void Reboot(HEngine engine, dmSystemDDF::Reboot* reboot)
     {
         int argc = 0;
@@ -2174,8 +2187,9 @@ bail:
 
                 record_data->m_FramePeriod = start_record->m_FramePeriod;
 
-                uint32_t width = dmGraphics::GetWidth(self->m_GraphicsContext);
-                uint32_t height = dmGraphics::GetHeight(self->m_GraphicsContext);
+                int32_t x = 0, y = 0;
+                uint32_t width = 0, height = 0;
+                dmGraphics::GetViewport(self->m_GraphicsContext, &x, &y, &width, &height);
                 dmRecord::NewParams params;
                 params.m_Width = width;
                 params.m_Height = height;
@@ -2424,7 +2438,6 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
 void dmEngineDestroy(dmEngine::HEngine engine)
 {
     engine->m_RunResult.Free();
-
     Delete(engine);
 }
 

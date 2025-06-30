@@ -13,18 +13,25 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.scene-selection
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.system :as system]
             [editor.geom :as geom]
+            [editor.handler :as handler]
+            [editor.math :as math]
+            [editor.scene-picking :as scene-picking]
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.gl.pass :as pass]
-            [schema.core :as s])
+            [editor.workspace :as workspace]
+            [schema.core :as s]
+            [util.eduction :as e])
   (:import [editor.types Rect]
            [java.lang Runnable Math]
            [com.jogamp.opengl GL2]
+           [javafx.scene.input DragEvent]
            [javafx.scene Node Scene]
-           [javax.vecmath Point2i Point3d Matrix4d]))
+           [javax.vecmath Point2i Point3d Matrix4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -98,14 +105,50 @@
   [[x0 y0 z0] [x1 y1 z1]]
   (.distance (Point3d. x0 y0 z0) (Point3d. x1 y1 z1)))
 
+(defn- add-dropped-resources!
+  [drop-fn resources op-seq]
+  (g/tx-nodes-added
+    (g/transact
+      (concat
+        (drop-fn resources)
+        (g/operation-sequence op-seq)
+        (g/operation-label "Drop Resources")))))
+
+(defn- handle-drag-dropped!
+  [drop-fn root-id select-fn action]
+  (let [op-seq (gensym)
+        {:keys [^DragEvent event string gesture-target world-pos world-dir]} action
+        _ (ui/request-focus! gesture-target)
+        env (-> gesture-target (ui/node-contexts false) first :env)
+        {:keys [selection workspace]} env
+        resource-strings (-> string string/split-lines sort)
+        resources (e/keep (partial workspace/resolve-workspace-resource workspace) resource-strings)
+        z-plane-pos (math/line-plane-intersection world-pos world-dir (Point3d. 0.0 0.0 0.0) (Vector3d. 0.0 0.0 1.0))
+        drop-fn (partial drop-fn root-id selection workspace z-plane-pos)
+        added-nodes (add-dropped-resources! drop-fn resources op-seq)]
+    (.consume event)
+    (when (seq added-nodes)
+      (let [top-ids (->> (e/map g/node-by-id added-nodes)
+                         (scene-picking/top-nodes)
+                         (e/keep :_node-id))]
+        (select-fn top-ids op-seq))
+      (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+      (.setDropCompleted event true))))
+
 (defn handle-selection-input [self action _user-data]
   (let [start (g/node-value self :start)
         op-seq (g/node-value self :op-seq)
         mode (g/node-value self :mode)
         toggle? (g/node-value self :toggle?)
+        root-id (g/node-value self :root-id)
         cursor-pos [(:x action) (:y action) 0]
         contextual? (= (:button action) :secondary)]
     (case (:type action)
+      :drag-dropped (let [drop-fn (g/node-value self :drop-fn)
+                          select-fn (g/node-value self :select-fn)]
+                      (when drop-fn
+                        (handle-drag-dropped! drop-fn root-id select-fn action))
+                      nil)
       :mouse-pressed (let [op-seq (gensym)
                            toggle? (true? (some true? (map #(% action) toggle-modifiers)))
                            mode :single]
@@ -168,6 +211,7 @@
 
 (g/defnode SelectionController
   (property select-fn Runnable)
+  (property drop-fn Runnable)
   (property start types/Vec3)
   (property current types/Vec3)
   (property op-seq g/Any)

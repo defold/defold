@@ -24,6 +24,7 @@ import org.junit.Test;
 import com.dynamo.render.proto.Material.MaterialDesc;
 
 import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
@@ -71,6 +72,9 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
                 """;
 
         MaterialDesc material = getMessage(build("/test_migrate_vx_attributes.material", src), MaterialDesc.class);
+        // We don't use them in runtime, so they should be empty
+        assertEquals("", material.getVertexProgram());
+        assertEquals("", material.getFragmentProgram());
 
         assertNotNull(material);
         assertTrue(material.hasProgram());

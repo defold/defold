@@ -18,10 +18,12 @@
             [editor.app-view :as app-view]
             [editor.build-target :as bt]
             [editor.collection-string-data :as collection-string-data]
+            [editor.core :as core]
             [editor.defold-project :as project]
             [editor.game-object-common :as game-object-common]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.id :as id]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -31,9 +33,11 @@
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.sound :as sound]
+            [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.util :as util])
+            [internal.util :as util]
+            [util.eduction :as e])
   (:import [com.dynamo.gameobject.proto GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
            [javax.vecmath Vector3d]))
@@ -212,7 +216,7 @@
              :outline-overridden? overridden?
              :children (:children source-outline)}
           (cond->
-            (resource/openable-resource? source-resource) (assoc :link source-resource :outline-reference? true)
+            (some-> source-resource resource/proj-path) (assoc :link source-resource :outline-reference? true)
             source-id (assoc :alt-outline source-outline))))))
   (output ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id id transform scene]
@@ -288,10 +292,9 @@
                      (let [new-resource (:resource new-value)
                            resource-type (some-> new-resource resource/resource-type)
                            project (project/get-project self)
-                           override? (contains? (:tags resource-type) :overridable-properties)
 
                            [comp-node tx-data]
-                           (if override?
+                           (if (resource/overridable-resource-type? resource-type)
                              (let [workspace (project/workspace project)]
                                (when-some [{connect-tx-data :tx-data
                                             comp-node :node-id
@@ -392,7 +395,7 @@
     (when resolve-id?
       (->> (g/node-value self-id :component-ids)
            keys
-           (g/update-property comp-id :id outline/resolve-id)))
+           (g/update-property comp-id :id id/resolve)))
     (for [[from to] [[:node-outline :child-outlines]
                      [:_node-id :nodes]
                      [:build-targets :dep-build-targets]
@@ -469,12 +472,7 @@
                                                  {} (map first component-id-pairs)))))
 
 (defn- gen-component-id [go-node base]
-  (let [ids (map first (g/node-value go-node :component-ids))]
-    (loop [postfix 0]
-      (let [id (if (= postfix 0) base (str base postfix))]
-        (if (empty? (filter #(= id %) ids))
-          id
-          (recur (inc postfix)))))))
+  (id/gen base (e/map first (g/node-value go-node :component-ids))))
 
 (defn- add-component [self source-resource id transform-properties properties select-fn]
   (let [path {:resource source-resource
@@ -505,7 +503,7 @@
 (defn- selection->game-object [selection]
   (g/override-root (handler/adapt-single selection GameObjectNode)))
 
-(handler/defhandler :add-from-file :workbench
+(handler/defhandler :edit.add-referenced-component :workbench
   (active? [selection] (selection->game-object selection))
   (label [] "Add Component File")
   (run [workspace project selection app-view]
@@ -569,12 +567,12 @@
     (->> (embeddable-component-resource-types workspace)
          (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
                               :icon (:icon res-type)
-                              :command :add
+                              :command :edit.add-embedded-component
                               :user-data {:_node-id self :resource-type res-type :workspace workspace}}))
          (sort-by :label)
          vec)))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data] (add-embedded-component-label user-data))
   (active? [selection] (selection->game-object selection))
   (run [user-data app-view] (add-embedded-component-handler user-data (fn [node-ids] (app-view/select app-view node-ids))))
@@ -611,6 +609,17 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
     (collection-string-data/string-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
 
+(defn- handle-drop
+  [root-id _selection workspace world-pos resources]
+  (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
+        taken-ids (map first (g/node-value root-id :component-ids))
+        supported-exts (get-all-comp-exts workspace)]
+    (->> resources
+         (e/filter #(some #{(resource/type-ext %)} supported-exts))
+         (outline/name-resource-pairs taken-ids)
+         (mapv (fn [[id resource]]
+                 (add-component root-id resource id transform-props nil nil))))))
+
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "go"
@@ -618,10 +627,12 @@
     :node-type GameObjectNode
     :ddf-type GameObject$PrototypeDesc
     :load-fn load-game-object
+    :allow-unloaded-use true
     :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace))
     :sanitize-fn (partial sanitize-game-object workspace)
     :string-encode-fn (partial string-encode-game-object workspace)
     :icon game-object-common/game-object-icon
     :icon-class :design
     :view-types [:scene :text]
-    :view-opts {:scene {:grid true}}))
+    :view-opts {:scene {:grid true
+                        :drop-fn handle-drop}}))

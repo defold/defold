@@ -20,6 +20,7 @@
 
 #include <dlib/align.h>
 #include <dlib/math.h>
+#include <dlib/mutex.h>
 #include <dlib/utf8.h>
 
 #include <graphics/graphics.h>
@@ -38,7 +39,8 @@ namespace dmRender
     struct FontMap
     {
         FontMap()
-        : m_UserData(0)
+        : m_Mutex(0)
+        , m_UserData(0)
         , m_Texture(0)
         , m_Material(0)
         , m_NameHash(0)
@@ -63,7 +65,8 @@ namespace dmRender
         , m_CacheCellCount(0)
         , m_CacheCellPadding(0)
         , m_LayerMask(FACE)
-        , m_IsMonospaced(false)
+        , m_IsMonospaced(0)
+        , m_IsCacheSizeDirty(0)
         , m_Padding(0)
         {
         }
@@ -82,6 +85,7 @@ namespace dmRender
             dmGraphics::DeleteTexture(m_Texture);
         }
 
+        dmMutex::HMutex         m_Mutex;
         void*                   m_UserData; // The font map resources (see res_font.cpp)
         dmGraphics::HContext    m_GraphicsContext; // Used to recreate textures
         HFontRenderBackend      m_FontRenderBackend;
@@ -128,7 +132,8 @@ namespace dmRender
         uint8_t                 m_CacheCellPadding;
         uint8_t                 m_LayerMask;
         uint8_t                 m_IsMonospaced:1;
-        uint8_t                 m_Padding:7;
+        uint8_t                 m_IsCacheSizeDirty:1;   // if the glyph cell size has changed, or if the layout needs to be recalculated
+        uint8_t                 m_Padding:6;            // The padding of the cell
     };
 
     ///////////////////////////////////////////////////////////////////////////////

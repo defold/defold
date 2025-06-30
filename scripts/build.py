@@ -35,13 +35,14 @@ from glob import glob
 from threading import Thread, Event
 from queue import Queue
 from configparser import ConfigParser
+from BuildTimeTracker import BuildTimeTracker
 
 BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'x86_64-macos', 'arm64-macos',
                     'win32', 'x86_64-win32',
                     'x86_64-ios', 'arm64-ios',
                     'armv7-android', 'arm64-android',
-                    'js-web', 'wasm-web']
+                    'js-web', 'wasm-web', 'wasm_pthread-web']
 
 sys.dont_write_bytecode = True
 try:
@@ -99,36 +100,205 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 vecmath vpx-1.7.0 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-v1.3.299".split()
-PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1".split()
-PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
-PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 moltenvk-1.3.261.1 glfw-2.7.1".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-9040e0d2 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-3.4 tint-22b958 astcenc-8b0aa01".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-9040e0d2 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958 astcenc-8b0aa01".split()
-PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-a4f56a4 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-3.4".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-42d9adf5 spirv-cross-9040e0d2 spirv-tools-d24a39a7 vulkan-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958 astcenc-8b0aa01 directx-headers-1.611.0".split()
-PACKAGES_LINUX_X86_64="protobuf-3.20.1 luajit-2.1.0-a4f56a4 bullet-2.77 glslang-ba5c010c spirv-cross-9040e0d2 spirv-tools-d24a39a7 vulkan-1.1.108  tremolo-b0cb4d1 lipo-9ffdea2 glfw-3.4 tint-22b958 sassc-5472db213ec223a67482df2226622be372921847 astcenc-8b0aa01".split()
-PACKAGES_LINUX_ARM64 ="protobuf-3.20.1 luajit-2.1.0-a4f56a4 bullet-2.77 glslang-2fed4fc0 spirv-cross-9040e0d2 spirv-tools-4fab7435 vulkan-v1.3.299 tremolo-b0cb4d1 lipo-abb8ab1 glfw-3.4 tint-22b958 astcenc-8b0aa01".split() # vulkan-1.1.108".split()
-PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_ALL=[
+    "protobuf-3.20.1",
+    "waf-2.0.3",
+    "junit-4.6",
+    "jsign-4.2",
+    "protobuf-java-3.20.1",
+    "openal-1.1",
+    "maven-3.0.1",
+    "vecmath",
+    "vpx-1.7.0",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "defold-robot-0.7.0",
+    "bullet-2.77",
+    "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
+    "jctest-0.10.2",
+    "vulkan-v1.4.307",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_HOST=[
+    "vpx-1.7.0",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1"]
+
+PACKAGES_IOS_X86_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "glfw-2.7.1",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_IOS_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "moltenvk-1474891",
+    "glfw-2.7.1",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_MACOS_X86_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "vpx-1.7.0",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-b21dda0e",
+    "glslang-42d9adf5",
+    "moltenvk-1474891",
+    "lipo-4c7c275",
+    "sassc-5472db213ec223a67482df2226622be372921847",
+    "glfw-3.4",
+    "tint-22b958",
+    "astcenc-8b0aa01",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_MACOS_ARM64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "vpx-1.7.0",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-b21dda0e",
+    "glslang-42d9adf5",
+    "moltenvk-1474891",
+    "lipo-4c7c275",
+    "glfw-3.4",
+    "tint-22b958",
+    "astcenc-8b0aa01",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_WIN32=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "glut-3.7.6",
+    "bullet-2.77",
+    "vulkan-v1.4.307",
+    "glfw-3.4",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_WIN32_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "glut-3.7.6",
+    "sassc-5472db213ec223a67482df2226622be372921847",
+    "bullet-2.77",
+    "glslang-42d9adf5",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-d24a39a7",
+    "vulkan-v1.4.307",
+    "lipo-4c7c275",
+    "glfw-3.4",
+    "tint-22b958",
+    "astcenc-8b0aa01",
+    "directx-headers-1.611.0",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_LINUX_X86_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "bullet-2.77",
+    "glslang-ba5c010c",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-d24a39a7",
+    "vulkan-v1.4.307",
+    "tremolo-b0cb4d1",
+    "lipo-4c7c275",
+    "glfw-3.4",
+    "tint-7bd151a780",
+    "sassc-5472db213ec223a67482df2226622be372921847",
+    "astcenc-8b0aa01",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_LINUX_ARM64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-a4f56a4",
+    "bullet-2.77",
+    "glslang-2fed4fc0",
+    "spirv-cross-9040e0d2",
+    "spirv-tools-4fab7435",
+    "vulkan-v1.4.307",
+    "tremolo-b0cb4d1",
+    "lipo-4c7c275",
+    "glfw-3.4",
+    "tint-7bd151a780",
+    "astcenc-8b0aa01",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_ANDROID=[
+"protobuf-3.20.1",
+    "android-support-multidex",
+    "androidx-multidex",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "glfw-2.7.1",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
-PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-a4f56a4 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+
+PACKAGES_ANDROID_64=[
+"protobuf-3.20.1",
+    "android-support-multidex",
+    "androidx-multidex",
+    "luajit-2.1.0-a4f56a4",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "glfw-2.7.1",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
-PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77 glfw-2.7.1".split()
-PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
+
+PACKAGES_EMSCRIPTEN=[
+    "protobuf-3.20.1",
+    "bullet-2.77",
+    "glfw-2.7.1",
+    "box2d-3.0.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2"]
+
+PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
 PLATFORM_PACKAGES = {
-    'win32':          PACKAGES_WIN32,
-    'x86_64-win32':   PACKAGES_WIN32_64,
-    'x86_64-linux':   PACKAGES_LINUX_X86_64,
-    'arm64-linux':    PACKAGES_LINUX_ARM64,
-    'x86_64-macos':   PACKAGES_MACOS_X86_64,
-    'arm64-macos':    PACKAGES_MACOS_ARM64,
-    'arm64-ios':      PACKAGES_IOS_64,
-    'x86_64-ios':     PACKAGES_IOS_X86_64,
-    'armv7-android':  PACKAGES_ANDROID,
-    'arm64-android':  PACKAGES_ANDROID_64,
-    'js-web':         PACKAGES_EMSCRIPTEN,
-    'wasm-web':       PACKAGES_EMSCRIPTEN
+    'win32':            PACKAGES_WIN32,
+    'x86_64-win32':     PACKAGES_WIN32_64,
+    'x86_64-linux':     PACKAGES_LINUX_X86_64,
+    'arm64-linux':      PACKAGES_LINUX_ARM64,
+    'x86_64-macos':     PACKAGES_MACOS_X86_64,
+    'arm64-macos':      PACKAGES_MACOS_ARM64,
+    'arm64-ios':        PACKAGES_IOS_64,
+    'x86_64-ios':       PACKAGES_IOS_X86_64,
+    'armv7-android':    PACKAGES_ANDROID,
+    'arm64-android':    PACKAGES_ANDROID_64,
+    'js-web':           PACKAGES_EMSCRIPTEN,
+    'wasm-web':         PACKAGES_EMSCRIPTEN,
+    'wasm_pthread-web': PACKAGES_EMSCRIPTEN
 }
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
@@ -154,7 +324,7 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-EXTERNAL_LIBS = "glfw bullet3d".split()
+EXTERNAL_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
 
 def get_host_platform():
     return sdk.get_host_platform()
@@ -167,10 +337,10 @@ def format_exes(name, platform):
     elif 'android' in platform:
         prefix = 'lib'
         suffix = ['.so']
-    elif 'js-web' in platform:
+    elif platform in ['js-web']:
         prefix = ''
         suffix = ['.js']
-    elif 'wasm-web' in platform:
+    elif platform in ['wasm-web', 'wasm_pthread-web']:
         prefix = ''
         suffix = ['.js', '.wasm']
     elif platform in ['arm64-nx64']:
@@ -249,9 +419,12 @@ def download_sdk(conf, url, targetfolder, strip_components=1, force_extract=Fals
         print ("SDK already installed:", targetfolder)
 
 class Configuration(object):
-    def __init__(self, dynamo_home = None,
+    def __init__(self,
+                 defold_home = None,
+                 dynamo_home = None,
                  target_platform = None,
                  skip_tests = False,
+                 keep_bob_uncompressed = False,
                  skip_codesign = False,
                  skip_docs = False,
                  incremental = False,
@@ -288,7 +461,8 @@ class Configuration(object):
         else:
             home = os.environ['HOME']
 
-        self.dynamo_home = dynamo_home if dynamo_home else join(os.getcwd(), 'tmp', 'dynamo_home')
+        self.defold_home = os.path.normpath(join(os.path.dirname(__file__), '..'))
+        self.dynamo_home = dynamo_home if dynamo_home else join(self.defold_home, 'tmp', 'dynamo_home')
         self.ext = join(self.dynamo_home, 'ext')
         self.dmsdk = join(self.dynamo_home, 'sdk')
         self.defold = normpath(join(dirname(abspath(__file__)), '..'))
@@ -299,6 +473,7 @@ class Configuration(object):
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
 
         self.skip_tests = skip_tests
+        self.keep_bob_uncompressed = keep_bob_uncompressed
         self.skip_codesign = skip_codesign
         self.skip_docs = skip_docs
         self.incremental = incremental
@@ -330,6 +505,7 @@ class Configuration(object):
         self.gcloud_certfile = gcloud_certfile
         self.gcloud_keyfile = gcloud_keyfile
         self.verbose = verbose
+        self.build_tracker = BuildTimeTracker(logger=self._log)
 
         if self.github_token is None:
             self.github_token = os.environ.get("GITHUB_TOKEN")
@@ -349,10 +525,11 @@ class Configuration(object):
             os._exit(5)
 
     def get_python(self):
-        return ['python']
+        self.check_python()
+        return [sys.executable]
 
     def _create_common_dirs(self):
-        for p in ['ext/lib/python', 'share', 'lib/js-web/js', 'lib/wasm-web/js']:
+        for p in ['ext/lib/python', 'share', 'lib/js-web/js', 'lib/wasm-web/js', 'lib/wasm_pthread-web/js']:
             self._mkdirs(join(self.dynamo_home, p))
 
     def _mkdirs(self, path):
@@ -476,7 +653,7 @@ class Configuration(object):
         target_platform = self.target_platform
         other_platforms = set(PLATFORM_PACKAGES.keys()).difference(set(base_platforms), set([target_platform, self.host]))
 
-        if target_platform in ['js-web', 'wasm-web']:
+        if target_platform in ['js-web', 'wasm-web', 'wasm_pthread-web']:
             node_modules_dir = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR)
             for package in PACKAGES_NODE_MODULES:
                 path = join(self.defold_root, 'packages', package + '.tar.gz')
@@ -524,7 +701,7 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml', 'rangehttpserver'])
+        run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml', 'rangehttpserver', 'pystache'])
         for whl in glob(join(self.defold_root, 'packages', '*.whl')):
             self._log('Installing %s' % basename(whl))
             run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', join(self.ext, 'lib', 'python'), whl])
@@ -558,6 +735,13 @@ class Configuration(object):
             print("Error. Could not download %s" % path)
             sys.exit(1)
         return path
+
+    def check_python(self):
+        if sys.version_info.major != 3:
+            self.fatal("The build scripts requires Python 3!")
+
+    def has_sdk(self, sdkfolder, target_platform):
+        return None != sdk.get_sdk_info(sdkfolder, target_platform, False)
 
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
@@ -598,8 +782,13 @@ class Configuration(object):
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
-
         target_platform = self.target_platform
+
+        # check host tools availability
+        has_host_sdk = False
+        if sdk.get_host_platform() != target_platform:
+            has_host_sdk = self.has_sdk(sdkfolder, sdk.get_host_platform())
+
         if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
             # macOS SDK
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_MACOS_SDK), join(sdkfolder, sdk.PACKAGES_MACOS_SDK))
@@ -610,12 +799,12 @@ class Configuration(object):
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SDK))
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SIMULATOR_SDK))
 
-        if 'win32' in target_platform or ('win32' in self.host):
+        if 'win32' in target_platform or ('win32' in self.host and not has_host_sdk):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
-        if target_platform in ('js-web', 'wasm-web'):
+        if target_platform in ('js-web', 'wasm-web', 'wasm_pthread-web'):
             emsdk_folder = sdk.get_defold_emsdk()
             download_sdk(self,'%s/%s-%s.tar.gz' % (self.package_path, sdk.PACKAGES_EMSCRIPTEN_SDK, self.host), emsdk_folder)
 
@@ -632,7 +821,7 @@ class Configuration(object):
         if target_platform in ('armv7-android', 'arm64-android'):
             host = self.host
             if 'win32' in host:
-                host = 'windows'
+                host = 'win'
             elif 'linux' in host:
                 host = 'linux'
             elif 'macos' in host:
@@ -857,8 +1046,8 @@ class Configuration(object):
                     paths = _findjslibs(jsdir)
                     self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-            if platform in ['wasm-web']:
-                for subdir in ['lib/wasm-web/js/', 'ext/lib/wasm-web/js/']:
+            if platform in ['wasm-web', 'wasm_pthread-web']:
+                for subdir in [f'lib/{platform}/js/', f'ext/lib/{platform}/js/']:
                     jsdir = os.path.join(self.dynamo_home, subdir)
                     paths = _findjslibs(jsdir)
                     self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
@@ -1106,8 +1295,8 @@ class Configuration(object):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
         supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
-        supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'js-web']
-        supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'js-web']
+        supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'wasm_pthread-web', 'js-web']
+        supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web', 'js-web']
 
         return self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
 
@@ -1164,7 +1353,7 @@ class Configuration(object):
         return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, commands)
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
-        self._log('Building %s for %s' % (lib, platform))
+        self.build_tracker.start_component(lib, platform)
         skip_build_tests = []
         if skip_tests and '--skip-build-tests' not in self.waf_options:
             skip_build_tests.append('--skip-tests')
@@ -1172,6 +1361,7 @@ class Configuration(object):
         cwd = join(self.defold_root, '%s/%s' % (dir, lib))
         plf_args = ['--platform=%s' % platform]
         run.env_command(self._form_env(), args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
+        self.build_tracker.end_component(lib, platform)
 
 # For now gradle right in
 # - 'com.dynamo.cr/com.dynamo.cr.bob'
@@ -1185,7 +1375,7 @@ class Configuration(object):
             return join('.', 'gradlew')
 
     def build_bob_light(self):
-        self._log('Building bob light')
+        self.build_tracker.start_component('bob_light', self.host)
 
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         # common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
@@ -1206,9 +1396,10 @@ class Configuration(object):
         env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true
 
         # Clean and build the project
-        s = run.command(" ".join([gradle, 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
+        s = run.command(" ".join([gradle, '-Pkeep-bob-uncompressed', 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
         if self.verbose:
         	print (s)
+        self.build_tracker.end_component('bob_light', self.host)
 
     def build_engine(self):
         self.check_sdk()
@@ -1338,7 +1529,7 @@ class Configuration(object):
         # Add dmengine to 'artefacts' procedurally
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android']],
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
-                           'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web']],
+                           'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web'], ['wasm_pthread-web', 'wasm_pthread-web']],
                            'ios-bundling': [['arm64-ios', 'arm64-ios'], ['x86_64-ios', 'x86_64-ios']],
                            'osx-bundling': [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']],
                            'linux-bundling': [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']],
@@ -1383,13 +1574,16 @@ class Configuration(object):
             gradle_args += ['--info']
 
         env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true
+        flags = ''
+        if self.keep_bob_uncompressed:
+            flags = '-Pkeep-bob-uncompressed'
 
         # Clean and build the project
-        run.command(" ".join([gradle, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
+        run.command(" ".join([gradle, flags, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
 
         # Run tests if not skipped
         if not self.skip_tests:
-            run.command(" ".join([gradle, 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
+            run.command(" ".join([gradle, flags, 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
 
 
     def build_sdk_headers(self):
@@ -1652,18 +1846,24 @@ class Configuration(object):
 
 
     def shell(self):
-        print ('Setting up shell with DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
+        self.check_python()
+        print ('Setting up shell with DEFOLD_HOME, DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
 
         args = [SHELL, '-l']
 
         process = subprocess.Popen(args, env=self._form_env(), shell=True)
-        output = process.communicate()[0]
+        try:
+            output = process.communicate()[0]
+        except KeyboardInterrupt as e:
+            sys.exit(0)
 
         if process.returncode != 0:
-            self._log(str(output, encoding='utf-8'))
+            if output is not None:
+                self._log(str(output, encoding='utf-8'))
             sys.exit(process.returncode)
 
     def fatal(self, msg):
+        self._log("****************************************************")
         self._log(msg)
         sys.exit(1)
 
@@ -2314,6 +2514,7 @@ class Configuration(object):
             self.fatal("Failed to find JAVA_HOME environment variable or valid java executable")
         env['JAVA_HOME'] = os.environ['JAVA_HOME']
 
+        env['DEFOLD_HOME'] = self.defold_home
         env['DYNAMO_HOME'] = self.dynamo_home
 
         android_host = self.host
@@ -2341,7 +2542,7 @@ class Configuration(object):
         if self.no_colors:
             env['NOCOLOR'] = '1'
 
-
+        # XMLHttpRequest Emulation for node.js
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')
         if 'NODE_PATH' in env:
             env['NODE_PATH'] = xhr2_path + os.path.pathsep + env['NODE_PATH']
@@ -2394,6 +2595,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       action = 'store_true',
                       default = False,
                       help = 'Skip unit-tests. Default is false')
+
+    parser.add_option('--keep-bob-uncompressed', dest='keep_bob_uncompressed',
+                    action = 'store_true',
+                    default = False,
+                    help = 'do not apply compression to bob.jar. Default is false')
 
     parser.add_option('--skip-codesign', dest='skip_codesign',
                       action = 'store_true',
@@ -2538,6 +2744,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
                       skip_tests = options.skip_tests,
+                      keep_bob_uncompressed = options.keep_bob_uncompressed,
                       skip_codesign = options.skip_codesign,
                       skip_docs = options.skip_docs,
                       incremental = options.incremental,
@@ -2575,7 +2782,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
             needs_dynamo_home = False
             break
     if needs_dynamo_home:
-        for env_var in ['DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
+        for env_var in ['DEFOLD_HOME', 'DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
             if not env_var in os.environ:
                 c._log("CMD: " + ' '.join(sys.argv))
                 msg = f"{env_var} was not found in environment.\nDid you use './scripts/build.py shell'?"
@@ -2586,11 +2793,13 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
         if not f:
             parser.error('Unknown command %s' % cmd)
         else:
-            start = time.time()
-            print("Running '%s'" % cmd)
+            c.build_tracker.start_command(cmd)
             f()
             c.wait_uploads()
-            duration = (time.time() - start)
-            print("'%s' completed in %.2f s" % (cmd, duration))
+            c.build_tracker.end_command(cmd)
+
+    # Print and save build time summary
+    c.build_tracker.print_summary()
+    c.build_tracker.save_times()
 
     print('Done')

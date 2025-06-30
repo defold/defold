@@ -28,7 +28,7 @@
                      [org.clojure/tools.cli                       "0.3.5"]
                      [org.clojure/tools.macro                     "0.1.5"]
                      [org.clojure/tools.namespace                 "1.2.0"]
-                     [org.clojure/data.int-map                    "0.2.4"]
+                     [org.clojure/data.int-map                    "1.3.0"]
                      [org.clojure/data.json                       "2.5.0"]
                      [com.cognitect/transit-clj                   "0.8.285"]
                      [prismatic/schema                            "1.1.9"]
@@ -63,6 +63,8 @@
                      [com.defold.lib/bob                          "1.0"]
                      [com.defold.lib/openmali                     "1.0"]
 
+                     [metosin/reitit-core "0.8.0-alpha1"]
+
                      [org.commonmark/commonmark "0.21.0"]
                      [org.commonmark/commonmark-ext-autolink "0.21.0"]
 
@@ -79,7 +81,7 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.9.3"
+                     [cljfx "1.9.5"
                       :exclusions [org.clojure/clojure
                                    org.openjfx/javafx-base
                                    org.openjfx/javafx-graphics
@@ -162,6 +164,8 @@
                       "--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED"
                       ;; used in editor.scene$read_to_buffered_image
                       "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"]
+                      ;; "-XX:MaxJavaStackTraceDepth=1073741823"
+
   :main ^:skip-aot   com.defold.editor.Main
 
   :uberjar-exclusions [#"^natives/"]
@@ -217,9 +221,13 @@
                                            (.replace (System/getProperty "user.home") \\ \/)
                                            "/.m2/repository/com/github/jbellis/jamm/0.4.0/jamm-0.4.0.jar")
                                         "-Ddefold.jamm=true"
+                                        "--add-opens=java.base/java.util=ALL-UNNAMED"
                                         "--add-opens=java.base/java.util.function=ALL-UNNAMED"
                                         "--add-opens=java.base/java.util.regex=ALL-UNNAMED"
-                                        "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]}
+                                        "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"
+                                        "--add-opens=java.net.http/jdk.internal.net.http=ALL-UNNAMED"
+                                        "--add-opens=java.net.http/jdk.internal.net.http.common=ALL-UNNAMED"]}
+                      :strict-pb-map-keys {:jvm-opts ["-Ddefold.protobuf.strict.enable=true"]}
                       :no-asserts {:global-vars {*assert* false}}
                       :no-decorated-exceptions {:jvm-opts ["-Ddefold.exception.decorate.disable=true"]}
                       :no-schemas {:jvm-opts ["-Ddefold.schema.check.disable=true"]}
@@ -272,21 +280,22 @@
                                                     [io.github.cljfx/dev "1.0.39"]
                                                     [org.clojure/test.check "1.1.1"]
                                                     [org.clojure/tools.trace "0.7.9"]
-                                                    [org.mockito/mockito-core "1.10.19"]
-                                                    [ring "1.9.6"]]
+                                                    [org.mockito/mockito-core "1.10.19"]]
                                 :source-paths      ["src/dev"]
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.1.3.zip"
-                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/2.4.0.zip"
+                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/3.9.0.zip"
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.1.0.zip"
-                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/3.6.5.zip"
+                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/3.9.2.zip"
                                                     "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.2.zip"
-                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.1.3.zip"
+                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.2.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="
+                                                    ;"-Djogl.verbose=true"
+                                                    ;"-Djogl.debug=true"
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
                                                     "-XX:MaxRAMPercentage=75"

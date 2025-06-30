@@ -28,6 +28,7 @@
  * @name SSLSocket
  * @namespace dmSSLSocket
  * @path engine/dlib/src/dmsdk/dlib/sslsocket.h
+ * @language C++
  */
 
 namespace dmSSLSocket
@@ -37,7 +38,7 @@ namespace dmSSLSocket
      * Result enumeration.
      *
      * @enum
-     * @name dmSSLSocket::Result
+     * @name Result
      * @member dmSSLSocket::RESULT_OK (0)
      * @member dmSSLSocket::RESULT_SSL_INIT_FAILED (-2000)
      * @member dmSSLSocket::RESULT_HANDSHAKE_FAILED (-2001)
@@ -62,14 +63,14 @@ namespace dmSSLSocket
     typedef struct SSLSocket* Socket;
 
     /*# SSLSocket socket handle
-     * @variable
-     * @name dmSSLSocket::INVALID_SOCKET_HANDLE
+     * @constant
+     * @name INVALID_SOCKET_HANDLE
      */
     const Socket INVALID_SOCKET_HANDLE = 0;
 
     /*# create a secure socket
      * Create a new secure socket
-     * @name dmSSLSocket::New
+     * @name New
      * @param socket [type:dmSocket::Socket] The socket to wrap
      * @param host [type:const char*] The name of the host (e.g. "httpbin.org")
      * @param timeout [type:uint64_t] The timeout for the handshake procedure. (microseconds)
@@ -92,8 +93,8 @@ namespace dmSSLSocket
 
     /*# delete a secure socket
      * Delete a secure socket. Does not close the underlying socket
-     * @name dmSSLSocket::Delete
-     * @param socket [type:dmSSLSocket::Socket] Secure socket to close
+     * @name Delete
+     * @param socket [type:Socket] Secure socket to close
      * @return RESULT_OK on success
      * @examples
      * ```cpp
@@ -104,22 +105,22 @@ namespace dmSSLSocket
 
     /*# send a message on a secure socket
      * Send a message on a secure socket
-     * @name dmSSLSocket::Send
-     * @param socket [type:dmSSLSocket::Socket] SSL socket to send a message on
-     * @param buffer Buffer to send
-     * @param length Length of buffer to send
-     * @param sent_bytes Number of bytes sent (result)
+     * @name Send
+     * @param socket [type:Socket] SSL socket to send a message on
+     * @param buffer [type:void*] Buffer to send
+     * @param length [type:int] Length of buffer to send
+     * @param sent_bytes [type:int*] Number of bytes sent (result)
      * @return RESULT_OK on success
      */
     dmSocket::Result Send(Socket socket, const void* buffer, int length, int* sent_bytes);
 
     /*# receive data on a secure socket
      * Receive data on a secure socket
-     * @name dmSSLSocket::Receive
-     * @param socket [type:dmSSLSocket::Socket] Socket to receive data on
-     * @param buffer Buffer to receive to
-     * @param length Receive buffer length
-     * @param received_bytes Number of received bytes (result)
+     * @name Receive
+     * @param socket [type:Socket] Socket to receive data on
+     * @param buffer [type:void*] Buffer to receive to
+     * @param length [type:int] Receive buffer length
+     * @param received_bytes [type:int*] Number of received bytes (result)
      * @return RESULT_OK on success
      */
     dmSocket::Result Receive(Socket socket, void* buffer, int length, int* received_bytes);
@@ -129,7 +130,7 @@ namespace dmSSLSocket
      * @note Timeout resolution might be in milliseconds, e.g. windows. Use values
      *       larger than or equal to 1000
      * @name dmSocket::SetReceiveTimeout
-     * @param socket [type:dmSocket::Socket] socket
+     * @param socket [type:Socket] socket
      * @param timeout [type:uint64_t] timeout in microseconds
      * @return RESULT_OK on success
      */

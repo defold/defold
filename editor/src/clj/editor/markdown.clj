@@ -32,9 +32,9 @@
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.defold-project :as project]
-            [editor.fxui :as fxui]
             [editor.html-view :as html-view]
             [editor.ui :as ui]
+            [editor.util :as util]
             [editor.workspace :as workspace]
             [util.fn :as fn])
   (:import [java.net URI]
@@ -70,10 +70,11 @@
 
       "file"
       (if-let [resource (g/with-auto-evaluation-context evaluation-context
-                          (let [workspace (project/workspace project evaluation-context)]
-                            (when-let [proj-path (workspace/as-proj-path workspace resolved-url evaluation-context)]
+                          (let [basis (:basis evaluation-context)
+                                workspace (project/workspace project evaluation-context)]
+                            (when-let [proj-path (workspace/as-proj-path basis workspace resolved-url)]
                               (workspace/find-resource workspace proj-path))))]
-        (ui/execute-command (ui/contexts (ui/main-scene)) :open {:resources [resource]})
+        (ui/execute-command (ui/contexts (ui/main-scene)) :file.open resource)
         (ui/open-url resolved-url))
 
       (ui/open-url resolved-url))))
@@ -412,7 +413,7 @@
                  {:fx/type fx.region/lifecycle})
         scroll-pane-view (-> props
                              (dissoc :content :base-url :project)
-                             (fxui/provide-defaults :fit-to-width true
+                             (util/provide-defaults :fit-to-width true
                                                     :hbar-policy :never)
                              (assoc :fx/type fx.scroll-pane/lifecycle
                                     :style-class "md-scroll-pane"

@@ -21,6 +21,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,7 +29,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.BuilderParams;
@@ -202,10 +202,11 @@ public class ResourceCacheKeyTest {
 
 	// Ensure that all parameters specified in all builders exist in Bob
 	@Test
-	public void testAllParametersExist() throws IOException, CompileExceptionError, NoSuchFieldException, IllegalAccessException {
+	public void testAllParametersExist() throws IOException, CompileExceptionError, NoSuchFieldException, IllegalAccessException, NoSuchMethodException, InvocationTargetException {
 		// Initialize project
 		Project project = new Project(new DefaultFileSystem());
 		project.scanJavaClasses();
+		project.configurePreBuildProjectOptions();
 
 		// Access private static field classToParamsDigest
 		Class<?> builderClass = Builder.class;
@@ -220,6 +221,10 @@ public class ResourceCacheKeyTest {
 		// Collect all long options
 		for (Bob.CommandLineOption option : commandLineOptions) {
 			allOptions.add(option.longOpt);
+		}
+
+		for (String key :project.getOptions().keySet()) {
+			allOptions.add(key);
 		}
 
 		// Validate each parameter in classToParamsDigest
@@ -283,6 +288,7 @@ public class ResourceCacheKeyTest {
                 "certificate",
                 "debug",
                 "debug-ne-upload",
+                "debug-output-glsl",
                 "debug-output-hlsl",
                 "debug-output-spirv",
                 "debug-output-wgsl",

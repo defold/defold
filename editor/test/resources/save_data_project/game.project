@@ -156,6 +156,8 @@ max_count = 64
 [model]
 max_count = 64
 split_meshes = 1
+max_bone_matrix_texture_width = 512
+max_bone_matrix_texture_height = 512
 
 [particle_fx]
 max_count = 128
@@ -166,12 +168,17 @@ max_particle_buffer_count = 512
 [sound]
 use_thread = 0
 gain = 0.9
+use_linear_gain = 1
 max_sound_data = 64
 max_sound_buffers = 16
 max_sound_sources = 32
 max_sound_instances = 128
 max_component_count = 16
 sample_frame_count = 0
+stream_enabled = 0
+stream_chunk_size = 16384
+stream_preload_size = 16384
+stream_cache_size = 2097152
 
 [sprite]
 max_count = 256
@@ -235,6 +242,8 @@ max_fixed_timesteps = 3
 [profiler]
 track_cpu = 1
 sleep_between_server_updates = 10
+performance_timeline_enabled = 0
+enabled = 1
 
 [render]
 clear_color_red = 0.0
@@ -261,3 +270,5 @@ app_manifest = /checked.appmanifest
 player_name = Player One
 player_health = 120
 
+[shader]
+exclude_gles_sm100 = 0

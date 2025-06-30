@@ -25,6 +25,21 @@ namespace dmResource
 
 namespace dmGameSystem
 {
+    /*# Property functions
+     *
+     * Property functions.
+     *
+     * @document
+     * @namespace dmGameSystem
+     * @name Property
+     * @path engine/gamesys/src/dmsdk/gamesys/property.h
+     * @language C++
+     */
+
+    /*#
+     * @struct
+     * @name PropVector3
+     */
     struct PropVector3
     {
         dmhash_t m_Vector;
@@ -43,6 +58,10 @@ namespace dmGameSystem
         }
     };
 
+    /*#
+     * @struct
+     * @name PropVector4
+     */
     struct PropVector4
     {
         dmhash_t m_Vector;

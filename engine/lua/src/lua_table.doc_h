@@ -12,6 +12,7 @@
  * @document
  * @name Table
  * @namespace table
+ * @language Lua
  */
 
 /*# concatenates table items together into a string
@@ -24,10 +25,10 @@
  * 
  * 
  * @name table.concat
- * @param table
- * @param [sep]
- * @param [i]
- * @param [j]
+ * @param table [type:table]
+ * @param [sep] [type:string]
+ * @param [i] [type:number]
+ * @param [j] [type:number]
  */
 
 /*# inserts a new item into a numerically-keyed table
@@ -41,9 +42,9 @@
  * 
  * 
  * @name table.insert
- * @param table
- * @param [pos]
- * @param value
+ * @param table [type:table]
+ * @param [pos] [type:number]
+ * @param value [type:any]
  */
 
 /*# returns the highest numeric key in the table
@@ -55,7 +56,7 @@
  * 
  * 
  * @name table.maxn
- * @param table
+ * @param table [type:table]
  */
 
 /*# removes an item from a numerically-keyed table
@@ -70,8 +71,8 @@
  * 
  * 
  * @name table.remove
- * @param table
- * @param [pos]
+ * @param table [type:table]
+ * @param [pos] [type:number]
  */
 
 /*# Sorts a table
@@ -92,7 +93,7 @@
  * 
  * 
  * @name table.sort
- * @param table
- * @param [comp]
+ * @param table [type:table]
+ * @param [comp] [type:function]
  */
 
