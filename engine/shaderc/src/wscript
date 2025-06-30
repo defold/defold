@@ -39,19 +39,20 @@ def build(bld):
         print("Skipping build of shaderc for non host platform")
         return
 
-    shaderc_exclude_sources = []
+    shaderc_sources = [
+        'shaderc.cpp',
+        'shaderc_jni.cpp',
+        'shaderc_spirv.cpp',
+        'shaderc_spvc.cpp']
+    shaderc_sources_no_jni = []
     shaderc_defines = []
 
     if bld.env.PLATFORM in ('x86_64-win32', 'win32'):
         shaderc_defines.append('DM_BINARY_HLSL_SUPPORTED')
-    else:
-        shaderc_exclude_sources += 'shaderc_hlsl.cpp'
-
-    shaderc_sources = bld.path.ant_glob("*.cpp", excl = shaderc_exclude_sources)
-    shaderc_sources_no_jni = []
+        shaderc_sources.append('shaderc_hlsl.cpp')
 
     for x in shaderc_sources:
-        if not 'jni' in x.name:
+        if not 'jni' in x:
             shaderc_sources_no_jni.append(x)
 
     # really only used for the unit tests
