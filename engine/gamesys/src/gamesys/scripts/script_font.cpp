@@ -41,10 +41,10 @@ struct CallbackContext
  * Adds a ttf resource to a .fontc file
  *
  * @name font.add_source
- * @param fontc [type:string,hash] The path to the .fontc resource
- * @param ttf [type:string,hash] The path to the .ttf resource
- * @param codepoint_min [type:integer] The minimum codepoint range (inclusive)
- * @param codepoint_max [type:integer] The maximum codepoint range (inclusive)
+ * @param fontc [type:string|hash] The path to the .fontc resource
+ * @param ttf [type:string|hash] The path to the .ttf resource
+ * @param codepoint_min [type:number] The minimum codepoint range (inclusive)
+ * @param codepoint_max [type:number] The maximum codepoint range (inclusive)
  */
 static int AddSource(lua_State* L)
 {
@@ -68,8 +68,8 @@ static int AddSource(lua_State* L)
  * Removes the ttf resource from a .fontc file
  *
  * @name font.add_source
- * @param fontc [type:string,hash] The path to the .fontc resource
- * @param ttf [type:string,hash] The path to the .ttf resource
+ * @param fontc [type:string|hash] The path to the .fontc resource
+ * @param ttf [type:string|hash] The path to the .ttf resource
  */
 static int RemoveSource(lua_State* L)
 {
@@ -123,7 +123,7 @@ static void AddGlyphsCallback(void* _ctx, int result, const char* errmsg)
  *
  * @name font.add_glyphs
  *
- * @param path [type:string,hash] The path to the .fontc resource
+ * @param path [type:string|hash] The path to the .fontc resource
  * @param text [type:string] A unique list of unicode characters to be loaded
  * @param [callback] [type:function(self, request_id, result, errstring)] A callback function that is called after the request is finished
  *
@@ -131,7 +131,7 @@ static void AddGlyphsCallback(void* _ctx, int result, const char* errmsg)
  * : [type:object] The current object.
  *
  * `request_id`
- * : [type:integer] The request id
+ * : [type:number] The request id
  *
  * `result`
  * : [type:boolean] True if request was succesful
@@ -139,7 +139,7 @@ static void AddGlyphsCallback(void* _ctx, int result, const char* errmsg)
  * `errstring`
  * : [type:string] `nil` if the request was successful
  *
- * @return request_id [type:integer] Returns the asynchronous request id
+ * @return request_id [type:number] Returns the asynchronous request id
  *
  * @examples
  *
@@ -211,7 +211,7 @@ static int AddGlyphs(lua_State* L)
  * Removes glyphs from the font
  *
  * @name font.remove_glyphs
- * @param path [type:string,hash] The path to the .fontc resource
+ * @param path [type:string|hash] The path to the .fontc resource
  * @param text [type:string] A unique list of unicode characters to be loaded
  */
 static int RemoveGlyphs(lua_State* L)
