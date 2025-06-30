@@ -2517,7 +2517,7 @@ namespace dmGraphics
 
             dmLogInfo("--------");
             dmLogInfo("VS Shader: %s", ddf_vp->m_Source.m_Data);
-            dmLogInfo("FS Shader: %s, %d, %d", ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count, strlen(fs_copy));
+            dmLogInfo("FS Shader: %s, %d, %d", ddf_fp->m_Source.m_Data);
 
             HRESULT hr = CreateShaderModule(context, "vs_5_1", ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count, program->m_VertexModule);
             CHECK_HR_ERROR(hr);

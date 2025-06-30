@@ -86,7 +86,6 @@ struct HLSLResourceEntryJNI {
     jclass cls;
     jfieldID name;
     jfieldID nameHash;
-    jfieldID hLSLRegister;
     jfieldID set;
     jfieldID binding;
 };

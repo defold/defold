@@ -105,7 +105,6 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         SETUP_CLASS(HLSLResourceEntryJNI, "HLSLResourceEntry");
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
         GET_FLD_TYPESTR(nameHash, "J");
-        GET_FLD_TYPESTR(hLSLRegister, "B");
         GET_FLD_TYPESTR(set, "B");
         GET_FLD_TYPESTR(binding, "B");
     }
@@ -219,7 +218,6 @@ jobject C2J_CreateHLSLResourceEntry(JNIEnv* env, TypeInfos* types, const HLSLRes
     jobject obj = env->AllocObject(types->m_HLSLResourceEntryJNI.cls);
     dmJNI::SetString(env, obj, types->m_HLSLResourceEntryJNI.name, src->m_Name);
     dmJNI::SetULong(env, obj, types->m_HLSLResourceEntryJNI.nameHash, src->m_NameHash);
-    dmJNI::SetUByte(env, obj, types->m_HLSLResourceEntryJNI.hLSLRegister, src->m_HLSLRegister);
     dmJNI::SetUByte(env, obj, types->m_HLSLResourceEntryJNI.set, src->m_Set);
     dmJNI::SetUByte(env, obj, types->m_HLSLResourceEntryJNI.binding, src->m_Binding);
     return obj;
@@ -542,7 +540,6 @@ bool J2C_CreateHLSLResourceEntry(JNIEnv* env, TypeInfos* types, jobject obj, HLS
     if (out == 0) return false;
     out->m_Name = dmJNI::GetString(env, obj, types->m_HLSLResourceEntryJNI.name);
     out->m_NameHash = dmJNI::GetULong(env, obj, types->m_HLSLResourceEntryJNI.nameHash);
-    out->m_HLSLRegister = dmJNI::GetUByte(env, obj, types->m_HLSLResourceEntryJNI.hLSLRegister);
     out->m_Set = dmJNI::GetUByte(env, obj, types->m_HLSLResourceEntryJNI.set);
     out->m_Binding = dmJNI::GetUByte(env, obj, types->m_HLSLResourceEntryJNI.binding);
     return true;

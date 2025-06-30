@@ -514,7 +514,6 @@ public class ShaderProgramBuilder extends Builder {
                 ShaderDesc.HLSLResourceBinding.Builder hlslResourcesBuilder = ShaderDesc.HLSLResourceBinding.newBuilder();
 
                 hlslResourcesBuilder.setNameHash(entry.nameHash);
-                hlslResourcesBuilder.setRegister(entry.hLSLRegister);
                 hlslResourcesBuilder.setBinding(entry.binding);
                 hlslResourcesBuilder.setSet(entry.set);
 

@@ -260,7 +260,6 @@ public class Shaderc {
     public static class HLSLResourceEntry {
         public String name;
         public long nameHash = 0;
-        public byte hLSLRegister = 0;
         public byte set = 0;
         public byte binding = 0;
     };
