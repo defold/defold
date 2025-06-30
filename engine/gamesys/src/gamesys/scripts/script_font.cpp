@@ -45,6 +45,16 @@ struct CallbackContext
  * @param ttf [type:string|hash] The path to the .ttf resource
  * @param codepoint_min [type:number] The minimum codepoint range (inclusive)
  * @param codepoint_max [type:number] The maximum codepoint range (inclusive)
+ *
+ * @examples
+ *
+ * ```lua
+ * local font_hash = hash("/assets/fonts/roboto.fontc")
+ * local ttf_hash = hash("/assets/fonts/Roboto/Roboto-Bold.ttf")
+ * local codepoint_min = 0x00000041 -- A
+ * local codepoint_max = 0x0000005A -- Z
+ * font.add_source(font_hash, ttf_hash, codepoint_min, codepoint_max)
+ * ```
  */
 static int AddSource(lua_State* L)
 {
@@ -65,7 +75,8 @@ static int AddSource(lua_State* L)
 }
 
 /*#
- * Removes the ttf resource from a .fontc file
+ * Removes the .ttf resource from a .fontc file
+ * Removes all ranges associated with the .ttf resource
  *
  * @name font.add_source
  * @param fontc [type:string|hash] The path to the .fontc resource
