@@ -107,6 +107,8 @@ namespace dmRig
         dmArray<dmVMath::Matrix4> m_PoseMatrices;
         /// The array of bone counts for the rig instances that have acquired a pose matrix cache slot
         dmArray<uint32_t>         m_CacheEntryOffsets;
+        /// The total number of cached bones
+        uint32_t                  m_TotalBoneCount;
         /// The max bone count found in the set of pose matrices (I think this can be removed?)
         uint32_t                  m_MaxBoneCount;
     };
