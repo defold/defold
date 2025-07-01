@@ -81,6 +81,8 @@ namespace dmRender
 
         uint32_t m_CacheWidth;
         uint32_t m_CacheHeight;
+        uint32_t m_CacheMaxWidth;
+        uint32_t m_CacheMaxHeight;
         uint32_t m_CacheCellWidth;
         uint32_t m_CacheCellHeight;
         uint32_t m_CacheCellMaxAscent;

@@ -22,6 +22,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/utf8.h>
 
 #include <render/font.h>
 #include <render/font_renderer.h>
@@ -354,64 +355,11 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    static void SetupParamsBase(dmRenderDDF::FontMap* ddf, const char* filename, dmRender::FontMapParams* params)
-    {
-        params->m_NameHash           = dmHashString64(filename);
-        params->m_ShadowX            = ddf->m_ShadowX;
-        params->m_ShadowY            = ddf->m_ShadowY;
-        params->m_OutlineAlpha       = ddf->m_OutlineAlpha;
-        params->m_ShadowAlpha        = ddf->m_ShadowAlpha;
-        params->m_Alpha              = ddf->m_Alpha;
-        params->m_LayerMask          = ddf->m_LayerMask;
-        params->m_Padding            = ddf->m_Padding;
-        params->m_ImageFormat        = ddf->m_OutputFormat;
-
-        params->m_SdfSpread          = ddf->m_SdfSpread;
-        params->m_SdfOutline         = ddf->m_SdfOutline;
-        params->m_SdfShadow          = ddf->m_SdfShadow;
-    }
-
-    static void SetupParamsForDynamicFont(dmRenderDDF::FontMap* ddf, const char* filename, dmRender::FontMapParams* params)
-    {
-        if (ddf->m_ShadowBlur > 0.0f && ddf->m_ShadowAlpha > 0.0f) {
-            params->m_GlyphChannels = 3;
-        }
-        else {
-            params->m_GlyphChannels = 1;
-        }
-
-        params->m_CacheWidth     = ddf->m_CacheWidth;
-        params->m_CacheHeight    = ddf->m_CacheHeight;
-
-        params->m_GetGlyph       = (dmRender::FGetGlyph)GetDynamicGlyph;
-        params->m_GetGlyphData   = (dmRender::FGetGlyphData)GetDynamicGlyphData;
-        params->m_GetFontMetrics = (dmRender::FGetFontMetrics)GetDynamicFontMetrics;
-    }
-
-    static void SetupParamsForGlyphBank(dmRenderDDF::FontMap* ddf, const char* filename, dmRenderDDF::GlyphBank* glyph_bank, dmRender::FontMapParams* params)
-    {
-        params->m_GlyphChannels      = glyph_bank->m_GlyphChannels;
-        params->m_CacheWidth         = glyph_bank->m_CacheWidth;
-        params->m_CacheHeight        = glyph_bank->m_CacheHeight;
-
-        params->m_MaxAscent          = glyph_bank->m_MaxAscent;
-        params->m_MaxDescent         = glyph_bank->m_MaxDescent;
-        params->m_CacheCellWidth     = glyph_bank->m_CacheCellWidth;
-        params->m_CacheCellHeight    = glyph_bank->m_CacheCellHeight;
-        params->m_CacheCellMaxAscent = glyph_bank->m_CacheCellMaxAscent;
-        params->m_CacheCellPadding   = glyph_bank->m_GlyphPadding;
-        params->m_IsMonospaced       = glyph_bank->m_IsMonospaced;
-
-        params->m_GetGlyph           = (dmRender::FGetGlyph)GetGlyph;
-        params->m_GetGlyphData       = (dmRender::FGetGlyphData)GetGlyphData;
-        params->m_GetFontMetrics     = (dmRender::FGetFontMetrics)GetFontMetrics;
-    }
-
-    static float CalcPadding(FontResource* resource, float* outline_padding, float* shadow_padding)
+    static float CalcPadding(dmRenderDDF::FontMap* ddf, float* outline_padding, float* shadow_padding)
     {
         float base_padding = dmGameSystem::FontGenGetBasePadding();
-        *outline_padding = resource->m_DDF->m_OutlineWidth;
-        *shadow_padding = resource->m_DDF->m_ShadowBlur;
+        *outline_padding = ddf->m_OutlineWidth;
+        *shadow_padding = ddf->m_ShadowBlur;
         return base_padding + *outline_padding + *shadow_padding;
     }
 
@@ -436,6 +384,143 @@ namespace dmGameSystem
         return (base_edge - (pixel_dist_scale * width)) / 255.0f;;
     }
 
+    static void SetupParamsBase(dmRenderDDF::FontMap* ddf, const char* filename, dmRender::FontMapParams* params)
+    {
+        params->m_NameHash           = dmHashString64(filename);
+        params->m_ShadowX            = ddf->m_ShadowX;
+        params->m_ShadowY            = ddf->m_ShadowY;
+        params->m_OutlineAlpha       = ddf->m_OutlineAlpha;
+        params->m_ShadowAlpha        = ddf->m_ShadowAlpha;
+        params->m_Alpha              = ddf->m_Alpha;
+        params->m_LayerMask          = ddf->m_LayerMask;
+        params->m_Padding            = ddf->m_Padding;
+        params->m_ImageFormat        = ddf->m_OutputFormat;
+
+        params->m_SdfSpread          = ddf->m_SdfSpread;
+        params->m_SdfOutline         = ddf->m_SdfOutline;
+        params->m_SdfShadow          = ddf->m_SdfShadow;
+    }
+
+    static void GetMaxCellSize(dmFont::HFont hfont, float scale, const char* text, float* cell_width, float* cell_height)
+    {
+        *cell_width = 0;
+        *cell_height = 0;
+
+        dmFont::GlyphOptions options;
+
+        const char* cursor = text;
+        uint32_t codepoint = 0;
+        while ((codepoint = dmUtf8::NextChar(&cursor)))
+        {
+            if (IsWhiteSpace(codepoint))
+                continue;
+
+            dmFont::Glyph glyph;
+            options.m_Scale = scale;
+            dmFont::FontResult r = dmFont::GetGlyph(hfont, codepoint, &options, &glyph);
+            if (r == dmFont::RESULT_OK)
+            {
+                *cell_width = dmMath::Max(*cell_width, glyph.m_Width);
+                *cell_height = dmMath::Max(*cell_height, glyph.m_Height);
+            }
+        }
+    }
+
+    static void SetupParamsForDynamicFont(dmRenderDDF::FontMap* ddf, const char* filename, dmFont::HFont hfont, dmRender::FontMapParams* params)
+    {
+        if (ddf->m_ShadowBlur > 0.0f && ddf->m_ShadowAlpha > 0.0f) {
+            params->m_GlyphChannels = 3;
+        }
+        else {
+            params->m_GlyphChannels = 1;
+        }
+
+        params->m_GetGlyph       = (dmRender::FGetGlyph)GetDynamicGlyph;
+        params->m_GetGlyphData   = (dmRender::FGetGlyphData)GetDynamicGlyphData;
+        params->m_GetFontMetrics = (dmRender::FGetFontMetrics)GetDynamicFontMetrics;
+
+        float outline_padding;
+        float shadow_padding; // the extra padding for the shadow blur
+        float padding           = CalcPadding(ddf, &outline_padding, &shadow_padding);
+
+        params->m_SdfSpread     = padding;
+        params->m_SdfOutline    = CalcSdfValue(padding, outline_padding);
+
+        float sdf_shadow = 1.0f;
+        if (shadow_padding)
+        {
+            sdf_shadow = CalcSdfValue(padding, shadow_padding);
+        }
+        params->m_SdfShadow = sdf_shadow;
+
+        float scale = dmFont::GetPixelScaleFromSize(hfont, ddf->m_Size);
+        params->m_MaxAscent = dmFont::GetAscent(hfont, scale);
+        params->m_MaxDescent = -dmFont::GetDescent(hfont, scale);
+
+        params->m_CacheWidth    = ddf->m_CacheWidth;
+        params->m_CacheHeight   = ddf->m_CacheHeight;
+        // From Fontc.java
+        params->m_CacheMaxWidth = 2048;
+        params->m_CacheMaxHeight= 4096;
+
+        params->m_CacheCellWidth     = 0;
+        params->m_CacheCellHeight    = 0;
+        params->m_CacheCellMaxAscent = 0;
+
+        bool all_chars = ddf->m_AllChars;
+        bool has_chars = ddf->m_Characters != 0 && ddf->m_Characters[0] != 0;
+        if (!all_chars && has_chars)
+        {
+            // We can make a guesstimate of the needed cache and cell sizes
+            float cell_width, cell_height;
+            GetMaxCellSize(hfont, scale, ddf->m_Characters, &cell_width, &cell_height);
+
+            params->m_CacheCellWidth     = (uint32_t)ceilf(cell_width) + 2 * ceilf(padding);
+            params->m_CacheCellHeight    = (uint32_t)ceilf(cell_height) + 2 * ceilf(padding);
+            params->m_CacheCellMaxAscent = (uint32_t)ceilf(params->m_MaxAscent) + ceilf(padding);
+
+            if (params->m_CacheWidth == 0 && params->m_CacheHeight == 0)
+            {
+                // We want to grow dynamically, so let's make a good guesstimate to fit all prewarming glyphs
+                params->m_CacheWidth = 1;
+                params->m_CacheHeight = 1;
+                uint32_t num_chars = dmUtf8::StrLen(ddf->m_Characters);
+
+                uint32_t prewarm_area = params->m_CacheCellWidth * params->m_CacheCellHeight * num_chars;
+                uint32_t max_area = params->m_CacheMaxWidth * params->m_CacheMaxHeight;
+
+                uint32_t size = params->m_CacheWidth * params->m_CacheHeight;
+                while (size < prewarm_area && size < max_area)
+                {
+                    if (params->m_CacheWidth < params->m_CacheHeight)
+                        params->m_CacheWidth *= 2;
+                    else
+                        params->m_CacheHeight *= 2;
+                    size = params->m_CacheWidth * params->m_CacheHeight;
+                }
+            }
+        }
+    }
+
+    static void SetupParamsForGlyphBank(dmRenderDDF::FontMap* ddf, const char* filename, dmRenderDDF::GlyphBank* glyph_bank, dmRender::FontMapParams* params)
+    {
+        params->m_GlyphChannels      = glyph_bank->m_GlyphChannels;
+        params->m_CacheWidth         = glyph_bank->m_CacheWidth;
+        params->m_CacheHeight        = glyph_bank->m_CacheHeight;
+
+        params->m_MaxAscent          = glyph_bank->m_MaxAscent;
+        params->m_MaxDescent         = glyph_bank->m_MaxDescent;
+        params->m_CacheCellWidth     = glyph_bank->m_CacheCellWidth;
+        params->m_CacheCellHeight    = glyph_bank->m_CacheCellHeight;
+        params->m_CacheCellMaxAscent = glyph_bank->m_CacheCellMaxAscent;
+        params->m_CacheCellPadding   = glyph_bank->m_GlyphPadding;
+        params->m_IsMonospaced       = glyph_bank->m_IsMonospaced;
+
+        params->m_GetGlyph           = (dmRender::FGetGlyph)GetGlyph;
+        params->m_GetGlyphData       = (dmRender::FGetGlyphData)GetGlyphData;
+        params->m_GetFontMetrics     = (dmRender::FGetFontMetrics)GetFontMetrics;
+    }
+
     static dmResource::Result CreateFont(dmRender::HRenderContext context, dmRenderDDF::FontMap* ddf, const char* path, FontResource* resource)
     {
         dmRender::FontMapParams params;
@@ -443,9 +528,14 @@ namespace dmGameSystem
 
         resource->m_IsDynamic = IsDynamic(ddf);
         if (resource->m_IsDynamic)
-            SetupParamsForDynamicFont(ddf, path, &params);
+        {
+            dmFont::HFont hfont = dmGameSystem::GetFont(resource->m_TTFResource);
+            SetupParamsForDynamicFont(ddf, path, hfont, &params);
+        }
         else
+        {
             SetupParamsForGlyphBank(ddf, path, resource->m_GlyphBankResource->m_DDF, &params);
+        }
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(context);
         resource->m_FontMap = dmRender::NewFontMap(context, graphics_context, params);
@@ -461,27 +551,6 @@ namespace dmGameSystem
 
         dmRender::SetFontMapMaterial(resource->m_FontMap, resource->m_MaterialResource->m_Material);
         dmRender::SetFontMapUserData(resource->m_FontMap, (void*)resource);
-        if (resource->m_IsDynamic)
-        {
-            float outline_padding;
-            float shadow_padding; // the extra padding for the shadow blur
-            float padding = CalcPadding(resource, &outline_padding, &shadow_padding);
-
-            dmRender::SetFontMapSdfSpread(resource->m_FontMap, padding);
-            dmRender::SetFontMapSdfOutlineWidth(resource->m_FontMap, CalcSdfValue(padding, outline_padding));
-
-            float sdf_shadow = 1.0f;
-            if (shadow_padding)
-            {
-                sdf_shadow = CalcSdfValue(padding, shadow_padding);
-            }
-            dmRender::SetFontMapSdfShadow(resource->m_FontMap, sdf_shadow);
-
-            dmFont::HFont hfont = dmGameSystem::GetFont(resource->m_TTFResource);
-            float scale = dmFont::GetPixelScaleFromSize(hfont, resource->m_DDF->m_Size);
-            dmRender::SetFontMapMaxAscent(resource->m_FontMap, dmFont::GetAscent(hfont, scale));
-            dmRender::SetFontMapMaxDescent(resource->m_FontMap, -dmFont::GetDescent(hfont, scale));
-        }
         return dmResource::RESULT_OK;
     }
 

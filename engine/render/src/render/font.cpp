@@ -193,19 +193,14 @@ namespace dmRender
             // we mustn't have a 0x0 size texture
             font_map->m_CacheWidth  = 64;
             font_map->m_CacheHeight = 64;
-
-            // Old limits from Fontc.java
-            font_map->m_CacheMaxWidth = 2048;
-            font_map->m_CacheMaxHeight = 4096;
         }
         else
         {
-            font_map->m_CacheMaxWidth = params.m_CacheWidth;
-            font_map->m_CacheMaxHeight = params.m_CacheHeight;
-
             font_map->m_CacheWidth = params.m_CacheWidth;
             font_map->m_CacheHeight = params.m_CacheHeight;
         }
+        font_map->m_CacheMaxWidth = params.m_CacheMaxWidth;
+        font_map->m_CacheMaxHeight = params.m_CacheMaxHeight;
 
         uint16_t cell_width = dmMath::Max(8U, params.m_CacheCellWidth);
         uint16_t cell_height = dmMath::Max(8U, params.m_CacheCellHeight);
