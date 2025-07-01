@@ -811,6 +811,7 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
         params.m_Context     = resource_type->m_Context;
         params.m_PreloadData = preload_data;
         params.m_Resource    = &tmp_resource;
+        params.m_Filename    = name;
         for(;;)
         {
             create_error = (Result)resource_type->m_PostCreateFunction(&params);
