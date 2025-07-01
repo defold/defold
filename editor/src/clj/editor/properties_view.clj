@@ -17,10 +17,12 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.color-dropper :as color-dropper]
+            [editor.defold-project :as project]
             [editor.field-expression :as field-expression]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.math :as math]
+            [editor.menu-items :as menu-items]
             [editor.prefs :as prefs]
             [editor.properties :as properties]
             [editor.resource :as resource]
@@ -34,10 +36,10 @@
             [util.profiler :as profiler])
   (:import [editor.properties Curve CurveSpread]
            [java.util Collection]
-           [javafx.geometry Insets Point2D]
+           [javafx.geometry Insets Point2D VPos]
            [javafx.scene Node Parent]
-           [javafx.scene.control Button CheckBox ColorPicker Control Label Slider TextArea TextField TextInputControl ToggleButton Tooltip]
-           [javafx.scene.input MouseEvent MouseDragEvent]
+           [javafx.scene.control Button CheckBox ColorPicker Control Label MenuButton Slider TextArea TextField TextInputControl ToggleButton Tooltip]
+           [javafx.scene.input MouseDragEvent MouseEvent]
            [javafx.scene.layout AnchorPane ColumnConstraints GridPane HBox Pane Priority Region StackPane VBox]
            [javafx.scene.paint Color]
            [javafx.util Duration]))
@@ -72,39 +74,6 @@
   (or (some-> edit-type :type g/value-type-dispatch-value)
       (:type edit-type)))
 
-(defn- select-all-on-click! [^TextInputControl t]
-  (doto t
-    ;; Filter is necessary because the listener will be called after the text field has received focus, i.e. too late
-    (.addEventFilter MouseEvent/MOUSE_PRESSED (ui/event-handler e
-                                                (when (not (ui/focus? t))
-                                                  (.deselect t)
-                                                  (ui/user-data! t ::selection-at-focus true))))
-    ;; Filter is necessary because the TextArea captures the event
-    (.addEventFilter MouseEvent/MOUSE_RELEASED (ui/event-handler e
-                                                 (when (ui/user-data t ::selection-at-focus)
-                                                   (when (string/blank? (.getSelectedText t))
-                                                     (.consume e)
-                                                     (ui/run-later (.selectAll t))))
-                                                 (ui/user-data! t ::selection-at-focus nil)))))
-
-(defmulti customize! (fn [control _ _] (class control)))
-
-(defmethod customize! TextField [^TextField t update-fn cancel-fn]
-  (doto t
-    (GridPane/setHgrow Priority/ALWAYS)
-    (ui/on-action! update-fn)
-    (ui/on-cancel! cancel-fn)
-    (ui/auto-commit! update-fn)
-    (select-all-on-click!)))
-
-(defmethod customize! TextArea [^TextArea t update-fn cancel-fn]
-  (doto t
-    (GridPane/setHgrow Priority/ALWAYS)
-    (ui/on-action! update-fn)
-    (ui/on-cancel! cancel-fn)
-    (ui/auto-commit! update-fn)
-    (select-all-on-click!)))
-
 (defn- old-num->parse-num-fn [old-num]
   {:pre [(or (number? old-num) (nil? old-num))]}
   (if (math/float32? old-num)
@@ -137,10 +106,10 @@
     :script-property-type-url "script-property-text-field-icon-url"
     nil))
 
-(defmulti create-property-control! (fn [edit-type _ _]
-                                     (edit-type->type edit-type)))
+(defmulti make-property-control (fn [edit-type _context _property-fn]
+                                  (edit-type->type edit-type)))
 
-(defmethod create-property-control! g/Str [edit-type _ property-fn]
+(defmethod make-property-control g/Str [edit-type _context property-fn]
   (let [text (TextField.)
         update-ui-fn (partial update-text-fn text str)
         cancel-fn (fn [_]
@@ -150,12 +119,12 @@
                                     (properties/read-only? property))))
         update-fn (fn [_]
                     (properties/set-values! (property-fn) (repeat (.getText text))))]
-    (customize! text update-fn cancel-fn)
+    (ui/customize! text update-fn cancel-fn)
     (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
       (add-style-class! text style-class))
     [text update-ui-fn]))
 
-(defmethod create-property-control! g/Int [edit-type _ property-fn]
+(defmethod make-property-control g/Int [edit-type _context property-fn]
   (let [text (TextField.)
         update-ui-fn (partial update-text-fn text field-expression/format-int)
         update-prop-fn (fn [_]
@@ -170,12 +139,12 @@
                         (properties/set-values! property (repeat v))
                         (update-prop-fn nil))))
         drag-update-fn (fn [v update-val] (int (+ v update-val)))]
-    (customize! text update-fn cancel-fn)
+    (ui/customize! text update-fn cancel-fn)
     (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
       (add-style-class! text style-class))
     [text update-ui-fn drag-update-fn]))
 
-(defmethod create-property-control! g/Num [edit-type _ property-fn]
+(defmethod make-property-control g/Num [edit-type _context property-fn]
   (let [text-field (TextField.)
         update-ui-fn (partial update-text-fn text-field field-expression/format-number)
         cancel-fn (fn [_]
@@ -191,12 +160,12 @@
                         (properties/set-values! property (repeat num))
                         (cancel-fn nil))))
         drag-update-fn (fn [v update-val] (properties/round-scalar (+ v update-val)))]
-    (customize! text-field update-fn cancel-fn)
+    (ui/customize! text-field update-fn cancel-fn)
     (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
       (add-style-class! text-field style-class))
     [text-field update-ui-fn drag-update-fn]))
 
-(defmethod create-property-control! g/Bool [_ _ property-fn]
+(defmethod make-property-control g/Bool [_edit-type _context property-fn]
   (let [check (CheckBox.)
         update-ui-fn (fn [values message read-only?]
                        (let [v (properties/unify-values values)]
@@ -210,7 +179,8 @@
     (ui/on-action! check (fn [_] (properties/set-values! (property-fn) (repeat (.isSelected check)))))
     [check update-ui-fn]))
 
-(defn- create-grid-pane ^GridPane [ctrls]
+(defn- make-grid-pane
+  ^GridPane [ctrls]
   (let [box (doto (GridPane.)
               (ui/add-style! "property-component")
               (ui/children! ctrls))]
@@ -266,33 +236,42 @@
     (ui/user-data! ::values nil)))
 
 (defn handle-label-release-event!
-  [^MouseEvent event]
+  [^MouseEvent event ^Node control]
   (.consume event)
-  (doto (.getTarget event)
-    (ui/remove-style! "active")
-    (ui/user-data! ::op-seq nil)
-    (ui/user-data! ::position nil)))
+  (let [target (.getTarget event)]
+    (when-not (ui/user-data target ::values)
+      (.requestFocus control))
+    (doto target
+      (ui/remove-style! "active")
+      (ui/user-data! ::op-seq nil)
+      (ui/user-data! ::position nil))))
 
 (defn- make-control-draggable
-  ([^Node control drag-event-handler]
+  (^AnchorPane [^Node control drag-event-handler]
    (make-control-draggable control drag-event-handler true))
-  ([^Node control drag-event-handler is-left-aligned]
-   (let [drag-icon (doto (Button. "" (jfx/get-image-view "icons/32/Icons_X_10_scalesides.png" 16))
-                     (ui/add-style! "action-button")
+  (^AnchorPane [^Node control drag-event-handler is-left-aligned]
+   (let [drag-icon (doto (Button. "" (jfx/get-image-view "icons/32/Icons_X_11_scaleupdown.png" 14))
+                     (ui/add-styles! ["action-button" "drag-handle"])
+                     (.setFocusTraversable false)
                      (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (drag-event-handler event)))
                      (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-label-press-event! event)))
-                     (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-label-release-event! event))))]
+                     (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-label-release-event! event control))))]
      (if is-left-aligned
-       (AnchorPane/setRightAnchor drag-icon 4.0)
-       (AnchorPane/setLeftAnchor drag-icon 4.0))
+       (AnchorPane/setRightAnchor drag-icon 0.0)
+       (AnchorPane/setLeftAnchor drag-icon 0.0))
      (doto control
        (AnchorPane/setRightAnchor 0.0)
        (AnchorPane/setLeftAnchor 0.0))
+     (ui/observe (.focusedProperty control)
+                 (fn [_ _ is-focused]
+                   (if is-focused
+                     (ui/add-style! drag-icon "hidden")
+                     (ui/remove-style! drag-icon "hidden"))))
      (doto (AnchorPane. (ui/node-array [control drag-icon]))
        (GridPane/setHgrow Priority/ALWAYS)
        (ui/add-style! "overlay-action-pane")))))
 
-(defn- create-multi-text-field! [labels property-fn]
+(defn- make-multi-text-field [labels property-fn]
   (let [text-fields (mapv (fn [_] (TextField.)) labels)
         box (doto (GridPane.)
               (.setHgap grid-hgap))
@@ -319,14 +298,14 @@
                               (if (and num (not= num old-num))
                                 (properties/set-values! property (mapv #(assoc % index num) current-vals))
                                 (cancel-fn nil))))
-                _ (customize! text-field update-fn cancel-fn)
-                text-field (make-control-draggable text-field (partial handle-control-drag-event! property-fn drag-update-fn update-ui-fn) false) 
+                _ (ui/customize! text-field update-fn cancel-fn)
+                control (make-control-draggable text-field (partial handle-control-drag-event! property-fn drag-update-fn update-ui-fn) false)
                 children (if (seq label-text)
                            (let [label (doto (Label. label-text)
                                          (.setMinWidth Region/USE_PREF_SIZE))]
-                             [label text-field])
-                           [text-field])
-                comp (doto (create-grid-pane children)
+                             [label control])
+                           [control])
+                comp (doto (make-grid-pane children)
                        (GridPane/setConstraints index 0)
                        (GridPane/setHgrow Priority/ALWAYS))]
             (ui/add-child! box comp)))
@@ -403,35 +382,35 @@
                     (let [new-vals (mapv #(assoc % value-index num) old-vals)]
                       (properties/set-values! property new-vals))
                     (cancel-fn nil))))]
-        (customize! text-field update-fn cancel-fn)))
+        (ui/customize! text-field update-fn cancel-fn)))
 
     (pair grid-pane update-ui-fn)))
 
-(defmethod create-property-control! types/Vec2 [edit-type _ property-fn]
+(defmethod make-property-control types/Vec2 [edit-type _context property-fn]
   (let [{:keys [labels]
          :or {labels ["X" "Y"]}} edit-type]
-    (create-multi-text-field! labels property-fn)))
+    (make-multi-text-field labels property-fn)))
 
-(defmethod create-property-control! types/Vec3 [edit-type _ property-fn]
+(defmethod make-property-control types/Vec3 [edit-type _context property-fn]
   (let [{:keys [labels]
          :or {labels ["X" "Y" "Z"]}} edit-type]
-    (create-multi-text-field! labels property-fn)))
+    (make-multi-text-field labels property-fn)))
 
-(defmethod create-property-control! types/Vec4 [edit-type _ property-fn]
+(defmethod make-property-control types/Vec4 [edit-type _context property-fn]
   (let [{:keys [labels]
          :or {labels ["X" "Y" "Z" "W"]}} edit-type]
-    (create-multi-text-field! labels property-fn)))
+    (make-multi-text-field labels property-fn)))
 
-(defmethod create-property-control! types/Mat2 [_edit-type _ property-fn]
+(defmethod make-property-control types/Mat2 [_edit-type _context property-fn]
   (create-matrix-field-grid 2 property-fn))
 
-(defmethod create-property-control! types/Mat3 [_edit-type _ property-fn]
+(defmethod make-property-control types/Mat3 [_edit-type _context property-fn]
   (create-matrix-field-grid 3 property-fn))
 
-(defmethod create-property-control! types/Mat4 [_edit-type _ property-fn]
+(defmethod make-property-control types/Mat4 [_edit-type _context property-fn]
   (create-matrix-field-grid 4 property-fn))
 
-(defn- create-multi-keyed-text-field! [fields property-fn]
+(defn- make-multi-keyed-text-field! [fields property-fn]
   (let [text-fields (mapv (fn [_] (TextField.)) fields)
         box (doto (GridPane.)
               (.setPrefWidth Double/MAX_VALUE))
@@ -454,7 +433,7 @@
 
                                  :always
                                  (conj text-field))
-                comp (doto (create-grid-pane children)
+                comp (doto (make-grid-pane children)
                        (GridPane/setConstraints index 0)
                        (GridPane/setHgrow Priority/ALWAYS))
                 set-fn (or (:set-fn field)
@@ -475,7 +454,7 @@
                               (if num
                                 (properties/set-values! property (mapv #(set-fn % num) current-vals))
                                 (cancel-fn nil))))]
-            (customize! text-field update-fn cancel-fn)
+            (ui/customize! text-field update-fn cancel-fn)
             (ui/add-child! box comp)))
         (range)
         text-fields
@@ -535,23 +514,23 @@
       (ui/editable! editor-toggle-button (some? (first values)))
       (ui/disable! value-text-field is-curved))))
 
-(defmethod create-property-control! CurveSpread [_ _ property-fn]
+(defmethod make-property-control CurveSpread [_edit-type _context property-fn]
   (let [^ToggleButton editor-toggle-button (make-curve-toggler property-fn)
         fields [{:get-fn curve-get-fn
                  :set-fn curve-spread-set-fn
                  :control editor-toggle-button}
                 {:label "+/-" :path [:spread]}]
-        [^HBox box update-ui-fn] (create-multi-keyed-text-field! fields property-fn)
+        [^HBox box update-ui-fn] (make-multi-keyed-text-field! fields property-fn)
         ^TextField value-text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
         update-ui-fn (make-curve-update-ui-fn editor-toggle-button value-text-field update-ui-fn)]
     [box update-ui-fn]))
 
-(defmethod create-property-control! Curve [_ _ property-fn]
+(defmethod make-property-control Curve [_edit-type _context property-fn]
   (let [^ToggleButton editor-toggle-button (make-curve-toggler property-fn)
         fields [{:get-fn curve-get-fn
                  :set-fn curve-set-fn
                  :control editor-toggle-button}]
-        [^HBox box update-ui-fn] (create-multi-keyed-text-field! fields property-fn)
+        [^HBox box update-ui-fn] (make-multi-keyed-text-field! fields property-fn)
         ^TextField value-text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
         update-ui-fn (make-curve-update-ui-fn editor-toggle-button value-text-field update-ui-fn)]
     [box update-ui-fn]))
@@ -593,13 +572,13 @@
   (->> (prefs/get prefs saved-colors-prefs-path)
        (mapv #(Color/valueOf ^String %))))
 
-(defmethod create-property-control! types/Color [edit-type {:keys [color-dropper-view prefs]} property-fn]
+(defmethod make-property-control types/Color [edit-type {:keys [color-dropper-view prefs]} property-fn]
   (let [wrapper (doto (HBox.)
                   (.setPrefWidth Double/MAX_VALUE))
         pick-fn (fn [c] (set-color-value! property-fn (:ignore-alpha? edit-type) c))
         saved-colors ^Collection (get-saved-colors prefs)
         color-dropper (doto (Button. "" (jfx/get-image-view "icons/32/Icons_M_03_colorpicker.png" 16))
-                        (ui/add-style! "action-button")
+                        (ui/add-styles! ["action-button" "color-dropper"])
                         (AnchorPane/setRightAnchor 0.0)
                         (ui/on-click! (fn [^MouseEvent event] (color-dropper/activate! color-dropper-view pick-fn event))))
         text (TextField.)
@@ -631,7 +610,7 @@
       (AnchorPane/setRightAnchor 0.0)
       (AnchorPane/setLeftAnchor 0.0)
       (ui/add-style! "color-input")
-      (customize! commit-fn cancel-fn))
+      (ui/customize! commit-fn cancel-fn))
     (doto color-picker
       (ui/on-action! (fn [_]
                        (let [c (.getValue color-picker)]
@@ -643,7 +622,7 @@
     (ui/children! wrapper [pane color-picker])
     [wrapper update-ui-fn]))
 
-(defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]
+(defmethod make-property-control :choicebox [{:keys [options]} _context property-fn]
   (let [combo-box (fuzzy-combo-box/make options)
         update-ui-fn (fn [values message read-only?]
                        (binding [*programmatic-setting* true]
@@ -657,14 +636,16 @@
     (fuzzy-combo-box/observe! combo-box listen-fn)
     [combo-box update-ui-fn]))
 
-(defmethod create-property-control! resource/Resource [edit-type {:keys [workspace project]} property-fn]
+(defmethod make-property-control resource/Resource [edit-type context property-fn]
   (let [box           (GridPane.)
         browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
                         (.setPrefWidth 26)
+                        (.setPrefHeight 27)
                         (.setFocusTraversable false)
                         (ui/add-style! "button-small"))
         open-button   (doto (Button. "" (jfx/get-image-view "icons/32/Icons_S_14_linkarrow.png" 16))
-                        (.setMaxWidth 26)
+                        (.setPrefWidth 26)
+                        (.setPrefHeight 27)
                         (.setFocusTraversable false)
                         (ui/add-style! "button-small"))
         text          (TextField.)
@@ -687,17 +668,22 @@
                                     (properties/validation-message property)
                                     (properties/read-only? property))))
         commit-fn (fn [_]
-                    (let [path (ui/text text)
-                          resource (workspace/resolve-workspace-resource workspace path)]
+                    (let [workspace (:workspace context)
+                          proj-path (ui/text text)
+                          resource (workspace/resolve-workspace-resource workspace proj-path)]
                       (properties/set-values! (property-fn) (repeat resource))))]
     (ui/add-style! box "composite-property-control-container")
-    (ui/on-action! browse-button (fn [_] (when-let [resource (first (resource-dialog/make workspace project dialog-opts))]
-                                           (properties/set-values! (property-fn) (repeat resource)))))
-    (ui/on-action! open-button (fn [_]  (when-let [resource (-> (property-fn)
-                                                              properties/values
-                                                              properties/unify-values)]
-                                          (ui/run-command open-button :file.open resource))))
-    (customize! text commit-fn cancel-fn)
+    (ui/on-action! browse-button (fn [_]
+                                   (let [{:keys [project workspace]} context
+                                         resource (first (resource-dialog/make workspace project dialog-opts))]
+                                     (when (some? resource)
+                                       (properties/set-values! (property-fn) (repeat resource))))))
+    (ui/on-action! open-button (fn [_]
+                                 (when-let [resource (-> (property-fn)
+                                                         properties/values
+                                                         properties/unify-values)]
+                                   (ui/run-command open-button :file.open resource))))
+    (ui/customize! text commit-fn cancel-fn)
     (ui/children! box [text browse-button open-button])
     (GridPane/setConstraints text 0 0)
     (GridPane/setConstraints open-button 1 0)
@@ -720,10 +706,10 @@
               (.setHgrow Priority/NEVER))))
     [box update-ui-fn]))
 
-(defmethod create-property-control! :slider [edit-type context property-fn]
+(defmethod make-property-control :slider [edit-type context property-fn]
   (let [box (doto (GridPane.)
               (.setHgap grid-hgap))
-        [^TextField text-field tf-update-ui-fn] (create-property-control! {:type g/Num} context property-fn)
+        [^TextField text-field tf-update-ui-fn] (make-property-control {:type g/Num} context property-fn)
         min (:min edit-type 0.0)
         max (:max edit-type 1.0)
         val (:value edit-type max)
@@ -763,7 +749,7 @@
                                         (.setPercentWidth 80))))
     [box update-ui-fn]))
 
-(defmethod create-property-control! :multi-line-text [_ _ property-fn]
+(defmethod make-property-control :multi-line-text [_edit-type _context property-fn]
   (let [text (doto (TextArea.)
                (ui/add-style! "property")
                (.setMinHeight 68))
@@ -775,13 +761,13 @@
                                     (properties/read-only? property))))
         update-fn (fn [_]
                     (properties/set-values! (property-fn) (repeat (.getText text))))]
-    (customize! text update-fn cancel-fn)
+    (ui/customize! text update-fn cancel-fn)
     [text update-ui-fn]))
 
-(defmethod create-property-control! :default [_ _ _]
-  (let [text         (TextField.)
-        wrapper      (doto (HBox.)
-                       (.setPrefWidth Double/MAX_VALUE))
+(defmethod make-property-control :default [_edit-type _context _property-fn]
+  (let [text (TextField.)
+        wrapper (doto (HBox.)
+                  (.setPrefWidth Double/MAX_VALUE))
         update-ui-fn (partial update-text-fn text str)]
     (HBox/setHgrow text Priority/ALWAYS)
     (ui/children! wrapper [text])
@@ -849,19 +835,6 @@
       (update-message-tooltip ctrl)
       (hide-message-tooltip ctrl))))
 
-(defn- create-property-label [label key tooltip]
-  (doto (Label. label)
-    (.setTooltip (doto (Tooltip.)
-                   (.setText (cond->> (format "Available as `%s` in editor scripts"
-                                              (string/replace (name key) \- \_))
-                                      tooltip
-                                      (str tooltip "\n\n")))
-                   (.setHideDelay Duration/ZERO)
-                   (.setShowDuration (Duration/seconds 30))))
-    (ui/add-style! "property-label")
-    (.setMinWidth Label/USE_PREF_SIZE)
-    (.setMinHeight 28.0)))
-
 (handler/defhandler :edit.show-overrides :property
   (active? [evaluation-context selection]
     (when-let [node-id (handler/selection->node-id selection)]
@@ -869,9 +842,78 @@
   (run [property selection search-results-view app-view]
     (app-view/show-override-inspector! app-view search-results-view (handler/selection->node-id selection) [(:key property)])))
 
-(handler/register-menu! ::properties-menu
-  [{:label "Show Overrides"
-    :command :edit.show-overrides}])
+(handler/defhandler :edit.pull-up-overrides :property
+  (label [property user-data]
+    (when (nil? user-data)
+      (str "Pull Up " (properties/label property) " Override")))
+  (active? [property user-data]
+    (or (some? user-data)
+        (= 1 (count (:original-values property)))))
+  (enabled? [user-data]
+    (if user-data
+      (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
+      true))
+  (options [property selection user-data]
+    (when (nil? user-data)
+      (when-let [node-id (handler/selection->node-id selection)]
+        (g/with-auto-evaluation-context evaluation-context
+          (let [prop-kws [(:key property)]
+                source-prop-infos-by-prop-kw (properties/transferred-properties node-id prop-kws evaluation-context)]
+            (when source-prop-infos-by-prop-kw
+              (mapv (fn [transfer-overrides-plan]
+                      {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+                       :command :edit.pull-up-overrides
+                       :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                    (properties/pull-up-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context))))))))
+  (run [user-data]
+    (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
+
+(handler/defhandler :edit.push-down-overrides :property
+  (label [property user-data]
+    (when (nil? user-data)
+      (str "Push Down " (properties/label property) " Override")))
+  (active? [property selection user-data evaluation-context]
+    (or (some? user-data)
+        (and (= 1 (count (:original-values property)))
+             (if-let [node-id (handler/selection->node-id selection)]
+               (not (coll/empty? (g/overrides (:basis evaluation-context) node-id)))
+               false))))
+  (enabled? [user-data]
+    (if user-data
+      (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
+      true))
+  (options [property selection user-data]
+    (when (nil? user-data)
+      (when-let [node-id (handler/selection->node-id selection)]
+        (g/with-auto-evaluation-context evaluation-context
+          (let [prop-kws [(:key property)]
+                source-prop-infos-by-prop-kw (properties/transferred-properties node-id prop-kws evaluation-context)]
+            (when source-prop-infos-by-prop-kw
+              (mapv (fn [transfer-overrides-plan]
+                      {:label (properties/transfer-overrides-description transfer-overrides-plan evaluation-context)
+                       :command :edit.push-down-overrides
+                       :user-data {:transfer-overrides-plan transfer-overrides-plan}})
+                    (properties/push-down-overrides-plan-alternatives node-id source-prop-infos-by-prop-kw evaluation-context))))))))
+  (run [user-data]
+    (properties/transfer-overrides! (:transfer-overrides-plan user-data))))
+
+(handler/defhandler :private/clear-override :property
+  (label [property user-data]
+    (when (nil? user-data)
+      (str "Clear " (properties/label property) " Override")))
+  (active? [property user-data]
+    (not (coll/empty? (:original-values property))))
+  (run [property property-control]
+    (properties/clear-override! property)
+    (ui/clear-auto-commit! property-control)))
+
+(handler/register-menu! ::property-menu
+  [menu-items/show-overrides
+   menu-items/pull-up-overrides
+   menu-items/push-down-overrides
+   {:label "Clear Override"
+    :icon "icons/32/Icons_S_02_Reset.png"
+    :command :private/clear-override}])
 
 (defrecord SelectionProvider [original-node-ids]
   handler/SelectionProvider
@@ -879,142 +921,161 @@
   (succeeding-selection [_])
   (alt-selection [_]))
 
-(defn- create-properties-row [context ^GridPane grid key property row original-node-ids property-fn]
-  (let [^Label label (doto (create-property-label (properties/label property) key (properties/tooltip property))
-                       (ui/context! :property (assoc context :property property) (->SelectionProvider original-node-ids))
-                       (ui/register-context-menu ::properties-menu true))
-        [^Node control update-ctrl-fn drag-update-fn] (create-property-control! (:edit-type property) context
-                                                                 (fn [] (property-fn key)))
-        reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))
-                    (.setFocusTraversable false)
-                    (ui/add-styles! ["clear-button" "button-small"])
-                    (ui/on-action! (fn [_]
-                                     (properties/clear-override! (property-fn key))
-                                     (ui/clear-auto-commit! control)
-                                     (.requestFocus label))))
+(defn- make-property-grid-row [context property-keyword edit-type row property-keyword->property]
+  (let [property-fn #(property-keyword->property property-keyword)
+        [^Node control update-ctrl-fn drag-update-fn] (make-property-control edit-type context property-fn)
 
-        label-box (let [box (GridPane.)]
-                    (GridPane/setFillWidth label true)
-                    (.. box getColumnConstraints (add (doto (ColumnConstraints.)
-                                                        (.setHgrow Priority/ALWAYS))))
-                    (.. box getColumnConstraints (add (doto (ColumnConstraints.)
-                                                        (.setHgrow Priority/NEVER))))
-                    box)
+        ^MenuButton label
+        (doto (MenuButton.)
+          (ui/add-style! "property-label")
+          (ui/register-button-menu ::property-menu)
+          (.setPrefWidth Region/USE_COMPUTED_SIZE)
+          (.setMinWidth Region/USE_PREF_SIZE)
+          (.setTooltip (doto (Tooltip.)
+                         (.setHideDelay Duration/ZERO)
+                         (.setShowDuration (Duration/seconds 30)))))
 
-        update-label-box (fn [overridden?]
-                           (if overridden?
-                             (do
-                               (ui/children! label-box [label reset-btn])
-                               (GridPane/setConstraints label 0 0)
-                               (GridPane/setConstraints reset-btn 1 0))
-                             (do
-                               (ui/children! label-box [label])
-                               (GridPane/setConstraints label 0 0))))
+        update-label!
+        (fn update-label! [label-text tooltip-text]
+          (.setText label label-text)
+          (doto (.getTooltip label)
+            (.setText (cond->> (format "Available as `%s` in editor scripts"
+                                       (string/replace (name property-keyword) \- \_))
+                               tooltip-text
+                               (str tooltip-text "\n\n")))))
 
-        update-ui-fn (fn [property]
-                       (let [overridden? (properties/overridden? property)
-                             f (if overridden? ui/add-style! ui/remove-style!)]
-                         (doseq [c [label control]]
-                           (f c "overridden"))
-                         (update-label-box overridden?)
-                         (update-ctrl-fn (properties/values property)
-                                         (properties/validation-message property)
-                                         (properties/read-only? property))))
-        control (cond-> control
-                  drag-update-fn
-                  (make-control-draggable (partial handle-control-drag-event! (fn [] property) drag-update-fn update-ctrl-fn)))]
+        update-ui-fn
+        (fn update-ui-fn [property selection-provider]
+          (let [is-overridden (properties/overridden? property)
+                label-context (assoc context :property property :property-control control)]
+            (ui/context! label :property label-context selection-provider)
+            (ui/set-style! label "overridden" is-overridden)
+            (ui/set-style! control "overridden" is-overridden)
+            (update-label! (properties/label property)
+                           (properties/tooltip property))
+            (update-ctrl-fn (properties/values property)
+                            (properties/validation-message property)
+                            (properties/read-only? property))))
 
-    (update-label-box (properties/overridden? property))
+        control
+        (cond-> control
+                drag-update-fn
+                (make-control-draggable (partial handle-control-drag-event! property-fn drag-update-fn update-ctrl-fn)))]
 
-    (GridPane/setConstraints label-box 0 row)
+    (GridPane/setConstraints label 0 row)
     (GridPane/setConstraints control 1 row)
-
-    (.add (.getChildren grid) label-box)
-    (.add (.getChildren grid) control)
-
-    (GridPane/setFillWidth label-box true)
+    (GridPane/setFillWidth label true)
     (GridPane/setFillWidth control true)
+    (GridPane/setValignment label VPos/TOP)
+    [label control update-ui-fn]))
 
-    [key update-ui-fn]))
-
-(defn- create-properties [context grid properties original-node-ids property-fn]
-  ; TODO - add multi-selection support for properties view
-  (doall (map-indexed (fn [row [key property]]
-                        (create-properties-row context grid key property row original-node-ids property-fn))
-                      properties)))
-
-(defn- make-grid [parent context properties original-node-ids property-fn]
+(defn- make-property-grid [context properties property-keyword->property]
   (let [grid (doto (GridPane.)
+               (ui/add-style! "form")
                (.setHgap grid-hgap)
-               (.setVgap grid-vgap))
-        cc1  (doto (ColumnConstraints.) (.setHgrow Priority/NEVER))
-        cc2  (doto (ColumnConstraints.) (.setHgrow Priority/ALWAYS) (.setPrefWidth all-available))]
-    (.. grid getColumnConstraints (add cc1))
-    (.. grid getColumnConstraints (add cc2))
+               (.setVgap grid-vgap))]
+    (doto (.getColumnConstraints grid)
+      (.add (doto (ColumnConstraints.)
+              (.setHgrow Priority/NEVER)))
+      (.add (doto (ColumnConstraints.)
+              (.setHgrow Priority/ALWAYS)
+              (.setPrefWidth all-available))))
+    (let [property-keyword+update-ui-fns
+          (into []
+                (map-indexed (fn [row [property-keyword property]]
+                               (let [[label-box control update-ui-fn] (make-property-grid-row context property-keyword (:edit-type property) row property-keyword->property)]
+                                 (ui/add-child! grid label-box)
+                                 (ui/add-child! grid control)
+                                 (pair property-keyword update-ui-fn))))
+                properties)]
+      (pair grid property-keyword+update-ui-fns))))
 
-    (ui/add-child! parent grid)
-    (ui/add-style! grid "form")
-    (create-properties context grid properties original-node-ids property-fn)))
+(defn- category-property-edit-types [{:keys [display-order properties]}]
+  (into [(pair nil
+               (into []
+                     (comp (remove properties/category?)
+                           (map (fn [property-keyword]
+                                  (pair property-keyword
+                                        (properties property-keyword)))))
+                     display-order))]
+        (comp (filter properties/category?)
+              (map (fn [[category-title & property-keywords]]
+                     (pair category-title
+                           (mapv (fn [property-keyword]
+                                   (pair property-keyword
+                                         (properties property-keyword)))
+                                 property-keywords)))))
+        display-order))
 
-(defn- create-category-label [label]
-  (doto (Label. label) (ui/add-style! "property-category")))
+(defn- recreate-controls! [parent context category-property-edit-types]
+  (let [vbox
+        (doto (VBox. (double 10.0))
+          (.setId "properties-view-pane")
+          (.setPadding (Insets. 10 10 10 10))
+          (.setFillWidth true)
+          (AnchorPane/setBottomAnchor 0.0)
+          (AnchorPane/setLeftAnchor 0.0)
+          (AnchorPane/setRightAnchor 0.0)
+          (AnchorPane/setTopAnchor 0.0))
 
-(defn- make-pane! [parent context properties]
-  (let [vbox (doto (VBox. (double 10.0))
-               (.setId "properties-view-pane")
-               (.setPadding (Insets. 10 10 10 10))
-               (.setFillWidth true)
-               (AnchorPane/setBottomAnchor 0.0)
-               (AnchorPane/setLeftAnchor 0.0)
-               (AnchorPane/setRightAnchor 0.0)
-               (AnchorPane/setTopAnchor 0.0))]
-      (let [property-fn   (fn [key]
-                            (let [properties (:properties (ui/user-data vbox ::properties))]
-                              (get properties key)))
-            {:keys [display-order properties original-node-ids]} properties
-            generics      [nil (mapv (fn [k] [k (get properties k)]) (filter (comp not properties/category?) display-order))]
-            categories    (mapv (fn [order]
-                                  [(first order) (mapv (fn [k] [k (get properties k)]) (rest order))])
-                                (filter properties/category? display-order))
-            update-fns    (loop [sections (cons generics categories)
-                                 result   []]
-                            (if-let [[category properties] (first sections)]
-                              (let [update-fns (if (empty? properties)
-                                                 []
-                                                 (do
-                                                   (when category
-                                                     (let [label (create-category-label category)]
-                                                       (ui/add-child! vbox label)))
-                                                   (make-grid vbox context properties original-node-ids property-fn)))]
-                                (recur (rest sections) (into result update-fns)))
-                              result))]
-        ; NOTE: Note update-fns is a sequence of [[property-key update-ui-fn] ...]
-        (ui/user-data! parent ::update-fns (into {} update-fns)))
-      (ui/children! parent [vbox])
-      vbox))
+        property-keyword->property
+        (fn property-keyword->property [property-keyword]
+          {:pre [(keyword? property-keyword)]}
+          (let [properties (:properties (ui/user-data vbox ::properties))
+                property (get properties property-keyword)]
+            (if (some? property)
+              property
+              (throw
+                (ex-info
+                  (str "Unknown property: " property-keyword)
+                  {:property-keyword property-keyword
+                   :valid-property-keywords (into (sorted-set)
+                                                  (keys properties))})))))
 
-(defn- refresh-pane! [^Parent parent properties]
+        update-ui-fns-by-property-keyword
+        (into {}
+              (mapcat (fn [[category-title properties]]
+                        (when (coll/not-empty properties)
+                          (when category-title
+                            (ui/add-child! vbox (doto (Label. category-title)
+                                                  (ui/add-style! "property-category"))))
+                          (let [[grid property-keyword+update-ui-fns] (make-property-grid context properties property-keyword->property)]
+                            (ui/add-child! vbox grid)
+                            property-keyword+update-ui-fns))))
+              category-property-edit-types)]
+    (ui/user-data! parent ::update-fns update-ui-fns-by-property-keyword)
+    (ui/children! parent [vbox])))
+
+(defn- refresh-control-values! [^Parent parent properties]
   (let [pane (.lookup parent "#properties-view-pane")
         update-fns (ui/user-data parent ::update-fns)
-        prev-properties (:properties (ui/user-data pane ::properties))]
+        cached (ui/user-data pane ::properties)
+        old-properties (:properties cached)
+        old-selection (:original-node-ids cached)
+        new-selection (:original-node-ids properties)
+        selection-differs (not= old-selection new-selection)
+        selection-provider (->SelectionProvider new-selection)]
     (ui/user-data! pane ::properties properties)
-    (doseq [[key property] (:properties properties)
-            ;; Only update the UI when the props actually differ
-            ;; Differing :edit-type's would have recreated the UI so no need to compare them here
-            :when (not= (dissoc property :edit-type) (dissoc (get prev-properties key) :edit-type))]
-      (when-let [update-ui-fn (get update-fns key)]
-        (update-ui-fn property)))))
+    (doseq [[property-keyword property] (:properties properties)]
+      ;; Only update the UI when the selection or props actually differ
+      ;; Differing :edit-type's would have recreated the UI so no need to
+      ;; compare them here
+      (when (or selection-differs
+                (not= (dissoc property :edit-type)
+                      (dissoc (old-properties property-keyword) :edit-type)))
+        (when-let [update-ui-fn (update-fns property-keyword)]
+          (update-ui-fn property selection-provider))))))
 
-(def ^:private ephemeral-edit-type-fields [:from-type :to-type :set-fn :clear-fn])
+(def ^:private ephemeral-edit-type-fields [:from-type :to-type :set-fn :clear-fn :dialog-accept-fn])
 
 (defn- edit-type->template [edit-type]
   (apply dissoc edit-type ephemeral-edit-type-fields))
 
 (defn- properties->template [properties]
   (into {}
-        (map (fn [[prop-kw {:keys [edit-type]}]]
+        (map (fn [[property-keyword {:keys [edit-type]}]]
                (let [template (edit-type->template edit-type)]
-                 (pair prop-kw template))))
+                 (pair property-keyword template))))
         (:properties properties)))
 
 (defn- update-pane! [parent context properties]
@@ -1023,10 +1084,11 @@
     (let [properties (properties/coalesce properties)
           template (properties->template properties)
           prev-template (ui/user-data parent ::template)]
-      (when (not= template prev-template)
-        (make-pane! parent context properties)
+      (when (not= prev-template template)
+        (let [category-property-edit-types (category-property-edit-types properties)]
+          (recreate-controls! parent context category-property-edit-types))
         (ui/user-data! parent ::template template))
-      (refresh-pane! parent properties))))
+      (refresh-control-values! parent properties))))
 
 (g/defnode PropertiesView
   (property parent-view Parent)

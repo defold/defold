@@ -292,10 +292,9 @@
                      (let [new-resource (:resource new-value)
                            resource-type (some-> new-resource resource/resource-type)
                            project (project/get-project self)
-                           override? (contains? (:tags resource-type) :overridable-properties)
 
                            [comp-node tx-data]
-                           (if override?
+                           (if (resource/overridable-resource-type? resource-type)
                              (let [workspace (project/workspace project)]
                                (when-some [{connect-tx-data :tx-data
                                             comp-node :node-id
@@ -611,17 +610,15 @@
     (collection-string-data/string-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
 
 (defn- handle-drop
-  [selection workspace world-pos resources]
-  (when-let [parent (or (selection->game-object selection)
-                        (some #(core/scope-of-type % GameObjectNode) selection))]
-    (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
-          taken-ids (map first (g/node-value parent :component-ids))
-          supported-exts (get-all-comp-exts workspace)]
-      (->> resources
-           (e/filter #(some #{(resource/type-ext %)} supported-exts))
-           (outline/name-resource-pairs taken-ids)
-           (mapv (fn [[id resource]]
-                   (add-component parent resource id transform-props nil nil)))))))
+  [root-id _selection workspace world-pos resources]
+  (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
+        taken-ids (map first (g/node-value root-id :component-ids))
+        supported-exts (get-all-comp-exts workspace)]
+    (->> resources
+         (e/filter #(some #{(resource/type-ext %)} supported-exts))
+         (outline/name-resource-pairs taken-ids)
+         (mapv (fn [[id resource]]
+                 (add-component root-id resource id transform-props nil nil))))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

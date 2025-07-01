@@ -157,7 +157,7 @@
               (string? (first lines)))]}
   (let [indent-type (guess-indent-type lines)]
     (set-unmodified-lines! self lines) ; Avoids a disk read in modified-lines property setter.
-    (g/set-property self
+    (g/set-properties self
       :modified-lines lines
       :modified-indent-type indent-type)))
 

@@ -18,6 +18,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.icons :as icons]
+            [editor.menu-items :as menu-items]
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.scene-visibility :as scene-visibility]
@@ -28,7 +29,7 @@
            [javafx.event Event]
            [javafx.geometry Orientation]
            [javafx.scene Node]
-           [javafx.scene.control ScrollBar SelectionMode TreeItem TreeView ToggleButton Label]
+           [javafx.scene.control Label ScrollBar SelectionMode ToggleButton TreeItem TreeView]
            [javafx.scene.image ImageView]
            [javafx.scene.input Clipboard DataFormat DragEvent MouseEvent TransferMode]
            [javafx.scene.layout AnchorPane HBox]
@@ -218,20 +219,16 @@
                                                   (alt-selection tree-selection))))
 
 (handler/register-menu! ::outline-menu
-  [{:label "Open"
-    :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :file.open-selected}
-   {:label "Open As"
-    :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :file.open-as}
-   {:label :separator}
+  [menu-items/open-selected
+   menu-items/open-as
+   menu-items/separator
    {:label "Copy Resource Path"
     :command :edit.copy-resource-path}
    {:label "Copy Full Path"
     :command :edit.copy-absolute-path}
    {:label "Copy Require Path"
     :command :edit.copy-require-path}
-   {:label :separator}
+   menu-items/separator
    {:label "Show in Asset Browser"
     :icon "icons/32/Icons_S_14_linkarrow.png"
     :command :file.show-in-assets}
@@ -242,9 +239,11 @@
     :command :file.show-references}
    {:label "Dependencies..."
     :command :file.show-dependencies}
-   {:label "Show Overrides"
-    :command :edit.show-overrides}
-   {:label :separator}
+   menu-items/separator
+   menu-items/show-overrides
+   menu-items/pull-up-overrides
+   menu-items/push-down-overrides
+   menu-items/separator
    {:label "Add"
     :icon "icons/32/Icons_M_07_plus.png"
     :command :edit.add-embedded-component
@@ -258,7 +257,7 @@
    {:label "Add Secondary From File"
     :icon "icons/32/Icons_M_07_plus.png"
     :command :edit.add-secondary-referenced-component}
-   {:label :separator}
+   menu-items/separator
    {:label "Cut"
     :command :edit.cut}
    {:label "Copy"
@@ -268,12 +267,12 @@
    {:label "Delete"
     :icon "icons/32/Icons_M_06_trash.png"
     :command :edit.delete}
-   {:label :separator}
+   menu-items/separator
    {:label "Move Up"
     :command :edit.reorder-up}
    {:label "Move Down"
     :command :edit.reorder-down}
-   {:label :separator}
+   menu-items/separator
    {:label "Show/Hide Objects"
     :command :scene.visibility.toggle-selection}
    {:label "Hide Unselected Objects"
@@ -282,8 +281,7 @@
     :command :scene.visibility.show-last-hidden}
    {:label "Show All Hidden Objects"
     :command :scene.visibility.show-all}
-   {:label :separator
-    :id ::context-menu-end}])
+   (menu-items/separator-with-id ::context-menu-end)])
 
 (defn- selection->nodes [selection]
   (handler/adapt-every selection Long))

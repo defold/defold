@@ -471,13 +471,8 @@ namespace dmGui
         return scene->m_UserData;
     }
 
-    static Result AddTexture(HScene scene, dmHashTable64<TextureInfo>& info_array, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height, dmImage::Type image_type)
+    static void UpdateTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type)
     {
-        if (info_array.Full())
-            return RESULT_OUT_OF_RESOURCES;
-
-        info_array.Put(texture_name_hash, TextureInfo(texture_source, texture_type, original_width, original_height, image_type));
-
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
@@ -488,12 +483,37 @@ namespace dmGui
                 nodes[i].m_Node.m_TextureType = texture_type;
             }
         }
+    }
+
+    static Result AddTexture(HScene scene, dmHashTable64<TextureInfo>& info_array, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height, dmImage::Type image_type)
+    {
+        if (info_array.Full())
+            return RESULT_OUT_OF_RESOURCES;
+
+        info_array.Put(texture_name_hash, TextureInfo(texture_source, texture_type, original_width, original_height, image_type));
+        UpdateTexture(scene, texture_name_hash, texture_source, texture_type);
+
         return RESULT_OK;
     }
 
     Result AddTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
     {
         return AddTexture(scene, scene->m_Textures, texture_name_hash, texture_source, texture_type, original_width, original_height, (dmImage::Type) -1);
+    }
+
+    Result AddDynamicTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
+    {
+        TextureInfo* t = scene->m_DynamicTextures.Get(texture_name_hash);
+        if (t)
+        {
+            if (t->m_ImageType != -1)
+            {
+                uint32_t buffer_size_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel(t->m_ImageType);
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size_mb);
+            }
+            scene->m_DeleteTextureResourceCallback(scene, texture_name_hash, t->m_TextureSource);
+        }
+        return AddTexture(scene, scene->m_DynamicTextures, texture_name_hash, texture_source, texture_type, original_width, original_height, (dmImage::Type) -1);
     }
 
     static void UnassignTexture(HScene scene, dmhash_t texture_name_hash)
@@ -539,9 +559,15 @@ namespace dmGui
         }
     }
 
+    static inline TextureInfo* GetTextureInfo(HScene scene, dmhash_t texture_id)
+    {
+        TextureInfo* texture_info = scene->m_DynamicTextures.Get(texture_id);
+        return texture_info ? texture_info : scene->m_Textures.Get(texture_id);
+    }
+
     HTextureSource GetTexture(HScene scene, dmhash_t texture_name_hash)
     {
-        TextureInfo* textureInfo = scene->m_Textures.Get(texture_name_hash);
+        TextureInfo* textureInfo = GetTextureInfo(scene, texture_name_hash);
         if (!textureInfo)
         {
             return 0;
@@ -616,6 +642,11 @@ namespace dmGui
         HTextureSource res = scene->m_NewTextureResourceCallback(scene, path, width, height, type, data);
         free(data);
 
+        if (!res)
+        {
+            return RESULT_OUT_OF_RESOURCES;
+        }
+
         uint32_t buffer_size_mb = expected_buffer_size / 1024.0 / 1024.0;
         DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, buffer_size_mb);
 
@@ -635,7 +666,15 @@ namespace dmGui
 
         scene->m_DeleteTextureResourceCallback(scene, texture_hash, t->m_TextureSource);
         scene->m_DynamicTextures.Erase(texture_hash);
-        UnassignTexture(scene, texture_hash);
+        t = scene->m_Textures.Get(texture_hash);
+        if (t)
+        {
+            UpdateTexture(scene, texture_hash, t->m_TextureSource, t->m_TextureSourceType);
+        }
+        else
+        {
+            UnassignTexture(scene, texture_hash);
+        }
 
         return RESULT_OK;
     }
@@ -2267,6 +2306,7 @@ namespace dmGui
     Result SetSceneScript(HScene scene, HScript script)
     {
         scene->m_Script = script;
+        scene->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
         return RESULT_OK;
     }
 
@@ -3040,12 +3080,6 @@ namespace dmGui
     Result SetNodeMaterial(HScene scene, HNode node, const char* material_id)
     {
         return SetNodeMaterial(scene, node, dmHashString64(material_id));
-    }
-
-    static inline TextureInfo* GetTextureInfo(HScene scene, dmhash_t texture_id)
-    {
-        TextureInfo* texture_info = scene->m_Textures.Get(texture_id);
-        return texture_info ? texture_info : scene->m_DynamicTextures.Get(texture_id);
     }
 
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id)

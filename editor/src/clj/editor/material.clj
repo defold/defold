@@ -123,12 +123,12 @@
                          (format "'%s' attribute uses normalize with float data type"
                                  name)))]))
 
-(g/defnk produce-build-targets [_node-id attribute-infos base-pb-msg fragment-program fragment-shader-source-info max-page-count resource vertex-program vertex-shader-source-info]
+(g/defnk produce-build-targets [_node-id attribute-infos base-pb-msg fragment-program fragment-shader-source-info max-page-count exclude-gles-sm100 resource vertex-program vertex-shader-source-info]
   (or (g/flatten-errors
         (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
         (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
         (mapcat #(attribute-info->error-values % _node-id :attributes) attribute-infos))
-      (let [shader-desc-build-target (shader-compilation/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count)
+      (let [shader-desc-build-target (shader-compilation/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count exclude-gles-sm100)
             build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count)
             build-target-attributes (build-target-attributes attribute-infos)
             dep-build-targets [shader-desc-build-target]
@@ -581,6 +581,7 @@
   (input vertex-shader-source-info g/Any)
   (input fragment-resource resource/Resource)
   (input fragment-shader-source-info g/Any)
+  (input exclude-gles-sm100 g/Any)
 
   (output base-pb-msg g/Any produce-base-pb-msg)
 
@@ -600,6 +601,7 @@
         attributes->editable-attributes #(mapv attribute->editable-attribute %)]
     (concat
       (g/connect project :default-sampler-filter-modes self :default-sampler-filter-modes)
+      (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
       (gu/set-properties-from-pb-map self Material$MaterialDesc material-desc
         vertex-program (resolve-resource :vertex-program)
         fragment-program (resolve-resource :fragment-program)

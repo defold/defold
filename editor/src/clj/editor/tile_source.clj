@@ -540,7 +540,7 @@
             metrics (texture-set-gen/calculate-tile-metrics image-size properties collision-size)]
         (when metrics
           (merge properties metrics)))
-      (g/error-fatal "tile data could not be generated due to invalid values")))
+      (g/->error _node-id :image :fatal image-resource "tile data could not be generated due to invalid values")))
 
 (defn- check-anim-error [tile-count anim-data]
   (let [node-id (:node-id anim-data)
@@ -730,17 +730,6 @@
                   (when (< h total-h)
                     (g/error-fatal (format "the total height ('Tile Height' + 'Tile Margin') is greater than the 'Image' height (%d vs %d)"
                                            total-h h)))))))))
-
-(attachment/register!
-  TileSourceNode :animations
-  :add {TileAnimationNode attach-animation-node}
-  :get (attachment/nodes-by-type-getter TileAnimationNode))
-
-(attachment/register!
-  TileSourceNode :collision-groups
-  :add {CollisionGroupNode attach-collision-group-node}
-  :get (attachment/nodes-by-type-getter CollisionGroupNode))
-
 
 ;;--------------------------------------------------------------------
 ;; tool
@@ -983,7 +972,7 @@
       (g/connect project :build-settings self :build-settings)
       (g/connect project :collision-groups-data self :collision-groups-data)
       (g/connect project :texture-profiles self :texture-profiles)
-      (g/set-property self
+      (g/set-properties self
         :original-convex-hulls (make-convex-hulls tile-set)
         :tile->collision-group-node (make-tile->collision-group-node-map tile-set collision-group-nodes-tx-data))
       (gu/set-properties-from-pb-map self Tile$TileSet tile-set
@@ -1042,14 +1031,23 @@
     ((:action user-data) (selection->tile-source selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext ["tilesource" "tileset"]
-    :label "Tile Source"
-    :build-ext "t.texturesetc"
-    :node-type TileSourceNode
-    :ddf-type Tile$TileSet
-    :load-fn load-tile-source
-    :icon tile-source-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:tool-controller ToolController}}))
+  (concat
+    (attachment/register
+      workspace TileSourceNode :animations
+      :add {TileAnimationNode attach-animation-node}
+      :get (attachment/nodes-by-type-getter TileAnimationNode))
+    (attachment/register
+      workspace TileSourceNode :collision-groups
+      :add {CollisionGroupNode attach-collision-group-node}
+      :get (attachment/nodes-by-type-getter CollisionGroupNode))
+    (resource-node/register-ddf-resource-type workspace
+      :ext ["tilesource" "tileset"]
+      :label "Tile Source"
+      :build-ext "t.texturesetc"
+      :node-type TileSourceNode
+      :ddf-type Tile$TileSet
+      :load-fn load-tile-source
+      :icon tile-source-icon
+      :icon-class :design
+      :view-types [:scene :text]
+      :view-opts {:scene {:tool-controller ToolController}})))

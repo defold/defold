@@ -16,6 +16,7 @@
 #define GAMEOBJECT_PROPS_LUA_H
 
 #include "gameobject_props.h"
+#include <dmsdk/gameobject/script.h>
 
 namespace dmGameObject
 {
@@ -25,4 +26,4 @@ namespace dmGameObject
     HPropertyContainer PropertyContainerCreateFromLua(lua_State* L, int index);
 }
 
-#endif // GAMEOBJECT_PROPS_DDF_H
+#endif // GAMEOBJECT_PROPS_LUA_H

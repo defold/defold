@@ -544,6 +544,19 @@ namespace dmGui
     Result AddTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height);
 
     /**
+     * Adds a texture and optional textureset with the specified name to the scene as Dynamic texture.
+     * @note Any nodes connected to the same texture_name will also be connected to the new texture/textureset. This makes this function O(n), where n is #nodes.
+     * @param scene Scene to add the texture/textureset to
+     * @param texture_name_hash Hash of the texture name that will be used in the gui scripts
+     * @param texture The texture to add
+     * @param textureset The textureset to add if animation is used, otherwise zero. If set, texture parameter is expected to be equal to textureset texture.
+     * @param original_width Original With of the texture
+     * @param original_height Original Height of the texture
+     * @return Outcome of the operation
+     */
+    Result AddDynamicTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height);
+
+    /**
      * Removes a texture with the specified name from the scene.
      * @note Any nodes connected to the same texture will also be disconnected from the texture. This makes this function O(n), where n is #nodes.
      * @param scene Scene to remove texture from

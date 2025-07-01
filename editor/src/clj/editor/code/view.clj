@@ -44,6 +44,7 @@
             [editor.keymap :as keymap]
             [editor.lsp :as lsp]
             [editor.markdown :as markdown]
+            [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
             [editor.os :as os]
             [editor.prefs :as prefs]
@@ -1675,9 +1676,12 @@
     (and (get-property view-node :completions-showing evaluation-context)
          (pos? (count (get-property view-node :completions-combined evaluation-context))))))
 
-(defn- hover-visible? [view-node]
-  (g/with-auto-evaluation-context evaluation-context
-    (some? (get-property view-node :hover-showing-regions evaluation-context))))
+(defn- hover-visible?
+  ([view-node]
+   (g/with-auto-evaluation-context evaluation-context
+     (hover-visible? view-node evaluation-context)))
+  ([view-node evaluation-context]
+   (some? (get-property view-node :hover-showing-regions evaluation-context))))
 
 (defn- selected-suggestion [view-node]
   (g/with-auto-evaluation-context evaluation-context
@@ -2382,9 +2386,7 @@
         (cond
           (and selected-suggestion
                (or (= "\r" typed)
-                   (let [commit-characters (or (:commit-characters selected-suggestion)
-                                               (get-in grammar [:commit-characters (:type selected-suggestion)]))]
-                     (contains? commit-characters typed))))
+                   (contains? (:commit-characters selected-suggestion) typed)))
           (let [insertion (code-completion/insertion selected-suggestion)]
             (do (accept-suggestion! view-node insertion)
                 [;; insert-typed
@@ -2504,7 +2506,7 @@
    {:command :edit.copy :label "Copy"}
    {:command :edit.paste :label "Paste"}
    {:command :code.select-all :label "Select All"}
-   {:label :separator :id :editor.app-view/edit-end}])
+   (menu-items/separator-with-id :editor.app-view/edit-end)])
 
 (defn handle-mouse-pressed! [view-node ^MouseEvent event]
   (let [^Node target (.getTarget event)
@@ -2567,7 +2569,8 @@
      (schedule-hover-refresh! view-node evaluation-context)))
   ([view-node evaluation-context]
    (some-> (g/node-value view-node :hover-request evaluation-context) ui/cancel)
-   {:hover-request (ui/->future 0.2 #(refresh-hover-state! view-node))}))
+   (let [delay (if (hover-visible? view-node evaluation-context) 0.2 1.0)]
+     {:hover-request (ui/->future delay #(refresh-hover-state! view-node))})))
 
 (defn- request-lsp-hover! [view-node lsp resource-node new-hover-cursor evaluation-context]
   (let [old-hover-cursor (get-property view-node :hover-cursor evaluation-context)
@@ -2647,7 +2650,7 @@
         (data/mouse-exited (get-property view-node :gesture-start evaluation-context)
                            (get-property view-node :hovered-element evaluation-context))
         (when-not (get-property view-node :hover-mouse-over-popup evaluation-context)
-          (assoc (schedule-hover-refresh! view-node) :hover-cursor nil))))))
+          (assoc (schedule-hover-refresh! view-node evaluation-context) :hover-cursor nil))))))
 
 (defn handle-scroll! [view-node zoom-on-scroll ^ScrollEvent event]
   (.consume event)

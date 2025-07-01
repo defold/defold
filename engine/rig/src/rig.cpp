@@ -52,8 +52,8 @@ namespace dmRig
 
     static void ResetPoseMatrixCache(PoseMatrixCache* cache)
     {
-        cache->m_PoseMatrices.SetCapacity(0);
-        cache->m_CacheEntryOffsets.SetCapacity(0);
+        cache->m_PoseMatrices.SetSize(0);
+        cache->m_CacheEntryOffsets.SetSize(0);
         cache->m_MaxBoneCount = 0;
     }
 

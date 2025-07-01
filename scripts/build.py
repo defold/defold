@@ -35,6 +35,7 @@ from glob import glob
 from threading import Thread, Event
 from queue import Queue
 from configparser import ConfigParser
+from BuildTimeTracker import BuildTimeTracker
 
 BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'x86_64-macos', 'arm64-macos',
@@ -504,6 +505,7 @@ class Configuration(object):
         self.gcloud_certfile = gcloud_certfile
         self.gcloud_keyfile = gcloud_keyfile
         self.verbose = verbose
+        self.build_tracker = BuildTimeTracker(logger=self._log)
 
         if self.github_token is None:
             self.github_token = os.environ.get("GITHUB_TOKEN")
@@ -699,7 +701,7 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml', 'rangehttpserver'])
+        run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml', 'rangehttpserver', 'pystache'])
         for whl in glob(join(self.defold_root, 'packages', '*.whl')):
             self._log('Installing %s' % basename(whl))
             run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', join(self.ext, 'lib', 'python'), whl])
@@ -1351,7 +1353,7 @@ class Configuration(object):
         return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, commands)
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
-        self._log('Building %s for %s' % (lib, platform))
+        self.build_tracker.start_component(lib, platform)
         skip_build_tests = []
         if skip_tests and '--skip-build-tests' not in self.waf_options:
             skip_build_tests.append('--skip-tests')
@@ -1359,6 +1361,7 @@ class Configuration(object):
         cwd = join(self.defold_root, '%s/%s' % (dir, lib))
         plf_args = ['--platform=%s' % platform]
         run.env_command(self._form_env(), args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
+        self.build_tracker.end_component(lib, platform)
 
 # For now gradle right in
 # - 'com.dynamo.cr/com.dynamo.cr.bob'
@@ -1372,7 +1375,7 @@ class Configuration(object):
             return join('.', 'gradlew')
 
     def build_bob_light(self):
-        self._log('Building bob light')
+        self.build_tracker.start_component('bob_light', self.host)
 
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         # common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
@@ -1396,6 +1399,7 @@ class Configuration(object):
         s = run.command(" ".join([gradle, '-Pkeep-bob-uncompressed', 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
         if self.verbose:
         	print (s)
+        self.build_tracker.end_component('bob_light', self.host)
 
     def build_engine(self):
         self.check_sdk()
@@ -2789,11 +2793,13 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
         if not f:
             parser.error('Unknown command %s' % cmd)
         else:
-            start = time.time()
-            print("Running '%s'" % cmd)
+            c.build_tracker.start_command(cmd)
             f()
             c.wait_uploads()
-            duration = (time.time() - start)
-            print("'%s' completed in %.2f s" % (cmd, duration))
+            c.build_tracker.end_command(cmd)
+
+    # Print and save build time summary
+    c.build_tracker.print_summary()
+    c.build_tracker.save_times()
 
     print('Done')
