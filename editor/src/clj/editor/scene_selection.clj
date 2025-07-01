@@ -17,7 +17,9 @@
             [dynamo.graph :as g]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
+            [editor.handler :as handler]
             [editor.math :as math]
+            [editor.menu-items :as menu-items]
             [editor.scene-picking :as scene-picking]
             [editor.system :as system]
             [editor.types :as types]
@@ -33,6 +35,25 @@
            [javax.vecmath Point2i Point3d Matrix4d Vector3d]))
 
 (set! *warn-on-reflection* true)
+
+(handler/register-menu! ::scene-context-menu
+                        [{:label "Cut"
+                          :command :edit.cut}
+                         {:label "Copy"
+                          :command :edit.copy}
+                         {:label "Paste"
+                          :command :edit.paste}
+                         {:label "Delete"
+                          :icon "icons/32/Icons_M_06_trash.png"
+                          :command :edit.delete}
+                         menu-items/separator
+                         {:label "Show/Hide Objects"
+                          :command :scene.visibility.toggle-selection}
+                         {:label "Hide Unselected Objects"
+                          :command :scene.visibility.hide-unselected}
+                         {:label "Show All Hidden Objects"
+                          :command :scene.visibility.show-all}
+                         (menu-items/separator-with-id ::context-menu-end)])
 
 (defn render-selection-box [^GL2 gl _render-args renderables _count]
   (let [user-data (:user-data (first renderables))
@@ -164,7 +185,7 @@
                        (when contextual?
                          (let [node ^Node (:target action)
                                scene ^Scene (.getScene node)
-                               context-menu (ui/init-context-menu! :editor.outline-view/outline-menu scene)]
+                               context-menu (ui/init-context-menu! ::scene-context-menu scene)]
                            (.show context-menu node ^double (:screen-x action) ^double (:screen-y action))))
                        nil)
       :mouse-released (do
