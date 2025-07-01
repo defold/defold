@@ -320,7 +320,22 @@
                 nil
                 (catch Throwable e e))))
         (is (= [1.5 1.5 1.5] (test-util/prop sprite-outline :position)))
-        (is (= 2.5 (test-util/prop sprite-outline :playback-rate)))))))
+        (is (= 2.5 (test-util/prop sprite-outline :playback-rate))))
+      (let [handler+context (handler/active
+                             (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
+                             (handler/eval-contexts
+                               [(handler/->context :global {} (->StaticSelection [sprite-outline]))]
+                               false)
+                             {})]
+        (is (= [1.0 1.0 1.0] (test-util/prop sprite-outline :scale)))
+        (is (some? handler+context))
+        (is (handler/enabled? handler+context))
+        (is (nil?
+              (try
+                @(handler/run handler+context)
+                nil
+                (catch Throwable e e))))
+        (is (= [2 2 2] (test-util/prop sprite-outline :scale)))))))
 
 (deftest refresh-context-after-write-test
   (test-util/with-scratch-project "test/resources/editor_extensions/refresh_context_project"

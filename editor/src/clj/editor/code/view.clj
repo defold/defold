@@ -44,6 +44,7 @@
             [editor.keymap :as keymap]
             [editor.lsp :as lsp]
             [editor.markdown :as markdown]
+            [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
             [editor.os :as os]
             [editor.prefs :as prefs]
@@ -2505,7 +2506,7 @@
    {:command :edit.copy :label "Copy"}
    {:command :edit.paste :label "Paste"}
    {:command :code.select-all :label "Select All"}
-   {:label :separator :id :editor.app-view/edit-end}])
+   (menu-items/separator-with-id :editor.app-view/edit-end)])
 
 (defn handle-mouse-pressed! [view-node ^MouseEvent event]
   (let [^Node target (.getTarget event)
