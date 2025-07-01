@@ -869,7 +869,7 @@ nesting:
   (let [actual (normalize-pprint-output (str actual))]
     (let [output-matches-expectation (= expected actual)]
       (when-not output-matches-expectation
-        (is output-matches-expectation (string/join "\n" (diff/make-diff-output-lines actual expected 3)))))))
+        (is output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3)))))))
 
 (deftest pprint-test
   (test-util/with-loaded-project "test/resources/editor_extensions/pprint-test"
@@ -1219,10 +1219,10 @@ After transaction (remove animation):
   images: 0
   animations: 0
 Expected errors:
-  Wrong list name to add => AtlasNode does not define \"layers\"
-  Wrong list name to remove => AtlasNode does not define \"layers\"
+  Wrong list name to add => \"layers\" is undefined
+  Wrong list name to remove => \"layers\" is undefined
   Wrong list item to remove => /test.atlas is not in the \"images\" list of /test.atlas
-  Wrong list name to clear => AtlasNode does not define \"layers\"
+  Wrong list name to clear => \"layers\" is undefined
   Wrong child property name => Can't set property \"no_such_prop\" of AtlasAnimation
   Added value is not a table => \"/foo.png\" is not a table
   Added nested value is not a table => \"/foo.png\" is not a table
@@ -1482,13 +1482,13 @@ After transaction (reorder):
         id: box1
         nodes: 0
 Expected reorder errors:
-  undefined property => GuiSceneNode does not define \"not-a-property\"
-  reorder not defined => CollisionObjectNode does not support \"shapes\" reordering
+  undefined property => \"not-a-property\" is undefined
+  reorder not defined => \"shapes\" is not reorderable
   duplicates => Reordered child nodes are not the same as current child nodes
   missing children => Reordered child nodes are not the same as current child nodes
   wrong child nodes => Reordered child nodes are not the same as current child nodes
-  add to template node => \"nodes\" is not editable
-  reorder template node => \"nodes\" is not editable
+  add to template node => \"nodes\" is read-only
+  reorder template node => \"nodes\" is read-only
   add to overridden text node => \"nodes\" is read-only
   reorder overridden text node => \"nodes\" is read-only
   reset unresettable => Can't reset property \"text\" of TextNode
@@ -1506,6 +1506,69 @@ After transaction (clear):
   spine scenes: 0
   fonts: 0
   nodes: 0
+Go initial state:
+  components: 0
+Transaction: add go components
+After transaction (add go components):
+  components: 15
+  - type: embedded-component-type-camera
+    id: camera
+  - type: embedded-component-type-collectionfactory
+    id: collectionfactory
+  - type: embedded-component-type-collectionproxy
+    id: collectionproxy
+  - type: embedded-component-type-collectionproxy
+    id: collectionproxy1
+  - type: embedded-component-type-collisionobject
+    id: collisionobject-embedded
+    shapes: 1
+    - id: box
+      type: shape-type-box
+      dimensions: 2.5 2.5 2.5
+  - type: embedded-component-type-factory
+    id: factory
+  - type: embedded-component-type-label
+    id: label
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {0.05, 0.05, 0.05}
+  - type: embedded-component-type-mesh
+    id: mesh
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+  - type: embedded-component-type-model
+    id: model
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+  - type: embedded-component-type-sound
+    id: boom
+  - type: embedded-component-type-spinemodel
+    id: spinemodel
+    position: {3.14, 3.14, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+  - type: embedded-component-type-sprite
+    id: blob
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+  - type: referenced-component
+    id: test
+  - type: referenced-component
+    id: collisionobject-referenced
+  - type: referenced-component
+    id: referenced-tilemap
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+Collision object components found:
+  referenced: true
+  embedded: true
+Collision object components have shapes property:
+  referenced: false
+  embedded: true
+Transaction: clear go components
+After transaction (clear go components):
+  components: 0
 ")
 
 (deftest attachment-properties-test

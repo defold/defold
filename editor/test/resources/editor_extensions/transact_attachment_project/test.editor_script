@@ -87,22 +87,23 @@ local function print_particlefx_contents(particlefx)
     end
 end
 
-local function print_collision_object(collision)
+local function print_collision_object(collision, indent)
+    indent = indent or "  "
     local shapes = editor.get(collision, "shapes")
-    print(("  shapes: %s"):format(#shapes))
+    print(("%sshapes: %s"):format(indent, #shapes))
     for i = 1, #shapes do
         local shape = shapes[i]
-        print(("  - id: %s"):format(editor.get(shape, "id")))
+        print(("%s- id: %s"):format(indent, editor.get(shape, "id")))
         local type = editor.get(shape, "type")
-        print(("    type: %s"):format(type))
+        print(("%s  type: %s"):format(indent, type))
         if type == "shape-type-sphere" then
-            print(("    diameter: %s"):format(editor.get(shape, "diameter")))
+            print(("%s  diameter: %s"):format(indent, editor.get(shape, "diameter")))
         elseif type == "shape-type-box" then
             local x,y,z = table.unpack(editor.get(shape, "dimensions"))
-            print(("    dimensions: %s %s %s"):format(x, y, z))
+            print(("%s  dimensions: %s %s %s"):format(indent, x, y, z))
         elseif type == "shape-type-capsule" then
-            print(("    diameter: %s"):format(editor.get(shape, "diameter")))
-            print(("    height: %s"):format(editor.get(shape, "height")))
+            print(("%s  diameter: %s"):format(indent, editor.get(shape, "diameter")))
+            print(("%s  height: %s"):format(indent, editor.get(shape, "height")))
         end
     end
 end
@@ -179,6 +180,29 @@ local function print_gui_node_positions(node)
     end
 end
 
+local transform_props = {"position", "rotation", "scale"}
+
+local function print_go(go)
+    local components = editor.get(go, "components")
+    print(("  components: %s"):format(#components))
+    for i = 1, #components do
+        local component = components[i]
+        local type = editor.get(component, "type")
+        print(("  - type: %s"):format(type))
+        print(("    id: %s"):format(editor.get(component, "id")))
+        for j = 1, #transform_props do
+            local p = transform_props[j]
+            if editor.can_get(component, p) then
+                local position = editor.get(component, p)
+                print(("    %s: {%s, %s, %s}"):format(p, position[1], position[2], position[3]))
+            end
+        end
+        if type == "embedded-component-type-collisionobject" then
+            print_collision_object(component, "    ")
+        end
+    end
+end
+
 function M.get_commands()
     return {
         editor.command({
@@ -233,7 +257,7 @@ function M.get_commands()
                 expect_error("Wrong list name to clear", editor.tx.clear, "/test.atlas", "layers")
                 expect_error("Wrong child property name", editor.transact, { editor.tx.add("/test.atlas", "animations", { no_such_prop = true}) })
                 expect_error("Added value is not a table", editor.tx.add, "/test.atlas", "images", "/foo.png")
-                expect_error("Added nested value is not a table", editor.tx.add, "/test.atlas", "animations", { images = { "/foo.png" } })
+                expect_error("Added nested value is not a table", editor.transact, { editor.tx.add("/test.atlas", "animations", { images = { "/foo.png" } }) })
                 expect_error("Added node has invalid property value", editor.transact, { editor.tx.add("/test.atlas", "images", { pivot = "invalid-pivot" }) })
                 expect_error("Added resource has wrong type", editor.transact, { editor.tx.add("/test.atlas", "images", { image = "/game.project" }) })
 
@@ -497,6 +521,116 @@ function M.get_commands()
 
                 print("After transaction (clear):")
                 print_gui(gui)
+
+                local go = "/test.go"
+                print("Go initial state:")
+                print_go(go)
+
+                print("Transaction: add go components")
+
+                editor.transact({
+                    editor.tx.add(go, "components", {
+                        type = "embedded-component-type-camera",
+                        near_z = 1,
+                        far_z = 10
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "embedded-component-type-collectionfactory"
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "embedded-component-type-collectionproxy"
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "embedded-component-type-collectionproxy"
+                    }),
+                    editor.tx.add(go, "components", {
+                        id = "collisionobject-embedded",
+                        type = "embedded-component-type-collisionobject",
+                        locked_rotation = true,
+                        shapes = {
+                            {
+                                id = "box",
+                                type = "shape-type-box",
+                                dimensions = {2.5, 2.5, 2.5},
+                            }
+                        }
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "embedded-component-type-factory",
+                        load_dynamically = true
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "embedded-component-type-label",
+                        text = "Hello label!",
+                        scale = {0.05, 0.05, 0.05}
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "embedded-component-type-mesh"
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "embedded-component-type-model",
+                        mesh = "/builtins/assets/meshes/cube.dae"
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "embedded-component-type-sound",
+                        id = "boom"
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "embedded-component-type-spinemodel",
+                        position = {3.14, 3.14, 0}
+                    }),
+                    editor.tx.add(go, "components", {
+                        type = "embedded-component-type-sprite",
+                        id = "blob"
+                    }),
+                    editor.tx.add(go, "components", { 
+                        type = "referenced-component",
+                        path = "/test.script",
+                        __num = 42
+                    }),
+                    editor.tx.add(go, "components", {
+                        id = "collisionobject-referenced",
+                        type = "referenced-component",
+                        path = "/test.collisionobject"
+                    }),
+                    editor.tx.add(go, "components", {
+                        id = "referenced-tilemap",
+                        type = "referenced-component",
+                        path = "/test.tilemap"
+                    })
+                })
+
+                print("After transaction (add go components):")
+                print_go(go)
+
+                local referenced_collision
+                local embedded_collision
+                local components = editor.get(go, "components")
+                for i = 1, #components do
+                    local c = components[i]
+                    local id = editor.get(c, "id")
+                    if id == "collisionobject-referenced" then
+                        referenced_collision = c
+                    elseif id == "collisionobject-embedded" then
+                        embedded_collision = c
+                    end
+                end
+
+                print("Collision object components found:")
+                print(("  referenced: %s"):format(tostring(not not referenced_collision)))
+                print(("  embedded: %s"):format(tostring(not not embedded_collision)))
+                
+                print("Collision object components have shapes property:")
+                print(("  referenced: %s"):format(tostring(editor.can_get(referenced_collision, "shapes"))))
+                print(("  embedded: %s"):format(tostring(editor.can_get(embedded_collision, "shapes"))))
+
+                print("Transaction: clear go components")
+                editor.transact({
+                    editor.tx.clear(go, "components")
+                })
+
+                print("After transaction (clear go components):")
+                print_go(go)
             end
         })
     }

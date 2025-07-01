@@ -35,15 +35,12 @@
             [editor.util :as util]
             [editor.workspace :as workspace]
             [util.coll :as coll]
-            [util.defonce :as defonce]
             [util.fn :as fn]
             [util.id-vec :as iv])
-  (:import [clojure.lang IFn]
-           [com.dynamo.particle.proto Particle$ModifierType]
+  (:import [com.dynamo.particle.proto Particle$ModifierType]
            [editor.editor_extensions.tile_map Tiles]
            [editor.properties Curve CurveSpread]
            [java.util ArrayDeque HashSet]
-           [java.util.concurrent.locks ReentrantReadWriteLock]
            [javax.vecmath Vector3d]
            [org.apache.commons.io FilenameUtils]
            [org.luaj.vm2 LuaError]))
@@ -369,9 +366,8 @@
                      (constantly type-name))
             (let [workspace (project/workspace project evaluation-context)
                   list-kw (property->prop-kw property)]
-              (when (attachment/defines? basis workspace node-type list-kw)
-                (let [f (attachment/getter basis workspace node-type list-kw)]
-                  #(mapv rt/wrap-userdata (f node-id evaluation-context))))))))))
+              (when (attachment/defined? workspace node-id list-kw evaluation-context)
+                #(mapv rt/wrap-userdata (attachment/get workspace node-id list-kw evaluation-context)))))))))
 
 ;; endregion
 
@@ -420,12 +416,11 @@
         (let [one-indexed-tile-index->collision-group-id (rt/->clj rt tile-collision-group-coercer lua-value)]
           (g/expand-ec
             (fn [evaluation-context]
-              (let [basis (:basis evaluation-context)
-                    workspace (project/workspace project evaluation-context)
+              (let [workspace (project/workspace project evaluation-context)
                     collision-id->node-id
                     (coll/pair-map-by
                       #(g/node-value % :id evaluation-context)
-                      ((attachment/getter basis workspace (g/node-type* basis node-id) :collision-groups) node-id evaluation-context))
+                      (attachment/get workspace node-id :collision-groups evaluation-context))
                     new-tile->collision-group-node
                     (coll/pair-map-by
                       (comp dec key) ;; 1-indexed to 0-indexed
@@ -739,33 +734,86 @@
 (def ^:private attachment-coercer (coerce/map-of coerce/string coerce/untouched))
 (def ^:private attachments-coercer (coerce/vector-of attachment-coercer))
 
-(defn- extract-node-type [rt attachment possible-node-types]
-  (if-let [lua-type (attachment "type")]
-    (let [name (rt/->clj rt coerce/string lua-type)
-          node-type (node-types/->type name)]
-      (if (and node-type (contains? possible-node-types node-type))
-        node-type
-        (throw (LuaError. (str name " is not " (->> possible-node-types keys (keep node-types/->name) sort (util/join-words ", " " or ")))))))
-    (throw (LuaError. "type is required"))))
+;; Attachment -> node tree creation order:
+;; 1. extract-node-type — figure out the node type of node to create
+;; 2. create-extra-nodes — create extra nodes that should be a part of the node
+;;    tree and influence node initialization. For example, if a node type is
+;;    configured to define an alternative (attachment/define-alternative), this
+;;    is the place to create the alternative node, since its existence defines
+;;    the existence of list properties
+;; 3. init-attachment — strip the attachment of list properties, and apply
+;;    the remaining entries as property setters
+;; 4. add-child-attachments — take all list properties from the attachment, and
+;;    recursively attach the list item attachments to the created node.
 
-(defn- parse-attachment [basis workspace rt possible-node-types attachment]
-  (let [requires-explicit-type (< 1 (count possible-node-types))
-        node-type (if requires-explicit-type
-                    (extract-node-type rt attachment possible-node-types)
-                    (reduce-kv (fn [_ k _] (reduced k)) nil possible-node-types))
-        tree {:init {} :add [] :node-type node-type}
-        attachment (cond-> attachment requires-explicit-type (dissoc "type"))]
+(defmulti extract-node-type
+  "Given an attachment, return a tuple of attachment+node-type
+
+  The returned attachment might be modified, typically stripped of the type key"
+  (fn extract-node-type-dispatch-fn [_rt _attachment _workspace node-id list-kw evaluation-context]
+    [(g/node-type-kw (:basis evaluation-context) node-id) list-kw]))
+
+(defmethod extract-node-type :default [rt attachment workspace node-id list-kw evaluation-context]
+  (let [possible-node-types (attachment/child-node-types workspace node-id list-kw evaluation-context)
+        n (count possible-node-types)]
+    (assert (pos? n) "Check for attachment/editable? before extracting node type")
+    (if (= 1 n)
+      (coll/pair attachment (reduce-kv (fn [_ k _] (reduced k)) nil possible-node-types))
+      (if-let [lua-type (attachment "type")]
+        (let [node-type-name (rt/->clj rt coerce/string lua-type)
+              node-type (node-types/->type node-type-name)]
+          (if (and node-type (contains? possible-node-types node-type))
+            (coll/pair (dissoc attachment "type") node-type)
+            (throw (LuaError. (str node-type-name " is not " (->> possible-node-types keys (keep node-types/->name) sort (util/join-words ", " " or ")))))))
+        (throw (LuaError. "type is required"))))))
+
+(defn- init-attachment-without-list-properties [evaluation-context rt project workspace attachment parent-node-id child-node-id]
+  (init-attachment
+    evaluation-context
+    rt
+    project
+    parent-node-id
+    (g/node-type* (:basis evaluation-context) child-node-id)
+    child-node-id
+    (reduce-kv
+      (fn [acc property _]
+        (let [list-kw (property->prop-kw property)]
+          (if (attachment/defined? workspace child-node-id list-kw evaluation-context)
+            (dissoc acc property)
+            acc)))
+      attachment
+      attachment)))
+
+(defmulti create-extra-nodes
+  (fn create-extra-nodes-dispatch-fn [evaluation-context _rt _project _workspace _attachment node-id]
+    (g/node-type-kw (:basis evaluation-context) node-id)))
+
+(defmethod create-extra-nodes :default [_evaluation-context _rt _project _workspace _attachment _node-id])
+
+(defn- construct-and-init-attachment [rt project workspace attachment parent-node-id child-node-id]
+  (concat
+    (g/expand-ec create-extra-nodes rt project workspace attachment child-node-id)
+    (g/expand-ec init-attachment-without-list-properties rt project workspace attachment parent-node-id child-node-id)))
+
+(defn- add-child-attachments [evaluation-context rt project workspace attachment node-id]
+  (persistent!
     (reduce-kv
       (fn [acc property lua-value]
         (let [list-kw (property->prop-kw property)]
-          (if (attachment/editable? basis workspace node-type list-kw)
-            (let [child-node-types (attachment/child-node-types basis workspace node-type list-kw)]
-              (update acc :add
-                      into
-                      (map #(coll/pair list-kw (parse-attachment basis workspace rt child-node-types %)))
-                      (rt/->clj rt attachments-coercer lua-value)))
-            (update acc :init assoc property lua-value))))
-      tree
+          (if (attachment/defined? workspace node-id list-kw evaluation-context)
+            (if (attachment/editable? workspace node-id list-kw evaluation-context)
+              (reduce
+                (fn [acc attachment]
+                  (let [[attachment node-type] (extract-node-type rt attachment workspace node-id list-kw evaluation-context)]
+                    (conj! acc (attachment/add
+                                 workspace node-id list-kw node-type
+                                 (partial construct-and-init-attachment rt project workspace attachment)
+                                 (partial g/expand-ec add-child-attachments rt project workspace attachment)))))
+                acc
+                (rt/->clj rt attachments-coercer lua-value))
+              (throw (LuaError. (format "\"%s\" is read-only" property))))
+            acc)))
+      (transient [])
       attachment)))
 
 (def ^:private add-args-coercer
@@ -776,23 +824,20 @@
 (defn make-ext-add-fn [project]
   (rt/varargs-lua-fn ext-add [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property attachment]} (rt/->clj rt add-args-coercer varargs)
-          {:keys [basis]} evaluation-context
           workspace (project/workspace project evaluation-context)
           node-id (node-id-or-path->node-id node project evaluation-context)
-          node-type (g/node-type* basis node-id)
           list-kw (property->prop-kw property)]
-      (when-not (attachment/defines? basis workspace node-type list-kw)
-        (throw (LuaError. (format "%s does not define \"%s\"" (name (:k node-type)) property))))
-      (when-not (attachment/editable? basis workspace node-type list-kw)
-        (throw (LuaError. (format "\"%s\" is not editable" property))))
-      (when (attachment/read-only? workspace node-id list-kw evaluation-context)
+      (when-not (attachment/defined? workspace node-id list-kw evaluation-context)
+        (throw (LuaError. (format "\"%s\" is undefined" property))))
+      (when-not (attachment/editable? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is read-only" property))))
-      (-> (attachment/add
-            basis workspace node-id
-            [[list-kw (parse-attachment basis workspace rt (attachment/child-node-types basis workspace node-type list-kw) attachment)]]
-            (partial g/expand-ec init-attachment rt project))
-          (with-meta {:type :transaction-step})
-          (rt/wrap-userdata "editor.tx.add(...)")))))
+      (let [[attachment node-type] (extract-node-type rt attachment workspace node-id list-kw evaluation-context)]
+        (-> (attachment/add
+              workspace node-id list-kw node-type
+              (partial construct-and-init-attachment rt project workspace attachment)
+              (partial g/expand-ec add-child-attachments rt project workspace attachment))
+            (with-meta {:type :transaction-step})
+            (rt/wrap-userdata "editor.tx.add(...)"))))))
 
 (def ^:private can-add-args-coercer
   (coerce/regex :node node-id-or-path-coercer :property coerce/string))
@@ -800,13 +845,11 @@
 (defn make-ext-can-add-fn [project]
   (rt/varargs-lua-fn ext-can-add [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt can-add-args-coercer varargs)
-          {:keys [basis]} evaluation-context
           node-id-or-resource (resolve-node-id-or-path node project evaluation-context)
           list-kw (property->prop-kw property)
           workspace (project/workspace project evaluation-context)]
       (and (not (resource/resource? node-id-or-resource))
-           (attachment/editable? basis workspace (g/node-type* basis node-id-or-resource) list-kw)
-           (not (attachment/read-only? workspace node-id-or-resource list-kw evaluation-context))))))
+           (attachment/editable? workspace node-id-or-resource list-kw evaluation-context)))))
 
 (def ^:private clear-args-coercer
   (coerce/regex :node node-id-or-path-coercer :property coerce/string))
@@ -814,16 +857,12 @@
 (defn make-ext-clear-fn [project]
   (rt/varargs-lua-fn ext-clear [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt clear-args-coercer varargs)
-          {:keys [basis]} evaluation-context
           workspace (project/workspace project evaluation-context)
           node-id (node-id-or-path->node-id node project evaluation-context)
-          node-type (g/node-type* basis node-id)
           list-kw (property->prop-kw property)]
-      (when-not (attachment/defines? basis workspace node-type list-kw)
-        (throw (LuaError. (format "%s does not define \"%s\"" (name (:k node-type)) property))))
-      (when-not (attachment/editable? basis workspace node-type list-kw)
-        (throw (LuaError. (format "\"%s\" is not editable" property))))
-      (when (attachment/read-only? workspace node-id list-kw evaluation-context)
+      (when-not (attachment/defined? workspace node-id list-kw evaluation-context)
+        (throw (LuaError. (format "\"%s\" is undefined" property))))
+      (when-not (attachment/editable? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is read-only" property))))
       (-> (attachment/clear workspace node-id list-kw)
           (with-meta {:type :transaction-step})
@@ -835,19 +874,15 @@
 (defn make-ext-remove-fn [project]
   (rt/varargs-lua-fn ext-remove [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property child]} (rt/->clj rt remove-args-coercer varargs)
-          {:keys [basis]} evaluation-context
           workspace (project/workspace project evaluation-context)
           node-id (node-id-or-path->node-id node project evaluation-context)
           child-node-id (node-id-or-path->node-id child project evaluation-context)
-          node-type (g/node-type* basis node-id)
           list-kw (property->prop-kw property)]
-      (when-not (attachment/defines? basis workspace node-type list-kw)
-        (throw (LuaError. (format "%s does not define \"%s\"" (name (:k node-type)) property))))
-      (when-not (attachment/editable? basis workspace node-type list-kw)
-        (throw (LuaError. (format "\"%s\" is not editable" property))))
-      (when (attachment/read-only? workspace node-id list-kw evaluation-context)
+      (when-not (attachment/defined? workspace node-id list-kw evaluation-context)
+        (throw (LuaError. (format "\"%s\" is undefined" property))))
+      (when-not (attachment/editable? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is read-only" property))))
-      (when-not (some #(= child-node-id %) ((attachment/getter basis workspace node-type list-kw) node-id evaluation-context))
+      (when-not (some #(= child-node-id %) (attachment/get workspace node-id list-kw evaluation-context))
         (throw (LuaError. (format "%s is not in the \"%s\" list of %s" child property node))))
       (-> (attachment/remove workspace node-id list-kw child-node-id)
           (with-meta {:type :transaction-step})
@@ -859,15 +894,12 @@
 (defn make-ext-can-reorder-fn [project]
   (rt/varargs-lua-fn ext-can-reorder [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt can-reorder-args-coercer varargs)
-          {:keys [basis]} evaluation-context
           node-id-or-resource (resolve-node-id-or-path node project evaluation-context)
           workspace (project/workspace project evaluation-context)
-          node-type (g/node-type* basis node-id-or-resource)
           list-kw (property->prop-kw property)]
       (and (not (resource/resource? node-id-or-resource))
-           (attachment/editable? basis workspace node-type list-kw)
-           (attachment/reorderable? basis workspace node-type list-kw)
-           (not (attachment/read-only? workspace node-id-or-resource list-kw evaluation-context))))))
+           (attachment/editable? workspace node-id-or-resource list-kw evaluation-context)
+           (attachment/reorderable? workspace node-id-or-resource list-kw evaluation-context)))))
 
 (def ^:private reorder-args-coercer
   (coerce/regex :node node-id-or-path-coercer
@@ -877,21 +909,17 @@
 (defn make-ext-reorder-fn [project]
   (rt/varargs-lua-fn ext-reorder [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property children]} (rt/->clj rt reorder-args-coercer varargs)
-          {:keys [basis]} evaluation-context
           workspace (project/workspace project evaluation-context)
           node-id (node-id-or-path->node-id node project evaluation-context)
-          node-type (g/node-type* basis node-id)
           list-kw (property->prop-kw property)
           reordered-child-node-ids (mapv #(node-id-or-path->node-id % project evaluation-context) children)]
-      (when-not (attachment/defines? basis workspace node-type list-kw)
-        (throw (LuaError. (format "%s does not define \"%s\"" (name (:k node-type)) property))))
-      (when-not (attachment/editable? basis workspace node-type list-kw)
-        (throw (LuaError. (format "\"%s\" is not editable" property))))
-      (when-not (attachment/reorderable? basis workspace node-type list-kw)
-        (throw (LuaError. (format "%s does not support \"%s\" reordering" (name (:k node-type)) property))))
-      (when (attachment/read-only? workspace node-id list-kw evaluation-context)
+      (when-not (attachment/defined? workspace node-id list-kw evaluation-context)
+        (throw (LuaError. (format "\"%s\" is undefined" property))))
+      (when-not (attachment/editable? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is read-only" property))))
-      (let [current-child-node-set (set ((attachment/getter basis workspace node-type list-kw) node-id evaluation-context))]
+      (when-not (attachment/reorderable? workspace node-id list-kw evaluation-context)
+        (throw (LuaError. (format "\"%s\" is not reorderable" property))))
+      (let [current-child-node-set (set (attachment/get workspace node-id list-kw evaluation-context))]
         (when (or (not (every? current-child-node-set reordered-child-node-ids))
                   (not (= (count current-child-node-set) (count reordered-child-node-ids))))
           (throw (LuaError. "Reordered child nodes are not the same as current child nodes"))))
