@@ -135,7 +135,7 @@
                              "Bundle" :global
                              "Debug" :global
                              "Edit" :global
-                             "Outline" :outline
+                             "Outline" :global
                              "Project" :global
                              "View" :global})
                        locations)

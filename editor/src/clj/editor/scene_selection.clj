@@ -15,22 +15,21 @@
 (ns editor.scene-selection
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.system :as system]
             [editor.geom :as geom]
-            [editor.handler :as handler]
+            [editor.gl.pass :as pass]
             [editor.math :as math]
             [editor.scene-picking :as scene-picking]
+            [editor.system :as system]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.gl.pass :as pass]
             [editor.workspace :as workspace]
             [schema.core :as s]
             [util.eduction :as e])
-  (:import [editor.types Rect]
+  (:import [com.jogamp.opengl GL2]
+           [editor.types Rect]
            [java.lang Runnable Math]
-           [com.jogamp.opengl GL2]
-           [javafx.scene.input DragEvent]
            [javafx.scene Node Scene]
+           [javafx.scene.input DragEvent]
            [javax.vecmath Point2i Point3d Matrix4d Vector3d]))
 
 (set! *warn-on-reflection* true)

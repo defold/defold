@@ -307,7 +307,7 @@
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
                               (handler/eval-contexts
-                                [(handler/->context :outline {} (->StaticSelection [sprite-outline]))]
+                                [(handler/->context :global {} (->StaticSelection [sprite-outline]))]
                                 false)
                               {})]
         (is (= [0.0 0.0 0.0] (test-util/prop sprite-outline :position)))
@@ -376,7 +376,7 @@
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
                             (handler/eval-contexts
-                              [(handler/->context :outline {} (->StaticSelection [node]))]
+                              [(handler/->context :global {} (->StaticSelection [node]))]
                               false)
                             {})
           test-initial-state! (fn test-initial-state! []
