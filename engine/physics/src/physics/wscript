@@ -21,9 +21,9 @@ def build(bld):
     null_source_3d    = ['physics_3d_null.cpp']
 
     physics = bld.stlib(features = 'cxx',
-                        use = 'DLIB BULLET BOX2D',
-                        includes = ['.', '..'] + box2d_includes,
-                        source = common_source + bullet_source + box2d_source,
+                        use = 'DLIB BULLET BOX2D_DEFOLD',
+                        includes = ['.', '..'] + box2d_defold_includes,
+                        source = common_source + bullet_source + box2d_defold_source,
                         proto_gen_py = True,
                         target = 'physics')
 
