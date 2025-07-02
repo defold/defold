@@ -54,7 +54,7 @@ namespace dmRig
     {
         cache->m_PoseMatrices.SetSize(0);
         cache->m_CacheEntryOffsets.SetSize(0);
-        cache->m_TotalBoneCount = 0;
+        cache->m_TotalPoseCount = 0;
         cache->m_MaxBoneCount = 0;
     }
 
@@ -475,7 +475,7 @@ namespace dmRig
         // Animate()
         // See AcquirePoseMatrixCacheEntry
         dmArray<Matrix4>& cache_pose_matrices = context->m_PoseMatrixCache.m_PoseMatrices;
-        uint32_t size = context->m_PoseMatrixCache.m_TotalBoneCount;
+        uint32_t size = context->m_PoseMatrixCache.m_TotalPoseCount;
         cache_pose_matrices.SetCapacity(size);
         cache_pose_matrices.SetSize(size);
 
@@ -1227,8 +1227,8 @@ namespace dmRig
 
         instance->m_PoseMatrixCacheIndex = next_index;
 
-        cache->m_CacheEntryOffsets[next_index] = cache->m_TotalBoneCount;
-        cache->m_TotalBoneCount += GetBoneCount(instance);
+        cache->m_CacheEntryOffsets[next_index] = cache->m_TotalPoseCount;
+        cache->m_TotalPoseCount += instance->m_BindPose->Size();
         return next_index;
     }
 
