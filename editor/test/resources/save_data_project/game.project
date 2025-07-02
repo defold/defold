@@ -272,3 +272,7 @@ player_health = 120
 
 [shader]
 exclude_gles_sm100 = 0
+
+[font]
+runtime_generation = 1
+
