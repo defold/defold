@@ -83,7 +83,7 @@ namespace dmFont
      * @member m_Width [type: uint16_t] The glyph image width
      * @member m_Height [type: uint16_t] The glyph image height
      * @member m_Channels [type: uint16_t] The glyph image height
-     * @member m_Flags [type: uint8_t] Flags describing the data. 0 == no compression, 1 == RLE compression
+     * @member m_Flags [type: uint8_t] Flags describing the data. See `dmFont::GlyphBitmapFlags`.
      * @member m_Data [type: uint8_t*] The bitmap data, or null if no data available.
      */
     struct GlyphBitmap

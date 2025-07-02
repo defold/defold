@@ -172,7 +172,6 @@ public class Fontc {
 
         fontDescbuilder.mergeFrom(fontDesc);
         FontDesc desc = fontDescbuilder.build();
-        String characters = desc.getCharacters();
 
         // the list of parameters which affect the glyph_bank
         String result = ""
@@ -181,7 +180,7 @@ public class Fontc {
             + desc.getAntialias()
             + desc.getOutlineWidth()
             + desc.getShadowBlur()
-            + characters
+            + desc.getCharacters()
             + desc.getOutputFormat()
             + desc.getAllChars()
             + desc.getCacheWidth()

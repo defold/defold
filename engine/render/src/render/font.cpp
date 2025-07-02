@@ -312,36 +312,6 @@ namespace dmRender
         return font_map->m_Texture;
     }
 
-    void SetFontMapMaxAscent(HFontMap font_map, float max_ascent)
-    {
-        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
-        font_map->m_MaxAscent = max_ascent;
-    }
-
-    void SetFontMapMaxDescent(HFontMap font_map, float max_descent)
-    {
-        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
-        font_map->m_MaxDescent = max_descent;
-    }
-
-    void SetFontMapSdfOutlineWidth(HFontMap font_map, float outline)
-    {
-        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
-        font_map->m_SdfOutline = outline;
-    }
-
-    void SetFontMapSdfShadow(HFontMap font_map, float shadow)
-    {
-        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
-        font_map->m_SdfShadow = shadow;
-    }
-
-    void SetFontMapSdfSpread(HFontMap font_map, float padding)
-    {
-        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
-        font_map->m_SdfSpread = padding;
-    }
-
     void SetFontMapMaterial(HFontMap font_map, HMaterial material)
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);

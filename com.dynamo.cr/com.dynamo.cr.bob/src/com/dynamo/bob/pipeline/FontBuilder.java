@@ -122,7 +122,6 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         fontMapBuilder.setCacheWidth(fontDesc.getCacheWidth());
         fontMapBuilder.setCacheHeight(fontDesc.getCacheHeight());
 
-        // TODO: SDK vars
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD)
         {
             fontMapBuilder.setSdfSpread(Fontc.GetFontMapSdfSpread(fontDesc));

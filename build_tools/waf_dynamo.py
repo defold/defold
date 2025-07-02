@@ -2067,7 +2067,6 @@ def detect(conf):
     conf.env['STLIB_PLATFORM_NULL']   = ['platform_null']
 
     conf.env['STLIB_FONT']            = ['font']
-    conf.env['STLIB_FONTGEN']         = ['fontgen']
 
     if platform_glfw_version(platform) == 3:
         conf.env['STLIB_DMGLFW'] = 'glfw3'
@@ -2185,5 +2184,5 @@ def options(opt):
     # Currently supported features: physics
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
 
-    # Currently supported features: physics, simd (html5), font
+    # Currently supported features: physics, simd (html5)
     opt.add_option('--enable-feature', action='append', default=[], dest='enable_features', help='enable feature, --disable-feature=foo')

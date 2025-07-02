@@ -206,42 +206,6 @@ namespace dmRender
     uint32_t GetFontMapResourceSize(HFontMap font_map);
 
     /**
-     * Set the font map's max ascent
-     * @param font_map [type: HFontMap] Font map handle
-     * @param max_ascent [type: float] The max ascent over the base line
-     */
-    void SetFontMapMaxAscent(HFontMap font_map, float max_ascent);
-
-    /**
-     * Set the font map's max descent
-     * @note This is a positive number
-     * @param font_map [type: HFontMap] Font map handle
-     * @param max_descent [type: float] The max descent under the base line (Positive number!)
-     */
-    void SetFontMapMaxDescent(HFontMap font_map, float max_descent);
-
-    /**
-     * Set the outline threshold
-     * @param font_map [type: HFontMap] Font map handle
-     * @param outline [type: float] The outline threshold [0.0 .. 1.0]
-     */
-    void SetFontMapSdfOutlineWidth(HFontMap font_map, float outline);
-
-    /**
-     * Set the shadow threshold
-     * @param font_map [type: HFontMap] Font map handle
-     * @param shadow [type: float] The shadow threshold [0.0 .. 1.0]
-     */
-    void SetFontMapSdfShadow(HFontMap font_map, float shadow);
-
-    /**
-     * Set the spread (padding). It is the sumb of the outline
-     * @param font_map [type: HFontMap] Font map handle
-     * @param padding [type: float] The padding around the glyph bitmap (in pixels)
-     */
-    void SetFontMapSdfSpread(HFontMap font_map, float padding);
-
-    /**
      * Set the user data assigned to this font map
      * @param font_map [type: HFontMap] Font map handle
      * @param user_data [type: void*] the user data
