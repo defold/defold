@@ -641,8 +641,7 @@
          (mapv (fn [[id resource]]
                  (add-component root-id resource id transform-props nil nil))))))
 
-(def ^:private ext-embedded-component-type-prefix "embedded-component-type-")
-(def ^:private ext-referenced-component-type "referenced-component")
+(def ^:private ext-referenced-component-type "reference")
 (def ^:private constantly-ext-referenced-component-type (constantly ext-referenced-component-type))
 
 (ext-graph/register-property-getter!
@@ -656,7 +655,7 @@
   ::EmbeddedComponent
   (fn EmbeddedComponent-getter [node-id property evaluation-context]
     (case property
-      "type" #(str ext-embedded-component-type-prefix (resource/ext (g/node-value node-id :source-resource evaluation-context)))
+      "type" #(resource/ext (g/node-value node-id :source-resource evaluation-context))
       nil)))
 
 (defmethod ext-graph/extract-node-type [::GameObjectNode :components]
@@ -665,22 +664,19 @@
     (let [type-name (rt/->clj rt coerce/string lua-type)]
       (if (= ext-referenced-component-type type-name)
         [(dissoc attachment "type") ReferencedComponent]
-        (if (and (string/starts-with? type-name ext-embedded-component-type-prefix)
-                 (let [component-ext (subs type-name (count ext-embedded-component-type-prefix))
-                       resource-types (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable)
-                       resource-type (resource-types component-ext)]
-                   (and resource-type
-                        (embeddable-component-resource-type? resource-type workspace evaluation-context))))
-          [attachment EmbeddedComponent]
-          (throw (LuaError. (str "type is not "
-                                 (->> (embeddable-component-resource-types workspace evaluation-context)
-                                      (map #(str ext-embedded-component-type-prefix (:ext %)))
-                                      (cons ext-referenced-component-type)
-                                      (eutil/join-words ", " " or "))))))))
+        (let [resource-types (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable)
+              resource-type (resource-types type-name)]
+          (if (and resource-type (embeddable-component-resource-type? resource-type workspace evaluation-context))
+            [attachment EmbeddedComponent]
+            (throw (LuaError. (str "type is not "
+                                   (->> (embeddable-component-resource-types workspace evaluation-context)
+                                        (map :ext)
+                                        (cons ext-referenced-component-type)
+                                        (eutil/join-words ", " " or ")))))))))
     (throw (LuaError. "type is required"))))
 
 (defmethod ext-graph/create-extra-nodes ::EmbeddedComponent [evaluation-context rt project workspace attachment node-id]
-  (let [component-ext (subs (rt/->clj rt coerce/string (attachment "type")) (count ext-embedded-component-type-prefix))
+  (let [component-ext (rt/->clj rt coerce/string (attachment "type"))
         resource-types (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable)
         resource-type (resource-types component-ext)]
     (assert resource-type)
@@ -695,7 +691,7 @@
 
 (defmethod ext-graph/init-attachment ::EmbeddedComponent
   [evaluation-context rt project parent-node-id _child-node-type child-node-id attachment]
-  (let [component-ext (subs (rt/->clj rt coerce/string (attachment "type")) (count ext-embedded-component-type-prefix))]
+  (let [component-ext (rt/->clj rt coerce/string (attachment "type"))]
     (-> attachment
         (dissoc "type")
         (eutil/provide-defaults

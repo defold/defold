@@ -197,7 +197,7 @@ local function print_go(go)
                 print(("    %s: {%s, %s, %s}"):format(p, position[1], position[2], position[3]))
             end
         end
-        if type == "embedded-component-type-collisionobject" then
+        if type == "collisionobject" then
             print_collision_object(component, "    ")
         end
     end
@@ -530,22 +530,22 @@ function M.get_commands()
 
                 editor.transact({
                     editor.tx.add(go, "components", {
-                        type = "embedded-component-type-camera",
+                        type = "camera",
                         near_z = 1,
                         far_z = 10
                     }),
                     editor.tx.add(go, "components", {
-                        type = "embedded-component-type-collectionfactory"
+                        type = "collectionfactory"
                     }),
                     editor.tx.add(go, "components", {
-                        type = "embedded-component-type-collectionproxy"
+                        type = "collectionproxy"
                     }),
                     editor.tx.add(go, "components", {
-                        type = "embedded-component-type-collectionproxy"
+                        type = "collectionproxy"
                     }),
                     editor.tx.add(go, "components", {
                         id = "collisionobject-embedded",
-                        type = "embedded-component-type-collisionobject",
+                        type = "collisionobject",
                         locked_rotation = true,
                         shapes = {
                             {
@@ -556,46 +556,46 @@ function M.get_commands()
                         }
                     }),
                     editor.tx.add(go, "components", {
-                        type = "embedded-component-type-factory",
+                        type = "factory",
                         load_dynamically = true
                     }),
                     editor.tx.add(go, "components", {
-                        type = "embedded-component-type-label",
+                        type = "label",
                         text = "Hello label!",
                         scale = {0.05, 0.05, 0.05}
                     }),
                     editor.tx.add(go, "components", {
-                        type = "embedded-component-type-mesh"
+                        type = "mesh"
                     }),
                     editor.tx.add(go, "components", {
-                        type = "embedded-component-type-model",
+                        type = "model",
                         mesh = "/builtins/assets/meshes/cube.dae"
                     }),
                     editor.tx.add(go, "components", {
-                        type = "embedded-component-type-sound",
+                        type = "sound",
                         id = "boom"
                     }),
                     editor.tx.add(go, "components", {
-                        type = "embedded-component-type-spinemodel",
+                        type = "spinemodel",
                         position = {3.14, 3.14, 0}
                     }),
                     editor.tx.add(go, "components", {
-                        type = "embedded-component-type-sprite",
+                        type = "sprite",
                         id = "blob"
                     }),
                     editor.tx.add(go, "components", { 
-                        type = "referenced-component",
+                        type = "reference",
                         path = "/test.script",
                         __num = 42
                     }),
                     editor.tx.add(go, "components", {
                         id = "collisionobject-referenced",
-                        type = "referenced-component",
+                        type = "reference",
                         path = "/test.collisionobject"
                     }),
                     editor.tx.add(go, "components", {
                         id = "referenced-tilemap",
-                        type = "referenced-component",
+                        type = "reference",
                         path = "/test.tilemap"
                     })
                 })

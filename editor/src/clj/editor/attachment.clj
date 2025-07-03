@@ -261,7 +261,7 @@
 (defn- clear-tx [{:keys [basis] :as evaluation-context} workspace node-id list-kw]
   (let [[node-id list-definition] (require-list-definition workspace node-id list-kw evaluation-context)]
     (assert (list-definition-editable? list-definition node-id evaluation-context))
-    (mapcat
+    (coll/mapcat
       #(g/delete-node (g/override-root basis %))
       (list-definition-get list-definition node-id evaluation-context))))
 

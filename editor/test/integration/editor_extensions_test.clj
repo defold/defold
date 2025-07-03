@@ -1511,52 +1511,52 @@ Go initial state:
 Transaction: add go components
 After transaction (add go components):
   components: 15
-  - type: embedded-component-type-camera
+  - type: camera
     id: camera
-  - type: embedded-component-type-collectionfactory
+  - type: collectionfactory
     id: collectionfactory
-  - type: embedded-component-type-collectionproxy
+  - type: collectionproxy
     id: collectionproxy
-  - type: embedded-component-type-collectionproxy
+  - type: collectionproxy
     id: collectionproxy1
-  - type: embedded-component-type-collisionobject
+  - type: collisionobject
     id: collisionobject-embedded
     shapes: 1
     - id: box
       type: shape-type-box
       dimensions: 2.5 2.5 2.5
-  - type: embedded-component-type-factory
+  - type: factory
     id: factory
-  - type: embedded-component-type-label
+  - type: label
     id: label
     position: {0, 0, 0}
     rotation: {0, 0, 0}
     scale: {0.05, 0.05, 0.05}
-  - type: embedded-component-type-mesh
+  - type: mesh
     id: mesh
     position: {0, 0, 0}
     rotation: {0, 0, 0}
-  - type: embedded-component-type-model
+  - type: model
     id: model
     position: {0, 0, 0}
     rotation: {0, 0, 0}
-  - type: embedded-component-type-sound
+  - type: sound
     id: boom
-  - type: embedded-component-type-spinemodel
+  - type: spinemodel
     id: spinemodel
     position: {3.14, 3.14, 0}
     rotation: {0, 0, 0}
     scale: {1, 1, 1}
-  - type: embedded-component-type-sprite
+  - type: sprite
     id: blob
     position: {0, 0, 0}
     rotation: {0, 0, 0}
     scale: {1, 1, 1}
-  - type: referenced-component
+  - type: reference
     id: test
-  - type: referenced-component
+  - type: reference
     id: collisionobject-referenced
-  - type: referenced-component
+  - type: reference
     id: referenced-tilemap
     position: {0, 0, 0}
     rotation: {0, 0, 0}
