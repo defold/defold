@@ -49,14 +49,14 @@ function update(self, dt)
   end
 
   -- Box2d v2
-  -- if counter == 50 then
-  --  assert(velocity1 == velocity2)
-  -- end
-  -- Box2d v3
-  -- at frame 39-41 both object should move with the same velocity
-  if counter == 39 then
+  if counter == 50 then
     assert(velocity1 == velocity2)
   end
+  -- Box2d v3
+  -- -- at frame 39-41 both object should move with the same velocity
+  -- if counter == 39 then
+  --   assert(velocity1 == velocity2)
+  -- end
 
   if counter >= 120 then -- make sure that body1 has smaller velocity, and body2 is moving
     tests_done = true
