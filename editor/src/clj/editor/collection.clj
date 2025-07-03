@@ -822,27 +822,28 @@
     (collection-string-data/string-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
 
 (defn- add-dropped-resource
-  [collection transform-props [id resource]]
+  [collection transform-props [id resource] evaluation-context]
   (let [ext (resource/type-ext resource)]
     (case ext
       "go"
       (make-ref-go collection resource id transform-props collection nil nil)
 
       "collection"
-      (when-not (contains-resource? (project/get-project collection) collection resource)
+      (when-not (contains-resource? (project/get-project (:basis evaluation-context) collection) collection resource evaluation-context)
         (make-collection-instance collection resource id transform-props nil nil))
 
       nil)))
 
 (defn- handle-drop
   [root-id _selection _workspace world-pos resources]
-  (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
-        taken-ids (g/node-value root-id :ids)
-        supported-exts #{"go" "collection"}]
-    (->> resources
-         (e/filter (comp (partial contains? supported-exts) resource/type-ext))
-         (outline/name-resource-pairs taken-ids)
-         (mapv (partial add-dropped-resource root-id transform-props)))))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [transform-props {:position (types/Point3d->Vec3 world-pos)}
+          taken-ids (g/node-value root-id :ids evaluation-context)
+          supported-exts #{"go" "collection"}]
+      (->> resources
+           (e/filter (comp (partial contains? supported-exts) resource/type-ext))
+           (outline/name-resource-pairs taken-ids)
+           (mapv #(add-dropped-resource root-id transform-props % evaluation-context))))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
