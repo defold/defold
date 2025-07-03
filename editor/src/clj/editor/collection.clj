@@ -133,6 +133,7 @@
     (for [[from to] [[:_node-id :nodes]
                      [:ddf-message :ref-coll-ddf]
                      [:id :ids]
+                     [:source-resource :referenced-collection-resources]
                      [:build-targets :sub-build-targets]
                      [:go-inst-ids :go-inst-ids]
                      [:sub-ddf-properties :ddf-properties]
@@ -469,6 +470,7 @@
   (input go-inst-ids g/Any :array)
   (input ddf-properties g/Any :array)
   (input resource-property-build-targets g/Any :array)
+  (input referenced-collection-resources g/Any :array)
 
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output base-url g/Str (gu/passthrough base-url))
@@ -600,6 +602,7 @@
   (input source-outline outline/OutlineData :substitute source-outline-subst)
   (output source-outline outline/OutlineData (gu/passthrough source-outline))
 
+  (output source-resource resource/Resource (gu/passthrough source-resource))
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output node-outline outline/OutlineData :cached produce-coll-inst-outline)
   (output ddf-message g/Any (g/fnk [id source-resource position rotation scale ddf-properties]
@@ -742,11 +745,9 @@
              collection (core/scope-of-type go-node CollectionNode)]
          (add-embedded-game-object! workspace project collection go-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
-(defn- contains-resource?
-  [project collection resource]
-  (let [acc-fn (fn [target-node resource]
-                 (->> (g/node-value target-node :ref-coll-ddf)
-                      (keep #(workspace/resolve-resource resource (:collection %)))))]
+(defn- contains-resource? [project collection resource evaluation-context]
+  (let [acc-fn (fn [target-node]
+                 (filterv some? (g/node-value target-node :referenced-collection-resources evaluation-context)))]
     (project/node-refers-to-resource? project collection resource acc-fn)))
 
 (handler/defhandler :edit.add-secondary-referenced-component :workbench
@@ -757,9 +758,14 @@
                        "Add Game Object File"))
   (run [selection workspace project app-view]
        (if-let [coll-node (selection->collection selection)]
-         (let [ext "collection"
-               accept (complement (partial contains-resource? project coll-node))]
-           (when-let [resource (first (resource-dialog/make workspace project {:ext ext :title "Select Collection File" :accept-fn accept}))]
+         (let [ext "collection"]
+           (when-let [resource (first
+                                 (g/with-auto-evaluation-context evaluation-context
+                                   (resource-dialog/make
+                                     workspace project
+                                     {:ext ext
+                                      :title "Select Collection File"
+                                      :accept-fn #(not (contains-resource? project coll-node % evaluation-context))})))]
              (let [base (resource/base-name resource)
                    id (gen-instance-id coll-node base)
                    select-fn (fn [node-ids] (app-view/select app-view node-ids))]
