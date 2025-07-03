@@ -1037,6 +1037,27 @@ namespace dmGameSystem
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_NodeInstances.SetCapacity(0);
 
+        // Clean up custom vertex buffers
+        for (uint32_t i = 0; i < component->m_MeshAttributeRenderDatas.Size(); ++i)
+        {
+            MeshAttributeRenderData& rd = component->m_MeshAttributeRenderDatas[i];
+            if (rd.m_VertexBuffer)
+            {
+                dmGraphics::DeleteVertexBuffer(rd.m_VertexBuffer);
+                rd.m_VertexBuffer = 0;
+            }
+            if (rd.m_VertexDeclaration)
+            {
+                dmGraphics::DeleteVertexDeclaration(rd.m_VertexDeclaration);
+                rd.m_VertexDeclaration = 0;
+            }
+            if (rd.m_InstanceVertexDeclaration)
+            {
+                dmGraphics::DeleteVertexDeclaration(rd.m_InstanceVertexDeclaration);
+                rd.m_InstanceVertexDeclaration = 0;
+            }
+        }
+
         if (component->m_RigInstance)
         {
             dmRig::InstanceDestroy(world->m_RigContext, component->m_RigInstance);
