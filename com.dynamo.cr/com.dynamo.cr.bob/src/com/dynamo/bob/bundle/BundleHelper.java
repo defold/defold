@@ -275,7 +275,7 @@ public class BundleHelper {
         String title = this.projectProperties.getStringValue("project", "title", "Unnamed");
         String exeName = BundleHelper.projectNameToBinaryName(title);
         this.templateProperties.put("exe-name", exeName);
-
+        this.templateProperties.put("build-timestamp", String.valueOf(System.currentTimeMillis() / 1000));
         IBundler bundler = getOrCreateBundler();
         bundler.updateManifestProperties(project, platform, this.projectProperties, this.propertiesMap, this.templateProperties);
     }
