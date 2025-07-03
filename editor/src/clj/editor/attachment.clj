@@ -13,25 +13,61 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.attachment
-  "Extensible definitions for semantical node attachments"
-  (:refer-clojure :exclude [remove alias])
+  "Extensible definitions for semantical node attachment lists
+
+  Use register, alias, or define-alternative to configure the lists.
+  Use defined?, editable?, and reorderable? to query the status of node lists on
+  a given node.
+  Use get to list attached nodes.
+  Use add, remove, reorder and clear to edit the nodes.
+
+  The node attachment state has the following data shape:
+
+  {node-type {:lists {list-kw {:add {node-type tx-attach-fn}
+                               :get get-fn
+                               :reorder reorder-fn
+                               :read-only? read-only-pred
+                               :alias node-type
+                               :aliases #{node-type}}}
+              :alternative alternative-fn}}
+
+  In the list definition map, only :get is required. Fns:
+    tx-attach-fn      fn of parent-node, child-node -> txs
+    get-fn            fn of node, evaluation-context -> vector of nodes
+    reorder-fn        fn of reordered-nodes -> txs
+    read-only-pred    fn of parent-node, evaluation-context -> boolean
+
+  Aliasing allows treating a list as the same as another list. Any list
+  definition may have at most one of :alias, :aliases keys, where:
+    :alias      refers to a node type that this list definition follows, i.e., a
+                link to the \"original\"
+    :aliases    a set of all node types that follow this definition, i.e., a
+                link to \"copies\"
+
+  Similarly to outline's :alt-outline feature, it's possible to define an
+  alternative node to look up lists by defining an alternative-fn (fn of node,
+  evaluation-context -> alt-node | nil)"
+  (:refer-clojure :exclude [alias remove get])
   (:require [dynamo.graph :as g]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
             [util.coll :as coll]))
 
 (defn- assoc-list-definition [state node-type list-kw {:keys [aliases] :as definition}]
-  (let [state (update state node-type assoc list-kw definition)]
+  (let [state (assoc-in state [node-type :lists list-kw] definition)]
     (if aliases
       (let [aliased-definition (-> definition
                                    (dissoc :aliases)
                                    (assoc :alias node-type))]
-        (reduce #(update %1 %2 assoc list-kw aliased-definition) state aliases))
+        (reduce #(assoc-in %1 [%2 :lists list-kw] aliased-definition) state aliases))
       state)))
 
 ;; SDK api
 (defn register
   "Create transaction steps that register a semantical list of child components
+
+  The very first registration has to specify :get. Further registrations may
+  extend the definition, for example, by adding additional :add entries
 
   Args:
     workspace    the workspace node id
@@ -71,6 +107,7 @@
     (fn [s]
       (let [definition (-> s
                            (clojure.core/get node-type)
+                           :lists
                            list-kw
                            (cond->
                              add (update :add coll/merge add)
@@ -84,191 +121,183 @@
         (assoc-list-definition s node-type list-kw definition)))))
 
 (defn alias
-  "Define a node list as an alias of another node type's list with the same name"
+  "Create transaction steps that alias a node type's list as another node-type
+
+  The other node type must define a list with the same name"
   [workspace node-type list-kw alias-node-type]
   {:pre [(not= node-type alias-node-type)]}
   (g/update-property
     workspace
     :node-attachments
     (fn [s]
-      (let [definition (list-kw (clojure.core/get s alias-node-type))
+      (let [definition (-> s (clojure.core/get alias-node-type) :lists list-kw)
             _ (assert definition "Can't alias undefined list")]
         (assert definition "Can't alias undefined list")
         (assert (not (contains? definition :alias)) "Can't alias another alias")
         (assoc-list-definition s alias-node-type list-kw (update definition :aliases coll/conj-set node-type))))))
 
-(defmacro ^:private with-read-only-check [parent-node-type-expr parent-node-id-expr list-kw-expr read-only?-expr & body]
-  `(let [parent-node-id# ~parent-node-id-expr
-         read-only?# ~read-only?-expr
-         parent-node-type# ~parent-node-type-expr
-         list-kw# ~list-kw-expr]
-     (if read-only?#
-       (g/expand-ec
-         (fn [evaluation-context#]
-           (when (read-only?# parent-node-id# evaluation-context#)
-             (throw (ex-info (str (name (:k parent-node-type#)) " instance is read-only")
-                             {:parent-node-id parent-node-id# :list-kw list-kw#})))
-           (do ~@body)))
-       (do ~@body))))
+(defn define-alternative
+  "Create transaction steps that define an alternative node to use for editing
 
-(defn add-impl [current-state parent-node-type parent-node-id attachment-tree init-fn]
-  (coll/mapcat
-    (fn [[list-kw {:keys [init add node-type] :as attachment}]]
-      (when-not node-type
-        (throw (ex-info "node type is required" {:parent-node-type parent-node-id :list-kw list-kw :attachment attachment})))
-      (let [definition (-> current-state (get parent-node-type) list-kw)]
-        (if-let [node-type->tx-attach-fn (:add definition)]
-          (let [tx-attach-fn (or (node-type->tx-attach-fn node-type)
-                                 (throw (ex-info (str (name (:k parent-node-type)) " does not support " (name list-kw) " attachments of type " (name (:k node-type)))
-                                                 {:parent-node-type parent-node-id :list-kw list-kw :node-type node-type})))
-                child-node-id (first (g/take-node-ids (g/node-id->graph-id parent-node-id) 1))]
-            (with-read-only-check
-              parent-node-type parent-node-id list-kw (:read-only? definition)
-              (concat
-                (g/add-node (g/construct node-type :_node-id child-node-id))
-                (init-fn parent-node-id node-type child-node-id init)
-                (tx-attach-fn parent-node-id child-node-id)
-                (add-impl current-state node-type child-node-id add init-fn))))
-          (throw (ex-info (str (name (:k parent-node-type)) " does not define a " (name list-kw) " attachment list")
-                          {:parent-node-type parent-node-type
-                           :list-kw list-kw})))))
-    attachment-tree))
-
-(defn add
-  "Create transaction steps for adding a tree to some node
+  If no list was found on a node type, an alternative node will be looked up and
+  checked for list definition
 
   Args:
-    basis              graph basis to use when looking up node-id's type
-    workspace          the workspace node id that defines attachments
-    node-id            container node id that should be extended
-    attachment-tree    a tree that describes several (potentially recursive)
-                       additions; a coll of 2-element tuples where first element
-                       is a list-kw keyword, and second is a map with the
-                       following keys:
-                         :init         required, data structure that will be
-                                       supplied to the init-fn to create element
-                                       initialization transaction steps
-                         :node-type    required, node type of child node
-                         :add          optional, attachment tree of the created
-                                       item
+    workspace         the workspace to transact to
+    node-type         the node type that defines an alternative
+    alternative-fn    a function that looks up an alternative node id if no
+                      matching list was found on the input node; will receive 2
+                      args: node id (instance of provided node-type) and
+                      evaluation-context, should return an alternative node-id
+                      or nil"
+  [workspace node-type alternative-fn]
+  (g/update-property workspace :node-attachments #(update % node-type assoc :alternative alternative-fn)))
 
-    init-fn            a function that initializes the newly created element
-                       node, will receive 4 args:
-                         parent-node-id     container node id
-                         child-node-type    created node type
-                         child-node-id      created node id
-                         init-value         init value from the attachment tree
-                       the function should return transaction steps that
-                       initialize the node
+(defn- get-list-definition
+  "Internal. Returns either a tuple of node-id + list definition map or nil if
+  it does not exist"
+  [workspace node-id list-kw {:keys [basis] :as evaluation-context}]
+  (let [current-state (workspace/node-attachments basis workspace)]
+    (loop [node-id node-id]
+      (let [node-type (g/node-type* basis node-id)]
+        (when-let [{:keys [lists alternative]} (clojure.core/get current-state node-type)]
+          (or (when-let [list-definition (list-kw lists)]
+                (coll/pair node-id list-definition))
+              (when alternative
+                (some-> (alternative node-id evaluation-context) recur))))))))
 
-  Example attachment tree for an atlas node:
-    [[:images {:init {:image \"/foo.png\"}}]
-     [:images {:init {:image \"/bar.png\"}}]
-     [:animations
-      {:init {:id \"foo-bar\"}
-       :add [[:images {:init {:image \"/foo.png\"}}]
-             [:images {:init {:image \"/bar.png\"}}]]}]]"
-  [basis workspace node-id attachment-tree init-fn]
-  (add-impl (workspace/node-attachments basis workspace) (g/node-type* basis node-id) node-id attachment-tree init-fn))
-
-(defn defines?
-  "Checks if a node-type is extended to define a list-kw list"
-  [basis workspace node-type list-kw]
-  (-> basis (workspace/node-attachments workspace) (get node-type) (contains? list-kw)))
-
-(defn read-only?
-  "Checks if a node is read-only, i.e., can't be edited even when editable
-
-  Asserts that list exists (see [[defines?]])"
+(defn- require-list-definition
   [workspace node-id list-kw evaluation-context]
-  (let [{:keys [basis]} evaluation-context
-        node-type (g/node-type* basis node-id)]
-    (assert (defines? basis workspace node-type list-kw))
-    (if-let [pred (-> basis (workspace/node-attachments workspace) (get node-type) list-kw :read-only?)]
-      (pred node-id evaluation-context)
-      false)))
+  (let [list-definition (get-list-definition workspace node-id list-kw evaluation-context)]
+    (assert list-definition (str list-kw " is not defined"))
+    list-definition))
+
+(defn defined?
+  "Checks if a node-type is extended to define a list-kw list"
+  [workspace node-id list-kw evaluation-context]
+  (some? (get-list-definition workspace node-id list-kw evaluation-context)))
+
+(defn- list-definition-editable? [list-definition node-id evaluation-context]
+  (and (contains? list-definition :add)
+       (if-let [pred (:read-only? list-definition)]
+         (not (pred node-id evaluation-context))
+         true)))
 
 (defn editable?
-  "Checks if a node-type supports editing items of the list"
-  [basis workspace node-type list-kw]
-  (-> basis (workspace/node-attachments workspace) (get node-type) list-kw (contains? :add)))
+  "Checks if a node list is editable
+
+  Asserts that list exists (see [[defined?]])"
+  [workspace node-id list-kw evaluation-context]
+  (let [[node-id list-definition] (require-list-definition workspace node-id list-kw evaluation-context)]
+    (list-definition-editable? list-definition node-id evaluation-context)))
+
+(defn- list-definition-reorderable? [list-definition]
+  (contains? list-definition :reorder))
 
 (defn reorderable?
-  "Checks if a node type allows reordering of a list-kw list"
-  [basis workspace node-type list-kw]
-  (-> basis (workspace/node-attachments workspace) (get node-type) list-kw (contains? :reorder)))
+  "Checks if a node type allows reordering of a list-kw list
+
+  Asserts that lists exists (see [[defined?]])"
+  [workspace node-id list-kw evaluation-context]
+  (let [[_ list-definition] (require-list-definition workspace node-id list-kw evaluation-context)]
+    (list-definition-reorderable? list-definition)))
 
 (defn child-node-types
-  "Returns defined child node-types for a parent node-type's list-kw
+  "Returns all possible child node types for a list, or nil if there is none
 
-  Returns a map from child node type to tx-attach-fn
+  Returned value is a map from possible node type to attachment fn
 
-  Asserts that it exists. See [[editable?]]"
-  [basis workspace node-type list-kw]
-  {:post [(some? %)]}
-  (-> basis (workspace/node-attachments workspace) (get node-type) list-kw :add))
+  Asserts that the list exists (see [[defined?]])"
+  [workspace node-id list-kw evaluation-context]
+  (let [[_ list-definition] (require-list-definition workspace node-id list-kw evaluation-context)]
+    (:add list-definition)))
 
-(defn getter
-  "Returns a getter function for a container node-type's list-kw
+(defn- tx-add [evaluation-context workspace parent-node-id list-kw child-node-type init-fn config-fn]
+  (let [[parent-node-id list-definition] (require-list-definition workspace parent-node-id list-kw evaluation-context)]
+    (assert (list-definition-editable? list-definition parent-node-id evaluation-context))
+    (let [tx-attach-fn (-> list-definition :add (clojure.core/get child-node-type))]
+      (assert tx-attach-fn)
+      (let [child-node-id (first (g/take-node-ids (g/node-id->graph-id parent-node-id) 1))]
+        (concat
+          (g/add-node (g/construct child-node-type :_node-id child-node-id))
+          (init-fn parent-node-id child-node-id)
+          (tx-attach-fn parent-node-id child-node-id)
+          (config-fn child-node-id))))))
+
+(defn add
+  "Create transaction steps for adding an attachment to a node
+
+  Args:
+    workspace    the workspace node id that defines attachments
+    node-id      container node id that should be extended
+    list-kw      keyword that defines a list on a node-id
+    node-type    the node-type of a node to create
+    init-fn      a function that initializes the newly created node, will
+                 receive 2 args: parent-node-id and child-node-id; should return
+                 transaction steps that initialize the node before it's attached
+    config-fn    a function that additionally configures the initialized and
+                 attached node, will receive child-node-id, should return
+                 transaction steps that configure the node (e.g. add more
+                 attachments to it)
+
+  Asserts that the list exists and is editable (see [[defined?]], [[editable?]])"
+  [workspace node-id list-kw node-type init-fn config-fn]
+  (g/expand-ec tx-add workspace node-id list-kw node-type init-fn config-fn))
+
+(defn- list-definition-get [list-definition node-id evaluation-context]
+  ((:get list-definition) node-id evaluation-context))
+
+(defn get
+  "Returns a vector of attached child node ids
 
   Returns a function of 2 args: node-id and evaluation-context, that returns a
   vector of child node ids when invoked
 
-  Asserts that it exists. See [[defines?]]"
-  [basis workspace node-type list-kw]
-  {:post [(some? %)]}
-  (-> basis (workspace/node-attachments workspace) (get node-type) list-kw :get))
+  Asserts that list is defined. See [[defined?]]"
+  [workspace node-id list-kw evaluation-context]
+  (let [[node-id list-definition] (require-list-definition workspace node-id list-kw evaluation-context)]
+    (list-definition-get list-definition node-id evaluation-context)))
 
-(defn- clear-tx [evaluation-context workspace node-id list-kw]
-  (let [basis (:basis evaluation-context)
-        node-type (g/node-type* basis node-id)
-        get-fn (getter basis workspace node-type list-kw)]
-    (assert (editable? basis workspace node-type list-kw))
-    (assert (not (read-only? workspace node-id list-kw evaluation-context)))
-    (mapcat
+(defn- clear-tx [{:keys [basis] :as evaluation-context} workspace node-id list-kw]
+  (let [[node-id list-definition] (require-list-definition workspace node-id list-kw evaluation-context)]
+    (assert (list-definition-editable? list-definition node-id evaluation-context))
+    (coll/mapcat
       #(g/delete-node (g/override-root basis %))
-      (get-fn node-id evaluation-context))))
+      (list-definition-get list-definition node-id evaluation-context))))
 
 (defn clear
   "Create transaction steps for clearing a list of container node-id's list
 
   The implementation will assert that the container node-id defines an editable
-  list (see [[editable?]]) and is not [[read-only?]]"
+  list (see [[editable?]])"
   [workspace node-id list-kw]
   (g/expand-ec clear-tx workspace node-id list-kw))
 
-(defn- remove-tx [evaluation-context workspace node-id list-kw child-node-id]
-  (let [basis (:basis evaluation-context)
-        node-type (g/node-type* basis node-id)
-        get-fn (getter basis workspace node-type list-kw)
-        children (get-fn node-id evaluation-context)]
-    (assert (editable? basis workspace node-type list-kw))
-    (assert (not (read-only? workspace node-id list-kw evaluation-context)))
-    (assert (some #(= child-node-id %) children))
-    (g/delete-node (g/override-root basis child-node-id))))
+(defn- remove-tx [{:keys [basis] :as evaluation-context} workspace node-id list-kw child-node-id]
+  (let [[node-id list-definition] (require-list-definition workspace node-id list-kw evaluation-context)]
+    (assert (list-definition-editable? list-definition node-id evaluation-context))
+    (let [children (list-definition-get list-definition node-id evaluation-context)]
+      (assert (coll/some #(= child-node-id %) children))
+      (g/delete-node (g/override-root basis child-node-id)))))
 
 (defn remove
   "Create transaction steps for removing a child from container node-id
 
   The implementation will assert that the child node id actually exists in the
-  container as defined by [[getter]]. It will also assert that the container
-  node-id defines an editable list identified by list-kw (see [[editable?]]) and
-  is not [[read-only?]]"
+  container as defined by [[get]]. It will also assert that the container
+  node-id defines an editable list identified by list-kw (see [[editable?]])"
   [workspace node-id list-kw child-node-id]
   (g/expand-ec remove-tx workspace node-id list-kw child-node-id))
 
 (defn- reorder-tx [evaluation-context workspace node-id list-kw reordered-child-node-ids]
-  (let [basis (:basis evaluation-context)
-        node-type (g/node-type* basis node-id)
-        get-fn (getter basis workspace node-type list-kw)
-        children-set (set (get-fn node-id evaluation-context))
-        reorder-fn (-> basis (workspace/node-attachments workspace) (get node-type) list-kw :reorder)]
-    (assert (editable? basis workspace node-type list-kw))
-    (assert (not (read-only? workspace node-id list-kw evaluation-context)))
-    (assert (every? children-set reordered-child-node-ids))
-    (assert (= (count children-set) (count reordered-child-node-ids))) ;; no duplicates
-    (assert reorder-fn)
-    (reorder-fn reordered-child-node-ids)))
+  (let [[node-id list-definition] (require-list-definition workspace node-id list-kw evaluation-context)]
+    (assert (list-definition-editable? list-definition node-id evaluation-context))
+    (assert (list-definition-reorderable? list-definition))
+    (let [children-set (set (list-definition-get list-definition node-id evaluation-context))
+          reorder-fn (:reorder list-definition)]
+      (assert (every? children-set reordered-child-node-ids))
+      (assert (= (count children-set) (count reordered-child-node-ids))) ;; no duplicates
+      (reorder-fn reordered-child-node-ids))))
 
 (defn reorder
   "Create transaction steps for reordering a list of children
@@ -276,14 +305,15 @@
   The implementation will assert that the supplied child node ids are the same
   node ids as defined by [[getter]]. It will also assert that the container
   node-id defines an editable and reorderable list (see [[reorderable?]],
-  [[editable?]]) and is not [[read-only?]]"
+  [[editable?]])"
   [workspace node-id list-kw reordered-child-node-ids]
   (g/expand-ec reorder-tx workspace node-id list-kw reordered-child-node-ids))
 
 (defn nodes-by-type-getter
-  "Create a node list getter using a type filter over the :nodes output
+  "Create a node list getter using a type filter over the :nodes output of a
+  non-override node
 
-  Returns a function suitable for use as a :get parameter to [[register!]]"
+  Returns a function suitable for use as a :get parameter to [[register]]"
   [child-node-type]
   (fn get-nodes-by-type [node evaluation-context]
     (let [basis (:basis evaluation-context)]
@@ -293,7 +323,7 @@
 
 ;; SDK api
 (defn nodes-getter
-  "node list getter that returns :nodes output
+  "Node list getter that returns :nodes output of a non-override node
 
   This function is suitable for use as a :get parameter to [[register]]"
   [node evaluation-context]
