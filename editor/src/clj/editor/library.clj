@@ -27,7 +27,7 @@
            [java.net HttpURLConnection URI]
            [java.nio.file.attribute FileTime]
            [java.util Base64]
-           [java.util.zip ZipEntry ZipInputStream ZipOutputStream]
+           [java.util.zip ZipEntry ZipFile ZipInputStream ZipOutputStream]
            [org.apache.commons.codec.digest DigestUtils]
            [org.apache.commons.io FilenameUtils]))
 
@@ -230,15 +230,16 @@
     (merge lib-state (fetch-library! resolver uri tag))))
 
 (defn- locate-zip-entry
-  [zip-file file-name]
-  (with-open [zip (ZipInputStream. (io/input-stream zip-file))]
-    (loop [entry (.getNextEntry zip)]
-      (if entry
+  [^File zip-file file-name]
+  (with-open [zip (ZipFile. zip-file)]
+    (stream-reduce!
+      (fn [_ ^ZipEntry entry]
         (let [parts (str/split (FilenameUtils/separatorsToUnix (.getName entry)) #"/")
               name (last parts)]
-          (if (= file-name name)
-            {:name name :path (str/join "/" (butlast parts))}
-            (recur (.getNextEntry zip))))))))
+          (when (= file-name name)
+            (reduced {:name name :path (str/join "/" (butlast parts))}))))
+      nil
+      (.stream zip))))
 
 (defn library-base-path
   [zip-file]
