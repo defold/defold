@@ -409,14 +409,13 @@ namespace dmGameObject
             dmScript::ResolveURL(L, instance_arg, &receiver, 0x0);
             if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection->m_HCollection))
             {
-                luaL_error(L, "function called can only access instances within the same collection.");
+                return DM_LUA_ERROR("function called can only access instances within the same collection.");
             }
 
             instance = GetInstanceFromIdentifier(instance->m_Collection->m_HCollection, receiver.m_Path);
             if (!instance)
             {
-                luaL_error(L, "Instance %s not found", lua_tostring(L, instance_arg));
-                return 0; // Actually never reached
+                return DM_LUA_ERROR("Instance %s not found", lua_tostring(L, instance_arg));
             }
         }
         return instance;
@@ -431,15 +430,14 @@ namespace dmGameObject
             dmScript::ResolveURL(L, index, &receiver, &sender);
             if (sender.m_Socket != receiver.m_Socket || sender.m_Socket != dmGameObject::GetMessageSocket(collection))
             {
-                luaL_error(L, "function called can only access instances within the same collection.");
-                return; // Actually never reached
+                return DM_LUA_ERROR("function called can only access instances within the same collection.");
             }
 
             HInstance instance = GetInstanceFromIdentifier(collection, receiver.m_Path);
             if (!instance)
             {
-                luaL_error(L, "Instance %s not found", lua_tostring(L, index));
-                return; // Actually never reached
+                char buffer[128];
+                return DM_LUA_ERROR("Instance `%s` not found", dmScript::UrlToString(&receiver, buffer, sizeof(buffer)));
             }
 
             dmGameObject::HComponentWorld world;
@@ -448,8 +446,7 @@ namespace dmGameObject
             if ((component_ext != 0x0 || *out_component != 0x0) && result != dmGameObject::RESULT_OK)
             {
                 char buffer[128];
-                luaL_error(L, "The component could not be found: '%s'", dmScript::UrlToString(&receiver, buffer, sizeof(buffer)));
-                return; // Actually never reached
+                return DM_LUA_ERROR("The component could not be found: '%s'", dmScript::UrlToString(&receiver, buffer, sizeof(buffer)));
             }
 
             if (out_world != 0)
@@ -463,14 +460,12 @@ namespace dmGameObject
                 dmResource::Result resource_res = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(instance->m_Collection->m_HCollection), component_ext, &resource_type);
                 if (resource_res != dmResource::RESULT_OK)
                 {
-                    luaL_error(L, "Component type '%s' not found", component_ext);
-                    return; // Actually never reached
+                    return DM_LUA_ERROR("Component type '%s' not found", component_ext);
                 }
                 ComponentType* type = &dmGameObject::GetRegister(instance->m_Collection->m_HCollection)->m_ComponentTypes[component_type_index];
                 if (type->m_ResourceType != resource_type)
                 {
-                    luaL_error(L, "Component expected to be of type '%s' but was '%s'", component_ext, type->m_Name);
-                    return; // Actually never reached
+                    return DM_LUA_ERROR("Component expected to be of type '%s' but was '%s'", component_ext, type->m_Name);
                 }
             }
             if (url)
@@ -480,8 +475,7 @@ namespace dmGameObject
         }
         else
         {
-            luaL_error(L, "function called is not available from this script-type.");
-            return; // Actually never reached
+            return DM_LUA_ERROR("function called is not available from this script-type.");
         }
     }
 
