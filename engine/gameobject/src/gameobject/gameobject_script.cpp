@@ -402,6 +402,7 @@ namespace dmGameObject
      */
     static Instance* ResolveInstance(lua_State* L, int instance_arg)
     {
+        DM_LUA_STACK_CHECK(L, 0);
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
         if (lua_gettop(L) == instance_arg && !lua_isnil(L, instance_arg)) {
@@ -409,13 +410,15 @@ namespace dmGameObject
             dmScript::ResolveURL(L, instance_arg, &receiver, 0x0);
             if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection->m_HCollection))
             {
-                return DM_LUA_ERROR("function called can only access instances within the same collection.");
+                DM_LUA_ERROR("function called can only access instances within the same collection.");
+                return 0;
             }
 
             instance = GetInstanceFromIdentifier(instance->m_Collection->m_HCollection, receiver.m_Path);
             if (!instance)
             {
-                return DM_LUA_ERROR("Instance %s not found", lua_tostring(L, instance_arg));
+                DM_LUA_ERROR("Instance %s not found", lua_tostring(L, instance_arg));
+                return 0;
             }
         }
         return instance;
@@ -423,6 +426,7 @@ namespace dmGameObject
 
     void GetComponentFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, dmGameObject::HComponent* out_component, dmMessage::URL* url, dmGameObject::HComponentWorld* out_world)
     {
+        DM_LUA_STACK_CHECK(L, 0);
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
         {
@@ -430,14 +434,16 @@ namespace dmGameObject
             dmScript::ResolveURL(L, index, &receiver, &sender);
             if (sender.m_Socket != receiver.m_Socket || sender.m_Socket != dmGameObject::GetMessageSocket(collection))
             {
-                return DM_LUA_ERROR("function called can only access instances within the same collection.");
+                DM_LUA_ERROR("function called can only access instances within the same collection.");
+                return;
             }
 
             HInstance instance = GetInstanceFromIdentifier(collection, receiver.m_Path);
             if (!instance)
             {
                 char buffer[128];
-                return DM_LUA_ERROR("Instance `%s` not found", dmScript::UrlToString(&receiver, buffer, sizeof(buffer)));
+                DM_LUA_ERROR("Instance `%s` not found", dmScript::UrlToString(&receiver, buffer, sizeof(buffer)));
+                return;
             }
 
             dmGameObject::HComponentWorld world;
@@ -446,7 +452,8 @@ namespace dmGameObject
             if ((component_ext != 0x0 || *out_component != 0x0) && result != dmGameObject::RESULT_OK)
             {
                 char buffer[128];
-                return DM_LUA_ERROR("The component could not be found: '%s'", dmScript::UrlToString(&receiver, buffer, sizeof(buffer)));
+                DM_LUA_ERROR("The component could not be found: '%s'", dmScript::UrlToString(&receiver, buffer, sizeof(buffer)));
+                return;
             }
 
             if (out_world != 0)
@@ -460,12 +467,14 @@ namespace dmGameObject
                 dmResource::Result resource_res = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(instance->m_Collection->m_HCollection), component_ext, &resource_type);
                 if (resource_res != dmResource::RESULT_OK)
                 {
-                    return DM_LUA_ERROR("Component type '%s' not found", component_ext);
+                    DM_LUA_ERROR("Component type '%s' not found", component_ext);
+                    return;
                 }
                 ComponentType* type = &dmGameObject::GetRegister(instance->m_Collection->m_HCollection)->m_ComponentTypes[component_type_index];
                 if (type->m_ResourceType != resource_type)
                 {
-                    return DM_LUA_ERROR("Component expected to be of type '%s' but was '%s'", component_ext, type->m_Name);
+                    DM_LUA_ERROR("Component expected to be of type '%s' but was '%s'", component_ext, type->m_Name);
+                    return;
                 }
             }
             if (url)
@@ -475,7 +484,8 @@ namespace dmGameObject
         }
         else
         {
-            return DM_LUA_ERROR("function called is not available from this script-type.");
+            DM_LUA_ERROR("function called is not available from this script-type.");
+            return;
         }
     }
 
