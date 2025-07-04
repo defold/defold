@@ -182,23 +182,53 @@ end
 
 local transform_props = {"position", "rotation", "scale"}
 
-local function print_go(go)
+local function print_go(go, indent)
+    indent = indent or "  "
     local components = editor.get(go, "components")
-    print(("  components: %s"):format(#components))
+    print(("%scomponents: %s"):format(indent, #components))
     for i = 1, #components do
         local component = components[i]
         local type = editor.get(component, "type")
-        print(("  - type: %s"):format(type))
-        print(("    id: %s"):format(editor.get(component, "id")))
+        print(("%s- type: %s"):format(indent, type))
+        print(("%s  id: %s"):format(indent, editor.get(component, "id")))
         for j = 1, #transform_props do
             local p = transform_props[j]
             if editor.can_get(component, p) then
-                local position = editor.get(component, p)
-                print(("    %s: {%s, %s, %s}"):format(p, position[1], position[2], position[3]))
+                local v = editor.get(component, p)
+                print(("%s  %s: {%s, %s, %s}"):format(indent, p, v[1], v[2], v[3]))
             end
         end
         if type == "collisionobject" then
-            print_collision_object(component, "    ")
+            print_collision_object(component, indent .. "  ")
+        end
+    end
+end
+
+local function print_coll(coll, indent)
+    indent = indent or "  "
+    local children = editor.get(coll, "children")
+    local editable = editor.can_add(coll, "children")
+    print(("%schildren: %s (%s)"):format(indent, #children, editable and "editable" or "readonly"))
+    for i = 1, #children do
+        local child = children[i]
+        local type = editor.get(child, "type")
+        print(("%s- id: %s"):format(indent, editor.get(child, "id")))
+        print(("%s  url: %s"):format(indent, editor.get(child, "url")))
+        print(("%s  type: %s"):format(indent, type))
+        if type == "reference-go" or type == "reference-collection" then
+            print(("%s  path: %s"):format(indent, editor.get(child, "path") or "-"))
+        end
+        for j = 1, #transform_props do
+            local p = transform_props[j]
+            local v = editor.get(child, p)
+            print(("%s  %s: {%s, %s, %s}"):format(indent, p, v[1], v[2], v[3]))
+        end
+        local child_indent = indent .. "  "
+        if editor.can_get(child, "components") then
+            print_go(child, child_indent)
+        end
+        if editor.can_get(child, "children") then
+            print_coll(child, child_indent)
         end
     end
 end
@@ -631,6 +661,93 @@ function M.get_commands()
 
                 print("After transaction (clear go components):")
                 print_go(go)
+
+                print("Collection initial state")
+                local coll = "/test.collection"
+                print_coll(coll)
+
+                print("Transaction: add gos and collections")
+                editor.transact({
+                    editor.tx.add(coll, "children", {
+                        type = "go",
+                        scale = {0.5, 0.5, 0.5},
+                        children = {
+                            {
+                                type = "go"
+                            },
+                            {
+                                type = "reference-go",
+                                path = "/ref.go",
+                                position = {3.14, 3.14, 0}
+                            },
+                            {
+                                type = "go",
+                                children = {
+                                    {
+                                        type = "go",
+                                        id = "char",
+                                        components = {
+                                            {
+                                                type = "sprite",
+                                                position = {0.5, 0.5, 0.5}
+                                            },
+                                            {
+                                                type = "collisionobject",
+                                                shapes = {
+                                                    {
+                                                        id = "box",
+                                                        type = "shape-type-box",
+                                                        dimensions = {2.5, 2.5, 2.5},
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                type = "reference",
+                                                path = "/test.script",
+                                                __num = 37
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                type = "reference-go",
+                                id = "empty-ref"
+                            }
+                        }
+                    }),
+                    editor.tx.add(coll, "children", {
+                        type = "reference-collection",
+                        id = "empty-collection"
+                    }),
+                    editor.tx.add(coll, "children", {
+                        type = "reference-collection",
+                        path = "/ref.collection"
+                    }),
+                    editor.tx.add(coll, "children", {
+                        type = "reference-collection",
+                        path = "/readonly/readonly.collection"
+                    }),
+                    editor.tx.add(coll, "children", {
+                        type = "reference-go",
+                        path = "/readonly/readonly.go",
+                        children = {
+                            {
+                                type = "go",
+                                id = "allowed-child-of-readonly-go"
+                            }
+                        }
+                    })
+                })
+
+                print("After transaction (add gos and collections):")
+                print_coll(coll)
+
+                print("Transaction: clear collection")
+                editor.transact({ editor.tx.clear(coll, "children") })
+
+                print("After transaction (clear collection)")
+                print_coll(coll)
             end
         })
     }

@@ -1584,6 +1584,138 @@ Collision object components have shapes property:
 Transaction: clear go components
 After transaction (clear go components):
   components: 0
+Collection initial state
+  children: 0 (editable)
+Transaction: add gos and collections
+After transaction (add gos and collections):
+  children: 5 (editable)
+  - id: go
+    url: /go
+    type: go
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {0.5, 0.5, 0.5}
+    components: 0
+    children: 4 (editable)
+    - id: go1
+      url: /go1
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+    - id: ref
+      url: /ref
+      type: reference-go
+      path: /ref.go
+      position: {3.14, 3.14, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+    - id: go2
+      url: /go2
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 1 (editable)
+      - id: char
+        url: /char
+        type: go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 3
+        - type: sprite
+          id: sprite
+          position: {0.5, 0.5, 0.5}
+          rotation: {0, 0, 0}
+          scale: {1, 1, 1}
+        - type: collisionobject
+          id: collisionobject
+          shapes: 1
+          - id: box
+            type: shape-type-box
+            dimensions: 2.5 2.5 2.5
+        - type: reference
+          id: test
+        children: 0 (editable)
+    - id: empty-ref
+      url: /empty-ref
+      type: reference-go
+      path: -
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      children: 0 (editable)
+  - id: empty-collection
+    url: /empty-collection
+    type: reference-collection
+    path: -
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+  - id: ref1
+    url: /ref1
+    type: reference-collection
+    path: /ref.collection
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    children: 1 (readonly)
+    - id: go
+      url: /ref1/go
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 1
+      - type: sprite
+        id: sprite
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+      children: 1 (readonly)
+      - id: ref
+        url: /ref1/ref
+        type: reference-go
+        path: /ref.go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 0
+        children: 0 (readonly)
+  - id: readonly
+    url: /readonly
+    type: reference-collection
+    path: /readonly/readonly.collection
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    children: 0 (readonly)
+  - id: readonly1
+    url: /readonly1
+    type: reference-go
+    path: /readonly/readonly.go
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    components: 0
+    children: 1 (editable)
+    - id: allowed-child-of-readonly-go
+      url: /allowed-child-of-readonly-go
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+Transaction: clear collection
+After transaction (clear collection)
+  children: 0 (editable)
 ")
 
 (deftest attachment-properties-test

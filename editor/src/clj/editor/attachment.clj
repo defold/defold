@@ -202,6 +202,17 @@
   (let [[_ list-definition] (require-list-definition workspace node-id list-kw evaluation-context)]
     (list-definition-reorderable? list-definition)))
 
+(defn list-node-id
+  "Returns the real node id associated with the list
+
+  The returned node id might be different from the input node id when the input
+  node id defines an alternative
+
+  Asserts that the list exists (see [[defined?]])"
+  [workspace node-id list-kw evaluation-context]
+  (let [[node-id _] (require-list-definition workspace node-id list-kw evaluation-context)]
+    node-id))
+
 (defn child-node-types
   "Returns all possible child node types for a list, or nil if there is none
 
@@ -323,8 +334,11 @@
 
 ;; SDK api
 (defn nodes-getter
-  "Node list getter that returns :nodes output of a non-override node
+  "Node list getter that returns its :nodes output
 
   This function is suitable for use as a :get parameter to [[register]]"
   [node evaluation-context]
-  (mapv gt/source-id (g/explicit-arcs-by-target (:basis evaluation-context) node :nodes)))
+  (let [basis (:basis evaluation-context)]
+    (if (g/override? basis node)
+      (g/node-value node :nodes evaluation-context)
+      (mapv gt/source-id (g/explicit-arcs-by-target basis node :nodes)))))
