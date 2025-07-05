@@ -39,6 +39,21 @@ namespace dmRender
 
     const char* RENDER_SOCKET_NAME = "@render";
 
+    // Declararions are in render.h
+    const dmhash_t VERTEX_STREAM_POSITION        = dmHashString64("position");
+    const dmhash_t VERTEX_STREAM_NORMAL          = dmHashString64("normal");
+    const dmhash_t VERTEX_STREAM_TANGENT         = dmHashString64("tangent");
+    const dmhash_t VERTEX_STREAM_COLOR           = dmHashString64("color");
+    const dmhash_t VERTEX_STREAM_TEXCOORD0       = dmHashString64("texcoord0");
+    const dmhash_t VERTEX_STREAM_TEXCOORD1       = dmHashString64("texcoord1");
+    const dmhash_t VERTEX_STREAM_PAGE_INDEX      = dmHashString64("page_index");
+    const dmhash_t VERTEX_STREAM_WORLD_MATRIX    = dmHashString64("mtx_world");
+    const dmhash_t VERTEX_STREAM_NORMAL_MATRIX   = dmHashString64("mtx_normal");
+    const dmhash_t VERTEX_STREAM_BONE_WEIGHTS    = dmHashString64("bone_weights");
+    const dmhash_t VERTEX_STREAM_BONE_INDICES    = dmHashString64("bone_indices");
+    const dmhash_t VERTEX_STREAM_ANIMATION_DATA  = dmHashString64("animation_data");
+    const dmhash_t SAMPLER_POSE_MATRIX_CACHE     = dmHashString64("pose_matrix_cache");
+
     StencilTestParams::StencilTestParams() {
         Init();
     }
