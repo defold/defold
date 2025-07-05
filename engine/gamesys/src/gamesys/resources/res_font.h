@@ -15,18 +15,6 @@
 #ifndef DM_GAMESYS_RES_FONT_H
 #define DM_GAMESYS_RES_FONT_H
 
-#include <dmsdk/resource/resource.h>
 #include <dmsdk/gamesys/resources/res_font.h>
-
-namespace dmGameSystem
-{
-    dmResource::Result ResFontPreload(const dmResource::ResourcePreloadParams* params);
-
-    dmResource::Result ResFontCreate(const dmResource::ResourceCreateParams* params);
-
-    dmResource::Result ResFontDestroy(const dmResource::ResourceDestroyParams* params);
-
-    dmResource::Result ResFontRecreate(const dmResource::ResourceRecreateParams* params);
-}
 
 #endif // DM_GAMESYS_RES_FONT_H

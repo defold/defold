@@ -1348,7 +1348,7 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     uint64_t stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
     while(!all_complete && dmTime::GetMonotonicTime() < stop_time)
     {
-        dmJobThread::Update(m_JobThread);
+        dmJobThread::Update(m_JobThread, 0);
         all_complete = true;
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
@@ -1378,7 +1378,7 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
     while(!all_complete && dmTime::GetMonotonicTime() < stop_time)
     {
-        dmJobThread::Update(m_JobThread);
+        dmJobThread::Update(m_JobThread, 0);
         all_complete = true;
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
@@ -1469,7 +1469,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         ASSERT_EQ(0, m_NullContext->m_SetTextureAsyncState.m_PostDeleteTextures.Size());
 
         // Flush any lingering work
-        dmJobThread::Update(m_JobThread);
+        dmJobThread::Update(m_JobThread, 0);
 
         // Make sure all are deleted
         ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobThread, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_DELETE));
