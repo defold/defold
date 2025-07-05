@@ -18,8 +18,8 @@
 #include <math.h>
 #include <stddef.h>
 
-B2_ARRAY_SOURCE( b2Contact, b2Contact );
-B2_ARRAY_SOURCE( b2ContactSim, b2ContactSim );
+B2_ARRAY_SOURCE( b2Contact, b2Contact )
+B2_ARRAY_SOURCE( b2ContactSim, b2ContactSim )
 
 // Contacts and determinism
 // A deterministic simulation requires contacts to exist in the same order in b2Island no matter the thread count.
@@ -49,7 +49,7 @@ B2_ARRAY_SOURCE( b2ContactSim, b2ContactSim );
 // has world space vectors yet retains precision.
 //
 // Second:
-// b3ManifoldPoint::point is very useful for debugging and it is in world space.
+// b2ManifoldPoint::point is very useful for debugging and it is in world space.
 //
 // Third:
 // The user may call the manifold functions directly and they should be easy to use and have easy to use
@@ -315,8 +315,8 @@ void b2CreateContact( b2World* world, b2Shape* shapeA, b2Shape* shapeB )
 	contactSim->manifold = ( b2Manifold ){ 0 };
 
 	// These also get updated in the narrow phase
-	contactSim->friction = world->frictionCallback(shapeA->friction, shapeA->material, shapeB->friction, shapeB->material);
-	contactSim->restitution = world->restitutionCallback(shapeA->restitution, shapeA->material, shapeB->restitution, shapeB->material);
+	contactSim->friction = world->frictionCallback(shapeA->friction, shapeA->userMaterialId, shapeB->friction, shapeB->userMaterialId);
+	contactSim->restitution = world->restitutionCallback(shapeA->restitution, shapeA->userMaterialId, shapeB->restitution, shapeB->userMaterialId);
 
 	contactSim->tangentSpeed = 0.0f;
 	contactSim->simFlags = 0;
@@ -334,7 +334,6 @@ void b2CreateContact( b2World* world, b2Shape* shapeA, b2Shape* shapeB )
 // - a body changes type from dynamic to kinematic or static
 // - a shape is destroyed
 // - contact filtering is modified
-// - a shape becomes a sensor (check this!!!)
 void b2DestroyContact( b2World* world, b2Contact* contact, bool wakeBodies )
 {
 	// Remove pair from set
@@ -350,9 +349,10 @@ void b2DestroyContact( b2World* world, b2Contact* contact, bool wakeBodies )
 	b2Body* bodyB = b2BodyArray_Get( &world->bodies, bodyIdB );
 
 	uint32_t flags = contact->flags;
+	bool touching = ( flags & b2_contactTouchingFlag ) != 0;
 
 	// End touch event
-	if ( ( flags & b2_contactTouchingFlag ) != 0 && ( flags & b2_contactEnableContactEvents ) != 0 )
+	if ( touching && ( flags & b2_contactEnableContactEvents ) != 0 )
 	{
 		uint16_t worldId = world->worldId;
 		const b2Shape* shapeA = b2ShapeArray_Get( &world->shapes, contact->shapeIdA );
@@ -445,7 +445,7 @@ void b2DestroyContact( b2World* world, b2Contact* contact, bool wakeBodies )
 
 	b2FreeId( &world->contactIdPool, contactId );
 
-	if ( wakeBodies )
+	if ( wakeBodies && touching )
 	{
 		b2WakeBody( world, bodyA );
 		b2WakeBody( world, bodyB );
@@ -490,8 +490,8 @@ bool b2UpdateContact( b2World* world, b2ContactSim* contactSim, b2Shape* shapeA,
 	contactSim->manifold = fcn( shapeA, transformA, shapeB, transformB, &contactSim->cache );
 
 	// Keep these updated in case the values on the shapes are modified
-	contactSim->friction = world->frictionCallback( shapeA->friction, shapeA->material, shapeB->friction, shapeB->material );
-	contactSim->restitution = world->restitutionCallback( shapeA->restitution, shapeA->material, shapeB->restitution, shapeB->material );
+	contactSim->friction = world->frictionCallback( shapeA->friction, shapeA->userMaterialId, shapeB->friction, shapeB->userMaterialId );
+	contactSim->restitution = world->restitutionCallback( shapeA->restitution, shapeA->userMaterialId, shapeB->restitution, shapeB->userMaterialId );
 
 	// todo branch improves perf?
 	if (shapeA->rollingResistance > 0.0f || shapeB->rollingResistance > 0.0f)
@@ -569,7 +569,7 @@ bool b2UpdateContact( b2World* world, b2ContactSim* contactSim, b2Shape* shapeA,
 
 		mp2->normalImpulse = 0.0f;
 		mp2->tangentImpulse = 0.0f;
-		mp2->maxNormalImpulse = 0.0f;
+		mp2->totalNormalImpulse = 0.0f;
 		mp2->normalVelocity = 0.0f;
 		mp2->persisted = false;
 
