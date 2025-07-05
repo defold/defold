@@ -728,7 +728,8 @@
       workspace GameObjectNode :components
       :add {EmbeddedComponent attach-embedded-component
             ReferencedComponent attach-referenced-component}
-      :get attachment/nodes-getter)
+      :get attachment/nodes-getter
+      :read-only? #(g/override? (:basis %2) %1))
     (attachment/define-alternative workspace EmbeddedComponent embedded-component-attachment-alternative)
     (resource-node/register-ddf-resource-type workspace
       :ext "go"

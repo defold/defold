@@ -750,8 +750,9 @@
   "Given an attachment, return a tuple of attachment+node-type
 
   The returned attachment might be modified, typically stripped of the type key"
-  (fn extract-node-type-dispatch-fn [_rt _attachment _workspace node-id list-kw evaluation-context]
-    [(g/node-type-kw (:basis evaluation-context) node-id) list-kw]))
+  (fn extract-node-type-dispatch-fn [_rt _attachment workspace node-id list-kw evaluation-context]
+    (let [node-id (attachment/list-node-id workspace node-id list-kw evaluation-context)]
+      [(g/node-type-kw (:basis evaluation-context) node-id) list-kw])))
 
 (defmethod extract-node-type :default [rt attachment workspace node-id list-kw evaluation-context]
   (let [possible-node-types (attachment/child-node-types workspace node-id list-kw evaluation-context)

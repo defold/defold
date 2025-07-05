@@ -14,6 +14,7 @@
 
 (ns editor.collection-non-editable
   (:require [dynamo.graph :as g]
+            [editor.attachment :as attachment]
             [editor.build-target :as bt]
             [editor.collection-common :as collection-common]
             [editor.collection-string-data :as collection-string-data]
@@ -426,18 +427,20 @@
   (g/set-property self :collection-desc collection-desc))
 
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :editable false
-    :ext "collection"
-    :label "Non-Editable Collection"
-    :node-type NonEditableCollectionNode
-    :ddf-type GameObject$CollectionDesc
-    :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :non-editable "go"))
-    :sanitize-fn (partial sanitize-non-editable-collection workspace)
-    :string-encode-fn (partial string-encode-non-editable-collection workspace)
-    :load-fn load-non-editable-collection
-    :allow-unloaded-use true
-    :icon collection-common/collection-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:grid true}}))
+  (concat
+    (attachment/register workspace NonEditableCollectionNode :children :get (constantly []))
+    (resource-node/register-ddf-resource-type workspace
+      :editable false
+      :ext "collection"
+      :label "Non-Editable Collection"
+      :node-type NonEditableCollectionNode
+      :ddf-type GameObject$CollectionDesc
+      :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :non-editable "go"))
+      :sanitize-fn (partial sanitize-non-editable-collection workspace)
+      :string-encode-fn (partial string-encode-non-editable-collection workspace)
+      :load-fn load-non-editable-collection
+      :allow-unloaded-use true
+      :icon collection-common/collection-icon
+      :icon-class :design
+      :view-types [:scene :text]
+      :view-opts {:scene {:grid true}})))
