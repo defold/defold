@@ -18,6 +18,7 @@ allprojects {
     }
     tasks.withType(JavaCompile) {
         options.incremental = true
+        options.fork = true
     }
 }
 
@@ -46,38 +47,33 @@ task cleanDirs(type: Delete) {
 
 clean.dependsOn cleanDirs
 
-gradle.projectsEvaluated {
-    project.protoFiles.each { proto ->
-        def protoDir = file(proto.dir)
-        def protoFilePath = file("${proto.dir}/${proto.file}")
-        def protoTaskName = "protoTask_${proto.file.replace('/', '_').replace('.', '_')}" as Object
-        tasks.named('compileJava').configure {
-            dependsOn protoTaskName
-        }
-        tasks.create(name: protoTaskName, type: Exec) {
-            group = 'build'
-            inputs.file(protoFilePath)
-            outputs.dir("${project.bobDir}/generated")
-            doFirst {
-                if (!protoDir.exists()) {
-                    throw new RuntimeException("Directory '${protoDir}' does not exist")
-                }
-                if (!protoFilePath.exists()) {
-                    throw new RuntimeException("File '${protoFilePath}' does not exist")
-                }
-                mkdir "${project.bobDir}/generated"
-                if (!project.hostPlatform) {
-                    throw new RuntimeException("hostPlatform is not set. Make sure 'getHostPlatform' task is executed.")
-                }
-                commandLine "${project.dynamoHome}/ext/bin/${project.hostPlatform}/protoc", "--java_out=${project.bobDir}/generated",
-                        "-I${protoDir}", "-I${project.dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
-                        "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoFilePath}"
+project.protoFiles.each { proto ->
+    def protoDir = file(proto.dir)
+    def protoFilePath = file("${proto.dir}/${proto.file}")
+    def protoTaskName = "protoTask_${proto.file.replace('/', '_').replace('.', '_')}" as Object
+    tasks.register(protoTaskName, Exec) {
+        group = 'build'
+        inputs.file(protoFilePath)
+        outputs.dir("${project.bobDir}/generated")
+        doFirst {
+            if (!protoDir.exists()) {
+                throw new RuntimeException("Directory '${protoDir}' does not exist")
             }
+            if (!protoFilePath.exists()) {
+                throw new RuntimeException("File '${protoFilePath}' does not exist")
+            }
+            mkdir "${project.bobDir}/generated"
+            if (!project.hostPlatform) {
+                throw new RuntimeException("hostPlatform is not set. Make sure 'getHostPlatform' task is executed.")
+            }
+            commandLine "${project.dynamoHome}/ext/bin/${project.hostPlatform}/protoc", "--java_out=${project.bobDir}/generated",
+                    "-I${protoDir}", "-I${project.dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
+                    "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoFilePath}"
         }
     }
 }
 
-task execProtoTasks {
+tasks.register('execProtoTasks') {
     dependsOn project.protoFiles.collect { proto ->
         "protoTask_${proto.file.replace('/', '_').replace('.', '_')}"
     }
@@ -133,18 +129,7 @@ task copyDependencies {
     }
 }
 
-task compileGenerated(type: JavaCompile, dependsOn: execProtoTasks) {
-    mkdir project.classesDir
-    source = fileTree("${project.bobDir}/generated")
-    destinationDirectory = project.classesDir
-    include '**/*.java'
-    classpath = sourceSets.main.compileClasspath
-    options.encoding = 'UTF-8'
-    options.compilerArgs << '-g'
-    outputs.dir(project.classesDir)
-}
-
-task compileSrc(type: JavaCompile, dependsOn: [compileGenerated, copyDependencies]) {
+task compileAllJava(type: JavaCompile, dependsOn: [execProtoTasks, copyDependencies]) {
     source = sourceSets.main.java
     destinationDirectory = project.classesDir
     include '**'
@@ -154,7 +139,7 @@ task compileSrc(type: JavaCompile, dependsOn: [compileGenerated, copyDependencie
     outputs.dir(project.classesDir)
 }
 
-task createLuaJitShareZip(type: Zip, dependsOn: [compileSrc, compileGenerated]) {
+task createLuaJitShareZip(type: Zip, dependsOn: [compileAllJava]) {
     archiveFileName = 'luajit-share.zip'
     destinationDirectory = file("${project.bobDir}/lib")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -167,7 +152,7 @@ task createLuaJitShareZip(type: Zip, dependsOn: [compileSrc, compileGenerated]) 
     outputs.file("${project.bobDir}/lib/luajit-share.zip")
 }
 
-task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZip]) {
+task compileBobLight(dependsOn: [getGitRevision, compileAllJava, createLuaJitShareZip]) {
     doLast {
         def platformFiles = [
                 'x86_64-macos': ['glslang', 'spirv-opt', 'luajit-64', 'lipo', 'tint'],
@@ -178,7 +163,9 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
                 'x86-win32': ['glslang.exe', 'spirv-opt.exe']
         ]
 
-        platformFiles.forEach { platform, files ->
+        platformFiles.entrySet().parallelStream().forEach { entry ->
+            def platform = entry.key
+            def files = entry.value
             copy {
                 from fileTree("${project.dynamoHome}/ext/bin/$platform") {
                     include files.collect { it.toString() }
@@ -195,7 +182,9 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
                 'arm64-macos': [pattern: 'bin/arm64-macos/**', name: defaultTarName]
         ]
 
-        tarFiles.forEach { platform, config ->
+        tarFiles.entrySet().parallelStream().forEach { entry ->
+            def platform = entry.key
+            def config = entry.value
             copy {
                 from tarTree(resources.gzip(file("../../packages/${config.name}-${platform}.tar.gz")))
                 into "${project.bobDir}/libexec/${platform}"
@@ -222,7 +211,9 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
                 'x86_64-win32': ['x86_64-win32/*texc_shared*', 'x86_64-win32/*modelc_shared*', 'x86_64-win32/*shaderc_shared*']
         ]
 
-        sharedLibs.forEach { platform, includePatterns ->
+        sharedLibs.entrySet().parallelStream().forEach { entry ->
+            def platform = entry.key
+            def includePatterns = entry.value
             copy {
                 from fileTree("${project.dynamoHome}/lib") {
                     include includePatterns
@@ -240,7 +231,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
 task compile(dependsOn: ['compileBobLight']) {
 }
 
-task createExternalLibsLightJar(type: Jar, dependsOn: compileSrc) {
+task createExternalLibsLightJar(type: Jar, dependsOn: compileAllJava) {
     archiveFileName = 'external-libs-light.jar'
     destinationDirectory = file("${project.bobDir}/tmp")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -315,7 +306,7 @@ task distBobLight(dependsOn: ['compileBobLight', 'createBobLightJar']) {
     }
 }
 
-task createExternalLibsBuiltinsJar(type: Jar, dependsOn: [compileSrc, compileGenerated]) {
+task createExternalLibsBuiltinsJar(type: Jar, dependsOn: [compileAllJava]) {
     archiveFileName = 'external-libs-builtins.jar'
     destinationDirectory = file("${project.bobDir}/tmp")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
