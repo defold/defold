@@ -117,7 +117,7 @@ message CollectionDesc
     required string                 name                    = 1;
     repeated InstanceDesc           instances               = 2;
     repeated CollectionInstanceDesc collection_instances    = 3;
-    optional uint32                 scale_along_z           = 4 [default = 0];
+    optional uint32                 scale_along_z           = 4 [default = 0]; // Deprecated
     repeated EmbeddedInstanceDesc   embedded_instances      = 5;
     repeated string                 property_resources      = 6 [(runtime_only) = true, (resource) = true];
     repeated ComponenTypeDesc       component_types         = 7 [(runtime_only) = true];
