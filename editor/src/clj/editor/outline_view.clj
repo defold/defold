@@ -29,7 +29,7 @@
            [javafx.event Event]
            [javafx.geometry Orientation]
            [javafx.scene Node]
-           [javafx.scene.control Label ScrollBar SelectionMode ToggleButton TreeItem TreeView]
+           [javafx.scene.control ScrollBar SelectionMode TreeItem TreeView ToggleButton Label TextField]
            [javafx.scene.image ImageView]
            [javafx.scene.input Clipboard DataFormat DragEvent MouseEvent TransferMode]
            [javafx.scene.layout AnchorPane HBox]
@@ -476,6 +476,58 @@
                                                                   (AnchorPane/setRightAnchor visibility-button (.getMax scrollbar))
                                                                   (AnchorPane/setRightAnchor visibility-button 0.0))))))
 
+(defn- set-editing-id!
+  [^TreeView tree-view node-id]
+  (ui/user-data! tree-view ::editing-id node-id)
+  (.refresh tree-view))
+
+(defn- activate-editing!
+  [^Label label ^TextField text-field]
+  (when-let [id (-> (ui/user-data text-field ::node-id)
+                    (g/maybe-node-value :id))]
+    (.setText text-field id)
+    (.setVisible label false)
+    (.setVisible text-field true)
+    (.requestFocus text-field)
+    (.selectAll text-field)))
+
+(defn- deactivate-editing!
+  [^Label label ^TextField text-field]
+  (.setVisible text-field false)
+  (.setVisible label true))
+
+(defn- commit-edit!
+  [^TreeView tree-view ^TextField text-field]
+  (let [new-text (.getText text-field)
+        node-id (ui/user-data text-field ::node-id)]
+    (when-not (empty? new-text)
+      (g/set-property! node-id :id new-text))
+    (set-editing-id! tree-view nil)))
+
+(defn- click-handler!
+  [^TreeView tree-view ^Label text-label ^MouseEvent event]
+  (let [current-click-time (System/currentTimeMillis)
+        last-click-time (or (ui/user-data text-label ::last-click-time) 0)
+        time-diff (- current-click-time last-click-time)]
+    (.consume event)
+    (when (ui/user-data tree-view ::editing-id)
+      (set-editing-id! tree-view nil))
+    (ui/user-data! text-label ::last-click-time current-click-time)
+    (cond
+      (< time-diff 500) (ui/run-command (.getSource event) :file.open-selected)
+      (< time-diff 1500) (ui/run-command (.getSource event) :node.rename)
+      :else nil)))
+
+(handler/defhandler :node.rename :global
+  (active? [selection] (= 1 (count selection)))
+  (run [outline-view]
+       (when-let [^TreeView tree-view (g/maybe-node-value outline-view :raw-tree-view)]
+         (let [selection-model (.getSelectionModel tree-view)
+               selected-items (.getSelectedItems selection-model)
+               ^TreeItem selected-item (first selected-items)
+               item (.getValue selected-item)]
+           (set-editing-id! tree-view (:node-id item))))))
+
 (def eye-open-path (ui/load-svg-path "scene/images/eye_open.svg"))
 (def eye-closed-path (ui/load-svg-path "scene/images/eye_closed.svg"))
 
@@ -487,12 +539,20 @@
         visibility-button (doto (ToggleButton.)
                             (ui/add-style! "visibility-toggle")
                             (AnchorPane/setRightAnchor 0.0))
-        text-label (doto (Label.)
-                     (ui/bind-double-click! :file.open-selected))
-        h-box (doto (HBox. 5 (ui/node-array [image-view-icon text-label]))
-                (ui/add-style! "h-box")
-                (AnchorPane/setRightAnchor 0.0)
-                (AnchorPane/setLeftAnchor 0.0))
+        text-label (Label.)
+        text-field (TextField.)
+        update-fn (fn [_] (commit-edit! tree-view text-field))
+        cancel-fn (fn [_] (set-editing-id! tree-view nil))
+        text-field (doto text-field
+                     (.setVisible false)
+                     (ui/customize! update-fn cancel-fn)
+                     (AnchorPane/setLeftAnchor 0.0)
+                     (AnchorPane/setRightAnchor 0.0))
+        _ (.addEventFilter text-label MouseEvent/MOUSE_CLICKED (ui/event-handler e (click-handler! tree-view text-label e)))
+        label-pane (doto (AnchorPane. (ui/node-array [text-label text-field]))
+                     (ui/add-style! "anchor-pane"))
+        h-box (doto (HBox. 5 (ui/node-array [image-view-icon label-pane]))
+                (ui/add-style! "h-box"))
         pane (doto (AnchorPane. (ui/node-array [h-box visibility-button]))
                (ui/add-style! "anchor-pane"))
         _ (add-scroll-listeners! visibility-button tree-view)
@@ -507,15 +567,17 @@
                        (proxy-super setGraphic nil)
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))
-                     (let [{:keys [label icon link color outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error? child-overridden? scene-visibility hideable? node-outline-key-path hidden-parent?]} item
+                     (let [{:keys [node-id label icon link color outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error? child-overridden? scene-visibility hideable? node-outline-key-path hidden-parent?]} item
                            icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
                            show-link? (and (some? link)
                                            (or outline-reference? outline-show-link?))
                            text (if show-link? (format "%s - %s" label (resource/resource->proj-path link)) label)
                            hidden? (= :hidden scene-visibility)
-                           visibility-icon (if hidden? eye-icon-closed eye-icon-open)]
+                           visibility-icon (if hidden? eye-icon-closed eye-icon-open)
+                           editing? (= node-id (ui/user-data tree-view ::editing-id))]
                        (.setImage image-view-icon (icons/get-image icon))
                        (.setText text-label text)
+                       (ui/user-data! text-field ::node-id node-id)
                        (doto visibility-button
                          (.setGraphic visibility-icon)
                          (ui/on-click! (partial toggle-visibility! node-outline-key-path)))
@@ -548,7 +610,10 @@
                          (ui/remove-style! this "hidden-parent"))
                        (if hidden?
                          (ui/add-style! this "scene-visibility-hidden")
-                         (ui/remove-style! this "scene-visibility-hidden")))))))]
+                         (ui/remove-style! this "scene-visibility-hidden"))
+                       (if editing?
+                         (activate-editing! text-label text-field)
+                         (deactivate-editing! text-label text-field)))))))]
     (doto cell
       (.setOnDragEntered drag-entered-handler)
       (.setOnDragExited drag-exited-handler))))
