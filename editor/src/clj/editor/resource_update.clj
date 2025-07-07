@@ -276,7 +276,7 @@
   ;; /foo -> /foo.lua
   ;; We should not redirect such nodes, because different resource extensions
   ;; might imply different resource node types
-  (filterv #(= (resource/ext (first %)) (resource/ext (second %))) moved))
+  (filterv #(= (resource/type-ext (first %)) (resource/type-ext (second %))) moved))
 
 (defn resource-change-plan [old-nodes-by-path old-node->old-disk-sha256 changes]
   (let [changes (update changes :moved exclude-extension-changes)
