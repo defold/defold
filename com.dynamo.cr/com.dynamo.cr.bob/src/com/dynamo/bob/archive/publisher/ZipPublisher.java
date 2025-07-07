@@ -61,7 +61,7 @@ public class ZipPublisher extends Publisher {
         try {
             String tempFilePrefix = "defold.resourcepack_" + this.platform + "_";
             this.tempZipFile = File.createTempFile(tempFilePrefix, ".zip");
-
+            logger.info("Creating temp zip file '%s'", this.tempZipFile.getAbsolutePath());
             String destZipName = this.tempZipFile.getName();
             if (this.filename != null) {
                 destZipName = this.filename;
