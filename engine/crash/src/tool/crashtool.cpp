@@ -161,6 +161,10 @@ static int PlatformInit(const char* path, PlatformInfo& info)
         info.si.dwFlags |= STARTF_USESTDHANDLES;
 
         printf("Opening path: '%s'\n", path);
+
+        // Allow for the missing dll dialog to show, as there's no api to get this info
+        SetErrorMode(SEM_NOALIGNMENTFAULTEXCEPT);
+
         if( !CreateProcessA(0, (LPSTR)path, 0, 0, TRUE, PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, 0, (LPSTARTUPINFOA)&info.si, &info.pi) )
         {
             DWORD errcode = GetLastError();
