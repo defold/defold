@@ -250,6 +250,8 @@ struct PlatformInfo
     const char* executable_path;
     const char* basename; // "e.g. dmengine"
 
+    dmCrash::HDump dump;
+
     char buffer[2048];
 };
 
@@ -332,6 +334,8 @@ struct PlatformInfo
 {
     const char* executable_path;
     const char* basename; // "e.g. dmengine"
+
+    dmCrash::HDump dump;
 
     char buffer[2048];
 };
