@@ -94,6 +94,6 @@ namespace dmCrash
         }
 
         fclose(fp);
+        state->m_ModuleCount = count;
     }
-    state->m_ModuleCount = count;
 }
