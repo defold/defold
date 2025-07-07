@@ -12,7 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-
 #include <stdio.h>
 
 #include "crash.h"
@@ -21,7 +20,6 @@
 #include <algorithm> // find_if
 #include <cctype>
 #include <iostream>
-#include <functional>
 #include <stdexcept>
 #include <stdio.h>
 #include <string>
@@ -57,9 +55,11 @@ static int Exec(const char* cmd, std::string& result) {
 }
 #endif
 
-static inline std::string &rtrim(std::string &s) {
-    s.erase(std::find_if(s.rbegin(), s.rend(),
-            std::not1(std::ptr_fun<int, int>(std::isspace))).base(), s.end());
+static inline std::string&  rtrim(std::string &s)
+{
+    s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }).base(), s.end());
     return s;
 }
 
@@ -256,12 +256,12 @@ struct PlatformInfo
 };
 
 
-static int ExtractDSym(char* executable_path, char* targetpath)
+static int ExtractDSym(const char* executable_path, char* targetpath)
 {
     printf("Extracting symbols from %s to %s\n", executable_path, targetpath);
 
     char cmd[2048] = {0};
-    sprintf(cmd, "dsymutil -o %s %s", targetpath, executable_path);
+    dmSnPrintf(cmd, sizeof(cmd), "dsymutil -o %s %s", targetpath, executable_path);
 
     printf("%s\n", cmd);
 
@@ -287,7 +287,7 @@ int PlatformInit(const char* executable_path, PlatformInfo& info)
         }
 
         char buffer[1024] = {0};
-        sprintf(buffer, "%s.dSYM", info.basename);
+        dmSnPrintf(buffer, sizeof(buffer), "%s.dSYM", info.basename);
 
         if( ExtractDSym(executable_path, buffer) )
         {
@@ -311,7 +311,7 @@ const char* PlatformGetSymbol(PlatformInfo& info, uintptr_t ptr, uint32_t module
     }
 
     char cmd[2048];
-    sprintf(cmd, "atos -o %s.dSYM/Contents/Resources/DWARF/%s %p", info.basename, info.basename, (void*)ptr);
+    dmSnPrintf(cmd, sizeof(cmd), "atos -o %s.dSYM/Contents/Resources/DWARF/%s %p", info.basename, info.basename, (void*)ptr);
 
     std::string output;
     int result = Exec(cmd, output);
@@ -370,7 +370,7 @@ const char* PlatformGetSymbol(PlatformInfo& info, uintptr_t ptr, uint32_t module
     }
 
     char cmd[2048];
-    sprintf(cmd, "addr2line -e %s %p", info.executable_path, (void*)ptr);
+    dmSnPrintf(cmd, sizeof(cmd), "addr2line -e %s %p", info.executable_path, (void*)ptr);
 
     std::string output;
     int result = Exec(cmd, output);
