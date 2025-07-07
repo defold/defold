@@ -181,7 +181,7 @@ namespace dmCrash
             g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, g_AppState.m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
         }
 
-        WriteCrash(g_FilePath, &g_AppState);
+        WriteCrash(GetFilePath(), GetAppState());
 
         bool is_debug_mode = dLib::IsDebugMode();
         dLib::SetDebugMode(true);
