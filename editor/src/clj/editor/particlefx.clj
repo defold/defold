@@ -916,8 +916,7 @@
                                                       :icon emitter-icon
                                                       :children (outline/natural-sort child-outlines)
                                                       :child-reqs [{:node-type ModifierNode
-                                                                    :tx-attach-fn (fn [self-id child-id]
-                                                                                    (attach-modifier self-id child-id true))}]}))
+                                                                    :tx-attach-fn attach-modifier}]}))
   (output aabb AABB produce-emitter-aabb)
   (output visibility-aabb AABB produce-emitter-visibility-aabb)
   (output emitter-sim-data g/Any :cached
@@ -1077,8 +1076,7 @@
                              :tx-attach-fn (fn [self-id child-id]
                                              (attach-emitter self-id child-id true))}
                             {:node-type ModifierNode
-                             :tx-attach-fn (fn [self-id child-id]
-                                             (attach-modifier self-id child-id true))}]})))
+                             :tx-attach-fn attach-modifier}]})))
   (output fetch-anim-fn Runnable :cached (g/fnk [emitter-sim-data] (fn [index] (get emitter-sim-data index)))))
 
 (defn- make-modifier

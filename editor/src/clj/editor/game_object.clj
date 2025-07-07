@@ -641,7 +641,7 @@
          (mapv (fn [[id resource]]
                  (add-component root-id resource id transform-props nil nil))))))
 
-(def ^:private ext-referenced-component-type "reference")
+(def ^:private ext-referenced-component-type "component-reference")
 (def ^:private constantly-ext-referenced-component-type (constantly ext-referenced-component-type))
 
 (ext-graph/register-property-getter!
@@ -728,7 +728,8 @@
       workspace GameObjectNode :components
       :add {EmbeddedComponent attach-embedded-component
             ReferencedComponent attach-referenced-component}
-      :get attachment/nodes-getter)
+      :get attachment/nodes-getter
+      :read-only? #(g/override? (:basis %2) %1))
     (attachment/define-alternative workspace EmbeddedComponent embedded-component-attachment-alternative)
     (resource-node/register-ddf-resource-type workspace
       :ext "go"

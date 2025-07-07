@@ -1567,11 +1567,11 @@ After transaction (add go components):
     position: {0, 0, 0}
     rotation: {0, 0, 0}
     scale: {1, 1, 1}
-  - type: reference
+  - type: component-reference
     id: test
-  - type: reference
+  - type: component-reference
     id: collisionobject-referenced
-  - type: reference
+  - type: component-reference
     id: referenced-tilemap
     position: {0, 0, 0}
     rotation: {0, 0, 0}
@@ -1584,6 +1584,295 @@ Collision object components have shapes property:
 Transaction: clear go components
 After transaction (clear go components):
   components: 0
+Collection initial state
+  children: 0 (editable)
+Transaction: add gos and collections
+After transaction (add gos and collections):
+  children: 5 (editable)
+  - id: go
+    url: /go
+    type: go
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {0.5, 0.5, 0.5}
+    components: 0
+    children: 4 (editable)
+    - id: go1
+      url: /go1
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+    - id: ref
+      url: /ref
+      type: go-reference
+      path: /ref.go
+      position: {3.14, 3.14, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+    - id: go2
+      url: /go2
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 1 (editable)
+      - id: char
+        url: /char
+        type: go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 3
+        - type: sprite
+          id: sprite
+          position: {0.5, 0.5, 0.5}
+          rotation: {0, 0, 0}
+          scale: {1, 1, 1}
+        - type: collisionobject
+          id: collisionobject
+          shapes: 1
+          - id: box
+            type: shape-type-box
+            dimensions: 2.5 2.5 2.5
+        - type: component-reference
+          id: test
+        children: 0 (editable)
+    - id: empty-ref
+      url: /empty-ref
+      type: go-reference
+      path: -
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      children: 0 (editable)
+  - id: empty-collection
+    url: /empty-collection
+    type: collection-reference
+    path: -
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+  - id: ref1
+    url: /ref1
+    type: collection-reference
+    path: /ref.collection
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    children: 1 (readonly)
+    - id: go
+      url: /ref1/go
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 1
+      - type: sprite
+        id: sprite
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+      children: 1 (readonly)
+      - id: ref
+        url: /ref1/ref
+        type: go-reference
+        path: /ref.go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 0
+        children: 0 (readonly)
+  - id: readonly
+    url: /readonly
+    type: collection-reference
+    path: /readonly/readonly.collection
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    children: 0 (readonly)
+  - id: readonly1
+    url: /readonly1
+    type: go-reference
+    path: /readonly/readonly.go
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    components: 0
+    children: 1 (editable)
+    - id: allowed-child-of-readonly-go
+      url: /allowed-child-of-readonly-go
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+Transaction: edit already existing collection elements
+After transaction (edit already existing collection elements):
+  children: 5 (editable)
+  - id: go
+    url: /go
+    type: go
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {0.5, 0.5, 0.5}
+    components: 0
+    children: 5 (editable)
+    - id: go1
+      url: /go1
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+    - id: ref
+      url: /ref
+      type: go-reference
+      path: /ref.go
+      position: {3.14, 3.14, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 1 (editable)
+      - id: new-referenced-go-child
+        url: /new-referenced-go-child
+        type: go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 0
+        children: 0 (editable)
+    - id: go2
+      url: /go2
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 1 (editable)
+      - id: char
+        url: /char
+        type: go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 3
+        - type: sprite
+          id: sprite
+          position: {0.5, 0.5, 0.5}
+          rotation: {0, 0, 0}
+          scale: {1, 1, 1}
+        - type: collisionobject
+          id: collisionobject
+          shapes: 1
+          - id: box
+            type: shape-type-box
+            dimensions: 2.5 2.5 2.5
+        - type: component-reference
+          id: test
+        children: 0 (editable)
+    - id: empty-ref
+      url: /empty-ref
+      type: go-reference
+      path: -
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      children: 0 (editable)
+    - id: new-embedded-go-child
+      url: /new-embedded-go-child
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+  - id: empty-collection
+    url: /empty-collection
+    type: collection-reference
+    path: -
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+  - id: ref1
+    url: /ref1
+    type: collection-reference
+    path: /ref.collection
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    children: 1 (readonly)
+    - id: go
+      url: /ref1/go
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 1
+      - type: sprite
+        id: sprite
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+      children: 1 (readonly)
+      - id: ref
+        url: /ref1/ref
+        type: go-reference
+        path: /ref.go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 0
+        children: 0 (readonly)
+  - id: readonly
+    url: /readonly
+    type: collection-reference
+    path: /readonly/readonly.collection
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    children: 0 (readonly)
+  - id: readonly1
+    url: /readonly1
+    type: go-reference
+    path: /readonly/readonly.go
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    components: 0
+    children: 2 (editable)
+    - id: allowed-child-of-readonly-go
+      url: /allowed-child-of-readonly-go
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+    - id: new-readonly-referenced-go-child
+      url: /new-readonly-referenced-go-child
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+Expected collection errors:
+  add child to referenced collection => \"children\" is read-only
+  remove child of referenced collection => \"children\" is read-only
+  add child to go in referenced collection => \"children\" is read-only
+  clear children of a go in referenced collection => \"children\" is read-only
+  add child to readonly referenced collection => \"children\" is read-only
+Transaction: clear collection
+After transaction (clear collection)
+  children: 0 (editable)
 ")
 
 (deftest attachment-properties-test
