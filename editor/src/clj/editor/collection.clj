@@ -940,8 +940,8 @@
   (g/node-value node-id :source-id evaluation-context))
 
 (node-types/register-node-type-name! EmbeddedGOInstanceNode "go")
-(node-types/register-node-type-name! ReferencedGOInstanceNode "reference-go")
-(node-types/register-node-type-name! CollectionInstanceNode "reference-collection")
+(node-types/register-node-type-name! ReferencedGOInstanceNode "go-reference")
+(node-types/register-node-type-name! CollectionInstanceNode "collection-reference")
 
 (defn register-resource-types [workspace]
   (concat

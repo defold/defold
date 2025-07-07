@@ -641,7 +641,7 @@
          (mapv (fn [[id resource]]
                  (add-component root-id resource id transform-props nil nil))))))
 
-(def ^:private ext-referenced-component-type "reference")
+(def ^:private ext-referenced-component-type "component-reference")
 (def ^:private constantly-ext-referenced-component-type (constantly ext-referenced-component-type))
 
 (ext-graph/register-property-getter!

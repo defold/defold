@@ -215,7 +215,7 @@ local function print_coll(coll, indent)
         print(("%s- id: %s"):format(indent, editor.get(child, "id")))
         print(("%s  url: %s"):format(indent, editor.get(child, "url")))
         print(("%s  type: %s"):format(indent, type))
-        if type == "reference-go" or type == "reference-collection" then
+        if type == "go-reference" or type == "collection-reference" then
             print(("%s  path: %s"):format(indent, editor.get(child, "path") or "-"))
         end
         for j = 1, #transform_props do
@@ -614,18 +614,18 @@ function M.get_commands()
                         id = "blob"
                     }),
                     editor.tx.add(go, "components", { 
-                        type = "reference",
+                        type = "component-reference",
                         path = "/test.script",
                         __num = 42
                     }),
                     editor.tx.add(go, "components", {
                         id = "collisionobject-referenced",
-                        type = "reference",
+                        type = "component-reference",
                         path = "/test.collisionobject"
                     }),
                     editor.tx.add(go, "components", {
                         id = "referenced-tilemap",
-                        type = "reference",
+                        type = "component-reference",
                         path = "/test.tilemap"
                     })
                 })
@@ -676,7 +676,7 @@ function M.get_commands()
                                 type = "go"
                             },
                             {
-                                type = "reference-go",
+                                type = "go-reference",
                                 path = "/ref.go",
                                 position = {3.14, 3.14, 0}
                             },
@@ -702,7 +702,7 @@ function M.get_commands()
                                                 }
                                             },
                                             {
-                                                type = "reference",
+                                                type = "component-reference",
                                                 path = "/test.script",
                                                 __num = 37
                                             }
@@ -711,25 +711,25 @@ function M.get_commands()
                                 }
                             },
                             {
-                                type = "reference-go",
+                                type = "go-reference",
                                 id = "empty-ref"
                             }
                         }
                     }),
                     editor.tx.add(coll, "children", {
-                        type = "reference-collection",
+                        type = "collection-reference",
                         id = "empty-collection"
                     }),
                     editor.tx.add(coll, "children", {
-                        type = "reference-collection",
+                        type = "collection-reference",
                         path = "/ref.collection"
                     }),
                     editor.tx.add(coll, "children", {
-                        type = "reference-collection",
+                        type = "collection-reference",
                         path = "/readonly/readonly.collection"
                     }),
                     editor.tx.add(coll, "children", {
-                        type = "reference-go",
+                        type = "go-reference",
                         path = "/readonly/readonly.go",
                         children = {
                             {
@@ -742,6 +742,60 @@ function M.get_commands()
 
                 print("After transaction (add gos and collections):")
                 print_coll(coll)
+
+                local embedded_go
+                local referenced_go
+                local referenced_coll
+                local referenced_coll_go
+                local readonly_referenced_go
+                local readonly_referenced_coll
+                local children = editor.get(coll, "children")
+                for i = 1, #children do
+                    local child = children[i]
+                    if editor.get(child, "type") == "go" then
+                        embedded_go = child
+                        local go_children = editor.get(child, "children")
+                        for j = 1, #go_children do
+                            local go_child = go_children[j]
+                            if editor.can_get(go_child, "path") and editor.get(go_child, "path") == "/ref.go" then
+                                referenced_go = go_child
+                            end
+                        end
+                    elseif editor.can_get(child, "path") then
+                        local path = editor.get(child, "path")
+                        if path == "/ref.collection" then
+                            referenced_coll = child
+                            referenced_coll_go = editor.get(referenced_coll, "children")[1]
+                        elseif path == "/readonly/readonly.collection" then
+                            readonly_referenced_coll = child
+                        elseif path == "/readonly/readonly.go" then
+                            readonly_referenced_go = child
+                        end
+                    end
+                end
+                assert(embedded_go, "embedded go not found")
+                assert(referenced_go, "referenced go not found")
+                assert(referenced_coll, "referenced collection not found")
+                assert(referenced_coll_go, "referenced collection's go not found")
+                assert(readonly_referenced_coll, "readonly referenced collection not found")
+                assert(readonly_referenced_go, "readonly referenced go not found")
+
+                print("Transaction: edit already existing collection elements")
+                editor.transact({
+                    editor.tx.add(embedded_go, "children", {type = "go", id = "new-embedded-go-child"}),
+                    editor.tx.add(referenced_go, "children", {type = "go", id = "new-referenced-go-child"}),
+                    editor.tx.add(readonly_referenced_go, "children", {type = "go", id = "new-readonly-referenced-go-child"}),
+                })
+
+                print("After transaction (edit already existing collection elements):")
+                print_coll(coll)
+
+                print("Expected collection errors:")
+                expect_error("add child to referenced collection", editor.tx.add, referenced_coll, "children", {type = "go"})
+                expect_error("remove child of referenced collection", editor.tx.remove, referenced_coll, "children", referenced_coll_go)
+                expect_error("add child to go in referenced collection", editor.tx.add, referenced_coll_go, "children", {type = "go"})
+                expect_error("clear children of a go in referenced collection", editor.tx.clear, referenced_coll_go, "children")
+                expect_error("add child to readonly referenced collection", editor.tx.add, readonly_referenced_coll, "children", {type = "go"})
 
                 print("Transaction: clear collection")
                 editor.transact({ editor.tx.clear(coll, "children") })
