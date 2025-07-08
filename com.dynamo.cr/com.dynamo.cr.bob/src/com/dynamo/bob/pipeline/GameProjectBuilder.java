@@ -208,7 +208,7 @@ public class GameProjectBuilder extends Builder {
             
             fileIndex++;
             if (fileIndex % 100 == 0 || fileIndex == resources.size()) {
-                logger.info("Added %d/%d files to archive (%.2f ms per file)", fileIndex, resources.size(), (fileEnd - fileStart));
+                logger.info("Added %d/%d files to archive (%.2f ms per file)", fileIndex, resources.size(), (double)(fileEnd - fileStart));
             }
         }
         TimeProfiler.stop();
