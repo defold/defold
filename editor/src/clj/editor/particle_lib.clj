@@ -14,11 +14,11 @@
 
 (ns editor.particle-lib
   (:require [editor.buffers :as buffers]
+            [editor.graphics.types :as types]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [util.murmur :as murmur])
-  (:import [com.defold.libs ParticleLibrary ParticleLibrary$AnimPlayback ParticleLibrary$AnimationData ParticleLibrary$FetchAnimationCallback ParticleLibrary$FetchAnimationResult ParticleLibrary$InstanceStats ParticleLibrary$VertexAttributeInfo ParticleLibrary$VertexAttributeInfos ParticleLibrary$Quat ParticleLibrary$RenderInstanceCallback ParticleLibrary$Stats ParticleLibrary$Vector3 ParticleLibrary$Vector4]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
+  (:import [com.defold.libs ParticleLibrary ParticleLibrary$AnimPlayback ParticleLibrary$AnimationData ParticleLibrary$FetchAnimationCallback ParticleLibrary$FetchAnimationResult ParticleLibrary$InstanceStats ParticleLibrary$Quat ParticleLibrary$RenderInstanceCallback ParticleLibrary$Stats ParticleLibrary$Vector3 ParticleLibrary$Vector4 ParticleLibrary$VertexAttributeInfo ParticleLibrary$VertexAttributeInfos]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.jogamp.common.nio Buffers]
            [com.sun.jna Pointer]
@@ -160,52 +160,18 @@
   (when-let [attribute-bytes (get vertex-attribute-bytes name-key)]
     (buffers/wrap-byte-array attribute-bytes :byte-order/native)))
 
-(defn- semantic-type->int [semantic-type]
-  (case semantic-type
-    :semantic-type-none Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_NONE_VALUE
-    :semantic-type-position Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_POSITION_VALUE
-    :semantic-type-texcoord Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_TEXCOORD_VALUE
-    :semantic-type-page-index Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_PAGE_INDEX_VALUE
-    :semantic-type-color Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_COLOR_VALUE
-    :semantic-type-normal Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_NORMAL_VALUE))
-
-(defn- coordinate-space->int [coordinate-space]
+(defn- coordinate-space->int
+  ^long [coordinate-space]
   (case coordinate-space
-    :coordinate-space-world Graphics$CoordinateSpace/COORDINATE_SPACE_WORLD_VALUE
-    :coordinate-space-local Graphics$CoordinateSpace/COORDINATE_SPACE_LOCAL_VALUE
+    (:coordinate-space-world :coordinate-space-local) (types/coordinate-space-pb-int coordinate-space)
     Graphics$CoordinateSpace/COORDINATE_SPACE_LOCAL_VALUE))
-
-(defn- data-type->int [data-type]
-  (case data-type
-    :type-byte Graphics$VertexAttribute$DataType/TYPE_BYTE_VALUE
-    :type-unsigned-byte Graphics$VertexAttribute$DataType/TYPE_UNSIGNED_BYTE_VALUE
-    :type-short Graphics$VertexAttribute$DataType/TYPE_SHORT_VALUE
-    :type-unsigned-short Graphics$VertexAttribute$DataType/TYPE_UNSIGNED_SHORT_VALUE
-    :type-int  Graphics$VertexAttribute$DataType/TYPE_INT_VALUE
-    :type-unsigned-int Graphics$VertexAttribute$DataType/TYPE_UNSIGNED_INT_VALUE
-    :type-float Graphics$VertexAttribute$DataType/TYPE_FLOAT_VALUE))
-
-(defn- vertex-step-function->int [vertex-step-function]
-  (case vertex-step-function
-    :vertex-step-function-vertex Graphics$VertexStepFunction/VERTEX_STEP_FUNCTION_VERTEX_VALUE
-    :vertex-step-function-instance Graphics$VertexStepFunction/VERTEX_STEP_FUNCTION_INSTANCE_VALUE))
-
-(defn- vector-type->int [vertex-vector-type]
-  (case vertex-vector-type
-    :vector-type-scalar Graphics$VertexAttribute$VectorType/VECTOR_TYPE_SCALAR_VALUE
-    :vector-type-vec2 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_VEC2_VALUE
-    :vector-type-vec3 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_VEC3_VALUE
-    :vector-type-vec4 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_VEC4_VALUE
-    :vector-type-mat2 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_MAT2_VALUE
-    :vector-type-mat3 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_MAT3_VALUE
-    :vector-type-mat4 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_MAT4_VALUE))
 
 (defn- attribute-info->particle-attribute-info [^Pointer context attribute-info vertex-attribute-bytes]
   (let [attribute-name-hash (murmur/hash64 (:name attribute-info))
-        attribute-semantic-type (semantic-type->int (:semantic-type attribute-info))
+        attribute-semantic-type (types/semantic-type-pb-int (:semantic-type attribute-info))
         attribute-coordinate-space (coordinate-space->int (:coordinate-space attribute-info))
-        attribute-data-type (data-type->int (:data-type attribute-info))
-        attribute-vector-type (vector-type->int (:vector-type attribute-info))
+        attribute-data-type (types/data-type-pb-int (:data-type attribute-info))
+        attribute-vector-type (types/vector-type-pb-int (:vector-type attribute-info))
         attribute-bytes (attribute-name-key->byte-buffer (:name-key attribute-info) vertex-attribute-bytes)
         attribute-bytes-count (if (nil? attribute-bytes)
                                 0
@@ -216,7 +182,7 @@
     (set! (. particle-attribute-info semanticType) attribute-semantic-type)
     (set! (. particle-attribute-info dataType) attribute-data-type)
     (set! (. particle-attribute-info vectorType) attribute-vector-type)
-    (set! (. particle-attribute-info stepFunction) (vertex-step-function->int (:step-function attribute-info)))
+    (set! (. particle-attribute-info stepFunction) (types/vertex-step-function-pb-int (:step-function attribute-info)))
     (set! (. particle-attribute-info coordinateSpace) attribute-coordinate-space)
     (set! (. particle-attribute-info valuePtr) context-attribute-scratch-ptr)
     (set! (. particle-attribute-info valueVectorType) attribute-vector-type)

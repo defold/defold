@@ -208,8 +208,13 @@
 
        (zero? (rem input-float-count input-component-count))
        (let [attribute-buffer-data (make-attribute-float-buffer input-floats input-component-count output-component-count output-component-fill)
-             attribute-buffer-request-id (conj mesh-request-id input-floats-pb-field)]
-         (gl.buffer/make-attribute-buffer attribute-buffer-request-id attribute-buffer-data :static))
+             attribute-buffer-request-id (conj mesh-request-id input-floats-pb-field)
+             attribute-vector-type (case output-component-count
+                                     1 :vector-type-scalar
+                                     2 :vector-type-vec2
+                                     3 :vector-type-vec3
+                                     4 :vector-type-vec4)]
+         (gl.buffer/make-attribute-buffer attribute-buffer-request-id attribute-buffer-data attribute-vector-type :static))
 
        :else
        (g/error-fatal
@@ -251,19 +256,19 @@
         texcoord1-component-count (int (:num-texcoord1-components mesh 0))
         positions (make-attribute-buffer mesh-request-id mesh :positions 3 4 1.0)
         normals (make-attribute-buffer mesh-request-id mesh :normals 3 4 0.0)
-        tangents (make-attribute-buffer mesh-request-id mesh :tangents 4 4 1.0)
-        colors (make-attribute-buffer mesh-request-id mesh :colors 4 4 1.0)
+        tangents (make-attribute-buffer mesh-request-id mesh :tangents 4)
+        colors (make-attribute-buffer mesh-request-id mesh :colors 4)
         texcoord0s (make-attribute-buffer mesh-request-id mesh :texcoord0 texcoord0-component-count)
         texcoord1s (make-attribute-buffer mesh-request-id mesh :texcoord1 texcoord1-component-count)
         indices (make-index-buffer mesh-request-id mesh :indices)]
     (g/precluding-errors
       [positions normals tangents colors texcoord0s texcoord1s indices]
-      (let [position-count (gl.buffer/vertex-count positions 4)
-            normal-count (gl.buffer/vertex-count normals 4)
-            tangent-count (gl.buffer/vertex-count tangents 4)
-            color-count (gl.buffer/vertex-count colors 4)
-            texcoord0-count (gl.buffer/vertex-count texcoord0s texcoord0-component-count)
-            texcoord1-count (gl.buffer/vertex-count texcoord1s texcoord1-component-count)
+      (let [position-count (gl.buffer/vertex-count positions)
+            normal-count (gl.buffer/vertex-count normals)
+            tangent-count (gl.buffer/vertex-count tangents)
+            color-count (gl.buffer/vertex-count colors)
+            texcoord0-count (gl.buffer/vertex-count texcoord0s)
+            texcoord1-count (gl.buffer/vertex-count texcoord1s)
             max-index (if (nil? indices)
                         -1
                         (->> indices

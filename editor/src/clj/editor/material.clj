@@ -21,6 +21,7 @@
             [editor.gl.shader :as shader]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
+            [editor.graphics.types :as graphics.types]
             [editor.pipeline.shader-gen :as shader-gen]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
@@ -353,8 +354,8 @@
         old-normalize (:normalize old-attribute)
         new-vector-type (:vector-type new-attribute)
         new-normalize (:normalize new-attribute)]
-    (assert (graphics/vector-type? old-vector-type))
-    (assert (graphics/vector-type? new-vector-type))
+    (assert (graphics.types/vector-type? old-vector-type))
+    (assert (graphics.types/vector-type? new-vector-type))
     (cond
       ;; If an attribute changes from a non-normalized value to a normalized one
       ;; or vice versa, attempt to remap the value range. Note that we cannot do

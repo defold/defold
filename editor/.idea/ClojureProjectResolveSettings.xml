@@ -11,6 +11,7 @@
     <item key="editor.git-test/with-git" resolves-as="clojure.core/let" />
     <item key="util.defonce/record" resolves-as="clojure.core/defrecord" />
     <item key="editor.git-test/with-new-git" resolves-as="clojure.core/def" />
+    <item key="util.fn/defamong" resolves-as="clojure.core/def" />
     <item key="editor.editor-extensions.runtime/lua-fn" resolves-as="clojure.core/fn" />
     <item key="editor.ui/with-controls" resolves-as="clojure.core/fn" />
     <item key="dynamo.graph/deftype" resolves-as="clojure.core/def" />

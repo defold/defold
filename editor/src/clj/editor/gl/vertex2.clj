@@ -18,6 +18,7 @@
             [editor.gl :as gl]
             [editor.gl.protocols :refer [GlBind]]
             [editor.gl.shader :as shader]
+            [editor.graphics.types :as types]
             [editor.protobuf :as protobuf]
             [editor.scene-cache :as scene-cache]
             [util.coll :as coll]
@@ -300,14 +301,13 @@
     (gl/gl-disable-vertex-attrib-array gl location)))
 
 (defn vertex-attribute->row-column-count [vertex-attribute]
-  (case (:vector-type vertex-attribute)
-    :vector-type-mat2 2
-    :vector-type-mat3 3
-    :vector-type-mat4 4
-    (case (long (:components vertex-attribute -1))
-      9 3
-      16 4
-      nil)))
+  (let [vector-type-row-column-count (types/vector-type-row-column-count (:vector-type vertex-attribute))]
+    (if (pos? vector-type-row-column-count)
+      vector-type-row-column-count
+      (case (long (:components vertex-attribute -1))
+        9 3
+        16 4
+        nil))))
 
 ;; Takes a list of vertex attribute and a matching list of its attribute locations
 ;; and expands these if the attribute vector type is a matrix.

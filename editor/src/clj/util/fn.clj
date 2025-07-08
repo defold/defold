@@ -332,3 +332,20 @@
                      (when (seq calls#)
                        [(deref var#) calls#]))))
            binding-map#)))
+
+(defmacro among-values-case-expr
+  "Given a sequence of valid-values and a checked-value, returns a case
+  expression that returns for the valid-values and false otherwise."
+  [valid-values checked-value]
+  `(case ~checked-value
+     ~(seq (eval valid-values)) true
+     false))
+
+(defmacro defamong
+  "Defines a top-level single-argument function that returns true for the
+  provided valid-values, and false otherwise. The valid-values must be a
+  compile-time expression, since the predicate argument is checked against the
+  valid-values in a case expression."
+  [name valid-values]
+  `(defn ~name [~'value]
+     (among-values-case-expr ~valid-values ~'value)))
