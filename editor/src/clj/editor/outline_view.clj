@@ -18,6 +18,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.icons :as icons]
+            [editor.keymap :as keymap]
             [editor.menu-items :as menu-items]
             [editor.outline :as outline]
             [editor.resource :as resource]
@@ -32,7 +33,7 @@
            [javafx.scene.control ScrollBar SelectionMode TreeItem TreeView ToggleButton Label TextField]
            [javafx.scene.image ImageView]
            [javafx.scene.input Clipboard DataFormat DragEvent MouseEvent TransferMode]
-           [javafx.scene.layout AnchorPane HBox]
+           [javafx.scene.layout AnchorPane HBox Priority]
            [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
@@ -478,18 +479,21 @@
 
 (defn- set-editing-id!
   [^TreeView tree-view node-id]
-  (ui/user-data! tree-view ::editing-id node-id)
-  (.refresh tree-view))
+  (doto tree-view
+    (ui/user-data! ::editing-id node-id)
+    (.refresh)
+    (.requestFocus)))
 
 (defn- activate-editing!
   [^Label label ^TextField text-field]
   (when-let [id (-> (ui/user-data text-field ::node-id)
                     (g/maybe-node-value :id))]
-    (.setText text-field id)
     (.setVisible label false)
-    (.setVisible text-field true)
-    (.requestFocus text-field)
-    (.selectAll text-field)))
+    (doto text-field
+      (.setText id)
+      (.setVisible true)
+      (.requestFocus)
+      (.selectAll))))
 
 (defn- deactivate-editing!
   [^Label label ^TextField text-field]
@@ -505,20 +509,18 @@
     (set-editing-id! tree-view nil)))
 
 (defn- click-handler!
-  [^TreeView tree-view ^Label text-label ^MouseEvent event]
+  [^Label text-label ^MouseEvent event]
   (let [current-click-time (System/currentTimeMillis)
         last-click-time (or (ui/user-data text-label ::last-click-time) 0)
         time-diff (- current-click-time last-click-time)]
     (.consume event)
-    (when (ui/user-data tree-view ::editing-id)
-      (set-editing-id! tree-view nil))
     (ui/user-data! text-label ::last-click-time current-click-time)
     (cond
-      (< time-diff 500) (ui/run-command (.getSource event) :file.open-selected)
-      (< time-diff 1500) (ui/run-command (.getSource event) :node.rename)
+      (< time-diff 350) (ui/run-command (.getSource event) :file.open-selected)
+      (< time-diff 900) (ui/run-command (.getSource event) :node.rename)
       :else nil)))
 
-(handler/defhandler :node.rename :global
+(handler/defhandler :node.rename :outline
   (active? [selection] (= 1 (count selection)))
   (run [outline-view]
        (when-let [^TreeView tree-view (g/maybe-node-value outline-view :raw-tree-view)]
@@ -547,12 +549,20 @@
                      (.setVisible false)
                      (ui/customize! update-fn cancel-fn)
                      (AnchorPane/setLeftAnchor 0.0)
-                     (AnchorPane/setRightAnchor 0.0))
-        _ (.addEventFilter text-label MouseEvent/MOUSE_CLICKED (ui/event-handler e (click-handler! tree-view text-label e)))
+                     (AnchorPane/setRightAnchor 0.0)
+                     (ui/on-action! update-fn)
+                     (ui/on-cancel! cancel-fn)
+                     (ui/auto-commit! update-fn)
+                     (ui/on-focus! (fn [got-focus] (when-not got-focus
+                                                     (set-editing-id! tree-view nil)))))
+        _ (.addEventFilter text-label MouseEvent/MOUSE_CLICKED (ui/event-handler e (click-handler! text-label e)))
         label-pane (doto (AnchorPane. (ui/node-array [text-label text-field]))
-                     (ui/add-style! "anchor-pane"))
+                     (ui/add-style! "anchor-pane")
+                     (HBox/setHgrow Priority/ALWAYS))
         h-box (doto (HBox. 5 (ui/node-array [image-view-icon label-pane]))
-                (ui/add-style! "h-box"))
+                (ui/add-style! "h-box")
+                (AnchorPane/setLeftAnchor 0.0)
+                (AnchorPane/setRightAnchor 0.0))
         pane (doto (AnchorPane. (ui/node-array [h-box visibility-button]))
                (ui/add-style! "anchor-pane"))
         _ (add-scroll-listeners! visibility-button tree-view)
@@ -636,7 +646,10 @@
 
 (defn- setup-tree-view [project ^TreeView tree-view outline-view app-view]
   (let [drag-entered-handler (ui/event-handler e (drag-entered project outline-view e))
-        drag-exited-handler (ui/event-handler e (drag-exited e))]
+        drag-exited-handler (ui/event-handler e (drag-exited e))
+        keymap (g/node-value app-view :keymap)
+        rename-shortcuts (keymap/shortcuts keymap :node.rename)]
+    (println rename-shortcuts)
     (doto tree-view
       (ui/customize-tree-view! {:double-click-expand? true})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
@@ -646,9 +659,11 @@
       (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
       (ui/observe-selection #(propagate-selection %2 app-view))
       (ui/register-context-menu ::outline-menu)
-      (ui/bind-key-commands! {"Enter" :file.open-selected})
-      (ui/context! :outline {} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
-                                                                     resource/Resource :link}))))
+      (ui/bind-key-commands! (cond-> {"Enter" :file.open-selected}
+                               (some #(= "F2" (.toString %)) rename-shortcuts)
+                               (assoc "F2" :node.rename)))
+      (ui/context! :outline {:outline-view outline-view} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
+                                                                                               resource/Resource :link}))))
 
 (defn make-outline-view [view-graph project tree-view app-view]
   (let [outline-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph OutlineView :raw-tree-view tree-view))))]
