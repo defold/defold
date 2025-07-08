@@ -541,9 +541,8 @@
   [^TreeView tree-view]
   (let [selection-model (.getSelectionModel tree-view)
         selected-items (.getSelectedItems selection-model)
-        ^TreeItem selected-item (first selected-items)
-         item (.getValue selected-item)]
-    (:node-id item)))
+        ^TreeItem selected-item (first selected-items)]
+    (item->node-id selected-item)))
 
 (handler/defhandler :node.rename :outline
   (active? [selection outline-view]
