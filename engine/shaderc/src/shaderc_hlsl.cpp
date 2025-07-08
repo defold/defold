@@ -86,7 +86,7 @@ namespace dmShaderc
         return 0;
     }
 
-    static void FillResourceEntryArray(HShaderContext context, ID3D12ShaderReflection* hlsl_reflection, D3D12_SHADER_DESC* shaderDesc, dmArray<CombinedSampler>& combined_samplers, dmArray<HLSLResourceEntry>& resource_entries)
+    static void FillResourceEntryArray(HShaderContext context, ID3D12ShaderReflection* hlsl_reflection, D3D12_SHADER_DESC* shaderDesc, dmArray<CombinedSampler>& combined_samplers, dmArray<HLSLResourceMapping>& resource_entries)
     {
         for (uint32_t i = 0; i < shaderDesc->BoundResources; ++i)
         {
@@ -94,7 +94,7 @@ namespace dmShaderc
             hlsl_reflection->GetResourceBindingDesc(i, &bindDesc);
 
             dmhash_t resource_name_hash = dmHashString64(bindDesc.Name);
-            memset(&resource_entries[i], 0, sizeof(HLSLResourceEntry));
+            memset(&resource_entries[i], 0, sizeof(HLSLResourceMapping));
             resource_entries[i].m_Name     = bindDesc.Name;
             resource_entries[i].m_NameHash = resource_name_hash;
 
@@ -134,8 +134,8 @@ namespace dmShaderc
             {
                 dmLogInfo("Found resource %s (set=%d, binding=%d)", bindDesc.Name, resource->m_Set, resource->m_Binding);
 
-                resource_entries[i].m_Set     = resource->m_Set;
-                resource_entries[i].m_Binding = resource->m_Binding;
+                resource_entries[i].m_ShaderResourceSet     = resource->m_Set;
+                resource_entries[i].m_ShaderResourceBinding = resource->m_Binding;
             }
             // 3. For compute shaders, we need to deal with this resource separately, since the gl_NumWorkgroups built-in doesn't
             //    exist in HLSL. It will be converted into a cbuffer in hlsl, so we need to keep track of that separately.
@@ -143,8 +143,8 @@ namespace dmShaderc
             {
                 dmLogInfo("Found SPIRV_Cross_NumWorkgroups (binding=%d)", bindDesc.BindPoint);
 
-                resource_entries[i].m_Set     = HLSL_NUM_WORKGROUPS_SET; // note: we set the explicit set decoration in shaderc_spvc.cpp
-                resource_entries[i].m_Binding = bindDesc.BindPoint;
+                resource_entries[i].m_ShaderResourceSet     = HLSL_NUM_WORKGROUPS_SET; // note: we set the explicit set decoration in shaderc_spvc.cpp
+                resource_entries[i].m_ShaderResourceBinding = bindDesc.BindPoint;
             }
             else
             {
@@ -214,7 +214,7 @@ namespace dmShaderc
 
     static void PrintHResultError(HRESULT hr, const char* context)
     {
-        char* msg = nullptr;
+        char* msg = NULL;
 
         FormatMessageA(
             FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -287,8 +287,11 @@ namespace dmShaderc
 
     static bool InjectRootSignatureIntoSource(const char* source, const char* root_signature, dmArray<char>& injected_buffer)
     {
-        const char* markers[] = { "SPIRV_Cross_Output main(", "void main(" };
-        const char* insert_pos = nullptr;
+        const char* insert_pos = NULL;
+        const char* markers[] = {
+            "SPIRV_Cross_Output main(", // VS/FS
+            "void main("                // Compute
+        };
 
         for (int i = 0; i < DM_ARRAY_SIZE(markers) && !insert_pos; ++i)
         {
@@ -296,7 +299,9 @@ namespace dmShaderc
         }
 
         if (!insert_pos)
+        {
             return false;
+        }
 
         size_t prefix_len   = insert_pos - source;
         size_t root_sig_len = strlen(root_signature);
@@ -407,14 +412,14 @@ namespace dmShaderc
 
         result->m_LastError = "";
         result->m_HLSLNumWorkGroupsId = raw_hlsl->m_HLSLNumWorkGroupsId;
-        result->m_HLSLResourceEntries.SetCapacity(shaderDesc.BoundResources);
-        result->m_HLSLResourceEntries.SetSize(shaderDesc.BoundResources);
+        result->m_HLSLResourceMappings.SetCapacity(shaderDesc.BoundResources);
+        result->m_HLSLResourceMappings.SetSize(shaderDesc.BoundResources);
 
         char* write_str = (char*) result->m_Data.Begin();
         memset(write_str, 0, data_size);
         memcpy(write_str, injected_source_buffer.Begin(), data_size);
 
-        FillResourceEntryArray(context, reflection, &shaderDesc, combined_samplers, result->m_HLSLResourceEntries);
+        FillResourceEntryArray(context, reflection, &shaderDesc, combined_samplers, result->m_HLSLResourceMappings);
 
         free(src_data);
 

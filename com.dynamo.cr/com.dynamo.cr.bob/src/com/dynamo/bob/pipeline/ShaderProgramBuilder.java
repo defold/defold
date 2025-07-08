@@ -509,15 +509,13 @@ public class ShaderProgramBuilder extends Builder {
         builder.setShaderType(type);
         builder.setSource(ByteString.copyFrom(result.data));
 
-        if (result.hLSLResourceEntries != null) {
-            for (Shaderc.HLSLResourceEntry entry : result.hLSLResourceEntries) {
-                ShaderDesc.HLSLResourceBinding.Builder hlslResourcesBuilder = ShaderDesc.HLSLResourceBinding.newBuilder();
-
-                hlslResourcesBuilder.setNameHash(entry.nameHash);
-                hlslResourcesBuilder.setBinding(entry.binding);
-                hlslResourcesBuilder.setSet(entry.set);
-
-                builder.addHlslResourceBindings(hlslResourcesBuilder);
+        if (result.hLSLResourceMappings != null) {
+            for (Shaderc.HLSLResourceMapping mapping : result.hLSLResourceMappings) {
+                ShaderDesc.HLSLResourceMapping.Builder hlslResourceMappingBuilder = ShaderDesc.HLSLResourceMapping.newBuilder();
+                hlslResourceMappingBuilder.setNameHash(mapping.nameHash);
+                hlslResourceMappingBuilder.setBinding(mapping.shaderResourceBinding);
+                hlslResourceMappingBuilder.setSet(mapping.shaderResourceSet);
+                builder.addHlslResourceMapping(hlslResourceMappingBuilder);
             }
         }
 
