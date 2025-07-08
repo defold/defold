@@ -190,14 +190,28 @@ public class GameProjectBuilder extends Builder {
 
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
         HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
+        
+        TimeProfiler.start("addFilesToArchive");
+        logger.info("Adding %d files to archive", resources.size());
+        int fileIndex = 0;
         for (IResource resource : resources) {
             String path = resource.getAbsPath();
             EnumSet<Project.OutputFlags> flags = outputs.get(path);
             boolean compress = (flags == null || !flags.contains(Project.OutputFlags.UNCOMPRESSED)) && doCompress;
             boolean encrypt = (flags != null && flags.contains(Project.OutputFlags.ENCRYPTED));
 
+            TimeProfiler.start("addFile");
+            long fileStart = System.currentTimeMillis();
             archiveBuilder.add(path, compress, encrypt);
+            long fileEnd = System.currentTimeMillis();
+            TimeProfiler.stop();
+            
+            fileIndex++;
+            if (fileIndex % 100 == 0 || fileIndex == resources.size()) {
+                logger.info("Added %d/%d files to archive (%.2f ms per file)", fileIndex, resources.size(), (fileEnd - fileStart));
+            }
         }
+        TimeProfiler.stop();
 
         TimeProfiler.addData("resources", resources.size());
         TimeProfiler.addData("excludedResources", excludedResources.size());

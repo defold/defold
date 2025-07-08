@@ -93,10 +93,19 @@ public class ArchiveBuilder {
     }
 
     private void add(String fileName, boolean compress, boolean encrypt, boolean isLiveUpdate) throws IOException {
+        TimeProfiler.start("createArchiveEntry");
         ArchiveEntry e = new ArchiveEntry(root, fileName, compress, encrypt, isLiveUpdate);
+        TimeProfiler.stop();
+        
+        TimeProfiler.start("addToArchive");
         if (lookup.add(e.getRelativeFilename())) {
             entries.add(e);
+            logger.info("Added file to archive: %s (compress: %s, encrypt: %s, liveupdate: %s)", 
+                e.getRelativeFilename(), compress, encrypt, isLiveUpdate);
+        } else {
+            logger.info("Skipped duplicate file: %s", e.getRelativeFilename());
         }
+        TimeProfiler.stop();
     }
 
     public void add(String fileName, boolean compress, boolean encrypt) throws IOException {
@@ -160,11 +169,15 @@ public class ArchiveBuilder {
     }
 
     private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, List<String> excludedResources) throws IOException, CompileExceptionError {
+        TimeProfiler.start("writeArchiveEntry");
+        TimeProfiler.start("loadResourceData");
         byte[] buffer = this.loadResourceData(entry.getFilename());
+        TimeProfiler.stop();
 
         int resourceEntryFlags = 0;
 
         if (entry.isCompressed()) {
+            TimeProfiler.start("compressResourceData");
             // Compress data
             byte[] compressed = this.compressResourceData(buffer);
             if (this.shouldUseCompressedResourceData(buffer, compressed)) {
@@ -173,21 +186,29 @@ public class ArchiveBuilder {
                 entry.setCompressedSize(compressed.length);
                 entry.setFlag(ArchiveEntry.FLAG_COMPRESSED);
                 resourceEntryFlags |= ResourceEntryFlag.COMPRESSED.getNumber();
+                logger.info("Compressed %s: %d -> %d bytes (%.1f%%)", 
+                    entry.getRelativeFilename(), entry.getSize(), compressed.length, 
+                    (double)compressed.length / entry.getSize() * 100);
             } else {
                 entry.setCompressedSize(ArchiveEntry.FLAG_UNCOMPRESSED);
+                logger.info("Skipped compression for %s (ratio > 0.95)", entry.getRelativeFilename());
             }
+            TimeProfiler.stop();
         }
 
         // we need to do this last or the compression won't work as well
         if (entry.isEncrypted()) {
+            TimeProfiler.start("encryptResourceData");
             buffer = this.encryptResourceData(buffer);
             resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
+            TimeProfiler.stop();
         }
 
         // Add entry to manifest
         String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
 
         // Calculate hash digest values for resource
+        TimeProfiler.start("calculateHashDigest");
         String hexDigest = null;
         try {
             byte[] hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
@@ -197,12 +218,14 @@ public class ArchiveBuilder {
         } catch (NoSuchAlgorithmException exception) {
             throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
         }
+        TimeProfiler.stop();
 
         entry.setHexDigest(hexDigest);
         hexDigestCache.put(entry.getRelativeFilename(), hexDigest);
 
         // Write resource to resource pack or data archive
         if (excludedResources.contains(normalisedPath)) {
+            TimeProfiler.start("writeToResourcePack");
             if (this.publisher != null) {
                 byte[] header = ByteBuffer.allocate(16)
                     .putInt(entry.getSize()) // 4 bytes
@@ -213,7 +236,9 @@ public class ArchiveBuilder {
                 this.writeResourcePack(entry, buffer);
             }
             resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
+            TimeProfiler.stop();
         } else {
+            TimeProfiler.start("writeToArchiveData");
             // synchronize on the archive data file so that multiple threads
             // do not write to it at the same time
             synchronized (archiveData) {
@@ -222,11 +247,15 @@ public class ArchiveBuilder {
                 archiveData.write(buffer, 0, buffer.length);
             }
             resourceEntryFlags |= ResourceEntryFlag.BUNDLED.getNumber();
+            TimeProfiler.stop();
         }
 
+        TimeProfiler.start("addToManifest");
         synchronized (manifestBuilder) {
             manifestBuilder.addResourceEntry(normalisedPath, buffer, entry.getSize(), entry.getCompressedSize(), resourceEntryFlags);
         }
+        TimeProfiler.stop();
+        TimeProfiler.stop();
     }
 
     private void writeArchiveIndex(RandomAccessFile archiveIndex) throws IOException {
