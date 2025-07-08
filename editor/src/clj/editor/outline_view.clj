@@ -32,7 +32,7 @@
            [javafx.scene Node]
            [javafx.scene.control ScrollBar SelectionMode TreeItem TreeView ToggleButton Label TextField]
            [javafx.scene.image ImageView]
-           [javafx.scene.input Clipboard DataFormat DragEvent KeyCode KeyEvent MouseEvent TransferMode]
+           [javafx.scene.input Clipboard DataFormat DragEvent KeyCode KeyCodeCombination KeyEvent MouseEvent TransferMode]
            [javafx.scene.layout AnchorPane HBox Priority]
            [javafx.util Callback]))
 
@@ -525,7 +525,7 @@
     (.consume event)
     (ui/user-data! text-label ::last-click-time current-click-time)
     (cond
-      (< time-diff 450) (ui/run-command (.getSource event) :file.open-selected)
+      (< time-diff 400) (ui/run-command (.getSource event) :file.open-selected)
       (< time-diff 900) (ui/run-command (.getSource event) :node.rename)
       :else nil)))
 
@@ -558,6 +558,7 @@
                      (AnchorPane/setLeftAnchor 0.0)
                      (AnchorPane/setRightAnchor 0.0)
                      (ui/on-action! update-fn)
+                     (ui/on-cancel! identity)
                      (ui/auto-commit! update-fn)
                      (ui/on-focus! (fn [got-focus] (when-not got-focus
                                                      (set-editing-id! tree-view nil)))))
@@ -567,8 +568,8 @@
                      (HBox/setHgrow Priority/ALWAYS))
         h-box (doto (HBox. 5 (ui/node-array [image-view-icon label-pane]))
                 (ui/add-style! "h-box")
-                (AnchorPane/setLeftAnchor 0.0)
-                (AnchorPane/setRightAnchor 0.0))
+                (AnchorPane/setRightAnchor 0.0)
+                (AnchorPane/setLeftAnchor 0.0))
         pane (doto (AnchorPane. (ui/node-array [h-box visibility-button]))
                (ui/add-style! "anchor-pane"))
         _ (add-scroll-listeners! visibility-button tree-view)
@@ -650,12 +651,27 @@
       ;; TODO - handle selection order
       (app-view/select! app-view selection))))
 
+(defn key-pressed-handler!
+  [app-view ^TreeView tree-view ^KeyEvent event]
+  (let [keymap (g/node-value app-view :keymap)
+        rename-shortcuts (keymap/shortcuts keymap :node.rename)
+        editing-id (ui/user-data tree-view ::editing-id)]
+    (condp = (.getCode event)
+      KeyCode/ENTER
+      (when-not editing-id
+        (.consume event)
+        (ui/run-command (.getSource event) :file.open-selected))
+
+      KeyCode/F2
+      (when (some #(= "F2" (.toString ^KeyCodeCombination %)) rename-shortcuts)
+        (.consume event)
+        (ui/run-command (.getSource event) :node.rename))
+
+      nil)))
+
 (defn- setup-tree-view [project ^TreeView tree-view outline-view app-view]
   (let [drag-entered-handler (ui/event-handler e (drag-entered project outline-view e))
-        drag-exited-handler (ui/event-handler e (drag-exited e))
-        keymap (g/node-value app-view :keymap)
-        rename-shortcuts (keymap/shortcuts keymap :node.rename)]
-    (println rename-shortcuts)
+        drag-exited-handler (ui/event-handler e (drag-exited e))]
     (doto tree-view
       (ui/customize-tree-view! {:double-click-expand? true})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
@@ -665,12 +681,7 @@
       (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
       (ui/observe-selection #(propagate-selection %2 app-view))
       (ui/register-context-menu ::outline-menu)
-      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (when (= (.getCode event) KeyCode/ESCAPE)
-                                                                      (.consume event)
-                                                                      (set-editing-id! tree-view nil))))
-      (ui/bind-key-commands! (cond-> {"Enter" :file.open-selected}
-                               (some #(= "F2" (.toString %)) rename-shortcuts)
-                               (assoc "F2" :node.rename)))
+      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (key-pressed-handler! app-view tree-view event)))
       (ui/context! :outline {:outline-view outline-view} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
                                                                                                resource/Resource :link}))))
 
