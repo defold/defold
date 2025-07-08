@@ -14,306 +14,164 @@
 
 #include "profile.h"
 
-namespace dmProfile
+void ProfileInitialize()
 {
-    void Initialize(const Options* options)
-    {
-    }
-
-    void Finalize()
-    {
-    }
-
-    bool IsInitialized()
-    {
-        return false;
-    }
-
-    void SetThreadName(const char* name)
-    {
-    }
-
-    HProfile BeginFrame()
-    {
-        return 0;
-    }
-
-    void EndFrame(HProfile profile)
-    {
-    }
-
-    uint64_t GetTicksPerSecond()
-    {
-        return 1000000;
-    }
-
-    void AddCounter(const char* name, uint32_t amount)
-    {
-
-    }
-
-    void LogText(const char* text, ...)
-    {
-    }
-
-    void SetSampleTreeCallback(void* ctx, FSampleTreeCallback callback)
-    {
-    }
-
-    void SetPropertyTreeCallback(void* ctx, FPropertyTreeCallback callback)
-    {
-    }
-
-    void ProfileScopeHelper::StartScope(const char* name, uint64_t* name_hash)
-    {
-    }
-
-    void ProfileScopeHelper::EndScope()
-    {
-    }
-
-    void ScopeBegin(const char* name, uint64_t* name_hash)
-    {
-    }
-
-    void ScopeEnd()
-    {
-    }
-
-    // *******************************************************************
-
-    SampleIterator::SampleIterator()
-    : m_Sample(0)
-    , m_IteratorImpl(0)
-    {
-    }
-
-    SampleIterator::~SampleIterator()
-    {
-    }
-
-    SampleIterator* SampleIterateChildren(HSample sample, SampleIterator* iter)
-    {
-        return iter;
-    }
-
-    bool SampleIterateNext(SampleIterator* iter)
-    {
-        return false;
-    }
-
-    uint32_t SampleGetNameHash(HSample sample)
-    {
-        return 0;
-    }
-
-    const char* SampleGetName(HSample sample)
-    {
-        return 0;
-    }
-
-    uint64_t SampleGetStart(HSample sample)
-    {
-        return 0;
-    }
-
-    uint64_t SampleGetTime(HSample sample)
-    {
-        return 0;
-    }
-
-    uint64_t SampleGetSelfTime(HSample sample)
-    {
-        return 0;
-    }
-
-    uint32_t SampleGetCallCount(HSample sample)
-    {
-        return 0;
-    }
-
-    uint32_t SampleGetColor(HSample sample)
-    {
-        return 0;
-    }
-
-
-    // *******************************************************************
-
-    PropertyIterator::PropertyIterator()
-    : m_Property(0)
-    , m_IteratorImpl(0)
-    {
-    }
-
-    PropertyIterator::~PropertyIterator()
-    {
-    }
-
-    PropertyIterator* PropertyIterateChildren(HProperty property, PropertyIterator* iter)
-    {
-        return iter;
-    }
-
-    bool PropertyIterateNext(PropertyIterator* iter)
-    {
-        return false;
-    }
-
-    // Property accessors
-
-    uint32_t PropertyGetNameHash(HProperty hproperty)
-    {
-        return 0;
-    }
-
-    const char* PropertyGetName(HProperty hproperty)
-    {
-        return 0;
-    }
-
-    const char* PropertyGetDesc(HProperty hproperty)
-    {
-        return 0;
-    }
-
-    PropertyType PropertyGetType(HProperty hproperty)
-    {
-        return PROPERTY_TYPE_GROUP;
-    }
-
-    PropertyValue PropertyGetValue(HProperty hproperty)
-    {
-        PropertyValue out = {};
-        return out;
-    }
-
-    // *******************************************************************
-
-
-} // namespace dmProfile
-
-
-dmProfileIdx dmProfileCreatePropertyGroup(const char* name, const char* desc, dmProfileIdx* (*parent)())
-{
-    return DM_PROFILE_PROPERTY_INVALID_IDX;
 }
 
-dmProfileIdx dmProfileCreatePropertyBool(const char* name, const char* desc, int value, uint32_t flags, dmProfileIdx* (*parent)())
+void ProfileFinalize()
 {
-    return DM_PROFILE_PROPERTY_INVALID_IDX;
 }
 
-dmProfileIdx dmProfileCreatePropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, dmProfileIdx* (*parent)())
+bool ProfileIsInitialized()
 {
-    return DM_PROFILE_PROPERTY_INVALID_IDX;
+    return false;
 }
 
-dmProfileIdx dmProfileCreatePropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, dmProfileIdx* (*parent)())
+void ProfileSetThreadName(const char* name)
 {
-    return DM_PROFILE_PROPERTY_INVALID_IDX;
 }
 
-dmProfileIdx dmProfileCreatePropertyF32(const char* name, const char* desc, float value, uint32_t flags, dmProfileIdx* (*parent)())
+HProfile ProfileFrameBegin()
 {
-    return DM_PROFILE_PROPERTY_INVALID_IDX;
+    return 0;
 }
 
-dmProfileIdx dmProfileCreatePropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, dmProfileIdx* (*parent)())
+void ProfileFrameEnd(HProfile profile)
 {
-    return DM_PROFILE_PROPERTY_INVALID_IDX;
 }
 
-dmProfileIdx dmProfileCreatePropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, dmProfileIdx* (*parent)())
+void ProfileScopeBegin(const char* name, uint64_t* name_hash)
 {
-    return DM_PROFILE_PROPERTY_INVALID_IDX;
 }
 
-dmProfileIdx dmProfileCreatePropertyF64(const char* name, const char* desc, double value, uint32_t flags, dmProfileIdx* (*parent)())
+void ProfileScopeEnd(const char* name, uint64_t name_hash)
 {
-    return DM_PROFILE_PROPERTY_INVALID_IDX;
 }
 
-void dmProfilePropertySetBool(dmProfileIdx idx, int v)
+void ProfileLogText(const char* text, ...)
+{
+}
+
+void ProfilePropertySetBool(ProfileIdx idx, int v)
 {
     (void)idx;
     (void)v;
 }
 
-void dmProfilePropertySetS32(dmProfileIdx idx, int32_t v)
+void ProfilePropertySetS32(ProfileIdx idx, int32_t v)
 {
     (void)idx;
     (void)v;
 }
 
-void dmProfilePropertySetU32(dmProfileIdx idx, uint32_t v)
+void ProfilePropertySetU32(ProfileIdx idx, uint32_t v)
 {
     (void)idx;
     (void)v;
 }
 
-void dmProfilePropertySetF32(dmProfileIdx idx, float v)
+void ProfilePropertySetF32(ProfileIdx idx, float v)
 {
     (void)idx;
     (void)v;
 }
 
-void dmProfilePropertySetS64(dmProfileIdx idx, int64_t v)
+void ProfilePropertySetS64(ProfileIdx idx, int64_t v)
 {
     (void)idx;
     (void)v;
 }
 
-void dmProfilePropertySetU64(dmProfileIdx idx, uint64_t v)
+void ProfilePropertySetU64(ProfileIdx idx, uint64_t v)
 {
     (void)idx;
     (void)v;
 }
 
-void dmProfilePropertySetF64(dmProfileIdx idx, double v)
+void ProfilePropertySetF64(ProfileIdx idx, double v)
 {
     (void)idx;
     (void)v;
 }
 
-void dmProfilePropertyAddS32(dmProfileIdx idx, int32_t v)
+void ProfilePropertyAddS32(ProfileIdx idx, int32_t v)
 {
     (void)idx;
     (void)v;
 }
 
-void dmProfilePropertyAddU32(dmProfileIdx idx, uint32_t v)
+void ProfilePropertyAddU32(ProfileIdx idx, uint32_t v)
 {
     (void)idx;
     (void)v;
 }
 
-void dmProfilePropertyAddF32(dmProfileIdx idx, float v)
+void ProfilePropertyAddF32(ProfileIdx idx, float v)
 {
     (void)idx;
     (void)v;
 }
 
-void dmProfilePropertyAddS64(dmProfileIdx idx, int64_t v)
+void ProfilePropertyAddS64(ProfileIdx idx, int64_t v)
 {
     (void)idx;
     (void)v;
 }
 
-void dmProfilePropertyAddU64(dmProfileIdx idx, uint64_t v)
+void ProfilePropertyAddU64(ProfileIdx idx, uint64_t v)
 {
     (void)idx;
     (void)v;
 }
 
-void dmProfilePropertyAddF64(dmProfileIdx idx, double v)
+void ProfilePropertyAddF64(ProfileIdx idx, double v)
 {
     (void)idx;
     (void)v;
 }
 
-void dmProfilePropertyReset(dmProfileIdx idx)
+void ProfilePropertyReset(ProfileIdx idx)
 {
     (void)idx;
 }
 
+
+ProfileIdx ProfileRegisterPropertyGroup(const char* name, const char* desc, ProfileIdx* (*parentfn)())
+{
+    return PROFILE_PROPERTY_INVALID_IDX;
+}
+
+ProfileIdx ProfileRegisterPropertyBool(const char* name, const char* desc, int value, uint32_t flags, ProfileIdx* (*parentfn)())
+{
+    return PROFILE_PROPERTY_INVALID_IDX;
+}
+
+ProfileIdx ProfileRegisterPropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, ProfileIdx* (*parentfn)())
+{
+    return PROFILE_PROPERTY_INVALID_IDX;
+}
+
+ProfileIdx ProfileRegisterPropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, ProfileIdx* (*parentfn)())
+{
+    return PROFILE_PROPERTY_INVALID_IDX;
+}
+
+ProfileIdx ProfileRegisterPropertyF32(const char* name, const char* desc, float value, uint32_t flags, ProfileIdx* (*parentfn)())
+{
+    return PROFILE_PROPERTY_INVALID_IDX;
+}
+
+ProfileIdx ProfileRegisterPropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, ProfileIdx* (*parentfn)())
+{
+    return PROFILE_PROPERTY_INVALID_IDX;
+}
+
+ProfileIdx ProfileRegisterPropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, ProfileIdx* (*parentfn)())
+{
+    return PROFILE_PROPERTY_INVALID_IDX;
+}
+
+ProfileIdx ProfileRegisterPropertyF64(const char* name, const char* desc, double value, uint32_t flags, ProfileIdx* (*parentfn)())
+{
+    return PROFILE_PROPERTY_INVALID_IDX;
+}

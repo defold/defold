@@ -222,7 +222,7 @@ def build(bld):
     libprofile_null = bld.stlib(features     = libprofile_features,
                                 includes     = libprofile_includes,
                                 defines      = libprofile_defines,
-                                source       = 'dlib/profile/profile.cpp dlib/profile/profile_null.cpp',
+                                source       = 'dlib/profile/profile_null.cpp',
                                 target       = 'profile_null')
 
     libprofile_null_noasan = bld.stlib(features     = libprofile_null.features + ['skip_asan'],
@@ -231,34 +231,20 @@ def build(bld):
                                        target       = 'profile_null_noasan')
     libprofile_null_noasan.source = libprofile_null.source
 
-    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'wasm_pthread-web'):
-        libprofile_js = bld.stlib(features   = libprofile_features,
-                                  includes     = libprofile_includes,
-                                  defines      = libprofile_defines,
-                                  source       = 'dlib/profile/profile.cpp dlib/profile/profile_js.cpp',
-                                  target       = 'profile_js')
+    #if bld.env['PLATFORM'] not in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'js-web', 'wasm-web', 'wasm_pthread-web'):
+    libprofile_includes = '. ./dlib/profile ./remotery'
+    libprofile = bld.stlib(features     = libprofile_features,
+                           includes     = libprofile_includes,
+                           defines      = libprofile_defines,
+                           #source       = ['dlib/profile/profile.cpp', 'dlib/profile/profile_remotery.cpp'],
+                           source       = ['dlib/profile/profile.cpp'],
+                           target       = 'profile')
 
-    if bld.env['PLATFORM'] not in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'js-web', 'wasm-web', 'wasm_pthread-web'):
-        libprofile_includes = '. ./dlib/profile ./remotery'
-        libprofile = bld.stlib(features     = libprofile_features,
-                               includes     = libprofile_includes,
-                               defines      = libprofile_defines,
-                               source       = ['dlib/profile/profile.cpp', 'dlib/profile/profile_remotery.cpp'],
-                               target       = 'profile')
-
-        libprofile_noasan = bld.stlib(features     = libprofile.features + ['skip_asan'],
-                                      includes     = libprofile.includes,
-                                      defines      = libprofile.defines,
-                                      target       = 'profile_noasan')
-        libprofile_noasan.source = libprofile.source
-    else:
-        # defold version
-        libprofile_basic = bld.stlib(features   = libprofile_features,
-                                    includes     = libprofile_includes,
-                                    defines      = libprofile_defines,
-                                    source       = 'dlib/profile/profile.cpp dlib/profile/profile_basic.cpp',
-                                    target       = 'profile_basic')
-
+    libprofile_noasan = bld.stlib(features     = libprofile.features + ['skip_asan'],
+                                  includes     = libprofile.includes,
+                                  defines      = libprofile.defines,
+                                  target       = 'profile_noasan')
+    libprofile_noasan.source = libprofile.source
 
     # ******************************************************************
 
@@ -305,7 +291,7 @@ def build(bld):
                                 includes = '. ./mbedtls/include ./mbedtls/crypto/include',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
-                                use = ['SOCKET', 'PROFILE_NULL_NOASAN', 'mbedtls_noasan', 'zip_noasan'])
+                                use = ['SOCKET', 'profile_null_noasan', 'mbedtls_noasan', 'zip_noasan'])
 
         dlib_shared.source = [x for x in dlib.source]
 

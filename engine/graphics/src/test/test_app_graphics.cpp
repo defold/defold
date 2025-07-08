@@ -542,8 +542,8 @@ static UpdateResult EngineUpdate(void* _engine)
     EngineCtx* engine = (EngineCtx*)_engine;
     engine->m_WasRun++;
     uint64_t t = dmTime::GetMonotonicTime();
-    float elapsed = (t - engine->m_TimeStart) / 1000000.0f;
     /*
+    float elapsed = (t - engine->m_TimeStart) / 1000000.0f;
     if (elapsed > 3.0f)
         return RESULT_EXIT;
     */

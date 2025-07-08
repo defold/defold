@@ -413,7 +413,7 @@ namespace dmProfileRender
                 uint32_t color_index = (property.m_NameHash >> 6) & 0x1f;
                 HslToRgb2(color_index / 31.0f, 1.0f, 0.65f, col);
 
-                if (property.m_Type == dmProfile::PROPERTY_TYPE_GROUP)
+                if (property.m_Type == PROFILE_PROPERTY_TYPE_GROUP)
                     params.m_FaceColor = Vector4(col[0], col[1], col[2], 1.0f);
                 else
                     params.m_FaceColor = Vector4(1.0f);
@@ -438,14 +438,14 @@ namespace dmProfileRender
 
                 switch(property.m_Type)
                 {
-                case dmProfile::PROPERTY_TYPE_BOOL:  dmSnPrintf(buffer, sizeof(buffer), "%s", property.m_Value.m_Bool?"True":"False"); break;
-                case dmProfile::PROPERTY_TYPE_S32:   dmSnPrintf(buffer, sizeof(buffer), "%d", property.m_Value.m_S32); break;
-                case dmProfile::PROPERTY_TYPE_U32:   dmSnPrintf(buffer, sizeof(buffer), "%u", property.m_Value.m_U32); break;
-                case dmProfile::PROPERTY_TYPE_F32:   dmSnPrintf(buffer, sizeof(buffer), "%f", property.m_Value.m_F32); break;
-                case dmProfile::PROPERTY_TYPE_S64:   dmSnPrintf(buffer, sizeof(buffer), "%lld", (long long)property.m_Value.m_S64); break;
-                case dmProfile::PROPERTY_TYPE_U64:   dmSnPrintf(buffer, sizeof(buffer), "%llx", (unsigned long long)property.m_Value.m_U64); break;
-                case dmProfile::PROPERTY_TYPE_F64:   dmSnPrintf(buffer, sizeof(buffer), "%g", property.m_Value.m_F64); break;
-                case dmProfile::PROPERTY_TYPE_GROUP: dmSnPrintf(buffer, sizeof(buffer), ""); break;
+                case PROFILE_PROPERTY_TYPE_BOOL:  dmSnPrintf(buffer, sizeof(buffer), "%s", property.m_Value.m_Bool?"True":"False"); break;
+                case PROFILE_PROPERTY_TYPE_S32:   dmSnPrintf(buffer, sizeof(buffer), "%d", property.m_Value.m_S32); break;
+                case PROFILE_PROPERTY_TYPE_U32:   dmSnPrintf(buffer, sizeof(buffer), "%u", property.m_Value.m_U32); break;
+                case PROFILE_PROPERTY_TYPE_F32:   dmSnPrintf(buffer, sizeof(buffer), "%f", property.m_Value.m_F32); break;
+                case PROFILE_PROPERTY_TYPE_S64:   dmSnPrintf(buffer, sizeof(buffer), "%lld", (long long)property.m_Value.m_S64); break;
+                case PROFILE_PROPERTY_TYPE_U64:   dmSnPrintf(buffer, sizeof(buffer), "%llx", (unsigned long long)property.m_Value.m_U64); break;
+                case PROFILE_PROPERTY_TYPE_F64:   dmSnPrintf(buffer, sizeof(buffer), "%g", property.m_Value.m_F64); break;
+                case PROFILE_PROPERTY_TYPE_GROUP: dmSnPrintf(buffer, sizeof(buffer), ""); break;
                 default: break;
                 }
 
@@ -618,7 +618,7 @@ namespace dmProfileRender
     HRenderProfile NewRenderProfile(float fps)
     {
         const uint32_t LIFETIME_IN_MILLISECONDS = 6000u;
-        return new RenderProfile(fps, dmProfile::GetTicksPerSecond(), LIFETIME_IN_MILLISECONDS);
+        return new RenderProfile(fps, 1000000.0f, LIFETIME_IN_MILLISECONDS);
     }
 
     static ProfilerThread* GetSelectedThread(HRenderProfile render_profile, ProfilerFrame* frame)
@@ -852,7 +852,7 @@ namespace dmProfileRender
         }
     }
 
-    void AddProperty(ProfilerFrame* frame, uint32_t name_hash, dmProfile::PropertyType type, dmProfile::PropertyValue value, int indent)
+    void AddProperty(ProfilerFrame* frame, uint32_t name_hash, ProfilePropertyType type, ProfilePropertyValue value, int indent)
     {
         ProfilerProperty prop;
         prop.m_NameHash = name_hash;
@@ -904,14 +904,14 @@ namespace dmProfileRender
             char buffer[128];
             switch(property.m_Type)
             {
-            case dmProfile::PROPERTY_TYPE_BOOL:  dmSnPrintf(buffer, sizeof(buffer), "%s", property.m_Value.m_Bool?"True":"False"); break;
-            case dmProfile::PROPERTY_TYPE_S32:   dmSnPrintf(buffer, sizeof(buffer), "%d", property.m_Value.m_S32); break;
-            case dmProfile::PROPERTY_TYPE_U32:   dmSnPrintf(buffer, sizeof(buffer), "%u", property.m_Value.m_U32); break;
-            case dmProfile::PROPERTY_TYPE_F32:   dmSnPrintf(buffer, sizeof(buffer), "%f", property.m_Value.m_F32); break;
-            case dmProfile::PROPERTY_TYPE_S64:   dmSnPrintf(buffer, sizeof(buffer), "%lld", (long long)property.m_Value.m_S64); break;
-            case dmProfile::PROPERTY_TYPE_U64:   dmSnPrintf(buffer, sizeof(buffer), "%llx", (unsigned long long)property.m_Value.m_U64); break;
-            case dmProfile::PROPERTY_TYPE_F64:   dmSnPrintf(buffer, sizeof(buffer), "%g", property.m_Value.m_F64); break;
-            case dmProfile::PROPERTY_TYPE_GROUP: dmSnPrintf(buffer, sizeof(buffer), ""); break;
+            case PROFILE_PROPERTY_TYPE_BOOL:  dmSnPrintf(buffer, sizeof(buffer), "%s", property.m_Value.m_Bool?"True":"False"); break;
+            case PROFILE_PROPERTY_TYPE_S32:   dmSnPrintf(buffer, sizeof(buffer), "%d", property.m_Value.m_S32); break;
+            case PROFILE_PROPERTY_TYPE_U32:   dmSnPrintf(buffer, sizeof(buffer), "%u", property.m_Value.m_U32); break;
+            case PROFILE_PROPERTY_TYPE_F32:   dmSnPrintf(buffer, sizeof(buffer), "%f", property.m_Value.m_F32); break;
+            case PROFILE_PROPERTY_TYPE_S64:   dmSnPrintf(buffer, sizeof(buffer), "%lld", (long long)property.m_Value.m_S64); break;
+            case PROFILE_PROPERTY_TYPE_U64:   dmSnPrintf(buffer, sizeof(buffer), "%llx", (unsigned long long)property.m_Value.m_U64); break;
+            case PROFILE_PROPERTY_TYPE_F64:   dmSnPrintf(buffer, sizeof(buffer), "%g", property.m_Value.m_F64); break;
+            case PROFILE_PROPERTY_TYPE_GROUP: dmSnPrintf(buffer, sizeof(buffer), ""); break;
             default: break;
             }
 

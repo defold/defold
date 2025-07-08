@@ -472,7 +472,7 @@ static rmtProperty* GetPropertyFromIdx(dmProfileIdx idx)
 }
 
 #define GET_PROP_AND_CHECK(IDX) \
-    if (!dmProfile::IsInitialized()) \
+    if (!ProfileIsInitialized()) \
         return; \
     if (idx == DM_PROFILE_PROPERTY_INVALID_IDX) \
         return; \

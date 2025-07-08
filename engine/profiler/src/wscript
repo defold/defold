@@ -8,7 +8,7 @@ def configure(conf):
 def build(bld):
     embed_source = ''
 
-    source = 'profiler.cpp profile_render.cpp'
+    source = 'profiler.cpp profile/profile_render.cpp profile/profile_basic.cpp'
     source_null = 'profiler_null.cpp'
 
     if 'macos' in bld.env.PLATFORM or 'ios' in bld.env.PLATFORM:

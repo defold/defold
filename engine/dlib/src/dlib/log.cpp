@@ -340,7 +340,7 @@ static void DoLogSynchronized(LogSeverity severity, const char* domain, const ch
         g_Listeners[i]((LogSeverity)severity, domain, output);
     }
 
-    dmProfile::LogText("%s", output);
+    ProfileLogText("%s", output);
 }
 
 static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)

@@ -14,52 +14,529 @@
 
 #include "profile.h"
 #include <stdio.h>
+#include <stdio.h> // vsnprintf
+#include <stdarg.h> // va_start et al
 
-namespace dmProfile
-{
+#include <dlib/atomic.h>
+#include <dlib/dstrings.h>
+#include <dlib/log.h>
+#include <dlib/mutex.h>
 
-// Unit test only
-static void PrintIndent(int indent)
+struct ProfileProperty
 {
-    for (int i = 0; i < indent; ++i) {
-        printf("  ");
-    }
+    const char*             m_Name;
+    const char*             m_Desc;
+    ProfilePropertyValue    m_DefaultValue;
+    uint64_t                m_NameHash;
+    ProfileIdx              m_Idx;
+    ProfileIdx              m_ParentIdx;
+    uint32_t                m_Flags;
+    ProfilePropertyType     m_Type;
+};
+
+// *************************************************************************************************
+// State
+static int32_atomic_t   g_ProfileInitialized = 0;
+static ProfileListener* g_ProfileListeners = 0;
+static dmMutex::HMutex  g_ProfileLock = 0;
+
+// Properties are initialized at global scope, so we put them in a preallocated static array
+// to avoid dynamic allocations or other setup issues
+static int32_atomic_t   g_PropertyInitialized = 0;
+static uint32_t         g_ProfilePropertyCount = 1; // 0 is root!
+static ProfileProperty  g_ProfileProperties[PROFILER_MAX_NUM_PROPERTIES];
+
+// *************************************************************************************************
+// Helpers
+
+static bool IsProfileInitialized()
+{
+    return dmAtomicGet32(&g_ProfileInitialized) != 0;
 }
 
-#if defined(__ANDROID__)
-    #define PROFILE_FMT_U64 "%llu"
-    #define PROFILE_FMT_I64 "%lld"
-#else
-    #include <inttypes.h>
-    #define PROFILE_FMT_U64 "%" PRIu64
-    #define PROFILE_FMT_I64 "%" PRId64
-#endif
+static void CreateRegisteredProperties();
+static void PropertyInitialize();
 
-void PrintProperty(dmProfile::HProperty property, int indent)
+// *************************************************************************************************
+// C api
+
+// *************************************************************************************************
+// Listeners
+
+static void CreateListener(ProfileListener* profiler)
 {
-    const char* name = dmProfile::PropertyGetName(property); // Do not store this pointer!
-    dmProfile::PropertyType type = dmProfile::PropertyGetType(property);
-    dmProfile::PropertyValue value = dmProfile::PropertyGetValue(property);
-
-    PrintIndent(indent); printf("%s: ", name);
-
-    switch(type)
+    if (profiler->m_Create)
     {
-    case dmProfile::PROPERTY_TYPE_BOOL:  printf("%s\n", value.m_Bool?"true":"false"); break;
-    case dmProfile::PROPERTY_TYPE_S32:   printf("%d\n", value.m_S32); break;
-    case dmProfile::PROPERTY_TYPE_U32:   printf("%u\n", value.m_U32); break;
-    case dmProfile::PROPERTY_TYPE_F32:   printf("%f\n", value.m_F32); break;
-    case dmProfile::PROPERTY_TYPE_S64:   printf(PROFILE_FMT_I64 "\n", value.m_S64); break;
-    case dmProfile::PROPERTY_TYPE_U64:   printf(PROFILE_FMT_U64 "\n", value.m_U64); break;
-    case dmProfile::PROPERTY_TYPE_F64:   printf("%g\n", value.m_F64); break;
-    case dmProfile::PROPERTY_TYPE_GROUP: printf("\n"); break;
-    default: break;
+        profiler->m_Ctx = profiler->m_Create();
     }
 }
 
-#undef PROFILE_FMT_I64
-#undef PROFILE_FMT_U64
+static void CreateProperty(ProfileListener* profiler, ProfileProperty* prop)
+{
+    #define CREATE_TYPE(STRTYPE) if (profiler->m_CreateProperty ## STRTYPE ) profiler->m_CreateProperty ## STRTYPE (profiler->m_Ctx, prop->m_Name, prop->m_Desc, prop->m_DefaultValue.m_ ## STRTYPE, prop->m_Flags, prop->m_Idx, prop->m_ParentIdx)
 
-// end unit test
+    switch(prop->m_Type)
+    {
+    case PROFILE_PROPERTY_TYPE_GROUP:   if (profiler->m_CreatePropertyGroup) profiler->m_CreatePropertyGroup(profiler->m_Ctx, prop->m_Name, prop->m_Desc, prop->m_Idx, prop->m_ParentIdx); break;
+    case PROFILE_PROPERTY_TYPE_U32:     CREATE_TYPE(U32); break;
+    case PROFILE_PROPERTY_TYPE_S32:     CREATE_TYPE(S32); break;
+    case PROFILE_PROPERTY_TYPE_F32:     CREATE_TYPE(F32); break;
+    case PROFILE_PROPERTY_TYPE_U64:     CREATE_TYPE(U64); break;
+    case PROFILE_PROPERTY_TYPE_S64:     CREATE_TYPE(S64); break;
+    case PROFILE_PROPERTY_TYPE_F64:     CREATE_TYPE(F64); break;
+    case PROFILE_PROPERTY_TYPE_BOOL:    CREATE_TYPE(Bool); break;
+    }
 
-} // namespace
+    #undef CREATE_TYPE
+}
+
+static void CreateListenerProperties(ProfileListener* profiler)
+{
+    for (uint32_t i = 0; i < g_ProfilePropertyCount; ++i)
+    {
+        ProfileProperty* prop = &g_ProfileProperties[i];
+        CreateProperty(profiler, prop);
+    }
+}
+
+void ProfileRegisterProfiler(const char* name, ProfileListener* profiler)
+{
+    {
+        // Check for duplicates
+        ProfileListener* p = g_ProfileListeners;
+        while (p)
+        {
+            if (strcmp(name, p->m_Name) == 0)
+            {
+                dmLogError("Profiler '%s' already registered", name);
+                return;
+            }
+            p = p->m_Next;
+        }
+    }
+
+    DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_ProfileLock);
+
+    dmSnPrintf(profiler->m_Name, sizeof(profiler->m_Name), "%s", name);
+    profiler->m_Next = g_ProfileListeners; // it's ok to add it first
+    profiler->m_Ctx = 0;
+    g_ProfileListeners = profiler;
+
+    if (IsProfileInitialized())
+    {
+        CreateListener(profiler);
+        CreateListenerProperties(profiler);
+    }
+
+    dmLogDebug("Registered profiler '%s'", profiler->m_Name);
+}
+
+void ProfileUnregisterProfiler(const char* name)
+{
+    ProfileListener* prev = 0;
+    for (ProfileListener* p = g_ProfileListeners; p; p = p->m_Next)
+    {
+        if (strcmp(name, p->m_Name) == 0)
+        {
+            if (prev)
+                prev->m_Next = p->m_Next;
+            else
+                g_ProfileListeners = p->m_Next; // it was the first one in the list
+            return;
+        }
+        prev = p;
+    }
+    g_ProfileListeners = 0;
+}
+
+#define DO_LOOP_NOARGS(_FUNC)                                           \
+    for (ProfileListener* p = g_ProfileListeners; p!=0; p = p->m_Next)  \
+    {                                                                   \
+        if (p->m_ ## _FUNC)                                             \
+        {                                                               \
+            p->m_ ## _FUNC(p->m_Ctx);                                   \
+        }                                                               \
+    }
+
+#define DO_LOOP(_FUNC, ...)                                             \
+    for (ProfileListener* p = g_ProfileListeners; p!=0; p = p->m_Next)  \
+    {                                                                   \
+        if (p->m_ ## _FUNC)                                             \
+        {                                                               \
+            p->m_ ## _FUNC(p->m_Ctx, __VA_ARGS__);                      \
+        }                                                               \
+    }
+
+
+// *****************************************************************************************
+// Initialize / Finalize
+
+bool ProfileIsInitialized()
+{
+    return IsProfileInitialized();
+}
+
+void ProfileInitialize()
+{
+    assert(!IsProfileInitialized());
+
+    PropertyInitialize(); // Initilize
+
+    for (ProfileListener* p = g_ProfileListeners; p; p = p->m_Next)
+    {
+        CreateListener(p);
+    }
+
+    dmAtomicIncrement32(&g_ProfileInitialized);
+
+    CreateRegisteredProperties();
+}
+
+void ProfileFinalize()
+{
+    dmAtomicDecrement32(&g_ProfileInitialized);
+
+    {
+        DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+        DO_LOOP_NOARGS(Destroy);
+    }
+
+    dmMutex::Delete(g_ProfileLock);
+
+    g_ProfileLock = dmMutex::New();
+
+    dmAtomicDecrement32(&g_PropertyInitialized);
+}
+
+// *****************************************************************************************
+// Frames and scopes
+
+HProfile ProfileFrameBegin()
+{
+    HProfile result = 0;
+    for (ProfileListener* p = g_ProfileListeners; p; p = p->m_Next)
+    {
+        if (p->m_FrameBegin)
+        {
+            p->m_FrameBegin(p->m_Ctx);
+            result = 1;
+        }
+    }
+    return result;
+}
+
+void ProfileFrameEnd(HProfile profile)
+{
+    if (!profile)
+        return;
+
+    DO_LOOP_NOARGS(FrameEnd);
+    // for (ProfileListener* p = g_ProfileListeners; p; p = p->m_Next)
+    // {
+    //     if (p->m_FrameEnd)
+    //     {
+    //         p->m_FrameEnd(p->m_Ctx);
+    //     }
+    // }
+}
+
+void ProfileScopeBegin(const char* name, uint64_t* name_hash)
+{
+    DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+
+    if (name_hash && !*name_hash)
+    {
+        *name_hash = dmHashString64(name);
+    }
+
+    DO_LOOP(ScopeBegin, name, name_hash ? *name_hash : 0);
+    // for (ProfileListener* p = g_ProfileListeners; p; p = p->m_Next)
+    // {
+    //     if (p->m_ScopeBegin)
+    //     {
+    //         p->m_ScopeBegin(p->m_Ctx, name, *name_hash);
+    //     }
+    // }
+}
+
+void ProfileScopeEnd(const char* name, uint64_t name_hash)
+{
+    DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+
+    DO_LOOP(ScopeEnd, name, name_hash);
+    // for (ProfileListener* p = g_ProfileListeners; p; p = p->m_Next)
+    // {
+    //     if (p->m_ScopeEnd)
+    //     {
+    //         p->m_ScopeEnd(p->m_Ctx, name, name_hash);
+    //     }
+    // }
+}
+
+void ProfileSetThreadName(const char* name)
+{
+    DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+
+    DO_LOOP(SetThreadName, name);
+}
+
+void ProfileLogText(const char* format, ...)
+{
+    DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+
+    char buffer[DM_PROFILE_TEXT_LENGTH];
+
+    va_list lst;
+    va_start(lst, format);
+    int n = vsnprintf(buffer, DM_PROFILE_TEXT_LENGTH, format, lst);
+    if (n < 0)
+    {
+        buffer[DM_PROFILE_TEXT_LENGTH-1] = '\0';
+    }
+    va_end(lst);
+
+    DO_LOOP(LogText, buffer);
+}
+
+// *****************************************************************************************
+// Properties
+
+static void CreateProperty(ProfileProperty* prop)
+{
+    for (ProfileListener* p = g_ProfileListeners; p!=0; p = p->m_Next)
+    {
+        CreateProperty(p, prop);
+    }
+}
+
+static void CreateRegisteredProperties()
+{
+    DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+
+    for (ProfileListener* p = g_ProfileListeners; p!=0; p = p->m_Next)
+    {
+        CreateListenerProperties(p);
+    }
+}
+
+// Invoked when first property is initialized
+static void PropertyInitialize()
+{
+    if (dmAtomicIncrement32(&g_PropertyInitialized) != 0)
+        return;
+
+    g_ProfileLock = dmMutex::New();
+
+    g_ProfileProperties[0].m_Name = "Root";
+    g_ProfileProperties[0].m_NameHash = dmHashString32(g_ProfileProperties[0].m_Name);
+    g_ProfileProperties[0].m_Type = PROFILE_PROPERTY_TYPE_GROUP;
+    g_ProfileProperties[0].m_ParentIdx = PROFILE_PROPERTY_INVALID_IDX;
+    g_ProfilePropertyCount = 1;
+}
+
+static ProfileProperty* AllocateProperty(ProfileIdx* idx)
+{
+    DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+    if (g_ProfilePropertyCount >= PROFILER_MAX_NUM_PROPERTIES)
+        return 0;
+    *idx = g_ProfilePropertyCount++;
+    return &g_ProfileProperties[*idx];
+}
+
+static void SetupProperty(ProfileProperty* prop, ProfileIdx idx, const char* name, const char* desc, uint32_t flags, ProfileIdx* (*parentfn)())
+{
+    memset(prop, 0, sizeof(ProfileProperty));
+    prop->m_Name        = name;
+    prop->m_Desc        = desc;
+    prop->m_Flags       = flags;
+    prop->m_Idx         = idx; // perhaps a little redundant but nice when debugging the property
+    prop->m_ParentIdx   = parentfn ? *parentfn() : 0;
+    prop->m_NameHash    = dmHashString64(name);
+}
+
+#define ALLOC_PROP_AND_CHECK(_TYPE) \
+    PropertyInitialize(); \
+    ProfileIdx idx; \
+    ProfileProperty* prop = AllocateProperty(&idx); \
+    if (!prop) \
+        return PROFILE_PROPERTY_INVALID_IDX;
+
+
+ProfileIdx ProfileRegisterPropertyGroup(const char* name, const char* desc, ProfileIdx* (*parentfn)())
+{
+    ALLOC_PROP_AND_CHECK(parentfn);
+    SetupProperty(prop, idx, name, desc, 0, parentfn);
+    prop->m_Type = PROFILE_PROPERTY_TYPE_GROUP;
+    if (IsProfileInitialized())
+        CreateProperty(prop);
+    return idx;
+}
+
+ProfileIdx ProfileRegisterPropertyBool(const char* name, const char* desc, int value, uint32_t flags, ProfileIdx* (*parentfn)())
+{
+    ALLOC_PROP_AND_CHECK();
+    SetupProperty(prop, idx, name, desc, flags, parentfn);
+    prop->m_DefaultValue.m_Bool = (bool)value;
+    prop->m_Type = PROFILE_PROPERTY_TYPE_BOOL;
+    if (IsProfileInitialized())
+        CreateProperty(prop);
+    return idx;
+}
+
+ProfileIdx ProfileRegisterPropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, ProfileIdx* (*parentfn)())
+{
+    ALLOC_PROP_AND_CHECK();
+    SetupProperty(prop, idx, name, desc, flags, parentfn);
+    prop->m_DefaultValue.m_S32 = value;
+    prop->m_Type = PROFILE_PROPERTY_TYPE_S32;
+    if (IsProfileInitialized())
+        CreateProperty(prop);
+    return idx;
+}
+
+ProfileIdx ProfileRegisterPropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, ProfileIdx* (*parentfn)())
+{
+    ALLOC_PROP_AND_CHECK();
+    SetupProperty(prop, idx, name, desc, flags, parentfn);
+    prop->m_DefaultValue.m_U32 = value;
+    prop->m_Type = PROFILE_PROPERTY_TYPE_U32;
+    if (IsProfileInitialized())
+        CreateProperty(prop);
+    return idx;
+}
+
+ProfileIdx ProfileRegisterPropertyF32(const char* name, const char* desc, float value, uint32_t flags, ProfileIdx* (*parentfn)())
+{
+    ALLOC_PROP_AND_CHECK();
+    SetupProperty(prop, idx, name, desc, flags, parentfn);
+    prop->m_DefaultValue.m_F32 = value;
+    prop->m_Type = PROFILE_PROPERTY_TYPE_F32;
+    if (IsProfileInitialized())
+        CreateProperty(prop);
+    return idx;
+}
+
+ProfileIdx ProfileRegisterPropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, ProfileIdx* (*parentfn)())
+{
+    ALLOC_PROP_AND_CHECK();
+    SetupProperty(prop, idx, name, desc, flags, parentfn);
+    prop->m_DefaultValue.m_S64 = value;
+    prop->m_Type = PROFILE_PROPERTY_TYPE_S64;
+    if (IsProfileInitialized())
+        CreateProperty(prop);
+    return idx;
+}
+
+ProfileIdx ProfileRegisterPropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, ProfileIdx* (*parentfn)())
+{
+    ALLOC_PROP_AND_CHECK();
+    SetupProperty(prop, idx, name, desc, flags, parentfn);
+    prop->m_DefaultValue.m_U64 = value;
+    prop->m_Type = PROFILE_PROPERTY_TYPE_U64;
+    if (IsProfileInitialized())
+        CreateProperty(prop);
+    return idx;
+}
+
+ProfileIdx ProfileRegisterPropertyF64(const char* name, const char* desc, double value, uint32_t flags, ProfileIdx* (*parentfn)())
+{
+    ALLOC_PROP_AND_CHECK();
+    SetupProperty(prop, idx, name, desc, flags, parentfn);
+    prop->m_DefaultValue.m_F64 = value;
+    prop->m_Type = PROFILE_PROPERTY_TYPE_F64;
+    if (IsProfileInitialized())
+        CreateProperty(prop);
+    return idx;
+}
+
+#define GET_PROP_AND_CHECK(IDX) \
+    if (!IsProfileInitialized()) \
+        return; \
+    DM_MUTEX_SCOPED_LOCK(g_ProfileLock); \
+    ProfileProperty* prop = &g_ProfileProperties[(IDX)]; \
+    assert(prop->m_Idx == (IDX));
+
+void ProfilePropertySetBool(ProfileIdx idx, int v)
+{
+    GET_PROP_AND_CHECK(idx);
+    DO_LOOP(PropertySetBool, idx, v);
+}
+
+void ProfilePropertySetS32(ProfileIdx idx, int32_t v)
+{
+    GET_PROP_AND_CHECK(idx);
+    DO_LOOP(PropertySetS32, idx, v);
+}
+
+void ProfilePropertySetU32(ProfileIdx idx, uint32_t v)
+{
+    GET_PROP_AND_CHECK(idx);
+    DO_LOOP(PropertySetU32, idx, v);
+}
+
+void ProfilePropertySetF32(ProfileIdx idx, float v)
+{
+    GET_PROP_AND_CHECK(idx);
+    DO_LOOP(PropertySetF32, idx, v);
+}
+
+void ProfilePropertySetS64(ProfileIdx idx, int64_t v)
+{
+    GET_PROP_AND_CHECK(idx);
+    DO_LOOP(PropertySetS64, idx, v);
+}
+
+void ProfilePropertySetU64(ProfileIdx idx, uint64_t v)
+{
+    GET_PROP_AND_CHECK(idx);
+    DO_LOOP(PropertySetU64, idx, v);
+}
+
+void ProfilePropertySetF64(ProfileIdx idx, double v)
+{
+    GET_PROP_AND_CHECK(idx);
+    DO_LOOP(PropertySetF64, idx, v);
+}
+
+void ProfilePropertyAddS32(ProfileIdx idx, int32_t v)
+{
+    GET_PROP_AND_CHECK(idx);
+    DO_LOOP(PropertyAddS32, idx, v);
+}
+
+void ProfilePropertyAddU32(ProfileIdx idx, uint32_t v)
+{
+    GET_PROP_AND_CHECK(idx);
+    DO_LOOP(PropertyAddU32, idx, v);
+}
+
+void ProfilePropertyAddF32(ProfileIdx idx, float v)
+{
+    GET_PROP_AND_CHECK(idx);
+    DO_LOOP(PropertyAddF32, idx, v);
+}
+
+void ProfilePropertyAddS64(ProfileIdx idx, int64_t v)
+{
+    GET_PROP_AND_CHECK(idx);
+    DO_LOOP(PropertyAddS64, idx, v);
+}
+
+void ProfilePropertyAddU64(ProfileIdx idx, uint64_t v)
+{
+    GET_PROP_AND_CHECK(idx);
+    DO_LOOP(PropertyAddU64, idx, v);
+}
+
+void ProfilePropertyAddF64(ProfileIdx idx, double v)
+{
+    GET_PROP_AND_CHECK(idx);
+    DO_LOOP(PropertyAddF64, idx, v);
+}
+
+void ProfilePropertyReset(ProfileIdx idx)
+{
+    GET_PROP_AND_CHECK(idx);
+    DO_LOOP(PropertyReset, idx);
+}
+
