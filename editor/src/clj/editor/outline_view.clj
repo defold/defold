@@ -26,6 +26,7 @@
             [editor.types :as types]
             [editor.ui :as ui])
   (:import [com.defold.control TreeCell]
+           [java.awt Toolkit]
            [javafx.collections FXCollections ObservableList]
            [javafx.event Event]
            [javafx.geometry Orientation]
@@ -521,12 +522,19 @@
   [^Label text-label ^MouseEvent event]
   (let [current-click-time (System/currentTimeMillis)
         last-click-time (or (ui/user-data text-label ::last-click-time) 0)
-        time-diff (- current-click-time last-click-time)]
+        time-diff (- current-click-time last-click-time)
+        db-click-threshold (or (-> (Toolkit/getDefaultToolkit)
+                                   (.getDesktopProperty "awt.multiClickInterval"))
+                               400)]
     (.consume event)
     (ui/user-data! text-label ::last-click-time current-click-time)
     (cond
-      (< time-diff 400) (ui/run-command (.getSource event) :file.open-selected)
-      (< time-diff 900) (ui/run-command (.getSource event) :node.rename)
+      (< time-diff db-click-threshold) 
+      (ui/run-command (.getSource event) :file.open-selected)
+      
+      (< time-diff (* db-click-threshold 2)) 
+      (ui/run-command (.getSource event) :node.rename)
+      
       :else nil)))
 
 (handler/defhandler :node.rename :outline
