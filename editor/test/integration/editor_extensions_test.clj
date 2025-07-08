@@ -935,6 +935,58 @@ POST http://localhost:23456/echo hello world! as string => 200
         (finally
           (http-server/stop! server 0))))))
 
+(def ^:private resource-io-test-output
+  "Create /test/config.json => ok!
+/test
+  /config.json
+/test/config.json:
+{ --[[0x0]]
+  text = \"{\\\"test\\\": true}\"
+}
+Create /test/npc.go, /test/npc.collection => ok!
+/test
+  /config.json
+  /npc.collection
+  /npc.go
+/test/npc.go:
+{ --[[0x1]]
+  components = {} --[[0x2]]
+}
+/test/npc.collection:
+{ --[[0x3]]
+  name = \"npc\"
+}
+Create /test/UPPER.COLLECTION => ok!
+/test
+  /config.json
+  /npc.collection
+  /npc.go
+  /UPPER.COLLECTION
+/test/UPPER.COLLECTION:
+{ --[[0x4]]
+  name = \"UPPER\"
+}
+Create /test/../../../outside.txt => Can't create /test/../../../outside.txt: outside of project directory
+/test
+  /config.json
+  /npc.collection
+  /npc.go
+  /UPPER.COLLECTION
+Create /test/npc.go => File already exists: /test/npc.go
+/test
+  /config.json
+  /npc.collection
+  /npc.go
+  /UPPER.COLLECTION
+")
+
+(deftest resources-io-test
+  (test-util/with-scratch-project "test/resources/editor_extensions/resources_io_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output resource-io-test-output out))))
+
 (deftest zip-test
   (test-util/with-scratch-project "test/resources/editor_extensions/zip_project"
     (let [output (atom [])
