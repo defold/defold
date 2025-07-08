@@ -537,15 +537,23 @@
       
       :else nil)))
 
+(defn get-selected-node-id
+  [^TreeView tree-view]
+  (let [selection-model (.getSelectionModel tree-view)
+        selected-items (.getSelectedItems selection-model)
+        ^TreeItem selected-item (first selected-items)
+         item (.getValue selected-item)]
+    (:node-id item)))
+
 (handler/defhandler :node.rename :outline
-  (active? [selection] (= 1 (count selection)))
+  (active? [selection outline-view]
+           (and (= 1 (count selection))
+                (not (-> (g/node-value outline-view :raw-tree-view)
+                         (get-selected-node-id)
+                         (read-only-id?)))))
   (run [outline-view]
-       (when-let [^TreeView tree-view (g/maybe-node-value outline-view :raw-tree-view)]
-         (let [selection-model (.getSelectionModel tree-view)
-               selected-items (.getSelectedItems selection-model)
-               ^TreeItem selected-item (first selected-items)
-               item (.getValue selected-item)]
-           (set-editing-id! tree-view (:node-id item))))))
+       (let [^TreeView tree-view (g/node-value outline-view :raw-tree-view)]
+         (set-editing-id! tree-view (get-selected-node-id tree-view)))))
 
 (def eye-open-path (ui/load-svg-path "scene/images/eye_open.svg"))
 (def eye-closed-path (ui/load-svg-path "scene/images/eye_closed.svg"))
