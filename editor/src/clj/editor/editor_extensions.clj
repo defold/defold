@@ -155,35 +155,53 @@
       (and (not (resource/resource? node-id-or-resource))
            (some? (graph/ext-lua-value-setter node-id-or-resource property rt project evaluation-context))))))
 
-(def ^:private resource-or-resources-coercer
-  (coerce/one-of graph/resource-path-coercer (coerce/vector-of graph/resource-path-coercer :min-count 1 :distinct true)))
+(def ^:private created-resources-coercer
+  (coerce/vector-of
+    (coerce/one-of
+      graph/resource-path-coercer
+      (coerce/hash-map :req {1 graph/resource-path-coercer}
+                       :opt {:content coerce/string}
+                       :extra-keys false))
+    :min-count 1))
 
 (defn- make-ext-create-resources-fn [project reload-resources!]
-  (rt/suspendable-lua-fn ext-create-resources [{:keys [rt evaluation-context]} lua-resource-or-resources]
-    (let [resource-or-resources (rt/->clj rt resource-or-resources-coercer lua-resource-or-resources)
-          proj-paths (if (vector? resource-or-resources) resource-or-resources [resource-or-resources])
+  (rt/suspendable-lua-fn ext-create-resources [{:keys [rt evaluation-context]} lua-created-resources]
+    (let [created-resource-infos (mapv (fn [proj-path-or-opts-map]
+                                         (if (string? proj-path-or-opts-map)
+                                           {1 proj-path-or-opts-map}
+                                           proj-path-or-opts-map))
+                                       (rt/->clj rt created-resources-coercer lua-created-resources))
+          basis (:basis evaluation-context)
           workspace (project/workspace project evaluation-context)]
       (-> (future/io
-            (let [root-path (fs/real-path (workspace/project-directory (:basis evaluation-context) workspace))
-                  file-paths (mapv (fn [proj-path]
-                                     (let [file-path (.normalize (fs/path (str root-path proj-path)))]
-                                       (when-not (.startsWith file-path root-path)
-                                         (throw (LuaError. (str "Can't create " proj-path ": outside of project directory"))))
-                                       (when (fs/path-exists? file-path)
-                                         (if (fs/path-is-directory? file-path)
-                                           (throw (LuaError. (str "Directory already exists in place of file: " proj-path)))
-                                           (throw (LuaError. (str "File already exists: " proj-path)))))
-                                       file-path))
-                                   proj-paths)]
-              (run! (fn [^Path p]
-                      (let [file-name (str (.getFileName p))
-                            base-name (FilenameUtils/removeExtension file-name)
-                            ext (string/lower-case (FilenameUtils/getExtension file-name))
-                            resource-type (get (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable) ext)
-                            template (or (workspace/template workspace resource-type evaluation-context) "")]
-                        (fs/create-path-parent-directories! p)
-                        (spit p (workspace/replace-template-name template base-name))))
-                    file-paths)))
+            (let [root-path (fs/real-path (workspace/project-directory basis workspace))
+                  path+contents (mapv (fn [{proj-path 1 :keys [content]}]
+                                        (let [file-path (.normalize (fs/path (str root-path proj-path)))]
+                                          (when-not (.startsWith file-path root-path)
+                                            (throw (LuaError. (str "Can't create " proj-path ": outside of project directory"))))
+                                          (when (fs/path-exists? file-path)
+                                            (if (fs/path-is-directory? file-path)
+                                              (throw (LuaError. (str "Directory already exists in place of file: " proj-path)))
+                                              (throw (LuaError. (str "Resource already exists: " proj-path)))))
+                                          (let [content (or content
+                                                            (let [file-name (str (.getFileName file-path))
+                                                                  base-name (FilenameUtils/removeExtension file-name)
+                                                                  ext (string/lower-case (FilenameUtils/getExtension file-name))
+                                                                  resource-type (get (resource/resource-types-by-type-ext basis workspace :editable) ext)
+                                                                  template (or (workspace/template workspace resource-type evaluation-context) "")]
+                                                              (workspace/replace-template-name template base-name)))]
+                                            (coll/pair file-path content))))
+                                  created-resource-infos)]
+              (->> path+contents
+                   (e/map key)
+                   (frequencies)
+                   (run! (fn [[path frequency]]
+                           (when (< 1 frequency)
+                             (throw (LuaError. (str "Resource repeated more than once: /" (string/replace (str (.relativize root-path path)) \\ \/))))))))
+              (run! (fn [[file-path content]]
+                      (fs/create-path-parent-directories! file-path)
+                      (spit file-path content))
+                    path+contents)))
           (future/then (fn [_] (reload-resources!)))
           (future/then rt/and-refresh-context)))))
 

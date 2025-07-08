@@ -936,14 +936,14 @@ POST http://localhost:23456/echo hello world! as string => 200
           (http-server/stop! server 0))))))
 
 (def ^:private resource-io-test-output
-  "Create /test/config.json => ok!
+  "editor.create_resources({{\"/test/config.json\", content = \"{\\\"test\\\": true}\"}}) => ok!
 /test
   /config.json
 /test/config.json:
 { --[[0x0]]
   text = \"{\\\"test\\\": true}\"
 }
-Create /test/npc.go, /test/npc.collection => ok!
+editor.create_resources({\"/test/npc.go\", \"/test/npc.collection\"}) => ok!
 /test
   /config.json
   /npc.collection
@@ -956,7 +956,7 @@ Create /test/npc.go, /test/npc.collection => ok!
 { --[[0x3]]
   name = \"npc\"
 }
-Create /test/UPPER.COLLECTION => ok!
+editor.create_resources({\"/test/UPPER.COLLECTION\"}) => ok!
 /test
   /config.json
   /npc.collection
@@ -966,13 +966,19 @@ Create /test/UPPER.COLLECTION => ok!
 { --[[0x4]]
   name = \"UPPER\"
 }
-Create /test/../../../outside.txt => Can't create /test/../../../outside.txt: outside of project directory
+editor.create_resources({\"/test/../../../outside.txt\"}) => Can't create /test/../../../outside.txt: outside of project directory
 /test
   /config.json
   /npc.collection
   /npc.go
   /UPPER.COLLECTION
-Create /test/npc.go => File already exists: /test/npc.go
+editor.create_resources({\"/test/npc.go\"}) => Resource already exists: /test/npc.go
+/test
+  /config.json
+  /npc.collection
+  /npc.go
+  /UPPER.COLLECTION
+editor.create_resources({\"/test/repeated.go\", \"/test/repeated.go\"}) => Resource repeated more than once: /test/repeated.go
 /test
   /config.json
   /npc.collection

@@ -13,10 +13,25 @@ local function print_tree(resource, indent)
 end
 
 local function create_resources(resources)
-    local s = type(resources) == "string" and resources or table.concat(resources, ", ")
+    local arg_str = ""
+    for i = 1, #resources do
+        local res = resources[i]
+        if type(res) == "string" then
+            arg_str = arg_str .. '"' .. res .. '"'
+        else
+            arg_str = arg_str .. '{"' .. res[1] .. '"'
+            if res.content then
+                arg_str = arg_str .. ', content = "' .. res.content:gsub("\"", "\\\"") .. '"'
+            end
+            arg_str = arg_str .. "}"
+        end
+        if i ~= #resources then
+            arg_str = arg_str .. ", "
+        end
+    end
     local success, message = pcall(editor.create_resources, resources)
     message = success and "ok!" or message or "failed"
-    print(("Create %s => %s"):format(s, message))
+    print(("editor.create_resources({%s}) => %s"):format(arg_str, message))
     print_tree("/test")
 end
 
@@ -37,19 +52,24 @@ function M.get_commands()
             locations = {"Edit"},
             id = "defold.test",
             run = function()
-                create_resources("/test/config.json")
-                editor.transact({ editor.tx.set("/test/config.json", "text", "{\"test\": true}") })
+                create_resources({
+                    {"/test/config.json", content = "{\"test\": true}"}
+                })
                 pprint_resource("/test/config.json", {"text"})
 
-                create_resources({"/test/npc.go", "/test/npc.collection"})
+                create_resources({
+                    "/test/npc.go", 
+                    "/test/npc.collection"
+                })
                 pprint_resource("/test/npc.go", {"components"})
                 pprint_resource("/test/npc.collection", {"name"})
 
-                create_resources("/test/UPPER.COLLECTION")
+                create_resources({"/test/UPPER.COLLECTION"})
                 pprint_resource("/test/UPPER.COLLECTION", {"name"})
                 
-                create_resources("/test/../../../outside.txt")
-                create_resources("/test/npc.go")
+                create_resources({"/test/../../../outside.txt"})
+                create_resources({"/test/npc.go"})
+                create_resources({"/test/repeated.go", "/test/repeated.go"})
 
                 editor.delete_directory("/test")
             end
