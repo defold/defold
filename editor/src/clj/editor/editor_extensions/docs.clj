@@ -193,7 +193,7 @@ editor.create_resources({
 Create a resource with custom content:
 ```
 editor.create_resources({
-  {\"/npc.go\", content = \"go.property('hp', 100)\"}
+  {\"/npc.script\", content = \"go.property('hp', 100)\"}
 })
 ```"}
          {:name "editor.delete_directory"
