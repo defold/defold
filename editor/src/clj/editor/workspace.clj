@@ -27,6 +27,7 @@ ordinary paths."
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
@@ -528,6 +529,11 @@ ordinary paths."
          ;; Just read the file as-is.
          (with-open [reader (io/reader resource)]
            (slurp reader)))))))
+
+(defn replace-template-name
+  ^String [^String template ^String name]
+  (let [escaped-name (protobuf/escape-string name)]
+    (string/replace template "{{NAME}}" escaped-name)))
 
 (defn- update-dependency-notifications! [workspace lib-states]
   (let [{:keys [error missing]} (->> lib-states

@@ -163,6 +163,12 @@ editor.command({
           :parameters [resource-path-param]
           :description "Create a directory if it does not exist, and all non-existent parent directories.\n\nThrows an error if the directory can't be created."
           :examples "```\neditor.create_directory(\"/assets/gen\")\n```"}
+         {:name "editor.create_resources"
+          :type :function
+          :parameters [{:name "resource_paths"
+                        :types ["string" "string[]"]
+                        :doc "Resource path (starting with <code>/</code>) or an array of resource paths"}]
+          :description "Create resources (including non-existent parent directories).\n\nThrows an error if any of the provided resource paths already exist"}
          {:name "editor.delete_directory"
           :type :function
           :parameters [resource-path-param]

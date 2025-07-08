@@ -489,14 +489,9 @@
         (when (and (delete selection) next)
           (select-resource! asset-browser next))))))
 
-(defn replace-template-name
-  ^String [^String template ^String name]
-  (let [escaped-name (protobuf/escape-string name)]
-    (string/replace template "{{NAME}}" escaped-name)))
-
 (defn- create-template-file! [^String template ^File new-file]
-  (let [base-name (FilenameUtils/getBaseName (.getPath new-file))
-        contents (replace-template-name template base-name)]
+  (let [base-name (FilenameUtils/getBaseName (str new-file))
+        contents (workspace/replace-template-name template base-name)]
     (spit new-file contents)))
 
 (handler/defhandler :file.new :global
