@@ -486,16 +486,23 @@
         (.refresh)
         (.requestFocus)))))
 
+(defn read-only-id?
+  [node-id]
+  (let [node (g/node-by-id node-id)]
+    (g/with-auto-evaluation-context evaluation-context
+      (g/node-property-dynamic node :id :read-only? false evaluation-context))))
+
 (defn- activate-editing!
   [^Label label ^TextField text-field]
-  (when-let [id (-> (ui/user-data text-field ::node-id)
-                    (g/maybe-node-value :id))]
-    (.setVisible label false)
-    (doto text-field
-      (.setText id)
-      (.setVisible true)
-      (.requestFocus)
-      (.selectAll))))
+  (when-let [node-id (ui/user-data text-field ::node-id)]
+    (when-let [id (g/maybe-node-value node-id :id)]
+      (when-not (read-only-id? node-id)
+        (.setVisible label false)
+        (doto text-field
+          (.setText id)
+          (.setVisible true)
+          (.requestFocus)
+          (.selectAll))))))
 
 (defn- deactivate-editing!
   [^Label label ^TextField text-field]
@@ -518,7 +525,7 @@
     (.consume event)
     (ui/user-data! text-label ::last-click-time current-click-time)
     (cond
-      (< time-diff 350) (ui/run-command (.getSource event) :file.open-selected)
+      (< time-diff 450) (ui/run-command (.getSource event) :file.open-selected)
       (< time-diff 900) (ui/run-command (.getSource event) :node.rename)
       :else nil)))
 
