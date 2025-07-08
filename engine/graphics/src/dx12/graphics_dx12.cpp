@@ -2431,7 +2431,7 @@ namespace dmGraphics
 
         for (int i = 0; i < shader_count; ++i)
         {
-            num_bindings += shaders[i]->m_HlslResourceBindings.m_Count;
+            num_bindings += shaders[i]->m_HlslResourceMapping.m_Count;
         }
 
         program->m_RootSignatureResources.SetCapacity(num_bindings);
@@ -2441,12 +2441,12 @@ namespace dmGraphics
 
         for (int i = 0; i < shader_count; ++i)
         {
-            for (int j = 0; j < shaders[i]->m_HlslResourceBindings.m_Count; ++j)
+            for (int j = 0; j < shaders[i]->m_HlslResourceMapping.m_Count; ++j)
             {
                 uint32_t index = offset + j;
-                program->m_RootSignatureResources[index].m_NameHash = shaders[i]->m_HlslResourceBindings[j].m_NameHash;
-                program->m_RootSignatureResources[index].m_Binding  = shaders[i]->m_HlslResourceBindings[j].m_Binding;
-                program->m_RootSignatureResources[index].m_Set      = shaders[i]->m_HlslResourceBindings[j].m_Set;
+                program->m_RootSignatureResources[index].m_NameHash = shaders[i]->m_HlslResourceMapping[j].m_NameHash;
+                program->m_RootSignatureResources[index].m_Binding  = shaders[i]->m_HlslResourceMapping[j].m_Binding;
+                program->m_RootSignatureResources[index].m_Set      = shaders[i]->m_HlslResourceMapping[j].m_Set;
 
                 if (program->m_RootSignatureResources[index].m_NameHash == HASH_SPIRV_Cross_NumWorkgroups)
                 {
@@ -2454,7 +2454,7 @@ namespace dmGraphics
                 }
             }
 
-            offset += shaders[i]->m_HlslResourceBindings.m_Count;
+            offset += shaders[i]->m_HlslResourceMapping.m_Count;
         }
     }
 
