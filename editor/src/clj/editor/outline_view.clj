@@ -32,7 +32,7 @@
            [javafx.scene Node]
            [javafx.scene.control ScrollBar SelectionMode TreeItem TreeView ToggleButton Label TextField]
            [javafx.scene.image ImageView]
-           [javafx.scene.input Clipboard DataFormat DragEvent MouseEvent TransferMode]
+           [javafx.scene.input Clipboard DataFormat DragEvent KeyCode KeyEvent MouseEvent TransferMode]
            [javafx.scene.layout AnchorPane HBox Priority]
            [javafx.util Callback]))
 
@@ -479,10 +479,12 @@
 
 (defn- set-editing-id!
   [^TreeView tree-view node-id]
-  (doto tree-view
-    (ui/user-data! ::editing-id node-id)
-    (.refresh)
-    (.requestFocus)))
+  (let [editing-id (ui/user-data tree-view ::editing-id)]
+    (when (not= editing-id node-id)
+      (doto tree-view
+        (ui/user-data! ::editing-id node-id)
+        (.refresh)
+        (.requestFocus)))))
 
 (defn- activate-editing!
   [^Label label ^TextField text-field]
@@ -544,14 +546,11 @@
         text-label (Label.)
         text-field (TextField.)
         update-fn (fn [_] (commit-edit! tree-view text-field))
-        cancel-fn (fn [_] (set-editing-id! tree-view nil))
         text-field (doto text-field
                      (.setVisible false)
-                     (ui/customize! update-fn cancel-fn)
                      (AnchorPane/setLeftAnchor 0.0)
                      (AnchorPane/setRightAnchor 0.0)
                      (ui/on-action! update-fn)
-                     (ui/on-cancel! cancel-fn)
                      (ui/auto-commit! update-fn)
                      (ui/on-focus! (fn [got-focus] (when-not got-focus
                                                      (set-editing-id! tree-view nil)))))
@@ -659,6 +658,9 @@
       (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
       (ui/observe-selection #(propagate-selection %2 app-view))
       (ui/register-context-menu ::outline-menu)
+      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (when (= (.getCode event) KeyCode/ESCAPE)
+                                                                      (.consume event)
+                                                                      (set-editing-id! tree-view nil))))
       (ui/bind-key-commands! (cond-> {"Enter" :file.open-selected}
                                (some #(= "F2" (.toString %)) rename-shortcuts)
                                (assoc "F2" :node.rename)))
