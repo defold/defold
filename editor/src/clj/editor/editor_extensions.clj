@@ -51,6 +51,7 @@
             [editor.workspace :as workspace]
             [util.coll :as coll]
             [util.eduction :as e]
+            [util.fn :as fn]
             [util.http-client :as http]
             [util.http-server :as http-server])
   (:import [com.dynamo.bob Platform]
@@ -174,7 +175,10 @@
           basis (:basis evaluation-context)
           workspace (project/workspace project evaluation-context)
           project-dir (workspace/project-directory basis workspace)
-          resource-types (resource/resource-types-by-type-ext basis workspace :editable)]
+          resource-types (resource/resource-types-by-type-ext basis workspace :editable)
+          type-ext->template (fn/memoize
+                               (fn type-ext->template [ext]
+                                 (or (workspace/template workspace (get resource-types ext) evaluation-context) "")))]
       (-> (future/io
             (let [root-path (fs/real-path project-dir)
                   path+contents (mapv (fn [{proj-path 1 content 2}]
@@ -188,10 +192,8 @@
                                           (let [content (or content
                                                             (let [file-name (str (.getFileName file-path))
                                                                   base-name (FilenameUtils/removeExtension file-name)
-                                                                  ext (string/lower-case (FilenameUtils/getExtension file-name))
-                                                                  resource-type (get resource-types ext)
-                                                                  template (or (workspace/template workspace resource-type evaluation-context) "")]
-                                                              (workspace/replace-template-name template base-name)))]
+                                                                  type-ext (string/lower-case (FilenameUtils/getExtension file-name))]
+                                                              (workspace/replace-template-name (type-ext->template type-ext) base-name)))]
                                             (coll/pair file-path content))))
                                   created-resource-infos)]
               (->> path+contents
