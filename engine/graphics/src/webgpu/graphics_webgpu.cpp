@@ -3197,6 +3197,16 @@ static void WebGPUInvalidateGraphicsHandles(HContext context) { }
 // dmsdk / graphics_webgpu.h impls:
 ///////////////////////////////////
 
+
+WGPUInstance dmGraphics::WebGPUGetInstance(HContext context)
+{
+    return ((WebGPUContext*)context)->m_Instance;
+}
+WGPUAdapter dmGraphics::WebGPUGetAdapter(HContext context)
+{
+    return ((WebGPUContext*)context)->m_Adapter;
+}
+
 WGPUDevice dmGraphics::WebGPUGetDevice(HContext context)
 {
     return ((WebGPUContext*)context)->m_Device;
