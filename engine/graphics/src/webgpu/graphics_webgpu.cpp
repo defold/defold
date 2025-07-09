@@ -1159,6 +1159,8 @@ static void WebGPUDestroyContext(WebGPUContext* context)
         wgpuQueueRelease(context->m_Queue);
     if (context->m_Device)
         wgpuDeviceRelease(context->m_Device);
+    if (context->m_Instance)
+        wgpuInstanceRelease(context->m_Instance);
 }
 
 static HContext WebGPUNewContext(const ContextParams& params)
@@ -3196,6 +3198,16 @@ static void WebGPUInvalidateGraphicsHandles(HContext context) { }
 ///////////////////////////////////
 // dmsdk / graphics_webgpu.h impls:
 ///////////////////////////////////
+
+
+WGPUInstance dmGraphics::WebGPUGetInstance(HContext context)
+{
+    return ((WebGPUContext*)context)->m_Instance;
+}
+WGPUAdapter dmGraphics::WebGPUGetAdapter(HContext context)
+{
+    return ((WebGPUContext*)context)->m_Adapter;
+}
 
 WGPUDevice dmGraphics::WebGPUGetDevice(HContext context)
 {
