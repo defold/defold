@@ -437,26 +437,6 @@ namespace dmShaderc
         SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, name_hash, 0, &set);
     }
 
-    void LogCombinedSamplerMapping(spvc_compiler compiler)
-    {
-        const spvc_combined_image_sampler* samplers;
-        size_t sampler_count;
-        spvc_compiler_get_combined_image_samplers(compiler, &samplers, &sampler_count);
-
-        dmLogInfo("--------------");
-        dmLogInfo("LogCombinedSamplerMapping");
-
-        for (size_t i = 0; i < sampler_count; ++i)
-        {
-            const spvc_combined_image_sampler* s = &samplers[i];
-            const char* combined_name = spvc_compiler_get_name(compiler, s->combined_id);
-            const char* image_name    = spvc_compiler_get_name(compiler, s->image_id);
-            const char* sampler_name  = spvc_compiler_get_name(compiler, s->sampler_id);
-
-            dmLogInfo("Combined Sampler: %s = Texture(%s) + Sampler(%s), ids: %d, %d, %d", combined_name, image_name, sampler_name, s->combined_id, s->image_id, s->sampler_id);
-        }
-    }
-
     void GetCombinedSamplerMapSPIRV(HShaderContext context, ShaderCompilerSPVC* compiler, dmArray<CombinedSampler>& combined_samplers)
     {
         const spvc_combined_image_sampler* samplers;
@@ -475,8 +455,6 @@ namespace dmShaderc
             combined_samplers[i].m_ImageId      = s->image_id;
             combined_samplers[i].m_SamplerName  = spvc_compiler_get_name(compiler->m_SPVCCompiler, s->sampler_id);
             combined_samplers[i].m_SamplerId    = s->sampler_id;
-
-            // dmLogInfo("Combined Sampler: %s = Texture(%s) + Sampler(%s)\n", combined_name, image_name, sampler_name);
         }
     }
 
@@ -526,8 +504,6 @@ namespace dmShaderc
 
         spvc_compiler_set_entry_point(compiler->m_SPVCCompiler, options.m_EntryPoint, context->m_ExecutionModel);
         spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
-
-        LogCombinedSamplerMapping(compiler->m_SPVCCompiler);
 
         if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_GLSL)
         {

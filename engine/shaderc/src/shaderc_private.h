@@ -112,7 +112,7 @@ namespace dmShaderc
     void GetCombinedSamplerMapSPIRV(HShaderContext context, ShaderCompilerSPVC* compiler, dmArray<CombinedSampler>& samplers);
 
 #ifdef DM_BINARY_HLSL_SUPPORTED
-    ShaderCompileResult* CompileRawHLSLToBinary(HShaderContext context, ShaderCompileResult* raw_hlsl, dmArray<CombinedSampler>& combined_samplers);
+    ShaderCompileResult* CompileRawHLSLToBinary(HShaderContext context, HShaderCompiler compiler, ShaderCompileResult* raw_hlsl);
 #endif
 }
 

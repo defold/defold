@@ -2297,50 +2297,6 @@ namespace dmGraphics
         return S_OK;
     }
 
-    static void PrintRootSignature(const D3D12_ROOT_SIGNATURE_DESC* desc)
-    {
-        dmLogInfo("Root Signature Parameters: %u\n", desc->NumParameters);
-        for (UINT i = 0; i < desc->NumParameters; ++i)
-        {
-            const D3D12_ROOT_PARAMETER& param = desc->pParameters[i];
-            dmLogInfo("  Param %u: ", i);
-            switch (param.ParameterType)
-            {
-            case D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE:
-                dmLogInfo("Descriptor Table (%u ranges)\n", param.DescriptorTable.NumDescriptorRanges);
-                for (UINT r = 0; r < param.DescriptorTable.NumDescriptorRanges; ++r)
-                {
-                    const D3D12_DESCRIPTOR_RANGE& range = param.DescriptorTable.pDescriptorRanges[r];
-                    dmLogInfo("    Range %u: Type=%d, BaseShaderRegister=%u, NumDescriptors=%u, RegisterSpace=%u\n",
-                        r, range.RangeType, range.BaseShaderRegister, range.NumDescriptors, range.RegisterSpace);
-                }
-                break;
-
-            case D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS:
-                dmLogInfo("32-bit Constants: ShaderRegister=%u, Num32BitValues=%u, Space=%u\n",
-                    param.Constants.ShaderRegister, param.Constants.Num32BitValues, param.Constants.RegisterSpace);
-                break;
-
-            case D3D12_ROOT_PARAMETER_TYPE_CBV:
-            case D3D12_ROOT_PARAMETER_TYPE_SRV:
-            case D3D12_ROOT_PARAMETER_TYPE_UAV:
-                dmLogInfo("Root Descriptor: Type=%d, ShaderRegister=%u, RegisterSpace=%u\n",
-                    param.ParameterType, param.Descriptor.ShaderRegister, param.Descriptor.RegisterSpace);
-                break;
-            }
-        }
-
-        dmLogInfo("Static Samplers: %u\n", desc->NumStaticSamplers);
-        for (UINT i = 0; i < desc->NumStaticSamplers; ++i)
-        {
-            const D3D12_STATIC_SAMPLER_DESC& sampler = desc->pStaticSamplers[i];
-            dmLogInfo("  Sampler %u: ShaderRegister=%u, Filter=%d, AddressU/V/W=%d/%d/%d\n",
-                i, sampler.ShaderRegister, sampler.Filter, sampler.AddressU, sampler.AddressV, sampler.AddressW);
-        }
-
-        dmLogInfo("Flags: 0x%X\n", desc->Flags);
-    }
-
     static HRESULT ConcatenateRootSignatures(ID3DBlob* blob_a, ID3DBlob* blob_b, ID3DBlob** out_merged_blob)
     {
         if (!blob_a || !blob_b || !out_merged_blob)
@@ -2406,11 +2362,6 @@ namespace dmGraphics
                 dmLogError("%s", error_blob->GetBufferPointer());
                 error_blob->Release();
             }
-        }
-        else
-        {
-            // Debug
-            PrintRootSignature(&merged_desc);
         }
 
         // Cleanup
@@ -2483,8 +2434,6 @@ namespace dmGraphics
             program->m_ComputeModule = new DX12ShaderModule();
             memset(program->m_ComputeModule, 0, sizeof(DX12ShaderModule));
 
-            dmLogInfo("COMPUTE: %s", ddf_cp->m_Source.m_Data);
-
             HRESULT hr = CreateShaderModule(context, "cs_5_1", ddf_cp->m_Source.m_Data, ddf_cp->m_Source.m_Count, program->m_ComputeModule);
             CHECK_HR_ERROR(hr);
 
@@ -2505,10 +2454,6 @@ namespace dmGraphics
             program->m_FragmentModule = new DX12ShaderModule;
             memset(program->m_VertexModule, 0, sizeof(DX12ShaderModule));
             memset(program->m_FragmentModule, 0, sizeof(DX12ShaderModule));
-
-            dmLogInfo("--------");
-            dmLogInfo("VS Shader: %s", ddf_vp->m_Source.m_Data);
-            dmLogInfo("FS Shader: %s, %d, %d", ddf_fp->m_Source.m_Data);
 
             HRESULT hr = CreateShaderModule(context, "vs_5_1", ddf_vp->m_Source.m_Data, ddf_vp->m_Source.m_Count, program->m_VertexModule);
             CHECK_HR_ERROR(hr);

@@ -114,17 +114,7 @@ namespace dmShaderc
         if (compiler->m_Language == SHADER_LANGUAGE_HLSL)
         {
             ShaderCompileResult* result_xcompiled = CompileSPVC(context, (ShaderCompilerSPVC*) compiler, options);
-
-            // dmLogInfo("Compile shader: \n%s", (const char*) result_xcompiled->m_Data.Begin());
-            dmLogInfo("Reflection:");
-            const ShaderReflection* reflection = GetReflection(context);
-            DebugPrintReflection(reflection);
-            // dmLogInfo("Compile to HLSL");
-
-            dmArray<CombinedSampler> combined_samplers;
-            GetCombinedSamplerMapSPIRV(context, (ShaderCompilerSPVC*) compiler, combined_samplers);
-
-            ShaderCompileResult* result_hlsl = CompileRawHLSLToBinary(context, result_xcompiled, combined_samplers);
+            ShaderCompileResult* result_hlsl = CompileRawHLSLToBinary(context, compiler, result_xcompiled);
 
             FreeShaderCompileResult(result_xcompiled);
             return result_hlsl;

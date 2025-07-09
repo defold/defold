@@ -108,7 +108,7 @@ namespace dmGraphics
 
     struct DX12ResourceBinding
     {
-        dmhash_t m_NameHash; // Debug
+        dmhash_t m_NameHash;
         uint8_t  m_Binding;
         uint8_t  m_Set;
     };

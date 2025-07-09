@@ -419,6 +419,7 @@ public class ShaderCompilePipeline {
         return compiler;
     }
 
+    // This is only needed for compute shaders
     private static void injectHLSLNumWorkGroupsIdIntoReflection(ShaderModule module, int workGroupId) {
         Shaderc.ResourceType type = new Shaderc.ResourceType();
         type.useTypeIndex = true;
@@ -440,8 +441,6 @@ public class ShaderCompilePipeline {
         hLSLNumWorkGroupsId.type             = type;
 
         module.spirvReflector.addUBO(hLSLNumWorkGroupsId);
-
-        System.out.println("HLSL GROUP ID: " + workGroupId);
     }
 
     //////////////////////////

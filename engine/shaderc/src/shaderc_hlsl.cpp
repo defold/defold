@@ -27,14 +27,11 @@
 
 #include "shaderc_private.h"
 
-// TODO: Oof this feels brittle, how can we avoid it?
-interface DECLSPEC_UUID("5A58797D-A72C-478D-8BA2-EFC6B0EFE88E") ID3D12ShaderReflection;
-
 namespace dmShaderc
 {
     static const dmhash_t HASH_SPIRV_CROSS_NUM_WORKGROUPS = dmHashString64("SPIRV_Cross_NumWorkgroups");
 
-    static char* ExtractBaseName(const char* combined_name)
+    static bool ExtractBaseSamplerName(const char* combined_name, char* base_texture_name_buffer, uint32_t base_texture_name_buffer_len)
     {
         const char* suffix = "_sampler";
         size_t len = strlen(combined_name);
@@ -42,21 +39,20 @@ namespace dmShaderc
 
         // Must start with '_' and end with "_sampler"
         if (len <= suffix_len + 1 || combined_name[0] != '_')
-            return NULL;
+            return false;
 
         if (strcmp(combined_name + len - suffix_len, suffix) != 0)
-            return NULL;
+            return false;
 
-        // Allocate new string for base name (exclude leading '_' and trailing '_sampler')
         size_t base_len = len - suffix_len - 1;
-        char* base_name = (char*)malloc(base_len + 1);
-        if (!base_name)
-            return NULL;
 
-        memcpy(base_name, combined_name + 1, base_len);
-        base_name[base_len] = '\0';
+        if (base_texture_name_buffer_len < base_len + 1)
+            return false;
 
-        return base_name;
+        memcpy(base_texture_name_buffer, combined_name + 1, base_len);
+        base_texture_name_buffer[base_len] = '\0';
+
+        return true;
     }
 
     static const char* FindCombinedSampler(dmArray<CombinedSampler>& combined_samplers, const char* name, D3D_SHADER_INPUT_TYPE input_type)
@@ -65,22 +61,24 @@ namespace dmShaderc
 
         // Strip all leading '_'
         while(to_test[0] == '_')
+        {
             to_test++;
+        }
 
         long int id = strtol(to_test, 0, 10);
 
-        dmLogInfo("Id: %d, size: %d", (int) id, combined_samplers.Size());
-
         for (int i = 0; i < combined_samplers.Size(); ++i)
         {
-            dmLogInfo("  Checking %d, %d, %d", combined_samplers[i].m_CombinedId, combined_samplers[i].m_ImageId, combined_samplers[i].m_SamplerId);
-
             if (id == combined_samplers[i].m_CombinedId)
             {
                 if (input_type == D3D_SIT_SAMPLER)
+                {
                     return combined_samplers[i].m_SamplerName;
+                }
                 else if (input_type == D3D_SIT_TEXTURE)
+                {
                     return combined_samplers[i].m_ImageName;
+                }
             }
         }
         return 0;
@@ -88,6 +86,8 @@ namespace dmShaderc
 
     static void FillResourceEntryArray(HShaderContext context, ID3D12ShaderReflection* hlsl_reflection, D3D12_SHADER_DESC* shaderDesc, dmArray<CombinedSampler>& combined_samplers, dmArray<HLSLResourceMapping>& resource_entries)
     {
+        char base_texture_name_buffer[1024];
+
         for (uint32_t i = 0; i < shaderDesc->BoundResources; ++i)
         {
             D3D12_SHADER_INPUT_BIND_DESC bindDesc;
@@ -108,12 +108,9 @@ namespace dmShaderc
             {
                 if (bindDesc.Type == D3D_SIT_SAMPLER || bindDesc.Type == D3D_SIT_TEXTURE)
                 {
-                    dmLogInfo("Checking in combined samplers for %s", bindDesc.Name);
-
                     const char* combined_sampler_name = FindCombinedSampler(combined_samplers, bindDesc.Name, bindDesc.Type);
                     if (combined_sampler_name)
                     {
-                        dmLogInfo("Combined sampler name: %s", combined_sampler_name);
                         resource = FindShaderResourceUniform(context, dmHashString64(combined_sampler_name));
                     }
                 }
@@ -122,18 +119,15 @@ namespace dmShaderc
                 //     So we need to extract the generated base name and check for that instead.
                 if (!resource && bindDesc.Type == D3D_SIT_SAMPLER)
                 {
-                    char* base_texture_name = ExtractBaseName(bindDesc.Name);
-                    dmLogInfo("Maybe sampler ? %s", base_texture_name);
-
-                    resource = FindShaderResourceUniform(context, dmHashString64(base_texture_name));
-                    free(base_texture_name);
+                    if (ExtractBaseSamplerName(bindDesc.Name, base_texture_name_buffer, sizeof(base_texture_name_buffer)))
+                    {
+                        resource = FindShaderResourceUniform(context, dmHashString64(base_texture_name_buffer));
+                    }
                 }
             }
 
             if (resource)
             {
-                dmLogInfo("Found resource %s (set=%d, binding=%d)", bindDesc.Name, resource->m_Set, resource->m_Binding);
-
                 resource_entries[i].m_ShaderResourceSet     = resource->m_Set;
                 resource_entries[i].m_ShaderResourceBinding = resource->m_Binding;
             }
@@ -141,14 +135,8 @@ namespace dmShaderc
             //    exist in HLSL. It will be converted into a cbuffer in hlsl, so we need to keep track of that separately.
             else if (resource_name_hash == HASH_SPIRV_CROSS_NUM_WORKGROUPS)
             {
-                dmLogInfo("Found SPIRV_Cross_NumWorkgroups (binding=%d)", bindDesc.BindPoint);
-
                 resource_entries[i].m_ShaderResourceSet     = HLSL_NUM_WORKGROUPS_SET; // note: we set the explicit set decoration in shaderc_spvc.cpp
                 resource_entries[i].m_ShaderResourceBinding = bindDesc.BindPoint;
-            }
-            else
-            {
-                dmLogInfo("Did not find resource %s", bindDesc.Name);
             }
         }
     }
@@ -212,34 +200,9 @@ namespace dmShaderc
         }
     }
 
-    static void PrintHResultError(HRESULT hr, const char* context)
-    {
-        char* msg = NULL;
-
-        FormatMessageA(
-            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-            NULL,
-            hr,
-            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-            (LPSTR)&msg,
-            0,
-            NULL
-        );
-
-        if (msg)
-        {
-            dmLogError("%s failed: 0x%08X - %s\n", context, (unsigned int)hr, msg);
-            LocalFree(msg);
-        }
-        else
-        {
-            dmLogError("%s failed: 0x%08X (Unknown error)\n", context, (unsigned int)hr);
-        }
-    }
-
     static void GenerateRootSignatureFromReflection(ID3D12ShaderReflection* reflection, const D3D12_SHADER_DESC* shader_desc, dmArray<char>& buffer)
     {
-        const int BUFFER_SIZE = 1024;
+        const int BUFFER_SIZE = 1024 * 4;
 
         buffer.SetCapacity(BUFFER_SIZE);
         buffer.SetSize(BUFFER_SIZE);
@@ -332,7 +295,7 @@ namespace dmShaderc
         return true;
     }
 
-    ShaderCompileResult* CompileRawHLSLToBinary(HShaderContext context, ShaderCompileResult* raw_hlsl, dmArray<CombinedSampler>& combined_samplers)
+    ShaderCompileResult* CompileRawHLSLToBinary(HShaderContext context, HShaderCompiler compiler, ShaderCompileResult* raw_hlsl)
     {
         ID3DBlob* shader_blob = NULL;
         ID3DBlob* error_blob = NULL;
@@ -373,10 +336,7 @@ namespace dmShaderc
 
         if (FAILED(hr))
         {
-            dmLogError("D3DReflect failed");
-
-            PrintHResultError(hr, "D3DReflect");
-
+            dmLogError("Failed to get shader reflection");
             shader_blob->Release();
             return 0;
         }
@@ -389,12 +349,14 @@ namespace dmShaderc
             return 0;
         }
 
+    #if 0 // DEBUG
+        PrintRootSignatureFromReflection(reflection, &shaderDesc);
+    #endif
+
         // Explicitly null-terminate the incoming string.
         char* src_data = (char*) malloc(raw_hlsl->m_Data.Size()+1);
         memcpy((void*) src_data, raw_hlsl->m_Data.Begin(), raw_hlsl->m_Data.Size());
         src_data[raw_hlsl->m_Data.Size()] = '\0';
-
-        PrintRootSignatureFromReflection(reflection, &shaderDesc);
 
         dmArray<char> root_signature_buffer;
         GenerateRootSignatureFromReflection(reflection, &shaderDesc, root_signature_buffer);
@@ -418,6 +380,9 @@ namespace dmShaderc
         char* write_str = (char*) result->m_Data.Begin();
         memset(write_str, 0, data_size);
         memcpy(write_str, injected_source_buffer.Begin(), data_size);
+
+        dmArray<CombinedSampler> combined_samplers;
+        GetCombinedSamplerMapSPIRV(context, (ShaderCompilerSPVC*) compiler, combined_samplers);
 
         FillResourceEntryArray(context, reflection, &shaderDesc, combined_samplers, result->m_HLSLResourceMappings);
 
