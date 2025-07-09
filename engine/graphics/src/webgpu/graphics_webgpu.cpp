@@ -1159,6 +1159,8 @@ static void WebGPUDestroyContext(WebGPUContext* context)
         wgpuQueueRelease(context->m_Queue);
     if (context->m_Device)
         wgpuDeviceRelease(context->m_Device);
+    if (context->m_Instance)
+        wgpuInstanceRelease(context->m_Instance);
 }
 
 static HContext WebGPUNewContext(const ContextParams& params)
