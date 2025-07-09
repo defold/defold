@@ -2763,7 +2763,7 @@
                                                   regions
                                                   breakpoint-rows)))))
 
-(handler/defhandler :code.rename :code-view
+(handler/defhandler :edit.rename :code-view
   (active? [editable] editable)
   (run [view-node]
     (g/with-auto-evaluation-context evaluation-context
@@ -3344,7 +3344,7 @@
    {:command :code.select-next-occurrence :label "Select Next Occurrence"}
    {:command :code.split-selection-into-lines :label "Split Selection Into Lines"}
    {:label :separator}
-   {:command :code.rename :label "Rename"}
+   {:command :edit.rename :label "Rename"}
    {:command :code.goto-definition :label "Go to Definition"}
    {:command :code.show-references :label "Find References"}
    {:label :separator}

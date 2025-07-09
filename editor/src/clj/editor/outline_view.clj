@@ -270,6 +270,9 @@
     :icon "icons/32/Icons_M_06_trash.png"
     :command :edit.delete}
    menu-items/separator
+   {:label "Rename..."
+    :command :edit.rename}
+   menu-items/separator
    {:label "Move Up"
     :command :edit.reorder-up}
    {:label "Move Down"
@@ -487,23 +490,16 @@
         (.refresh)
         (.requestFocus)))))
 
-(defn read-only-id?
-  [node-id]
-  (let [node (g/node-by-id node-id)]
-    (g/with-auto-evaluation-context evaluation-context
-      (g/node-property-dynamic node :id :read-only? false evaluation-context))))
-
 (defn- activate-editing!
   [^Label label ^TextField text-field]
   (when-let [node-id (ui/user-data text-field ::node-id)]
     (when-let [id (g/maybe-node-value node-id :id)]
-      (when-not (read-only-id? node-id)
-        (.setVisible label false)
-        (doto text-field
-          (.setText id)
-          (.setVisible true)
-          (.requestFocus)
-          (.selectAll))))))
+      (.setVisible label false)
+      (doto text-field
+        (.setText id)
+        (.setVisible true)
+        (.requestFocus)
+        (.selectAll)))))
 
 (defn- deactivate-editing!
   [^Label label ^TextField text-field]
@@ -518,38 +514,54 @@
       (g/set-property! node-id :id new-text))
     (set-editing-id! tree-view nil)))
 
-(defn- click-handler!
-  [^Label text-label ^MouseEvent event]
-  (let [current-click-time (System/currentTimeMillis)
-        last-click-time (or (ui/user-data text-label ::last-click-time) 0)
-        time-diff (- current-click-time last-click-time)
-        db-click-threshold (or (-> (Toolkit/getDefaultToolkit)
-                                   (.getDesktopProperty "awt.multiClickInterval"))
-                               400)]
-    (.consume event)
-    (ui/user-data! text-label ::last-click-time current-click-time)
-    (cond
-      (< time-diff db-click-threshold) 
-      (ui/run-command (.getSource event) :file.open-selected)
-      
-      (< time-diff (* db-click-threshold 2)) 
-      (ui/run-command (.getSource event) :node.rename)
-      
-      :else nil)))
-
-(defn get-selected-node-id
+(defn- get-selected-node-id
   [^TreeView tree-view]
   (let [selection-model (.getSelectionModel tree-view)
         selected-items (.getSelectedItems selection-model)
         ^TreeItem selected-item (first selected-items)]
     (item->node-id selected-item)))
 
-(handler/defhandler :node.rename :outline
+(defn- click-handler!
+  [^TreeView tree-view ^Label text-label ^MouseEvent event]
+  (let [current-click-time (System/currentTimeMillis)
+        last-click-time (or (ui/user-data text-label ::last-click-time) 0)
+        time-diff (- current-click-time last-click-time)
+        db-click-threshold (or (-> (Toolkit/getDefaultToolkit)
+                                   (.getDesktopProperty "awt.multiClickInterval"))
+                               500)]
+    (ui/user-data! text-label ::last-click-time current-click-time)
+    (cond
+      (< time-diff db-click-threshold)
+      (do
+        (when-let [future (ui/user-data text-label ::rename-future)]
+          (ui/cancel future)
+          (ui/user-data! text-label ::future-rename nil))
+        (ui/run-command (.getSource event) :file.open-selected))
+
+      (= (get-selected-node-id tree-view)
+         (ui/user-data text-label ::node-id))
+      (let [future-rename (ui/->future (/ db-click-threshold 1000)
+                                       (fn []
+                                         (ui/user-data! text-label ::future-rename nil)
+                                         (ui/run-command (.getSource event) :edit.rename)))]
+        (ui/user-data! text-label ::future-rename future-rename))
+
+      :else nil)))
+
+(defn- editable-id?
+  [node-id]
+  (let [node (g/node-by-id node-id)]
+    (and (g/maybe-node-value node-id :id)
+         (g/with-auto-evaluation-context evaluation-context
+           (and (not (g/node-property-dynamic node :id :read-only? false evaluation-context))
+                (g/node-property-dynamic node :id :visible true evaluation-context))))))
+
+(handler/defhandler :edit.rename :outline
   (active? [selection outline-view]
            (and (= 1 (count selection))
-                (not (-> (g/node-value outline-view :raw-tree-view)
-                         (get-selected-node-id)
-                         (read-only-id?)))))
+                (when-let [node-id (-> (g/node-value outline-view :raw-tree-view)
+                                       (get-selected-node-id))]
+                  (editable-id? node-id))))
   (run [outline-view]
        (let [^TreeView tree-view (g/node-value outline-view :raw-tree-view)]
          (set-editing-id! tree-view (get-selected-node-id tree-view)))))
@@ -577,7 +589,7 @@
                      (ui/auto-commit! update-fn)
                      (ui/on-focus! (fn [got-focus] (when-not got-focus
                                                      (set-editing-id! tree-view nil)))))
-        _ (.addEventFilter text-label MouseEvent/MOUSE_CLICKED (ui/event-handler e (click-handler! text-label e)))
+        _ (.addEventFilter text-label MouseEvent/MOUSE_PRESSED (ui/event-handler e (click-handler! tree-view text-label e)))
         label-pane (doto (AnchorPane. (ui/node-array [text-label text-field]))
                      (ui/add-style! "anchor-pane")
                      (HBox/setHgrow Priority/ALWAYS))
@@ -610,6 +622,7 @@
                        (.setImage image-view-icon (icons/get-image icon))
                        (.setText text-label text)
                        (ui/user-data! text-field ::node-id node-id)
+                       (ui/user-data! text-label ::node-id node-id)
                        (doto visibility-button
                          (.setGraphic visibility-icon)
                          (ui/on-click! (partial toggle-visibility! node-outline-key-path)))
@@ -669,18 +682,22 @@
 (defn key-pressed-handler!
   [app-view ^TreeView tree-view ^KeyEvent event]
   (let [keymap (g/node-value app-view :keymap)
-        rename-shortcuts (keymap/shortcuts keymap :node.rename)
+        rename-shortcuts (keymap/shortcuts keymap :edit.rename)
         editing-id (ui/user-data tree-view ::editing-id)]
     (condp = (.getCode event)
       KeyCode/ENTER
+      ;; We want to commit the rename on Enter, while editing.
       (when-not editing-id
         (.consume event)
         (ui/run-command (.getSource event) :file.open-selected))
-
+      
+      ;; The key-down `F2` event is consumed by javafx, even though the built-in editing
+      ;; that uses it is set to false, so `:edit.rename :outline` handler will not work
+      ;; for `F2`. Since the shortcut is customizable, we need to check if it exists.
       KeyCode/F2
       (when (some #(= "F2" (.toString ^KeyCodeCombination %)) rename-shortcuts)
         (.consume event)
-        (ui/run-command (.getSource event) :node.rename))
+        (ui/run-command (.getSource event) :edit.rename))
 
       nil)))
 
