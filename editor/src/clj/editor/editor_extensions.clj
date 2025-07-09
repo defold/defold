@@ -172,9 +172,11 @@
                                            proj-path-or-opts-map))
                                        (rt/->clj rt created-resources-coercer lua-created-resources))
           basis (:basis evaluation-context)
-          workspace (project/workspace project evaluation-context)]
+          workspace (project/workspace project evaluation-context)
+          project-dir (workspace/project-directory basis workspace)
+          resource-types (resource/resource-types-by-type-ext basis workspace :editable)]
       (-> (future/io
-            (let [root-path (fs/real-path (workspace/project-directory basis workspace))
+            (let [root-path (fs/real-path project-dir)
                   path+contents (mapv (fn [{proj-path 1 content 2}]
                                         (let [file-path (.normalize (fs/path (str root-path proj-path)))]
                                           (when-not (.startsWith file-path root-path)
@@ -187,7 +189,7 @@
                                                             (let [file-name (str (.getFileName file-path))
                                                                   base-name (FilenameUtils/removeExtension file-name)
                                                                   ext (string/lower-case (FilenameUtils/getExtension file-name))
-                                                                  resource-type (get (resource/resource-types-by-type-ext basis workspace :editable) ext)
+                                                                  resource-type (get resource-types ext)
                                                                   template (or (workspace/template workspace resource-type evaluation-context) "")]
                                                               (workspace/replace-template-name template base-name)))]
                                             (coll/pair file-path content))))
