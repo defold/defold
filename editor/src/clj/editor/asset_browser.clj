@@ -131,7 +131,7 @@
     :icon "icons/32/Icons_M_06_trash.png"}
    menu-items/separator
    {:label "Rename..."
-    :command :file.rename}
+    :command :edit.rename}
    (menu-items/separator-with-id ::context-menu-end)])
 
 (def fixed-resource-paths #{"/" "/game.project"})
@@ -429,7 +429,7 @@
     (when (resource-watch/reserved-proj-path? project-directory-file prospect-path)
       (format "The name %s is reserved" new-name))))
 
-(handler/defhandler :file.rename :asset-browser
+(handler/defhandler :edit.rename :asset-browser
   (enabled? [selection] (rename? selection))
   (run [selection workspace]
     (let [first-resource (first selection)
