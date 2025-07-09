@@ -163,6 +163,39 @@ editor.command({
           :parameters [resource-path-param]
           :description "Create a directory if it does not exist, and all non-existent parent directories.\n\nThrows an error if the directory can't be created."
           :examples "```\neditor.create_directory(\"/assets/gen\")\n```"}
+         {:name "editor.create_resources"
+          :type :function
+          :parameters [{:name "resources"
+                        :types ["string[]"]
+                        :doc (str "Array of resource paths (strings starting with <code>/</code>) or resource definitions, lua tables with the following keys:"
+                                  (lua-completion/args-doc-html
+                                    [{:name "1"
+                                      :types ["string"]
+                                      :doc "required, resource path (starting with <code>/</code>)"}
+                                     {:name "2"
+                                      :types ["string"]
+                                      :doc "optional, created resource content"}]))}]
+          :description "Create resources (including non-existent parent directories).\n\nThrows an error if any of the provided resource paths already exist"
+          :examples "Create a single resource from template:
+```
+editor.create_resources({
+  \"/npc.go\"
+})
+```
+Create multiple resources:
+```
+editor.create_resources({
+  \"/npc.go\",
+  \"/levels/1.collection\",
+  \"/levels/2.collection\",
+})
+```
+Create a resource with custom content:
+```
+editor.create_resources({
+  {\"/npc.script\", \"go.property('hp', 100)\"}
+})
+```"}
          {:name "editor.delete_directory"
           :type :function
           :parameters [resource-path-param]
