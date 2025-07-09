@@ -69,6 +69,7 @@ namespace dmRender
         FGetGlyphData           m_GetGlyphData;
         FGetFontMetrics         m_GetFontMetrics;
 
+        float                   m_PixelScale;   // Scale factor from points to pixel scale
         float                   m_ShadowX;
         float                   m_ShadowY;
         float                   m_MaxAscent;

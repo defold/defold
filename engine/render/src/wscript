@@ -20,6 +20,11 @@ def build(bld):
     sources = [x for x in sources if not str(x).endswith('font_renderer_default.cpp')]
     #sources = [x for x in sources if not str(x).endswith('font_renderer_raqm.cpp')]
 
+    bld.stlib(features        = 'c',
+              includes        = ['.'],
+              source          = ['render/kb_text_shape.c'],
+              target          = 'kb_text_shape')
+
     bld.stlib(features        = 'cxx ddf',
               includes        = ['.', '../build/proto'],
               proto_gen_py    = True,

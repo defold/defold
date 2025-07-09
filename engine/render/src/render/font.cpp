@@ -29,6 +29,7 @@ namespace dmRender
     : m_GetGlyph(0)
     , m_GetGlyphData(0)
     , m_NameHash(0)
+    , m_PixelScale(1.0f)
     , m_ShadowX(0.0f)
     , m_ShadowY(0.0f)
     , m_MaxAscent(0.0f)
@@ -176,6 +177,7 @@ namespace dmRender
         font_map->m_ShadowY = params.m_ShadowY;
         font_map->m_MaxAscent = params.m_MaxAscent;
         font_map->m_MaxDescent = params.m_MaxDescent;
+        font_map->m_PixelScale = params.m_PixelScale;
         font_map->m_SdfSpread = params.m_SdfSpread;
         font_map->m_SdfOutline = params.m_SdfOutline;
         font_map->m_SdfShadow = params.m_SdfShadow;

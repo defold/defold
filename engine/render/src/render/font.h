@@ -58,6 +58,8 @@ namespace dmRender
 
         dmhash_t        m_NameHash;
 
+        /// Scale factor from points to pixel scale
+        float m_PixelScale;
         /// Offset of the shadow along the x-axis
         float m_ShadowX;
         /// Offset of the shadow along the y-axis

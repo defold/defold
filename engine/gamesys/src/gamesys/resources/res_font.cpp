@@ -454,6 +454,7 @@ namespace dmGameSystem
         params->m_SdfShadow = sdf_shadow;
 
         float scale = dmFont::GetPixelScaleFromSize(hfont, ddf->m_Size);
+        params->m_PixelScale = scale;
         params->m_MaxAscent = dmFont::GetAscent(hfont, scale);
         params->m_MaxDescent = -dmFont::GetDescent(hfont, scale);
 
