@@ -20,8 +20,8 @@ local function create_resources(resources)
             arg_str = arg_str .. '"' .. res .. '"'
         else
             arg_str = arg_str .. '{"' .. res[1] .. '"'
-            if res.content then
-                arg_str = arg_str .. ', content = "' .. res.content:gsub("\"", "\\\"") .. '"'
+            if res[2] then
+                arg_str = arg_str .. ', "' .. res[2]:gsub("\"", "\\\"") .. '"'
             end
             arg_str = arg_str .. "}"
         end
@@ -53,7 +53,7 @@ function M.get_commands()
             id = "defold.test",
             run = function()
                 create_resources({
-                    {"/test/config.json", content = "{\"test\": true}"}
+                    {"/test/config.json", "{\"test\": true}"}
                 })
                 pprint_resource("/test/config.json", {"text"})
 

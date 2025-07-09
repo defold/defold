@@ -160,7 +160,7 @@
     (coerce/one-of
       graph/resource-path-coercer
       (coerce/hash-map :req {1 graph/resource-path-coercer}
-                       :opt {:content coerce/string}
+                       :opt {2 coerce/string}
                        :extra-keys false))
     :min-count 1))
 
@@ -175,7 +175,7 @@
           workspace (project/workspace project evaluation-context)]
       (-> (future/io
             (let [root-path (fs/real-path (workspace/project-directory basis workspace))
-                  path+contents (mapv (fn [{proj-path 1 :keys [content]}]
+                  path+contents (mapv (fn [{proj-path 1 content 2}]
                                         (let [file-path (.normalize (fs/path (str root-path proj-path)))]
                                           (when-not (.startsWith file-path root-path)
                                             (throw (LuaError. (str "Can't create " proj-path ": outside of project directory"))))

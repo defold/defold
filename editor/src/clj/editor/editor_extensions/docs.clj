@@ -172,7 +172,7 @@ editor.command({
                                     [{:name "1"
                                       :types ["string"]
                                       :doc "required, resource path (starting with <code>/</code>)"}
-                                     {:name "content"
+                                     {:name "2"
                                       :types ["string"]
                                       :doc "optional, created resource content"}]))}]
           :description "Create resources (including non-existent parent directories).\n\nThrows an error if any of the provided resource paths already exist"
@@ -193,7 +193,7 @@ editor.create_resources({
 Create a resource with custom content:
 ```
 editor.create_resources({
-  {\"/npc.script\", content = \"go.property('hp', 100)\"}
+  {\"/npc.script\", \"go.property('hp', 100)\"}
 })
 ```"}
          {:name "editor.delete_directory"

@@ -936,7 +936,7 @@ POST http://localhost:23456/echo hello world! as string => 200
           (http-server/stop! server 0))))))
 
 (def ^:private resource-io-test-output
-  "editor.create_resources({{\"/test/config.json\", content = \"{\\\"test\\\": true}\"}}) => ok!
+  "editor.create_resources({{\"/test/config.json\", \"{\\\"test\\\": true}\"}}) => ok!
 /test
   /config.json
 /test/config.json:
