@@ -112,10 +112,15 @@ def build(bld):
     bld.add_group()
 
     profile_symbols = ['ProfilerExt', 'ProfilerBasic']
-    profile__null_symbols = ['ProfilerExt']
+    profile_null_symbols = ['ProfilerExt']
     profile_lib = ['PROFILE', 'PROFILEREXT']
     if bld.env['PLATFORM'] in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
-        profile_lib = ['PROFILE_NULL', 'PROFILEREXT_NULL']
+        profile_lib = ['PROFILE', 'PROFILEREXT']
+
+    # remotery isn't supported on all platforms
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+        profile_lib += ['PROFILER_REMOTERY']
+        profile_symbols += ['ProfilerRemotery']
 
     if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5', 'x86_64-linux', 'arm64-linux'):
         additional_libs.append('APP')
@@ -156,7 +161,7 @@ def build(bld):
         features = 'c cxx cprogram apk web extract_symbols',
         use = 'PROFILE_NULL PROFILEREXT_NULL GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine_release engine_service_null'.split() + graphics_lib + sound_lib + platform_lib + additional_libs,
         web_libs = web_libs,
-        exported_symbols = exported_symbols + profile__null_symbols + resource_type_symbols + component_type_symbols,
+        exported_symbols = exported_symbols + profile_null_symbols + resource_type_symbols + component_type_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
         defines = '_XBOX DM_RELEASE=1',

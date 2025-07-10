@@ -24,7 +24,7 @@
 #include <script/script.h>
 
 #include "profiler_private.h"
-#include "profile/profile_render.h"
+#include "profiler_render.h"
 
 #include <algorithm> // std::sort
 
@@ -855,10 +855,6 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
     g_ProfilerCurrentFrame = new dmProfileRender::ProfilerFrame;
     dmProfiler::SetEnabled(dmConfigFile::GetInt(params->m_ConfigFile, "profiler.enabled", 1) != 0);
 
-    // dmProfile::Options options;
-    // options.m_Port = g_ProfilerPort;
-    // options.m_EnablePerformanceTimeline = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.performance_timeline_enabled", 0);
-    // options.m_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.sleep_between_server_updates", 0);
     if (!ProfileIsInitialized())
     {
         ProfileInitialize();

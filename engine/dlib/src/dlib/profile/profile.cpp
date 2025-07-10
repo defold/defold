@@ -65,10 +65,12 @@ static void PropertyInitialize();
 
 static void CreateListener(ProfileListener* profiler)
 {
+    profiler->m_Ctx = 0;
     if (profiler->m_Create)
     {
         profiler->m_Ctx = profiler->m_Create();
     }
+    profiler->m_Disabled = profiler->m_Ctx == 0;
 }
 
 static void CreateProperty(ProfileListener* profiler, ProfileProperty* prop)
@@ -152,6 +154,7 @@ void ProfileUnregisterProfiler(const char* name)
 #define DO_LOOP_NOARGS(_FUNC)                                           \
     for (ProfileListener* p = g_ProfileListeners; p!=0; p = p->m_Next)  \
     {                                                                   \
+        if (p->m_Disabled) continue;                                    \
         if (p->m_ ## _FUNC)                                             \
         {                                                               \
             p->m_ ## _FUNC(p->m_Ctx);                                   \
@@ -161,6 +164,7 @@ void ProfileUnregisterProfiler(const char* name)
 #define DO_LOOP(_FUNC, ...)                                             \
     for (ProfileListener* p = g_ProfileListeners; p!=0; p = p->m_Next)  \
     {                                                                   \
+        if (p->m_Disabled) continue;                                    \
         if (p->m_ ## _FUNC)                                             \
         {                                                               \
             p->m_ ## _FUNC(p->m_Ctx, __VA_ARGS__);                      \

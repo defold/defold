@@ -257,6 +257,7 @@ struct ProfileListener
     char                m_Name[16];
     ProfileListener*    m_Next;
     void*               m_Ctx;
+    bool                m_Disabled; // if it failed to initialize
 
     // Public API
     ProfileCreateListenerFn         m_Create;

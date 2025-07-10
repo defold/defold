@@ -8,7 +8,7 @@ def configure(conf):
 def build(bld):
     embed_source = ''
 
-    source = 'profiler.cpp profile/profile_render.cpp profile/profile_basic.cpp'
+    source = 'profiler.cpp profiler_render.cpp basic/profiler_basic.cpp'
     source_null = 'profiler_null.cpp'
 
     if 'macos' in bld.env.PLATFORM or 'ios' in bld.env.PLATFORM:
@@ -34,9 +34,16 @@ def build(bld):
                             source = source_null,
                             target = 'profilerext_null')
 
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+        profiler = bld.stlib(features = 'c cxx',
+                                includes = '.',
+                                source = 'remotery/profiler_remotery.cpp remotery/lib/Remotery.c',
+                                target = 'profiler_remotery')
+
     bld.install_files('${PREFIX}/include/profiler', 'profiler.h')
 
     apidoc_extract_task(bld, ['profiler.cpp'])
 
     if not waflib.Options.options.skip_build_tests:
         bld.recurse('test')
+

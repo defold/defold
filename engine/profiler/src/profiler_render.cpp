@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "profile_render.h"
+#include "profiler_render.h"
 
 #include <string.h>
 
@@ -26,7 +26,6 @@
 #include <dmsdk/dlib/vmath.h>
 #include <render/font_renderer.h>
 #include <render/font_ddf.h>
-#include "profile_render.h"
 
 namespace dmProfileRender
 {
