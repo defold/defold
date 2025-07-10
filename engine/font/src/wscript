@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import os
+
 from waf_dynamo import dmsdk_add_files
 
 def options(opt):

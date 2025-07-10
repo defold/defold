@@ -6,8 +6,7 @@ APPNAME='font'
 srcdir = '.'
 blddir = 'build'
 
-import sys
-import waf_dynamo, waf_ddf
+import waf_dynamo
 import waflib.Options
 import TestContext
 
