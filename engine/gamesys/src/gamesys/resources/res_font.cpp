@@ -457,11 +457,24 @@ namespace dmGameSystem
         params->m_MaxAscent = dmFont::GetAscent(hfont, scale);
         params->m_MaxDescent = -dmFont::GetDescent(hfont, scale);
 
-        params->m_CacheWidth    = ddf->m_CacheWidth;
-        params->m_CacheHeight   = ddf->m_CacheHeight;
-        // From Fontc.java
-        params->m_CacheMaxWidth = 2048;
-        params->m_CacheMaxHeight= 4096;
+        bool dynamic_cache_size = ddf->m_CacheWidth == 0 && ddf->m_CacheHeight == 0;
+        if (dynamic_cache_size)
+        {
+            // From Fontc.java
+            params->m_CacheMaxWidth = 2048;
+            params->m_CacheMaxHeight= 4096;
+            // no real point in starting too small
+            params->m_CacheWidth    = 64;
+            params->m_CacheHeight   = 64;
+        }
+        else
+        {
+            // If we have a fixed size, let's stick to it
+            params->m_CacheMaxWidth = ddf->m_CacheWidth;
+            params->m_CacheMaxHeight= ddf->m_CacheHeight;
+            params->m_CacheWidth    = ddf->m_CacheWidth;
+            params->m_CacheHeight   = ddf->m_CacheHeight;
+        }
 
         params->m_CacheCellWidth     = 0;
         params->m_CacheCellHeight    = 0;
@@ -471,6 +484,7 @@ namespace dmGameSystem
         bool has_chars = ddf->m_Characters != 0 && ddf->m_Characters[0] != 0;
         if (!all_chars && has_chars)
         {
+            bool dynamic_cache_size = ddf->m_CacheWidth == 0 && ddf->m_CacheHeight == 0;
             // We can make a guesstimate of the needed cache and cell sizes
             float cell_width, cell_height;
             GetMaxCellSize(hfont, scale, ddf->m_Characters, &cell_width, &cell_height);
@@ -479,7 +493,7 @@ namespace dmGameSystem
             params->m_CacheCellHeight    = (uint32_t)ceilf(cell_height) + 2 * ceilf(padding);
             params->m_CacheCellMaxAscent = (uint32_t)ceilf(params->m_MaxAscent) + ceilf(padding);
 
-            if (params->m_CacheWidth == 0 && params->m_CacheHeight == 0)
+            if (dynamic_cache_size)
             {
                 // We want to grow dynamically, so let's make a good guesstimate to fit all prewarming glyphs
                 params->m_CacheWidth = 1;
