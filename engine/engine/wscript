@@ -154,6 +154,7 @@ def configure(conf):
     conf.env['STLIB_PROFILEREXT'] = 'profilerext'
     conf.env['STLIB_PROFILEREXT_NULL'] = 'profilerext_null'
     conf.env['STLIB_PROFILER_REMOTERY'] = ['profiler_remotery']
+    conf.env['STLIB_PROFILER_JS'] = ['profiler_js']
 
     conf.env['STLIB_TREMOLO'] = 'tremolo'
 

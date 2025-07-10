@@ -12,22 +12,22 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "profile.h"
+#include <dmsdk/extension/extension.h>
+#include "../profiler_private.h"
 
-#include "dlib/array.h"
-#include "dlib/atomic.h"
-#include "dlib/dlib.h" // IsDebugMode
-#include "dlib/hash.h"
-#include "dlib/hashtable.h"
-#include "dlib/log.h"
-#include "dlib/math.h"
-#include "dlib/mutex.h"
-#include "dlib/thread.h"
-#include "dlib/time.h"
+#include <dlib/array.h>
+#include <dlib/atomic.h>
+#include <dlib/hash.h>
+#include <dlib/hashtable.h>
+#include <dlib/log.h>
+#include <dlib/math.h>
+#include <dlib/mutex.h>
+#include <dlib/thread.h>
+#include <dlib/time.h>
 
 #include <assert.h>
-#include <stdio.h> // vsnprintf
-#include <stdarg.h> // va_start et al
+#include <stdio.h>
+#include <string.h> // memset
 
 extern "C" {
 // Implementation in library_profile.js
@@ -49,21 +49,14 @@ const char * dmProfileJSGetPropertyName(int32_t idx);
 const char *dmProfileJSGetPropertyDescription(uint32_t idx);
 uint32_t dmProfileJSGetPropertyType(uint32_t idx);
 uint32_t dmProfileJSGetPropertyFlags(uint32_t idx);
-uint32_t dmProfileJSCreatePropertyGroup(uint32_t type, const char *name, const char *desc, uint32_t parent_idx);
-uint32_t dmProfileJSCreatePropertyBool(uint32_t type, const char *name, const char *desc, bool v, uint32_t flags, uint32_t parent_idx);
-uint32_t dmProfileJSCreatePropertyS32(uint32_t type, const char *name, const char *desc, int32_t v, uint32_t flags, uint32_t parent_idx);
-uint32_t dmProfileJSCreatePropertyU32(uint32_t type, const char *name, const char *desc, uint32_t v, uint32_t flags, uint32_t parent_idx);
-uint32_t dmProfileJSCreatePropertyF32(uint32_t type, const char *name, const char *desc, float v, uint32_t flags, uint32_t parent_idx);
-uint32_t dmProfileJSCreatePropertyS64(uint32_t type, const char *name, const char *desc, int64_t v, uint32_t flags, uint32_t parent_idx);
-uint32_t dmProfileJSCreatePropertyU64(uint32_t type, const char *name, const char *desc, uint64_t v, uint32_t flags, uint32_t parent_idx);
-uint32_t dmProfileJSCreatePropertyF64(uint32_t type, const char *name, const char *desc, double v, uint32_t flags, uint32_t parent_idx);
-bool dmProfileJSGetPropertyBool(uint32_t idx);
-int32_t dmProfileJSGetPropertyS32(uint32_t idx);
-uint32_t dmProfileJSGetPropertyU32(uint32_t idx);
-float dmProfileJSGetPropertyF32(uint32_t idx);
-int64_t dmProfileJSGetPropertyS64(uint32_t idx);
-uint64_t dmProfileJSGetPropertyU64(uint32_t idx);
-double dmProfileJSGetPropertyF64(uint32_t idx);
+uint32_t dmProfileJSCreatePropertyGroup(uint32_t type, const char *name, const char *desc, uint32_t idx, uint32_t parent_idx);
+uint32_t dmProfileJSCreatePropertyBool(uint32_t type, const char *name, const char *desc, bool v, uint32_t flags, uint32_t idx, uint32_t parent_idx);
+uint32_t dmProfileJSCreatePropertyS32(uint32_t type, const char *name, const char *desc, int32_t v, uint32_t flags, uint32_t idx, uint32_t parent_idx);
+uint32_t dmProfileJSCreatePropertyU32(uint32_t type, const char *name, const char *desc, uint32_t v, uint32_t flags, uint32_t idx, uint32_t parent_idx);
+uint32_t dmProfileJSCreatePropertyF32(uint32_t type, const char *name, const char *desc, float v, uint32_t flags, uint32_t idx, uint32_t parent_idx);
+uint32_t dmProfileJSCreatePropertyS64(uint32_t type, const char *name, const char *desc, int64_t v, uint32_t flags, uint32_t idx, uint32_t parent_idx);
+uint32_t dmProfileJSCreatePropertyU64(uint32_t type, const char *name, const char *desc, uint64_t v, uint32_t flags, uint32_t idx, uint32_t parent_idx);
+uint32_t dmProfileJSCreatePropertyF64(uint32_t type, const char *name, const char *desc, double v, uint32_t flags, uint32_t idx, uint32_t parent_idx);
 void dmProfileJSSetPropertyBool(uint32_t idx, bool v);
 void dmProfileJSSetPropertyS32(uint32_t idx, int32_t v);
 void dmProfileJSSetPropertyU32(uint32_t idx, uint32_t v);
@@ -83,10 +76,6 @@ void dmProfileJSResetProperty(uint32_t idx);
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
 // At global scope as they're set _before_ the profiler is started
-static dmProfile::FSampleTreeCallback      g_SampleTreeCallback = 0;
-static void*                               g_SampleTreeCallbackCtx = 0;
-static dmProfile::FPropertyTreeCallback    g_PropertyTreeCallback = 0;
-static void*                               g_PropertyTreeCallbackCtx = 0;
 
 // Synchronization
 static dmThread::TlsKey         g_TlsKey = dmThread::AllocTls();
@@ -95,6 +84,8 @@ static int32_atomic_t           g_ProfileInitialized = 0;
 static dmMutex::HMutex          g_Lock = 0;
 
 static struct ProfileContext*   g_ProfileContext = 0;
+// config options:
+static int                      g_ProfilerOptions_PerformanceTimelineEnabled = 0;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 // ThreadData
@@ -180,429 +171,250 @@ static int32_t GetThreadId()
     return (int32_t)thread_id;
 }
 
-static const char* GetThreadName(int32_t thread_id)
-{
-    CHECK_INITIALIZED_RETVAL("null");
-    DM_MUTEX_SCOPED_LOCK(g_Lock);
-    const char** pname = g_ProfileContext->m_ThreadNames.Get(thread_id);
-    return pname != 0 ? *pname : "null";
-}
-
-static ThreadData* GetOrCreateThreadData(ProfileContext* ctx, int32_t thread_id)
-{
-    ThreadData** pdata = ctx->m_ThreadData.Get(thread_id);
-    if (pdata)
-        return *pdata;
-
-    ThreadData* td = new ThreadData(thread_id);
-
-    if (ctx->m_ThreadData.Full())
-    {
-        uint32_t cap = ctx->m_ThreadData.Capacity() + 16;
-        ctx->m_ThreadData.SetCapacity((cap*2)/3, cap);
-    }
-    ctx->m_ThreadData.Put(thread_id, td);
-    return td;
-}
-
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
-namespace dmProfile
+static void* CreateListener()
 {
-    static const uint32_t INVALID_INDEX = 0xFFFFFFFF;
-
-    void Initialize(const Options* options)
+    if (!dmProfileJSInit(g_ProfilerOptions_PerformanceTimelineEnabled ? 1 : 0))
     {
-        if (!dLib::IsDebugMode())
-            return;
-
-        if (!dmProfileJSInit(options->m_EnablePerformanceTimeline ? 1 : 0))
-        {
-            dmLogError("Failed to initialize the profiler");
-            return;
-        }
-
-        assert(!IsInitialized());
-        g_Lock = dmMutex::New();
-        g_ProfileContext = new ProfileContext;
-
-        dmAtomicIncrement32(&g_ProfileInitialized);
-
-        SetThreadName("Main");
-    }
-
-    void Finalize()
-    {
-        CHECK_INITIALIZED();
-        {
-            DM_MUTEX_SCOPED_LOCK(g_Lock);
-            dmAtomicDecrement32(&g_ProfileInitialized);
-
-            delete g_ProfileContext;
-            g_ProfileContext = 0;
-        }
-        dmMutex::Delete(g_Lock);
-        g_Lock = 0;
-    }
-
-    bool IsInitialized()
-    {
-        return IsProfileInitialized();
-    }
-
-    void SetThreadName(const char* name)
-    {
-        CHECK_INITIALIZED();
-        DM_MUTEX_SCOPED_LOCK(g_Lock);
-        if (g_ProfileContext->m_ThreadNames.Full())
-        {
-            uint32_t cap = g_ProfileContext->m_ThreadNames.Capacity() + 32;
-            g_ProfileContext->m_ThreadNames.SetCapacity((cap*2)/3, cap);
-        }
-        g_ProfileContext->m_ThreadNames.Put(GetThreadId(), strdup(name));
-    }
-
-    void AddCounter(const char* name, uint32_t amount)
-    {
-        // Not supported currently.
-        // Used by mem profiler to dynamically insert a property at runtime
-    }
-
-    HProfile BeginFrame()
-    {
-        CHECK_INITIALIZED_RETVAL(0);
-        DM_MUTEX_SCOPED_LOCK(g_Lock);
-
-        return (HProfile)g_ProfileContext;
-    }
-
-    void EndFrame(HProfile profile)
-    {
-        (void)profile;
-        CHECK_INITIALIZED();
-        DM_MUTEX_SCOPED_LOCK(g_Lock);
-
-        if (g_PropertyTreeCallback)
-            g_PropertyTreeCallback(g_PropertyTreeCallbackCtx, (void*)(uintptr_t)0);
-        dmProfileJSEndFrame(GetThreadId());
-    }
-
-    uint64_t GetTicksPerSecond()
-    {
-        // Since this profiler uses the dmTime::GetMonotonicTime() which returns microseconds
-        return 1000000;
-    }
-
-    void LogText(const char* format, ...)
-    {
-        (void)format;
-
-        // This function is called by the logging system, and is intended for passing the data on to
-        // any connected devices collecting the profile data.
-    }
-
-    void SetSampleTreeCallback(void* ctx, FSampleTreeCallback callback)
-    {
-        // NOTE: Called _before_ initialization
-        g_SampleTreeCallback = callback;
-        g_SampleTreeCallbackCtx = ctx;
-    }
-
-    void SetPropertyTreeCallback(void* ctx, FPropertyTreeCallback callback)
-    {
-        // NOTE: Called _before_ initialization
-        g_PropertyTreeCallback = callback;
-        g_PropertyTreeCallbackCtx = ctx;
-    }
-
-    void ScopeBegin(const char* name, uint64_t* pname_hash)
-    {
-        CHECK_INITIALIZED();
-        DM_MUTEX_SCOPED_LOCK(g_Lock);
-        dmProfileJSBeginMark(GetThreadId(), name);
-    }
-
-    void ScopeEnd()
-    {
-        CHECK_INITIALIZED();
-        DM_MUTEX_SCOPED_LOCK(g_Lock);
-        const int32_t thread_id = GetThreadId();
-        if (dmProfileJSEndMark(thread_id) && g_SampleTreeCallback)
-        {
-            // We've closed a top scope (there may be several) on this thread and are ready to present the info
-            for (int id = dmProfileJSFirstChild(thread_id, 0); id != dmProfile::INVALID_INDEX; id = dmProfileJSNextSibling(thread_id, id))
-                g_SampleTreeCallback(g_SampleTreeCallbackCtx, GetThreadName(thread_id), (void*)(uintptr_t)id);
-            dmProfileJSReset(thread_id);
-        }
-    }
-
-    void ProfileScopeHelper::StartScope(const char* name, uint64_t* pname_hash)
-    {
-        if (name[0] == 0)
-            name = "<empty>";
-        ScopeBegin(name, pname_hash);
-    }
-
-    void ProfileScopeHelper::EndScope()
-    {
-        ScopeEnd();
-    }
-
-    // *******************************************************************
-    SampleIterator::SampleIterator() : m_Sample(0), m_IteratorImpl((void*)(uintptr_t)dmProfile::INVALID_INDEX)
-    {
-    }
-
-    SampleIterator::~SampleIterator()
-    {
-    }
-
-    SampleIterator* SampleIterateChildren(HSample hsample, SampleIterator* iter)
-    {
-        iter->m_Sample = 0;
-        iter->m_IteratorImpl = (void*)(uintptr_t)dmProfileJSFirstChild(GetThreadId(), (uintptr_t)hsample);
-        return iter;
-    }
-
-    bool SampleIterateNext(SampleIterator* iter)
-    {
-        const dmProfileIdx current = (dmProfileIdx)(uintptr_t)iter->m_IteratorImpl;
-        if (current == dmProfile::INVALID_INDEX)
-            return false;
-        iter->m_Sample = iter->m_IteratorImpl;
-        iter->m_IteratorImpl = (void*)(uintptr_t)dmProfileJSNextSibling(GetThreadId(), current);
-        return true;
-    }
-
-    uint32_t SampleGetNameHash(HSample hsample)
-    {
-        return dmHashString32(SampleGetName(hsample));
-    }
-
-    const char* SampleGetName(HSample hsample)
-    {
-        return dmProfileJSGetName(GetThreadId(), (uintptr_t)hsample);
-    }
-
-    uint64_t SampleGetStart(HSample hsample)
-    {
-        return dmProfileJSGetStart(GetThreadId(), (uintptr_t)hsample) * 1000;
-    }
-
-    uint64_t SampleGetTime(HSample hsample)
-    {
-        return dmProfileJSGetDuration(GetThreadId(), (uintptr_t)hsample) * 1000;
-    }
-
-    uint64_t SampleGetSelfTime(HSample hsample)
-    {
-        return dmProfileJSGetSelfDuration(GetThreadId(), (uintptr_t)hsample) * 1000;
-    }
-
-    uint32_t SampleGetCallCount(HSample hsample)
-    {
-        return dmProfileJSGetCallCount(GetThreadId(), (uintptr_t)hsample);
-    }
-
-    uint32_t SampleGetColor(HSample)
-    {
+        dmLogError("Failed to initialize the profiler");
         return 0;
     }
 
-    // *******************************************************************
-    PropertyIterator::PropertyIterator() : m_Property(0), m_IteratorImpl((void*)(uintptr_t)dmProfile::INVALID_INDEX)
+    assert(!IsProfileInitialized());
+    g_Lock = dmMutex::New();
+    g_ProfileContext = new ProfileContext;
+
+    dmAtomicIncrement32(&g_ProfileInitialized);
+
+    return g_ProfileContext;
+}
+
+static void DestroyListener(void*)
+{
+    CHECK_INITIALIZED();
     {
-    }
+        DM_MUTEX_SCOPED_LOCK(g_Lock);
+        dmAtomicDecrement32(&g_ProfileInitialized);
 
-    PropertyIterator::~PropertyIterator()
+        delete g_ProfileContext;
+        g_ProfileContext = 0;
+    }
+    dmMutex::Delete(g_Lock);
+    g_Lock = 0;
+}
+
+static void SetThreadName(void*, const char* name)
+{
+    CHECK_INITIALIZED();
+    DM_MUTEX_SCOPED_LOCK(g_Lock);
+    if (g_ProfileContext->m_ThreadNames.Full())
     {
+        uint32_t cap = g_ProfileContext->m_ThreadNames.Capacity() + 32;
+        g_ProfileContext->m_ThreadNames.SetCapacity((cap*2)/3, cap);
     }
+    g_ProfileContext->m_ThreadNames.Put(GetThreadId(), strdup(name));
+}
 
-    PropertyIterator* PropertyIterateChildren(HProperty hproperty, PropertyIterator* iter)
-    {
-        iter->m_Property = 0;
-        iter->m_IteratorImpl = (void*)(uintptr_t)dmProfileJSFirstProperty((uintptr_t)hproperty);
-        return iter;
-    }
+static void FrameBegin(void*)
+{
+}
 
-    bool PropertyIterateNext(PropertyIterator* iter)
-    {
-        const dmProfileIdx current = (dmProfileIdx)(uintptr_t)iter->m_IteratorImpl;
-        if (current == dmProfile::INVALID_INDEX)
-            return false;
-        iter->m_Property = iter->m_IteratorImpl;
-        iter->m_IteratorImpl = (void*)(uintptr_t)dmProfileJSNextProperty(current);
-        return true;
-    }
+static void FrameEnd(void*)
+{
+    CHECK_INITIALIZED();
+    DM_MUTEX_SCOPED_LOCK(g_Lock);
 
-    // Property accessors
+    dmProfileJSEndFrame(GetThreadId());
+}
 
-    uint32_t PropertyGetNameHash(HProperty hproperty)
-    {
-        return dmHashString32(PropertyGetName(hproperty));
-    }
+static void ScopeBegin(void*, const char* name, uint64_t name_hash)
+{
+    (void)name_hash;
+    CHECK_INITIALIZED();
+    DM_MUTEX_SCOPED_LOCK(g_Lock);
+    dmProfileJSBeginMark(GetThreadId(), name);
+}
 
-    const char* PropertyGetName(HProperty hproperty)
-    {
-        return dmProfileJSGetPropertyName((uintptr_t)hproperty);
-    }
+static void ScopeEnd(void*, const char* name, uint64_t name_hash)
+{
+    (void)name_hash;
+    CHECK_INITIALIZED();
+    DM_MUTEX_SCOPED_LOCK(g_Lock);
+    const int32_t thread_id = GetThreadId();
 
-    const char* PropertyGetDesc(HProperty hproperty)
-    {
-        return dmProfileJSGetPropertyDescription((uintptr_t)hproperty);
-    }
-
-    PropertyType PropertyGetType(HProperty hproperty)
-    {
-        return (PropertyType)dmProfileJSGetPropertyType((uintptr_t)hproperty);
-    }
-
-    PropertyValue PropertyGetValue(HProperty hproperty)
-    {
-        PropertyValue result;
-        switch(PropertyGetType(hproperty))
-        {
-            case PROPERTY_TYPE_GROUP:
-                break;
-            case PROPERTY_TYPE_BOOL:
-                result.m_Bool = dmProfileJSGetPropertyBool((uintptr_t)hproperty);
-                break;
-            case PROPERTY_TYPE_S32:
-                result.m_S32 = dmProfileJSGetPropertyS32((uintptr_t)hproperty);
-                break;
-            case PROPERTY_TYPE_U32:
-                result.m_U32 = dmProfileJSGetPropertyU32((uintptr_t)hproperty);
-                break;
-            case PROPERTY_TYPE_F32:
-                result.m_F32 = dmProfileJSGetPropertyF32((uintptr_t)hproperty);
-                break;
-            case PROPERTY_TYPE_S64:
-                result.m_S64 = dmProfileJSGetPropertyS64((uintptr_t)hproperty);
-                break;
-            case PROPERTY_TYPE_U64:
-                result.m_U64 = dmProfileJSGetPropertyU64((uintptr_t)hproperty);
-                break;
-            case PROPERTY_TYPE_F64:
-                result.m_F64 = dmProfileJSGetPropertyF64((uintptr_t)hproperty);
-                break;
-        }
-        return result;
-    }
-
-    // *******************************************************************
-
-
-} // namespace dmProfile
+    dmProfileJSEndMark(thread_id);
+    dmProfileJSReset(thread_id);
+}
 
 // *******************************************************************
 
-
-dmProfileIdx dmProfileCreatePropertyGroup(const char* name, const char* desc, dmProfileIdx* (*parent)())
+static void ProfileCreatePropertyGroup(void*, const char* name, const char* desc, ProfileIdx idx, ProfileIdx parent)
 {
-    return dmProfileJSCreatePropertyGroup(dmProfile::PROPERTY_TYPE_GROUP, name, desc, parent ? *parent() : dmProfile::INVALID_INDEX);
+    dmProfileJSCreatePropertyGroup(PROFILE_PROPERTY_TYPE_GROUP, name, desc, idx, parent);
 }
 
-dmProfileIdx dmProfileCreatePropertyBool(const char* name, const char* desc, int value, uint32_t flags, dmProfileIdx* (*parent)())
+static void ProfileCreatePropertyBool(void*, const char* name, const char* desc, int value, uint32_t flags, ProfileIdx idx, ProfileIdx parent)
 {
-    return dmProfileJSCreatePropertyBool(dmProfile::PROPERTY_TYPE_BOOL, name, desc, value, flags, parent ? *parent() : dmProfile::INVALID_INDEX);
+    dmProfileJSCreatePropertyBool(PROFILE_PROPERTY_TYPE_BOOL, name, desc, value, flags, idx, parent);
 }
 
-dmProfileIdx dmProfileCreatePropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, dmProfileIdx* (*parent)())
+static void ProfileCreatePropertyS32(void*, const char* name, const char* desc, int32_t value, uint32_t flags, ProfileIdx idx, ProfileIdx parent)
 {
-    return dmProfileJSCreatePropertyS32(dmProfile::PROPERTY_TYPE_S32, name, desc, value, flags, parent ? *parent() : dmProfile::INVALID_INDEX);
+    dmProfileJSCreatePropertyS32(PROFILE_PROPERTY_TYPE_S32, name, desc, value, flags, idx, parent);
 }
 
-dmProfileIdx dmProfileCreatePropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, dmProfileIdx* (*parent)())
+static void ProfileCreatePropertyU32(void*, const char* name, const char* desc, uint32_t value, uint32_t flags, ProfileIdx idx, ProfileIdx parent)
 {
-    return dmProfileJSCreatePropertyU32(dmProfile::PROPERTY_TYPE_U32, name, desc, value, flags, parent ? *parent() : dmProfile::INVALID_INDEX);
+    dmProfileJSCreatePropertyU32(PROFILE_PROPERTY_TYPE_U32, name, desc, value, flags, idx, parent);
 }
 
-dmProfileIdx dmProfileCreatePropertyF32(const char* name, const char* desc, float value, uint32_t flags, dmProfileIdx* (*parent)())
+static void ProfileCreatePropertyF32(void*, const char* name, const char* desc, float value, uint32_t flags, ProfileIdx idx, ProfileIdx parent)
 {
-    return dmProfileJSCreatePropertyF32(dmProfile::PROPERTY_TYPE_F32, name, desc, value, flags, parent ? *parent() : dmProfile::INVALID_INDEX);
+    dmProfileJSCreatePropertyF32(PROFILE_PROPERTY_TYPE_F32, name, desc, value, flags, idx, parent);
 }
 
-dmProfileIdx dmProfileCreatePropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, dmProfileIdx* (*parent)())
+static void ProfileCreatePropertyS64(void*, const char* name, const char* desc, int64_t value, uint32_t flags, ProfileIdx idx, ProfileIdx parent)
 {
-    return dmProfileJSCreatePropertyS64(dmProfile::PROPERTY_TYPE_S64, name, desc, value, flags, parent ? *parent() : dmProfile::INVALID_INDEX);
+    dmProfileJSCreatePropertyS64(PROFILE_PROPERTY_TYPE_S64, name, desc, value, flags, idx, parent);
 }
 
-dmProfileIdx dmProfileCreatePropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, dmProfileIdx* (*parent)())
+static void ProfileCreatePropertyU64(void*, const char* name, const char* desc, uint64_t value, uint32_t flags, ProfileIdx idx, ProfileIdx parent)
 {
-    return dmProfileJSCreatePropertyU64(dmProfile::PROPERTY_TYPE_U64, name, desc, value, flags, parent ? *parent() : dmProfile::INVALID_INDEX);
+    dmProfileJSCreatePropertyU64(PROFILE_PROPERTY_TYPE_U64, name, desc, value, flags, idx, parent);
 }
 
-dmProfileIdx dmProfileCreatePropertyF64(const char* name, const char* desc, double value, uint32_t flags, dmProfileIdx* (*parent)())
+static void ProfileCreatePropertyF64(void*, const char* name, const char* desc, double value, uint32_t flags, ProfileIdx idx, ProfileIdx parent)
 {
-    return dmProfileJSCreatePropertyF64(dmProfile::PROPERTY_TYPE_F64, name, desc, value, flags, parent ? *parent() : dmProfile::INVALID_INDEX);
+    dmProfileJSCreatePropertyF64(PROFILE_PROPERTY_TYPE_F64, name, desc, value, flags, idx, parent);
 }
 
-void dmProfilePropertySetBool(dmProfileIdx idx, int v)
+static void ProfilePropertySetBool(void*, ProfileIdx idx, int v)
 {
     dmProfileJSSetPropertyBool(idx, v);
 }
 
-void dmProfilePropertySetS32(dmProfileIdx idx, int32_t v)
+static void ProfilePropertySetS32(void*, ProfileIdx idx, int32_t v)
 {
     dmProfileJSSetPropertyS32(idx, v);
 }
 
-void dmProfilePropertySetU32(dmProfileIdx idx, uint32_t v)
+static void ProfilePropertySetU32(void*, ProfileIdx idx, uint32_t v)
 {
     dmProfileJSSetPropertyU32(idx, v);
 }
 
-void dmProfilePropertySetF32(dmProfileIdx idx, float v)
+static void ProfilePropertySetF32(void*, ProfileIdx idx, float v)
 {
     dmProfileJSSetPropertyF32(idx, v);
 }
 
-void dmProfilePropertySetS64(dmProfileIdx idx, int64_t v)
+static void ProfilePropertySetS64(void*, ProfileIdx idx, int64_t v)
 {
     dmProfileJSSetPropertyS64(idx, v);
 }
 
-void dmProfilePropertySetU64(dmProfileIdx idx, uint64_t v)
+static void ProfilePropertySetU64(void*, ProfileIdx idx, uint64_t v)
 {
     dmProfileJSSetPropertyU64(idx, v);
 }
 
-void dmProfilePropertySetF64(dmProfileIdx idx, double v)
+static void ProfilePropertySetF64(void*, ProfileIdx idx, double v)
 {
     dmProfileJSSetPropertyF64(idx, v);
 }
 
-void dmProfilePropertyAddS32(dmProfileIdx idx, int32_t v)
+static void ProfilePropertyAddS32(void*, ProfileIdx idx, int32_t v)
 {
     dmProfileJSAddPropertyS32(idx, v);
 }
 
-void dmProfilePropertyAddU32(dmProfileIdx idx, uint32_t v)
+static void ProfilePropertyAddU32(void*, ProfileIdx idx, uint32_t v)
 {
     dmProfileJSAddPropertyU32(idx, v);
 }
 
-void dmProfilePropertyAddF32(dmProfileIdx idx, float v)
+static void ProfilePropertyAddF32(void*, ProfileIdx idx, float v)
 {
     dmProfileJSAddPropertyF32(idx, v);
 }
 
-void dmProfilePropertyAddS64(dmProfileIdx idx, int64_t v)
+static void ProfilePropertyAddS64(void*, ProfileIdx idx, int64_t v)
 {
     dmProfileJSAddPropertyS64(idx, v);
 }
 
-void dmProfilePropertyAddU64(dmProfileIdx idx, uint64_t v)
+static void ProfilePropertyAddU64(void*, ProfileIdx idx, uint64_t v)
 {
     dmProfileJSAddPropertyU64(idx, v);
 }
 
-void dmProfilePropertyAddF64(dmProfileIdx idx, double v)
+static void ProfilePropertyAddF64(void*, ProfileIdx idx, double v)
 {
     dmProfileJSAddPropertyF64(idx, v);
 }
 
-void dmProfilePropertyReset(dmProfileIdx idx)
+static void ProfilePropertyReset(void*, ProfileIdx idx)
 {
     dmProfileJSResetProperty(idx);
 }
+
+static const char* g_ProfilerName = "ProfilerJS";
+static ProfileListener g_Listener = {};
+
+static dmExtension::Result ProfilerJS_AppInitialize(dmExtension::AppParams* params)
+{
+    const char* perf_timeline_enabled_key = "profiler.performance_timeline_enabled";
+    g_ProfilerOptions_PerformanceTimelineEnabled = dmConfigFile::GetInt(params->m_ConfigFile, perf_timeline_enabled_key, 0);
+    if (!g_ProfilerOptions_PerformanceTimelineEnabled)
+    {
+        dmLogInfo("Skipped %s profiler due to setting %s", g_ProfilerName, perf_timeline_enabled_key);
+        return dmExtension::RESULT_OK;
+    }
+
+    g_Listener.m_Create = CreateListener;
+    g_Listener.m_Destroy = DestroyListener;
+    g_Listener.m_SetThreadName = SetThreadName;
+
+    g_Listener.m_FrameBegin = FrameBegin;
+    g_Listener.m_FrameEnd = FrameEnd;
+    g_Listener.m_ScopeBegin = ScopeBegin;
+    g_Listener.m_ScopeEnd = ScopeEnd;
+
+    g_Listener.m_LogText = 0;
+
+    g_Listener.m_CreatePropertyGroup = ProfileCreatePropertyGroup;
+    g_Listener.m_CreatePropertyBool = ProfileCreatePropertyBool;
+    g_Listener.m_CreatePropertyS32 = ProfileCreatePropertyS32;
+    g_Listener.m_CreatePropertyU32 = ProfileCreatePropertyU32;
+    g_Listener.m_CreatePropertyF32 = ProfileCreatePropertyF32;
+    g_Listener.m_CreatePropertyS64 = ProfileCreatePropertyS64;
+    g_Listener.m_CreatePropertyU64 = ProfileCreatePropertyU64;
+    g_Listener.m_CreatePropertyF64 = ProfileCreatePropertyF64;
+
+    g_Listener.m_PropertySetBool = ProfilePropertySetBool;
+    g_Listener.m_PropertySetS32 = ProfilePropertySetS32;
+    g_Listener.m_PropertySetU32 = ProfilePropertySetU32;
+    g_Listener.m_PropertySetF32 = ProfilePropertySetF32;
+    g_Listener.m_PropertySetS64 = ProfilePropertySetS64;
+    g_Listener.m_PropertySetU64 = ProfilePropertySetU64;
+    g_Listener.m_PropertySetF64 = ProfilePropertySetF64;
+    g_Listener.m_PropertyAddS32 = ProfilePropertyAddS32;
+    g_Listener.m_PropertyAddU32 = ProfilePropertyAddU32;
+    g_Listener.m_PropertyAddF32 = ProfilePropertyAddF32;
+    g_Listener.m_PropertyAddS64 = ProfilePropertyAddS64;
+    g_Listener.m_PropertyAddU64 = ProfilePropertyAddU64;
+    g_Listener.m_PropertyAddF64 = ProfilePropertyAddF64;
+    g_Listener.m_PropertyReset = ProfilePropertyReset;
+
+    ProfileRegisterProfiler(g_ProfilerName, &g_Listener);
+    dmLogInfo("Registered profiler %s", g_ProfilerName);
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result ProfilerJS_AppFinalize(dmExtension::AppParams* params)
+{
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(ProfilerJS, g_ProfilerName, ProfilerJS_AppInitialize, ProfilerJS_AppFinalize, 0, 0, 0, 0);

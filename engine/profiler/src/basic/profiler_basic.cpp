@@ -944,6 +944,7 @@ static void ProfilePropertyReset(void* ctx, ProfileIdx idx)
     data->m_Used = prop->m_Type == PROFILE_PROPERTY_TYPE_GROUP ? 1 : 0;
 }
 
+static const char* g_ProfilerName = "ProfilerBasic";
 static ProfileListener g_Listener = {};
 
 static dmExtension::Result ProfilerBasic_AppInitialize(dmExtension::AppParams* params)
@@ -983,7 +984,8 @@ static dmExtension::Result ProfilerBasic_AppInitialize(dmExtension::AppParams* p
     g_Listener.m_PropertyAddF64 = ProfilePropertyAddF64;
     g_Listener.m_PropertyReset = ProfilePropertyReset;
 
-    ProfileRegisterProfiler("ProfilerBasic", &g_Listener);
+    ProfileRegisterProfiler(g_ProfilerName, &g_Listener);
+    dmLogInfo("Registered profiler %s", g_ProfilerName);
     return dmExtension::RESULT_OK;
 }
 
@@ -992,4 +994,4 @@ static dmExtension::Result ProfilerBasic_AppFinalize(dmExtension::AppParams* par
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(ProfilerBasic, "ProfilerBasic", ProfilerBasic_AppInitialize, ProfilerBasic_AppFinalize, 0, 0, 0, 0);
+DM_DECLARE_EXTENSION(ProfilerBasic, g_ProfilerName, ProfilerBasic_AppInitialize, ProfilerBasic_AppFinalize, 0, 0, 0, 0);

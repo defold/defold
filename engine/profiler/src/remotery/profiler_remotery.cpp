@@ -31,7 +31,6 @@ namespace dmProfilerRemotery
     static dmSpinlock::Spinlock     g_ProfilerLock;
     // config options:
     static int                      g_ProfilerOptions_Port = 0;
-    static int                      g_ProfilerOptions_PerformanceTimelineEnabled = 0;
     static int                      g_ProfilerOptions_SleepBetweenServerUpdates = 0;
 
     static bool IsInitialized()
@@ -371,6 +370,7 @@ static void ProfilePropertyReset(void*, ProfileIdx idx)
     _rmt_PropertySetValue(prop);
 }
 
+static const char* g_ProfilerName = "ProfilerRemotery";
 static ProfileListener g_Listener = {};
 
 static dmExtension::Result ProfilerRemotery_AppInitialize(dmExtension::AppParams* params)
@@ -412,11 +412,11 @@ static dmExtension::Result ProfilerRemotery_AppInitialize(dmExtension::AppParams
     g_Listener.m_PropertyAddF64 = ProfilePropertyAddF64;
     g_Listener.m_PropertyReset = ProfilePropertyReset;
 
-    g_ProfilerOptions_Port                      = dmConfigFile::GetInt(params->m_ConfigFile, "remotery.port", 0);
-    g_ProfilerOptions_PerformanceTimelineEnabled= dmConfigFile::GetInt(params->m_ConfigFile, "remotery.performance_timeline_enabled", 0);
-    g_ProfilerOptions_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "remotery.sleep_between_server_updates", 0);
+    g_ProfilerOptions_Port                      = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.remotery_port", 0);
+    g_ProfilerOptions_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.remotery_sleep_between_server_updates", 0);
 
-    ProfileRegisterProfiler("ProfilerRemotery", &g_Listener);
+    ProfileRegisterProfiler(g_ProfilerName, &g_Listener);
+    dmLogInfo("Registered profiler %s", g_ProfilerName);
     return dmExtension::RESULT_OK;
 }
 
@@ -425,4 +425,4 @@ static dmExtension::Result ProfilerRemotery_AppFinalize(dmExtension::AppParams* 
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(ProfilerRemotery, "ProfilerRemotery", ProfilerRemotery_AppInitialize, ProfilerRemotery_AppFinalize, 0, 0, 0, 0);
+DM_DECLARE_EXTENSION(ProfilerRemotery, g_ProfilerName, ProfilerRemotery_AppInitialize, ProfilerRemotery_AppFinalize, 0, 0, 0, 0);
