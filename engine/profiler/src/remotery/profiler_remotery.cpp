@@ -131,12 +131,8 @@ namespace dmProfilerRemotery
         {
             return;
         }
-        //if (name != 0)
-        {
-            // if (name[0] == 0)
-            //     name = "<empty>";
-            _rmt_BeginCPUSample(name, RMTSF_Aggregate, (uint32_t*)&name_hash);
-        }
+        // By passing in 0 here, it will have to hash the string each time
+        _rmt_BeginCPUSample(name, RMTSF_Aggregate, 0);
     }
 
     static void ScopeEnd(void* ctx, const char* name, uint64_t name_hash)
