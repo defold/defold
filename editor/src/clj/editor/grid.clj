@@ -272,10 +272,13 @@
     (doto slider
       (ensure-focus-traversable!)
       (.setBlockIncrement 0.1)
-      ;; Hacky way to fix a Linux specific issue that interferes with mouse events,
-      ;; when autoHide is set to true.
-      (.setOnMouseEntered (ui/event-handler e (.setAutoHide popup false)))
-      (.setOnMouseExited (ui/event-handler e (.setAutoHide popup true))))
+      ;; Hacky way to fix drag event issues when autoHide or consumeAutoHidingEvents is set to true.
+      (.setOnMouseEntered (ui/event-handler e (doto popup
+                                                (.setAutoHide false)
+                                                (.setConsumeAutoHidingEvents false))))
+      (.setOnMouseExited (ui/event-handler e (doto popup
+                                               (.setAutoHide true)
+                                               (.setConsumeAutoHidingEvents true)))))
 
     (ui/observe
       (.valueProperty slider)
