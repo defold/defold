@@ -203,22 +203,22 @@ namespace dmPhysics
     {
         memset(&m_DebugDraw, 0, sizeof(m_DebugDraw));
 
-        m_DebugDraw.DrawPolygon          = DrawPolygon;
-        m_DebugDraw.DrawSolidPolygon     = DrawSolidPolygon;
-        m_DebugDraw.DrawCircle           = DrawCircle;
-        m_DebugDraw.DrawSolidCircle      = DrawSolidCircle;
-        m_DebugDraw.DrawSolidCapsule     = DrawSolidCapsule;
-        m_DebugDraw.DrawSegment          = DrawSegment;
-        m_DebugDraw.DrawTransform        = DrawTransform;
-        m_DebugDraw.DrawPoint            = DrawPoint;
-        m_DebugDraw.DrawString           = DrawString;
+        m_DebugDraw.DrawPolygonFcn          = DrawPolygon;
+        m_DebugDraw.DrawSolidPolygonFcn     = DrawSolidPolygon;
+        m_DebugDraw.DrawCircleFcn           = DrawCircle;
+        m_DebugDraw.DrawSolidCircleFcn      = DrawSolidCircle;
+        m_DebugDraw.DrawSolidCapsuleFcn     = DrawSolidCapsule;
+        m_DebugDraw.DrawSegmentFcn          = DrawSegment;
+        m_DebugDraw.DrawTransformFcn        = DrawTransform;
+        m_DebugDraw.DrawPointFcn            = DrawPoint;
+        m_DebugDraw.DrawStringFcn           = DrawString;
 
         // Debug!
         const bool force_flag = false;
         m_DebugDraw.drawShapes           = force_flag;
         m_DebugDraw.drawJoints           = force_flag;
         m_DebugDraw.drawJointExtras      = force_flag;
-        m_DebugDraw.drawAABBs            = force_flag;
+        //m_DebugDraw.drawAABBs            = force_flag;
         m_DebugDraw.drawMass             = force_flag;
         m_DebugDraw.drawContacts         = force_flag;
         m_DebugDraw.drawGraphColors      = force_flag;
