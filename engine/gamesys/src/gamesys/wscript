@@ -23,7 +23,7 @@ def remove_from_node_list(lst, name):
 def build(bld):
     build_util = create_build_utility(bld.env)
 
-    sources = bld.path.ant_glob(['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp']) + bld.path.parent.parent.ant_glob('proto/gamesys/*')
+    sources = bld.path.ant_glob(['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp', 'fontgen/*.cpp']) + bld.path.parent.parent.ant_glob('proto/gamesys/*')
     sources = remove_from_node_list(sources, 'comp_model.cpp')
     sources = remove_from_node_list(sources, 'comp_model_null.cpp')
     sources = remove_from_node_list(sources, 'model_ddf.proto')
@@ -100,6 +100,7 @@ def build(bld):
         'scripts/script_collectionproxy.cpp',
         'scripts/script_physics.cpp',
         'scripts/script_factory.cpp',
+        'scripts/script_font.cpp',
         'scripts/script_label.cpp',
         'scripts/script_model.cpp',
         'scripts/script_particlefx.cpp',

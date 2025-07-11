@@ -50,6 +50,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.TreeSet;
@@ -219,6 +221,51 @@ public class Fontc {
         return fontMapLayerMask;
     }
 
+    // used by the font builder
+    public static int GetFontMapPadding(FontDesc fontDesc)
+    {
+        if (isBitmapFont(fontDesc)) {
+            return 0;
+        } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
+            // The +1 is needed to give a little bit of extra padding since the spread
+            // always gets padded by the sqrt of a pixel diagonal
+            return fontDesc.getShadowBlur() + (int)(fontDesc.getOutlineWidth()) + 1;
+        } else {
+            return Math.min(4, fontDesc.getShadowBlur()) + (int)(fontDesc.getOutlineWidth());
+        }
+    }
+
+    public static float GetFontMapSdfSpread(FontDesc fontDesc)
+    {
+        float sdf_spread = getPaddedSdfSpread(fontDesc.getOutlineWidth());
+        return sdf_spread;
+    }
+
+    public static float GetFontMapSdfOutline(FontDesc fontDesc)
+    {
+        float sdf_spread = GetFontMapSdfSpread(fontDesc);
+        float outline_edge = calculateSdfEdgeLimit(-fontDesc.getOutlineWidth(), sdf_spread);
+        return outline_edge;
+    }
+
+    public static float GetFontMapSdfShadow(FontDesc fontDesc)
+    {
+        float shadow_blur = (float)fontDesc.getShadowBlur();
+        float sdf_shadow_spread = getPaddedSdfSpread(shadow_blur);
+        float shadow_edge = calculateSdfEdgeLimit(-shadow_blur, sdf_shadow_spread);
+
+        // Special case!
+        // If there is no blur, the shadow should essentially work the same way as the outline.
+        // This enables effects like a hard drop shadow. In the shader, the pseudo code
+        // that does this looks something like this:
+        // shadow_alpha = mix(shadow_alpha,outline_alpha,floor(shadow_edge))
+        if (fontDesc.getShadowBlur() == 0)
+        {
+            shadow_edge = 1.0f;
+        }
+        return shadow_edge;
+    }
+
     public interface FontResourceResolver {
         public InputStream getResource(String resourceName) throws FileNotFoundException;
     }
@@ -235,7 +282,7 @@ public class Fontc {
         return glyphBankBuilder.build();
     }
 
-    private boolean isBitmapFont(FontDesc fd) {
+    private static boolean isBitmapFont(FontDesc fd) {
         return StringUtil.toLowerCase(fd.getFont()).endsWith("fnt");
     }
 
@@ -377,7 +424,7 @@ public class Fontc {
                       .setMaxDescent(maxDescent);
     }
 
-    private float getPaddedSdfSpread(float spreadInput)
+    private static float getPaddedSdfSpread(float spreadInput)
     {
         // Make sure the output spread value is not zero. We distribute the distance values over
         // the spread when we generate the DF glyphs, so if this value is zero we won't be able to map
@@ -387,7 +434,7 @@ public class Fontc {
         return sqrt2 + spreadInput;
     }
 
-    private float calculateSdfEdgeLimit(float width, float spread)
+    private static float calculateSdfEdgeLimit(float width, float spread)
     {
         // Normalize the incoming value to [-1,1]
         float sdfLimitValue = width / spread;
@@ -433,32 +480,20 @@ public class Fontc {
         return out;
     }
 
-    private int getPadding() {
-        if (isBitmapFont(this.fontDesc)) {
-            return 0;
-        } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
-            // The +1 is needed to give a little bit of extra padding since the spread
-            // always gets padded by the sqrt of a pixel diagonal
-            return fontDesc.getShadowBlur() + (int)(fontDesc.getOutlineWidth()) + 1;
-        } else {
-            return Math.min(4, fontDesc.getShadowBlur()) + (int)(fontDesc.getOutlineWidth());
-        }
-    }
-
     public BufferedImage generateGlyphData(boolean preview, final FontResourceResolver resourceResolver) throws TextureGeneratorException, FontFormatException {
 
         ByteArrayOutputStream glyphDataBank = new ByteArrayOutputStream(1024*1024*4);
 
         // Padding is the pixel amount needed to get a good antialiasing around the glyphs, while cell padding
         // is the extra padding added to the bitmap data to avoid filtering glitches when rendered.
-        int padding = getPadding();
+        int padding = GetFontMapPadding(fontDesc);
         int cell_padding = 1;
         // Spread is the maximum distance to the glyph edge.
         float sdf_spread = 0.0f;
         // Shadow_spread is the maximum distance to the glyph outline.
         float sdf_shadow_spread = 0.0f;
 
-        if (isBitmapFont(this.fontDesc)) {
+        if (Fontc.isBitmapFont(this.fontDesc)) {
             padding = 0;
             cell_padding = 1;
         } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
@@ -483,24 +518,9 @@ public class Fontc {
             shadowConvolve = new ConvolveOp(kernel, ConvolveOp.EDGE_NO_OP, hints);
         }
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
-            // Calculate edge values for both outline and shadow. We must treat them differently
-            // so that we don't use the same precision range for both edges
-            float outline_edge = calculateSdfEdgeLimit(-fontDesc.getOutlineWidth(), sdf_spread);
-            float shadow_edge  = calculateSdfEdgeLimit(-(float)fontDesc.getShadowBlur(), sdf_shadow_spread);
-
-            // Special case!
-            // If there is no blur, the shadow should essentially work the same way as the outline.
-            // This enables effects like a hard drop shadow. In the shader, the pseudo code
-            // that does this looks something like this:
-            // shadow_alpha = mix(shadow_alpha,outline_alpha,floor(shadow_edge))
-            if (fontDesc.getShadowBlur() == 0)
-            {
-                shadow_edge = 1.0f;
-            }
-
-            glyphBankBuilder.setSdfSpread(sdf_spread);
-            glyphBankBuilder.setSdfOutline(outline_edge);
-            glyphBankBuilder.setSdfShadow(shadow_edge);
+            glyphBankBuilder.setSdfSpread(GetFontMapSdfSpread(fontDesc));
+            glyphBankBuilder.setSdfOutline(GetFontMapSdfOutline(fontDesc));
+            glyphBankBuilder.setSdfShadow(GetFontMapSdfShadow(fontDesc));
         }
 
         // Load external image resource for BMFont files
@@ -987,14 +1007,14 @@ public class Fontc {
     public BufferedImage compile(InputStream fontStream, FontDesc fontDesc, boolean preview, final FontResourceResolver resourceResolver) throws FontFormatException, TextureGeneratorException, IOException {
         this.fontDesc       = fontDesc;
         this.glyphBankBuilder = GlyphBank.newBuilder();
+        this.glyphBankBuilder.setImageFormat(fontDesc.getOutputFormat());
 
-        if (isBitmapFont(fontDesc)) {
+        if (Fontc.isBitmapFont(fontDesc)) {
             FNTBuilder(fontStream);
         } else {
             TTFBuilder(fontStream);
         }
 
-        glyphBankBuilder.setImageFormat(fontDesc.getOutputFormat());
         return generateGlyphData(preview, resourceResolver);
     }
 
@@ -1038,24 +1058,49 @@ public class Fontc {
         return previewImage;
     }
 
+    private static void Usage() {
+        System.err.println("Usage: fontc fontfile outfile [basedir] [dynamic]");
+        System.exit(1);
+    }
+
     // run with java -cp bob.jar com.dynamo.bob.font.Fontc foobar.font foobar.fontc
     public static void main(String[] args) throws FontFormatException, TextureGeneratorException {
         try {
             System.setProperty("java.awt.headless", "true");
-            if (args.length != 2 && args.length != 3 && args.length != 4)    {
-                System.err.println("Usage: fontc fontfile [basedir] outfile");
-                System.exit(1);
+
+            File    fontInput   = null;
+            String  outfile     = null;
+            String  basedir     = ".";
+            boolean dynamic     = false;
+
+            if (args.length >= 1) {
+                fontInput = new File(args[0]);
             }
 
-            String basedir = ".";
-            String outfile = args[1];
+            if (args.length >= 2) {
+                outfile = args[1];
+            }
 
             if (args.length >= 3) {
-                basedir = args[1];
-                outfile = args[2];
+                basedir = args[2];
             }
 
-            final File fontInput = new File(args[0]);
+            if (args.length >= 4) {
+                dynamic = Boolean.parseBoolean(args[3]);
+            }
+
+            if (fontInput == null)
+            {
+                System.err.println("No input .font specified!");
+                Usage();
+            }
+
+            if (outfile == null)
+            {
+                System.err.println("No output file specified!");
+                Usage();
+            }
+
             FileInputStream stream = new FileInputStream(fontInput);
             InputStreamReader reader = new InputStreamReader(stream);
             FontDesc.Builder builder = FontDesc.newBuilder();
@@ -1081,11 +1126,12 @@ public class Fontc {
             }
 
             // Compile fontdesc to fontmap
+            final String parentDir = fontInput.getParent();
             Fontc fontc = new Fontc();
             String fontInputFile = basedir + File.separator + fontDesc.getFont();
             BufferedInputStream fontInputStream = new BufferedInputStream(new FileInputStream(fontInputFile));
             BufferedImage previewImage = fontc.compile(fontInputStream, fontDesc, false, resourceName -> {
-                Path resPath = Paths.get(fontInput.getParent(), resourceName);
+                Path resPath = Paths.get(parentDir, resourceName);
                 BufferedInputStream resStream = new BufferedInputStream(new FileInputStream(resPath.toString()));
 
                 return resStream;
@@ -1096,23 +1142,43 @@ public class Fontc {
                 ImageIO.write(previewImage, "png", new File(outfile + "_preview.png"));
             }
 
-            // Write glyph bank next to the output .fontc file
-            String glyphBankOutputPath             = outfile.replace(".fontc", ".glyph_bankc");
-            FileOutputStream glyphBankOutputStream = new FileOutputStream(glyphBankOutputPath);
-            fontc.getGlyphBank().writeTo(glyphBankOutputStream);
-
-            // Construct the project-relative path based from the input font file
-            Path basedirAbsolutePath   = Paths.get(basedir).toAbsolutePath();
-            Path glyphBankProjectPath  = Paths.get(fontInput.getAbsolutePath().replace(".font", ".glyph_bankc"));
-            Path glyphBankRelativePath = basedirAbsolutePath.relativize(glyphBankProjectPath);
-            String glyphBankProjectStr = "/" + glyphBankRelativePath.toString().replace("\\","/");
-
-            // Write fontmap file
-            FileOutputStream fontMapOutputStream = new FileOutputStream(outfile);
+            Path basedirAbsolutePath = Paths.get(basedir).toAbsolutePath();
 
             FontMap.Builder fontMapBuilder = FontMap.newBuilder();
             fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
-            fontMapBuilder.setGlyphBank(glyphBankProjectStr);
+
+            if (!dynamic)
+            {
+                // Construct the project-relative path based from the input font file
+                Path glyphBankProjectPath  = Paths.get(fontInput.getAbsolutePath().replace(".font", ".glyph_bankc"));
+                Path glyphBankRelativePath = basedirAbsolutePath.relativize(glyphBankProjectPath);
+                String glyphBankProjectStr = "/" + glyphBankRelativePath.toString().replace("\\","/");
+
+                fontMapBuilder.setGlyphBank(glyphBankProjectStr);
+
+                // Write glyph bank next to the output .fontc file
+                String glyphBankOutputPath             = outfile.replace(".fontc", ".glyph_bankc");
+                FileOutputStream glyphBankOutputStream = new FileOutputStream(glyphBankOutputPath);
+                fontc.getGlyphBank().writeTo(glyphBankOutputStream);
+            }
+            else
+            {
+                if (fontDesc.getOutputFormat() != FontTextureFormat.TYPE_DISTANCE_FIELD) {
+                    System.err.printf("Dynamic fonts currently only support distance fields! '%s'\n", fontInput);
+                    System.exit(1);
+                }
+
+                fontMapBuilder.setFont(fontDesc.getFont());
+
+                File src = new File(fontInputFile);
+
+                Path fontProjectPath  = Paths.get(fontInput.getAbsolutePath());
+                Path ttfRelativePath = basedirAbsolutePath.relativize(fontProjectPath.getParent());
+
+                File outFontc = new File(outfile);
+                File dst = new File(outFontc.getParent(), src.getName());
+                Files.copy(src.toPath(), dst.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
 
             fontMapBuilder.setSize(fontDesc.getSize());
             fontMapBuilder.setAntialias(fontDesc.getAntialias());
@@ -1127,6 +1193,9 @@ public class Fontc {
 
             fontMapBuilder.setOutputFormat(fontDesc.getOutputFormat());
             fontMapBuilder.setRenderMode(fontDesc.getRenderMode());
+
+            // Write fontmap file
+            FileOutputStream fontMapOutputStream = new FileOutputStream(outfile);
 
             fontMapBuilder.build().writeTo(fontMapOutputStream);
 
