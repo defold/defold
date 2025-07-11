@@ -408,7 +408,6 @@ static dmExtension::Result ProfilerJS_AppInitialize(dmExtension::AppParams* para
     g_Listener.m_PropertyReset = ProfilePropertyReset;
 
     ProfileRegisterProfiler(g_ProfilerName, &g_Listener);
-    dmLogInfo("Registered profiler %s", g_ProfilerName);
     return dmExtension::RESULT_OK;
 }
 

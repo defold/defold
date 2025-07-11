@@ -416,7 +416,6 @@ static dmExtension::Result ProfilerRemotery_AppInitialize(dmExtension::AppParams
     g_ProfilerOptions_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.remotery_sleep_between_server_updates", 0);
 
     ProfileRegisterProfiler(g_ProfilerName, &g_Listener);
-    dmLogInfo("Registered profiler %s", g_ProfilerName);
     return dmExtension::RESULT_OK;
 }
 

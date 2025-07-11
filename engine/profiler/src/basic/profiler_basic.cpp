@@ -985,7 +985,6 @@ static dmExtension::Result ProfilerBasic_AppInitialize(dmExtension::AppParams* p
     g_Listener.m_PropertyReset = ProfilePropertyReset;
 
     ProfileRegisterProfiler(g_ProfilerName, &g_Listener);
-    dmLogInfo("Registered profiler %s", g_ProfilerName);
     return dmExtension::RESULT_OK;
 }
 
