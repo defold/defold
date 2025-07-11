@@ -175,3 +175,11 @@ ProfileIdx ProfileRegisterPropertyF64(const char* name, const char* desc, double
 {
     return PROFILE_PROPERTY_INVALID_IDX;
 }
+
+void ProfileRegisterProfiler(const char* name, ProfileListener* profiler)
+{
+}
+
+void ProfileUnregisterProfiler(const char* name)
+{
+}

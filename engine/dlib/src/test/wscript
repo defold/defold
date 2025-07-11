@@ -6,7 +6,8 @@ from waf_dynamo import is_platform_private, platform_supports_feature
 from BuildUtility import create_build_utility
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
-                extra_includes = None, extra_defines = None, skip_run = False, extra_local_libs = None, exclude_libs = None, target_name = None):
+                extra_includes = None, extra_defines = None, extra_source = None,
+                skip_run = False, extra_local_libs = None, exclude_libs = None, target_name = None):
 
     # Sometimes, we need to disable certain tests until they're supported
     if not platform_supports_feature(bld.env.PLATFORM, name, {}):
@@ -69,10 +70,13 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     if extra_includes != None:
         req_includes.extend(extra_includes)
 
+    if extra_source is None:
+        extra_source = []
+
     use_lib_list = '%s %s %s' % (' '.join(req_libs), ' '.join(local_libs), ' '.join(extra_local_libs))
     task_args = {
         'features': ' '.join(req_features),
-        'source': (name + '.cpp').split() + platform_source + bld.path.ant_glob('../dlib/testutil.cpp'),
+        'source': extra_source + (name + '.cpp').split() + platform_source + bld.path.ant_glob('../dlib/testutil.cpp'),
         'use': use_lib_list,
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,
@@ -147,9 +151,10 @@ def build(bld):
         create_test(bld, 'test_thread', extra_libs = ['THREAD'])
         create_test(bld, 'test_mutex', extra_libs =['THREAD'])
 
-    create_test(bld, 'test_profile', extra_libs = ['THREAD'])
+    create_test(bld, 'test_profile', extra_libs = ['THREAD'], extra_source = ['test_profiler_dummy.cpp'])
     create_test(bld, 'test_profile',    extra_libs = ['THREAD'],
                                         extra_local_libs = ['profile_null'],
+                                        extra_source = ['test_profiler_dummy.cpp'],
                                         exclude_libs = ['PROFILE', 'profile'],
                                         skip_run = True,
                                         target_name = 'test_profile_null')

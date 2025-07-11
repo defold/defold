@@ -30,6 +30,8 @@ struct ProfileProperty
     uint64_t                m_NameHash;
     ProfileIdx              m_Idx;
     ProfileIdx              m_ParentIdx;
+    ProfileIdx              m_FirstChild;
+    ProfileIdx              m_Sibling;
     uint32_t                m_Flags;
     ProfilePropertyType     m_Type;
 };
@@ -338,6 +340,18 @@ static void PropertyInitialize()
     g_ProfilePropertyCount = 1;
 }
 
+static inline bool IsValidIndex(ProfileIdx idx)
+{
+    return idx != PROFILE_PROPERTY_INVALID_IDX;
+}
+
+static ProfileProperty* GetPropertyFromIdx(ProfileIdx idx)
+{
+    if (!IsValidIndex(idx))
+        return 0;
+    return &g_ProfileProperties[idx];
+}
+
 static ProfileProperty* AllocateProperty(ProfileIdx* idx)
 {
     DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
@@ -347,19 +361,35 @@ static ProfileProperty* AllocateProperty(ProfileIdx* idx)
     return &g_ProfileProperties[*idx];
 }
 
-static void SetupProperty(ProfileProperty* prop, ProfileIdx idx, const char* name, const char* desc, uint32_t flags, ProfileIdx* (*parentfn)())
+static void RegisterProperty(ProfileProperty* prop, ProfileIdx idx, const char* name, const char* desc, uint32_t flags, ProfileIdx parentidx)
 {
     memset(prop, 0, sizeof(ProfileProperty));
     prop->m_Name        = name;
     prop->m_Desc        = desc;
     prop->m_Flags       = flags;
     prop->m_Idx         = idx; // perhaps a little redundant but nice when debugging the property
-    prop->m_ParentIdx   = parentfn ? *parentfn() : 0;
+    prop->m_ParentIdx   = parentidx;
     prop->m_NameHash    = dmHashString64(name);
+    prop->m_FirstChild  = PROFILE_PROPERTY_INVALID_IDX;
+    prop->m_Sibling     = PROFILE_PROPERTY_INVALID_IDX;
+
+    // If this fails, then we've messed up the dependencies.
+    // We must register the parent first. See ALLOC_PROP_AND_CHECK()
+    assert(idx > parentidx);
+
+    ProfileProperty* parent = GetPropertyFromIdx(prop->m_ParentIdx);
+    if (parent)
+    {
+        prop->m_Sibling = parent->m_FirstChild;
+        parent->m_FirstChild = idx;
+    }
 }
 
-#define ALLOC_PROP_AND_CHECK(_TYPE) \
-    PropertyInitialize(); \
+// This macro also resolves the parentfn() -> parentidx,
+// which allows us to create each parent before its children.
+#define ALLOC_PROP_AND_CHECK(_PARENTFN)                     \
+    PropertyInitialize();                                   \
+    ProfileIdx parentidx = (_PARENTFN) ? *(_PARENTFN)() : 0;\
     ProfileIdx idx; \
     ProfileProperty* prop = AllocateProperty(&idx); \
     if (!prop) \
@@ -369,7 +399,7 @@ static void SetupProperty(ProfileProperty* prop, ProfileIdx idx, const char* nam
 ProfileIdx ProfileRegisterPropertyGroup(const char* name, const char* desc, ProfileIdx* (*parentfn)())
 {
     ALLOC_PROP_AND_CHECK(parentfn);
-    SetupProperty(prop, idx, name, desc, 0, parentfn);
+    RegisterProperty(prop, idx, name, desc, 0, parentidx);
     prop->m_Type = PROFILE_PROPERTY_TYPE_GROUP;
     if (IsProfileInitialized())
         CreateProperty(prop);
@@ -378,8 +408,8 @@ ProfileIdx ProfileRegisterPropertyGroup(const char* name, const char* desc, Prof
 
 ProfileIdx ProfileRegisterPropertyBool(const char* name, const char* desc, int value, uint32_t flags, ProfileIdx* (*parentfn)())
 {
-    ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, idx, name, desc, flags, parentfn);
+    ALLOC_PROP_AND_CHECK(parentfn);
+    RegisterProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_Bool = (bool)value;
     prop->m_Type = PROFILE_PROPERTY_TYPE_BOOL;
     if (IsProfileInitialized())
@@ -389,8 +419,8 @@ ProfileIdx ProfileRegisterPropertyBool(const char* name, const char* desc, int v
 
 ProfileIdx ProfileRegisterPropertyS32(const char* name, const char* desc, int32_t value, uint32_t flags, ProfileIdx* (*parentfn)())
 {
-    ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, idx, name, desc, flags, parentfn);
+    ALLOC_PROP_AND_CHECK(parentfn);
+    RegisterProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_S32 = value;
     prop->m_Type = PROFILE_PROPERTY_TYPE_S32;
     if (IsProfileInitialized())
@@ -400,8 +430,8 @@ ProfileIdx ProfileRegisterPropertyS32(const char* name, const char* desc, int32_
 
 ProfileIdx ProfileRegisterPropertyU32(const char* name, const char* desc, uint32_t value, uint32_t flags, ProfileIdx* (*parentfn)())
 {
-    ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, idx, name, desc, flags, parentfn);
+    ALLOC_PROP_AND_CHECK(parentfn);
+    RegisterProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_U32 = value;
     prop->m_Type = PROFILE_PROPERTY_TYPE_U32;
     if (IsProfileInitialized())
@@ -411,8 +441,8 @@ ProfileIdx ProfileRegisterPropertyU32(const char* name, const char* desc, uint32
 
 ProfileIdx ProfileRegisterPropertyF32(const char* name, const char* desc, float value, uint32_t flags, ProfileIdx* (*parentfn)())
 {
-    ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, idx, name, desc, flags, parentfn);
+    ALLOC_PROP_AND_CHECK(parentfn);
+    RegisterProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_F32 = value;
     prop->m_Type = PROFILE_PROPERTY_TYPE_F32;
     if (IsProfileInitialized())
@@ -422,8 +452,8 @@ ProfileIdx ProfileRegisterPropertyF32(const char* name, const char* desc, float 
 
 ProfileIdx ProfileRegisterPropertyS64(const char* name, const char* desc, int64_t value, uint32_t flags, ProfileIdx* (*parentfn)())
 {
-    ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, idx, name, desc, flags, parentfn);
+    ALLOC_PROP_AND_CHECK(parentfn);
+    RegisterProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_S64 = value;
     prop->m_Type = PROFILE_PROPERTY_TYPE_S64;
     if (IsProfileInitialized())
@@ -433,8 +463,8 @@ ProfileIdx ProfileRegisterPropertyS64(const char* name, const char* desc, int64_
 
 ProfileIdx ProfileRegisterPropertyU64(const char* name, const char* desc, uint64_t value, uint32_t flags, ProfileIdx* (*parentfn)())
 {
-    ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, idx, name, desc, flags, parentfn);
+    ALLOC_PROP_AND_CHECK(parentfn);
+    RegisterProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_U64 = value;
     prop->m_Type = PROFILE_PROPERTY_TYPE_U64;
     if (IsProfileInitialized())
@@ -444,8 +474,8 @@ ProfileIdx ProfileRegisterPropertyU64(const char* name, const char* desc, uint64
 
 ProfileIdx ProfileRegisterPropertyF64(const char* name, const char* desc, double value, uint32_t flags, ProfileIdx* (*parentfn)())
 {
-    ALLOC_PROP_AND_CHECK();
-    SetupProperty(prop, idx, name, desc, flags, parentfn);
+    ALLOC_PROP_AND_CHECK(parentfn);
+    RegisterProperty(prop, idx, name, desc, flags, parentidx);
     prop->m_DefaultValue.m_F64 = value;
     prop->m_Type = PROFILE_PROPERTY_TYPE_F64;
     if (IsProfileInitialized())

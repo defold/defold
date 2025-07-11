@@ -27,6 +27,8 @@
 #include "dlib/profile/profile.h"
 #include "dlib/profile/profile_private.h"
 
+#include "test_profiler_dummy.h"
+
 // struct TestSample
 // {
 //     char m_Name[32];
@@ -252,88 +254,99 @@ TEST(dmProfile, SmallTest)
 //     dmMutex::Delete(ctx.m_Mutex);
 // }
 
+DM_PROPERTY_EXTERN(prop_ChildToExtern1);
+DM_PROPERTY_F32(prop_GrandChildToExternF32, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_ChildToExtern1);
 
 DM_PROPERTY_GROUP(prop_TestGroup1, "", 0);
 DM_PROPERTY_BOOL(prop_TestBOOL, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
-DM_PROPERTY_S32(propt_TestS32, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
-DM_PROPERTY_U32(propt_TestU32, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
-DM_PROPERTY_F32(propt_TestF32, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
-DM_PROPERTY_S64(propt_TestS64, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
-DM_PROPERTY_U64(propt_TestU64, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
-DM_PROPERTY_F64(propt_TestF64, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_S32(prop_TestS32, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_U32(prop_TestU32, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_F32(prop_TestF32, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_S64(prop_TestS64, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_U64(prop_TestU64, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
+DM_PROPERTY_F64(prop_TestF64, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_TestGroup1);
 
 DM_PROPERTY_GROUP(prop_TestGroup2, "", &prop_TestGroup1);
 DM_PROPERTY_U32(prop_FrameCounter, 0, PROFILE_PROPERTY_NONE, "", &prop_TestGroup2);
 
-// static TestProperty* GetProperty(PropertyCtx* ctx, const char* name)
-// {
-//     for (uint32_t i = 0; i < ctx->properties.size(); ++i)
-//     {
-//         TestProperty* prop = &ctx->properties[i];
-//         if (strcmp(name, prop->m_Name) == 0)
-//             return prop;
-//     }
-//     return 0;
-// }
 
-// TEST(dmProfile, PropertyIterator)
-// {
-//     PropertyCtx ctx;
-//     ctx.m_Mutex = dmMutex::New();
+static void CheckProp(ProfilerDummyProperty* prop, const char* name,
+                        ProfilePropertyType type,
+                        const ProfilePropertyValue& value)
+{
+    if (strcmp(name, prop->m_Name)!=0)
+        return;
 
-//     dmProfile::SetPropertyTreeCallback(&ctx, PropertyTreeCallback);
-//     dmProfile::Initialize();
+    ASSERT_EQ(type, prop->m_Type);
 
-//     if (dmProfile::IsInitialized()) // false for profile null (i.e. on unsupported platforms)
-//     {
-//         for (int i = 0; i < 2; ++i)
-//         {
-//             ctx.properties.clear();
-//             dmProfile::HProfile profile = dmProfile::FrameBegin();
+    ASSERT_NE(PROFILE_PROPERTY_INVALID_IDX, prop->m_Type);
 
-//             int index = i + 1;
+    if (strcmp("Root", prop->m_Name)!=0)
+    {
+        ASSERT_GT(prop->m_Idx, prop->m_ParentIdx);
+    }
 
-//             DM_PROFILE(""); // Tests that the custom hash function doesn't return 0 (which Remotery doesn't like)
+    if (type == PROFILE_PROPERTY_TYPE_GROUP)
+    {
+        return;
+    }
+    else if (type == PROFILE_PROPERTY_TYPE_S32)
+    {
+        ASSERT_EQ(value.m_S32, prop->m_Value.m_S32);
+    }
+    else if (type == PROFILE_PROPERTY_TYPE_U32)
+    {
+        ASSERT_EQ(value.m_U32, prop->m_Value.m_U32);
+    }
+    else if (type == PROFILE_PROPERTY_TYPE_S64)
+    {
+        ASSERT_EQ(value.m_S64, prop->m_Value.m_S64);
+    }
+    else if (type == PROFILE_PROPERTY_TYPE_U64)
+    {
+        ASSERT_EQ(value.m_U64, prop->m_Value.m_U64);
+    }
+    else if (type == PROFILE_PROPERTY_TYPE_F32)
+    {
+        ASSERT_EQ(value.m_F32, prop->m_Value.m_F32);
+    }
+    else if (type == PROFILE_PROPERTY_TYPE_F64)
+    {
+        ASSERT_EQ(value.m_F64, prop->m_Value.m_F64);
+    }
+}
 
-//             DM_PROPERTY_SET_S32(propt_TestS32, index * 1);
-//             DM_PROPERTY_SET_U32(propt_TestU32, index * 2);
-//             DM_PROPERTY_SET_F32(propt_TestF32, index * 3.0f);
-//             DM_PROPERTY_SET_S64(propt_TestS64, index * 4);
-//             DM_PROPERTY_SET_U64(propt_TestU64, index * 5);
-//             DM_PROPERTY_SET_F64(propt_TestF64, index * 6.0f);
+TEST(dmProfile, PropertyCreationOrder)
+{
+    DummyProfilerRegister();
+    ProfileInitialize();
+    //////////////////////////////
 
-//             DM_PROPERTY_ADD_S32(prop_FrameCounter, 1);
+    ProfilerDummyContext* ctx = DummyProfilerGetContext();
+    ASSERT_NE((ProfilerDummyContext*)0, ctx);
 
-//             dmProfile::FrameEnd(profile);
+    DM_PROPERTY_ADD_F32(prop_GrandChildToExternF32, 1.0f);
+    DM_PROPERTY_SET_U32(prop_ChildToExtern1, 42);
 
-//             DM_MUTEX_SCOPED_LOCK(ctx.m_Mutex);
+    ASSERT_NE(0U, ctx->m_NumProperties);
+    for (uint32_t i = 0; i < ctx->m_NumProperties; ++i)
+    {
+        ProfilerDummyProperty* prop = &ctx->m_Properties[i];
 
-// #define TEST_CHECK(NAME, TYPE, VALUE) \
-//     { \
-//         TestProperty* property = GetProperty(&ctx, NAME); \
-//         ASSERT_NE((TestProperty*)0, property); \
-//         ASSERT_EQ(dmProfile::PROPERTY_TYPE_ ## TYPE, property->m_Type); \
-//         ASSERT_EQ((VALUE), property->m_Value.m_ ## TYPE); \
-//     }
+        ProfilePropertyValue value = {0};
 
+        //printf("PROP: %s:  %llu  %llu\n", prop->m_Name, prop->m_Idx, prop->m_ParentIdx);
 
-//             TEST_CHECK("propt_TestS32", S32, index * 1);
-//             TEST_CHECK("propt_TestU32", U32, index * 2);
-//             TEST_CHECK("propt_TestF32", F32, index * 3.0f);
-//             TEST_CHECK("propt_TestS64", S64, index * 4);
-//             TEST_CHECK("propt_TestU64", U64, index * 5);
-//             TEST_CHECK("propt_TestF64", F64, index * 6.0f);
+        CheckProp(prop, "Root", PROFILE_PROPERTY_TYPE_GROUP, value);
 
-//             TEST_CHECK("prop_FrameCounter", U32, i+1);
+        value.m_U32 = 42;
+        CheckProp(prop, "prop_ChildToExtern1", PROFILE_PROPERTY_TYPE_U32, value);
+    }
 
-// #undef TEST_CHECK
-//         }
-//     }
-
-//     dmProfile::Finalize();
-
-//     dmMutex::Delete(ctx.m_Mutex);
-// }
+    /////////////////////////////
+    ProfileFinalize();
+    DummyProfilerUnregister();
+}
 
 /*
 
