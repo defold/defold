@@ -101,7 +101,7 @@
         resource-type (resource/resource-type resource)
         template (workspace/template workspace resource-type)
         base-name (FilenameUtils/getBaseName (resource/resource-name resource))]
-    (asset-browser/replace-template-name template base-name)))
+    (workspace/replace-template-name template base-name)))
 
 (def ^:dynamic *no-sync* nil)
 (def ^:dynamic *moved-files* nil)

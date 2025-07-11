@@ -27,6 +27,7 @@ ordinary paths."
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
@@ -493,34 +494,46 @@ ordinary paths."
 (def ^:private default-user-resource-path "/templates/default.")
 (def ^:private java-resource-path "templates/template.")
 
-(defn- get-template-resource [workspace resource-type]
+(defn- get-template-resource [workspace resource-type evaluation-context]
   (when resource-type
     (let [resource-path (:template resource-type)
           ext (:ext resource-type)]
       (or
         ;; default user resource
-        (find-resource workspace (str default-user-resource-path ext))
+        (find-resource workspace (str default-user-resource-path ext) evaluation-context)
         ;; editor resource provided from extensions
-        (when resource-path (find-resource workspace resource-path))
+        (when resource-path (find-resource workspace resource-path evaluation-context))
         ;; java resource
         (io/resource (str java-resource-path ext))))))
 
-(defn has-template? [workspace resource-type]
-  (let [resource (get-template-resource workspace resource-type)]
-    (not= resource nil)))
+(defn has-template?
+  ([workspace resource-type]
+   (g/with-auto-evaluation-context evaluation-context
+     (has-template? workspace resource-type evaluation-context)))
+  ([workspace resource-type evaluation-context]
+   (some? (get-template-resource workspace resource-type evaluation-context))))
 
-(defn template [workspace resource-type]
-  (when-let [resource (get-template-resource workspace resource-type)]
-    (let [{:keys [read-fn write-fn]} resource-type]
-      (if (and read-fn write-fn)
-        ;; Sanitize the template.
-        (write-fn
-          (with-open [reader (io/reader resource)]
-            (read-fn reader)))
+(defn template
+  ([workspace resource-type]
+   (g/with-auto-evaluation-context evaluation-context
+     (template workspace resource-type evaluation-context)))
+  ([workspace resource-type evaluation-context]
+   (when-let [resource (get-template-resource workspace resource-type evaluation-context)]
+     (let [{:keys [read-fn write-fn]} resource-type]
+       (if (and read-fn write-fn)
+         ;; Sanitize the template.
+         (write-fn
+           (with-open [reader (io/reader resource)]
+             (read-fn reader)))
 
-        ;; Just read the file as-is.
-        (with-open [reader (io/reader resource)]
-          (slurp reader))))))
+         ;; Just read the file as-is.
+         (with-open [reader (io/reader resource)]
+           (slurp reader)))))))
+
+(defn replace-template-name
+  ^String [^String template ^String name]
+  (let [escaped-name (protobuf/escape-string name)]
+    (string/replace template "{{NAME}}" escaped-name)))
 
 (defn- update-dependency-notifications! [workspace lib-states]
   (let [{:keys [error missing]} (->> lib-states
@@ -895,24 +908,6 @@ ordinary paths."
   (property editable-proj-path? g/Any)
   (property unloaded-proj-path? g/Any)
   (property resource-kind-extensions g/Any (default {:atlas ["atlas" "tilesource"]}))
-  ;; See editor.attachment ns
-  ;; {node-type {list-kw {:add {node-type tx-attach-fn}
-  ;;                      :get get-fn
-  ;;                      :reorder reorder-fn
-  ;;                      :read-only? read-only-pred
-  ;;                      ;; one of:
-  ;;                      :alias node-type
-  ;;                      :aliases #{node-types}}}}
-  ;;
-  ;; tx-attach-fn: fn of parent-node, child-node -> txs
-  ;; get-fn: fn of node, evaluation-context -> vector of nodes
-  ;; reorder-fn: fn of reordered-nodes -> txs
-  ;; read-only-pred: fn of parent-node, evaluation-context -> boolean
-  ;;
-  ;; :alias refers to a node type that this list definition tracks (i.e. a link
-  ;; to the "original")
-  ;; :aliases refers to a set of all node types that track this definition (i.e.
-  ;; links to "copies")
   (property node-attachments g/Any (default {}))
 
   (input code-preprocessors g/NodeID :cascade-delete)

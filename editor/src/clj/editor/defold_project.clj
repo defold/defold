@@ -1822,5 +1822,5 @@
                          (let [target-node (get-resource-node project resource)]
                            (cond-> resources
                              target-node
-                             (concat (acc-fn target-node resource)))))
+                             (concat (acc-fn target-node)))))
                        (conj checked-paths current-path)))))))))

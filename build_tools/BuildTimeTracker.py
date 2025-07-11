@@ -127,26 +127,59 @@ class BuildTimeTracker:
         
         # Command times
         if self.command_times:
-            self.logger("\nCOMMAND TIMES:")
+            self.logger("COMMAND TIMES:")
             for cmd, data in sorted(self.command_times.items(), key=lambda x: x[1]['duration'], reverse=True):
                 self.logger(f"  {cmd:<20} {data['duration']:>8.2f} s")
         
-        # Component times
+        # Component times in tabular format
         if self.component_times:
-            self.logger("\nCOMPONENT TIMES (by platform):")
-            for component, platforms in self.component_times.items():
-                self.logger(f"\n  {component}:")
-                for platform, data in sorted(platforms.items(), key=lambda x: x[1]['duration'], reverse=True):
-                    self.logger(f"    {platform:<15} {data['duration']:>8.2f} s")
-        
-        # Component totals
-        if summary.get('component_totals'):
-            self.logger("\nCOMPONENT TOTALS:")
-            total_component_time = 0.0
-            for component, data in sorted(summary['component_totals'].items(), 
-                                        key=lambda x: x[1]['total_duration'], reverse=True):
-                self.logger(f"  {component:<20} {data['total_duration']:>8.2f} s ({data['platforms']} platforms, avg: {data['average_per_platform']:.2f} s)")
-                total_component_time += data['total_duration']
-            self.logger(f"\n  TOTAL COMPONENT TIME: {total_component_time:>8.2f} s")
+            # Get all unique platforms
+            all_platforms = set()
+            for platforms in self.component_times.values():
+                all_platforms.update(platforms.keys())
+            
+            if all_platforms:
+                # Sort platforms alphabetically
+                sorted_platforms = sorted(all_platforms)
+                
+                # Calculate column widths
+                component_width = 15
+                platform_width = 12  # "8.2f s" = 8 chars + 2 chars = 10, plus 2 for spacing
+                
+                # Create header with all platforms
+                header = f"{'COMPONENTS:':<{component_width}} "
+                for platform in sorted_platforms:
+                    header += f"{platform:<{platform_width}} "
+                header += "TOTAL    AVERAGE"
+                self.logger(f"\n{header}")
+                
+                # Get all components that have data for any platform
+                all_components = set()
+                for component, platforms in self.component_times.items():
+                    all_components.add(component)
+                
+                # Sort components by total time (descending)
+                sorted_components = []
+                for component in all_components:
+                    platforms = self.component_times[component]
+                    total_duration = sum(platform_data['duration'] for platform_data in platforms.values())
+                    sorted_components.append((component, total_duration))
+                
+                sorted_components.sort(key=lambda x: x[1], reverse=True)
+                
+                for component, total_duration in sorted_components:
+                    platforms = self.component_times[component]
+                    avg_duration = total_duration / len(platforms)
+                    
+                    # Build the line with all platform times
+                    line = f"{component:<{component_width}} "
+                    for platform in sorted_platforms:
+                        if platform in platforms:
+                            line += f"{platforms[platform]['duration']:>8.2f} s "
+                        else:
+                            line += f"{'':>10} "  # 10 spaces to match "8.2f s "
+                    line += f"{total_duration:>8.2f} s {avg_duration:>8.2f} s"
+                    
+                    self.logger(line)
         
         self.logger("="*60) 

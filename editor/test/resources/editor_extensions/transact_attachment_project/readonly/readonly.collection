@@ -1,0 +1,26 @@
+name: "readonly"
+instances {
+  id: "readonly"
+  prototype: "/readonly/readonly.go"
+}
+collection_instances {
+  id: "ref"
+  collection: "/ref.collection"
+  position {
+    x: 13.0
+    y: 24.0
+  }
+}
+scale_along_z: 0
+embedded_instances {
+  id: "readonly_go"
+  children: "readonly"
+  data: "embedded_components {\n"
+  "  id: \"readonly_sprite\"\n"
+  "  type: \"sprite\"\n"
+  "  data: \"default_animation: \\\"\\\"\\n"
+  "material: \\\"/builtins/materials/sprite.material\\\"\\n"
+  "\"\n"
+  "}\n"
+  ""
+}
