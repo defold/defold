@@ -415,7 +415,6 @@ def build(bld):
 
     if 'web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'dlib/js/library_sys.js')
-        bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'dlib/js/library_profile.js')
 
     # For the private platforms, check if the file exist and, if so, install them
     def check_install(bld, tgtpath, srcpath):

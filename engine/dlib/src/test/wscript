@@ -149,8 +149,8 @@ def build(bld):
 
     create_test(bld, 'test_profile', extra_libs = ['THREAD'])
     create_test(bld, 'test_profile',    extra_libs = ['THREAD'],
-                                        extra_local_libs = ['profile_null', 'remotery_null'],
-                                        exclude_libs = ['PROFILE', 'profile', 'remotery'],
+                                        extra_local_libs = ['profile_null'],
+                                        exclude_libs = ['PROFILE', 'profile'],
                                         skip_run = True,
                                         target_name = 'test_profile_null')
 

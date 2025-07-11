@@ -105,7 +105,7 @@ def build(bld):
 
     glfw_js = '../../../ext/lib/%s/js/library_glfw.js' % bld.env.PLATFORM
 
-    web_libs = [glfw_js, 'library_sys.js', 'library_script.js', 'library_sound.js', 'library_render.js', 'library_profile.js']
+    web_libs = [glfw_js, 'library_sys.js', 'library_script.js', 'library_sound.js', 'library_render.js']
 
     main_cpp = 'common/main.cpp'
 
@@ -121,6 +121,11 @@ def build(bld):
     if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
         profile_lib += ['PROFILER_REMOTERY']
         profile_symbols += ['ProfilerRemotery']
+
+    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+        profile_lib += ['PROFILER_JS']
+        profile_symbols += ['ProfilerJS']
+        web_libs += ['library_profile.js']
 
     if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5', 'x86_64-linux', 'arm64-linux'):
         additional_libs.append('APP')

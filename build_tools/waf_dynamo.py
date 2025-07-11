@@ -2037,10 +2037,10 @@ def detect(conf):
     conf.env['STLIB_PROFILE'] = ['profile']
     conf.env['STLIB_PROFILE_BASIC'] = ['profile_basic']
     conf.env['STLIB_PROFILE_REMOTERY'] = ['profile_remotery', 'remotery']
-    conf.env['STLIB_PROFILE_NULL'] = ['profile_null', 'remotery_null']
+    conf.env['STLIB_PROFILE_NULL'] = ['profile_null']
 
     conf.env['DEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
-    conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan', 'remotery_null_noasan']
+    conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan']
 
     if ('record' not in Options.options.disable_features):
         conf.env['STLIB_RECORD'] = 'record_null'
