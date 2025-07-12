@@ -17,10 +17,9 @@
 
 namespace dmCrash
 {
-
     void WriteDump()
     {
-        WriteCrash(g_FilePath, &g_AppState);
+        WriteCrash(GetFilePath(), GetAppState());
     }
 
     void SetCrashFilename(const char*)
