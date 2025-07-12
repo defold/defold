@@ -79,11 +79,27 @@ namespace dmRender
         float m_LayerMasks[3];
     };
 
+
+    struct Pos2i
+    {
+        int x, y;
+    };
+
+    struct TextRun
+    {
+        uint16_t            m_GlyphStart; // index into list of glyphs
+        uint16_t            m_GlyphLength; // index into list of glyphs
+
+        kbts_script         m_Script;
+        kbts_direction      m_MainDirection;
+        kbts_direction      m_Direction;
+
+        uint16_t            m_NumWhiteSpaces;
+    };
+
     struct FontRenderBackend
     {
-        // intentionally empty, as we currently don't need a context.
-        uint32_t _unused;
-
+        // TEMP DATA
         void*       m_FontData;
         uint32_t    m_FontSize;
         kbts_font   m_Font;
@@ -91,7 +107,13 @@ namespace dmRender
         void*       m_FontArabicData;
         uint32_t    m_FontArabicSize;
         kbts_font   m_FontArabic;
+        // END TEMP DATA
 
+
+        dmArray<kbts_glyph> m_Glyphs;
+        dmArray<Pos2i>      m_Positions;
+        dmArray<TextRun>    m_Runs;
+        uint32_t            m_NumValidGlyphs;
     };
 
     static void LoadFont(const char* path, void** data, uint32_t* datasize, kbts_font* font)
@@ -131,8 +153,6 @@ namespace dmRender
         return ctx;
     }
 
-
-
     void DestroyFontRenderBackend(HFontRenderBackend ctx)
     {
         // TODO: Memory leak
@@ -171,66 +191,19 @@ namespace dmRender
         return decl;
     }
 
-    static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space)
-    {
-        float width = 0;
-        const char* cursor = text;
-        const FontGlyph* last = 0;
-        for (int i = 0; i < n; ++i)
-        {
-            uint32_t c = dmUtf8::NextChar(&cursor);
-            const FontGlyph* g = GetGlyph(font_map, c);
-            if (!g) {
-                continue;
-            }
-
-            last = g;
-            width += g->m_Advance + tracking;
-        }
-        if (n > 0 && 0 != last)
-        {
-            if (font_map->m_IsMonospaced) {
-                width += font_map->m_Padding;
-            }
-            else {
-                float last_width = (measure_trailing_space && last->m_Character == ' ') ? last->m_Advance : last->m_Width;
-                float last_end_point = last->m_LeftBearing + last_width;
-                float last_right_bearing = last->m_Advance - last_end_point;
-                width = width - last_right_bearing;
-            }
-            width -= tracking;
-        }
-
-        return width;
-    }
-
-    struct Pos2i
-    {
-        int x, y;
-    };
-
-
-
-    struct TextRun
-    {
-        TextRun*            m_Next;
-        dmArray<kbts_glyph> m_Glyphs;
-        dmArray<Pos2i>      m_Positions;
-
-        kbts_script         m_Script;
-        kbts_direction      m_MainDirection;
-        kbts_direction      m_Direction;
-
-        uint16_t            m_CodepointStart; // index into list of codepoints
-        uint16_t            m_CodepointLength; // index into list of codepoints
-        uint16_t            m_NumWhiteSpaces;
-    };
-
     static void ShapeText(HFontRenderBackend backend, kbts_cursor* cursor,
                             kbts_direction main_direction, kbts_direction direction, kbts_script script,
                             uint32_t* codepoints, uint32_t num_codepoints,
                             TextRun* run)
     {
+        // SHapes a single run
+
+        // printf("  SHAPETEXT: \"");
+        // for (uint32_t i = 0; i < num_codepoints; ++i)
+        // {
+        //     printf("%c", (char)codepoints[i]);
+        // }
+        // printf("\" len: %u \n", num_codepoints);
 
         kbts_font* font = &backend->m_Font;
 
@@ -239,15 +212,20 @@ namespace dmRender
             font = &backend->m_FontArabic;
         }
 
-        dmArray<kbts_glyph>& glyphs = run->m_Glyphs;
-        dmArray<Pos2i>&      positions = run->m_Positions;
+        dmArray<kbts_glyph>& glyphs = backend->m_Glyphs;
+        dmArray<Pos2i>&      positions = backend->m_Positions;
 
-        glyphs.SetCapacity(num_codepoints);
-        glyphs.SetSize(num_codepoints);
+        // We don't want to overwrite the previous runs
+        uint32_t remaining = glyphs.Remaining();
+        if (remaining < num_codepoints)
+        {
+            glyphs.OffsetCapacity(num_codepoints - remaining);
+        }
 
+        uint32_t prev_glyph_index = glyphs.Size();
         for (size_t i = 0; i < num_codepoints; ++i)
         {
-            glyphs[i] = kbts_CodepointToGlyph(font, codepoints[i]);
+            glyphs.Push(kbts_CodepointToGlyph(font, codepoints[i]));
         }
 
         kbts_shape_state* state = kbts_CreateShapeState(font);
@@ -260,29 +238,33 @@ namespace dmRender
             // We need to loop as it may substitue one codepoint with many
             glyph_capacity = state->RequiredGlyphCapacity;
 
-            if (glyphs.Capacity() < glyph_capacity)
+            remaining = glyphs.Remaining();
+            if (remaining < glyph_capacity)
             {
-                glyphs.SetCapacity(glyph_capacity);
-                glyphs.SetSize(glyph_capacity);
+                glyphs.OffsetCapacity(glyph_capacity - remaining);
+                assert(glyphs.Capacity() >= (glyph_capacity + prev_glyph_index));
             }
         }
+        glyphs.SetSize(prev_glyph_index + glyph_capacity);
 
         if (positions.Capacity() < glyphs.Capacity())
         {
             positions.SetCapacity(glyphs.Capacity());
-            positions.SetSize(positions.Capacity());
         }
+        positions.SetSize(glyphs.Size());
+
 
         uint32_t num_whitespace = 0;
         for (size_t i = 0; i < glyph_count; ++i)
         {
-            kbts_glyph* glyph = &glyphs[i];
+            uint32_t ii = prev_glyph_index + i;
+            kbts_glyph* glyph = &glyphs[ii];
 
             int x, y;
             kbts_PositionGlyph(cursor, glyph, &x, &y);
 
-            positions[i].x = x;
-            positions[i].y = y;
+            positions[ii].x = x;
+            positions[ii].y = y;
 
             num_whitespace += dmUtf8::IsWhiteSpace(glyph->Codepoint);
         }
@@ -290,24 +272,15 @@ namespace dmRender
         run->m_NumWhiteSpaces = num_whitespace;
     }
 
-    static void FreeTextRuns(TextRun* run)
-    {
-        while (run)
-        {
-            TextRun* next = run->m_Next;
-            delete run;
-            run = next;
-        }
-    }
-
     // https://www.newroadoldway.com/text1.html
-    static TextRun* SegmentText(HFontRenderBackend backend, uint32_t* codepoints, uint32_t codepoint_len)
+    static void SegmentText(HFontRenderBackend backend, uint32_t* codepoints, uint32_t codepoint_len)
     {
         // Breaks up text into multiple "runs":
         //   "Runs are sequences of characters that share a common direction (left-to-right or right-to-left) as well as a common script"
 
-        //printf("SegmentText:\n");
-        TextRun* runs = 0;
+        backend->m_Glyphs.SetSize(0);
+        backend->m_Positions.SetSize(0);
+        backend->m_Runs.SetSize(0);
 
         kbts_cursor      Cursor = { 0 };
         kbts_direction   Direction = KBTS_DIRECTION_NONE;
@@ -315,6 +288,8 @@ namespace dmRender
         size_t           RunStart = 0;
         kbts_break_state BreakState;
         kbts_BeginBreak(&BreakState, KBTS_DIRECTION_NONE, KBTS_JAPANESE_LINE_BREAK_STYLE_NORMAL);
+
+        uint32_t num_whitespaces = 0;
         for (size_t CodepointIndex = 0; CodepointIndex < codepoint_len; ++CodepointIndex)
         {
             kbts_BreakAddCodepoint(&BreakState, codepoints[CodepointIndex], 1, (CodepointIndex + 1) == codepoint_len);
@@ -325,32 +300,22 @@ namespace dmRender
                 {
                     size_t RunLength = Break.Position - RunStart;
 
-                    TextRun* run = new TextRun;
-
-                    if (runs == 0)
-                        runs = run;
-                    else
-                    {
-                        // Add the run last, for easier debugging
-                        TextRun* p = runs;
-                        while (p->m_Next)
-                        {
-                            p = p->m_Next;
-                        }
-                        p->m_Next = run;
-                    }
-
-                    run->m_Next = 0;
-
-                    run->m_Script       = Script;
-                    run->m_MainDirection= BreakState.MainDirection;
-                    run->m_Direction    = Direction;
-
-                    run->m_CodepointStart   = RunStart;
-                    run->m_CodepointLength  = RunLength; // index into list of codepoints
+                    TextRun run = {0};
+                    run.m_Script       = Script;
+                    run.m_MainDirection= BreakState.MainDirection;
+                    run.m_Direction    = Direction;
+                    run.m_GlyphStart   = backend->m_Glyphs.Size();
+                    run.m_GlyphLength  = RunLength;
 
                     ShapeText(backend, &Cursor, BreakState.MainDirection, Direction, Script,
-                                codepoints + RunStart, RunLength, run);
+                                codepoints + RunStart, RunLength, &run);
+
+                    if (backend->m_Runs.Full())
+                    {
+                        backend->m_Runs.OffsetCapacity(16);
+                    }
+                    backend->m_Runs.Push(run);
+                    num_whitespaces += run.m_NumWhiteSpaces;
 
                     RunStart = Break.Position;
                 }
@@ -367,51 +332,103 @@ namespace dmRender
                 }
             }
         }
-        return runs;
+
+        backend->m_NumValidGlyphs = backend->m_Glyphs.Size() - num_whitespaces;
     }
 
-    // static inline uint32_t NextBreak(uint32_t* pcursor, int* n, kbts_glyph* glyphs, uint32_t num_glyphs)
-    // {
-    //     //printf("KB NextBreak: '%c' n: %d", *pcursor < num_glyphs ? glyphs[*pcursor].Codepoint : '~', *n);
-    //     uint32_t c = 0;
-    //     uint32_t i = *pcursor;
-    //     for (; i < num_glyphs; ++i)
-    //     {
-    //         c = glyphs[i].Codepoint;
-    //         if (c != 0)
-    //             *n = *n + 1;
-    //         else
-    //             break; // c == 0
+    static uint32_t LayoutLines(HFontRenderBackend backend,
+                                    int32_t line_width_points, int32_t tracking, int32_t fake_glyph_width,
+                                    int32_t* max_line_width,
+                                    TextLine* lines, uint32_t max_lines_count)
+    {
+        kbts_glyph* glyphs = backend->m_Glyphs.Begin();
+        uint32_t num_glyphs = backend->m_Glyphs.Size();
 
-    //         if (IsBreaking(c))
-    //             break;
-    //     }
-    //     *pcursor = i+1;
-    //     //printf(" -> '%c' n: %d\n", c, *n);
+        Pos2i* positions = backend->m_Positions.Begin();
 
-    //     return i < num_glyphs ? c : 0;
-    // }
+        *max_line_width = 0;
+        uint32_t line_count = 0;
 
-    // static inline uint32_t SkipWS(uint32_t* pcursor, int* n, kbts_glyph* glyphs, uint32_t num_glyphs)
-    // {
-    //     //printf("KB SkipWS: '%c' n: %d", *pcursor < num_glyphs ? glyphs[*pcursor].Codepoint : '~', *n);
-    //     uint32_t c = 0;
-    //     uint32_t i = *pcursor;
-    //     for (; i < num_glyphs; ++i)
-    //     {
-    //         c = glyphs[i].Codepoint;
-    //         if (c != 0)
-    //             *n = *n + 1;
+        uint32_t line_start_index = 0; // The index of the previous breaking whitespace
+        uint32_t last_ws_index = 0;    // The index of the last breaking whitespace
+        int32_t line_start_position_x = 0; // the absolute (positive) position.x of the glyph on the infinite line
 
-    //         int is_whitespace = c != 0 && (c == ' ' || c == ZERO_WIDTH_SPACE_UNICODE);
-    //         if (!is_whitespace)
-    //             break;
-    //     }
-    //     *pcursor = i+1;
-    //     //printf(" -> '%c' n: %d\n", c, *n);
+        for (uint32_t i = 0; i < num_glyphs; ++i)
+        {
+            kbts_glyph* glyph = &glyphs[i];
+            Pos2i       pos = positions[i];
 
-    //     return i < num_glyphs ? c : 0;
-    // }
+            int32_t pos_x = dmMath::Abs(pos.x);
+            int32_t line_width = pos_x - line_start_position_x;
+
+            bool line_break = false;
+            if (!IsBreaking(glyph->Codepoint))
+            {
+                line_break = (line_width + fake_glyph_width) > line_width_points;
+            }
+            else
+            {
+                last_ws_index = i;
+            }
+
+            // we make sure that we've at least progressed one word before doing a line break
+            if (line_break && (last_ws_index > line_start_index))
+            {
+                int32_t length = last_ws_index - line_start_index;
+
+                // The X coordinate where we found the breaking white space
+                int32_t break_position_x = dmMath::Abs(positions[last_ws_index].x);
+
+                line_width = break_position_x - line_start_position_x + tracking * (length-1);
+                *max_line_width = dmMath::Max(*max_line_width, line_width);
+
+                if (lines)
+                {
+                    lines[line_count].m_Width = line_width;
+                    lines[line_count].m_Index = line_start_index;
+                    lines[line_count].m_Count = length;
+                }
+                ++line_count;
+
+                // forward to the next non-breaking character
+                while ((++last_ws_index) < num_glyphs)
+                {
+                    if (!IsBreaking(glyphs[last_ws_index].Codepoint))
+                    {
+                        // calculate where to continue the for-loop
+                        i = last_ws_index - 1;
+                        break;
+                    }
+                }
+
+                line_start_index = last_ws_index;
+                line_start_position_x = positions[last_ws_index].x;
+            }
+        }
+
+        // Final line (e.g. when no line break)
+        if (line_start_index < num_glyphs)
+        {
+            // TODO: account for last trailing space
+            //kbts_glyph* glyph = &glyphs[i];
+
+            int32_t length = num_glyphs - line_start_index;
+
+            int32_t break_position_x = dmMath::Abs(positions[num_glyphs-1].x);
+            int32_t line_width = break_position_x - line_start_position_x + fake_glyph_width + tracking * (length-1);
+            *max_line_width = dmMath::Max(*max_line_width, line_width);
+
+            if (lines)
+            {
+                lines[line_count].m_Width = line_width;
+                lines[line_count].m_Index = line_start_index;
+                lines[line_count].m_Count = length;
+            }
+            ++line_count;
+        }
+
+        return line_count;
+    }
 
     // static uint32_t LayoutGlyphs(HFontMap font_map,
     //                             kbts_glyph* glyphs, uint32_t num_glyphs,
@@ -483,7 +500,6 @@ namespace dmRender
     //     *out_width = max_width;
     //     return l;
     // }
-
     // // Legacy
     // struct LayoutMetrics
     // {
@@ -495,6 +511,52 @@ namespace dmRender
     //         return GetLineTextMetrics(m_FontMap, m_Tracking, text, n, measure_trailing_space);
     //     }
     // };
+
+
+    void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics)
+    {
+        DM_PROFILE(__FUNCTION__);
+
+        float pixel_scale = font_map->m_PixelScale;
+        int32_t width_points = INT_MAX;
+        if (settings->m_LineBreak) {
+            width_points = settings->m_Width / pixel_scale;
+        }
+
+        dmArray<uint32_t> codepoints;
+        {
+            const char* cursor = text;
+            uint32_t num_codepoints = dmUtf8::StrLen(text);
+            codepoints.SetCapacity(num_codepoints);
+            codepoints.SetSize(num_codepoints);
+            for (uint32_t i = 0; i < num_codepoints; ++i)
+            {
+                codepoints[i] = dmUtf8::NextChar(&cursor);
+            }
+
+// disable arabic for now
+if (codepoints[0] > 300)
+{
+    memset(metrics, 0, sizeof(*metrics));
+    return;
+}
+        }
+
+        SegmentText(backend, codepoints.Begin(), codepoints.Size());
+
+        int32_t fake_glyph_width = 28 / pixel_scale;
+        int32_t max_line_width;
+        uint32_t num_lines = LayoutLines(backend, width_points, settings->m_Tracking, fake_glyph_width, &max_line_width, 0, 0);
+
+        float line_height = font_map->m_MaxAscent + font_map->m_MaxDescent;
+
+        metrics->m_MaxAscent = font_map->m_MaxAscent;
+        metrics->m_MaxDescent = font_map->m_MaxDescent;
+        metrics->m_Width = max_line_width * pixel_scale;
+        metrics->m_Height = num_lines * (line_height * settings->m_Leading) - line_height * (settings->m_Leading - 1.0f);
+        metrics->m_LineCount = num_lines;
+
+    }
 
     // void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics)
     // {
@@ -671,8 +733,6 @@ namespace dmRender
     //     {
     //         uint32_t c = glyphs[i].Codepoint;
 
-    //         bool inner_break = false;
-
     //         dmRender::FontGlyph* g = GetGlyph(font_map, c);
     //         if (!g)
     //         {
@@ -709,6 +769,201 @@ namespace dmRender
     //     return valid_glyph_count;
     // }
 
+    #define HAS_LAYER(mask,layer) ((mask & layer) == layer)
+
+    static void OutputGlyph(FontGlyph* glyph,
+                            float recip_w, float recip_h,
+                            uint32_t cell_x, uint32_t cell_y, uint32_t cache_cell_max_ascent, uint32_t cache_cell_padding,
+                            uint32_t layer_count, uint32_t layer_mask,
+                            uint32_t vertexindex, uint32_t vertex_layer_stride,
+                            const dmVMath::Matrix4& transform,
+                            float x, float y,
+                            const Vector4& face_color,
+                            const Vector4& outline_color,
+                            const Vector4& shadow_color,
+                            float sdf_edge_value,
+                            float sdf_outline,
+                            float sdf_smoothing,
+                            float sdf_shadow,
+                            float shadow_x,
+                            float shadow_y,
+                            GlyphVertex* vertices)
+    {
+        float f_width;
+        float f_descent;
+        float f_ascent;
+        float f_left_bearing;
+        float f_size_diff;
+        if (glyph)
+        {
+            assert(glyph->m_ImageWidth != 0);
+            f_width        = glyph->m_ImageWidth;
+            f_descent      = glyph->m_Descent;
+            f_ascent       = glyph->m_Ascent;
+            f_left_bearing = glyph->m_LeftBearing;
+            // This is the difference in size of the glyph image and glyph size
+            f_size_diff    = glyph->m_ImageWidth - glyph->m_Width;
+        }
+        else
+        {
+            // we're outputting a missing glyph
+            f_width        = 0;
+            f_descent      = 0;
+            f_ascent       = 0;
+            f_left_bearing = 0;
+            f_size_diff    = 0;
+        }
+        int16_t width   = (int16_t) f_width;
+        int16_t descent = (int16_t) f_descent;
+        int16_t ascent  = (int16_t) f_ascent;
+
+        // Calculate y-offset in cache-cell space by moving glyphs down to baseline
+        int16_t px_cell_offset_y = cache_cell_max_ascent - ascent;
+
+        uint32_t face_index = vertexindex + vertex_layer_stride * (layer_count-1);
+        uint32_t tx = cell_x;
+        uint32_t ty = cell_y;
+
+        // Set face vertices first, this will always hold since we can't have less than 1 layer
+        GlyphVertex& v1_layer_face = vertices[face_index];
+        GlyphVertex& v2_layer_face = vertices[face_index + 1];
+        GlyphVertex& v3_layer_face = vertices[face_index + 2];
+        GlyphVertex& v4_layer_face = vertices[face_index + 3];
+        GlyphVertex& v5_layer_face = vertices[face_index + 4];
+        GlyphVertex& v6_layer_face = vertices[face_index + 5];
+
+        float xx = x - f_size_diff * 0.5f;
+
+        (Vector4&) v1_layer_face.m_Position = transform * Vector4(xx + f_left_bearing, y - f_descent, 0, 1);
+        (Vector4&) v2_layer_face.m_Position = transform * Vector4(xx + f_left_bearing, y + f_ascent, 0, 1);
+        (Vector4&) v3_layer_face.m_Position = transform * Vector4(xx + f_left_bearing + f_width, y - f_descent, 0, 1);
+        (Vector4&) v6_layer_face.m_Position = transform * Vector4(xx + f_left_bearing + f_width, y + f_ascent, 0, 1);
+
+        v1_layer_face.m_UV[0] = (tx + cache_cell_padding) * recip_w;
+        v1_layer_face.m_UV[1] = (ty + cache_cell_padding + ascent + descent + px_cell_offset_y) * recip_h;
+
+        v2_layer_face.m_UV[0] = (tx + cache_cell_padding) * recip_w;
+        v2_layer_face.m_UV[1] = (ty + cache_cell_padding + px_cell_offset_y) * recip_h;
+
+        v3_layer_face.m_UV[0] = (tx + cache_cell_padding + width) * recip_w;
+        v3_layer_face.m_UV[1] = (ty + cache_cell_padding + ascent + descent + px_cell_offset_y) * recip_h;
+
+        v6_layer_face.m_UV[0] = (tx + cache_cell_padding + width) * recip_w;
+        v6_layer_face.m_UV[1] = (ty + cache_cell_padding + px_cell_offset_y) * recip_h;
+
+        #define SET_VERTEX_FONT_PROPERTIES(v) \
+            v.m_FaceColor[0]    = face_color[0]; \
+            v.m_FaceColor[1]    = face_color[1]; \
+            v.m_FaceColor[2]    = face_color[2]; \
+            v.m_FaceColor[3]    = face_color[3]; \
+            v.m_OutlineColor[0] = outline_color[0]; \
+            v.m_OutlineColor[1] = outline_color[1]; \
+            v.m_OutlineColor[2] = outline_color[2]; \
+            v.m_OutlineColor[3] = outline_color[3]; \
+            v.m_ShadowColor[0]  = shadow_color[0]; \
+            v.m_ShadowColor[1]  = shadow_color[1]; \
+            v.m_ShadowColor[2]  = shadow_color[2]; \
+            v.m_ShadowColor[3]  = shadow_color[3]; \
+            v.m_FaceColor[0]    = face_color[0]; \
+            v.m_FaceColor[1]    = face_color[1]; \
+            v.m_FaceColor[2]    = face_color[2]; \
+            v.m_FaceColor[3]    = face_color[3]; \
+            v.m_SdfParams[0]    = sdf_edge_value; \
+            v.m_SdfParams[1]    = sdf_outline; \
+            v.m_SdfParams[2]    = sdf_smoothing; \
+            v.m_SdfParams[3]    = sdf_shadow;
+
+        SET_VERTEX_FONT_PROPERTIES(v1_layer_face)
+        SET_VERTEX_FONT_PROPERTIES(v2_layer_face)
+        SET_VERTEX_FONT_PROPERTIES(v3_layer_face)
+        SET_VERTEX_FONT_PROPERTIES(v6_layer_face)
+
+        #undef SET_VERTEX_FONT_PROPERTIES
+
+        v4_layer_face = v3_layer_face;
+        v5_layer_face = v2_layer_face;
+
+        #define SET_VERTEX_LAYER_MASK(v,f,o,s) \
+            v.m_LayerMasks[0] = f; \
+            v.m_LayerMasks[1] = o; \
+            v.m_LayerMasks[2] = s;
+
+        // Set outline vertices
+        if (HAS_LAYER(layer_mask,OUTLINE))
+        {
+            uint32_t outline_index = vertexindex + vertex_layer_stride * (layer_count-2);
+
+            GlyphVertex& v1_layer_outline = vertices[outline_index];
+            GlyphVertex& v2_layer_outline = vertices[outline_index + 1];
+            GlyphVertex& v3_layer_outline = vertices[outline_index + 2];
+            GlyphVertex& v4_layer_outline = vertices[outline_index + 3];
+            GlyphVertex& v5_layer_outline = vertices[outline_index + 4];
+            GlyphVertex& v6_layer_outline = vertices[outline_index + 5];
+
+            v1_layer_outline = v1_layer_face;
+            v2_layer_outline = v2_layer_face;
+            v3_layer_outline = v3_layer_face;
+            v4_layer_outline = v4_layer_face;
+            v5_layer_outline = v5_layer_face;
+            v6_layer_outline = v6_layer_face;
+
+            SET_VERTEX_LAYER_MASK(v1_layer_outline,0,1,0)
+            SET_VERTEX_LAYER_MASK(v2_layer_outline,0,1,0)
+            SET_VERTEX_LAYER_MASK(v3_layer_outline,0,1,0)
+            SET_VERTEX_LAYER_MASK(v4_layer_outline,0,1,0)
+            SET_VERTEX_LAYER_MASK(v5_layer_outline,0,1,0)
+            SET_VERTEX_LAYER_MASK(v6_layer_outline,0,1,0)
+        }
+
+        // Set shadow vertices
+        if (HAS_LAYER(layer_mask,SHADOW))
+        {
+            uint32_t shadow_index = vertexindex;
+
+            GlyphVertex& v1_layer_shadow = vertices[shadow_index];
+            GlyphVertex& v2_layer_shadow = vertices[shadow_index + 1];
+            GlyphVertex& v3_layer_shadow = vertices[shadow_index + 2];
+            GlyphVertex& v4_layer_shadow = vertices[shadow_index + 3];
+            GlyphVertex& v5_layer_shadow = vertices[shadow_index + 4];
+            GlyphVertex& v6_layer_shadow = vertices[shadow_index + 5];
+
+            v1_layer_shadow = v1_layer_face;
+            v2_layer_shadow = v2_layer_face;
+            v3_layer_shadow = v3_layer_face;
+            v6_layer_shadow = v6_layer_face;
+
+            // Shadow offsets must be calculated since we need to offset in local space (before vertex transformation)
+            (Vector4&) v1_layer_shadow.m_Position = transform * Vector4(xx + f_left_bearing + shadow_x, y - f_descent + shadow_y, 0, 1);
+            (Vector4&) v2_layer_shadow.m_Position = transform * Vector4(xx + f_left_bearing + shadow_x, y + f_ascent + shadow_y, 0, 1);
+            (Vector4&) v3_layer_shadow.m_Position = transform * Vector4(xx + f_left_bearing + shadow_x + f_width, y - f_descent + shadow_y, 0, 1);
+            (Vector4&) v6_layer_shadow.m_Position = transform * Vector4(xx + f_left_bearing + shadow_x + f_width, y + f_ascent + shadow_y, 0, 1);
+
+            v4_layer_shadow = v3_layer_shadow;
+            v5_layer_shadow = v2_layer_shadow;
+
+            SET_VERTEX_LAYER_MASK(v1_layer_shadow,0,0,1)
+            SET_VERTEX_LAYER_MASK(v2_layer_shadow,0,0,1)
+            SET_VERTEX_LAYER_MASK(v3_layer_shadow,0,0,1)
+            SET_VERTEX_LAYER_MASK(v4_layer_shadow,0,0,1)
+            SET_VERTEX_LAYER_MASK(v5_layer_shadow,0,0,1)
+            SET_VERTEX_LAYER_MASK(v6_layer_shadow,0,0,1)
+        }
+
+        // If we only have one layer, we need to set the mask to (1,1,1)
+        // so that we can use the same calculations for both single and multi.
+        // The mask is set last for layer 1 since we copy the vertices to
+        // all other layers to avoid re-calculating their data.
+        uint8_t is_one_layer = layer_count > 1 ? 0 : 1;
+        SET_VERTEX_LAYER_MASK(v1_layer_face,1,is_one_layer,is_one_layer)
+        SET_VERTEX_LAYER_MASK(v2_layer_face,1,is_one_layer,is_one_layer)
+        SET_VERTEX_LAYER_MASK(v3_layer_face,1,is_one_layer,is_one_layer)
+        SET_VERTEX_LAYER_MASK(v4_layer_face,1,is_one_layer,is_one_layer)
+        SET_VERTEX_LAYER_MASK(v5_layer_face,1,is_one_layer,is_one_layer)
+        SET_VERTEX_LAYER_MASK(v6_layer_face,1,is_one_layer,is_one_layer)
+
+        #undef SET_VERTEX_LAYER_MASK
+    }
+
     uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uint32_t frame, const char* text, const TextEntry& te, float recip_w, float recip_h, uint8_t* _vertices, uint32_t num_vertices)
     {
         DM_PROFILE(__FUNCTION__);
@@ -716,13 +971,9 @@ namespace dmRender
 
         GlyphVertex* vertices = (GlyphVertex*)_vertices;
 
-        float width = te.m_Width;
-        if (!te.m_LineBreak) {
-            width = 1000000.0f;
-        }
         float line_height = font_map->m_MaxAscent + font_map->m_MaxDescent;
         float leading = line_height * te.m_Leading;
-        float tracking = line_height * te.m_Tracking;
+        float tracking = te.m_Tracking;
 
         const uint32_t max_lines = 128;
         TextLine lines[max_lines];
@@ -731,24 +982,17 @@ namespace dmRender
         // rendering multiline text.
         // For single line text we still want to include spaces when the text
         // layout is calculated (https://github.com/defold/defold/issues/5911)
+        // Basically it makes typing space into an input field a lot better looking.
         bool measure_trailing_space = !te.m_LineBreak;
 
-        uint64_t tstart = dmTime::GetMonotonicTime();
+        // uint64_t tstart = dmTime::GetMonotonicTime();
 
-        LayoutMetrics lm(font_map, tracking);
-        float layout_width;
-        int line_count = Layout(text, width, lines, max_lines, &layout_width, lm, measure_trailing_space);
+        // // LayoutMetrics lm(font_map, tracking);
+        // // float layout_width;
+        // // int line_count = Layout(text, width, lines, max_lines, &layout_width, lm, measure_trailing_space);
 
-        uint64_t tend = dmTime::GetMonotonicTime();
-        printf("Generated %d lines in %.3f ms\n", line_count, (tend-tstart)/1000.0f);
-
-
-        float x_offset = OffsetX(te.m_Align, te.m_Width);
-        if (font_map->m_IsMonospaced)
-        {
-            x_offset -= font_map->m_Padding * 0.5f;
-        }
-        float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
+        // uint64_t tend = dmTime::GetMonotonicTime();
+        // printf("Generated %d lines in %.3f ms\n", line_count, (tend-tstart)/1000.0f);
 
         const Vector4 face_color    = dmGraphics::UnpackRGBA(te.m_FaceColor);
         const Vector4 outline_color = dmGraphics::UnpackRGBA(te.m_OutlineColor);
@@ -788,14 +1032,29 @@ if (codepoints[0] > 300)
         }
         uint64_t tend_seg_alloc = dmTime::GetMonotonicTime();
 
-        TextRun* runs = SegmentText(backend, codepoints.Begin(), codepoints.Size());
+        SegmentText(backend, codepoints.Begin(), codepoints.Size());
+        if (backend->m_Runs.Size() == 0)
+        {
+            return 0; // no added vertices
+        }
+
+        float pixel_scale = font_map->m_PixelScale;
+
+        // int dir = runs->m_MainDirection == KBTS_DIRECTION_RTL ? -1 : 1;
+        // int width_points = dir > 0 ? INT_MAX : INT_MIN;
+        int width_points = INT_MAX;
+
+        //float width = te.m_Width;
+        if (te.m_LineBreak) {
+            //width = 1000000.0f;
+            //width_points = (dir*te.m_Width) / pixel_scale;
+            width_points = te.m_Width / pixel_scale;
+        }
 
         uint64_t tend_seg = dmTime::GetMonotonicTime();
 
         printf("KB Segmented text in %.3f ms (alloc: %.3f ms)\n", (tend_seg - tstart_seg)/1000.0f, (tend_seg_alloc-tstart_seg)/1000.0f);
-
-
-        float pixel_scale = font_map->m_PixelScale;
+        printf("  #glyphs: %u  #runs: %u\n", backend->m_Glyphs.Size(), backend->m_Runs.Size());
 
         uint32_t vertexindex        = 0;
         uint32_t valid_glyph_count  = 0;
@@ -805,15 +1064,11 @@ if (codepoints[0] > 300)
         float shadow_x              = font_map->m_ShadowX;
         float shadow_y              = font_map->m_ShadowY;
 
-        #define HAS_LAYER(mask,layer) ((mask & layer) == layer)
-
         if (!HAS_LAYER(layer_mask, FACE))
         {
             dmLogError("Encountered invalid layer mask when rendering font!");
             return 0;
         }
-
-        TextRun* run = runs;
 
          // Vertex buffer consume strategy:
         // * For single-layered approach, we do as per usual and consume vertices based on offset 0.
@@ -826,316 +1081,171 @@ if (codepoints[0] > 300)
         {
             // Calculate number of renderable glyphs.
             // Wee need this as we're uploading constants to the GPU, with indices referring to faces
-            while (run)
-            {
-                valid_glyph_count += run->m_Glyphs.Size() - run->m_NumWhiteSpaces; // They should all be valid, shouldn't they?
-                run = run->m_Next;
-            }
+            valid_glyph_count = backend->m_NumValidGlyphs;
+
+            // // uint32_t test_count = CountValidAndCachedGlyphsGlyphs(font_map, frame, num_vertices, layer_count,
+            // //                                                     backend->m_Glyphs.Begin(), backend->m_Glyphs.Size());
+
+            // valid_glyph_count += backend->m_Glyphs.Size();
+            // for (uint32_t i = 0; i < backend->m_Runs.Size(); ++i)
+            // {
+            //     TextRun* run = &backend->m_Runs[i];
+            //     valid_glyph_count -= run->m_NumWhiteSpaces; // They should all be valid, shouldn't they?
+            // }
         }
 
-        run = runs;
-        while (run)
+        uint64_t tstart_layout = dmTime::GetMonotonicTime();
+
+        int32_t fake_glyph_width = 28 / pixel_scale;
+        int32_t max_line_width;
+        uint32_t line_count = LayoutLines(backend, width_points,
+                                            tracking / pixel_scale,
+                                            fake_glyph_width,
+                                            &max_line_width, lines, max_lines);
+
+        uint64_t tend_layout = dmTime::GetMonotonicTime();
+        printf("LineCount: %u  line_width: %d glyph_width: %d  %.3f ms\n", line_count, width_points, fake_glyph_width, (tend_layout-tstart_layout)/1000.0f);
+
+        float x_offset = OffsetX(te.m_Align, te.m_Width);
+        if (font_map->m_IsMonospaced)
         {
-            uint64_t tstart_kb = dmTime::GetMonotonicTime();
-            float out_width = 0;
-            int line_count_cp = LayoutGlyphs(font_map,
-                                            run->m_Glyphs.Begin(), run->m_Glyphs.Size(),
-                                            lines2, max_lines,
-                                            pixel_scale,
-                                            width,
-                                            tracking,
-                                            measure_trailing_space,
-                                            &out_width);
+            x_offset -= font_map->m_Padding * 0.5f;
+        }
+        float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
 
-            uint64_t tend_kb = dmTime::GetMonotonicTime();
+        // uint64_t tstart_kb = dmTime::GetMonotonicTime();
+        // float out_width = 0;
+        // int line_count_cp = LayoutGlyphs(font_map,
+        //                                 run->m_Glyphs.Begin(), run->m_Glyphs.Size(),
+        //                                 lines2, max_lines,
+        //                                 pixel_scale,
+        //                                 width,
+        //                                 tracking,
+        //                                 measure_trailing_space,
+        //                                 &out_width);
 
-            printf("KB Generated %d lines, with max width %.3f in %.3f ms\n", line_count_cp, out_width, (tend_kb-tstart_kb)/1000.0f);
+        // uint64_t tend_kb = dmTime::GetMonotonicTime();
 
-            // for (uint32_t i = 0; i < line_count; ++i)
+        // printf("KB Generated %d lines, with max width %.3f in %.3f ms\n", line_count_cp, out_width, (tend_kb-tstart_kb)/1000.0f);
+
+        // for (uint32_t i = 0; i < line_count; ++i)
+        // {
+        //     printf("LINE: %u index: %u  count: %u  width: %.3f\n", i, lines[i].m_Index, lines[i].m_Count, lines[i].m_Width);
+        // }
+
+        // for (uint32_t i = 0; i < line_count_cp; ++i)
+        // {
+        //     printf("KB LINE: %u index: %u  count: %u  width: %.3f\n", i, lines2[i].m_Index, lines2[i].m_Count, lines2[i].m_Width);
+        // }
+
+        static dmhash_t arabic = dmHashString64("/assets/fonts/noto/noto_outline_arabic.fontc");
+        static dmhash_t latin = dmHashString64("/assets/fonts/noto/noto_outline.fontc");
+        bool is_arabic = font_map->m_NameHash == arabic;
+
+        kbts_glyph* glyphs = backend->m_Glyphs.Begin();
+        Pos2i* positions = backend->m_Positions.Begin();
+
+        uint32_t count = 0;
+        for (int line = 0; line < line_count; ++line) {
+            TextLine& l = lines[line];
+
+            uint32_t align = te.m_Align;
+
+            // KBTS_DIRECTION_RTL
+            // if (is_arabic)
             // {
-            //     printf("LINE: %u index: %u  count: %u  width: %.3f\n", i, lines[i].m_Index, lines[i].m_Count, lines[i].m_Width);
+            //     // Hack: negate the current setting
+            //     if (align == dmRender::TEXT_ALIGN_LEFT)
+            //         align = dmRender::TEXT_ALIGN_RIGHT;
+            //     else if (align == dmRender::TEXT_ALIGN_RIGHT)
+            //         align = dmRender::TEXT_ALIGN_LEFT;
             // }
 
-            // for (uint32_t i = 0; i < line_count_cp; ++i)
-            // {
-            //     printf("KB LINE: %u index: %u  count: %u  width: %.3f\n", i, lines2[i].m_Index, lines2[i].m_Count, lines2[i].m_Width);
-            // }
-
-
-            static bool use_kb = true;
-
-            static dmhash_t arabic = dmHashString64("/assets/fonts/noto/noto_outline_arabic.fontc");
-            static dmhash_t latin = dmHashString64("/assets/fonts/noto/noto_outline.fontc");
-            bool is_arabic = font_map->m_NameHash == arabic;
-
-            for (int line = 0; line < line_count; ++line) {
-                TextLine& l = lines2[line];
-
-                uint32_t align = te.m_Align;
-                if (use_kb)
-                {
-
-                    // KBTS_DIRECTION_RTL
-                    // if (is_arabic)
-                    // {
-                    //     // Hack: negate the current setting
-                    //     if (align == dmRender::TEXT_ALIGN_LEFT)
-                    //         align = dmRender::TEXT_ALIGN_RIGHT;
-                    //     else if (align == dmRender::TEXT_ALIGN_RIGHT)
-                    //         align = dmRender::TEXT_ALIGN_LEFT;
-                    // }
-                }
-
-                if (is_arabic)
-                {
-                    x_offset += 200;
-                }
-
-                const float line_start_x = x_offset - OffsetX(align, l.m_Width);
-                const float line_start_y = y_offset - line * leading;
-                float x = line_start_x;
-                float y = line_start_y;
-
-                const char* cursor = &text[l.m_Index];
-
-                // all glyphs are positions on an infinite line, so we want the position of the first glyph on the line
-                Pos2i first_pos;
-                if (use_kb)
-                {
-                    first_pos = run->m_Positions[l.m_Index];
-                }
-
-                int n = l.m_Count;
-                for (int j = 0; j < n; ++j)
-                {
-                    kbts_glyph* g = 0;
-                    Pos2i pos;
-                    uint32_t c = 0;
-                    if (!use_kb)
-                    {
-                        c = dmUtf8::NextChar(&cursor);
-                    }
-                    else
-                    {
-                        pos = run->m_Positions[l.m_Index + j];
-                        g = &run->m_Glyphs[l.m_Index + j];
-                        c = g->Codepoint;
-
-                        if (is_arabic)
-                            printf("glyph: %X  x: %d\n", g->Codepoint, pos.x);
-
-                        // Since we're dealing with absolute offsets, we should place
-                        float offx = (pos.x - first_pos.x) * pixel_scale;
-                        float offy = (pos.y - first_pos.y) * pixel_scale;
-                        x = line_start_x + offx;
-                        y = line_start_y + offy;
-                    }
-
-                    FontGlyph* glyph = GetGlyph(font_map, c);
-                    if (!glyph) {
-                        continue;
-                    }
-
-                    // If we get here, then it may be that c != glyph->m_Character
-                    if (!use_kb)
-                    {
-                        c = glyph->m_Character;
-                    }
-
-                    // Look ahead and see if we can produce vertices for the next glyph or not
-                    if ((vertexindex + vertices_per_quad) * layer_count > num_vertices)
-                    {
-                        dmLogWarning("Character buffer exceeded (size: %d), increase the \"graphics.max_characters\" property in your game.project file.", num_vertices / 6);
-                        return vertexindex * layer_count;
-                    }
-
-                    if (c == 0x0644)
-                    {
-                        printf("DEBUG: %X  width: %f\n", c, glyph->m_Width);
-                    }
-                    if (glyph->m_Width > 0)
-                    {
-                        float f_width        = glyph->m_ImageWidth;
-                        float f_descent      = glyph->m_Descent;
-                        float f_ascent       = glyph->m_Ascent;
-                        float f_left_bearing = glyph->m_LeftBearing;
-                        // This is the difference in size of the glyph image and glyph size
-                        float f_size_diff    = glyph->m_ImageWidth - glyph->m_Width;
-
-                        int16_t width        = (int16_t) f_width;
-                        int16_t descent      = (int16_t) f_descent;
-                        int16_t ascent       = (int16_t) f_ascent;
-
-                        // Calculate y-offset in cache-cell space by moving glyphs down to baseline
-                        int16_t px_cell_offset_y = font_map->m_CacheCellMaxAscent - ascent;
-
-                        if (!IsInCache(font_map, c))
-                        {
-                            AddGlyphToCache(font_map, frame, glyph, px_cell_offset_y);
-                        }
-
-                        CacheGlyph* cache_glyph = GetFromCache(font_map, c);
-                        if (cache_glyph)
-                        {
-                            uint32_t face_index = vertexindex + vertices_per_quad * valid_glyph_count * (layer_count-1);
-                            // TODO: Add api to get the uv coords for the glyph
-                            uint32_t tx = cache_glyph->m_X;
-                            uint32_t ty = cache_glyph->m_Y;
-
-                            // Set face vertices first, this will always hold since we can't have less than 1 layer
-                            GlyphVertex& v1_layer_face = vertices[face_index];
-                            GlyphVertex& v2_layer_face = vertices[face_index + 1];
-                            GlyphVertex& v3_layer_face = vertices[face_index + 2];
-                            GlyphVertex& v4_layer_face = vertices[face_index + 3];
-                            GlyphVertex& v5_layer_face = vertices[face_index + 4];
-                            GlyphVertex& v6_layer_face = vertices[face_index + 5];
-
-                            float xx = x - f_size_diff * 0.5f;
-
-                            (Vector4&) v1_layer_face.m_Position = te.m_Transform * Vector4(xx + f_left_bearing, y - f_descent, 0, 1);
-                            (Vector4&) v2_layer_face.m_Position = te.m_Transform * Vector4(xx + f_left_bearing, y + f_ascent, 0, 1);
-                            (Vector4&) v3_layer_face.m_Position = te.m_Transform * Vector4(xx + f_left_bearing + f_width, y - f_descent, 0, 1);
-                            (Vector4&) v6_layer_face.m_Position = te.m_Transform * Vector4(xx + f_left_bearing + f_width, y + f_ascent, 0, 1);
-
-                            v1_layer_face.m_UV[0] = (tx + font_map->m_CacheCellPadding) * recip_w;
-                            v1_layer_face.m_UV[1] = (ty + font_map->m_CacheCellPadding + ascent + descent + px_cell_offset_y) * recip_h;
-
-                            v2_layer_face.m_UV[0] = (tx + font_map->m_CacheCellPadding) * recip_w;
-                            v2_layer_face.m_UV[1] = (ty + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
-
-                            v3_layer_face.m_UV[0] = (tx + font_map->m_CacheCellPadding + width) * recip_w;
-                            v3_layer_face.m_UV[1] = (ty + font_map->m_CacheCellPadding + ascent + descent + px_cell_offset_y) * recip_h;
-
-                            v6_layer_face.m_UV[0] = (tx + font_map->m_CacheCellPadding + width) * recip_w;
-                            v6_layer_face.m_UV[1] = (ty + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
-
-                            #define SET_VERTEX_FONT_PROPERTIES(v) \
-                                v.m_FaceColor[0]    = face_color[0]; \
-                                v.m_FaceColor[1]    = face_color[1]; \
-                                v.m_FaceColor[2]    = face_color[2]; \
-                                v.m_FaceColor[3]    = face_color[3]; \
-                                v.m_OutlineColor[0] = outline_color[0]; \
-                                v.m_OutlineColor[1] = outline_color[1]; \
-                                v.m_OutlineColor[2] = outline_color[2]; \
-                                v.m_OutlineColor[3] = outline_color[3]; \
-                                v.m_ShadowColor[0]  = shadow_color[0]; \
-                                v.m_ShadowColor[1]  = shadow_color[1]; \
-                                v.m_ShadowColor[2]  = shadow_color[2]; \
-                                v.m_ShadowColor[3]  = shadow_color[3]; \
-                                v.m_FaceColor[0]    = face_color[0]; \
-                                v.m_FaceColor[1]    = face_color[1]; \
-                                v.m_FaceColor[2]    = face_color[2]; \
-                                v.m_FaceColor[3]    = face_color[3]; \
-                                v.m_SdfParams[0]    = sdf_edge_value; \
-                                v.m_SdfParams[1]    = sdf_outline; \
-                                v.m_SdfParams[2]    = sdf_smoothing; \
-                                v.m_SdfParams[3]    = sdf_shadow;
-
-                            SET_VERTEX_FONT_PROPERTIES(v1_layer_face)
-                            SET_VERTEX_FONT_PROPERTIES(v2_layer_face)
-                            SET_VERTEX_FONT_PROPERTIES(v3_layer_face)
-                            SET_VERTEX_FONT_PROPERTIES(v6_layer_face)
-
-                            #undef SET_VERTEX_FONT_PROPERTIES
-
-                            v4_layer_face = v3_layer_face;
-                            v5_layer_face = v2_layer_face;
-
-                            #define SET_VERTEX_LAYER_MASK(v,f,o,s) \
-                                v.m_LayerMasks[0] = f; \
-                                v.m_LayerMasks[1] = o; \
-                                v.m_LayerMasks[2] = s;
-
-                            // Set outline vertices
-                            if (HAS_LAYER(layer_mask,OUTLINE))
-                            {
-                                uint32_t outline_index = vertexindex + vertices_per_quad * valid_glyph_count * (layer_count-2);
-
-                                GlyphVertex& v1_layer_outline = vertices[outline_index];
-                                GlyphVertex& v2_layer_outline = vertices[outline_index + 1];
-                                GlyphVertex& v3_layer_outline = vertices[outline_index + 2];
-                                GlyphVertex& v4_layer_outline = vertices[outline_index + 3];
-                                GlyphVertex& v5_layer_outline = vertices[outline_index + 4];
-                                GlyphVertex& v6_layer_outline = vertices[outline_index + 5];
-
-                                v1_layer_outline = v1_layer_face;
-                                v2_layer_outline = v2_layer_face;
-                                v3_layer_outline = v3_layer_face;
-                                v4_layer_outline = v4_layer_face;
-                                v5_layer_outline = v5_layer_face;
-                                v6_layer_outline = v6_layer_face;
-
-                                SET_VERTEX_LAYER_MASK(v1_layer_outline,0,1,0)
-                                SET_VERTEX_LAYER_MASK(v2_layer_outline,0,1,0)
-                                SET_VERTEX_LAYER_MASK(v3_layer_outline,0,1,0)
-                                SET_VERTEX_LAYER_MASK(v4_layer_outline,0,1,0)
-                                SET_VERTEX_LAYER_MASK(v5_layer_outline,0,1,0)
-                                SET_VERTEX_LAYER_MASK(v6_layer_outline,0,1,0)
-                            }
-
-                            // Set shadow vertices
-                            if (HAS_LAYER(layer_mask,SHADOW))
-                            {
-                                uint32_t shadow_index = vertexindex;
-
-                                GlyphVertex& v1_layer_shadow = vertices[shadow_index];
-                                GlyphVertex& v2_layer_shadow = vertices[shadow_index + 1];
-                                GlyphVertex& v3_layer_shadow = vertices[shadow_index + 2];
-                                GlyphVertex& v4_layer_shadow = vertices[shadow_index + 3];
-                                GlyphVertex& v5_layer_shadow = vertices[shadow_index + 4];
-                                GlyphVertex& v6_layer_shadow = vertices[shadow_index + 5];
-
-                                v1_layer_shadow = v1_layer_face;
-                                v2_layer_shadow = v2_layer_face;
-                                v3_layer_shadow = v3_layer_face;
-                                v6_layer_shadow = v6_layer_face;
-
-                                // Shadow offsets must be calculated since we need to offset in local space (before vertex transformation)
-                                (Vector4&) v1_layer_shadow.m_Position = te.m_Transform * Vector4(xx + f_left_bearing + shadow_x, y - f_descent + shadow_y, 0, 1);
-                                (Vector4&) v2_layer_shadow.m_Position = te.m_Transform * Vector4(xx + f_left_bearing + shadow_x, y + f_ascent + shadow_y, 0, 1);
-                                (Vector4&) v3_layer_shadow.m_Position = te.m_Transform * Vector4(xx + f_left_bearing + shadow_x + f_width, y - f_descent + shadow_y, 0, 1);
-                                (Vector4&) v6_layer_shadow.m_Position = te.m_Transform * Vector4(xx + f_left_bearing + shadow_x + f_width, y + f_ascent + shadow_y, 0, 1);
-
-                                v4_layer_shadow = v3_layer_shadow;
-                                v5_layer_shadow = v2_layer_shadow;
-
-                                SET_VERTEX_LAYER_MASK(v1_layer_shadow,0,0,1)
-                                SET_VERTEX_LAYER_MASK(v2_layer_shadow,0,0,1)
-                                SET_VERTEX_LAYER_MASK(v3_layer_shadow,0,0,1)
-                                SET_VERTEX_LAYER_MASK(v4_layer_shadow,0,0,1)
-                                SET_VERTEX_LAYER_MASK(v5_layer_shadow,0,0,1)
-                                SET_VERTEX_LAYER_MASK(v6_layer_shadow,0,0,1)
-                            }
-
-                            // If we only have one layer, we need to set the mask to (1,1,1)
-                            // so that we can use the same calculations for both single and multi.
-                            // The mask is set last for layer 1 since we copy the vertices to
-                            // all other layers to avoid re-calculating their data.
-                            uint8_t is_one_layer = layer_count > 1 ? 0 : 1;
-                            SET_VERTEX_LAYER_MASK(v1_layer_face,1,is_one_layer,is_one_layer)
-                            SET_VERTEX_LAYER_MASK(v2_layer_face,1,is_one_layer,is_one_layer)
-                            SET_VERTEX_LAYER_MASK(v3_layer_face,1,is_one_layer,is_one_layer)
-                            SET_VERTEX_LAYER_MASK(v4_layer_face,1,is_one_layer,is_one_layer)
-                            SET_VERTEX_LAYER_MASK(v5_layer_face,1,is_one_layer,is_one_layer)
-                            SET_VERTEX_LAYER_MASK(v6_layer_face,1,is_one_layer,is_one_layer)
-
-                            #undef SET_VERTEX_LAYER_MASK
-
-                            vertexindex += vertices_per_quad;
-                        }
-                    }
-
-                    if (!use_kb)
-                    {
-                        x += glyph->m_Advance + tracking;
-                    }
-                }
+            if (is_arabic)
+            {
+                x_offset += 200;
             }
 
-            run = run->m_Next;
-            break; // TODO: Do layout with respect to different runs!
+            const float line_start_x = x_offset - OffsetX(align, l.m_Width);
+            const float line_start_y = y_offset - line * leading;
 
-        } // while(runs)
+            // all glyphs are positions on an infinite line, so we want the position of the first glyph on the line
+            Pos2i first_pos = positions[l.m_Index];
+
+            int n = l.m_Count;
+            for (int j = 0; j < n; ++j)
+            {
+                // Look ahead and see if we can produce vertices for the next glyph or not
+                if ((vertexindex + vertices_per_quad) * layer_count > num_vertices)
+                {
+                    dmLogWarning("Character buffer exceeded (size: %d), increase the \"graphics.max_characters\" property in your game.project file.", num_vertices / 6);
+                    return vertexindex * layer_count;
+                }
+
+                kbts_glyph* g = &glyphs[l.m_Index + j];
+                uint32_t c = g->Codepoint;
+                if (dmUtf8::IsWhiteSpace(c))
+                    continue;
+
+                Pos2i pos = positions[l.m_Index + j];
+
+                if (is_arabic)
+                    printf("glyph: %X  x: %d\n", g->Codepoint, pos.x);
+
+                // We're dealing with absolute coordinates on an infinite line
+                float offx = (pos.x - first_pos.x) * pixel_scale;
+                float offy = (pos.y - first_pos.y) * pixel_scale;
+                float x = line_start_x + offx;
+                float y = line_start_y + offy;
+
+                uint32_t cell_x = 0;
+                uint32_t cell_y = 0;
+
+                FontGlyph* glyph = GetGlyph(font_map, c);
+                if (glyph && glyph->m_Width > 0) // only add glyphs with a size (image) to the glyph cache
+                {
+                    if (!IsInCache(font_map, c))
+                    {
+                        // Calculate y-offset in cache-cell space by moving glyphs down to baseline
+                        int16_t px_cell_offset_y = font_map->m_CacheCellMaxAscent - (int16_t)glyph->m_Ascent;
+                        AddGlyphToCache(font_map, frame, glyph, px_cell_offset_y);
+                    }
+
+                    CacheGlyph* cache_glyph = GetFromCache(font_map, c);
+                    if (cache_glyph)
+                    {
+                        cell_x = cache_glyph->m_X;
+                        cell_y = cache_glyph->m_Y;
+                    }
+                }
+                else
+                {
+                    glyph = 0;
+                }
+
+                // We've already discarded whitespaces, but the glyph may not yet be cached.
+                // TO minimize overall edge case complexity, we output a zero size quad.
+                OutputGlyph(glyph,
+                            recip_w, recip_h,
+                            cell_x, cell_y, font_map->m_CacheCellMaxAscent, font_map->m_CacheCellPadding,
+                            layer_count, layer_mask,
+                            vertexindex, vertices_per_quad * valid_glyph_count,
+                            te.m_Transform,
+                            x, y,
+                            face_color,
+                            outline_color,
+                            shadow_color,
+                            sdf_edge_value,
+                            sdf_outline,
+                            sdf_smoothing,
+                            sdf_shadow,
+                            shadow_x,
+                            shadow_y,
+                            vertices);
+
+                vertexindex += vertices_per_quad;
+            }
+        }
 
         #undef HAS_LAYER
 
