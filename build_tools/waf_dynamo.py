@@ -243,7 +243,7 @@ def apidoc_extract_task(bld, src):
     def _parse_source(source_path):
         resource = bld.path.find_resource(source_path)
         if not resource:
-            sys.exit("Couldn't find resource: %s" % s)
+            sys.exit("Couldn't find resource: %s" % resource)
             return
 
         elements = {}

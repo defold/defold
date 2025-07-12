@@ -18,7 +18,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-#include "../font.h"
+#include "../font_private.h"
 #include "../util.h"
 
 // #include <dlib/memory.h>
@@ -32,25 +32,25 @@ TEST(Simple, LoadTTF)
     char buffer[512];
     const char* path = dmTestUtil::MakeHostPath(buffer, sizeof(buffer), "src/test/vera_mo_bd.ttf");
 
-    dmFont::HFont font = dmFont::LoadFontFromPath(path);
-    ASSERT_NE((dmFont::HFont)0, font);
+    HFont font = FontLoadFromPath(path);
+    ASSERT_NE((HFont)0, font);
 
-    dmFont::DestroyFont(font);
+    FontDestroy(font);
 }
 
 static int TestStandalone(const char* path, float size, float padding, const char* text)
 {
-    dmFont::HFont font = dmFont::LoadFontFromPath(path);
+    HFont font = FontLoadFromPath(path);
     if (!font)
     {
         dmLogError("Failed to load font '%s'", path);
         return 1;
     }
 
-    float scale = dmFont::GetPixelScaleFromSize(font, size);
-    dmFont::DebugFont(font, scale, padding, text);
+    float scale = FontGetScaleFromSize(font, size);
+    FontDebug(font, scale, padding, text);
 
-    dmFont::DestroyFont(font);
+    FontDestroy(font);
     return 0;
 }
 

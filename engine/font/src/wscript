@@ -9,13 +9,18 @@ def build(bld):
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
-    bld.stlib(features = 'cxx',
-                includes = ['.', '..'],
-                target   = 'font',
-                defines  = [],
-                source   = bld.path.ant_glob(['*.cpp']))
+    bld.stlib(features          = 'cxx ddf',
+                includes        = ['.', '..', '../build/proto'],
+                target          = 'font',
+                proto_gen_py    = True,
+                protoc_includes = '../proto',
+                defines         = [],
+                source          = bld.path.ant_glob(['*.cpp']) + bld.path.parent.ant_glob('proto/font/*.proto'))
 
     bld.add_group()
+
+    bld.install_files('${PREFIX}/share/proto/font', '../proto/font/font_ddf.proto')
+
     bld.recurse('test')
 
 def configure(conf):

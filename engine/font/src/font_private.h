@@ -12,20 +12,42 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if !defined(DM_FONT_PRIVATE_H)
+#ifndef DM_FONT_PRIVATE_H
 #define DM_FONT_PRIVATE_H
 
-#include "font.h"
+#include <dmsdk/font/font.h>
 
-namespace dmFont
-{
+
+typedef HFont       (*FontLoadFromMemoryFn)(const char* name, const void* data, uint32_t data_size, bool allocate);
+typedef void        (*FontDestroyFn)(HFont font);
+typedef uint32_t    (*FontGetResourceSizeFn)(HFont font);
+typedef float       (*FontGetScaleFromSizeFn)(HFont hfont, uint32_t size);
+typedef float       (*FontGetAscentFn)(HFont hfont, float scale);
+typedef float       (*FontGetDescentFn)(HFont hfont, float scale);
+typedef float       (*FontGetLineGapFn)(HFont hfont, float scale);
+typedef uint32_t    (*FontGetGlyphIndexFn)(HFont font, uint32_t codepoint);
+typedef FontResult  (*FontGetGlyphFn)(HFont hfont, uint32_t glyph_index, const FontGlyphOptions* options, FontGlyph* glyph);
+typedef FontResult  (*FontFreeGlyphFn)(HFont hfont, FontGlyph* glyph);
 
 struct Font
 {
     FontType m_Type;
     const char* m_Path;
+
+    FontLoadFromMemoryFn        m_LoadFontFromMemory;
+    FontDestroyFn               m_DestroyFont;
+    FontGetResourceSizeFn       m_GetResourceSize;
+    FontGetScaleFromSizeFn      m_GetScaleFromSize;
+    FontGetAscentFn             m_GetAscent;
+    FontGetDescentFn            m_GetDescent;
+    FontGetLineGapFn            m_GetLineGap;
+    FontGetGlyphIndexFn         m_GetGlyphIndex;
+    FontGetGlyphFn              m_GetGlyph;
+    FontFreeGlyphFn             m_FreeGlyph;
 };
 
-} // namespace
+// Unit tests
+void FontDebug(HFont font, float scale, float padding, const char* text);
+void FontDebugGlyph(FontGlyph* glyph, int indent);
 
 #endif // DM_FONT_PRIVATE_H
