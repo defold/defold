@@ -42,12 +42,45 @@
    API
      Segmentation
        kbts_BeginBreak()
-       kbts_BreakAddCodepoint() -- Feed a codepoint to the breaker, call kbts_Break() immediately after this to get results
+       kbts_BreakAddCodepoint() -- Feed a codepoint to the breaker.
+         You need to call Break() repeatedly after every call to BreakAddCodepoint().
+         Something like:
+         kbts_BreakAddCodepoint(&BreakState, ...);
+         kbts_break Break;
+         while(kbts_Break(&BreakState, &Break)) {...}
+
+         When you call Break(), We guarantee that breaks are returned in-order. On our side, this means
+         that they are buffered and reordered. On your side, it means that there is a delay of a few
+         characters between your current position and the Break.Position that you will see.
+
+         In some cases, our buffering might break. When that happens, we set
+         BREAK_STATE_FLAG_RAN_OUT_OF_REORDER_BUFFER_SPACE, and kbts_BreakStateIsValid() will return false.
+         This is a sticky error, so you can check it whenever you like.
+         To clear the error flag and start segmenting again, you will need to call BeginBreak(&BreakState),
+         which resets the entire state.
+
+         Note that the input configurations for which our buffering breaks should be, for all intents and
+         purposes, nonsensical. If you find legitimate text that we cannot segment without running out of
+         buffer space, then that is a bug.
+
+         The default buffer size is determined by the BREAK_REORDER_BUFFER_FLUSH_THRESHOLD. If you really
+         need a bigger buffer, then you might want to consider modifying this constant and recompiling
+         the library, although this should be viewed as an emergency solution and not a routine
+         configuration option.
        kbts_BreakFlush()
        kbts_Break()             -- Call repeatedly to get breaks
        kbts_BreakStateIsValid()
      Easy font loading
-       kbts_FontFromFile()      -- Open a font, byteswap it in place, and allocate auxiliary structures
+       kbts_FontFromFile()      -- Open a font, byteswap it in place, and allocate auxiliary structures.
+         When you read a font with kb_text_shape, the library will byteswap its data in-place and perform
+         a bunch of other pre-computation passes to figure out memory limits and other useful information.
+         This means you cannot trivially pass our pointer to the font data to any other TTF library, since
+         they will expect the data to be in big endian format, which it won't be after we are done with it.
+
+         You can expect font reading to be pretty slow.
+         On the other hand, you can expect shaping to be pretty fast.
+
+         To open a font with your own IO and memory allocation, see "Manual Memory Management" below.
        kbts_FreeFont()
        kbts_FontIsValid()
      Shaping
@@ -56,7 +89,33 @@
        kbts_ShapeConfig()       -- Bake a font/script-specific shaping configuration
        kbts_CodepointToGlyph()
        kbts_InferScript()       -- Hacky script recognition for when no segmentation data is available
-       kbts_Shape()             -- Returns 1 if more memory is needed, you should probably call this in a while()
+       kbts_Shape()             -- Returns 1 if more memory is needed, you should probably call this in a while().
+         This is how you might call this in practice:
+           while(kbts_Shape(State, &Config, Direction, Direction, Glyphs, &GlyphCount, GlyphCapacity))
+           {
+             Glyphs = realloc(Glyphs, sizeof(kbts_glyph) * State->RequiredGlyphCapacity);
+             GlyphCapacity = State->RequiredGlyphCapacity;
+           }
+         Once Shape() returns 0, you are done shaping. Glyph indices are in the kbts_glyph.Id field.
+         Please note that, while the glyphs do also contain a Codepoint field, this field will mostly
+         be meaningless whenever complex shaping operations occur. This is because fonts exclusively
+         work on glyph indices, and a lot of ligatures are obviously a combination of several codepoints
+         and do not have a corresponding codepoint in the Unicode world.
+         The same is true when a single glyph is split into multiple glyphs. A font might decide to
+         decompose a letter-with-accent into a letter glyph + an accent glyph. In that case, we will
+         know what the accent glyph's index is, but we are not told what its codepoint is.
+
+         There is currently no way to track where in the source text each glyph originates from.
+         One thing we might try is to have a "void *UserData" member on each glyph, and flow it through
+         the different substitutions, but I personally have not needed this yet and I do not have good
+         test cases for it. If you are interested, let me know!
+
+         Final positions are in font units and can be extracted with Cursor() and PositionGlyph().
+         To convert font units to fractional pixels in FreeType:
+           (FontX * FtSizeMetrics.x_scale) >> 16
+           (FontY * FtSizeMetrics.y_scale) >> 16
+         This will give you 26.6 fractional pixel units.
+         See https://freetype.org/freetype2/docs/reference/ft2-sizing_and_scaling.html for more info.
        kbts_ResetShapeState()
      Shaping - feature control
        kbts_FeatureOverride()   -- Describe a manual override for a font feature
@@ -74,9 +133,24 @@
      Manual memory management
        kbts_SizeOfShapeState()
        kbts_PlaceShapeState()
-       kbts_ReadFontHeader()    -- Read the top of the file and return how many bytes are needed to read the rest
-       kbts_ReadFontData()      -- Read and byteswap the rest
+       kbts_ReadFontHeader()    -- Read and byteswap the top of the file.
+       kbts_ReadFontData()      -- Read and byteswap the rest.
        kbts_PostReadFontInitialize() -- Initialize auxiliary structures
+         Example code for reading a font file with this API looks like this:
+           size_t ScratchSize = kbts_ReadFontHeader(&Font, Data, Size);
+           size_t PermanentMemorySize = kbts_ReadFontData(&Font, malloc(ScratchSize), ScratchSize);
+           kbts_PostReadFontInitialize(&Font, malloc(PermanentMemorySize), PermanentMemorySize);
+
+         Please note that, AS SOON AS YOU CALL ReadFontHeader(), THE FONT DATA IS MODIFIED IN-PLACE.
+                           AS SOON AS YOU CALL ReadFontHeader(), THE FONT DATA IS MODIFIED IN-PLACE.
+                           AS SOON AS YOU CALL ReadFontHeader(), THE FONT DATA IS MODIFIED IN-PLACE.
+                           AS SOON AS YOU CALL ReadFontHeader(), THE FONT DATA IS MODIFIED IN-PLACE!
+         If you need to open the same font with another library, you need to copy the data BEFORE
+         calling ReadFontHeader().
+
+         The buffer you pass to ReadFontData() is temporary and can be freed once the function returns.
+         The buffer you pass to PostReadFontInitialize() is persistent and can only be freed once you
+         are done with the font.
      Utility, etc.
        kbts_ShaperIsComplex()
        kbts_ScriptIsComplex()
@@ -98,7 +172,7 @@
        kbts_direction Direction = KBTS_DIRECTION_NONE;
        for(size_t StringAt = 0; StringAt < Length;)
        {
-         kbts_decode Decode = kbts_DecodeUtf8(String, Length - StringAt);
+         kbts_decode Decode = kbts_DecodeUtf8(String + StringAt, Length - StringAt);
          StringAt += Decode.SourceCharactersConsumed;
          if(Decode.Valid)
          {
@@ -174,6 +248,7 @@
 
      Open a font with your own memory:
        kbts_font Font;
+       // Be careful: ReadFontHeader() and ReadFontData() both byteswap font data in-place!
        size_t ScratchSize = kbts_ReadFontHeader(&Font, Data, Size);
        size_t PermanentMemorySize = kbts_ReadFontData(&Font, malloc(ScratchSize), ScratchSize);
        kbts_PostReadFontInitialize(&Font, malloc(PermanentMemorySize), PermanentMemorySize);
