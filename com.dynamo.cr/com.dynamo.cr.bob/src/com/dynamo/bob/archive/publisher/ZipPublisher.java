@@ -146,6 +146,7 @@ public class ZipPublisher extends Publisher {
         final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
         entries.put(archiveEntryName, entry);
         if (!zipEntries.add(zipEntryName)) {
+            entry.setDuplicatedDataBlob(true);
             return;
         }
         try {
