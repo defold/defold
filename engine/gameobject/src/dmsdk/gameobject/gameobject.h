@@ -626,12 +626,14 @@ namespace dmGameObject
     Result SetIdentifier(HCollection collection, HInstance instance, dmhash_t identifier);
 
     /*#
-     * Get absolute identifier relative to #instance. The returned identifier is the
-     * representation of the qualified name, i.e. the path from root-collection to the sub-collection which the #instance belongs to.
-     * Example: if #instance is part of a sub-collection in the root-collection named "sub" and id == "a" the returned identifier represents the path "sub.a"
+     * Get absolute identifier relative to instance. The returned identifier is the
+     * representation of the qualified name, i.e. the path from root-collection to
+     * the sub-collection which the #instance belongs to.
+     * Example: if instance is part of a sub-collection in the root-collection
+     * named "sub" and id == "a" the returned identifier represents the path "sub.a"
      * @name GetAbsoluteIdentifier
      * @param instance [type:dmGameObject::HInstance] Gameobject instance to get absolute identifier to
-     * @param identifier [type:char*] Identifier relative to #instance
+     * @param identifier [type:const char*] Identifier relative to instance
      * @return [type:dmhash_t] Absolute identifier.
      */
     dmhash_t GetAbsoluteIdentifier(HInstance instance, const char* identifier);
