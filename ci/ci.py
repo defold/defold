@@ -594,6 +594,7 @@ def main(argv):
                 b64decode_to_file(args.gcloud_service_key, gcloud_keyfile)
 
             if platform.system() == "Darwin":
+                call("certtool y | grep Developer")
                 call("security find-identity -p codesigning -v")
             sign_editor2(platform, gcloud_keyfile = gcloud_keyfile, gcloud_certfile = gcloud_certfile)
         elif command == "archive-editor":
