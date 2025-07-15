@@ -97,7 +97,7 @@ public class BobProjectPropertiesTest {
         createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_EXTENSION_FILE, "[project]\ncustom_property.private = 1");
 
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        project.loadProjectFile();
+        project.loadProjectFile(true);
         BobProjectProperties properties = project.getProjectProperties();
 
         assertEquals(true, properties.isPrivate("project", "custom_property"));
@@ -111,7 +111,7 @@ public class BobProjectPropertiesTest {
         createFile(contentRoot, BobProjectProperties.PROPERTIES_PROJECT_FILE, "[project]\ncustom_property.private = 0");
 
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        project.loadProjectFile();
+        project.loadProjectFile(true);
         BobProjectProperties properties = project.getProjectProperties();
 
         assertEquals(false, properties.isPrivate("project", "custom_property"));
