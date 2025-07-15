@@ -192,6 +192,11 @@ public class Project {
         clearProjectProperties();
     }
 
+    // For tests
+    public void cleanupResourcePathsCache() {
+        allResourcePathsCache = null;
+    }
+
     public void dispose() {
         this.fileSystem.close();
     }
