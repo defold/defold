@@ -118,6 +118,9 @@ def setup_keychain(args):
     # add the keychain to the keychain search list
     call("security list-keychains -d user -s {}".format(keychain_name))
 
+    # list identities (for debugging)
+    call("security find-identity -p codesigning -v")
+
     print("Done with keychain setup")
 
 def get_github_token():
@@ -589,6 +592,9 @@ def main(argv):
                 gcloud_certfile = os.path.join("ci", "gcloud_certfile.cer")
                 gcloud_keyfile = os.path.join("ci", "gcloud_keyfile.json")
                 b64decode_to_file(args.gcloud_service_key, gcloud_keyfile)
+
+            if platform.system() == "Darwin":
+                call("security find-identity -p codesigning -v")
             sign_editor2(platform, gcloud_keyfile = gcloud_keyfile, gcloud_certfile = gcloud_certfile)
         elif command == "archive-editor":
             archive_editor2(editor_channel, engine_artifacts = engine_artifacts, platform = platform)
