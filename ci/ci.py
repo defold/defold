@@ -120,6 +120,7 @@ def setup_keychain(args):
 
     # list identities (for debugging)
     call("security find-identity -p codesigning -v")
+    call("certtool y | grep Developer")
 
     print("Done with keychain setup")
 
@@ -593,7 +594,7 @@ def main(argv):
                 gcloud_keyfile = os.path.join("ci", "gcloud_keyfile.json")
                 b64decode_to_file(args.gcloud_service_key, gcloud_keyfile)
 
-            if platform.system() == "Darwin":
+            if platform in ["arm64-macos", "x86_64-macos"]:
                 call("certtool y | grep Developer")
                 call("security find-identity -p codesigning -v")
             sign_editor2(platform, gcloud_keyfile = gcloud_keyfile, gcloud_certfile = gcloud_certfile)
