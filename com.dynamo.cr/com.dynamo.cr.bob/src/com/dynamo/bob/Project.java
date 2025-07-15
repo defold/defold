@@ -138,9 +138,8 @@ public class Project {
     private List<URL> libUrls = new ArrayList<URL>();
     private List<String> propertyFiles = new ArrayList<>();
     private List<String> buildServerHeaders = new ArrayList<>();
-    private List<String> excludedFilesAndFoldersEntries = new ArrayList<>();
     private List<String> engineBuildDirs = new ArrayList<>();
-
+    private List<String> allResourcePathsCache; // Cache for all resource paths, since Bob doesn't change project files during build
     private BobProjectProperties projectProperties;
     private Publisher publisher;
     private Map<String, Map<Long, IResource>> hashToResource = new HashMap<>();
@@ -167,6 +166,7 @@ public class Project {
         this.fileSystem = fileSystem;
         this.fileSystem.setRootDirectory(rootDirectory);
         this.fileSystem.setBuildDirectory(buildDirectory);
+        this.allResourcePathsCache = null;
         clearProjectProperties();
     }
 
@@ -176,6 +176,7 @@ public class Project {
         this.fileSystem = fileSystem;
         this.fileSystem.setRootDirectory(this.rootDirectory);
         this.fileSystem.setBuildDirectory(this.buildDirectory);
+        this.allResourcePathsCache = null;
         clearProjectProperties();
     }
 
@@ -187,6 +188,7 @@ public class Project {
         this.fileSystem = fileSystem;
         this.fileSystem.setRootDirectory(this.rootDirectory);
         this.fileSystem.setBuildDirectory(this.buildDirectory);
+        this.allResourcePathsCache = null;
         clearProjectProperties();
     }
 
@@ -618,7 +620,7 @@ public class Project {
 
     // Loads the properties from a game project settings file
     // Also adds any properties specified with the "--settings" flag
-    public static BobProjectProperties loadProperties(Project project, IResource projectFile, List<String> settingsFiles) throws IOException {
+    public static BobProjectProperties loadProperties(Project project, IResource projectFile, List<String> settingsFiles, boolean scanExtensions) throws IOException {
         if (!projectFile.exists()) {
             throw new IOException(String.format("Project file not found: %s", projectFile.getAbsPath()));
         }
@@ -627,14 +629,16 @@ public class Project {
         try {
             // load meta.properties embeded in bob.jar
             properties.loadDefaultMetaFile();
-            // load property files from extensions
-            List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
-            if (!extensionFolders.isEmpty()) {
-                for (String extension : extensionFolders) {
-                    IResource resource = project.getResource(extension + "/" + BobProjectProperties.PROPERTIES_EXTENSION_FILE);
-                    if (resource.exists()) {
-                        // resources from extensions in ZIP files can't be read as files, but getContent() works fine
-                        loadPropertiesData(properties, resource.getContent(), true, resource.getPath());
+            if (scanExtensions) {
+                // load property files from extensions
+                List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
+                if (!extensionFolders.isEmpty()) {
+                    for (String extension : extensionFolders) {
+                        IResource resource = project.getResource(extension + "/" + BobProjectProperties.PROPERTIES_EXTENSION_FILE);
+                        if (resource.exists()) {
+                            // resources from extensions in ZIP files can't be read as files, but getContent() works fine
+                            loadPropertiesData(properties, resource.getContent(), true, resource.getPath());
+                        }
                     }
                 }
             }
@@ -656,10 +660,10 @@ public class Project {
         return properties;
     }
 
-    public void loadProjectFile() throws IOException {
+    public void loadProjectFile(boolean scanExtensions) throws IOException {
         IResource gameProject = getGameProjectResource();
         if (gameProject.exists()) {
-            projectProperties = Project.loadProperties(this, gameProject, this.getPropertyFiles());
+            projectProperties = Project.loadProperties(this, gameProject, this.getPropertyFiles(), scanExtensions);
         }
     }
 
@@ -708,7 +712,7 @@ public class Project {
     public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         try {
             TimeProfiler.start("loadProjectFile");
-            loadProjectFile();
+            loadProjectFile(true);
             TimeProfiler.stop();
 
             String title = projectProperties.getStringValue("project", "title");
@@ -2255,29 +2259,37 @@ public class Project {
     }
 
     private void findResourcePathsByExtension(String _path, String ext, Collection<String> result) {
+        TimeProfiler.start("findResourcePathsByExtension");
+        TimeProfiler.addData("path", _path);
+        TimeProfiler.addData("ext", ext);
+
         final String path = Project.stripLeadingSlash(_path);
-        fileSystem.walk(path, new FileSystemWalker() {
-            public void handleFile(String path, Collection<String> results) {
-                boolean shouldAdd = true;
 
-                // Do a first pass on the path to check if it satisfies the ext check
-                if (ext != null) {
-                    shouldAdd = path.endsWith(ext);
+        // Initialize and cache all paths only once
+        if (allResourcePathsCache == null) {
+            List<String> allPaths = new ArrayList<>();
+            fileSystem.walk("", new FileSystemWalker() {
+                public void handleFile(String filePath, Collection<String> results) {
+                    results.add(FilenameUtils.normalize(filePath, true));
                 }
+            }, allPaths);
+            allResourcePathsCache = allPaths;
+        }
 
-                // Ignore for native extensions and the other systems.
-                // Check comment for loadIgnoredFilesAndFolders()
-                for (String prefix : excludedFilesAndFoldersEntries) {
-                    if (path.startsWith(prefix)) {
-                        shouldAdd = false;
-                        break;
-                    }
-                }
-                if (shouldAdd) {
-                    results.add(FilenameUtils.normalize(path, true));
-                }
-            }
-        }, result);
+        // Fast path: if no filter, return everything
+        if ((ext == null || ext.isEmpty()) && (path == null || path.isEmpty())) {
+            result.addAll(allResourcePathsCache);
+            TimeProfiler.stop();
+            return;
+        }
+
+        // Filter the cached list
+        allResourcePathsCache.parallelStream()
+            .filter(p -> (ext == null || p.endsWith(ext)) &&
+                         (path == null || path.isEmpty() || p.startsWith(path)))
+            .forEach(result::add);
+
+        TimeProfiler.stop();
     }
 
     public void findResourcePaths(String _path, Collection<String> result) {

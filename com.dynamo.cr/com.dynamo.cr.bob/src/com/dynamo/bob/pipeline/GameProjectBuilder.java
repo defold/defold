@@ -349,7 +349,7 @@ public class GameProjectBuilder extends Builder {
 
         IResource input = task.input(0);
 
-        BobProjectProperties properties = Project.loadProperties(project, input, project.getPropertyFiles());
+        BobProjectProperties properties = Project.loadProperties(project, input, project.getPropertyFiles(), true);
         final String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
 
         try {
