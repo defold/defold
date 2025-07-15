@@ -118,9 +118,8 @@ def setup_keychain(args):
     # add the keychain to the keychain search list
     call("security list-keychains -d user -s {}".format(keychain_name))
 
-    # list identities (for debugging)
+    # list all code signing identities (for debugging)
     call("security find-identity -p codesigning -v")
-    call("certtool y | grep Developer")
 
     print("Done with keychain setup")
 
@@ -595,8 +594,8 @@ def main(argv):
                 b64decode_to_file(args.gcloud_service_key, gcloud_keyfile)
 
             if platform in ["arm64-macos", "x86_64-macos"]:
-                call("certtool y | grep Developer")
-                call("security find-identity -p codesigning -v")
+                call("certtool y v")
+                call("security find-identity -p codesigning")
             sign_editor2(platform, gcloud_keyfile = gcloud_keyfile, gcloud_certfile = gcloud_certfile)
         elif command == "archive-editor":
             archive_editor2(editor_channel, engine_artifacts = engine_artifacts, platform = platform)
