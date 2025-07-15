@@ -2743,12 +2743,13 @@ namespace dmGameSystem
     }
 
     // Public function used by engine (as callback from gui system)
-    dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size)
+    dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        uint32_t path_size = strlen(path);
         if (path_size > 0)
         {
-            return dmGameObject::GetAbsoluteIdentifier(component->m_Instance, path, path_size);
+            return dmGameObject::GetAbsoluteIdentifier(component->m_Instance, path);
         }
         else
         {
