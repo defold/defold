@@ -287,7 +287,7 @@
   * :new-file to downloaded file if any
   * :tag with etag from resolver"
   [resolver render-progress! lib-states]
-  (progress/mapv
+  (progress/progress-mapv
     (fn [lib-state progress]
       (if (= (:status lib-state) :unknown)
         (fetch-library-update! lib-state resolver
