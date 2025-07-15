@@ -628,8 +628,8 @@ namespace dmGameObject
     /*#
      * Get absolute identifier relative to instance. The returned identifier is the
      * representation of the qualified name, i.e. the path from root-collection to
-     * the sub-collection which the #instance belongs to.
-     * Example: if instance is part of a sub-collection in the root-collection
+     * the sub-collection which the instance belongs to.
+     * Example: if the instance is part of a sub-collection in the root-collection
      * named "sub" and id == "a" the returned identifier represents the path "sub.a"
      * @name GetAbsoluteIdentifier
      * @param instance [type:dmGameObject::HInstance] Gameobject instance to get absolute identifier to
