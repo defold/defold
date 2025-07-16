@@ -21,7 +21,6 @@
             [editor.build :as build]
             [editor.defold-project :as project]
             [editor.git :as git]
-            [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
@@ -158,7 +157,7 @@
       (is main-dir)
       (let [evaluation-context (g/make-evaluation-context)
             old-artifact-map (workspace/artifact-map workspace)
-            build-results (build/build-project! project game-project evaluation-context nil old-artifact-map progress/null-render-progress!)]
+            build-results (build/build-project! project game-project old-artifact-map nil evaluation-context)]
         (g/update-cache-from-evaluation-context! evaluation-context)
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
@@ -167,7 +166,7 @@
       (is (nil? (workspace/find-resource workspace "/main")))
       (is (workspace/find-resource workspace "/blahonga"))
       (let [old-artifact-map (workspace/artifact-map workspace)
-            build-results (build/build-project! project game-project (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)]
+            build-results (build/build-project! project game-project old-artifact-map nil (g/make-evaluation-context))]
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
         (workspace/artifact-map! workspace (:artifact-map build-results))))))

@@ -56,7 +56,7 @@
             [lambdaisland.deep-diff2 :as deep-diff]
             [service.log :as log]
             [support.test-support :as test-support]
-            [util.coll :as coll :refer [pair]]
+            [util.coll :refer [pair]]
             [util.diff :as diff]
             [util.fn :as fn]
             [util.http-server :as http-server]
@@ -1310,7 +1310,7 @@
         workspace (project/workspace project)
         old-artifact-map (workspace/artifact-map workspace)]
     (g/with-auto-evaluation-context evaluation-context
-      (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!))))
+      (build/build-project! project resource-node old-artifact-map nil evaluation-context))))
 
 (defn build-node! [resource-node]
   (let [build-result (build-node-result! resource-node)]
