@@ -363,6 +363,8 @@ public class Project {
                         !className.startsWith("com.dynamo.bob.pipeline.TexcLibrary") &&
                         !className.startsWith("com.dynamo.bob.pipeline.Shaderc") &&
                         !className.startsWith("com.dynamo.bob.pipeline.ModelImporter") &&
+                        // namespaces we don't need to scan
+                        !className.startsWith("com.dynamo.bob.pipeline.antlr") &&
                         // classes we don't need to bob light
                         !(is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) &&
                         !(is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) &&
@@ -370,6 +372,7 @@ public class Project {
                 .collect(Collectors.toList());
         for (String className : filteredClassNames) {
             try {
+                TimeProfiler.start(className);
                 Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
                 BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
                 if (builderParams != null) {
@@ -414,6 +417,7 @@ public class Project {
                         pluginClasses.add((Class<? extends IPlugin>) klass);
                     }
                 }
+                TimeProfiler.stop();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
