@@ -113,7 +113,7 @@
           materials
           material-binding-infos)))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-set-build-target materials material-binding-infos skeleton-build-target animations mesh skeleton]
+(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-set-build-target materials material-binding-infos skeleton-build-target animations mesh skeleton create-go-bones]
   (or (some->> (into [(prop-resource-error :fatal _node-id :mesh mesh "Mesh")
                       (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")
                       (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations "Animations")
@@ -136,9 +136,9 @@
             rig-scene-pb-msg {}
             rig-scene-build-target (rig/make-rig-scene-build-target workspace _node-id rig-scene-pb-msg dep-build-targets rig-scene-dep-build-targets)
             rt-pb-msg (-> {:rig-scene (:resource rig-scene-build-target)
-                           :default-animation (:default-animation pb-msg)
+                           :default-animation default-animation
                            :materials (:materials pb-msg)
-                           :create-go-bones (:create-go-bones pb-msg)}
+                           :create-go-bones create-go-bones}
                           (update-build-target-vertex-attributes material-binding-infos))
             dep-build-targets (into [rig-scene-build-target] (flatten dep-build-targets))]
         [(pipeline/make-protobuf-build-target _node-id resource ModelProto$Model rt-pb-msg dep-build-targets)])))
@@ -529,15 +529,16 @@
   (when (migrated? model-node-id model-desc evaluation-context)
     (g/flag-nodes-as-migrated! evaluation-context [model-node-id])))
 
-(defn load-model [_project self resource {:keys [name default-animation mesh skeleton animations materials create-go-bones] :as model-desc}]
+(defn load-model [_project self resource {:keys [materials] :as model-desc}]
   (concat
-    (g/set-properties self
-      :name name
-      :default-animation default-animation
-      :mesh (workspace/resolve-resource resource mesh)
-      :skeleton (workspace/resolve-resource resource skeleton)
-      :animations (workspace/resolve-resource resource animations)
-      :create-go-bones create-go-bones)
+    (let [resolve-resource #(workspace/resolve-resource resource %)]
+      (gu/set-properties-from-pb-map self ModelProto$ModelDesc model-desc
+        name :name
+        default-animation :default-animation
+        mesh (resolve-resource :mesh)
+        skeleton (resolve-resource :skeleton)
+        animations (resolve-resource :animations)
+        create-go-bones :create-go-bones))
     (map-indexed
       (fn [material-index {:keys [name material textures attributes]}]
         (let [material (workspace/resolve-resource resource material)

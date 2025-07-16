@@ -1904,17 +1904,19 @@ TEST_F(RigContextTest, TestBindPoseCache)
     create_params.m_AnimationSet     = animation_set;
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceCreate(m_Context, create_params, &instance));
+    const dmRig::PoseMatrixCache* cache = dmRig::GetPoseMatrixCache(m_Context);
     dmRig::HCachePoseMatrixEntry pose_matrix_entry = dmRig::AcquirePoseMatrixCacheEntry(m_Context, instance);
+    ASSERT_EQ(bind_pose.Size(), cache->m_TotalPoseCount);
 
     ASSERT_NE(dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY, pose_matrix_entry);
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
 
-    const dmRig::PoseMatrixCache* cache = dmRig::GetPoseMatrixCache(m_Context);
     ASSERT_EQ(bind_pose.Size(), cache->m_PoseMatrices.Size());
 
-    // If we update the cache again without resetting, we just write the same data into the cache again.
+    // If we update the cache again without resetting, we write the same data
+    // into the cache again at the same acquired cache position
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(bind_pose.Size() * 2, cache->m_PoseMatrices.Size());
+    ASSERT_EQ(bind_pose.Size(), cache->m_PoseMatrices.Size());
 
     dmRig::ResetPoseMatrixCache(m_Context);
     ASSERT_EQ(0, cache->m_PoseMatrices.Size());

@@ -15,27 +15,28 @@
 (ns editor.scene-selection
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.system :as system]
             [editor.geom :as geom]
+            [editor.gl.pass :as pass]
             [editor.handler :as handler]
             [editor.math :as math]
+            [editor.menu-items :as menu-items]
             [editor.scene-picking :as scene-picking]
+            [editor.system :as system]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.gl.pass :as pass]
             [editor.workspace :as workspace]
             [schema.core :as s]
             [util.eduction :as e])
-  (:import [editor.types Rect]
+  (:import [com.jogamp.opengl GL2]
+           [editor.types Rect]
            [java.lang Runnable Math]
-           [com.jogamp.opengl GL2]
-           [javafx.scene.input DragEvent]
            [javafx.scene Node Scene]
+           [javafx.scene.input DragEvent]
            [javax.vecmath Point2i Point3d Matrix4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
-(handler/register-menu! ::scene-selection-menu
+(handler/register-menu! ::scene-context-menu
                         [{:label "Cut"
                           :command :edit.cut}
                          {:label "Copy"
@@ -45,15 +46,14 @@
                          {:label "Delete"
                           :icon "icons/32/Icons_M_06_trash.png"
                           :command :edit.delete}
-                         {:label :separator}
+                         menu-items/separator
                          {:label "Show/Hide Objects"
                           :command :scene.visibility.toggle-selection}
                          {:label "Hide Unselected Objects"
                           :command :scene.visibility.hide-unselected}
                          {:label "Show All Hidden Objects"
                           :command :scene.visibility.show-all}
-                         {:label :separator
-                          :id ::context-menu-end}])
+                         (menu-items/separator-with-id ::context-menu-end)])
 
 (defn render-selection-box [^GL2 gl _render-args renderables _count]
   (let [user-data (:user-data (first renderables))
@@ -185,7 +185,7 @@
                        (when contextual?
                          (let [node ^Node (:target action)
                                scene ^Scene (.getScene node)
-                               context-menu (ui/init-context-menu! ::scene-selection-menu scene)]
+                               context-menu (ui/init-context-menu! ::scene-context-menu scene)]
                            (.show context-menu node ^double (:screen-x action) ^double (:screen-y action))))
                        nil)
       :mouse-released (do

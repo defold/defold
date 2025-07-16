@@ -399,7 +399,7 @@
   (active? [app-view scene-visibility evaluation-context]
            (and (g/node-value scene-visibility :active-scene-resource-node evaluation-context)
                 (when-let [active-view (g/node-value app-view :active-view evaluation-context)]
-                  (some? (g/node-value active-view :grid evaluation-context)))))
+                  (some? (g/maybe-node-value active-view :grid evaluation-context)))))
   (run [scene-visibility] (toggle-tag-visibility! scene-visibility :grid))
   (state [scene-visibility]
          (not (:grid (g/node-value scene-visibility :filtered-renderable-tags)))))
