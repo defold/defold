@@ -2267,7 +2267,10 @@ public class Project {
         TimeProfiler.start("findResourcePathsByExtension");
         TimeProfiler.addData("path", _path);
         TimeProfiler.addData("ext", ext);
-        _path = FilenameUtils.getPath(_path);
+        _path = FilenameUtils.normalize(_path, true);
+        if (_path.startsWith("/")) {
+            _path = _path.substring(1);
+        }
         final String path = Project.stripLeadingSlash(_path);
 
         // Initialize and cache all paths only once
