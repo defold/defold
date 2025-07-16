@@ -107,7 +107,7 @@ def setup_keychain(args):
 
     print("Importing certificate")
     # -A = allow access to the keychain without warning (https://stackoverflow.com/a/19550453)
-    call("security import {} -k {} -P {} -A".format(cert_path, keychain_name, cert_pass))
+    call("security import {} -k {} -P '{}' -A".format(cert_path, keychain_name, cert_pass))
     os.remove(cert_path)
 
     # required since macOS Sierra https://stackoverflow.com/a/40039594
