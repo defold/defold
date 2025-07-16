@@ -158,6 +158,7 @@ public class BundleResourcesTest {
         List<String> folders = ExtenderUtil.getExtensionFolders(project);
         assertEquals(1, folders.size());
         assertEquals("extension1", folders.get(0));
+        project.cleanupResourcePathsCache();
 
         // Add one more extension folder at root
         addFile("extension2/ext.manifest", "name: \"extension2\"");
@@ -165,6 +166,7 @@ public class BundleResourcesTest {
         assertEquals(2, folders.size());
         assertEquals("extension1", folders.get(0));
         assertEquals("extension2", folders.get(1));
+        project.cleanupResourcePathsCache();
 
         // Add one more extension folder in a nested subfolder
         addFile("subfolder/extension3/ext.manifest", "name: \"extension3\"");
@@ -173,7 +175,7 @@ public class BundleResourcesTest {
         assertEquals("extension1", folders.get(0));
         assertEquals("extension2", folders.get(1));
         assertEquals("subfolder/extension3", folders.get(2));
-
+        project.cleanupResourcePathsCache();
     }
 
     @Test

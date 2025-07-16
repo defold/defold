@@ -28,7 +28,7 @@ public class CopyBuilders {
     @BuilderParams(name = "Wav", inExts = ".wav", outExt = ".wavc", paramsForSignature = {"sound-stream-enabled"})
     public static class WavBuilder extends CopyBuilder {
         @Override
-        public void build(Task task) throws IOException {
+        public void build(Task task) throws IOException, CompileExceptionError {
             super.build(task);
 
             boolean soundStreaming = this.project.option("sound-stream-enabled", "false").equals("true"); // if no value set use old hardcoded path (backward compatability)

@@ -138,9 +138,8 @@ public class Project {
     private List<URL> libUrls = new ArrayList<URL>();
     private List<String> propertyFiles = new ArrayList<>();
     private List<String> buildServerHeaders = new ArrayList<>();
-    private List<String> excludedFilesAndFoldersEntries = new ArrayList<>();
     private List<String> engineBuildDirs = new ArrayList<>();
-
+    private List<String> allResourcePathsCache; // Cache for all resource paths, since Bob doesn't change project files during build
     private BobProjectProperties projectProperties;
     private Publisher publisher;
     private Map<String, Map<Long, IResource>> hashToResource = new HashMap<>();
@@ -167,6 +166,7 @@ public class Project {
         this.fileSystem = fileSystem;
         this.fileSystem.setRootDirectory(rootDirectory);
         this.fileSystem.setBuildDirectory(buildDirectory);
+        this.allResourcePathsCache = null;
         clearProjectProperties();
     }
 
@@ -176,6 +176,7 @@ public class Project {
         this.fileSystem = fileSystem;
         this.fileSystem.setRootDirectory(this.rootDirectory);
         this.fileSystem.setBuildDirectory(this.buildDirectory);
+        this.allResourcePathsCache = null;
         clearProjectProperties();
     }
 
@@ -187,7 +188,13 @@ public class Project {
         this.fileSystem = fileSystem;
         this.fileSystem.setRootDirectory(this.rootDirectory);
         this.fileSystem.setBuildDirectory(this.buildDirectory);
+        this.allResourcePathsCache = null;
         clearProjectProperties();
+    }
+
+    // For tests
+    public void cleanupResourcePathsCache() {
+        allResourcePathsCache = null;
     }
 
     public void dispose() {
@@ -350,71 +357,72 @@ public class Project {
     private void doScan(IClassScanner scanner, Set<String> classNames) {
         TimeProfiler.start("doScan");
         boolean is_bob_light = getManifestInfo("is-bob-light") != null;
-        for (String className : classNames) {
-            // Ignore TexcLibrary to avoid it being loaded and initialized
-            // We're also skipping some of the bundler classes, since we're only building content,
-            // not doing bundling when using bob-light
-            boolean skip = className.startsWith("com.dynamo.bob.TexcLibrary") ||
-                    (is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) ||
-                    (is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) ||
-                    (is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper"));
-            if (!skip) {
-                try {
-                    Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
-                    BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
-                    if (builderParams != null) {
-                        for (String inExt : builderParams.inExts()) {
-                            extToBuilder.put(inExt, (Class<? extends Builder>) klass);
-                            inextToOutext.put(inExt, builderParams.outExt());
-                        }
-                        Builder.addParamsDigest(klass, this.getOptions(), builderParams);
-                        ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
-                        if (protoParams != null) {
-                            ProtoBuilder.addMessageClass(builderParams.outExt(), protoParams.messageClass());
-                            ProtoBuilder.addProtoDigest(protoParams.messageClass());
-                            for (String ext : builderParams.inExts()) {
-                                Class<?> inputClass = protoParams.srcClass();
-                                if (inputClass != null) {
-                                    ProtoBuilder.addMessageClass(ext, protoParams.srcClass());
-                                }
+        List<String> filteredClassNames = classNames.stream()
+                .filter(className ->
+                        // classes with static initializers we don't want to initialize on this stage
+                        !className.startsWith("com.dynamo.bob.pipeline.TexcLibrary") &&
+                        !className.startsWith("com.dynamo.bob.pipeline.Shaderc") &&
+                        !className.startsWith("com.dynamo.bob.pipeline.ModelImporter") &&
+                        // namespaces we don't need to scan
+                        !className.startsWith("com.dynamo.bob.pipeline.antlr") &&
+                        // classes we don't need to bob light
+                        !(is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) &&
+                        !(is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) &&
+                        !(is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper")))
+                .collect(Collectors.toList());
+        for (String className : filteredClassNames) {
+            try {
+                TimeProfiler.start(className);
+                Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
+                BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
+                if (builderParams != null) {
+                    for (String inExt : builderParams.inExts()) {
+                        extToBuilder.put(inExt, (Class<? extends Builder>) klass);
+                        inextToOutext.put(inExt, builderParams.outExt());
+                    }
+                    Builder.addParamsDigest(klass, this.getOptions(), builderParams);
+                    ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
+                    if (protoParams != null) {
+                        ProtoBuilder.addMessageClass(builderParams.outExt(), protoParams.messageClass());
+                        ProtoBuilder.addProtoDigest(protoParams.messageClass());
+                        for (String ext : builderParams.inExts()) {
+                            Class<?> inputClass = protoParams.srcClass();
+                            if (inputClass != null) {
+                                ProtoBuilder.addMessageClass(ext, protoParams.srcClass());
                             }
                         }
                     }
-
-                    if (IBundler.class.isAssignableFrom(klass))
-                    {
-                        if (!klass.equals(IBundler.class)) {
-                            bundlerClasses.add( (Class<? extends IBundler>) klass);
-                        }
-                    }
-
-                    if (IShaderCompiler.class.isAssignableFrom(klass))
-                    {
-                        if (!klass.equals(IShaderCompiler.class)) {
-                            shaderCompilerClasses.add((Class<? extends IShaderCompiler>) klass);
-                        }
-                    }
-
-                    if (ITextureCompressor.class.isAssignableFrom(klass))
-                    {
-                        if (!klass.equals(ITextureCompressor.class)) {
-                            textureCompressorClasses.add((Class<? extends ITextureCompressor>) klass);
-                        }
-                    }
-
-                    if (IPlugin.class.isAssignableFrom(klass))
-                    {
-                        if (!klass.equals(IPlugin.class)) {
-                            pluginClasses.add( (Class<? extends IPlugin>) klass);
-                        }
-                    }
-
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
                 }
+
+                if (IBundler.class.isAssignableFrom(klass)) {
+                    if (!klass.equals(IBundler.class)) {
+                        bundlerClasses.add((Class<? extends IBundler>) klass);
+                    }
+                }
+
+                if (IShaderCompiler.class.isAssignableFrom(klass)) {
+                    if (!klass.equals(IShaderCompiler.class)) {
+                        shaderCompilerClasses.add((Class<? extends IShaderCompiler>) klass);
+                    }
+                }
+
+                if (ITextureCompressor.class.isAssignableFrom(klass)) {
+                    if (!klass.equals(ITextureCompressor.class)) {
+                        textureCompressorClasses.add((Class<? extends ITextureCompressor>) klass);
+                    }
+                }
+
+                if (IPlugin.class.isAssignableFrom(klass)) {
+                    if (!klass.equals(IPlugin.class)) {
+                        pluginClasses.add((Class<? extends IPlugin>) klass);
+                    }
+                }
+                TimeProfiler.stop();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
         }
-        TimeProfiler.stop();
+        TimeProfiler.stop(); // Final stop after plugin registration
     }
 
     static String[][] extensionMapping = new String[][] {
@@ -618,7 +626,7 @@ public class Project {
 
     // Loads the properties from a game project settings file
     // Also adds any properties specified with the "--settings" flag
-    public static BobProjectProperties loadProperties(Project project, IResource projectFile, List<String> settingsFiles) throws IOException {
+    public static BobProjectProperties loadProperties(Project project, IResource projectFile, List<String> settingsFiles, boolean scanExtensions) throws IOException {
         if (!projectFile.exists()) {
             throw new IOException(String.format("Project file not found: %s", projectFile.getAbsPath()));
         }
@@ -627,14 +635,16 @@ public class Project {
         try {
             // load meta.properties embeded in bob.jar
             properties.loadDefaultMetaFile();
-            // load property files from extensions
-            List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
-            if (!extensionFolders.isEmpty()) {
-                for (String extension : extensionFolders) {
-                    IResource resource = project.getResource(extension + "/" + BobProjectProperties.PROPERTIES_EXTENSION_FILE);
-                    if (resource.exists()) {
-                        // resources from extensions in ZIP files can't be read as files, but getContent() works fine
-                        loadPropertiesData(properties, resource.getContent(), true, resource.getPath());
+            if (scanExtensions) {
+                // load property files from extensions
+                List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
+                if (!extensionFolders.isEmpty()) {
+                    for (String extension : extensionFolders) {
+                        IResource resource = project.getResource(extension + "/" + BobProjectProperties.PROPERTIES_EXTENSION_FILE);
+                        if (resource.exists()) {
+                            // resources from extensions in ZIP files can't be read as files, but getContent() works fine
+                            loadPropertiesData(properties, resource.getContent(), true, resource.getPath());
+                        }
                     }
                 }
             }
@@ -656,10 +666,10 @@ public class Project {
         return properties;
     }
 
-    public void loadProjectFile() throws IOException {
+    public void loadProjectFile(boolean scanExtensions) throws IOException {
         IResource gameProject = getGameProjectResource();
         if (gameProject.exists()) {
-            projectProperties = Project.loadProperties(this, gameProject, this.getPropertyFiles());
+            projectProperties = Project.loadProperties(this, gameProject, this.getPropertyFiles(), scanExtensions);
         }
     }
 
@@ -708,7 +718,7 @@ public class Project {
     public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         try {
             TimeProfiler.start("loadProjectFile");
-            loadProjectFile();
+            loadProjectFile(true);
             TimeProfiler.stop();
 
             String title = projectProperties.getStringValue("project", "title");
@@ -1331,6 +1341,7 @@ public class Project {
     }
 
     private void registerPipelinePlugins() throws CompileExceptionError {
+        TimeProfiler.start("registerPipelinePlugins");
         // Find the plugins and register them now, before we're building the content
         BundleHelper.extractPipelinePlugins(this, getPluginsDirectory());
         List<File> plugins = BundleHelper.getPipelinePlugins(this, getPluginsDirectory());
@@ -1356,6 +1367,7 @@ public class Project {
             logger.info("  %s", relativePath);
         }
         logger.info("");
+        TimeProfiler.stop();
     }
 
     private boolean shouldBuildArtifact(String artifact) {
@@ -1446,6 +1458,7 @@ public class Project {
     }
 
     public void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
+        TimeProfiler.start("configurePreBuildProjectOptions");
         List<GameProjectBuildOption> options = new ArrayList<>();
         options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader","output_spirv",List.of("GraphicsAdapterVulkan")));
         options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader","output_hlsl",List.of("GraphicsAdapterDX12")));
@@ -1494,6 +1507,7 @@ public class Project {
 
         boolean isPhysics2D = this.getProjectProperties().getStringValue("physics", "type", "2D").equals("2D");
         this.setOption("physics-type-2D", Boolean.toString(isPhysics2D));
+        TimeProfiler.stop();
     }
 
     private ArrayList<TextureCompressorPreset> parseTextureCompressorPresetFromJSON(String fromPath, byte[] data) throws CompileExceptionError {
@@ -2255,29 +2269,40 @@ public class Project {
     }
 
     private void findResourcePathsByExtension(String _path, String ext, Collection<String> result) {
+        TimeProfiler.start("findResourcePathsByExtension");
+        TimeProfiler.addData("path", _path);
+        TimeProfiler.addData("ext", ext);
+        _path = FilenameUtils.normalize(_path, true);
+        if (_path.startsWith("/")) {
+            _path = _path.substring(1);
+        }
         final String path = Project.stripLeadingSlash(_path);
-        fileSystem.walk(path, new FileSystemWalker() {
-            public void handleFile(String path, Collection<String> results) {
-                boolean shouldAdd = true;
 
-                // Do a first pass on the path to check if it satisfies the ext check
-                if (ext != null) {
-                    shouldAdd = path.endsWith(ext);
+        // Initialize and cache all paths only once
+        if (allResourcePathsCache == null) {
+            List<String> allPaths = new ArrayList<>();
+            fileSystem.walk("", new FileSystemWalker() {
+                public void handleFile(String filePath, Collection<String> results) {
+                    results.add(FilenameUtils.normalize(filePath, true));
                 }
+            }, allPaths);
+            allResourcePathsCache = allPaths;
+        }
 
-                // Ignore for native extensions and the other systems.
-                // Check comment for loadIgnoredFilesAndFolders()
-                for (String prefix : excludedFilesAndFoldersEntries) {
-                    if (path.startsWith(prefix)) {
-                        shouldAdd = false;
-                        break;
-                    }
-                }
-                if (shouldAdd) {
-                    results.add(FilenameUtils.normalize(path, true));
-                }
-            }
-        }, result);
+        // Fast path: if no filter, return everything
+        if ((ext == null || ext.isEmpty()) && (path == null || path.isEmpty())) {
+            result.addAll(allResourcePathsCache);
+            TimeProfiler.stop();
+            return;
+        }
+
+        // Filter the cached list
+        allResourcePathsCache.parallelStream()
+            .filter(p -> (ext == null || p.endsWith(ext)) &&
+                         (path == null || path.isEmpty() || p.startsWith(path)))
+            .forEach(result::add);
+
+        TimeProfiler.stop();
     }
 
     public void findResourcePaths(String _path, Collection<String> result) {

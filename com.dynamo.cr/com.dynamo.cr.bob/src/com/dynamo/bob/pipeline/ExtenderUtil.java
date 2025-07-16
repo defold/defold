@@ -680,7 +680,7 @@ public class ExtenderUtil {
 
             if (files.containsKey(r.getPath())) {
                 IResource previous = files.get(r.getPath());
-                throw new CompileExceptionError(r, 0, String.format("The files' relative path conflict:\n'%s' and\n'%s", r.getAbsPath(), r.getAbsPath()));
+                throw new CompileExceptionError(r, 0, String.format("The files' relative path conflict:\n'%s' and\n'%s", r.getAbsPath(), previous.getAbsPath()));
             }
             files.put(r.getPath(), r);
         }
