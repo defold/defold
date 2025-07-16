@@ -10,25 +10,16 @@ def build(bld):
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     bld.stlib(features          = 'cxx ddf',
-                includes        = ['.', '..', '../build/proto'],
+                includes        = ['.', '..'],
                 target          = 'font',
-                proto_gen_py    = True,
-                protoc_includes = '../proto',
                 defines         = [],
-                source          = bld.path.ant_glob(['*.cpp']) + ['text_shape/text_shape_legacy.cpp']
-                                  + bld.path.parent.ant_glob('proto/font/*.proto'))
-
-    bld.add_group()
+                source          = bld.path.ant_glob(['*.cpp']) + ['text_shape/text_shape_legacy.cpp'])
 
     bld.stlib(features          = 'cxx ddf',
                 includes        = ['.', '..', '../build/proto'],
                 target          = 'font_kb',
                 defines         = ['FONT_USE_KB_TEXT_SHAPE'],
                 source          = bld.path.ant_glob(['*.cpp']) + ['text_shape/text_shape_kb.cpp'])
-
-    bld.add_group()
-
-    bld.install_files('${PREFIX}/share/proto/font', '../proto/font/font_ddf.proto')
 
     bld.recurse('test')
 
