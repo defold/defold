@@ -357,7 +357,6 @@ public class Project {
     private void doScan(IClassScanner scanner, Set<String> classNames) {
         TimeProfiler.start("doScan");
         boolean is_bob_light = getManifestInfo("is-bob-light") != null;
-        TimeProfiler.start("filter out classes");
         List<String> filteredClassNames = classNames.stream()
                 .filter(className ->
                         // classes with static initializers we don't want to initialize on this stage
@@ -369,10 +368,7 @@ public class Project {
                         !(is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) &&
                         !(is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper")))
                 .collect(Collectors.toList());
-        TimeProfiler.stop();
         for (String className : filteredClassNames) {
-            TimeProfiler.start("doScan.builder_registration");
-            TimeProfiler.addData("className", className);
             try {
                 Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
                 BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
@@ -395,38 +391,29 @@ public class Project {
                     }
                 }
 
-                TimeProfiler.stop();
-                TimeProfiler.start("doScan.bundler_registration");
                 if (IBundler.class.isAssignableFrom(klass)) {
                     if (!klass.equals(IBundler.class)) {
                         bundlerClasses.add((Class<? extends IBundler>) klass);
                     }
                 }
 
-                TimeProfiler.stop();
-                TimeProfiler.start("doScan.shader_registration");
                 if (IShaderCompiler.class.isAssignableFrom(klass)) {
                     if (!klass.equals(IShaderCompiler.class)) {
                         shaderCompilerClasses.add((Class<? extends IShaderCompiler>) klass);
                     }
                 }
 
-                TimeProfiler.stop();
-                TimeProfiler.start("doScan.texture_registration");
                 if (ITextureCompressor.class.isAssignableFrom(klass)) {
                     if (!klass.equals(ITextureCompressor.class)) {
                         textureCompressorClasses.add((Class<? extends ITextureCompressor>) klass);
                     }
                 }
 
-                TimeProfiler.stop();
-                TimeProfiler.start("doScan.plugin_registration");
                 if (IPlugin.class.isAssignableFrom(klass)) {
                     if (!klass.equals(IPlugin.class)) {
                         pluginClasses.add((Class<? extends IPlugin>) klass);
                     }
                 }
-                TimeProfiler.stop();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -1467,6 +1454,7 @@ public class Project {
     }
 
     public void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
+        TimeProfiler.start("configurePreBuildProjectOptions");
         List<GameProjectBuildOption> options = new ArrayList<>();
         options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader","output_spirv",List.of("GraphicsAdapterVulkan")));
         options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader","output_hlsl",List.of("GraphicsAdapterDX12")));
@@ -1515,6 +1503,7 @@ public class Project {
 
         boolean isPhysics2D = this.getProjectProperties().getStringValue("physics", "type", "2D").equals("2D");
         this.setOption("physics-type-2D", Boolean.toString(isPhysics2D));
+        TimeProfiler.stop();
     }
 
     private ArrayList<TextureCompressorPreset> parseTextureCompressorPresetFromJSON(String fromPath, byte[] data) throws CompileExceptionError {
