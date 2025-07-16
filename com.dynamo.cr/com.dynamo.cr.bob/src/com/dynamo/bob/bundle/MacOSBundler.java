@@ -30,6 +30,9 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.FileUtil;
+import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.Exec.Result;
+
 
 @BundlerParams(platforms = {"x86_64-macos", "arm64-macos"})
 public class MacOSBundler implements IBundler {
@@ -177,6 +180,18 @@ public class MacOSBundler implements IBundler {
         {
             File bundleSymbolsDir = new File(bundleDir, String.format("%s.dSYM", title));
             IOSBundler.generateSymbols(bundleSymbolsDir, exeName, symbolDirectories);
+        }
+
+        BundleHelper.throwIfCanceled(canceled);
+
+        if (variant.equals(Bob.VARIANT_DEBUG))
+        {
+            logger.info("Adding debug entitlements");
+            File entitlementsFile = BundleHelper.copyResourceToTempFile("resources/macos/entitlements-debug.plist");
+            Result r = Exec.execResult("codesign", "-f", "-s", "-", "--entitlements", entitlementsFile.getAbsolutePath(), appDir);
+            if (r.ret != 0) {
+                throw new IOException(new String(r.stdOutErr));
+            }
         }
 
         BundleHelper.throwIfCanceled(canceled);
