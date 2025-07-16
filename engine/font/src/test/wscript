@@ -19,3 +19,9 @@ def build(bld):
         use      = 'TESTMAIN DLIB PROFILE_NULL font',
         includes = '. .. ../font',
         target = 'test_font')
+
+    bld(features = 'cxx cprogram ddf test',
+        source   = bld.path.ant_glob(['*.cpp']),
+        use      = 'TESTMAIN DLIB PROFILE_NULL font_kb',
+        includes = '. .. ../font',
+        target = 'test_font_kb')

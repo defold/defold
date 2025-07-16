@@ -1283,6 +1283,11 @@ static stbtt__buf stbtt__cff_index_get(stbtt__buf b, int i)
 #define ttCHAR(p)     (* (stbtt_int8 *) (p))
 #define ttFixed(p)    ttLONG(p)
 
+   // #define ttUSHORT(p)   (* (stbtt_uint16 *) (p))
+   // #define ttSHORT(p)    (* (stbtt_int16 *) (p))
+   // #define ttULONG(p)    (* (stbtt_uint32 *) (p))
+   // #define ttLONG(p)     (* (stbtt_int32 *) (p))
+
 static stbtt_uint16 ttUSHORT(stbtt_uint8 *p) { return p[0]*256 + p[1]; }
 static stbtt_int16 ttSHORT(stbtt_uint8 *p)   { return p[0]*256 + p[1]; }
 static stbtt_uint32 ttULONG(stbtt_uint8 *p)  { return (p[0]<<24) + (p[1]<<16) + (p[2]<<8) + p[3]; }

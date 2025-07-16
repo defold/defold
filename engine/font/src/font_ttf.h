@@ -22,4 +22,11 @@ typedef Font* HFont;
 
 HFont FontLoadFromMemoryTTF(const char* name, const void* data, uint32_t data_size, bool allocate);
 
+// Used in text_shape_kb.cpp
+
+// Only implemented when using the kb_text_shape
+void*  FontGetKbTextShapeFontFromTTF(HFont font);
+
+bool   FontGetGlyphBoxTTF(HFont font, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1);
+
 #endif // DM_FONT_TTF_H

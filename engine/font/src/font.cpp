@@ -137,8 +137,9 @@ FontResult FontGetGlyph(HFont font, uint32_t codepoint, FontGlyphOptions* option
     {
         return FONT_RESULT_ERROR;
     }
+    FontResult r = font->m_GetGlyph(font, index, options, glyph);
     glyph->m_Codepoint = codepoint;
-    return font->m_GetGlyph(font, index, options, glyph);
+    return r;
 }
 
 FontResult FontGetGlyphByIndex(HFont font, uint32_t glyph_index, FontGlyphOptions* options, FontGlyph* glyph)

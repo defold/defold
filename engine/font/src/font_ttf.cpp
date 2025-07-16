@@ -19,16 +19,27 @@
 #define STBTT_free(x,u)    ((void)(u),free(x))
 
 #define STB_TRUETYPE_IMPLEMENTATION
-#include "stb_truetype.h"
+#include "external/stb_truetype.h"
 
 #include "font_private.h"
 
+#if defined(FONT_USE_KB_TEXT_SHAPE)
+    #include "external/kb_text_shape.h"
+#endif
 
 struct TTFFont
 {
     Font            m_Base;
 
     stbtt_fontinfo  m_Font;
+
+#if defined(FONT_USE_KB_TEXT_SHAPE)
+    kbts_font       m_KBFont;
+    void*           m_KBData;       // Note: Due to the incompabitilies of kb_text_shape + stb_truetype,
+    uint32_t        m_KBDataSize;   // we currently need an extra copy
+
+#endif
+
     const char*     m_Path;
     const void*     m_Data;
     uint32_t        m_DataSize;
@@ -47,6 +58,14 @@ static inline TTFFont* ToFont(HFont hfont)
 static void FontDestroyTTF(HFont hfont)
 {
     TTFFont* font = ToFont(hfont);
+
+#if defined(FONT_USE_KB_TEXT_SHAPE)
+    if (font->m_KBData)
+    {
+        kbts_FreeFont(&font->m_KBFont);
+    }
+#endif
+
     if (font->m_Allocated)
     {
         free((void*)font->m_Data);
@@ -57,7 +76,11 @@ static void FontDestroyTTF(HFont hfont)
 uint32_t GetResourceSizeTTF(HFont hfont)
 {
     TTFFont* font = ToFont(hfont);
+#if defined(FONT_USE_KB_TEXT_SHAPE)
+    return font->m_DataSize * 2;
+#else
     return font->m_DataSize;
+#endif
 }
 
 static float GetScaleFromSizeTTF(HFont hfont, uint32_t size)
@@ -174,6 +197,26 @@ HFont FontLoadFromMemoryTTF(const char* path, const void* buffer, uint32_t buffe
     return LoadTTFInternal(path, buffer, buffer_size, allocate);
 }
 
+#if defined(FONT_USE_KB_TEXT_SHAPE)
+// NOTE!!!
+// This modifies the data in-place
+static int LoadKBFont(kbts_font* font, void* buffer, uint32_t buffer_size)
+{
+    size_t scratch_size = kbts_ReadFontHeader(font, buffer, buffer_size);
+
+    void* mem = malloc(scratch_size);
+    size_t full_size = kbts_ReadFontData(font, mem, scratch_size);
+    if(full_size > scratch_size)
+    {
+        mem = realloc(mem, full_size);
+    }
+
+    kbts_PostReadFontInitialize(font, mem, full_size);
+
+    return kbts_FontIsValid(font);
+}
+#endif
+
 static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buffer_size, bool allocate)
 {
     TTFFont* font = new TTFFont;
@@ -202,6 +245,19 @@ static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buff
         font->m_DataSize= buffer_size;
     }
 
+#if defined(FONT_USE_KB_TEXT_SHAPE)
+    font->m_KBDataSize = font->m_DataSize;
+    font->m_KBData = malloc(font->m_KBDataSize);
+    memcpy(font->m_KBData, font->m_Data, font->m_KBDataSize);
+    if (!LoadKBFont(&font->m_KBFont, (void*)font->m_KBData, font->m_KBDataSize))
+    {
+        dmLogError("Failed to load KB font from '%s'", path);
+        FontDestroyTTF((HFont)font);
+        delete font;
+        return 0;
+    }
+#endif
+
     int index = stbtt_GetFontOffsetForIndex((const unsigned char*)font->m_Data,0);
     int result = stbtt_InitFont(&font->m_Font, (const unsigned char*)font->m_Data, index);
     if (!result)
@@ -216,3 +272,19 @@ static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buff
     font->m_Path = strdup(path);
     return (HFont)font;
 }
+
+
+#if defined(FONT_USE_KB_TEXT_SHAPE)
+void* FontGetKbTextShapeFontFromTTF(HFont hfont)
+{
+    TTFFont* font = ToFont(hfont);
+    return &font->m_KBFont;
+}
+
+bool FontGetGlyphBoxTTF(HFont hfont, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
+{
+    TTFFont* font = ToFont(hfont);
+    return stbtt_GetGlyphBox(&font->m_Font, glyph_index, x0, y0, x1, y1);
+}
+#endif
+
