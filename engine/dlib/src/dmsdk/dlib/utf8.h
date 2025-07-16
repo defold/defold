@@ -95,6 +95,20 @@ namespace dmUtf8
                c == UTF_WHITESPACE_CARRIAGE_RETURN;
     }
 
+    /*#
+     * Checks if a codepoint is a breaking whitespace
+     * @name IsBreaking
+     * @param c [type: uint32_t] the codepoint
+     * @return result [type: bool] true if it's a breaking whitespace
+     */
+    inline bool IsBreaking(uint32_t c)
+    {
+        return c == UTF_WHITESPACE_SPACE ||
+               c == UTF_WHITESPACE_NEW_LINE ||
+               c == UTF_WHITESPACE_ZERO_WIDTH_SPACE ||
+               c == UTF_WHITESPACE_CARRIAGE_RETURN;
+    }
+
 }
 
 #endif // DMSDK_UTF8_H
