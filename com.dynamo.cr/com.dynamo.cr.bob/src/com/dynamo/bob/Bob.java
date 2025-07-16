@@ -159,6 +159,7 @@ public class Bob {
     }
 
     public static void initLua() {
+        init();
         PackedResources.unpackAllLibsAsync(Platform.getHostPlatform());
         PackedResources.waitForuUpackAllLibsAsync();
     }
