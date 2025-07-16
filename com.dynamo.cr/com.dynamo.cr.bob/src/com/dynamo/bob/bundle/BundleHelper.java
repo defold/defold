@@ -519,7 +519,7 @@ public class BundleHelper {
     {
         String filename = FilenameUtils.getName(resourcePath);
         File file = File.createTempFile("temp", filename);
-        URL url = getClass().getResource(resourcePath);
+        URL url = BundleHelper.class.getResource(resourcePath);
         FileUtils.writeByteArrayToFile(file, IOUtils.toByteArray(url));
         return file;
     }
