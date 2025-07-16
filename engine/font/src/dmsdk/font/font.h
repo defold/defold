@@ -48,19 +48,17 @@ enum FontResult
  * FontType
  * @enum
  * @name FontType
- * @member FONT_TYPE_UNKNOWN = -1
  * @member FONT_TYPE_STBTTF
  * @member FONT_TYPE_STBOTF
- * @member FONT_TYPE_DEFOLD     our .glyphbank format (see font_ddf.proto)
- * @member FONT_TYPE_MAX
+ * @member FONT_TYPE_UNKNOWN = 0xFFFFFFFF
  */
 enum FontType
 {
-    FONT_TYPE_UNKNOWN = -1,
     FONT_TYPE_STBTTF,
     FONT_TYPE_STBOTF,
-    FONT_TYPE_DEFOLD,   // out .glyphbank format (see font_ddf.proto)
-    FONT_TYPE_MAX
+    // Custom types may 4 chars
+
+    FONT_TYPE_UNKNOWN = 0xFFFFFFFF // used to make it 4 bytes size
 };
 
 /*#

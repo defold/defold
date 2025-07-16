@@ -40,8 +40,6 @@ static FontType GetFontType(const char* path)
         return FONT_TYPE_STBTTF;
     if (strcmp(ext, ".otf") == 0 || strcmp(ext, ".OTF") == 0)
         return FONT_TYPE_STBOTF;
-    if (strcmp(ext, ".glyphbankc") == 0)
-        return FONT_TYPE_DEFOLD;
 
     return FONT_TYPE_UNKNOWN;
 }
@@ -64,7 +62,6 @@ HFont FontLoadFromMemory(const char* path, void* data, uint32_t data_size, bool 
     {
     case FONT_TYPE_STBTTF:
     case FONT_TYPE_STBOTF:  font = FontLoadFromMemoryTTF(path, data, data_size, allocate); break;
-    //case FONT_TYPE_DEFOLD:  font = FontLoadFromMemoryDefold(path, data, data_size, allocate); break;
     default:
         {
             const char* ext = strrchr(path, '.');
