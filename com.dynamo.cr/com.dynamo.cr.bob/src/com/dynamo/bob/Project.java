@@ -357,71 +357,81 @@ public class Project {
     private void doScan(IClassScanner scanner, Set<String> classNames) {
         TimeProfiler.start("doScan");
         boolean is_bob_light = getManifestInfo("is-bob-light") != null;
-        for (String className : classNames) {
-            // Ignore TexcLibrary to avoid it being loaded and initialized
-            // We're also skipping some of the bundler classes, since we're only building content,
-            // not doing bundling when using bob-light
-            boolean skip = className.startsWith("com.dynamo.bob.TexcLibrary") ||
-                    (is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) ||
-                    (is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) ||
-                    (is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper"));
-            if (!skip) {
-                try {
-                    Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
-                    BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
-                    if (builderParams != null) {
-                        for (String inExt : builderParams.inExts()) {
-                            extToBuilder.put(inExt, (Class<? extends Builder>) klass);
-                            inextToOutext.put(inExt, builderParams.outExt());
-                        }
-                        Builder.addParamsDigest(klass, this.getOptions(), builderParams);
-                        ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
-                        if (protoParams != null) {
-                            ProtoBuilder.addMessageClass(builderParams.outExt(), protoParams.messageClass());
-                            ProtoBuilder.addProtoDigest(protoParams.messageClass());
-                            for (String ext : builderParams.inExts()) {
-                                Class<?> inputClass = protoParams.srcClass();
-                                if (inputClass != null) {
-                                    ProtoBuilder.addMessageClass(ext, protoParams.srcClass());
-                                }
+        TimeProfiler.start("filter out classes");
+        List<String> filteredClassNames = classNames.stream()
+                .filter(className ->
+                        // classes with static initializers we don't want to initialize on this stage
+                        !className.startsWith("com.dynamo.bob.pipeline.TexcLibrary") &&
+                        !className.startsWith("com.dynamo.bob.pipeline.Shaderc") &&
+                        !className.startsWith("com.dynamo.bob.pipeline.ModelImporter") &&
+                        // classes we don't need to bob light
+                        !(is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) &&
+                        !(is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) &&
+                        !(is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper")))
+                .collect(Collectors.toList());
+        TimeProfiler.stop();
+        for (String className : filteredClassNames) {
+            TimeProfiler.start("doScan.builder_registration");
+            TimeProfiler.addData("className", className);
+            try {
+                Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
+                BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
+                if (builderParams != null) {
+                    for (String inExt : builderParams.inExts()) {
+                        extToBuilder.put(inExt, (Class<? extends Builder>) klass);
+                        inextToOutext.put(inExt, builderParams.outExt());
+                    }
+                    Builder.addParamsDigest(klass, this.getOptions(), builderParams);
+                    ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
+                    if (protoParams != null) {
+                        ProtoBuilder.addMessageClass(builderParams.outExt(), protoParams.messageClass());
+                        ProtoBuilder.addProtoDigest(protoParams.messageClass());
+                        for (String ext : builderParams.inExts()) {
+                            Class<?> inputClass = protoParams.srcClass();
+                            if (inputClass != null) {
+                                ProtoBuilder.addMessageClass(ext, protoParams.srcClass());
                             }
                         }
                     }
-
-                    if (IBundler.class.isAssignableFrom(klass))
-                    {
-                        if (!klass.equals(IBundler.class)) {
-                            bundlerClasses.add( (Class<? extends IBundler>) klass);
-                        }
-                    }
-
-                    if (IShaderCompiler.class.isAssignableFrom(klass))
-                    {
-                        if (!klass.equals(IShaderCompiler.class)) {
-                            shaderCompilerClasses.add((Class<? extends IShaderCompiler>) klass);
-                        }
-                    }
-
-                    if (ITextureCompressor.class.isAssignableFrom(klass))
-                    {
-                        if (!klass.equals(ITextureCompressor.class)) {
-                            textureCompressorClasses.add((Class<? extends ITextureCompressor>) klass);
-                        }
-                    }
-
-                    if (IPlugin.class.isAssignableFrom(klass))
-                    {
-                        if (!klass.equals(IPlugin.class)) {
-                            pluginClasses.add( (Class<? extends IPlugin>) klass);
-                        }
-                    }
-
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
                 }
+
+                TimeProfiler.stop();
+                TimeProfiler.start("doScan.bundler_registration");
+                if (IBundler.class.isAssignableFrom(klass)) {
+                    if (!klass.equals(IBundler.class)) {
+                        bundlerClasses.add((Class<? extends IBundler>) klass);
+                    }
+                }
+
+                TimeProfiler.stop();
+                TimeProfiler.start("doScan.shader_registration");
+                if (IShaderCompiler.class.isAssignableFrom(klass)) {
+                    if (!klass.equals(IShaderCompiler.class)) {
+                        shaderCompilerClasses.add((Class<? extends IShaderCompiler>) klass);
+                    }
+                }
+
+                TimeProfiler.stop();
+                TimeProfiler.start("doScan.texture_registration");
+                if (ITextureCompressor.class.isAssignableFrom(klass)) {
+                    if (!klass.equals(ITextureCompressor.class)) {
+                        textureCompressorClasses.add((Class<? extends ITextureCompressor>) klass);
+                    }
+                }
+
+                TimeProfiler.stop();
+                TimeProfiler.start("doScan.plugin_registration");
+                if (IPlugin.class.isAssignableFrom(klass)) {
+                    if (!klass.equals(IPlugin.class)) {
+                        pluginClasses.add((Class<? extends IPlugin>) klass);
+                    }
+                }
+                TimeProfiler.stop();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
         }
-        TimeProfiler.stop();
+        TimeProfiler.stop(); // Final stop after plugin registration
     }
 
     static String[][] extensionMapping = new String[][] {
@@ -1340,6 +1350,7 @@ public class Project {
     }
 
     private void registerPipelinePlugins() throws CompileExceptionError {
+        TimeProfiler.start("registerPipelinePlugins");
         // Find the plugins and register them now, before we're building the content
         BundleHelper.extractPipelinePlugins(this, getPluginsDirectory());
         List<File> plugins = BundleHelper.getPipelinePlugins(this, getPluginsDirectory());
@@ -1365,6 +1376,7 @@ public class Project {
             logger.info("  %s", relativePath);
         }
         logger.info("");
+        TimeProfiler.stop();
     }
 
     private boolean shouldBuildArtifact(String artifact) {

@@ -39,6 +39,7 @@ import java.util.zip.ZipInputStream;
 
 import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
+import com.dynamo.bob.util.TimeProfiler;
 import com.sun.istack.Nullable;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -925,11 +926,14 @@ public class BundleHelper {
     }
 
     public static List<File> getPipelinePlugins(Project project, String pluginsDir) {
+        TimeProfiler.start("getPipelinePlugins");
         List<File> files = ExtenderUtil.listFilesRecursive(new File(pluginsDir), ExtenderUtil.JAR_RE);
+        TimeProfiler.stop();
         return files;
     }
 
     public static void extractPipelinePlugins(Project project, String pluginsDir) throws CompileExceptionError {
+        TimeProfiler.start("extractPipelinePlugins");
         List<IResource> sources = new ArrayList<>();
         List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
         for (String extension : extensionFolders) {
@@ -942,6 +946,7 @@ public class BundleHelper {
         }
 
         ExtenderUtil.storeResources(new File(pluginsDir), sources);
+        TimeProfiler.stop();
     }
 
     public static boolean isArchiveIncluded(Project project) {
