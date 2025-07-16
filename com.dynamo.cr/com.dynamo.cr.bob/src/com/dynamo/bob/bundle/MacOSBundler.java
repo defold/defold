@@ -188,7 +188,7 @@ public class MacOSBundler implements IBundler {
         {
             logger.info("Adding debug entitlements");
             File entitlementsFile = BundleHelper.copyResourceToTempFile("resources/macos/entitlements-debug.plist");
-            Result r = Exec.execResult("codesign", "-f", "-s", "-", "--entitlements", entitlementsFile.getAbsolutePath(), appDir);
+            Result r = Exec.execResult("codesign", "-f", "-s", "-", "--entitlements", entitlementsFile.getAbsolutePath(), appDir.getAbsolutePath());
             if (r.ret != 0) {
                 throw new IOException(new String(r.stdOutErr));
             }
