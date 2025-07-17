@@ -900,7 +900,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < count; ++i)
         {
             MeshComponent& component = *components[i];
-            if (!component.m_Enabled)
+            if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
             DM_PROPERTY_ADD_U32(rmtp_Mesh, 1);
