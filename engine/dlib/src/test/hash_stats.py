@@ -38,7 +38,7 @@ def run(function):
     print ("Collisions %d/%d (%f %%)" % (n_collisions, tot_tested, float(n_collisions) / tot_tested))
 
 print('dmHashBuffer32')
-run(dlib.dmHashBuffer32)
+run(dlib.dmHashBufferNoReverse32)
 
 print('dmHashBuffer64')
-run(dlib.dmHashBuffer64)
+run(dlib.dmHashBufferNoReverse64)

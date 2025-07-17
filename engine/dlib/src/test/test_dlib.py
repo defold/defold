@@ -19,8 +19,8 @@ from os import path
 class TestDlib(unittest.TestCase):
 
     def testHash(self):
-        h1 = dlib.dmHashBuffer32("foo")
-        h2 = dlib.dmHashBuffer64("foo")
+        h1 = dlib.dmHashBufferNoReverse32("foo")
+        h2 = dlib.dmHashBufferNoReverse64("foo")
 
         self.assertEqual(0xd861e2f7L, h1)
         self.assertEqual(0x97b476b3e71147f7L, h2)

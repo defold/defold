@@ -45,38 +45,38 @@ if not dlib:
     # If not found load from default location in DYNAMO_HOME
     dlib = ctypes.cdll.LoadLibrary(os.path.join(os.environ['DYNAMO_HOME'], libdir, libname))
 
-dlib.dmHashBuffer32.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
-dlib.dmHashBuffer32.restype = ctypes.c_uint32
+dlib.dmHashBufferNoReverse32.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
+dlib.dmHashBufferNoReverse32.restype = ctypes.c_uint32
 
-dlib.dmHashBuffer64.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
-dlib.dmHashBuffer64.restype = ctypes.c_uint64
+dlib.dmHashBufferNoReverse64.argtypes = [ctypes.c_char_p, ctypes.c_uint32]
+dlib.dmHashBufferNoReverse64.restype = ctypes.c_uint64
 
-# DM_DLLEXPORT int _MaxCompressedSize(int uncompressed_size, int* max_compressed_size)
-dlib.LZ4MaxCompressedSize.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_int)]
-dlib.LZ4MaxCompressedSize.restype = ctypes.c_int
+# # DM_DLLEXPORT int _MaxCompressedSize(int uncompressed_size, int* max_compressed_size)
+# dlib.LZ4MaxCompressedSize.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_int)]
+# dlib.LZ4MaxCompressedSize.restype = ctypes.c_int
 
-# DM_DLLEXPORT int _CompressBuffer(const void* buffer, uint32_t buffer_size, void* compressed_buffer, int* compressed_size)
-dlib.LZ4CompressBuffer.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int)]
-dlib.LZ4CompressBuffer.restype = ctypes.c_int
+# # DM_DLLEXPORT int _CompressBuffer(const void* buffer, uint32_t buffer_size, void* compressed_buffer, int* compressed_size)
+# dlib.LZ4CompressBuffer.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int)]
+# dlib.LZ4CompressBuffer.restype = ctypes.c_int
 
-# DM_DLLEXPORT int _DecompressBuffer(const void* buffer, uint32_t buffer_size, void* decompressed_buffer, uint32_t max_output, int* decompressed_size)
-dlib.LZ4DecompressBuffer.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(ctypes.c_int)]
-dlib.LZ4DecompressBuffer.restype = ctypes.c_int
+# # DM_DLLEXPORT int _DecompressBuffer(const void* buffer, uint32_t buffer_size, void* decompressed_buffer, uint32_t max_output, int* decompressed_size)
+# dlib.LZ4DecompressBuffer.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(ctypes.c_int)]
+# dlib.LZ4DecompressBuffer.restype = ctypes.c_int
 
-# int EncryptXTeaCTR(uint8_t* data, uint32_t datalen, const uint8_t* key, uint32_t keylen)
-dlib.EncryptXTeaCTR.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32]
-dlib.EncryptXTeaCTR.restype = ctypes.c_int
+# # int EncryptXTeaCTR(uint8_t* data, uint32_t datalen, const uint8_t* key, uint32_t keylen)
+# dlib.EncryptXTeaCTR.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32]
+# dlib.EncryptXTeaCTR.restype = ctypes.c_int
 
-# int DecryptXTeaCTR(uint8_t* data, uint32_t datalen, const uint8_t* key, uint32_t keylen)
-dlib.DecryptXTeaCTR.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32]
-dlib.DecryptXTeaCTR.restype = ctypes.c_int
+# # int DecryptXTeaCTR(uint8_t* data, uint32_t datalen, const uint8_t* key, uint32_t keylen)
+# dlib.DecryptXTeaCTR.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32]
+# dlib.DecryptXTeaCTR.restype = ctypes.c_int
 
 
-def dmHashBuffer32(buf):
-    return dlib.dmHashBuffer32(buf.encode('ascii'), len(buf))
+def dmHashBufferNoReverse32(buf):
+    return dlib.dmHashBufferNoReverse32(buf.encode('ascii'), len(buf))
 
-def dmHashBuffer64(buf):
-    return dlib.dmHashBuffer64(buf.encode('ascii'), len(buf))
+def dmHashBufferNoReverse64(buf):
+    return dlib.dmHashBufferNoReverse64(buf.encode('ascii'), len(buf))
 
 def dmLZ4MaxCompressedSize(uncompressed_size):
     mcs = ctypes.c_int()

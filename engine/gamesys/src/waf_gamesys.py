@@ -35,7 +35,7 @@ def transform_properties(properties, out_properties):
         elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_HASH:
             entry = out_properties.hash_entries.add()
             entry.index = len(out_properties.hash_values)
-            out_properties.hash_values.append(dlib.dmHashBuffer64(property.value))
+            out_properties.hash_values.append(dlib.dmHashBufferNoReverse64(property.value))
         elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_URL:
             entry = out_properties.url_entries.add()
             entry.index = len(out_properties.string_values)
@@ -55,7 +55,7 @@ def transform_properties(properties, out_properties):
         else:
             raise Exception("Invalid type")
         entry.key = property.id
-        entry.id = dlib.dmHashBuffer64(property.id)
+        entry.id = dlib.dmHashBufferNoReverse64(property.id)
 
 def transform_texture_name(task, name):
     name = name.replace('.png', '.texturec')
@@ -111,7 +111,7 @@ def transform_collisionobject(task, msg):
         msg.collision_shape = ''
 
     for x in msg.embedded_collision_shape.shapes:
-        x.id_hash = dlib.dmHashBuffer64(x.id)
+        x.id_hash = dlib.dmHashBufferNoReverse64(x.id)
 
     msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
     msg.collision_shape = msg.collision_shape.replace('.tilemap', '.tilemapc')
@@ -247,7 +247,7 @@ def compile_animationset(task):
             google.protobuf.text_format.Merge(in_f.read(), msg)
         msg_animset = rig.rig_ddf_pb2.AnimationSet()
         msg_riganim = msg_animset.animations.add()
-        msg_riganim.id = dlib.dmHashBuffer64(os.path.splitext(os.path.basename(msg.animations[0].animation))[0])
+        msg_riganim.id = dlib.dmHashBufferNoReverse64(os.path.splitext(os.path.basename(msg.animations[0].animation))[0])
         msg_riganim.duration = 0.0
         msg_riganim.sample_rate = 30.0
         with open(task.outputs[0].abspath(), 'wb') as out_f:

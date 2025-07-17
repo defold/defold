@@ -302,12 +302,13 @@ def build(bld):
 
     if bld.env.IS_TARGET_DESKTOP:
         dlib_shared = bld.shlib(features = 'c cxx cshlib skip_asan',
-                                includes = '. ./mbedtls/include ./mbedtls/crypto/include',
+                                # includes = '. ./mbedtls/include ./mbedtls/crypto/include',
                                 target = 'dlib_shared',
-                                defines= ['VALGRIND'] + extra_defines,
-                                use = ['SOCKET', 'PROFILE_NULL_NOASAN', 'mbedtls_noasan', 'zip_noasan'])
+                                defines= ['VALGRIND', 'DM_ONLY_HASH_FUNCTION'] + extra_defines#,
+                                # use = ['SOCKET', 'PROFILE_NULL_NOASAN', 'mbedtls_noasan', 'zip_noasan']
+                                )
 
-        dlib_shared.source = [x for x in dlib.source]
+        dlib_shared.source = ["dlib/hash.cpp"]
 
         if 'win32' not in bld.env['PLATFORM']:
             dlib_memprofile = bld(features = 'c cxx cshlib',

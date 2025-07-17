@@ -15,12 +15,8 @@
 #ifndef DM_HASH_H
 #define DM_HASH_H
 
-#include <dmsdk/dlib/hash.h>
-
-/**
- * Max length for reverse hashing entries. Buffer length larger than this will not be stored for reverse hashing.
- */
-const uint32_t DMHASH_MAX_REVERSE_LENGTH = 1024U;
+#include <stdint.h>
+#include <dmsdk/dlib/shared_library.h>
 
 extern "C"
 {
@@ -43,6 +39,19 @@ DM_DLLEXPORT uint64_t dmHashBufferNoReverse64(const void* buffer, uint32_t buffe
  */
 DM_DLLEXPORT uint32_t dmHashBufferNoReverse32(const void* buffer, uint32_t buffer_len);
 
+}
+
+
+#if !defined(DM_ONLY_HASH_FUNCTION)
+#include <dmsdk/dlib/hash.h>
+
+/**
+ * Max length for reverse hashing entries. Buffer length larger than this will not be stored for reverse hashing.
+ */
+const uint32_t DMHASH_MAX_REVERSE_LENGTH = 1024U;
+
+extern "C"
+{
 /**
  * Enable/disable support for reverse hash lookup
  * @param enable true for enable
@@ -62,7 +71,7 @@ DM_DLLEXPORT void dmHashReverseErase32(uint32_t hash);
  */
 DM_DLLEXPORT void dmHashReverseErase64(uint64_t hash);
 
-
 }
+#endif
 
 #endif // DM_HASH_H

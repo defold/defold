@@ -58,7 +58,7 @@ def material_file(self, node):
         shader_name = material.generator.remap_material_output(msg)
 
     if shader_name == None:
-        shader_hash = dlib.dmHashBuffer64(msg.vertex_program + msg.fragment_program)
+        shader_hash = dlib.dmHashBufferNoReverse64(msg.vertex_program + msg.fragment_program)
         # make sure the name is unique, as each task requires unique outputs
         shader_name = 'shader_%d_%d_%s' % (shader_hash, GENERATOR_ID, '.spc')
 

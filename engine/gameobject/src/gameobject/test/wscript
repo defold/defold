@@ -49,7 +49,7 @@ def transform_properties(properties, out_properties):
         elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_HASH:
             entry = out_properties.hash_entries.add()
             entry.index = len(out_properties.hash_values)
-            out_properties.hash_values.append(dlib.dmHashBuffer64(property.value))
+            out_properties.hash_values.append(dlib.dmHashBufferNoReverse64(property.value))
         elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_URL:
             entry = out_properties.url_entries.add()
             entry.index = len(out_properties.string_values)
@@ -73,7 +73,7 @@ def transform_properties(properties, out_properties):
         else:
             raise Exception("Invalid type")
         entry.key = property.id
-        entry.id = dlib.dmHashBuffer64(property.id)
+        entry.id = dlib.dmHashBufferNoReverse64(property.id)
 
 def transform_collection(task, msg):
     for instance in msg.instances:
@@ -237,7 +237,7 @@ def parse_properties(props):
     def add_elements(entry, id, elements):
         for e in elements:
             key = "%s.%s" % (id, e)
-            entry.element_ids.append(dlib.dmHashBuffer64(key))
+            entry.element_ids.append(dlib.dmHashBufferNoReverse64(key))
 
     clear_caches()
     import properties_ddf_pb2
@@ -271,7 +271,7 @@ def parse_properties(props):
             elif m_hash:
                 entry = declarations.hash_entries.add()
                 entry.index = len(declarations.hash_values)
-                hash = dlib.dmHashBuffer64(m_hash.group(1))
+                hash = dlib.dmHashBufferNoReverse64(m_hash.group(1))
                 declarations.hash_values.append(hash)
             elif m_url:
                 entry = declarations.url_entries.add()
@@ -318,14 +318,14 @@ def parse_properties(props):
                 entry = declarations.hash_entries.add()
                 entry.index = len(declarations.hash_values)
                 resource = m_resource.group(3) or ''
-                hash = dlib.dmHashBuffer64(resource)
+                hash = dlib.dmHashBufferNoReverse64(resource)
                 declarations.hash_values.append(hash)
             else:
                 # TODO Handle error?
                 print("%s has unknown format: \"%s\"" % (k,v))
                 pass
             entry.key = k
-            entry.id = dlib.dmHashBuffer64(k)
+            entry.id = dlib.dmHashBufferNoReverse64(k)
 
     return declarations
 

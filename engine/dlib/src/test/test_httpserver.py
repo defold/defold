@@ -76,7 +76,7 @@ class TestHttpServer(unittest.TestCase):
             self.assertEqual(200, r.status)
             tmp = r.read()
             # The server responds with the hash of the sent content
-            self.assertEqual(dlib.dmHashBuffer64(data), int(tmp))
+            self.assertEqual(dlib.dmHashBufferNoReverse64(data), int(tmp))
             if i < 15:
                 char = ord('a') + ((i*97 + i) % (ord('z') - ord('a')))
                 data += chr(char)
