@@ -120,14 +120,6 @@ public class FolderPublisher extends Publisher {
 
         try {
             File outputFile = new File(outputDirectory, fileName);
-            
-            // Ensure parent directories exist
-            File parentDir = outputFile.getParentFile();
-            if (parentDir != null && !parentDir.exists()) {
-                if (!parentDir.mkdirs()) {
-                    throw new IOException("Failed to create parent directories for: " + outputFile.getAbsolutePath());
-                }
-            }
 
             // Write file with header + data
             try (BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(outputFile))) {
@@ -160,14 +152,6 @@ public class FolderPublisher extends Publisher {
 
         try {
             File outputFile = new File(outputDirectory, fileName);
-            
-            // Ensure parent directories exist
-            File parentDir = outputFile.getParentFile();
-            if (parentDir != null && !parentDir.exists()) {
-                if (!parentDir.mkdirs()) {
-                    throw new IOException("Failed to create parent directories for: " + outputFile.getAbsolutePath());
-                }
-            }
 
             // Write file with header + data
             try (BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(outputFile))) {
