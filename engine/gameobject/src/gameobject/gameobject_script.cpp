@@ -1869,7 +1869,7 @@ namespace dmGameObject
             }
         }
 
-        // Resolive argument #1 url
+        // Resolve argument #1 url
         dmGameObject::HInstance instance = ResolveInstance(L, 1);
         if(dmGameObject::IsBone(instance))
         {
