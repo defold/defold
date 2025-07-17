@@ -302,10 +302,9 @@ def build(bld):
 
     if bld.env.IS_TARGET_DESKTOP:
         dlib_shared = bld.shlib(features = 'c cxx cshlib skip_asan',
-                                # includes = '. ./mbedtls/include ./mbedtls/crypto/include',
+                                includes = '.',
                                 target = 'dlib_shared',
-                                defines= ['VALGRIND', 'DM_ONLY_HASH_FUNCTION'] + extra_defines#,
-                                # use = ['SOCKET', 'PROFILE_NULL_NOASAN', 'mbedtls_noasan', 'zip_noasan']
+                                defines= ['VALGRIND', 'DM_ONLY_HASH_FUNCTION'] + extra_defines
                                 )
 
         dlib_shared.source = ["dlib/hash.cpp"]
