@@ -516,6 +516,15 @@ public class BundleHelper {
         return new ArrayList<String>(Arrays.asList(line.split("\\s*,\\s*")));
     }
 
+    public static File copyResourceToTempFile(String resourcePath) throws IOException
+    {
+        String filename = FilenameUtils.getName(resourcePath);
+        File file = File.createTempFile("temp", filename);
+        URL url = BundleHelper.class.getResource(resourcePath);
+        FileUtils.writeByteArrayToFile(file, IOUtils.toByteArray(url));
+        return file;
+    }
+
     public static class ResourceInfo
     {
         public String severity;
