@@ -19,7 +19,7 @@
 
 #include <graphics/graphics.h>
 
-#include "render_private.h"             // TextEntry
+#include "../render_private.h"             // TextEntry
 
 /**
  * Internal font rendering api

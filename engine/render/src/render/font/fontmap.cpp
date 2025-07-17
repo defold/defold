@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 
-#include "font.h"
+#include "fontmap.h"
 #include "font_renderer_private.h"
 #include "font_renderer_api.h"
 
@@ -26,10 +26,9 @@
 namespace dmRender
 {
     FontMapParams::FontMapParams()
-    : m_GetGlyph(0)
-    , m_GetGlyphData(0)
+    : m_Font(0)
     , m_NameHash(0)
-    , m_PixelScale(1.0f)
+    , m_Size(0)
     , m_ShadowX(0.0f)
     , m_ShadowY(0.0f)
     , m_MaxAscent(0.0f)
@@ -166,18 +165,24 @@ namespace dmRender
 
     bool SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params)
     {
-        assert(params.m_GetGlyph);
-        assert(params.m_GetGlyphData);
+        // assert(params.m_GetGlyph);
+        // assert(params.m_GetGlyphData);
 
+        // assert(params.m_GetGlyphByIndex);
+        // assert(params.m_GetGlyphDataByIndex);
+
+        font_map->m_Font = params.m_Font;
         font_map->m_NameHash = params.m_NameHash;
-        font_map->m_GetGlyph = params.m_GetGlyph;
-        font_map->m_GetGlyphData = params.m_GetGlyphData;
-        font_map->m_GetFontMetrics = params.m_GetFontMetrics;
+        font_map->m_Size = params.m_Size;
+        // font_map->m_GetGlyph = params.m_GetGlyph;
+        // font_map->m_GetGlyphData = params.m_GetGlyphData;
+        // font_map->m_GetGlyphByIndex = params.m_GetGlyphByIndex;
+        // font_map->m_GetGlyphDataByIndex = params.m_GetGlyphDataByIndex;
+        // font_map->m_GetFontMetrics = params.m_GetFontMetrics;
         font_map->m_ShadowX = params.m_ShadowX;
         font_map->m_ShadowY = params.m_ShadowY;
         font_map->m_MaxAscent = params.m_MaxAscent;
         font_map->m_MaxDescent = params.m_MaxDescent;
-        font_map->m_PixelScale = params.m_PixelScale;
         font_map->m_SdfSpread = params.m_SdfSpread;
         font_map->m_SdfOutline = params.m_SdfOutline;
         font_map->m_SdfShadow = params.m_SdfShadow;
@@ -336,6 +341,14 @@ namespace dmRender
     dmRender::FontGlyph* GetGlyph(HFontMap font_map, uint32_t c)
     {
         dmRender::FontGlyph* glyph = font_map->m_GetGlyph(c, font_map->m_UserData);
+        if (!glyph)
+            glyph = font_map->m_GetGlyph(126U, font_map->m_UserData); // Fallback to ~
+        return glyph;
+    }
+
+    dmRender::FontGlyph* GetGlyphByIndex(HFontMap font_map, uint32_t glyph_index)
+    {
+        dmRender::FontGlyph* glyph = font_map->m_GetGlyphByIndex(glyph_index, font_map->m_UserData);
         if (!glyph)
             glyph = font_map->m_GetGlyph(126U, font_map->m_UserData); // Fallback to ~
         return glyph;

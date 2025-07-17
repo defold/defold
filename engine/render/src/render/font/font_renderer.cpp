@@ -26,11 +26,13 @@
 #include <graphics/graphics.h>      // for TextureParams, TextureFilter, Tex...
 #include <graphics/graphics_util.h> // for PackRGBA
 
-#include "font.h"
+#include "fontmap.h"
 #include "font_renderer_private.h"  // for FontMap, RenderLayerMask
 
 #include "font_renderer.h"       // for FontGlyphCompression
 #include "font_renderer_api.h"   // for the font renderer backend api
+
+#include "font/text_shape/text_shape.h"
 
 DM_PROPERTY_EXTERN(rmtp_Render);
 DM_PROPERTY_U32(rmtp_FontCharacterCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# glyphs", &rmtp_Render);
@@ -221,6 +223,9 @@ namespace dmRender
         settings.m_Leading = params.m_Leading;
         settings.m_Tracking = params.m_Tracking;
         TextMetrics metrics;
+
+        // TODO: Allow for callers to have their prepared shaping/layout info
+
         GetTextMetrics(text_context->m_FontRenderBackend, font_map, params.m_Text, &settings, &metrics);
 
         // find center and radius for frustum culling

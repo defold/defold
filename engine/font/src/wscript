@@ -22,6 +22,7 @@ def build(bld):
                 source          = bld.path.ant_glob(['*.cpp']) + ['text_shape/text_shape_kb.cpp'])
 
 
+    bld.install_files('${PREFIX}/include/font', 'font.h')
     bld.install_files('${PREFIX}/include/font/text_shape', 'text_shape/text_shape.h')
 
     bld.recurse('test')

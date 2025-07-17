@@ -22,6 +22,7 @@
 #include <dmsdk/dlib/utf8.h>
 
 #include "util.h"
+#include "font.h"
 #include "font_private.h"
 #include "font_ttf.h"
 

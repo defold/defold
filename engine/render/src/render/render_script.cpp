@@ -15,7 +15,6 @@
 #include "render_script.h"
 
 #include <string.h>
-#include <new>
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -26,7 +25,7 @@
 #include <script/script.h>
 #include <script/lua_source_ddf.h>
 
-#include "font_renderer.h"
+#include "font/font_renderer.h"
 #include "render/render_ddf.h"
 
 namespace dmRender

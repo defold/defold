@@ -16,7 +16,7 @@
 #define DM_FONT_RENDERER_PRIVATE_H
 
 #include "font_renderer.h"
-#include "render_private.h"
+#include "../render_private.h"
 
 #include <dlib/align.h>
 #include <dlib/math.h>
@@ -27,8 +27,6 @@
 
 namespace dmRender
 {
-    const uint32_t ZERO_WIDTH_SPACE_UNICODE = 0x200B;
-
     enum RenderLayerMask
     {
         FACE    = 0x1,
@@ -58,6 +56,7 @@ namespace dmRender
         }
 
         dmMutex::HMutex         m_Mutex;
+        HFont                   m_Font;
         void*                   m_UserData; // The font map resources (see res_font.cpp)
         dmGraphics::HContext    m_GraphicsContext; // Used to recreate textures
         HFontRenderBackend      m_FontRenderBackend;
@@ -65,10 +64,14 @@ namespace dmRender
         HMaterial               m_Material;
         dmhash_t                m_NameHash;
 
+        // Deprecated! Use m_Font instead!
         FGetGlyph               m_GetGlyph;
         FGetGlyphData           m_GetGlyphData;
+        FGetGlyphByIndex        m_GetGlyphByIndex;
+        FGetGlyphDataByIndex    m_GetGlyphDataByIndex;
         FGetFontMetrics         m_GetFontMetrics;
 
+        float                   m_Size;         // Size of font (in pixels)
         float                   m_PixelScale;   // Scale factor from points to pixel scale
         float                   m_ShadowX;
         float                   m_ShadowY;

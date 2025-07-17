@@ -12,13 +12,15 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_FONT_PRIVATE_H
-#define DM_FONT_PRIVATE_H
+#ifndef DM_RENDER_GLYPHBANK_H
+#define DM_RENDER_GLYPHBANK_H
 
-#include "font.h"
+namespace dmRenderDDF
+{
+    struct GlyphBank;
+};
 
-// Unit tests
-void FontDebug(HFont font, float scale, float padding, const char* text);
-void FontDebugGlyph(FontGlyph* glyph, int indent);
+HFont CreateGlyphBankFont(const char* path, dmRenderDDF::GlyphBank* glyph_bank);
 
-#endif // DM_FONT_PRIVATE_H
+
+#endif // DM_RENDER_GLYPHBANK_H

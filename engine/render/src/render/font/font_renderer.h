@@ -19,14 +19,10 @@
 
 #include <dmsdk/dlib/vmath.h>
 
-//#include <ddf/ddf.h>
-
 #include <graphics/graphics.h>
 
-//#include <render/font_ddf.h>
-
-#include "render.h"
-#include "font.h"
+#include "../render.h"
+#include "fontmap.h"
 
 namespace dmRender
 {

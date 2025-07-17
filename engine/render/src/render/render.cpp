@@ -29,7 +29,7 @@
 #include "render_private.h"
 #include "render_script.h"
 #include "debug_renderer.h"
-#include "font_renderer.h"
+#include "font/font_renderer.h"
 
 DM_PROPERTY_GROUP(rmtp_Render, "Renderer", 0);
 

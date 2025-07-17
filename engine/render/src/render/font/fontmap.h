@@ -12,17 +12,22 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_FONT_H
-#define DM_FONT_H
+#ifndef DM_RENDER_FONTMAP_H
+#define DM_RENDER_FONTMAP_H
 
 #include <stdint.h>
 
 #include <dlib/hash.h>
 #include <graphics/graphics.h>
 
+#include <dmsdk/font/font.h>
 #include <render/font_ddf.h>
 
-#include "render.h"
+#include "../render.h"
+
+// from "font/text_shape/text_shape.h"
+struct TextMetricsSettings;
+struct TextMetrics;
 
 namespace dmRender
 {
@@ -44,6 +49,9 @@ namespace dmRender
     typedef void*       (*FGetGlyphData)(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels);
     typedef uint32_t    (*FGetFontMetrics)(void* user_ctx, FontMetrics* metrics); // returns number of glyphs
 
+    typedef FontGlyph*  (*FGetGlyphByIndex)(uint32_t glyph_index, void* user_ctx);
+    typedef void*       (*FGetGlyphDataByIndex)(uint32_t glyph_index, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels);
+
     /**
      * Font map parameters supplied to NewFontMap
      */
@@ -52,14 +60,18 @@ namespace dmRender
         /// Default constructor
         FontMapParams();
 
-        FGetGlyph       m_GetGlyph;
-        FGetGlyphData   m_GetGlyphData;
-        FGetFontMetrics m_GetFontMetrics;
+        // FGetGlyph       m_GetGlyph;
+        // FGetGlyphData   m_GetGlyphData;
+        // FGetFontMetrics m_GetFontMetrics;
 
-        dmhash_t        m_NameHash;
+        // FGetGlyph       m_GetGlyphByIndex;
+        // FGetGlyphData   m_GetGlyphDataByIndex;
 
-        /// Scale factor from points to pixel scale
-        float m_PixelScale;
+        HFont       m_Font;     // The base font (i.e. .ttf)
+        dmhash_t    m_NameHash;
+
+        /// Size of the font
+        float m_Size;
         /// Offset of the shadow along the x-axis
         float m_ShadowX;
         /// Offset of the shadow along the y-axis
@@ -97,38 +109,6 @@ namespace dmRender
         uint8_t m_Padding:6;        // Note: Not C struct padding, but actual glyph padding.
 
         dmRenderDDF::FontTextureFormat m_ImageFormat;
-    };
-
-    /**
-     * Font metrics about a text string
-     */
-    struct TextMetrics
-    {
-        /// Total string width
-        float m_Width;
-        /// Total string height
-        float m_Height;
-        /// Max ascent of font
-        float m_MaxAscent;
-        /// Max descent of font, positive value
-        float m_MaxDescent;
-        /// Number of lines of text
-        uint32_t m_LineCount;
-    };
-
-    /**
-     * Input settings when getting text metrics
-     */
-    struct TextMetricsSettings
-    {
-        /// Max width. used only when line_break is true
-        float m_Width;
-        /// Allow line break
-        bool m_LineBreak;
-        ///
-        float m_Leading;
-        ///
-        float m_Tracking;
     };
 
     // Represents a slot in the texture glyph cache
@@ -257,6 +237,8 @@ namespace dmRender
      */
     dmRender::FontGlyph* GetGlyph(dmRender::HFontMap font_map, uint32_t codepoint);
 
+    dmRender::FontGlyph* GetGlyphByIndex(dmRender::HFontMap font_map, uint32_t glyph_index);
+
     /**
      * Get the rendered glyph image from the font map given a unicode codepoint.
      * @param font_map [type: HFontMap] Font map handle
@@ -270,9 +252,11 @@ namespace dmRender
      */
     const uint8_t* GetGlyphData(dmRender::HFontMap font_map, uint32_t codepoint, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels);
 
+    const uint8_t* GetGlyphDataByIndex(dmRender::HFontMap font_map, uint32_t glyph_index, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels);
+
     // Used in unit tests
     bool VerifyFontMapMinFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter);
     bool VerifyFontMapMagFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter);
 }
 
-#endif // DM_FONT_H
+#endif // DM_RENDER_FONTMAP_H

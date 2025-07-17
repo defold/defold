@@ -30,10 +30,13 @@ struct TextShapeGlyph
 
     uint32_t m_Codepoint;
     uint16_t m_GlyphIndex; // index into the font
+    int16_t  :16;
 
     int16_t  m_Width;
     int16_t  m_Height;
-    int16_t  :16;
+
+    int16_t  m_Advance;
+    int16_t  m_LeftBearing;
 };
 
 struct TextRun
@@ -63,7 +66,7 @@ struct TextShapeInfo
 struct TextMetricsSettings
 {
     uint32_t    m_Width;        /// Max width. used only when line_break is true. (in points)
-    uint32_t    m_Leading;      /// (in points)
+    float       m_Leading;      /// leading scale value (1.0f is default scale)
     uint32_t    m_Tracking;     /// (in points)
     uint8_t     m_LineBreak:1;  /// Allow line breaks
 };

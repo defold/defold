@@ -29,7 +29,7 @@
 #include "text_shape.h"
 #include "text_layout.h"
 
-static uint32_t GetLineTextMetrics(TextShapeGlyph* glyphs, uint32_t row_start, uint32_t n, bool measure_trailing_space)
+static uint32_t GetLineTextMetrics(TextShapeGlyph* glyphs, uint32_t row_start, uint32_t n, int32_t tracking, bool measure_trailing_space)
 {
     if (n <= 0)
         return 0;
@@ -45,8 +45,12 @@ static uint32_t GetLineTextMetrics(TextShapeGlyph* glyphs, uint32_t row_start, u
         }
     }
 
+    TextShapeGlyph& last = glyphs[n-1];
+
     uint32_t row_start_x = glyphs[0].m_X;
-    uint32_t width = glyphs[n-1].m_X + glyphs[n-1].m_Width - row_start_x;
+    // the extent of the last character is left_breaking + width
+    uint32_t extent_last = last.m_LeftBearing + last.m_Width;
+    uint32_t width = last.m_X - row_start_x + (n-1) * tracking + extent_last;
 
     // if (n > 0 && 0 != last)
     // {
@@ -69,10 +73,11 @@ static uint32_t GetLineTextMetrics(TextShapeGlyph* glyphs, uint32_t row_start, u
 struct LayoutMetrics
 {
     TextShapeGlyph* m_Glyphs;
-    LayoutMetrics(TextShapeGlyph* glyphs) : m_Glyphs(glyphs) {}
+    int32_t         m_Tracking;
+    LayoutMetrics(TextShapeGlyph* glyphs, int32_t tracking) : m_Glyphs(glyphs), m_Tracking(tracking) {}
     float operator()(uint32_t row_start, uint32_t n, bool measure_trailing_space)
     {
-        return GetLineTextMetrics(m_Glyphs, row_start, n, measure_trailing_space);
+        return GetLineTextMetrics(m_Glyphs, row_start, n, m_Tracking, measure_trailing_space);
     }
 };
 
@@ -86,6 +91,8 @@ TextShapeResult TextShapeText(HFont font, uint32_t* codepoints, uint32_t num_cod
 
     info->m_Glyphs.OffsetCapacity(info->m_Glyphs.Capacity() - num_codepoints);
     info->m_Glyphs.SetSize(num_codepoints);
+    if (!num_codepoints)
+        return TEXT_SHAPE_RESULT_OK;
 
     FontGlyphOptions options;
     options.m_Scale = 1.0f; // Return in points
@@ -95,10 +102,10 @@ TextShapeResult TextShapeText(HFont font, uint32_t* codepoints, uint32_t num_cod
     // Lay them all out in a single line, using points
     uint32_t x = 0;
     uint32_t y = 0; // the legacy "shaping" doesn't support Y offsets
+    FontGlyph font_glyph;
     for (uint32_t i = 0; i < num_codepoints; ++i)
     {
         uint32_t c = codepoints[i];
-        FontGlyph font_glyph;
         FontResult r = FontGetGlyph(font, c, &options, &font_glyph);
 
         TextShapeGlyph g = {0};
@@ -110,6 +117,8 @@ TextShapeResult TextShapeText(HFont font, uint32_t* codepoints, uint32_t num_cod
             g.m_Height = font_glyph.m_Height;
             g.m_Codepoint = font_glyph.m_Codepoint;
             g.m_GlyphIndex = font_glyph.m_GlyphIndex;
+            g.m_Advance = font_glyph.m_Advance;
+            g.m_LeftBearing = font_glyph.m_LeftBearing;
 
             x += font_glyph.m_Advance;
         }
@@ -140,7 +149,7 @@ TextShapeResult TextLayout(TextMetricsSettings* settings, TextShapeInfo* info,
     if (!settings->m_LineBreak)
         width = INT_MAX;
 
-    LayoutMetrics lm(info->m_Glyphs.Begin());
+    LayoutMetrics lm(info->m_Glyphs.Begin(), settings->m_Tracking);
     uint32_t max_line_width;
     uint32_t num_lines = Layout(info, width, lines, max_num_lines,
                                 &max_line_width, lm, !settings->m_LineBreak);
