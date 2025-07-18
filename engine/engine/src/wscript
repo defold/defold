@@ -111,8 +111,9 @@ def build(bld):
 
     bld.add_group()
 
+    profile_null_libs = ['PROFILE_NULL', 'PROFILEREXT_NULL']
+    profile_null_symbols = ['ProfilerExt'] # for dmProfiler::SetUpdateFrequency
     profile_symbols = ['ProfilerExt', 'ProfilerBasic']
-    profile_null_symbols = ['ProfilerExt']
     profile_lib = ['PROFILE', 'PROFILEREXT']
     if bld.env['PLATFORM'] in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
         profile_lib = ['PROFILE', 'PROFILEREXT']
@@ -164,7 +165,7 @@ def build(bld):
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'PROFILE_NULL PROFILEREXT_NULL GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine_release engine_service_null'.split() + graphics_lib + sound_lib + platform_lib + additional_libs,
+        use = 'GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine_release engine_service_null'.split() + graphics_lib + sound_lib + platform_lib + additional_libs + profile_null_libs,
         web_libs = web_libs,
         exported_symbols = exported_symbols + profile_null_symbols + resource_type_symbols + component_type_symbols,
         includes = '../build ../proto . ..',
