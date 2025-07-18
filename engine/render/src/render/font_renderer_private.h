@@ -101,7 +101,6 @@ namespace dmRender
         uint16_t                m_CacheColumns;         // Number of cells in horizontal direction
         uint16_t                m_CacheRows;            // Number of cells in horizontal direction
         uint16_t                m_CacheCellCount;       // Number of cells in total
-        uint8_t                 m_CacheChannels;        // Number of channels
         uint8_t                 m_CacheCellPadding;
         uint8_t                 m_LayerMask;
         uint8_t                 m_Padding;              // The padding of the cell
@@ -109,6 +108,7 @@ namespace dmRender
         uint8_t                 m_IsCacheSizeDirty:1;   // if the glyph cell size has changed, or if the layout needs to be recalculated
         uint8_t                 m_DynamicCacheSize:1;
         uint8_t                 m_IsCacheSizeTooSmall:1;
+        uint8_t                 m_CacheChannels:2;      // Number of channels
     };
 
     ///////////////////////////////////////////////////////////////////////////////

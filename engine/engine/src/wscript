@@ -2,7 +2,6 @@
 import os, re
 from waf_dynamo import dmsdk_add_files, copy_file_task, apidoc_extract_task, platform_supports_feature, platform_graphics_libs_and_symbols
 import waflib.Options
-from waflib import Logs
 
 def options(opt):
     pass

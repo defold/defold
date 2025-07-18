@@ -457,7 +457,7 @@ namespace dmGameSystem
         params->m_MaxAscent = dmFont::GetAscent(hfont, scale);
         params->m_MaxDescent = -dmFont::GetDescent(hfont, scale);
 
-        bool dynamic_cache_size = ddf->m_CacheWidth == 0 && ddf->m_CacheHeight == 0;
+        bool dynamic_cache_size = ddf->m_CacheWidth == 0 || ddf->m_CacheHeight == 0;
         if (dynamic_cache_size)
         {
             // From Fontc.java
@@ -484,7 +484,6 @@ namespace dmGameSystem
         bool has_chars = ddf->m_Characters != 0 && ddf->m_Characters[0] != 0;
         if (!all_chars && has_chars)
         {
-            bool dynamic_cache_size = ddf->m_CacheWidth == 0 && ddf->m_CacheHeight == 0;
             // We can make a guesstimate of the needed cache and cell sizes
             float cell_width, cell_height;
             GetMaxCellSize(hfont, scale, ddf->m_Characters, &cell_width, &cell_height);
