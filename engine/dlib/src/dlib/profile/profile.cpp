@@ -237,13 +237,6 @@ void ProfileFrameEnd(HProfile profile)
         return;
 
     DO_LOOP_NOARGS(FrameEnd);
-    // for (ProfileListener* p = g_ProfileListeners; p; p = p->m_Next)
-    // {
-    //     if (p->m_FrameEnd)
-    //     {
-    //         p->m_FrameEnd(p->m_Ctx);
-    //     }
-    // }
 }
 
 void ProfileScopeBegin(const char* name, uint64_t* name_hash)
@@ -256,13 +249,6 @@ void ProfileScopeBegin(const char* name, uint64_t* name_hash)
     }
 
     DO_LOOP(ScopeBegin, name, name_hash ? *name_hash : 0);
-    // for (ProfileListener* p = g_ProfileListeners; p; p = p->m_Next)
-    // {
-    //     if (p->m_ScopeBegin)
-    //     {
-    //         p->m_ScopeBegin(p->m_Ctx, name, *name_hash);
-    //     }
-    // }
 }
 
 void ProfileScopeEnd(const char* name, uint64_t name_hash)
@@ -270,13 +256,6 @@ void ProfileScopeEnd(const char* name, uint64_t name_hash)
     DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
 
     DO_LOOP(ScopeEnd, name, name_hash);
-    // for (ProfileListener* p = g_ProfileListeners; p; p = p->m_Next)
-    // {
-    //     if (p->m_ScopeEnd)
-    //     {
-    //         p->m_ScopeEnd(p->m_Ctx, name, name_hash);
-    //     }
-    // }
 }
 
 void ProfileSetThreadName(const char* name)

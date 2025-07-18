@@ -2612,11 +2612,6 @@ static void U32ToByteArray(rmtU8* dest, rmtU32 value)
     dest[3] = value >> 24;
 }
 
-// static rmtError Buffer_WriteBool(Buffer* buffer, rmtBool value)
-// {
-//     return Buffer_Write(buffer, &value, 1);
-// }
-
 static rmtError Buffer_WriteU32(Buffer* buffer, rmtU32 value)
 {
     assert(buffer != NULL);
