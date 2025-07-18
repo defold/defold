@@ -14,7 +14,8 @@
 
 (ns editor.fuzzy-text
   (:require [clojure.string :as string]
-            [util.coll :refer [pair]]))
+            [util.coll :refer [pair]]
+            [util.eduction :as e]))
 
 ;; Sublime Text-style fuzzy text matching.
 ;;
@@ -63,20 +64,19 @@
 
 (defn- case-insensitive-character-indices
   "Returns a vector of indices where the specified code point exists in the
-  string. Both upper- and lower-case matches are returned."
-  [^String string ^long ch ^long from-index]
-  (assert (not (Character/isWhitespace ch)))
-  (loop [from-index from-index
-         indices (transient [])]
-    (let [upper (.indexOf string (Character/toUpperCase ch) from-index)
-          lower (.indexOf string (Character/toLowerCase ch) from-index)]
+  string. Both upper- and lower-case matches are included."
+  [^String string ^long upper-ch ^long lower-ch ^long from-index]
+  (loop [from-index (int from-index)
+         indices (vector-of :int)]
+    (let [upper (.indexOf string upper-ch from-index)
+          lower (.indexOf string lower-ch from-index)]
       (if (and (neg? upper) (neg? lower))
-        (persistent! indices)
-        (let [index (cond (neg? upper) lower
-                          (neg? lower) upper
-                          :else (min upper lower))]
-          (recur (inc ^long index)
-                 (conj! indices index)))))))
+        indices
+        (let [^int index (cond (neg? upper) lower
+                               (neg? lower) upper
+                               :else (min upper lower))]
+          (recur (inc index)
+                 (conj indices index)))))))
 
 (defn- whitespace-length
   "Counts the number of code points that represent whitespace in a string,
@@ -97,13 +97,17 @@
   and [0 2 3]. The from-index parameter can be used to limit the starting point
   in the string."
   [^String pattern ^String string ^long from-index]
-  (when-not (or (empty? string)
+  (when-not (or (.isEmpty string)
                 (string/blank? pattern))
     (let [pattern (string/trim pattern)
           pattern-length (.length pattern)
           string-length (.length string)]
       (loop [pattern-index 1
-             matching-index-permutations (mapv vector (case-insensitive-character-indices string (.codePointAt pattern 0) from-index))]
+             matching-index-permutations (let [ch (.codePointAt pattern pattern-index)
+                                               upper-ch (Character/toUpperCase ch)
+                                               lower-ch (Character/toLowerCase ch)]
+                                           (mapv #(vector-of :int %)
+                                                 (case-insensitive-character-indices string upper-ch lower-ch from-index)))]
         (if (= pattern-length pattern-index)
           matching-index-permutations
           (let [pattern-whitespace-length (whitespace-length pattern pattern-length pattern-index)
@@ -116,8 +120,11 @@
                                                       (+ 2 prev-matching-index)
                                                       (inc prev-matching-index))]
                                      (when (not= string-length from-index)
-                                       (mapv (partial conj matching-indices)
-                                             (case-insensitive-character-indices string (.codePointAt pattern pattern-index) from-index))))))
+                                       (let [ch (.codePointAt pattern pattern-index)
+                                             upper-ch (Character/toUpperCase ch)
+                                             lower-ch (Character/toLowerCase ch)]
+                                         (e/map #(conj matching-indices %)
+                                                (case-insensitive-character-indices string upper-ch lower-ch from-index)))))))
                          matching-index-permutations))))))))
 
 (defn- every-character-is-letter-or-digit?
@@ -166,7 +173,7 @@
 
           ;; We're matching the very first character in the considered string.
           ;; It does not count towards the score. This gives a very slight
-          ;; scoring edge matches that include the start of the string.
+          ;; scoring edge to matches that include the start of the string.
           (recur (next matching-indices)
                  matching-index
                  :string-start
@@ -230,8 +237,8 @@
   "Performs a fuzzy text match against a string using the specified pattern.
   Returns a two-element vector of [score, matching-indices], or nil if the
   pattern is empty or there is no match. The matching-indices vector will
-  contain the character indices in string that matched the pattern in sequential
-  order. A lower score represents a better match."
+  contain the character indices in the string that matched the pattern in
+  sequential order. A lower score represents a better match."
   ([^String pattern ^String string]
    (match pattern string 0))
   ([^String pattern ^String string ^long from-index]
