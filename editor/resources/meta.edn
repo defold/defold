@@ -797,7 +797,7 @@
    :path ["android" "proguard"]}
   {:type :boolean,
    :help "This attribute indicates whether the package installer extracts native libraries from the APK to the file system",
-   :default true,
+   :default false,
    :path ["android" "extract_native_libs"]}
   {:type :resource,
    :filter "icns",
