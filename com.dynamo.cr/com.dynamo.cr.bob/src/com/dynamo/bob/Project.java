@@ -676,6 +676,11 @@ public class Project {
         }
     }
 
+    // External API. See https://github.com/defold/extension-prometheus
+    public void loadProjectFile() throws IOException {
+        loadProjectFile(true);
+    }
+
     public void addBuildServerHeader(String header) {
         buildServerHeaders.add(header);
     }
