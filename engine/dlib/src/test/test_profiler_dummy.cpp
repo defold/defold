@@ -16,6 +16,9 @@
 
 #include <assert.h>
 #include <string.h>
+#include <dlib/hash.h>
+#include <dlib/math.h>
+#include <dlib/time.h>
 #include <dmsdk/dlib/dstrings.h>
 #include <dmsdk/dlib/profile.h>
 
@@ -40,6 +43,9 @@ static void* CreateListener()
 {
     g_Context = new ProfilerDummyContext;
     memset(g_Context, 0, sizeof(*g_Context));
+
+    g_Context->m_CurrentSample = &g_Context->m_Samples[0];
+    g_Context->m_NumSamples = 1;
 
     return (void*)g_Context;
 }
@@ -259,16 +265,117 @@ static void ProfilePropertyReset(void* _ctx, ProfileIdx idx)
     prop->m_Value = prop->m_DefaultValue;
 }
 
+static void FrameBegin(void* ctx)
+{
+    (void)ctx;
+}
+
+static void FrameEnd(void* ctx)
+{
+    (void)ctx;
+
+    memset(&g_Context->m_Samples[0], 0, sizeof(g_Context->m_Samples));
+
+    g_Context->m_NumProperties = 0;
+    g_Context->m_NumSamples = 1;
+    g_Context->m_CurrentSample = &g_Context->m_Samples[0];
+}
+
+static ProfilerDummySample* AllocateSample(ProfilerDummyContext* ctx, uint64_t name_hash)
+{
+    ProfilerDummySample* parent = ctx->m_CurrentSample;
+
+    // Aggregate samples:
+    //      If there already is a child with this name, use that
+    ProfilerDummySample* sample = parent->m_FirstChild;
+    while (sample)
+    {
+        if (sample->m_NameHash == name_hash)
+        {
+            break;
+        }
+        sample = sample->m_Sibling;
+    }
+
+    if (!sample)
+    {
+        sample = &ctx->m_Samples[ctx->m_NumSamples++];
+        memset(sample, 0, sizeof(*sample));
+
+        sample->m_NameHash = name_hash;
+
+        // link the sample into the tree
+        ProfilerDummySample* parent = ctx->m_CurrentSample;
+        sample->m_Parent = parent;
+        if (parent->m_FirstChild == 0)
+        {
+            parent->m_FirstChild = sample;
+            parent->m_LastChild = sample;
+        }
+        else
+        {
+            parent->m_LastChild->m_Sibling = sample;
+            parent->m_LastChild = sample;
+        }
+    }
+
+    sample->m_CallCount++;
+    ctx->m_CurrentSample = sample;
+    return sample;
+}
+
+static void ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
+{
+    (void)ctx;
+
+    uint64_t tstart = dmTime::GetMonotonicTime();
+
+    if (name_hash == 0)
+        name_hash = dmHashString64(name);
+
+    ProfilerDummySample* sample = AllocateSample((ProfilerDummyContext*)ctx, name_hash); // Adds it to the thread data
+
+    if (sample->m_CallCount > 1) // we want to preserve the real start of this sample
+        sample->m_TempStart = tstart;
+    else
+        sample->m_Start = tstart;
+}
+
+static void ScopeEnd(void* _ctx, const char* name, uint64_t name_hash)
+{
+    ProfilerDummyContext* ctx = (ProfilerDummyContext*)_ctx;
+
+    uint64_t    end = dmTime::GetMonotonicTime();
+
+    ProfilerDummySample* sample = ctx->m_CurrentSample;
+
+    uint64_t length = 0;
+    if (sample->m_CallCount > 1)
+        length = dmMath::Max(end - sample->m_TempStart, (uint64_t)0);
+    else
+        length = dmMath::Max(end - sample->m_Start, (uint64_t)0);
+
+    sample->m_Length += (uint32_t)length;
+
+    if (sample->m_Parent)
+    {
+        sample->m_Parent->m_LengthChildren += length;
+    }
+
+    ctx->m_CurrentSample = sample->m_Parent;
+    assert(ctx->m_CurrentSample != 0);
+}
+
 void DummyProfilerRegister()
 {
     g_Listener.m_Create = CreateListener;
     g_Listener.m_Destroy = DestroyListener;
     g_Listener.m_SetThreadName = 0;
 
-    g_Listener.m_FrameBegin = 0;
-    g_Listener.m_FrameEnd = 0;
-    g_Listener.m_ScopeBegin = 0;
-    g_Listener.m_ScopeEnd = 0;
+    g_Listener.m_FrameBegin = FrameBegin;
+    g_Listener.m_FrameEnd = FrameEnd;
+    g_Listener.m_ScopeBegin = ScopeBegin;
+    g_Listener.m_ScopeEnd = ScopeEnd;
 
     g_Listener.m_LogText = LogText;
 
@@ -308,3 +415,15 @@ ProfilerDummyContext* DummyProfilerGetContext()
 {
     return g_Context;
 }
+
+// // Note that the callback might come from a different thread!
+// void DummyProfilerSetSampleTreeCallback(void* ctx, FSampleTreeCallback callback)
+// {
+
+// }
+
+// // Note that the callback might come from a different thread!
+// void DummyProfilerSetPropertyTreeCallback(void* ctx, FPropertyTreeCallback callback)
+// {
+
+// }

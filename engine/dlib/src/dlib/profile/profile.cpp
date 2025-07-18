@@ -186,7 +186,7 @@ void ProfileInitialize()
 {
     assert(!IsProfileInitialized());
 
-    PropertyInitialize(); // Initilize
+    PropertyInitialize();
 
     for (ProfileListener* p = g_ProfileListeners; p; p = p->m_Next)
     {

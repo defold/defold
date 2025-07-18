@@ -13,152 +13,19 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>
-#include <vector>
-#include <map>
-#include <string>
 #include <string.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include "dlib/dstrings.h"
 #include "dlib/hash.h"
-#include "dlib/time.h"
 #include "dlib/mutex.h"
-#include "dlib/thread.h"
 #include "dlib/profile/profile.h"
 #include "dlib/profile/profile_private.h"
+#include "dlib/thread.h"
+#include "dlib/time.h"
 
 #include "test_profiler_dummy.h"
 
-// struct TestSample
-// {
-//     char m_Name[32];
-//     uint64_t m_Elapsed;
-//     uint32_t m_Count;
-
-//     TestSample() {
-//         memset(this, 0, sizeof(*this));
-//     }
-
-//     TestSample(const TestSample& rhs) {
-//         memcpy(this, &rhs, sizeof(*this));
-//     }
-// };
-
-// struct TestProperty
-// {
-//     char                        m_Name[32];
-//     dmProfile::PropertyType     m_Type;
-//     dmProfile::PropertyValue    m_Value;
-//     int                         m_Parent;
-
-//     TestProperty() {
-//         memset(this, 0, sizeof(*this));
-//     }
-
-//     TestProperty(const TestProperty& rhs) {
-//         memcpy(this, &rhs, sizeof(*this));
-//     }
-// };
-
-// struct SampleCtx
-// {
-//     dmMutex::HMutex m_Mutex;
-//     std::vector<TestSample> samples;
-// };
-
-// struct PropertyCtx
-// {
-//     dmMutex::HMutex m_Mutex;
-//     std::vector<TestProperty> properties;
-// };
-
-// // *******************************************************************************
-// // Samples
-// static void ProcessSample(SampleCtx* ctx, dmProfile::HSample sample)
-// {
-//     TestSample out;
-
-//     const char* name = dmProfile::SampleGetName(sample); // Do not store this pointer!
-
-//     dmStrlCpy(out.m_Name, name, sizeof(out.m_Name));
-//     out.m_Name[sizeof(out.m_Name)-1] = 0;
-//     out.m_Elapsed = dmProfile::SampleGetTime(sample);
-//     out.m_Count = dmProfile::SampleGetCallCount(sample);
-
-//     ctx->samples.push_back(out);
-
-//     printf("%s %u  time: %u\n", name, out.m_Count, (uint32_t)out.m_Elapsed);
-// }
-
-// static void TraverseSampleTree(SampleCtx* ctx, int indent, dmProfile::HSample sample)
-// {
-//     ProcessSample(ctx, sample);
-
-//     dmProfile::SampleIterator iter;
-//     dmProfile::SampleIterateChildren(sample, &iter);
-//     while (dmProfile::SampleIterateNext(&iter))
-//     {
-//         TraverseSampleTree(ctx, indent + 1, iter.m_Sample);
-//     }
-// }
-
-// static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::HSample root)
-// {
-//     SampleCtx* ctx = (SampleCtx*)_ctx;
-//     if (strcmp(thread_name, "Remotery") == 0)
-//         return;
-
-//     DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
-
-//     printf("Thread: %s\n", thread_name);
-//     TraverseSampleTree(ctx, 1, root);
-// }
-
-// // *******************************************************************************
-// // Properties
-
-// static void ProcessProperty(PropertyCtx* ctx, int depth, dmProfile::HProperty property)
-// {
-//     const char* name = dmProfile::PropertyGetName(property); // Do not store this pointer!
-//     dmProfile::PropertyType type = dmProfile::PropertyGetType(property);
-//     dmProfile::PropertyValue value = dmProfile::PropertyGetValue(property);
-
-//     TestProperty prop;
-//     dmStrlCpy(prop.m_Name, name, sizeof(prop.m_Name));
-//     prop.m_Type = type;
-//     prop.m_Value = value;
-//     prop.m_Parent = depth - 1;
-
-//     dmProfile::PrintProperty(property, depth);
-
-//     ctx->properties.push_back(prop);
-// }
-
-// static void TraversePropertyTree(PropertyCtx* ctx, int depth, dmProfile::HProperty property)
-// {
-//     ProcessProperty(ctx, depth, property);
-
-//     dmProfile::PropertyIterator iter;
-//     dmProfile::PropertyIterateChildren(property, &iter);
-//     while (dmProfile::PropertyIterateNext(&iter))
-//     {
-//         TraversePropertyTree(ctx, depth + 1, iter.m_Property);
-//     }
-// }
-
-// static void PropertyTreeCallback(void* _ctx, dmProfile::HProperty root)
-// {
-//     PropertyCtx* ctx = (PropertyCtx*)_ctx;
-
-//     DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
-
-//     dmProfile::PropertyIterator iter;
-//     dmProfile::PropertyIterateChildren(root, &iter);
-//     while (dmProfile::PropertyIterateNext(&iter))
-//     {
-//         TraversePropertyTree(ctx, 0, iter.m_Property);
-//     }
-// }
 
 TEST(dmProfile, SmallTest)
 {
@@ -170,89 +37,84 @@ TEST(dmProfile, SmallTest)
 
 #define TOL 0.1
 
-// TEST(dmProfile, Profile)
-// {
-//     SampleCtx ctx;
-//     ctx.m_Mutex = dmMutex::New();
+TEST(dmProfile, Profile)
+{
+    DummyProfilerRegister();
+    ProfileInitialize();
 
-//     dmProfile::SetSampleTreeCallback(&ctx, SampleTreeCallback);
-//     dmProfile::Initialize();
+    ProfilerDummyContext* ctx = DummyProfilerGetContext();
 
-//     for (int i = 0; i < 2; ++i)
-//     {
-//         {
-//             // Due to the nature of the sample callback (once per root node)
-//             // we clear it here in order to collect all objects for each game frame
-//             DM_MUTEX_SCOPED_LOCK(ctx.m_Mutex);
-//             ctx.samples.clear();
-//         }
+    for (int i = 0; i < 2; ++i)
+    {
+        {
+            HProfile profile = ProfileFrameBegin();
+            {
+                DM_PROFILE("a");
+                dmTime::BusyWait(100000);
+                {
+                    {
+                        DM_PROFILE("a_b1");
+                        dmTime::BusyWait(50000);
+                        {
+                            DM_PROFILE("a_b1_c")
+                            dmTime::BusyWait(40000);
+                        }
+                    }
+                    {
+                        DM_PROFILE("b2");
+                        dmTime::BusyWait(50000);
+                        {
+                            DM_PROFILE("a_b2_c1");
+                            dmTime::BusyWait(40000);
+                        }
+                        {
+                            DM_PROFILE("a_b2_c2");
+                            dmTime::BusyWait(60000);
+                        }
+                    }
+                }
+            }
+            {
+                DM_PROFILE("a_d");
+                dmTime::BusyWait(80000);
+            }
 
-//         {
-//             dmProfile::HProfile profile = dmProfile::FrameBegin();
-//             {
-//                 DM_PROFILE("a");
-//                 dmTime::BusyWait(100000);
-//                 {
-//                     {
-//                         DM_PROFILE("a_b1");
-//                         dmTime::BusyWait(50000);
-//                         {
-//                             DM_PROFILE("a_b1_c")
-//                             dmTime::BusyWait(40000);
-//                         }
-//                     }
-//                     {
-//                         DM_PROFILE("b2");
-//                         dmTime::BusyWait(50000);
-//                         {
-//                             DM_PROFILE("a_b2_c1");
-//                             dmTime::BusyWait(40000);
-//                         }
-//                         {
-//                             DM_PROFILE("a_b2_c2");
-//                             dmTime::BusyWait(60000);
-//                         }
-//                     }
-//                 }
-//             }
-//             {
-//                 DM_PROFILE("a_d");
-//                 dmTime::BusyWait(80000);
-//             }
-//             dmProfile::FrameEnd(profile);
-//             dmTime::BusyWait(80000);
-//         }
 
-//         {
-//             DM_MUTEX_SCOPED_LOCK(ctx.m_Mutex);
+            {
+                //DM_MUTEX_SCOPED_LOCK(ctx.m_Mutex);
 
-//             double ticks_per_sec = 1000000.0;
+                double ticks_per_sec = 1000000.0;
 
-//             ASSERT_EQ(7U, (uint32_t)ctx.samples.size());
+                ASSERT_EQ(8U, (uint32_t)ctx->m_NumSamples);
 
-//             int index = 0;
-//             ASSERT_STREQ("a", ctx.samples[index++].m_Name);
-//             ASSERT_STREQ("a_b1", ctx.samples[index++].m_Name);
-//             ASSERT_STREQ("a_b1_c", ctx.samples[index++].m_Name);
-//             ASSERT_STREQ("b2", ctx.samples[index++].m_Name);
-//             ASSERT_STREQ("a_b2_c1", ctx.samples[index++].m_Name);
-//             ASSERT_STREQ("a_b2_c2", ctx.samples[index++].m_Name);
-//             ASSERT_STREQ("a_d", ctx.samples[index++].m_Name);
+                int index = 1; // skip the root
+                ASSERT_STREQ("a", dmHashReverseSafe64(ctx->m_Samples[index++].m_NameHash));
+                ASSERT_STREQ("a_b1", dmHashReverseSafe64(ctx->m_Samples[index++].m_NameHash));
+                ASSERT_STREQ("a_b1_c", dmHashReverseSafe64(ctx->m_Samples[index++].m_NameHash));
+                ASSERT_STREQ("b2", dmHashReverseSafe64(ctx->m_Samples[index++].m_NameHash));
+                ASSERT_STREQ("a_b2_c1", dmHashReverseSafe64(ctx->m_Samples[index++].m_NameHash));
+                ASSERT_STREQ("a_b2_c2", dmHashReverseSafe64(ctx->m_Samples[index++].m_NameHash));
+                ASSERT_STREQ("a_d", dmHashReverseSafe64(ctx->m_Samples[index++].m_NameHash));
 
-//             index = 0;
-//             ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
-//             ASSERT_NEAR((50000 + 40000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
-//             ASSERT_NEAR((40000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
-//             ASSERT_NEAR((50000 + 40000 + 60000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
-//             ASSERT_NEAR((40000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
-//             ASSERT_NEAR((60000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
-//             ASSERT_NEAR((80000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
-//         }
-//     }
-//     dmProfile::Finalize();
+                index = 1;
+                ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, TOL);
+                ASSERT_NEAR((50000 + 40000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, TOL);
+                ASSERT_NEAR((40000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, TOL);
+                ASSERT_NEAR((50000 + 40000 + 60000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, TOL);
+                ASSERT_NEAR((40000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, TOL);
+                ASSERT_NEAR((60000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, TOL);
+                ASSERT_NEAR((80000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, TOL);
+            }
 
-//     dmMutex::Delete(ctx.m_Mutex);
-// }
+            ProfileFrameEnd(profile);
+            dmTime::BusyWait(80000);
+        }
+
+    }
+
+    ProfileFinalize();
+    DummyProfilerUnregister();
+}
 
 DM_PROPERTY_EXTERN(prop_ChildToExtern1);
 DM_PROPERTY_F32(prop_GrandChildToExternF32, 0, PROFILE_PROPERTY_FRAME_RESET, "", &prop_ChildToExtern1);
@@ -335,8 +197,6 @@ TEST(dmProfile, PropertyCreationOrder)
 
         ProfilePropertyValue value = {0};
 
-        //printf("PROP: %s:  %llu  %llu\n", prop->m_Name, prop->m_Idx, prop->m_ParentIdx);
-
         CheckProp(prop, "Root", PROFILE_PROPERTY_TYPE_GROUP, value);
 
         value.m_U32 = 42;
@@ -348,105 +208,78 @@ TEST(dmProfile, PropertyCreationOrder)
     DummyProfilerUnregister();
 }
 
-/*
+static void debug(const char* name, int line, ProfilerDummyContext* ctx)
+{
+    printf("%d - '%s'\n", line, name);
+    for (int i = 0; i < ctx->m_NumSamples; ++i)
+    {
+        ProfilerDummySample* sample = &ctx->m_Samples[i];
+        printf("  s: %d  calls: %u  %llx  '%s'  %p\n", i, sample->m_CallCount, sample->m_NameHash, dmHashReverseSafe64(sample->m_NameHash), sample);
+    }
+}
+
 
 TEST(dmProfile, DynamicScope)
 {
-    const char* FUNCTION_NAMES[] = {
-        "FirstFunction",
-        "SecondFunction",
-        "ThirdFunction"
-    };
-
     const char* SCOPE_NAMES[] = {
         "Scope1",
         "Scope2"
     };
 
-    ProfileInitialize(128, 1024 * 1024, 16);
+    DummyProfilerRegister();
+    ProfileInitialize();
+
+    ProfilerDummyContext* ctx = DummyProfilerGetContext();
 
     HProfile profile = ProfileFrameBegin();
-    ProfileFrameEnd(profile);
 
-    char names[3][128];
-    dmSnPrintf(names[0], sizeof(names[0]), "%s@%s", "test.script", FUNCTION_NAMES[0]);
-    dmSnPrintf(names[1], sizeof(names[1]), "%s@%s", "test.script", FUNCTION_NAMES[1]);
-    dmSnPrintf(names[2], sizeof(names[2]), "%s@%s", "test.script", FUNCTION_NAMES[2]);
-    uint32_t names_hash[3] = {
-        dmProfile::GetNameHash(names[0], strlen(names[0])),
-        dmProfile::GetNameHash(names[1], strlen(names[1])),
-        dmProfile::GetNameHash(names[2], strlen(names[2]))
-    };
-
-    for (uint32_t i = 0; i < 10 ; ++i)
+    for (uint32_t i = 0; i < 10; ++i)
     {
         {
-            DM_PROFILE_DYN(Scope1, names[0]);
-            DM_PROFILE_DYN(Scope2, names[1]);
+            DM_PROFILE_DYN(SCOPE_NAMES[0], 0);
+            DM_PROFILE_DYN(SCOPE_NAMES[1], 0);
         }
         {
-            DM_PROFILE_DYN(Scope2, names[2]);
+            DM_PROFILE_DYN(SCOPE_NAMES[1], 0); // becomes a new sample, as it doesn't share same parent
         }
-        DM_PROFILE_DYN(Scope1, names[0]);
+        DM_PROFILE_DYN(SCOPE_NAMES[0], 0); // same sample, as it shares same parent
     }
 
-    std::vector<dmProfile::Sample> samples;
-    std::map<std::string, const dmProfile::ScopeData*> scopes;
+    ProfilerDummySample* samples = &ctx->m_Samples[0];
+    ASSERT_EQ(4U, ctx->m_NumSamples); // root + 3 scopes
+    ASSERT_EQ(10U * 2, samples[1].m_CallCount);
+    ASSERT_EQ(10U, samples[2].m_CallCount);
+    ASSERT_EQ(10U, samples[3].m_CallCount);
 
-    profile = dmProfile::Begin();
-    dmProfile::IterateSamples(profile, &samples, false ,&ProfileSampleCallback);
-    dmProfile::IterateScopeData(profile, &scopes, false ,&ProfileScopeCallback);
+    // check the parents
+    ASSERT_EQ(&samples[0], samples[1].m_Parent);
+        ASSERT_EQ(&samples[1], samples[2].m_Parent);
+    ASSERT_EQ(&samples[0], samples[3].m_Parent);
 
-    ASSERT_EQ(10U * 4U, samples.size());
-    ASSERT_EQ(10U * 2, scopes[SCOPE_NAMES[0]]->m_Count);
-    ASSERT_EQ(10U * 2, scopes[SCOPE_NAMES[1]]->m_Count);
+    // Check children/siblings
+    ASSERT_EQ(&samples[1], samples[0].m_FirstChild);
+    ASSERT_EQ(&samples[3], samples[0].m_LastChild);
 
-    char name0[128];
-    dmSnPrintf(name0, sizeof(name0), "%s@%s", "test.script", FUNCTION_NAMES[0]);
+    ASSERT_EQ(&samples[3], samples[1].m_Sibling);
 
-    char name1[128];
-    dmSnPrintf(name1, sizeof(name1), "%s@%s", "test.script", FUNCTION_NAMES[1]);
+    ASSERT_EQ(&samples[2], samples[1].m_FirstChild);
+    ASSERT_EQ(&samples[2], samples[1].m_LastChild);
 
-    char name2[128];
-    dmSnPrintf(name2, sizeof(name2), "%s@%s", "test.script", FUNCTION_NAMES[2]);
+    ASSERT_EQ((ProfilerDummySample*)0, samples[2].m_Sibling);
+    ASSERT_EQ((ProfilerDummySample*)0, samples[3].m_Sibling);
 
-    for (size_t i = 0; i < samples.size(); i++)
-    {
-        dmProfile::Sample* sample = &samples[i];
-        if (sample->m_Scope->m_NameHash == dmProfile::GetNameHash("Scope1", (uint32_t)strlen("Scope1")))
-        {
-            ASSERT_STREQ(sample->m_Name, name0);
-        }
-        else if (sample->m_Scope->m_NameHash == dmProfile::GetNameHash("Scope2", (uint32_t)strlen("Scope2")))
-        {
-            if (sample->m_NameHash == dmProfile::GetNameHash(name1, (uint32_t)strlen(name1)))
-            {
-                ASSERT_STREQ(sample->m_Name, name1);
-            }
-            else if (sample->m_NameHash == dmProfile::GetNameHash(name2, (uint32_t)strlen(name2)))
-            {
-                ASSERT_STREQ(sample->m_Name, name2);
-            }
-            else
-            {
-                ASSERT_TRUE(false);
-            }
-        }
-        else
-        {
-            ASSERT_TRUE(false);
-        }
-    }
 
     ProfileFrameEnd(profile);
 
+    /////////////////////////////
     ProfileFinalize();
+    DummyProfilerUnregister();
 }
-*/
 
 
 int main(int argc, char **argv)
 {
+    dmHashEnableReverseHash(true);
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

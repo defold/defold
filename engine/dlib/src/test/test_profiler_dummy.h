@@ -17,6 +17,21 @@
 
 #include <dmsdk/dlib/profile.h>
 
+struct ProfilerDummySample
+{
+    ProfilerDummySample*  m_Parent;
+    ProfilerDummySample*  m_Sibling;
+    ProfilerDummySample*  m_FirstChild;
+    ProfilerDummySample*  m_LastChild;
+    uint64_t m_Start;          // Start time for first sample (in microseconds)
+    uint64_t m_TempStart;      // Start time for sub sample
+    uint64_t m_Length;         // Elapsed time in microseconds
+    uint64_t m_LengthChildren; // Elapsed time in children in microseconds
+    uint64_t m_NameHash;       // faster access to name hash
+    uint32_t m_CallCount;      // Number of times this scope was called
+};
+
+
 struct ProfilerDummyProperty
 {
     const char*             m_Name;
@@ -32,11 +47,14 @@ struct ProfilerDummyProperty
 struct ProfilerDummyContext
 {
     int m_NumProperties;
+    int m_NumSamples;
     int m_NumErrors;
 
     char m_TextBuffer[1024];
 
     ProfilerDummyProperty m_Properties[256];
+    ProfilerDummySample    m_Samples[128];
+    ProfilerDummySample*   m_CurrentSample;
 };
 
 void                    DummyProfilerRegister();

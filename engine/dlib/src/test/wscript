@@ -152,7 +152,8 @@ def build(bld):
         create_test(bld, 'test_mutex', extra_libs =['THREAD'])
 
     create_test(bld, 'test_profile', extra_libs = ['THREAD'], extra_source = ['test_profiler_dummy.cpp'])
-    create_test(bld, 'test_profile',    extra_libs = ['THREAD'],
+    create_test(bld, 'test_profile_null',
+                                        extra_libs = ['THREAD'],
                                         extra_local_libs = ['profile_null'],
                                         extra_source = ['test_profiler_dummy.cpp'],
                                         exclude_libs = ['PROFILE', 'profile'],
