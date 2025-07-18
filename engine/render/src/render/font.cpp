@@ -163,7 +163,13 @@ namespace dmRender
         ClearTexture(font_map, width, height);
     }
 
-    bool SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params)
+    /**
+     * Update the font map with the specified parameters. The parameters are consumed and should not be read after this call.
+     * @param font_map Font map handle
+     * @param params Parameters to update
+     * @return result true if the font map was created correctly
+     */
+    static bool SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params)
     {
         assert(params.m_GetGlyph);
         assert(params.m_GetGlyphData);

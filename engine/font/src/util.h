@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if !defined(DM_UTIL_H)
-#define DM_UTIL_H
+#if !defined(DM_FONT_UTIL_H)
+#define DM_FONT_UTIL_H
 
 #include <stdint.h>
 
@@ -24,4 +24,4 @@ namespace dmFont
     void* ReadFile(const char* path, uint32_t* file_size);
 }
 
-#endif // DM_UTIL_H
+#endif // DM_FONT_UTIL_H

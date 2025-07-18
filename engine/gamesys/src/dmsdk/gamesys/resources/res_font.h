@@ -189,10 +189,9 @@ namespace dmGameSystem
 
     /*# add a new glyph range
      * Add a new glyph range
-     * @note Does not check if
      * @name ResFontAddGlyphSource
      * @param factory [type: dmResource::HFactory] The factory
-     * @param font_hash [type: dmhash_t] The font path hash (.fontc)
+     * @param fontc_hash [type: dmhash_t] The font path hash (.fontc)
      * @param ttf_hash [type: dmhash_t] The ttf  path hash (.ttf)
      * @param codepoint_min [type: uint32_t] The glyph minimum codepoint (inclusive)
      * @param codepoint_max [type: uint32_t] The glyph maximum codepoint (inclusive)
@@ -206,7 +205,7 @@ namespace dmGameSystem
      *
      * @name ResFontRemoveGlyphSource
      * @param factory [type: dmResource::HFactory] The factory
-     * @param font_hash [type: dmhash_t] The font path hash (.fontc)
+     * @param fontc_hash [type: dmhash_t] The font path hash (.fontc)
      * @param ttf_hash [type: dmhash_t] The ttf  path hash (.ttf)
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */

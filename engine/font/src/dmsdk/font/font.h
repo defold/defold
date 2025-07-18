@@ -49,7 +49,7 @@ namespace dmFont
      * FontType
      * @enum
      * @name FontType
-     * @member FONT_TYPE_UNKNOWN = -1
+     * @member FONT_TYPE_UNKNOWN -1
      * @member FONT_TYPE_STBTTF
      * @member FONT_TYPE_STBOTF
      * @member FONT_TYPE_MAX
@@ -66,8 +66,8 @@ namespace dmFont
      * GlyphBitmapFlags
      * @enum
      * @name GlyphBitmapFlags
-     * @member GLYPH_BM_FLAG_COMPRESSION_NONE = 0
-     * @member GLYPH_BM_FLAG_COMPRESSION_DEFLATE = 1
+     * @member GLYPH_BM_FLAG_COMPRESSION_NONE 0
+     * @member GLYPH_BM_FLAG_COMPRESSION_DEFLATE 1
      */
     enum GlyphBitmapFlags
     {
@@ -82,7 +82,7 @@ namespace dmFont
      * @name GlyphBitmap
      * @member m_Width [type: uint16_t] The glyph image width
      * @member m_Height [type: uint16_t] The glyph image height
-     * @member m_Channels [type: uint16_t] The glyph image height
+     * @member m_Channels [type: uint16_t] The number of channels in the glyph image
      * @member m_Flags [type: uint8_t] Flags describing the data. See `dmFont::GlyphBitmapFlags`.
      * @member m_Data [type: uint8_t*] The bitmap data, or null if no data available.
      */
@@ -225,7 +225,7 @@ namespace dmFont
      * @name GlyphOptions
      * @member m_Scale [type: float] The font scale
      * @member m_GenerateImage [type: bool] If true, generates an SDF image, and fills out the glyph.m_Bitmap structure.
-     * @member m_StbttSDFPadding [type: int] The sdk padding value (valid for FONT_TYPE_STBTTF fonts)
+     * @member m_StbttSDFPadding [type: float] The sdk padding value (valid for FONT_TYPE_STBTTF fonts)
      * @member m_StbttSDFOnEdgeValue [type: int] Where the edge value is located (valid for FONT_TYPE_STBTTF fonts)
      */
     struct GlyphOptions
@@ -240,15 +240,15 @@ namespace dmFont
         GlyphOptions()
         : m_Scale(1.0f)
         , m_GenerateImage(false)
-        , m_StbttSDFPadding(3)
+        , m_StbttSDFPadding(3.0f)
         , m_StbttSDFOnEdgeValue(190)
         {
         }
     };
 
     /*#
-     * Get the metrics of a glyph
-     * @name GetResourceSize
+     * Get the metrics and possibly the rasterized image data of a glyph
+     * @name GetGlyph
      * @param font [type: dmFont::HFont] The font
      * @param codepoint [type: uint32_t] The unicode code point
      * @param options (in) [type: dmFont::GlyphOptions*] The glyph options
@@ -269,4 +269,4 @@ namespace dmFont
 
 } // namespace
 
-#endif // DM_FONT_H
+#endif // DMSDK_FONT_H

@@ -61,8 +61,12 @@ namespace dmGameSystem
         SwapVar(m_TTFResource, src->m_TTFResource);
         SwapVar(m_Jobs, src->m_Jobs);
         SwapVar(m_CacheCellPadding, src->m_CacheCellPadding);
-        SwapVar(m_IsDynamic, src->m_IsDynamic);
         SwapVar(m_Padding, src->m_Padding);
+
+        uint8_t dynamic = src->m_IsDynamic;
+        src->m_IsDynamic = m_IsDynamic;
+        m_IsDynamic = dynamic;
+
     }
 
     static void PrintDynamicGlyph(uint32_t codepoint, DynamicGlyph* glyph, FontResource* font);
@@ -403,8 +407,8 @@ namespace dmGameSystem
 
     static void GetMaxCellSize(dmFont::HFont hfont, float scale, const char* text, float* cell_width, float* cell_height)
     {
-        *cell_width = 0;
-        *cell_height = 0;
+        *cell_width = 0.0f;
+        *cell_height = 0.0f;
 
         dmFont::GlyphOptions options;
 
@@ -428,10 +432,12 @@ namespace dmGameSystem
 
     static void SetupParamsForDynamicFont(dmRenderDDF::FontMap* ddf, const char* filename, dmFont::HFont hfont, dmRender::FontMapParams* params)
     {
-        if (ddf->m_ShadowBlur > 0.0f && ddf->m_ShadowAlpha > 0.0f) {
+        if (ddf->m_ShadowBlur > 0.0f && ddf->m_ShadowAlpha > 0.0f)
+        {
             params->m_GlyphChannels = 3;
         }
-        else {
+        else
+        {
             params->m_GlyphChannels = 1;
         }
 

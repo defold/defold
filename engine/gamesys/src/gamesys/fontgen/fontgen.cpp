@@ -127,7 +127,7 @@ static int JobGenerateGlyph(void* context, void* data)
 
     uint32_t codepoint = item->m_Codepoint;
 
-    uint64_t tstart = dmTime::GetTime();
+    uint64_t tstart = dmTime::GetMonotonicTime();
 
     item->m_Data = 0;
     item->m_DataSize = 0;
@@ -227,7 +227,7 @@ static int JobGenerateGlyph(void* context, void* data)
 
     dmFont::FreeGlyph(font, &glyph);
 
-    uint64_t tend = dmTime::GetTime();
+    uint64_t tend = dmTime::GetMonotonicTime();
 // TODO: Protect this using a spinlock
     JobStatus* status = item->m_Status;
     status->m_TimeGlyphGen += tend - tstart;
