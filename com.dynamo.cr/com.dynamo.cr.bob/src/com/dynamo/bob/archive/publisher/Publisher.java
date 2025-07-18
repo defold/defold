@@ -51,6 +51,8 @@ public abstract class Publisher {
 
     public boolean shouldBeMovedIntoBundleFolder() { return this.settings.getSaveZipInBundleFolder(); }
 
+    public boolean shouldFolderBeMovedIntoBundleFolder() { return this.settings.getSaveFolderInBundleFolder(); }
+
     protected final PublisherSettings getPublisherSettings() {
         return this.settings;
     }

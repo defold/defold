@@ -37,6 +37,7 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import com.dynamo.bob.archive.publisher.FolderPublisher;
 import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.util.TimeProfiler;
@@ -981,11 +982,23 @@ public class BundleHelper {
     // move archive into bundle folder if it's requested by a user
     public static void moveBundleIfNeed(Project project, File bundleDir) throws IOException {
         Publisher publisher = project.getPublisher();
-        if (publisher != null && publisher.shouldBeMovedIntoBundleFolder() && publisher instanceof ZipPublisher) {
-            ZipPublisher zipPublisher = (ZipPublisher) publisher;
-            File zipFile = zipPublisher.getZipFile();
-            if (zipFile != null && zipFile.exists()) {
-                Files.move(zipFile.toPath(), (new File(bundleDir, zipFile.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
+        if (publisher != null)  {
+            if (publisher.shouldBeMovedIntoBundleFolder() && publisher instanceof ZipPublisher) {
+                ZipPublisher zipPublisher = (ZipPublisher) publisher;
+                File zipFile = zipPublisher.getZipFile();
+                if (zipFile != null && zipFile.exists()) {
+                    Files.move(zipFile.toPath(), (new File(bundleDir, zipFile.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+            } else if (publisher.shouldFolderBeMovedIntoBundleFolder() && publisher instanceof FolderPublisher) {
+                FolderPublisher folderPublisher = (FolderPublisher) publisher;
+                File outputDirectory = folderPublisher.getOutputDirectory();
+                if (outputDirectory != null && outputDirectory.exists()) {
+                    File destFolder = new File(bundleDir, outputDirectory.getName());
+                    if (destFolder.exists()) {
+                        FileUtils.deleteDirectory(destFolder);
+                    }
+                    FileUtils.moveDirectory(outputDirectory, destFolder);
+                }
             }
         }
     }
