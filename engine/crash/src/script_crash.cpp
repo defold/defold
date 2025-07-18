@@ -176,7 +176,7 @@ namespace dmCrash
             lua_settable(L, -3);
 
             char str[64];
-            sprintf(str, "%p", addr);
+            dmSnPrintf(str, sizeof(str), "%p", addr);
             lua_pushliteral(L, "address");
             lua_pushstring(L, str);
             lua_settable(L, -3);
@@ -276,7 +276,7 @@ namespace dmCrash
       for (uint32_t i=0;i!=count;i++)
         {
             char str[64];
-            sprintf(str, "%p", GetBacktraceAddr(h, i));
+            dmSnPrintf(str, sizeof(str), "%p", GetBacktraceAddr(h, i));
             lua_pushnumber(L, i+1);
             lua_pushstring(L, str);
             lua_settable(L, -3);

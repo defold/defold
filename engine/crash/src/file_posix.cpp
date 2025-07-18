@@ -32,8 +32,8 @@ namespace dmCrash
         if (fhandle != -1)
         {
             AppStateHeader header;
-            header.version = AppState::VERSION;
-            header.struct_size = sizeof(AppState);
+            header.m_Version = AppState::VERSION;
+            header.m_StructSize = sizeof(AppState);
 
             if (write(fhandle, &header, sizeof(AppStateHeader)) == sizeof(AppStateHeader))
             {

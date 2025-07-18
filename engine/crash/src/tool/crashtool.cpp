@@ -12,7 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-
 #include <stdio.h>
 
 #include "crash.h"
@@ -21,17 +20,17 @@
 #include <algorithm> // find_if
 #include <cctype>
 #include <iostream>
-#include <functional>
 #include <stdexcept>
 #include <stdio.h>
 #include <string>
+#include <dlib/dstrings.h>
 
 
 static void Usage()
 {
-	fprintf(stderr, "Usage:\n");
-	fprintf(stderr, "\tcrashtool <crashlog> [<dmengine.exe>]\n");
-	fprintf(stderr, "\n");
+    fprintf(stderr, "Usage:\n");
+    fprintf(stderr, "\tcrashtool <crashlog> [<dmengine.exe>]\n");
+    fprintf(stderr, "\n");
 }
 
 
@@ -56,9 +55,11 @@ static int Exec(const char* cmd, std::string& result) {
 }
 #endif
 
-static inline std::string &rtrim(std::string &s) {
-    s.erase(std::find_if(s.rbegin(), s.rend(),
-            std::not1(std::ptr_fun<int, int>(std::isspace))).base(), s.end());
+static inline std::string&  rtrim(std::string &s)
+{
+    s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }).base(), s.end());
     return s;
 }
 
@@ -67,14 +68,88 @@ static inline std::string &rtrim(std::string &s) {
 
 #include <Windows.h>
 #include <Dbghelp.h>
+#include <psapi.h>
+
 struct PlatformInfo
 {
-    STARTUPINFO si;
+    STARTUPINFO         si;
     PROCESS_INFORMATION pi;
-    SYMBOL_INFO* symbol;
+    SYMBOL_INFO*        symbol;
+    char                buffer[2048];
+
+    uintptr_t           old_base_address;    // old process
+    uintptr_t           loaded_base_address;  // this process
+
+    dmCrash::HDump      dump;
+
+    uint32_t            num_modules;
+    const char*         module_names[dmCrash::AppState::MODULES_MAX];
+    uintptr_t           module_addresses[dmCrash::AppState::MODULES_MAX];
 };
 
-int PlatformInit(char* path, PlatformInfo& info)
+
+static void PrintErrorMessage(DWORD errorCode) {
+    LPVOID errorMessageBuffer = nullptr;
+
+    FormatMessageW(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
+        nullptr,
+        errorCode,
+        0, // Default language
+        reinterpret_cast<LPWSTR>(&errorMessageBuffer),
+        0,
+        nullptr
+    );
+
+    std::wcerr << "Error: 0x" <<  std::hex << errorCode << ": ";
+    if (errorMessageBuffer) {
+        std::wcerr << reinterpret_cast<LPWSTR>(errorMessageBuffer);
+        LocalFree(errorMessageBuffer);
+    }
+    else {
+        std::wcerr << "<Unknown error>";
+    }
+    std::wcerr << std::endl;
+}
+
+static int FindModules(PlatformInfo& info)
+{
+    info.num_modules = 0;
+
+    HMODULE hMods[1024];
+    DWORD cbNeeded = 0;
+
+    // Get a list of all the modules in this process.
+    if(EnumProcessModules(info.pi.hProcess, hMods, sizeof(hMods), &cbNeeded))
+    {
+        info.num_modules = (cbNeeded / sizeof(HMODULE));
+        for (uint32_t i = 0; i < info.num_modules; i++ )
+        {
+            char module_name[MAX_PATH];
+
+            // Get the full path to the module's file.
+            info.module_names[i] = 0;
+            info.module_addresses[i] = 0;
+            if (GetModuleFileNameExA(info.pi.hProcess, hMods[i], module_name, sizeof(module_name)))
+            {
+                // Print the module name and handle value.
+                std::cout << "Name: " << module_name << "  " << std::hex << hMods[i] << std::endl;
+                info.module_names[i] = strdup(module_name);
+                info.module_addresses[i] = (uintptr_t)hMods[i];
+            }
+        }
+    }
+    else
+    {
+        printf("Module enumeration failed. The callstack may be incorrect.\n");
+        DWORD errcode = GetLastError();
+        PrintErrorMessage(errcode);
+    }
+    return 0;
+}
+
+
+static int PlatformInit(const char* path, PlatformInfo& info)
 {
     if( path )
     {
@@ -85,128 +160,87 @@ int PlatformInit(char* path, PlatformInfo& info)
         info.si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
         info.si.dwFlags |= STARTF_USESTDHANDLES;
 
-        //if( !CreateProcess(0, path, 0, 0, TRUE, CREATE_NO_WINDOW | CREATE_SUSPENDED, 0, 0, &info.si, &info.pi) )
-        if( !CreateProcessA(0, path, 0, 0, TRUE, PROCESS_VM_READ, 0, 0, (LPSTARTUPINFOA)&info.si, &info.pi) )
-        {
-            char* msg;
-            DWORD err = GetLastError();
-            FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR)&msg, 0, 0);
-            fprintf(stderr, "Failed to launch application %s: %s (%d)", path, msg, err);
-            LocalFree((HLOCAL) msg);
+        printf("Opening path: '%s'\n", path);
 
+        // Allow for the missing dll dialog to show, as there's no api to get this info
+        SetErrorMode(SEM_NOALIGNMENTFAULTEXCEPT);
+
+        if( !CreateProcessA(0, (LPSTR)path, 0, 0, TRUE, PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, 0, (LPSTARTUPINFOA)&info.si, &info.pi) )
+        {
+            DWORD errcode = GetLastError();
+            PrintErrorMessage(errcode);
             return 0;
         }
 
-        info.symbol = ( SYMBOL_INFO * )calloc( sizeof( SYMBOL_INFO ) + 256 * sizeof( char ), 1 );
-        info.symbol->MaxNameLen = 255;
+        Sleep(100);
+
+        info.symbol = ( SYMBOL_INFO * )calloc( sizeof( SYMBOL_INFO ) + (MAX_SYM_NAME+1) * sizeof( wchar_t ), 1 );
+        info.symbol->MaxNameLen = MAX_SYM_NAME;
         info.symbol->SizeOfStruct = sizeof( SYMBOL_INFO );
 
-        SymInitialize( info.pi.hProcess, NULL, TRUE );
+        SymSetOptions(SYMOPT_LOAD_LINES);
+
+        if (!SymInitialize( info.pi.hProcess, NULL, TRUE ))
+        {
+            DWORD errcode = GetLastError();
+            PrintErrorMessage(errcode);
+            return 0;
+        }
+
+        FindModules(info);
     }
 
     return 1;
 }
 
-void PlatformExit(PlatformInfo& info)
+static void PlatformExit(PlatformInfo& info)
 {
     TerminateProcess( info.pi.hProcess, 0 );
-	WaitForSingleObject( info.pi.hProcess, 0);
+    WaitForSingleObject( info.pi.hProcess, 0);
     CloseHandle( info.pi.hProcess );
     CloseHandle( info.pi.hThread );
 
     free( info.symbol );
 }
 
-const char* PlatformGetSymbol(PlatformInfo& info, uintptr_t ptr)
+// https://learn.microsoft.com/en-us/windows/win32/debug/retrieving-symbol-information-by-address
+//  SymGetLineFromAddr64
+
+const char* PlatformGetSymbol(PlatformInfo& info, uintptr_t ptr, uint32_t module_index)
 {
-	if(!SymFromAddr( info.pi.hProcess, ( DWORD64 )( ptr ), 0, info.symbol ))
-	{
-		return 0;
-	}
-    //printf( "%i: %s - 0x%0X\n", frames - i - 1, symbol->Name, symbol->Address );
-    return info.symbol->Name;
-}
+    DWORD64 old_base_address = (DWORD64)dmCrash::GetModuleAddr(info.dump, module_index);
+    DWORD64 new_base_address = module_index < info.num_modules
+                                ? info.module_addresses[module_index]
+                                : old_base_address; // fallback to old address
 
-// http://stackoverflow.com/questions/17389968/get-linux-executable-load-address-builtin-return-address-and-addr2line
-// _AddressOfReturnAddress, GetModuleInformation + lpBaseOfDll
+    DWORD64 relative = ptr - old_base_address;
+    DWORD64 address = relative + new_base_address;
 
-/*
-#define PSAPI_VERSION 1
-#include <Psapi.h>
-DWORD_PTR GetProcessBaseAddress( PlatformInfo& info, DWORD processID )
-{
-    HMODULE hMods[1024];
-    HANDLE hProcess;
-    DWORD cbNeeded;
-
-    hProcess = info.pi.hProcess;
-
-printf("HELLO 2\n");
-	if( EnumProcessModules(hProcess, hMods, sizeof(hMods), &cbNeeded))
-	{
-    	for ( size_t i = 0; i < (cbNeeded / sizeof(HMODULE)); i++ )
-        {
-            TCHAR szModName[MAX_PATH];
-
-            // Get the full path to the module's file.
-
-            if ( GetModuleFileNameEx( hProcess, hMods[i], szModName,
-                                      sizeof(szModName) / sizeof(TCHAR)))
-            {
-                // Print the module name and handle value.
-
-                printf("\t%s (0x%08X)\n", szModName, (uint32_t)hMods[i] );
-            }
-        }
-    }
-
-printf("HELLO 3\n");
-    //CloseHandle( hProcess );
-    return 0;
-}
-*/
-
-#include <Psapi.h>
-uintptr_t GetProcessBaseAddress(PlatformInfo& pinfo, DWORD processID)
-{
-    HANDLE process = OpenProcess( PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processID );;
-    HMODULE mods[1024];
-    DWORD needed;
-
-    if (EnumProcessModules(process, mods, sizeof(mods), &needed))
+    DWORD64 dwDisplacement = 0;
+    if(!SymFromAddr( info.pi.hProcess, address, &dwDisplacement, info.symbol ))
     {
-        uint32_t count = needed / sizeof(HANDLE);
-        for (uint32_t i=0;i!=count;i++)
-        {
-        	char path[512];
-            if (!GetModuleFileNameExA(process, mods[i], path, 512))
-            {
-            	fprintf(stderr, "Failed to get module filename");
-            }
-
-            fprintf(stderr, "module: %s\n", path);
-
-            MODULEINFO info;
-            if (GetModuleInformation(process, mods[i], &info, sizeof(info)))
-            {
-            fprintf(stderr, "  size: 0x%08x\n", info.SizeOfImage);
-            }
-        }
+        DWORD errcode = GetLastError();
+        PrintErrorMessage(errcode);
+        return 0;
     }
-    else
+    //printf( "  %s - 0x%0llX  0x%0llx\n", info.symbol->Name, ptr, dwDisplacement);
+
+    IMAGEHLP_LINE line = {0};
+    line.SizeOfStruct = sizeof(IMAGEHLP_LINE);
+
+    const char* filename = "<null>";
+    int line_number = -1;
+    DWORD lineDisplacement;
+    if (SymGetLineFromAddr(info.pi.hProcess, address, &lineDisplacement, &line))
     {
-        fprintf(stderr, "Failed to enumerate process modules\n");
-
-        char* msg;
-        DWORD err = GetLastError();
-        FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR) &msg, 0, 0);
-        fprintf(stderr, "Error: %s (%d)\n", msg, err);
-        LocalFree((HLOCAL) msg);
+        filename = line.FileName;
+        line_number = line.LineNumber;
     }
 
-    CloseHandle(process);
+    dmSnPrintf(info.buffer, sizeof(info.buffer), "%s  %s(%d)", info.symbol->Name, filename, line_number );
+    info.buffer[sizeof(info.buffer)-1] = 0;
 
-    return 0;
+    return info.buffer;
 }
 
 #elif defined(__APPLE__)
@@ -216,16 +250,18 @@ struct PlatformInfo
     const char* executable_path;
     const char* basename; // "e.g. dmengine"
 
+    dmCrash::HDump dump;
+
     char buffer[2048];
 };
 
 
-static int ExtractDSym(char* executable_path, char* targetpath)
+static int ExtractDSym(const char* executable_path, char* targetpath)
 {
     printf("Extracting symbols from %s to %s\n", executable_path, targetpath);
 
     char cmd[2048] = {0};
-    sprintf(cmd, "dsymutil -o %s %s", targetpath, executable_path);
+    dmSnPrintf(cmd, sizeof(cmd), "dsymutil -o %s %s", targetpath, executable_path);
 
     printf("%s\n", cmd);
 
@@ -235,7 +271,7 @@ static int ExtractDSym(char* executable_path, char* targetpath)
 }
 
 
-int PlatformInit(char* executable_path, PlatformInfo& info)
+int PlatformInit(const char* executable_path, PlatformInfo& info)
 {
     info.basename = 0;
     info.executable_path = executable_path;
@@ -251,7 +287,7 @@ int PlatformInit(char* executable_path, PlatformInfo& info)
         }
 
         char buffer[1024] = {0};
-        sprintf(buffer, "%s.dSYM", info.basename);
+        dmSnPrintf(buffer, sizeof(buffer), "%s.dSYM", info.basename);
 
         if( ExtractDSym(executable_path, buffer) )
         {
@@ -267,7 +303,7 @@ void PlatformExit(PlatformInfo& info)
 }
 
 
-const char* PlatformGetSymbol(PlatformInfo& info, uintptr_t ptr)
+const char* PlatformGetSymbol(PlatformInfo& info, uintptr_t ptr, uint32_t module_index)
 {
     if( !info.executable_path )
     {
@@ -275,7 +311,7 @@ const char* PlatformGetSymbol(PlatformInfo& info, uintptr_t ptr)
     }
 
     char cmd[2048];
-    sprintf(cmd, "atos -o %s.dSYM/Contents/Resources/DWARF/%s %p", info.basename, info.basename, (void*)ptr);
+    dmSnPrintf(cmd, sizeof(cmd), "atos -o %s.dSYM/Contents/Resources/DWARF/%s %p", info.basename, info.basename, (void*)ptr);
 
     std::string output;
     int result = Exec(cmd, output);
@@ -299,10 +335,12 @@ struct PlatformInfo
     const char* executable_path;
     const char* basename; // "e.g. dmengine"
 
+    dmCrash::HDump dump;
+
     char buffer[2048];
 };
 
-int PlatformInit(char* executable_path, PlatformInfo& info)
+int PlatformInit(const char* executable_path, PlatformInfo& info)
 {
     info.basename = 0;
     info.executable_path = executable_path;
@@ -324,7 +362,7 @@ void PlatformExit(PlatformInfo& info)
 {
 }
 
-const char* PlatformGetSymbol(PlatformInfo& info, uintptr_t ptr)
+const char* PlatformGetSymbol(PlatformInfo& info, uintptr_t ptr, uint32_t module_index)
 {
     if( !info.executable_path )
     {
@@ -332,7 +370,7 @@ const char* PlatformGetSymbol(PlatformInfo& info, uintptr_t ptr)
     }
 
     char cmd[2048];
-    sprintf(cmd, "addr2line -e %s %p", info.executable_path, (void*)ptr);
+    dmSnPrintf(cmd, sizeof(cmd), "addr2line -e %s %p", info.executable_path, (void*)ptr);
 
     std::string output;
     int result = Exec(cmd, output);
@@ -364,25 +402,33 @@ enum Platforms
 
 int main(int argc, char** argv)
 {
-	if( argc < 2 )
-	{
-		Usage();
-		return 1;
-	}
+    if( argc < 2 )
+    {
+        Usage();
+        return 1;
+    }
 
-	PlatformInfo info;
-	if( !PlatformInit( argc >= 2 ? argv[2] : 0, info) )
-	{
+    PlatformInfo info;
+    const char* path = argc >= 2 ? argv[2] : 0;
+    if (!path)
+    {
+        fprintf(stderr, "No path to executable specified. Symbolication disabled.\n");
+    }
+
+    if( !PlatformInit(path, info) )
+    {
         fprintf(stderr, "Failed to initialize.\n");
-		return 1;
-	}
+        return 1;
+    }
 
     int ret = 0;
 
     dmCrash::HDump dump = dmCrash::LoadPreviousPath(argv[1]);
     if(dump)
     {
-    	const char* names[dmCrash::SYSFIELD_MAX] = {
+        info.dump = dump;
+
+        const char* names[dmCrash::SYSFIELD_MAX] = {
            "ENGINE_VERSION",
            "ENGINE_HASH",
            "DEVICE_MODEL",
@@ -393,14 +439,14 @@ int main(int argc, char** argv)
            "DEVICE_LANGUAGE",
            "TERRITORY",
            "ANDROID_BUILD_FINGERPRINT",
-       	};
+           };
 
         int platform = PLATFORM_UNKNOWN;
 
-    	for( int i = 0; i < dmCrash::SYSFIELD_MAX; ++i)
-    	{
-    		const char* value = dmCrash::GetSysField(dump, (dmCrash::SysField)i);
-    		printf("%26s: %s\n", names[i], value);
+        for( int i = 0; i < dmCrash::SYSFIELD_MAX; ++i)
+        {
+            const char* value = dmCrash::GetSysField(info.dump, (dmCrash::SysField)i);
+            printf("%26s: %s\n", names[i], value);
 
             if( strcmp(names[i], "SYSTEM_NAME") == 0 )
             {
@@ -409,83 +455,85 @@ int main(int argc, char** argv)
                 else if( strcmp(value, "Linux") == 0 )
                     platform = PLATFORM_LINUX;
             }
-    	}
+        }
         (void)platform; // for later use
 
         printf("\n");
-        printf("%26s: %d\n", "SIG", dmCrash::GetSignum(dump));
+        printf("%26s: %d\n", "SIG", dmCrash::GetSignum(info.dump));
 
-    	printf("%26s:\n", "USERDATA");
-    	for( int i = 0; i < (int)dmCrash::AppState::USERDATA_SLOTS; ++i)
-    	{
-    		const char* value = dmCrash::GetUserField(dump, i);
-    		if(!value || strcmp(value, "")==0)
-    		{
-    			break;
-    		}
-    		printf("%02d: %s\n", i, value);
-    	}
+        printf("%26s:\n", "USERDATA");
+        for( int i = 0; i < (int)dmCrash::AppState::USERDATA_SLOTS; ++i)
+        {
+            const char* value = dmCrash::GetUserField(info.dump, i);
+            if(!value || strcmp(value, "")==0)
+            {
+                break;
+            }
+            printf("%02d: %s\n", i, value);
+        }
 
         printf("\n%s:\n", "BACKTRACE");
 
 
-        int frames = dmCrash::GetBacktraceAddrCount(dump);
+        int frames = dmCrash::GetBacktraceAddrCount(info.dump);
         for( int i = 0; i < frames; ++i )
         {
-            uintptr_t ptr = (uintptr_t)dmCrash::GetBacktraceAddr(dump, i);
+            uintptr_t ptr = (uintptr_t)dmCrash::GetBacktraceAddr(info.dump, i);
+            uint32_t module_index = dmCrash::GetBacktraceModuleIndex(info.dump, i);
 
-            const char* value = PlatformGetSymbol(info, ptr);
+            const char* value = PlatformGetSymbol(info, ptr, module_index);
             printf("%02d  0x%016llX: %s\n", frames - i - 1, (unsigned long long)ptr, value ? value : "<null>");
         }
 
 
         printf("\n%s:\n", "EXTRA DATA");
 
-        const char* extra_data = dmCrash::GetExtraData(dump);
+        const char* extra_data = dmCrash::GetExtraData(info.dump);
         printf("%s\n", extra_data ? extra_data : "<null>");
 
 
         printf("\n%s:\n", "MODULES");
         for( int i = 0; i < (int)dmCrash::AppState::MODULES_MAX; ++i)
         {
-            const char* modulename = dmCrash::GetModuleName(dump, i);
+            const char* modulename = dmCrash::GetModuleName(info.dump, i);
             if( modulename == 0 )
             {
                 break;
             }
-            uintptr_t ptr = (uintptr_t)dmCrash::GetModuleAddr(dump, i);
+            uintptr_t ptr = (uintptr_t)dmCrash::GetModuleAddr(info.dump, i);
             printf("%02d: %s  0x%016llx\n", i, modulename ? modulename : "<null>", (unsigned long long)ptr);
         }
         printf("\n");
 
-        // Win32 try outs
-    // uintptr_t moduleaddr = (uintptr_t)GetProcessBaseAddress(info, info.pi.dwProcessId);
-    // printf("MODULE BASE ADDR: 0x%016lx\n", moduleaddr);
-
-        // printf("%s:\n", "BACKTRACE");
-
-        // int frames = dmCrash::GetBacktraceAddrCount(dump);
-        // for( int i = 0; i < frames; ++i )
+        // // Win32 try outs
         // {
-        //  uintptr_t ptr = (uintptr_t)dmCrash::GetBacktraceAddr(dump, i);
-        //  ptr -= 0x330000;
+        //     uintptr_t moduleaddr = (uintptr_t)GetProcessBaseAddress(info, info.pi.dwProcessId);
+        //     printf("MODULE BASE ADDR: 0x%016llx\n", moduleaddr);
 
-        //  ptr += moduleaddr;
+        //     printf("%s:\n", "BACKTRACE");
 
-        //  const char* value = PlatformGetSymbol(info, ptr);
-        //  printf("0x%016lX: %02d: %s\n", (uintptr_t)ptr, frames - i - 1, value ? value : "<null>");
+        //     int frames = dmCrash::GetBacktraceAddrCount(info.dump);
+        //     for( int i = 0; i < frames; ++i )
+        //     {
+        //      uintptr_t ptr = (uintptr_t)dmCrash::GetBacktraceAddr(info.dump, i);
+        //      ptr -= 0x330000;
+
+        //      ptr += moduleaddr;
+
+        //      const char* value = PlatformGetSymbol(info, ptr);
+        //      printf("0x%016llX: %02d: %s\n", (uintptr_t)ptr, frames - i - 1, value ? value : "<null>");
+        //     }
         // }
 
 
-
-    	dmCrash::Release(dump);
+        dmCrash::Release(info.dump);
     }
     else
     {
-    	fprintf(stderr, "Failed to load crash dump: %s\n", argv[2]);
-    	ret = 1;
+        fprintf(stderr, "Failed to load crash dump: %s\n", argv[2]);
+        ret = 1;
     }
 
     PlatformExit(info);
-	return ret;
+    return ret;
 }
