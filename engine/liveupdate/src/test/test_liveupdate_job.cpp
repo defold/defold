@@ -102,7 +102,7 @@ TEST_F(AsyncTestSingleThread, TestJobs)
             break;
         }
 
-        dmJobThread::Update(m_JobThread); // Flushes finished async jobs', and calls any Lua callbacks
+        dmJobThread::Update(m_JobThread, 0); // Flushes finished async jobs', and calls any Lua callbacks
 
         int num_finished = 0;
         for (uint32_t i = 0; i < num_jobs; ++i)

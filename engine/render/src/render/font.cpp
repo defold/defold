@@ -17,6 +17,7 @@
 #include "font_renderer_private.h"
 #include "font_renderer_api.h"
 
+#include <dlib/math.h>
 #include <dlib/mutex.h>
 #include <dlib/zlib.h>
 
@@ -33,7 +34,6 @@ namespace dmRender
     , m_MaxAscent(0.0f)
     , m_MaxDescent(0.0f)
     , m_SdfSpread(1.0f)
-    , m_SdfOffset(0)
     , m_SdfOutline(0)
     , m_SdfShadow(0)
     , m_CacheWidth(0)
@@ -163,7 +163,13 @@ namespace dmRender
         ClearTexture(font_map, width, height);
     }
 
-    void SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params)
+    /**
+     * Update the font map with the specified parameters. The parameters are consumed and should not be read after this call.
+     * @param font_map Font map handle
+     * @param params Parameters to update
+     * @return result true if the font map was created correctly
+     */
+    static bool SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params)
     {
         assert(params.m_GetGlyph);
         assert(params.m_GetGlyphData);
@@ -177,7 +183,6 @@ namespace dmRender
         font_map->m_MaxAscent = params.m_MaxAscent;
         font_map->m_MaxDescent = params.m_MaxDescent;
         font_map->m_SdfSpread = params.m_SdfSpread;
-        font_map->m_SdfOffset = params.m_SdfOffset;
         font_map->m_SdfOutline = params.m_SdfOutline;
         font_map->m_SdfShadow = params.m_SdfShadow;
         font_map->m_Alpha = params.m_Alpha;
@@ -187,13 +192,30 @@ namespace dmRender
         font_map->m_IsMonospaced = params.m_IsMonospaced;
         font_map->m_Padding = params.m_Padding;
 
-        font_map->m_CacheWidth = params.m_CacheWidth;
-        font_map->m_CacheHeight = params.m_CacheHeight;
+        // Is the cache allowed to grow?
+        font_map->m_DynamicCacheSize = params.m_CacheWidth == 0 && params.m_CacheHeight == 0;
+        if (font_map->m_DynamicCacheSize)
+        {
+            // we mustn't have a 0x0 size texture
+            font_map->m_CacheWidth  = 64;
+            font_map->m_CacheHeight = 64;
+        }
+        else
+        {
+            font_map->m_CacheWidth = params.m_CacheWidth;
+            font_map->m_CacheHeight = params.m_CacheHeight;
+        }
+        font_map->m_CacheMaxWidth = params.m_CacheMaxWidth;
+        font_map->m_CacheMaxHeight = params.m_CacheMaxHeight;
+
+        uint16_t cell_width = dmMath::Max(8U, params.m_CacheCellWidth);
+        uint16_t cell_height = dmMath::Max(8U, params.m_CacheCellHeight);
+
         font_map->m_CacheCellPadding = params.m_CacheCellPadding;
         font_map->m_CacheChannels = params.m_GlyphChannels;
 
         SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheHeight,
-                                params.m_CacheCellWidth, params.m_CacheCellHeight, params.m_CacheCellMaxAscent);
+                                cell_width, cell_height, params.m_CacheCellMaxAscent);
 
         switch (params.m_GlyphChannels)
         {
@@ -208,8 +230,7 @@ namespace dmRender
             break;
             default:
                 dmLogError("Invalid channel count for glyph data: %u", params.m_GlyphChannels);
-                delete font_map;
-                return;
+                return false;
         };
 
         if (params.m_ImageFormat == dmRenderDDF::TYPE_BITMAP)
@@ -225,14 +246,20 @@ namespace dmRender
         }
 
         font_map->m_GraphicsContext = graphics_context;
-        RecreateTexture(font_map, font_map->m_GraphicsContext, params.m_CacheWidth, params.m_CacheHeight);
+        RecreateTexture(font_map, font_map->m_GraphicsContext, font_map->m_CacheWidth, font_map->m_CacheHeight);
+        return true;
     }
 
     HFontMap NewFontMap(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params)
     {
-        FontMap* font_map = new FontMap();
+        FontMap* font_map = new FontMap;
         font_map->m_Mutex = dmMutex::New();
-        SetFontMap(font_map, render_context, graphics_context, params);
+        bool result = SetFontMap(font_map, render_context, graphics_context, params);
+        if (!result)
+        {
+            DeleteFontMap(font_map);
+            return 0;
+        }
         return font_map;
     }
 
@@ -360,10 +387,30 @@ namespace dmRender
         return x + 1;
     }
 
+    static bool GetNextCacheSize(HFontMap font_map, uint16_t* width, uint16_t* height)
+    {
+        const uint16_t max_width = font_map->m_CacheMaxWidth;
+        const uint16_t max_height = font_map->m_CacheMaxHeight;
+        if (*height <= *width)
+            *height = NextPowerOfTwo(*height);
+        else
+            *width = NextPowerOfTwo(*width);
+
+        return *width <= max_width && *height <= max_height;
+    }
+
     static void ResetCache(HFontMap font_map, dmGraphics::HContext graphics_context, bool recreate_texture, dmRender::FontMetrics* metrics)
     {
-        font_map->m_CacheWidth = dmMath::Max(font_map->m_CacheWidth, (uint32_t)metrics->m_ImageMaxWidth);
-        font_map->m_CacheHeight = dmMath::Max(font_map->m_CacheHeight, (uint32_t)metrics->m_ImageMaxHeight);
+        if (font_map->m_IsCacheSizeTooSmall)
+        {
+            GetNextCacheSize(font_map, &font_map->m_CacheWidth, &font_map->m_CacheHeight);
+            font_map->m_IsCacheSizeTooSmall = 0;
+        }
+        else
+        {
+            font_map->m_CacheWidth = dmMath::Max(font_map->m_CacheWidth, (uint16_t)metrics->m_ImageMaxWidth);
+            font_map->m_CacheHeight = dmMath::Max(font_map->m_CacheHeight, (uint16_t)metrics->m_ImageMaxHeight);
+        }
 
         if (!IsPowerOfTwo(font_map->m_CacheWidth))
             font_map->m_CacheWidth = NextPowerOfTwo(font_map->m_CacheWidth);
@@ -384,6 +431,7 @@ namespace dmRender
         SetFontMapCacheSize(font_map, metrics->m_ImageMaxWidth, metrics->m_ImageMaxHeight, metrics->m_MaxAscent);
     }
 
+    // Is the font cache too small for the largest glyph?
     static bool IsTextureTooSmall(HFontMap font_map, dmRender::FontMetrics& font_metrics)
     {
         if (!font_map->m_GetFontMetrics)
@@ -547,6 +595,19 @@ namespace dmRender
         return GetFromCache(font_map, c) != 0;
     }
 
+    static bool CanCacheTextureGrow(HFontMap font_map)
+    {
+        if (!font_map->m_DynamicCacheSize)
+        {
+            return false;
+        }
+
+        uint16_t width  = font_map->m_CacheWidth;
+        uint16_t height = font_map->m_CacheHeight;
+        bool result = GetNextCacheSize(font_map, &width, &height);
+        return result;
+    }
+
     void AddGlyphToCache(HFontMap font_map, uint32_t frame, dmRender::FontGlyph* g, int32_t g_offset_y)
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
@@ -556,6 +617,14 @@ namespace dmRender
 
         if (cache_glyph->m_Glyph && cache_glyph->m_Frame == frame)
         {
+            bool can_resize = CanCacheTextureGrow(font_map);
+            if (can_resize)
+            {
+                font_map->m_IsCacheSizeDirty = 1;
+                font_map->m_IsCacheSizeTooSmall = 1;
+                return;
+            }
+
             // It means we've filled the entire cache with upload requests
             // We might then just as well skip the next uploads until the next frame
             dmLogWarning("Entire font glyph cache (%u x %u) is filled in a single frame %u ('%c' %u). Consider increasing the cache for %s", font_map->m_CacheWidth, font_map->m_CacheHeight, frame, g->m_Character < 255 ? g->m_Character : ' ', g->m_Character, dmHashReverseSafe64(font_map->m_NameHash));

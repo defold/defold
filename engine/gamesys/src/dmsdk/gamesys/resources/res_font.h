@@ -16,8 +16,8 @@
 #define DMSDK_GAMESYS_RES_FONT_H
 
 #include <dmsdk/resource/resource.h>
-#include <dmsdk/gamesys/resources/res_font.h>
 #include <render/font_ddf.h>
+#include <dmsdk/font/font.h>
 #include <dmsdk/render/render.h>
 
 namespace dmGameSystem
@@ -34,27 +34,49 @@ namespace dmGameSystem
      */
 
     /*#
+     * The edge value of an sdf glyph bitmap
+     * @constant
+     * @name SDF_EDGE_VALUE
+     */
+    const float SDF_EDGE_VALUE = 0.75f; // This is a fixed constant in the current font renderer
+
+    /*#
      * Handle to font resource
      * @struct
      * @name FontResource
      */
     struct FontResource;
 
+    struct TTFResource;
+
     /*#
      * Used to retrieve the information of a font.
-     * @typedef
+     * @struct
      * @name FontInfo
-     * @member m_Size [type: uint32_t]
-     * @member m_Antialias [type: uint32_t]
-     * @member m_ShadowX [type: float]
-     * @member m_ShadowY [type: float]
-     * @member m_ShadowBlur [type: uint32_t]
-     * @member m_ShadowAlpha [type: float]
-     * @member m_Alpha [type: float]
-     * @member m_OutlineAlpha [type: float]
-     * @member m_OutlineWidth [type: float]
+     * @member m_Size [type: uint32_t] The size of the font (in points)
+     * @member m_ShadowX [type: float] The shadow distance in X-axis (in pixels)
+     * @member m_ShadowY [type: float] The shadow distance in Y-axis (in pixels)
+     * @member m_ShadowBlur [type: uint32_t] The shadow blur spread [0.255] (in pixels)
+     * @member m_ShadowAlpha [type: float] The shadow alpha value [0..255]
+     * @member m_Alpha [type: float] The alpha value [0..255]
+     * @member m_OutlineAlpha [type: float] The outline alpha value [0..255]
+     * @member m_OutlineWidth [type: float] The outline size (in pixels)
+     * @member m_OutputFormat [type: dmRenderDDF::FontTextureFormat] The type of font (bitmap or distance field)
+     * @member m_RenderMode [type: dmRenderDDF::FontRenderMode] Single or multi channel
      */
-    typedef dmRenderDDF::FontMap FontInfo;
+    struct FontInfo
+    {
+        uint32_t   m_Size;
+        float      m_ShadowX;
+        float      m_ShadowY;
+        uint32_t   m_ShadowBlur;
+        float      m_ShadowAlpha;
+        float      m_Alpha;
+        float      m_OutlineAlpha;
+        float      m_OutlineWidth;
+        dmRenderDDF::FontTextureFormat m_OutputFormat;
+        dmRenderDDF::FontRenderMode m_RenderMode;
+    };
 
     /*#
      * Represents a glyph.
@@ -93,16 +115,49 @@ namespace dmGameSystem
      */
     enum FontGlyphCompression
     {
-        FONT_GLYPH_COMPRESSION_NONE = 0,
-        FONT_GLYPH_COMPRESSION_DEFLATE = 1,
+        FONT_GLYPH_COMPRESSION_NONE = dmFont::GLYPH_BM_FLAG_COMPRESSION_NONE,
+        FONT_GLYPH_COMPRESSION_DEFLATE = dmFont::GLYPH_BM_FLAG_COMPRESSION_DEFLATE,
     };
+
+    static const uint32_t WHITESPACE_TAB               = 0x09;      // '\t'
+    static const uint32_t WHITESPACE_NEW_LINE          = 0x0A;      // '\n'
+    static const uint32_t WHITESPACE_CARRIAGE_RETURN   = 0x0D;      // '\r'
+    static const uint32_t WHITESPACE_SPACE             = 0x20;      // ' '
+    static const uint32_t WHITESPACE_ZERO_WIDTH_SPACE  = 0x200b;
+    static const uint32_t WHITESPACE_NO_BREAK_SPACE    = 0x00a0;
+    static const uint32_t WHITESPACE_IDEOGRAPHIC_SPACE = 0x3000;
+
+    /*#
+     * Checks if a codepoint is a whitespace
+     * @name IsWhiteSpace
+     * @param c [type: uint32_t] the codepoint
+     * @return result [type: bool] true if it's a whitespace
+     */
+    inline bool IsWhiteSpace(uint32_t c)
+    {
+        return c == WHITESPACE_SPACE ||
+               c == WHITESPACE_NEW_LINE ||
+               c == WHITESPACE_ZERO_WIDTH_SPACE ||
+               c == WHITESPACE_NO_BREAK_SPACE ||
+               c == WHITESPACE_IDEOGRAPHIC_SPACE ||
+               c == WHITESPACE_TAB ||
+               c == WHITESPACE_CARRIAGE_RETURN;
+    }
 
     /*#
      * @name ResFontGetHandle
-     * @param font [type: FontResource*] The font resource to modify
+     * @param font [type: FontResource*] The font resource
      * @return result [type: dmRender::HFont] Handle to a font if successful. 0 otherwise.
      */
     dmRender::HFont ResFontGetHandle(FontResource* font);
+
+    /*#
+     * @name ResFontGetTTFResourceFromCodepoint
+     * @param font [type: FontResource*] The font resource
+     * @param codepoint [type: uint32_t] The codepoint to query
+     * @return ttfresource [type: TTFResource*] The ttfresource if successful. 0 otherwise.
+     */
+    TTFResource* ResFontGetTTFResourceFromCodepoint(FontResource* resource, uint32_t codepoint);
 
     /*#
      * @name ResFontGetInfo
@@ -112,54 +167,7 @@ namespace dmGameSystem
      */
     dmResource::Result ResFontGetInfo(FontResource* font, FontInfo* info);
 
-    /*#
-     * Set the font line height, by specifying the max ascent and descent
-     * @name ResFontSetLineHeight
-     * @param font [type: FontResource*] The font resource to modify
-     * @param max_ascent [type: float] The max distance above the base line of any glyph
-     * @param max_descent [type: float] The max distance below the base line of any glyph
-     * @return result [type: dmResource::Result] RESULT_OK if successful
-     */
-    dmResource::Result ResFontSetLineHeight(FontResource* font, float max_ascent, float max_descent);
-
-    /*#
-     * Get the font line height (max_ascent + max_descent)
-     * @name ResFontGetLineHeight
-     * @param font [type: FontResource*] The font resource to modify
-     * @param max_ascent [type: float*] The max distance above the base line of any glyph
-     * @param max_descent [type: float*] The max distance below the base line of any glyph
-     * @return result [type: dmResource::Result] RESULT_OK if successful
-     */
-    dmResource::Result ResFontGetLineHeight(FontResource* font, float* max_ascent, float* max_descent);
-
-    /*#
-     * Resets the glyph cache and sets the cell size.
-     * @name ResFontSetCacheCellSize
-     * @param font [type: FontResource*] The font resource to modify
-     * @param cell_width [type: uint32_t] The width of a glyph cache cell
-     * @param cell_height [type: uint32_t] The height of a glyph cache cell
-     * @param max_ascent [type: uint32_t] The height of a glyph cache cell
-     * @return result [type: dmResource::Result] RESULT_OK if successful
-     */
-    dmResource::Result ResFontSetCacheCellSize(FontResource* font, uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent);
-
-    /*#
-     * @name ResFontGetCacheCellSize
-     * @param font [type: FontResource*] The font resource to modify
-     * @param width [type: uint32_t*] The cache cell width
-     * @param height [type: uint32_t*] The cache cell height
-     * @param max_ascent [type: uint32_t*] The distance from the top of the cell to the baseline.
-     * @return result [type: dmResource::Result] RESULT_OK if successful
-     */
-    dmResource::Result ResFontGetCacheCellSize(FontResource* font, uint32_t* width, uint32_t* height, uint32_t* max_ascent);
-
-    /*#
-     * @name ResFontHasGlyph
-     * @param font [type: FontResource*] The font resource
-     * @param codepoint [type: uint32_t] The glyph codepoint
-     * @return result [type: bool] true if the glyph already exists
-     */
-    bool ResFontHasGlyph(FontResource* font, uint32_t codepoint);
+    // FontGen API
 
     /*#
      * @name ResFontAddGlyph
@@ -179,7 +187,29 @@ namespace dmGameSystem
      */
     dmResource::Result ResFontRemoveGlyph(FontResource* font, uint32_t codepoint);
 
-    void   ResFontDebugPrint(FontResource* font);
+    /*# add a new glyph range
+     * Add a new glyph range
+     * @name ResFontAddGlyphSource
+     * @param factory [type: dmResource::HFactory] The factory
+     * @param fontc_hash [type: dmhash_t] The font path hash (.fontc)
+     * @param ttf_hash [type: dmhash_t] The ttf  path hash (.ttf)
+     * @param codepoint_min [type: uint32_t] The glyph minimum codepoint (inclusive)
+     * @param codepoint_max [type: uint32_t] The glyph maximum codepoint (inclusive)
+     * @return result [type: dmResource::Result] RESULT_OK if successful
+     */
+    dmResource::Result ResFontAddGlyphSource(dmResource::HFactory factory, dmhash_t fontc_hash, dmhash_t ttf_hash, uint32_t codepoint_min, uint32_t codepoint_max);
+
+
+    /*# removes all glyph ranges associated with a ttfresource
+     * Removes all glyph ranges associated with a ttfresource
+     *
+     * @name ResFontRemoveGlyphSource
+     * @param factory [type: dmResource::HFactory] The factory
+     * @param fontc_hash [type: dmhash_t] The font path hash (.fontc)
+     * @param ttf_hash [type: dmhash_t] The ttf  path hash (.ttf)
+     * @return result [type: dmResource::Result] RESULT_OK if successful
+     */
+    dmResource::Result ResFontRemoveGlyphSource(dmResource::HFactory factory, dmhash_t fontc_hash, dmhash_t ttf_hash);
 }
 
 #endif // DMSDK_GAMESYS_RES_FONT_H

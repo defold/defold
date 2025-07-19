@@ -68,8 +68,6 @@ namespace dmRender
         float m_MaxDescent;
         /// Value to scale SDF texture values with
         float m_SdfSpread;
-        /// Value to offset SDF texture values with
-        float m_SdfOffset;
         /// Distance value where outline should end
         float m_SdfOutline;
         /// Distance value where shadow should end
@@ -83,6 +81,8 @@ namespace dmRender
 
         uint32_t m_CacheWidth;
         uint32_t m_CacheHeight;
+        uint32_t m_CacheMaxWidth;
+        uint32_t m_CacheMaxHeight;
         uint32_t m_CacheCellWidth;
         uint32_t m_CacheCellHeight;
         uint32_t m_CacheCellMaxAscent;
@@ -91,7 +91,8 @@ namespace dmRender
         uint8_t m_LayerMask;
 
         uint8_t m_IsMonospaced:1;
-        uint8_t m_Padding:7;
+        uint8_t m_IsDynamic:1;
+        uint8_t m_Padding:6;        // Note: Not C struct padding, but actual glyph padding.
 
         dmRenderDDF::FontTextureFormat m_ImageFormat;
     };
@@ -159,13 +160,6 @@ namespace dmRender
      * @param font_map Font map handle
      */
     void DeleteFontMap(HFontMap font_map);
-
-    /**
-     * Update the font map with the specified parameters. The parameters are consumed and should not be read after this call.
-     * @param font_map Font map handle
-     * @param params Parameters to update
-     */
-    void SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params);
 
     /**
      * Get texture from a font map

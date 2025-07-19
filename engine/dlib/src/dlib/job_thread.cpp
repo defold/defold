@@ -15,15 +15,15 @@
 
 #include <stdio.h> // printf
 
-#include <dmsdk/dlib/array.h>
+#include <dlib/thread.h> // We want the defines DM_HAS_THREADS
 
+#include <dmsdk/dlib/dstrings.h>
+#include <dmsdk/dlib/math.h>
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/atomic.h>
-#include <dmsdk/dlib/profile.h>
 #include <dmsdk/dlib/log.h>
-#include <dlib/thread.h>
-#include <dlib/math.h>
-#include <dlib/dstrings.h>
+#include <dmsdk/dlib/profile.h>
+#include <dmsdk/dlib/time.h>
 
 #if defined(DM_HAS_THREADS)
     #include <dmsdk/dlib/condition_variable.h>
@@ -115,16 +115,22 @@ static void JobThread(void* _ctx)
     }
 }
 #else
-static void UpdateSingleThread(JobThreadContext* ctx)
+static void UpdateSingleThread(JobThreadContext* ctx, uint64_t max_time)
 {
-    DM_PROFILE("SingleThread");
-    if (ctx->m_Work.Empty())
-        return;
-    // TODO: Perhaps time scope a number of items!
-    JobItem item = ctx->m_Work.Pop();
+    uint64_t tstart = dmTime::GetMonotonicTime();
+    while (!ctx->m_Work.Empty())
+    {
+        JobItem item = ctx->m_Work.Pop();
 
-    item.m_Result = item.m_Process(item.m_Context, item.m_Data);
-    PutDone(ctx, &item);
+        item.m_Result = item.m_Process(item.m_Context, item.m_Data);
+        PutDone(ctx, &item);
+
+        uint64_t tend = dmTime::GetMonotonicTime();
+        if ((tend-tstart) > max_time)
+        {
+            break;
+        }
+    }
 }
 #endif
 
@@ -199,12 +205,12 @@ uint32_t GetWorkerCount(HContext context)
 #endif
 }
 
-void Update(HContext context)
+void Update(HContext context, uint64_t time_limit)
 {
     DM_PROFILE("JobThreadUpdate");
 
 #if !defined(DM_HAS_THREADS)
-    UpdateSingleThread(&context->m_ThreadContext);
+    UpdateSingleThread(&context->m_ThreadContext, time_limit);
 #endif
 
     // Lock for as little as possible, by copying the items to an array owned by this thread

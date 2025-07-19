@@ -1,0 +1,13 @@
+#! /usr/bin/env python
+
+from waflib.Options import options
+
+def build(bld):
+    if options.skip_build_tests:
+       return
+
+    bld(features = 'cxx cprogram ddf test',
+        source   = bld.path.ant_glob(['*.cpp']),
+        use      = 'TESTMAIN DLIB PROFILE_NULL font',
+        includes = '. .. ../font',
+        target = 'test_font')

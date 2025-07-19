@@ -20,6 +20,7 @@
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/http_cache.h>
+#include <dlib/job_thread.h>
 #include <dlib/mutex.h>
 
 struct ResourceDescriptor;
@@ -436,6 +437,9 @@ namespace dmResource
     typedef int (*FPreloadDataCallback)(HFactory factory, void* cbk_ctx, HResourceDescriptor resource, uint32_t offset, uint32_t nread, uint8_t* buffer);
 
     Result PreloadData(HFactory factory, const char* path, uint32_t offset, uint32_t size, FPreloadDataCallback cbk, void* cbk_ctx);
+
+    // Get the assigned Job thread
+    dmJobThread::HContext GetJobThread(const dmResource::HFactory factory);
 }
 
 #endif // DM_RESOURCE_H

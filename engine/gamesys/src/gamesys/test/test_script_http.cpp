@@ -94,7 +94,11 @@ public:
     dmScript::HContext m_ScriptContext;
     lua_State* L;
     dmMessage::URL m_DefaultURL;
+    dmPlatform::HWindow m_Window;
+    dmResource::HFactory m_Factory;
     dmConfigFile::HConfig m_ConfigFile;
+    dmGraphics::HContext m_GraphicsContext;
+    dmRender::HRenderContext m_RenderContext;
     ExtensionAppParams  m_AppParams;
     ExtensionParams     m_Params;
     int m_NumberOfFails;
@@ -111,17 +115,47 @@ protected:
 
         m_HttpResponseCount = 0;
 
+        dmPlatform::WindowParams win_params = {};
+        m_Window = dmPlatform::NewWindow();
+        dmPlatform::OpenWindow(m_Window, win_params);
+
+        dmResource::NewFactoryParams params;
+        params.m_MaxResources = 64;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+
+        m_Factory = dmResource::NewFactory(&params, "build/src/gamesys/test");
+        ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
+
         dmScript::ContextParams script_context_params = {};
         script_context_params.m_ConfigFile = m_ConfigFile;
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
 
+        dmGraphics::InstallAdapter();
+        dmGraphics::ContextParams graphics_context_params;
+        graphics_context_params.m_Window = m_Window;
+        // graphics_context_params.m_JobThread = m_JobThread;
+
+        m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+
+        dmRender::RenderContextParams render_params;
+        render_params.m_MaxRenderTypes = 10;
+        render_params.m_MaxInstances = 1000;
+        render_params.m_MaxRenderTargets = 10;
+        render_params.m_ScriptContext = m_ScriptContext;
+        render_params.m_MaxCharacters = 256;
+        render_params.m_MaxBatches = 128;
+        m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
+
         ExtensionAppParamsInitialize(&m_AppParams);
         ExtensionParamsInitialize(&m_Params);
 
         m_Params.m_L = dmScript::GetLuaState(m_ScriptContext);
+        m_Params.m_ConfigFile = m_ConfigFile;
+        m_Params.m_ResourceFactory = m_Factory;
         ExtensionParamsSetContext(&m_Params, "lua", dmScript::GetLuaState(m_ScriptContext));
         ExtensionParamsSetContext(&m_Params, "config", m_ConfigFile);
+        ExtensionParamsSetContext(&m_Params, "render", m_RenderContext);
 
         dmExtension::AppInitialize(&m_AppParams);
         dmExtension::Initialize(&m_Params);
@@ -177,9 +211,17 @@ protected:
         ExtensionParamsFinalize(&m_Params);
         ExtensionAppParamsFinalize(&m_AppParams);
 
-        dmScript::Finalize(m_ScriptContext);
+        dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
+        dmGraphics::DeleteContext(m_GraphicsContext);
 
+        dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
+
+        dmResource::DeleteFactory(m_Factory);
+
+        dmPlatform::CloseWindow(m_Window);
+        dmPlatform::DeleteWindow(m_Window);
+
         dmConfigFile::Delete(m_ConfigFile);
     }
 
