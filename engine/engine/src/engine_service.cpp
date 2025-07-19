@@ -528,7 +528,7 @@ namespace dmEngineService
         char                 m_InfoJson[sizeof(INFO_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
         char                 m_StateJson[sizeof(STATE_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
 
-        dmProfile::HProfile  m_Profile;
+        HProfile             m_Profile;
     };
 
     HEngineService New(uint16_t port)
@@ -556,7 +556,7 @@ namespace dmEngineService
         delete engine_service;
     }
 
-    void Update(HEngineService engine_service, dmProfile::HProfile profile)
+    void Update(HEngineService engine_service, HProfile profile)
     {
         DM_PROFILE("Service");
         engine_service->m_Profile = profile;

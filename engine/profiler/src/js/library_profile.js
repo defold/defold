@@ -205,9 +205,9 @@ var LibraryDmProfile = {
         const property = thread.properties.get(idx);
         return property.flags;
     },
-    dmProfileJSCreatePropertyGroup: function(type, name, desc, parent_idx) {
+    dmProfileJSCreatePropertyGroup: function(type, name, desc, idx, parent_idx) {
         const thread = DefoldProfiler.getThread(0);
-        const property = { idx: ++thread.idxProperty, name, desc, type, nameStr: UTF8ToString(name) };
+        const property = { idx: idx, name, desc, type, nameStr: UTF8ToString(name) };
         thread.properties.set(property.idx, property);
         const parent = parent_idx === -1 ? thread.rootProperty : thread.properties.get(parent_idx);
         if(parent.firstChild)
@@ -216,9 +216,21 @@ var LibraryDmProfile = {
             parent.firstChild = parent.lastChild = property;
         return property.idx;
     },
-    dmProfileJSCreatePropertyBool: function(type, name, desc, v, flags, parent_idx) {
+    dmProfileJSCreatePropertyBool: function(type, name, desc, v, flags, idx, parent_idx) {
         const thread = DefoldProfiler.getThread(0);
-        const property = { idx: ++thread.idxProperty, name, desc, type, defaultValue: v, nameStr: UTF8ToString(name) };
+        const property = { idx: idx, name, desc, type, defaultValue: v, nameStr: UTF8ToString(name) };
+        thread.properties.set(property.idx, property);
+
+        const parent = parent_idx === -1 ? thread.rootProperty : thread.properties.get(parent_idx);
+        if(parent.firstChild)
+            parent.lastChild = parent.lastChild.nextSibling = property;
+        else
+            parent.firstChild = parent.lastChild = property;
+        return property.idx;
+    },
+    dmProfileJSCreatePropertyS32: function(type, name, desc, v, flags, idx, parent_idx) {
+        const thread = DefoldProfiler.getThread(0);
+        const property = { idx: idx, name, desc, type, defaultValue: v, nameStr: UTF8ToString(name) };
         thread.properties.set(property.idx, property);
         const parent = parent_idx === -1 ? thread.rootProperty : thread.properties.get(parent_idx);
         if(parent.firstChild)
@@ -227,9 +239,9 @@ var LibraryDmProfile = {
             parent.firstChild = parent.lastChild = property;
         return property.idx;
     },
-    dmProfileJSCreatePropertyS32: function(type, name, desc, v, flags, parent_idx) {
+    dmProfileJSCreatePropertyU32: function(type, name, desc, v, flags, idx, parent_idx) {
         const thread = DefoldProfiler.getThread(0);
-        const property = { idx: ++thread.idxProperty, name, desc, type, defaultValue: v, nameStr: UTF8ToString(name) };
+        const property = { idx: idx, name, desc, type, defaultValue: v, nameStr: UTF8ToString(name) };
         thread.properties.set(property.idx, property);
         const parent = parent_idx === -1 ? thread.rootProperty : thread.properties.get(parent_idx);
         if(parent.firstChild)
@@ -238,9 +250,9 @@ var LibraryDmProfile = {
             parent.firstChild = parent.lastChild = property;
         return property.idx;
     },
-    dmProfileJSCreatePropertyU32: function(type, name, desc, v, flags, parent_idx) {
+    dmProfileJSCreatePropertyF32: function(type, name, desc, v, flags, idx, parent_idx) {
         const thread = DefoldProfiler.getThread(0);
-        const property = { idx: ++thread.idxProperty, name, desc, type, defaultValue: v, nameStr: UTF8ToString(name) };
+        const property = { idx: idx, name, desc, type, defaultValue: v, nameStr: UTF8ToString(name) };
         thread.properties.set(property.idx, property);
         const parent = parent_idx === -1 ? thread.rootProperty : thread.properties.get(parent_idx);
         if(parent.firstChild)
@@ -249,9 +261,9 @@ var LibraryDmProfile = {
             parent.firstChild = parent.lastChild = property;
         return property.idx;
     },
-    dmProfileJSCreatePropertyF32: function(type, name, desc, v, flags, parent_idx) {
+    dmProfileJSCreatePropertyS64: function(type, name, desc, v, flags, idx, parent_idx) {
         const thread = DefoldProfiler.getThread(0);
-        const property = { idx: ++thread.idxProperty, name, desc, type, defaultValue: v, nameStr: UTF8ToString(name) };
+        const property = { idx: idx, name, desc, type, defaultValue: v, nameStr: UTF8ToString(name) };
         thread.properties.set(property.idx, property);
         const parent = parent_idx === -1 ? thread.rootProperty : thread.properties.get(parent_idx);
         if(parent.firstChild)
@@ -260,9 +272,9 @@ var LibraryDmProfile = {
             parent.firstChild = parent.lastChild = property;
         return property.idx;
     },
-    dmProfileJSCreatePropertyS64: function(type, name, desc, v, flags, parent_idx) {
+    dmProfileJSCreatePropertyU64: function(type, name, desc, v, flags, idx, parent_idx) {
         const thread = DefoldProfiler.getThread(0);
-        const property = { idx: ++thread.idxProperty, name, desc, type, defaultValue: v, nameStr: UTF8ToString(name) };
+        const property = { idx: idx, name, desc, type, defaultValue: v, nameStr: UTF8ToString(name) };
         thread.properties.set(property.idx, property);
         const parent = parent_idx === -1 ? thread.rootProperty : thread.properties.get(parent_idx);
         if(parent.firstChild)
@@ -271,9 +283,9 @@ var LibraryDmProfile = {
             parent.firstChild = parent.lastChild = property;
         return property.idx;
     },
-    dmProfileJSCreatePropertyU64: function(type, name, desc, v, flags, parent_idx) {
+    dmProfileJSCreatePropertyF64: function(type, name, desc, v, flags, idx, parent_idx) {
         const thread = DefoldProfiler.getThread(0);
-        const property = { idx: ++thread.idxProperty, name, desc, type, defaultValue: v, nameStr: UTF8ToString(name) };
+        const property = { idx: idx, name, desc, type, defaultValue: v, nameStr: UTF8ToString(name) };
         thread.properties.set(property.idx, property);
         const parent = parent_idx === -1 ? thread.rootProperty : thread.properties.get(parent_idx);
         if(parent.firstChild)
@@ -281,52 +293,6 @@ var LibraryDmProfile = {
         else
             parent.firstChild = parent.lastChild = property;
         return property.idx;
-    },
-    dmProfileJSCreatePropertyF64: function(type, name, desc, v, flags, parent_idx) {
-        const thread = DefoldProfiler.getThread(0);
-        const property = { idx: ++thread.idxProperty, name, desc, type, defaultValue: v, nameStr: UTF8ToString(name) };
-        thread.properties.set(property.idx, property);
-        const parent = parent_idx === -1 ? thread.rootProperty : thread.properties.get(parent_idx);
-        if(parent.firstChild)
-            parent.lastChild = parent.lastChild.nextSibling = property;
-        else
-            parent.firstChild = parent.lastChild = property;
-        return property.idx;
-    },
-    dmProfileJSGetPropertyBool: function(idx) {
-        const thread = DefoldProfiler.getThread(0);
-        const property = thread.properties.get(idx);
-        return property.value;
-    },
-    dmProfileJSGetPropertyS32: function(idx) {
-        const thread = DefoldProfiler.getThread(0);
-        const property = thread.properties.get(idx);
-        return property.value;
-    },
-    dmProfileJSGetPropertyU32: function(idx) {
-        const thread = DefoldProfiler.getThread(0);
-        const property = thread.properties.get(idx);
-        return property.value;
-    },
-    dmProfileJSGetPropertyF32: function(idx) {
-        const thread = DefoldProfiler.getThread(0);
-        const property = thread.properties.get(idx);
-        return property.value;
-    },
-    dmProfileJSGetPropertyS64: function(idx) {
-        const thread = DefoldProfiler.getThread(0);
-        const property = thread.properties.get(idx);
-        return property.value;
-    },
-    dmProfileJSGetPropertyU64: function(idx) {
-        const thread = DefoldProfiler.getThread(0);
-        const property = thread.properties.get(idx);
-        return property.value;
-    },
-    dmProfileJSGetPropertyF64: function(idx) {
-        const thread = DefoldProfiler.getThread(0);
-        const property = thread.properties.get(idx);
-        return property.value;
     },
     dmProfileJSSetPropertyBool: function(idx, v) {
         const thread = DefoldProfiler.getThread(0);

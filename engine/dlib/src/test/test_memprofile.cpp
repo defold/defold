@@ -336,11 +336,11 @@ int main(int argc, char **argv)
     g_MemprofileActive = argc >= 3;
 
     dmMemProfile::Initialize();
-    dmProfile::Initialize(0);
+    ProfileInitialize();
 
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
-    dmProfile::Finalize();
+    ProfileFinalize();
     dmMemProfile::Finalize();
     return ret;
 }

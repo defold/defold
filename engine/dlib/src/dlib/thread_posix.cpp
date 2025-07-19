@@ -35,7 +35,7 @@ namespace dmThread
     {
         ThreadData* data = (ThreadData*) arg;
         SetThreadName(GetCurrentThread(), data->m_Name);
-        dmProfile::SetThreadName(data->m_Name);
+        ProfileSetThreadName(data->m_Name);
 
         data->m_Start(data->m_Arg);
         free(data->m_Name);

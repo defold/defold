@@ -677,20 +677,20 @@ static rmtBool AtomicCompareAndSwapU32(rmtAtomicU32 volatile* val, rmtU32 old_va
 }
 
 
-static rmtBool AtomicCompareAndSwapU64(rmtAtomicU64 volatile* val, rmtU64 old_val, rmtU64 new_val)
-{
-#if defined(RMT_USE_C11_ATOMICS)
-    return atomic_compare_exchange_strong(val, &old_val, new_val);
-#elif defined(RMT_USE_CPP_ATOMICS)
-    return val->compare_exchange_strong(old_val, new_val);
-#elif defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
-    return _InterlockedCompareExchange64((volatile LONG64*)val, (LONG64)new_val, (LONG64)old_val) == (LONG64)old_val
-        ? RMT_TRUE
-        : RMT_FALSE;
-#elif defined(RMT_PLATFORM_POSIX) || defined(__MINGW32__)
-    return __sync_bool_compare_and_swap(val, old_val, new_val) ? RMT_TRUE : RMT_FALSE;
-#endif
-}
+// static rmtBool AtomicCompareAndSwapU64(rmtAtomicU64 volatile* val, rmtU64 old_val, rmtU64 new_val)
+// {
+// #if defined(RMT_USE_C11_ATOMICS)
+//     return atomic_compare_exchange_strong(val, &old_val, new_val);
+// #elif defined(RMT_USE_CPP_ATOMICS)
+//     return val->compare_exchange_strong(old_val, new_val);
+// #elif defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
+//     return _InterlockedCompareExchange64((volatile LONG64*)val, (LONG64)new_val, (LONG64)old_val) == (LONG64)old_val
+//         ? RMT_TRUE
+//         : RMT_FALSE;
+// #elif defined(RMT_PLATFORM_POSIX) || defined(__MINGW32__)
+//     return __sync_bool_compare_and_swap(val, old_val, new_val) ? RMT_TRUE : RMT_FALSE;
+// #endif
+// }
 
 static rmtBool AtomicCompareAndSwapPointer(rmtAtomicVoidPtr volatile* ptr, void* old_ptr, void* new_ptr)
 {
@@ -730,18 +730,18 @@ static rmtS32 AtomicAddS32(rmtAtomicS32* value, rmtS32 add)
 #endif
 }
 
-static rmtU32 AtomicAddU32(rmtAtomicU32* value, rmtU32 add)
-{
-#if defined(RMT_USE_C11_ATOMICS)
-    return atomic_fetch_add(value, add);
-#elif defined(RMT_USE_CPP_ATOMICS)
-    return value->fetch_add(add);
-#elif defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
-    return (rmtU32)_InterlockedExchangeAdd((long volatile*)value, (long)add);
-#elif defined(RMT_PLATFORM_POSIX) || defined(__MINGW32__)
-    return (rmtU32)__sync_fetch_and_add(value, add);
-#endif
-}
+// static rmtU32 AtomicAddU32(rmtAtomicU32* value, rmtU32 add)
+// {
+// #if defined(RMT_USE_C11_ATOMICS)
+//     return atomic_fetch_add(value, add);
+// #elif defined(RMT_USE_CPP_ATOMICS)
+//     return value->fetch_add(add);
+// #elif defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
+//     return (rmtU32)_InterlockedExchangeAdd((long volatile*)value, (long)add);
+// #elif defined(RMT_PLATFORM_POSIX) || defined(__MINGW32__)
+//     return (rmtU32)__sync_fetch_and_add(value, add);
+// #endif
+// }
 
 static void AtomicSubS32(rmtAtomicS32* value, rmtS32 sub)
 {
@@ -2610,11 +2610,6 @@ static void U32ToByteArray(rmtU8* dest, rmtU32 value)
     dest[1] = (value >> 8) & 255;
     dest[2] = (value >> 16) & 255;
     dest[3] = value >> 24;
-}
-
-static rmtError Buffer_WriteBool(Buffer* buffer, rmtBool value)
-{
-    return Buffer_Write(buffer, &value, 1);
 }
 
 static rmtError Buffer_WriteU32(Buffer* buffer, rmtU32 value)

@@ -6,31 +6,37 @@ platforms:
 
     osx:
         context:
-            excludeLibs: ["engine", "engine_service", "profile", "remotery", "profilerext", "record", "vpx"]
-            libs: ["engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null", "record_null"]
+            excludeLibs: ["engine", "engine_service", "profile", "profilerext", "profiler_remotery", "record", "vpx"]
+            libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null", "record_null"]
+            excludeSymbols: ['ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']
 
     linux:
         context:
-            excludeLibs: ["engine", "engine_service", "profile", "remotery", "profilerext", "record", "vpx"]
-            libs: ["engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null", "record_null"]
+            excludeLibs: ["engine", "engine_service", "profile", "profilerext", "profiler_remotery", "record", "vpx"]
+            libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null", "record_null"]
+            excludeSymbols: ['ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']
 
     web:
         context:
-            excludeLibs: ["engine", "engine_service", "profile", "remotery", "profile_js", "profilerext"]
-            libs: ["engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null"]
+            excludeLibs: ["engine", "engine_service", "profile", "profilerext", "profiler_js"]
+            libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null"]
+            excludeSymbols: ['ProfilerExt', 'ProfilerBasic', 'ProfilerJS']
 
     win32:
         context:
-            excludeLibs: ["libengine", "libengine_service", "libprofile", "libremotery", "libprofilerext", "librecord", "vpx"]
-            libs: ["libengine_release.lib", "libengine_service_null.lib", "libprofile_null.lib", "libremotery_null.lib", "libprofilerext_null.lib", "librecord_null.lib"]
+            excludeLibs: ["libengine", "libengine_service", "libprofile", "libprofilerext", "libprofiler_remotery", "librecord", "vpx"]
+            libs: ["libengine_release.lib", "libengine_service_null.lib", "libprofile_null.lib", "libprofilerext_null.lib", "librecord_null.lib"]
             linkFlags: ["-Wl,/subsystem:windows"]
+            excludeSymbols: ['ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']
 
     android:
         context:
-            excludeLibs: ["engine", "engine_service", "profile", "remotery", "profilerext"]
-            libs: ["engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null"]
+            excludeLibs: ["engine", "engine_service", "profile", "profilerext", "profiler_remotery"]
+            libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null"]
+            excludeSymbols: ['ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']
 
     arm64-ios:
         context:
-            excludeLibs: ["engine", "engine_service", "profile", "remotery", "profilerext"]
-            libs: ["engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null"]
+            excludeLibs: ["engine", "engine_service", "profile", "profilerext", "profiler_remotery"]
+            libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null"]
+            excludeSymbols: ['ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']

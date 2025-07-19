@@ -108,11 +108,17 @@ namespace dmMemProfile
     uint64_t g_BaseAddress = 0;
     uint64_t g_AppSize = 0;
 
+    typedef ProfileIdx (*PropertyRegisterGroupFn)(const char* name, const char* desc, ProfileIdx* (*parentfn)());
+    typedef ProfileIdx (*PropertyRegisterGroupU32Fn)(const char* name, const char* desc, uint32_t value, uint32_t flags, ProfileIdx* (*parentfn)());
+    typedef void       (*PropertyAddU32Fn)(ProfileIdx idx, uint32_t value);
+
     struct InternalData
     {
         Stats* m_Stats;
         bool*  m_IsEnabled;
-        void (*m_AddCounter)(const char*, uint32_t);
+        PropertyRegisterGroupFn     m_PropertyRegisterGroup;
+        PropertyRegisterGroupU32Fn  m_PropertyRegisterU32;
+        PropertyAddU32Fn            m_PropertyAddU32;
     };
 }
 
@@ -136,7 +142,9 @@ namespace dmMemProfile
             dmMemProfile::InternalData data;
             data.m_Stats = &dmMemProfile::g_Stats;
             data.m_IsEnabled = &dmMemProfile::g_IsEnabled;
-            data.m_AddCounter = dmProfile::AddCounter;
+            data.m_PropertyRegisterGroup = ProfileRegisterPropertyGroup;
+            data.m_PropertyRegisterU32 = ProfileRegisterPropertyU32;
+            data.m_PropertyAddU32 = ProfilePropertyAddU32;
 
             init(&data);
         }
@@ -240,9 +248,21 @@ namespace dmMemProfile
 
     pthread_mutex_t* g_Mutex = 0;
     Stats* g_ExtStats = 0;
-    void (*g_AddCounter)(const char*, uint32_t) = 0;
+
+    PropertyRegisterGroupFn     m_PropertyRegisterGroup;
+    PropertyRegisterGroupU32Fn  m_PropertyRegisterU32;
+    PropertyAddU32Fn            m_PropertyAddU32;
+
+    ProfileIdx g_ProfileGroup = 0;
+    ProfileIdx g_ProfileAllocations = 0;
+    ProfileIdx g_ProfileAmount = 0;
 
     int g_TraceFile = -1;
+
+    static ProfileIdx* GetProfileGroup()
+    {
+        return &g_ProfileGroup;
+    }
 
     void InitializeLibrary(dmMemProfile::InternalData* internal_data)
     {
@@ -262,7 +282,13 @@ namespace dmMemProfile
 
         *internal_data->m_IsEnabled = true;
         g_ExtStats = internal_data->m_Stats;
-        g_AddCounter = internal_data->m_AddCounter;
+
+        if (m_PropertyRegisterGroup)
+        {
+            g_ProfileGroup = m_PropertyRegisterGroup("Memory", "", 0);
+            g_ProfileAllocations = m_PropertyRegisterU32("Allocations", "Num allocations", 0, 0, GetProfileGroup);
+            g_ProfileAmount = m_PropertyRegisterU32("Amount", "Total amount (bytes)", 0, 0, GetProfileGroup);
+        }
 
         char* trace = getenv("DMMEMPROFILE_TRACE");
         if (trace && strlen(trace) > 0 && trace[0] != '0')
@@ -381,10 +407,10 @@ DM_DLLEXPORT void *malloc(size_t size)
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalActive, (uint32_t) usable_size);
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_AllocationCount, 1U);
 
-            if (dmMemProfile::g_AddCounter)
+            if (dmMemProfile::m_PropertyAddU32)
             {
-                dmMemProfile::g_AddCounter("Memory.Allocations", 1U);
-                dmMemProfile::g_AddCounter("Memory.Amount", usable_size);
+                dmMemProfile::m_PropertyAddU32(dmMemProfile::g_ProfileAllocations, 1U);
+                dmMemProfile::m_PropertyAddU32(dmMemProfile::g_ProfileAmount, usable_size);
             }
         }
     }
@@ -425,8 +451,11 @@ DM_DLLEXPORT void *memalign(size_t alignment, size_t size)
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalActive, (uint32_t) usable_size);
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_AllocationCount, 1U);
 
-            dmMemProfile::g_AddCounter("Memory.Allocations", 1U);
-            dmMemProfile::g_AddCounter("Memory.Amount", usable_size);
+            if (dmMemProfile::m_PropertyAddU32)
+            {
+                dmMemProfile::m_PropertyAddU32(dmMemProfile::g_ProfileAllocations, 1U);
+                dmMemProfile::m_PropertyAddU32(dmMemProfile::g_ProfileAmount, usable_size);
+            }
         }
     }
     else
@@ -466,8 +495,11 @@ DM_DLLEXPORT int posix_memalign(void **memptr, size_t alignment, size_t size)
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalActive, (uint32_t) usable_size);
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_AllocationCount, 1U);
 
-            dmMemProfile::g_AddCounter("Memory.Allocations", 1U);
-            dmMemProfile::g_AddCounter("Memory.Amount", usable_size);
+            if (dmMemProfile::m_PropertyAddU32)
+            {
+                dmMemProfile::m_PropertyAddU32(dmMemProfile::g_ProfileAllocations, 1U);
+                dmMemProfile::m_PropertyAddU32(dmMemProfile::g_ProfileAmount, usable_size);
+            }
         }
     }
     else
@@ -506,8 +538,11 @@ DM_DLLEXPORT void *calloc(size_t count, size_t size)
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalActive, (uint32_t) usable_size);
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_AllocationCount, 1U);
 
-            dmMemProfile::g_AddCounter("Memory.Allocations", 1U);
-            dmMemProfile::g_AddCounter("Memory.Amount", usable_size);
+            if (dmMemProfile::m_PropertyAddU32)
+            {
+                dmMemProfile::m_PropertyAddU32(dmMemProfile::g_ProfileAllocations, 1U);
+                dmMemProfile::m_PropertyAddU32(dmMemProfile::g_ProfileAmount, usable_size);
+            }
         }
     }
     else
@@ -562,8 +597,11 @@ DM_DLLEXPORT void *realloc(void* ptr, size_t size)
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalActive, (uint32_t) usable_size);
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_AllocationCount, 1U);
 
-            dmMemProfile::g_AddCounter("Memory.Allocations", 1U);
-            dmMemProfile::g_AddCounter("Memory.Amount", usable_size);
+            if (dmMemProfile::m_PropertyAddU32)
+            {
+                dmMemProfile::m_PropertyAddU32(dmMemProfile::g_ProfileAllocations, 1U);
+                dmMemProfile::m_PropertyAddU32(dmMemProfile::g_ProfileAmount, usable_size);
+            }
         }
     }
     else

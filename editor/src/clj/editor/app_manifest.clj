@@ -21,9 +21,13 @@
             [editor.resource-io :as resource-io]
             [editor.yaml :as yaml]))
 
+(def macos #{:x86_64-osx :arm64-osx})
+
 (def windows #{:x86-win32 :x86_64-win32})
 
 (def android #{:armv7-android :arm64-android})
+
+(def ios #{:armv7-ios :arm64-ios :x86_64-ios})
 
 (def web #{:js-web :wasm-web :wasm_pthread-web})
 
@@ -319,9 +323,23 @@
 (def profiler-setting
   (make-check-box-setting
     (concat
-      (libs-toggles all-platforms ["profilerext_null"])
-      (exclude-libs-toggles all-platforms ["profilerext"])
-      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerExt"]))))
+      (libs-toggles all-platforms ["profile_null", "profilerext_null"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic"])
+      (exclude-libs-toggles all-platforms ["profile", "profilerext"])
+      (exclude-libs-toggles windows ["profiler_remotery"])
+      (exclude-libs-toggles macos ["profiler_remotery"])
+      (exclude-libs-toggles linux ["profiler_remotery"])
+      (exclude-libs-toggles android ["profiler_remotery"])
+      (exclude-libs-toggles ios ["profiler_remotery"])
+      (exclude-libs-toggles web ["profiler_js"])
+      (generic-contains-toggles windows :excludeSymbols ["ProfilerRemotery"])
+      (generic-contains-toggles macos :excludeSymbols ["ProfilerRemotery"])
+      (generic-contains-toggles linux :excludeSymbols ["ProfilerRemotery"])
+      (generic-contains-toggles android :excludeSymbols ["ProfilerRemotery"])
+      (generic-contains-toggles ios :excludeSymbols ["ProfilerRemotery"])
+      (generic-contains-toggles web :excludeSymbols ["ProfilerJS"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic", "ProfilerRemotery"])
+      )))
 
 (def sound-setting
   (make-check-box-setting
