@@ -14,8 +14,8 @@
 
 (ns editor.fuzzy-text
   (:require [clojure.string :as string]
-            [util.coll :refer [pair]]
-            [util.eduction :as e]))
+            [util.coll :refer [pair]])
+  (:import [java.util BitSet]))
 
 ;; Sublime Text-style fuzzy text matching.
 ;;
@@ -63,20 +63,24 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (defn- case-insensitive-character-indices
-  "Returns a vector of indices where the specified code point exists in the
+  "Returns a BitSet of the indices where the specified code point exists in the
   string. Both upper- and lower-case matches are included."
-  [^String string ^long upper-ch ^long lower-ch ^long from-index]
-  (loop [from-index (int from-index)
-         indices (vector-of :int)]
-    (let [upper (.indexOf string upper-ch from-index)
-          lower (.indexOf string lower-ch from-index)]
-      (if (and (neg? upper) (neg? lower))
-        indices
-        (let [^int index (cond (neg? upper) lower
-                               (neg? lower) upper
-                               :else (min upper lower))]
-          (recur (inc index)
-                 (conj indices index)))))))
+  ^BitSet [^String string ch from-index]
+  (let [ch (int ch)
+        upper-ch (Character/toUpperCase ch)
+        lower-ch (Character/toLowerCase ch)
+        bits (BitSet. (.length string))]
+    (assert (not (Character/isWhitespace ch)))
+    (loop [from-index (int from-index)]
+      (let [upper (.indexOf string upper-ch from-index)
+            lower (.indexOf string lower-ch from-index)]
+        (when-not (and (neg? upper) (neg? lower))
+          (let [index (int (cond (neg? upper) lower
+                                 (neg? lower) upper
+                                 :else (min upper lower)))]
+            (.set bits index)
+            (recur (inc index))))))
+    bits))
 
 (defn- whitespace-length
   "Counts the number of code points that represent whitespace in a string,
@@ -94,8 +98,8 @@
 (defn- matching-index-permutations
   "Returns a sequence of all permutations of indices inside the string where the
   pattern characters appear in order. I.e. 'abc' appears in 'abbc' as [0 1 3]
-  and [0 2 3]. The from-index parameter can be used to limit the starting point
-  in the string."
+  and [0 2 3]. The matching-indices are returned as BitSets. The from-index
+  parameter can be used to limit the starting point in the string."
   [^String pattern ^String string ^long from-index]
   (when-not (or (.isEmpty string)
                 (string/blank? pattern))
@@ -103,28 +107,37 @@
           pattern-length (.length pattern)
           string-length (.length string)]
       (loop [pattern-index 1
-             matching-index-permutations (let [ch (.codePointAt pattern pattern-index)
-                                               upper-ch (Character/toUpperCase ch)
-                                               lower-ch (Character/toLowerCase ch)]
-                                           (mapv #(vector-of :int %)
-                                                 (case-insensitive-character-indices string upper-ch lower-ch from-index)))]
+             matching-index-permutations
+             (let [ch (.codePointAt pattern 0)
+                   bits (case-insensitive-character-indices string ch from-index)]
+               (stream-into! []
+                             (map (fn [^long matching-index]
+                                    (doto (BitSet. string-length)
+                                      (.set matching-index))))
+                             (.stream bits)))]
         (if (= pattern-length pattern-index)
           matching-index-permutations
           (let [pattern-whitespace-length (whitespace-length pattern pattern-length pattern-index)
                 pattern-index (+ pattern-index pattern-whitespace-length)]
             (recur (inc pattern-index)
                    (into []
-                         (mapcat (fn [matching-indices]
-                                   (let [^long prev-matching-index (peek matching-indices)
+                         (mapcat (fn [^BitSet matching-indices]
+                                   (let [prev-matching-index (.previousSetBit matching-indices (dec string-length))
                                          from-index (if (pos? pattern-whitespace-length)
                                                       (+ 2 prev-matching-index)
                                                       (inc prev-matching-index))]
                                      (when (not= string-length from-index)
                                        (let [ch (.codePointAt pattern pattern-index)
-                                             upper-ch (Character/toUpperCase ch)
-                                             lower-ch (Character/toLowerCase ch)]
-                                         (e/map #(conj matching-indices %)
-                                                (case-insensitive-character-indices string upper-ch lower-ch from-index)))))))
+                                             bits (case-insensitive-character-indices string ch from-index)]
+                                         (case (.cardinality bits)
+                                           0 nil
+                                           1 (do (.or bits matching-indices) ; Fast case: mutate the BitSet in place.
+                                                 [bits])
+                                           (stream-into! []
+                                                         (map (fn [^long matching-index]
+                                                                (doto ^BitSet (.clone matching-indices)
+                                                                  (.set matching-index))))
+                                                         (.stream bits))))))))
                          matching-index-permutations))))))))
 
 (defn- every-character-is-letter-or-digit?
@@ -155,74 +168,77 @@
           :else index)))
 
 (defn- score
-  "Scores the matching indices against the string that produced them. A lower
-  score is better. The from-index parameter can be used to limit the starting
-  point in the string. Typically several sequences of matching indices are
-  obtained with the matching-index-permutations function, then scored here."
-  ^long [^String string ^long from-index matching-indices]
-  (assert (not (empty? matching-indices)))
-  (loop [matching-indices matching-indices
+  "Scores the matching-indices BitSet against the string that produced it. A
+  lower score is better. The from-index parameter can be used to limit the
+  starting point in the string. Typically several BitSets of matching-indices
+  are obtained from the matching-index-permutations function, then scored here."
+  ^long [^String string ^long from-index ^BitSet matching-indices]
+  ;; TODO(asset-picker-optimizations): Score matching-indices as a BitSet.
+  (assert (not (.isEmpty matching-indices)))
+  (loop [matching-index (.nextSetBit matching-indices 0)
          prev-matching-index Long/MIN_VALUE
          prev-match-type nil
          streak-length 0
          score 0]
-    (if (empty? matching-indices)
+    (cond
+      (neg? matching-index)
+      ;; We're done.
       score
-      (let [matching-index (long (first matching-indices))]
-        (if (= from-index matching-index)
 
-          ;; We're matching the very first character in the considered string.
-          ;; It does not count towards the score. This gives a very slight
-          ;; scoring edge to matches that include the start of the string.
-          (recur (next matching-indices)
-                 matching-index
-                 :string-start
-                 0
-                 0)
+      (= from-index matching-index)
+      ;; We're matching the very first character in the considered string.
+      ;; It does not count towards the score. This gives a very slight
+      ;; scoring edge to matches that include the start of the string.
+      (recur (.nextSetBit matching-indices (inc matching-index))
+             matching-index
+             :string-start
+             0
+             0)
 
-          ;; The first matching character is at least one character in.
-          ;; This means we can safely examine the character before the match.
-          (let [before-matching-index (dec matching-index)
-                after-prev-match-index (if (= Long/MIN_VALUE prev-matching-index) from-index (inc prev-matching-index))
-                ch (.codePointAt string matching-index)
-                prev-ch (.codePointAt string before-matching-index)
-                match-type (cond
-                             (and (Character/isUpperCase ch)
-                                  (Character/isLetterOrDigit prev-ch)
-                                  (not (Character/isUpperCase prev-ch)))
-                             :camel-hump
+      :else
+      ;; The first matching character is at least one character in.
+      ;; This means we can safely examine the character before the match.
+      (let [before-matching-index (dec matching-index)
+            after-prev-match-index (if (= Long/MIN_VALUE prev-matching-index) from-index (inc prev-matching-index))
+            ch (.codePointAt string matching-index)
+            prev-ch (.codePointAt string before-matching-index)
+            match-type (cond
+                         (and (Character/isUpperCase ch)
+                              (Character/isLetterOrDigit prev-ch)
+                              (not (Character/isUpperCase prev-ch)))
+                         :camel-hump
 
-                             (and (Character/isLetterOrDigit ch)
-                                  (not (Character/isLetterOrDigit prev-ch)))
-                             :word-boundary)
-                streak? (or (= prev-matching-index before-matching-index)
-                            (case match-type
-                              nil false
+                         (and (Character/isLetterOrDigit ch)
+                              (not (Character/isLetterOrDigit prev-ch)))
+                         :word-boundary)
+            streak? (or (= prev-matching-index before-matching-index)
+                        (case match-type
+                          nil false
 
-                              :camel-hump
-                              (and (case prev-match-type
-                                     :string-start (Character/isUpperCase (.codePointAt string from-index))
-                                     :camel-hump true
-                                     false)
-                                   (not (any-character-is-upper-case? string after-prev-match-index before-matching-index)))
+                          :camel-hump
+                          (and (case prev-match-type
+                                 :string-start (Character/isUpperCase (.codePointAt string from-index))
+                                 :camel-hump true
+                                 false)
+                               (not (any-character-is-upper-case? string after-prev-match-index before-matching-index)))
 
-                              :word-boundary
-                              (case prev-match-type
-                                (:string-start :word-boundary)
-                                (every-character-is-letter-or-digit? string after-prev-match-index before-matching-index)
-                                false)))
-                streak-length (if streak? (inc streak-length) 0)]
-            (recur (next matching-indices)
-                   matching-index
-                   match-type
-                   streak-length
-                   (if streak?
-                     (if (< streak-length 2) (inc score) score)
-                     (let [scored-range-start (if (= Long/MIN_VALUE prev-matching-index)
-                                                (prev-boundary-index string from-index matching-index)
-                                                prev-matching-index)
-                           added-score (- matching-index scored-range-start)]
-                       (+ score added-score))))))))))
+                          :word-boundary
+                          (case prev-match-type
+                            (:string-start :word-boundary)
+                            (every-character-is-letter-or-digit? string after-prev-match-index before-matching-index)
+                            false)))
+            streak-length (if streak? (inc streak-length) 0)]
+        (recur (.nextSetBit matching-indices (inc matching-index))
+               matching-index
+               match-type
+               streak-length
+               (if streak?
+                 (if (< streak-length 2) (inc score) score)
+                 (let [scored-range-start (if (= Long/MIN_VALUE prev-matching-index)
+                                            (prev-boundary-index string from-index matching-index)
+                                            prev-matching-index)
+                       added-score (- matching-index scored-range-start)]
+                   (+ score added-score))))))))
 
 (defn- best-match
   "Takes two matches returned from the match function and returns the one that
@@ -242,12 +258,17 @@
   ([^String pattern ^String string]
    (match pattern string 0))
   ([^String pattern ^String string ^long from-index]
-   (transduce (map (fn [matching-indices]
-                     (pair (score string from-index matching-indices)
-                           matching-indices)))
-              (completing best-match)
-              nil
-              (matching-index-permutations pattern string from-index))))
+   (when-some [[^long score ^BitSet matching-indices]
+               (transduce
+                 (map (fn [^BitSet matching-indices]
+                        (pair (score string from-index matching-indices)
+                              matching-indices)))
+                 (completing best-match)
+                 nil
+                 (matching-index-permutations pattern string from-index))]
+     (pair score
+           (stream-into! (vector-of :int)
+                         (.stream matching-indices))))))
 
 (defn- apply-filename-bonus
   "Applies a bonus for a match on the filename part of a path."
