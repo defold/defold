@@ -385,13 +385,17 @@
                       and pass it resulting props to check if dialog stage's
                       :showing property should be set to true
     :initial-state    optional, defaults to {}, map containing initial state of
-                      a dialog, should not contain ::result key to be shown
+                      a dialog, should not contain ::result key to be shown. The
+                      map will be put into a private state-atom accessible from
+                      the event-handler.
+    :state-atom       optional, will be used instead of initial-state when you
+                      need to access the state from outside of this function.
     :error-handler    optional, 1-arg Throwable handler, by default it shows an
                       error dialog and reports the exception to sentry"
-  [& {:keys [initial-state event-handler description error-handler]
-      :or {initial-state {}
-           error-handler error-reporting/report-exception!}}]
-  (let [state-atom (atom initial-state)
+  [& {:keys [state-atom initial-state event-handler description error-handler]
+      :or {error-handler error-reporting/report-exception!}}]
+  (let [state-atom (or state-atom
+                       (atom (or initial-state {})))
         renderer (fx/create-renderer
                    :error-handler error-handler
                    :opts {:fx.opt/map-event-handler #(swap! state-atom event-handler %)}
