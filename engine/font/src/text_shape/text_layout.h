@@ -21,7 +21,8 @@
 static inline uint32_t NextBreak(TextShapeGlyph* glyphs, uint32_t num_glyphs, uint32_t* cursor, uint32_t* n)
 {
     uint32_t c = 0;
-    do {
+    do
+    {
         c = (*cursor) < num_glyphs ? glyphs[(*cursor)++].m_Codepoint : 0;
         if (c != 0)
             *n = *n + 1;
@@ -32,7 +33,8 @@ static inline uint32_t NextBreak(TextShapeGlyph* glyphs, uint32_t num_glyphs, ui
 static inline uint32_t SkipWS(TextShapeGlyph* glyphs, uint32_t num_glyphs, uint32_t* cursor, uint32_t* n)
 {
     uint32_t c = 0;
-    do {
+    do
+    {
         c = (*cursor) < num_glyphs ? glyphs[(*cursor)++].m_Codepoint : 0;
         if (c != 0)
             *n = *n + 1;
@@ -48,37 +50,40 @@ static inline uint32_t SkipWS(TextShapeGlyph* glyphs, uint32_t num_glyphs, uint3
  */
 template <typename Metric>
 uint32_t Layout(TextShapeInfo* info,
-                uint32_t width,
-                TextLine* lines, uint32_t lines_count,
-                uint32_t* text_width,
-                Metric metrics,
-                bool measure_trailing_space)
+                uint32_t       width,
+                TextLine*      lines,
+                uint32_t       lines_count,
+                uint32_t*      text_width,
+                Metric         metrics,
+                bool           measure_trailing_space)
 {
     TextShapeGlyph* glyphs = info->m_Glyphs.Begin();
     uint32_t        num_glyphs = info->m_Glyphs.Size();
 
-    uint32_t cursor = 0;
+    uint32_t        cursor = 0;
 
-    uint32_t max_width = 0;
+    uint32_t        max_width = 0;
 
-    uint32_t l = 0;
-    uint32_t c;
-    do {
+    uint32_t        l = 0;
+    uint32_t        c;
+    do
+    {
         uint32_t n = 0, last_n = 0;
         uint32_t row_start = cursor;
         uint32_t last_cursor = cursor;
         uint32_t w = 0, last_w = 0;
-        do {
+        do
+        {
             c = NextBreak(glyphs, num_glyphs, &cursor, &n);
             if (n > 0)
             {
                 int trim = 0;
                 if (c != 0)
                     trim = 1;
-                w = metrics(row_start, n-trim, measure_trailing_space);
+                w = metrics(row_start, n - trim, measure_trailing_space);
                 if (w <= width)
                 {
-                    last_n = n-trim;
+                    last_n = n - trim;
                     last_w = w;
                     last_cursor = cursor;
                     if (c != '\n' && !measure_trailing_space)
@@ -97,19 +102,21 @@ uint32_t Layout(TextShapeInfo* info,
             int trim = 0;
             if (c != 0)
                 trim = 1;
-            last_n = n-trim;
+            last_n = n - trim;
             last_w = w;
         }
 
-        if (l < lines_count && (c != 0 || last_n > 0)) {
-            TextLine& tl = lines[l];
-            tl.m_Width = last_w;
-            tl.m_Index = row_start;
-            tl.m_Length = last_n;
+        if ((c != 0 || last_n > 0))
+        {
+            if (l < lines_count)
+            {
+                TextLine& tl = lines[l];
+                tl.m_Width = last_w;
+                tl.m_Index = row_start;
+                tl.m_Length = last_n;
+            }
             l++;
             max_width = dmMath::Max(max_width, last_w);
-        } else {
-            // Out of lines
         }
     } while (c);
 
