@@ -208,17 +208,6 @@ TEST(dmProfile, PropertyCreationOrder)
     DummyProfilerUnregister();
 }
 
-static void debug(const char* name, int line, ProfilerDummyContext* ctx)
-{
-    printf("%d - '%s'\n", line, name);
-    for (int i = 0; i < ctx->m_NumSamples; ++i)
-    {
-        ProfilerDummySample* sample = &ctx->m_Samples[i];
-        printf("  s: %d  calls: %u  %llx  '%s'  %p\n", i, sample->m_CallCount, sample->m_NameHash, dmHashReverseSafe64(sample->m_NameHash), sample);
-    }
-}
-
-
 TEST(dmProfile, DynamicScope)
 {
     const char* SCOPE_NAMES[] = {
