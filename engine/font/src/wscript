@@ -13,13 +13,13 @@ def build(bld):
                 includes        = ['.', '..'],
                 target          = 'font',
                 defines         = [],
-                source          = bld.path.ant_glob(['*.cpp']) + ['text_shape/text_shape_legacy.cpp'])
+                source          = bld.path.ant_glob(['*.cpp']) + ['text_shape/text_shape.cpp', 'text_shape/text_shape_legacy.cpp'])
 
     bld.stlib(features          = 'cxx ddf',
                 includes        = ['.', '..', '../build/proto'],
                 target          = 'font_kb',
                 defines         = ['FONT_USE_KB_TEXT_SHAPE'],
-                source          = bld.path.ant_glob(['*.cpp']) + ['text_shape/text_shape_kb.cpp'])
+                source          = bld.path.ant_glob(['*.cpp']) + ['text_shape/text_shape.cpp', 'text_shape/text_shape_kb.cpp'])
 
 
     bld.install_files('${PREFIX}/include/font', 'font.h')

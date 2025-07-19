@@ -101,19 +101,22 @@ static void DebugPrintLayout(const uint32_t* codepoints, TextMetrics* metrics, T
     printf("Layout:\n");
     printf("  %u lines, max width: %.3f\n", metrics->m_LineCount, metrics->m_Width*scale);
 
-    for (uint32_t i = 0; i < metrics->m_LineCount; ++i)
+    if (lines != 0)
     {
-        TextLine& line = lines[i];
-        printf("  %u: off: %3u  len: %3u  width: %.3f  |", i, line.m_Index, line.m_Length, line.m_Width * scale);
-
-        uint32_t end = line.m_Index + line.m_Length;
-        for (uint32_t j = line.m_Index; j < end; ++j)
+        for (uint32_t i = 0; i < metrics->m_LineCount; ++i)
         {
-            uint32_t c = codepoints[j];
-            printf("%c", (char)c);
-        }
+            TextLine& line = lines[i];
+            printf("  %u: off: %3u  len: %3u  width: %.3f  |", i, line.m_Index, line.m_Length, line.m_Width * scale);
 
-        printf("|\n");
+            uint32_t end = line.m_Index + line.m_Length;
+            for (uint32_t j = line.m_Index; j < end; ++j)
+            {
+                uint32_t c = codepoints[j];
+                printf("%c", (char)c);
+            }
+
+            printf("|\n");
+        }
     }
 }
 
@@ -152,6 +155,12 @@ TEST_F(FontTest, LayoutSingleLine)
         outtext.Push((char)g.m_Codepoint);
     }
     ASSERT_ARRAY_EQ_LEN(original_text, outtext.Begin(), lines[0].m_Length);
+
+    // Test the same without any lines
+    r = TestLayout(m_Font, codepoints, &settings, &info, &metrics, 0, 0);
+    ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
+    DebugPrintLayout(codepoints.Begin(), &metrics, lines, scale);
+    ASSERT_EQ(1u, metrics.m_LineCount);
 }
 
 TEST_F(FontTest, LayoutMultiLine)
@@ -199,6 +208,28 @@ TEST_F(FontTest, LayoutMultiLine)
     outtext.Push(0);
     ASSERT_ARRAY_EQ_LEN(expected_text_1, outtext.Begin() + lines[0].m_Index, lines[0].m_Length);
     ASSERT_ARRAY_EQ_LEN(expected_text_2, outtext.Begin() + lines[1].m_Index, lines[0].m_Length);
+}
+
+TEST_F(FontTest, TextGetMetrics)
+{
+    dmArray<uint32_t> codepoints;
+
+    // Note: Simulate an input field, where adding extra spaces would move the visible cursor
+    const char* original_text = "Hello World!  ";
+    TextToCodePoints(original_text, codepoints);
+
+    TextMetrics metrics = {0};
+
+    float scale = FontGetScaleFromSize(m_Font, 28);
+
+    TextMetricsSettings settings = {0};
+    settings.m_LineBreak = false;
+    settings.m_Width = 0;
+
+    TextShapeResult r = TextGetMetrics(m_Font, codepoints.Begin(), codepoints.Size(), &settings, &metrics);
+    ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
+    DebugPrintLayout(codepoints.Begin(), &metrics, 0, scale);
+    ASSERT_EQ(1u, metrics.m_LineCount);
 }
 
 static void CreateTestGlyphs(TextShapeInfo* info, const char* text, int32_t x_step, dmArray<uint32_t>& codepoints)

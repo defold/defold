@@ -97,10 +97,10 @@ TextShapeResult TextLayout(TextMetricsSettings* settings, TextShapeInfo* info,
                             TextLine* lines, uint32_t num_lines,
                             TextMetrics* metrics);
 
-// // Calculates the bounding box and other metrics of a text
-// TextShapeResult TextGetMetrics(HFont font, TextShapeInfo* info,
-//                                 uint32_t* codepoints, uint32_t num_codepoints,
-//                                 TextMetricsSettings* settings, TextMetrics* metrics);
+// Calculates the bounding box and other metrics of a text (calls TextShapeText and TextLayout)
+TextShapeResult TextGetMetrics(HFont font,
+                                uint32_t* codepoints, uint32_t num_codepoints,
+                                TextMetricsSettings* settings, TextMetrics* metrics);
 
 
 
