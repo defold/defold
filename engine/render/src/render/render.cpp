@@ -1077,7 +1077,9 @@ namespace dmRender
     Result Draw(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
     {
         if (render_context == 0x0)
+        {
             return RESULT_INVALID_CONTEXT;
+        }
 
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
         dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT] = {};

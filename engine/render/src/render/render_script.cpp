@@ -3594,7 +3594,9 @@ bail:
         RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, (void*)&dt);
 
         if (instance->m_CommandBuffer.Size() > 0)
+        {
             ParseCommands(instance->m_RenderContext, &instance->m_CommandBuffer.Front(), instance->m_CommandBuffer.Size());
+        }
         return result;
     }
 
