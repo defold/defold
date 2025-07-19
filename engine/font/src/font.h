@@ -30,8 +30,9 @@ typedef FontResult  (*FontFreeGlyphFn)(HFont hfont, FontGlyph* glyph);
 
 struct Font
 {
-    FontType m_Type;
-    const char* m_Path;
+    FontType        m_Type;
+    const char*     m_Path;
+    uint32_t        m_PathHash;
 
     FontLoadFromMemoryFn        m_LoadFontFromMemory;
     FontDestroyFn               m_DestroyFont;

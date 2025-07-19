@@ -42,6 +42,12 @@ protected:
 
         m_Font = FontLoadFromPath(path);
         ASSERT_NE((HFont)0, m_Font);
+
+        const char* font_path = FontGetPath(m_Font);
+        ASSERT_STREQ(path, font_path);
+
+        uint32_t path_hash = dmHashString32(path);
+        ASSERT_EQ(path_hash, FontGetPathHash(m_Font));
     }
 
     virtual void TearDown()

@@ -18,6 +18,7 @@
 #include <stdio.h>
 
 #include <dmsdk/dlib/dstrings.h>
+#include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/dlib/utf8.h>
 
@@ -73,8 +74,9 @@ HFont FontLoadFromMemory(const char* path, void* data, uint32_t data_size, bool 
 
     if (font)
     {
-        font->m_Type = type;
-        font->m_Path = strdup(path);
+        font->m_Type    = type;
+        font->m_Path    = strdup(path);
+        font->m_PathHash= dmHashString32(path);
     }
 
     return font;
@@ -160,6 +162,12 @@ const char* FontGetPath(HFont font)
 {
     assert(font);
     return font->m_Path;
+}
+
+uint32_t FontGetPathHash(HFont font)
+{
+    assert(font);
+    return font->m_PathHash;
 }
 
 static void Indent(int indent)

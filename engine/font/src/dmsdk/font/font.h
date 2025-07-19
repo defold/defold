@@ -172,6 +172,15 @@ FontType FontGetType(HFont font);
 const char* FontGetPath(HFont font);
 
 /*#
+ * Gets the path hash of the loaded font
+ * @note We use a 32bit hash to make it easier to pair with a glyph index into a 64-bit key
+ * @name FontGetPathHash
+ * @param font [type: HFont] The font
+ * @return path [type: uint32_t] The path
+ */
+uint32_t FontGetPathHash(HFont font);
+
+/*#
  * Get the scale factor from a given pixel size.
  * Used to convert from points to pixel size
  * @name FontGetScaleFromSize
@@ -285,7 +294,6 @@ FontResult FontGetGlyphByIndex(HFont font, uint32_t glyph_index, FontGlyphOption
  * @param glyph [type: dmFont::Glyph*] The glyph
  * @return result [type: dmFont::FontResult] The result
  */
-// In case a bit map was allocated, and you wish to free the memory
 FontResult FontFreeGlyph(HFont font, FontGlyph* glyph);
 
 #endif // DM_FONT_H
