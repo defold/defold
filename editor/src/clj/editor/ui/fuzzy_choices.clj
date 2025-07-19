@@ -18,6 +18,7 @@
             [clojure.core.reducers :as r]
             [editor.fuzzy-text :as fuzzy-text]
             [editor.util :as util]
+            [util.bit-set :as bit-set]
             [util.thread-util :as thread-util])
   (:import [javafx.scene.text Text TextFlow]))
 
@@ -36,8 +37,8 @@
       score-comparison
       (let [a-matching-indices (:matching-indices a-meta)
             b-matching-indices (:matching-indices b-meta)
-            a-matched-substring-length (- ^long (peek a-matching-indices) ^long (first a-matching-indices))
-            b-matched-substring-length (- ^long (peek b-matching-indices) ^long (first b-matching-indices))
+            a-matched-substring-length (- (bit-set/last-set-bit a-matching-indices) (bit-set/first-set-bit a-matching-indices))
+            b-matched-substring-length (- (bit-set/last-set-bit b-matching-indices) (bit-set/first-set-bit b-matching-indices))
             matched-substring-length-comparison (compare a-matched-substring-length b-matched-substring-length)]
         (if-not (zero? matched-substring-length-comparison)
           matched-substring-length-comparison

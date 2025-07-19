@@ -14,7 +14,11 @@
 
 (ns editor.fuzzy-text-test
   (:require [clojure.test :refer :all]
-            [editor.fuzzy-text :as fuzzy-text]))
+            [editor.fuzzy-text :as fuzzy-text]
+            [util.bit-set :as bit-set]))
+
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (deftest match-test
   (are [pattern str str-matches]
@@ -25,7 +29,7 @@
                                                   (map first))
                                             str-matches))
           [_score matching-indices] (fuzzy-text/match-path pattern str)]
-      (= expected-matching-indices matching-indices))
+      (= expected-matching-indices (some-> matching-indices bit-set/indices)))
     ;; Empty string matches nothing.
     ""
     "text"
@@ -150,7 +154,7 @@
 
 (deftest runs-test
   (are [length matching-indices expected]
-    (is (= expected (fuzzy-text/runs length matching-indices)))
+    (is (= expected (fuzzy-text/runs length (bit-set/from matching-indices))))
 
     0 [] []
     1 [] [[false 0 1]]

@@ -671,7 +671,7 @@
                          (some-> filter-atom deref)
                          "")
          filter-future-atom (atom nil)
-         state-atom (atom {:filter-term ""
+         state-atom (atom {:filter-term nil ; Non-string value to ensure set-filter-term won't early-out.
                            :filter-in-progress false
                            :filtered-items []
                            :selected-indices []})
