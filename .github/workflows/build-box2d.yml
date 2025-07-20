@@ -306,6 +306,7 @@ jobs:
           source "$EMSDK/emsdk_env.sh"
           export CC=emcc
           export CXX=em++
+          export CFLAGS="-DBOX2D_DISABLE_SIMD"
           export CXXFLAGS="$CFLAGS"
           ./scripts/build.py install_waf
           cd external/box2d
