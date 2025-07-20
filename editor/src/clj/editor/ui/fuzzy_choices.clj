@@ -25,8 +25,8 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn- option->fuzzy-matched-option [option->text pattern option]
-  (when-some [[score matching-indices] (fuzzy-text/match-path pattern (option->text option))]
+(defn- option->fuzzy-matched-option [option->text prepared-pattern option]
+  (when-some [[score matching-indices] (fuzzy-text/match-path prepared-pattern (option->text option))]
     (vary-meta option assoc :score score :matching-indices matching-indices)))
 
 (defn- option-order [option->text a b]
@@ -53,18 +53,19 @@
                   (compare (System/identityHashCode a) (System/identityHashCode b)))))))))))
 
 (defn filter-options [option->matched-text option->label-text filter-text options]
-  (if (empty? filter-text)
-    options
-    (let [fuzzy-matched-options
-          (->> options
-               (r/take-while (thread-util/thread-uninterrupted-predicate))
-               (r/map #(option->fuzzy-matched-option option->matched-text filter-text %))
-               (r/filter some?)
-               (r/foldcat))]
+  (let [prepared-pattern (fuzzy-text/prepare-pattern filter-text)]
+    (if (fuzzy-text/empty-prepared-pattern? prepared-pattern)
+      options
+      (let [fuzzy-matched-options
+            (->> options
+                 (r/take-while (thread-util/thread-uninterrupted-predicate))
+                 (r/map #(option->fuzzy-matched-option option->matched-text prepared-pattern %))
+                 (r/filter some?)
+                 (r/foldcat))]
 
-      (thread-util/throw-if-interrupted!)
-      (sort (partial option-order option->label-text)
-            (seq fuzzy-matched-options)))))
+        (thread-util/throw-if-interrupted!)
+        (sort (partial option-order option->label-text)
+              (seq fuzzy-matched-options))))))
 
 (defn- make-text-run [text style-class]
   (let [text-view (Text. text)]
