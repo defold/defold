@@ -2021,126 +2021,164 @@ public class Project {
             IProgress subProgress = progress.subProgress(count);
             subProgress.beginTask("Download archive(s)", count);
             logInfo("Downloading %d archive(s)", count);
+            
+            // Use a fixed thread pool with 2 threads for parallel downloads
+            ExecutorService executor = Executors.newFixedThreadPool(2);
+            List<Future<Void>> futures = new ArrayList<>();
+            
             for (int i = 0; i < count; ++i) {
-                TimeProfiler.start("Lib %2d", i);
-                BundleHelper.throwIfCanceled(progress);
-                URL url = libUrls.get(i);
-                File f = libFiles.get(url.toString());
+                final int index = i;
+                final URL url = libUrls.get(i);
+                final File f = libFiles.get(url.toString());
+                
+                Future<Void> future = executor.submit(() -> {
+                    try {
+                        TimeProfiler.start("Lib %2d", index);
+                        BundleHelper.throwIfCanceled(progress);
+                        
+                        logInfo("%2d: Downloading %s", index, url);
+                        TimeProfiler.addData("url", url.toString());
+                        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                        // GitLab will respond with a 406 Not Acceptable if the request
+                        // is made without an Accept header
+                        connection.setRequestProperty("Accept", "application/zip");
 
-                logInfo("%2d: Downloading %s", i, url);
-                TimeProfiler.addData("url", url.toString());
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                // GitLab will respond with a 406 Not Acceptable if the request
-                // is made without an Accept header
-                connection.setRequestProperty("Accept", "application/zip");
-
-                String etag = null;
-                if (f != null) {
-                    String etagB64 = LibraryUtil.getETagFromName(LibraryUtil.getHashedUrl(url), f.getName());
-                    if (etagB64 != null) {
-                        etag = new String(new Base64().decode(etagB64.getBytes())).replace("\"", ""); // actually includes the quotation marks
-                        etag = String.format("\"%s\"", etag); // fixing broken etag
-                        connection.addRequestProperty("If-None-Match", etag);
-                    }
-                }
-
-                // Check if URL contains basic auth credentials
-                String basicAuthData = null;
-                try {
-                    URI uri = new URI(url.toString());
-                    basicAuthData = uri.getUserInfo();
-                } catch (URISyntaxException e1) {
-                    // Ignored, could not get URI and basic auth data from URL.
-                }
-
-                // Check if basic auth password is a token that should be replaced with
-                // an environment variable.
-                // The token should start and end with __ and exist as an environment
-                // variable.
-                if (basicAuthData != null) {
-                    String[] parts = basicAuthData.split(":");
-                    String username = parts[0];
-                    String password = parts.length > 1 ? parts[1] : "";
-                    if (password.startsWith("__") && password.endsWith("__")) {
-                        String envKey = password.substring(2, password.length() - 2);
-                        String envValue = getSystemEnv(envKey);
-                        if (envValue != null) {
-                            basicAuthData = username + ":" + envValue;
-                        }
-                    }
-                }
-
-                // Pass correct headers along to server depending on auth alternative.
-                final String email = this.options.get("email");
-                final String auth = this.options.get("auth");
-                if (basicAuthData != null) {
-                    String basicAuth = "Basic " + new String(new Base64().encode(basicAuthData.getBytes()));
-                    connection.setRequestProperty("Authorization", basicAuth);
-                } else if (email != null && auth != null) {
-                    connection.addRequestProperty("X-Email", email);
-                    connection.addRequestProperty("X-Auth", auth);
-                }
-
-                InputStream input = null;
-                try {
-                    connection.connect();
-                    int code = connection.getResponseCode();
-
-                    TimeProfiler.addData("status code", code);
-                    if (code == 304) {
-                        logInfo("%2d: Status %d: Already cached", i, code);
-                    } else if (code >= 400) {
-                        logWarning("%2d: Status %d: Failed to download %s", i, code, url);
-                        throw new LibraryException(String.format("Status %d: Failed to download %s", code, url), new Exception());
-                    } else {
-
-                        String serverETag = connection.getHeaderField("ETag");
-                        if (serverETag == null) {
-                            serverETag = connection.getHeaderField("Etag");
+                        String etag = null;
+                        if (f != null) {
+                            String etagB64 = LibraryUtil.getETagFromName(LibraryUtil.getHashedUrl(url), f.getName());
+                            if (etagB64 != null) {
+                                etag = new String(new Base64().decode(etagB64.getBytes())).replace("\"", ""); // actually includes the quotation marks
+                                etag = String.format("\"%s\"", etag); // fixing broken etag
+                                connection.addRequestProperty("If-None-Match", etag);
+                            }
                         }
 
-                        if (serverETag == null) {
-                            logWarning(String.format("The URL %s didn't provide an ETag", url));
-                            serverETag = "";
-                        }
-
-                        if (etag != null && !etag.equals(serverETag)) {
-                            logInfo("%2d: Status %d: ETag mismatch %s != %s. Deleting old file %s", i, code, etag!=null?etag:"", serverETag!=null?serverETag:"", f);
-                            f.delete();
-                            f = null;
-                        }
-
-                        input = new BufferedInputStream(connection.getInputStream());
-
-                        if (f == null) {
-                            f = new File(libPath, LibraryUtil.getFileName(url, serverETag));
-                        }
-                        FileUtils.copyInputStreamToFile(input, f);
-
+                        // Check if URL contains basic auth credentials
+                        String basicAuthData = null;
                         try {
-                            ZipFile zip = new ZipFile(f);
-                            zip.close();
-                        } catch (ZipException e) {
-                            f.delete();
-                            throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                            URI uri = new URI(url.toString());
+                            basicAuthData = uri.getUserInfo();
+                        } catch (URISyntaxException e1) {
+                            // Ignored, could not get URI and basic auth data from URL.
                         }
-                        logInfo("%2d: Status %d: Stored %s", i, code, f);
-                    }
-                    connection.disconnect();
-                } catch (ConnectException e) {
-                    throw new LibraryException(String.format("Connection refused by the server at %s", url.toString()), e);
-                } catch (FileNotFoundException e) {
-                    throw new LibraryException(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
-                } finally {
-                    if(input != null) {
-                        IOUtils.closeQuietly(input);
-                    }
-                    subProgress.worked(1);
-                }
 
-                BundleHelper.throwIfCanceled(subProgress);
-                TimeProfiler.stop();
+                        // Check if basic auth password is a token that should be replaced with
+                        // an environment variable.
+                        // The token should start and end with __ and exist as an environment
+                        // variable.
+                        if (basicAuthData != null) {
+                            String[] parts = basicAuthData.split(":");
+                            String username = parts[0];
+                            String password = parts.length > 1 ? parts[1] : "";
+                            if (password.startsWith("__") && password.endsWith("__")) {
+                                String envKey = password.substring(2, password.length() - 2);
+                                String envValue = getSystemEnv(envKey);
+                                if (envValue != null) {
+                                    basicAuthData = username + ":" + envValue;
+                                }
+                            }
+                        }
+
+                        // Pass correct headers along to server depending on auth alternative.
+                        final String email = this.options.get("email");
+                        final String auth = this.options.get("auth");
+                        if (basicAuthData != null) {
+                            String basicAuth = "Basic " + new String(new Base64().encode(basicAuthData.getBytes()));
+                            connection.setRequestProperty("Authorization", basicAuth);
+                        } else if (email != null && auth != null) {
+                            connection.addRequestProperty("X-Email", email);
+                            connection.addRequestProperty("X-Auth", auth);
+                        }
+
+                        InputStream input = null;
+                        try {
+                            connection.connect();
+                            int code = connection.getResponseCode();
+
+                            TimeProfiler.addData("status code", code);
+                            if (code == 304) {
+                                logInfo("%2d: Status %d: Already cached", index, code);
+                            } else if (code >= 400) {
+                                logWarning("%2d: Status %d: Failed to download %s", index, code, url);
+                                throw new LibraryException(String.format("Status %d: Failed to download %s", code, url), new Exception());
+                            } else {
+
+                                String serverETag = connection.getHeaderField("ETag");
+                                if (serverETag == null) {
+                                    serverETag = connection.getHeaderField("Etag");
+                                }
+
+                                if (serverETag == null) {
+                                    logWarning(String.format("The URL %s didn't provide an ETag", url));
+                                    serverETag = "";
+                                }
+
+                                if (etag != null && !etag.equals(serverETag)) {
+                                    logInfo("%2d: Status %d: ETag mismatch %s != %s. Deleting old file %s", index, code, etag!=null?etag:"", serverETag!=null?serverETag:"", f);
+                                    f.delete();
+                                    // Note: f becomes null in the original scope, but we need to handle this differently in parallel context
+                                }
+
+                                input = new BufferedInputStream(connection.getInputStream());
+
+                                File targetFile = f;
+                                if (targetFile == null) {
+                                    targetFile = new File(libPath, LibraryUtil.getFileName(url, serverETag));
+                                }
+                                FileUtils.copyInputStreamToFile(input, targetFile);
+
+                                try {
+                                    ZipFile zip = new ZipFile(targetFile);
+                                    zip.close();
+                                } catch (ZipException e) {
+                                    targetFile.delete();
+                                    throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                                }
+                                logInfo("%2d: Status %d: Stored %s", index, code, targetFile);
+                            }
+                            connection.disconnect();
+                        } catch (ConnectException e) {
+                            throw new LibraryException(String.format("Connection refused by the server at %s", url.toString()), e);
+                        } catch (FileNotFoundException e) {
+                            throw new LibraryException(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
+                        } finally {
+                            if(input != null) {
+                                IOUtils.closeQuietly(input);
+                            }
+                            subProgress.worked(1);
+                        }
+
+                        BundleHelper.throwIfCanceled(subProgress);
+                        TimeProfiler.stop();
+                        return null;
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                
+                futures.add(future);
             }
+            
+            // Wait for all downloads to complete
+            for (Future<Void> future : futures) {
+                try {
+                    future.get();
+                } catch (ExecutionException e) {
+                    Throwable cause = e.getCause();
+                    if (cause instanceof LibraryException) {
+                        throw (LibraryException) cause;
+                    } else if (cause instanceof IOException) {
+                        throw (IOException) cause;
+                    } else {
+                        throw new LibraryException(cause.getMessage(), cause);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new LibraryException("Download interrupted", e);
+                }
+            }
+            
+            executor.shutdown();
         }
         catch(IOException ioe) {
             throw ioe;
