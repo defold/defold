@@ -2006,6 +2006,7 @@ public class Project {
 
     /**
      * Resolve (i.e. download from server) the stored lib URLs.
+     *
      * @throws IOException
      */
     public void resolveLibUrls(IProgress progress) throws IOException, LibraryException {
@@ -2021,21 +2022,21 @@ public class Project {
             IProgress subProgress = progress.subProgress(count);
             subProgress.beginTask("Download archive(s)", count);
             logInfo("Downloading %d archive(s)", count);
-            
+
             // Use a fixed thread pool with 2 threads for parallel downloads
             ExecutorService executor = Executors.newFixedThreadPool(2);
             List<Future<Void>> futures = new ArrayList<>();
-            
+
             for (int i = 0; i < count; ++i) {
                 final int index = i;
                 final URL url = libUrls.get(i);
                 final File f = libFiles.get(url.toString());
-                
+
                 Future<Void> future = executor.submit(() -> {
                     try {
                         TimeProfiler.start("Lib %2d", index);
                         BundleHelper.throwIfCanceled(progress);
-                        
+
                         logInfo("%2d: Downloading %s", index, url);
                         TimeProfiler.addData("url", url.toString());
                         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
@@ -2078,7 +2079,6 @@ public class Project {
                                 }
                             }
                         }
-
                         // Pass correct headers along to server depending on auth alternative.
                         final String email = this.options.get("email");
                         final String auth = this.options.get("auth");
@@ -2089,7 +2089,6 @@ public class Project {
                             connection.addRequestProperty("X-Email", email);
                             connection.addRequestProperty("X-Auth", auth);
                         }
-
                         InputStream input = null;
                         try {
                             connection.connect();
@@ -2114,7 +2113,7 @@ public class Project {
                                 }
 
                                 if (etag != null && !etag.equals(serverETag)) {
-                                    logInfo("%2d: Status %d: ETag mismatch %s != %s. Deleting old file %s", index, code, etag!=null?etag:"", serverETag!=null?serverETag:"", f);
+                                    logInfo("%2d: Status %d: ETag mismatch %s != %s. Deleting old file %s", index, code, etag != null ? etag : "", serverETag != null ? serverETag : "", f);
                                     f.delete();
                                     // Note: f becomes null in the original scope, but we need to handle this differently in parallel context
                                 }
@@ -2142,7 +2141,7 @@ public class Project {
                         } catch (FileNotFoundException e) {
                             throw new LibraryException(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
                         } finally {
-                            if(input != null) {
+                            if (input != null) {
                                 IOUtils.closeQuietly(input);
                             }
                             subProgress.worked(1);
@@ -2155,10 +2154,8 @@ public class Project {
                         throw new RuntimeException(e);
                     }
                 });
-                
                 futures.add(future);
             }
-            
             // Wait for all downloads to complete
             for (Future<Void> future : futures) {
                 try {
@@ -2177,19 +2174,15 @@ public class Project {
                     throw new LibraryException("Download interrupted", e);
                 }
             }
-            
             executor.shutdown();
-        }
-        catch(IOException ioe) {
+        } catch (IOException ioe) {
             throw ioe;
-        }
-        catch(LibraryException le) {
+        } catch (LibraryException le) {
             throw le;
-        }
-        catch(Exception e) {
+        } catch (Exception e) {
             throw new LibraryException(e.getMessage(), e);
         }
-   }
+    }
 
     /**
      * Set option
