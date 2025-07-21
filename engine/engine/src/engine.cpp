@@ -168,6 +168,9 @@ namespace dmEngine
             ExtensionParamsSetContext(&m_Params, "render", engine->m_RenderContext);
             if (engine->m_HttpCache)
                 ExtensionParamsSetContext(&m_Params, "http_cache", engine->m_HttpCache);
+
+            if (engine->m_JobThreadContext)
+                ExtensionParamsSetContext(&m_Params, "job_thread", engine->m_JobThreadContext);
         }
         ~ScopedExtensionParams()
         {
@@ -1417,6 +1420,7 @@ namespace dmEngine
             engine->m_ResourceTypeContexts.Put(dmHashString64("gui_scriptc"), engine->m_GuiScriptContext);
             engine->m_ResourceTypeContexts.Put(dmHashString64("guic"), engine->m_GuiContext);
         }
+        engine->m_ResourceTypeContexts.Put(dmHashString64("fontc"), engine->m_RenderContext);
 
         fact_result = dmResource::RegisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         if (fact_result != dmResource::RESULT_OK)
@@ -1812,8 +1816,14 @@ bail:
                         return;
                     }
                 }
-
-                dmJobThread::Update(engine->m_JobThreadContext);
+#if defined(DM_HAS_THREADS)
+                uint64_t jobthread_max_time_us = 0;
+#else
+                // Dictates max time the job thread may take.
+                // Note that it will always process at least one item if available
+                uint64_t jobthread_max_time_us = 3 * 1000;
+#endif
+                dmJobThread::Update(engine->m_JobThreadContext, jobthread_max_time_us);
 
                 {
                     DM_PROFILE("Extension");

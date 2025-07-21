@@ -2071,6 +2071,8 @@ def detect(conf):
     conf.env['STLIB_PLATFORM_VULKAN'] = ['platform_vulkan']
     conf.env['STLIB_PLATFORM_NULL']   = ['platform_null']
 
+    conf.env['STLIB_FONT']            = ['font']
+
     if platform_glfw_version(platform) == 3:
         conf.env['STLIB_DMGLFW'] = 'glfw3'
     else:

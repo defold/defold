@@ -58,6 +58,7 @@ The following third party software has licenses which does not require inclusion
 
   * Public Domain
     * stb_image - Sean Barrett
+    * stb_truetype - Sean Barrett
     * stb_vorbis - Sean Barrett
   * ZLib
     * zlib - Jean-loup Gailly and Mark Adler
