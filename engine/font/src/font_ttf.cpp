@@ -160,6 +160,7 @@ static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyph
             glyph->m_Bitmap.m_Width = srcw;
             glyph->m_Bitmap.m_Height = srch;
             glyph->m_Bitmap.m_Channels = 1;
+            glyph->m_Bitmap.m_DataSize = srcw * srch * 1;
 
             // We don't call stbtt_FreeSDF(src, 0);
             // But instead let the user call FreeGlyphTTF()

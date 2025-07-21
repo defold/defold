@@ -84,10 +84,12 @@ enum FontGlyphBitmapFlags
  * @member m_Channels [type: uint16_t] The glyph image height
  * @member m_Flags [type: uint8_t] Flags describing the data. See #FontGlyphBitmapFlags.
  * @member m_Data [type: uint8_t*] The bitmap data, or null if no data available.
+ * @member m_DataSize [type: uint32_t] The bitmap data size (e.g. if the data is compressed)
  */
 struct FontGlyphBitmap
 {
     uint8_t*    m_Data;
+    uint32_t    m_DataSize;
     uint16_t    m_Width;
     uint16_t    m_Height;
     uint8_t     m_Channels;

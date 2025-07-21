@@ -138,6 +138,7 @@ static FontResult GetGlyphGB(HFont hfont, uint32_t glyph_index, const FontGlyphO
             uint8_t* data = (uint8_t*)bank->m_GlyphData.m_Data;
             uint8_t* glyph_data = GetPointer(data, g->m_GlyphDataOffset);
 
+            out->m_Bitmap.m_DataSize = g->m_GlyphDataSize;
             out->m_Bitmap.m_Data = glyph_data + 1;
             out->m_Bitmap.m_Flags = glyph_data[0];
             out->m_Bitmap.m_Width = out->m_Width;

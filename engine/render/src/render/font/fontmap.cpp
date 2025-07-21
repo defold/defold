@@ -468,12 +468,13 @@ namespace dmRender
 
     static void UpdateGlyphTexture(HFontMap font_map, dmRender::FontGlyph* g, int32_t x, int32_t y, int offset_y)
     {
-        uint32_t glyph_data_compression = 0; // E.g. FONT_GLYPH_COMPRESSION_NONE;
-        uint32_t glyph_data_size = 0;
-        uint32_t glyph_image_width = 0;
-        uint32_t glyph_image_height = 0;
-        uint32_t glyph_image_channels = 0;
-        uint8_t* glyph_data = (uint8_t*)font_map->m_GetGlyphData(g->m_Character, font_map->m_UserData, &glyph_data_size, &glyph_data_compression, &glyph_image_width, &glyph_image_height, &glyph_image_channels);
+        uint32_t glyph_image_width      = g->m_Bitmap.m_Width;
+        uint32_t glyph_image_height     = g->m_Bitmap.m_Height;
+        uint32_t glyph_image_channels   = g->m_Bitmap.m_Channels;
+        //uint8_t* glyph_data = (uint8_t*)font_map->m_GetGlyphData(g->m_Character, font_map->m_UserData, &glyph_data_size, &glyph_data_compression, &glyph_image_width, &glyph_image_height, &glyph_image_channels);
+        uint8_t* glyph_data             = g->m_Bitmap.m_Data;
+        uint32_t glyph_data_compression = g->m_Bitmap.m_Flags; // E.g. FONT_GLYPH_COMPRESSION_NONE;
+        uint32_t glyph_data_size        = g->m_Bitmap.m_DataSize;
 
         void* data = 0;
         if (FONT_GLYPH_COMPRESSION_DEFLATE == glyph_data_compression)
