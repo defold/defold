@@ -41,3 +41,11 @@ def build(bld):
         protoc_includes = '. ..',
         includes = '. .. ../ddf',
         target = 'test_ddf')
+
+    # test python implementation of hash functions
+    import ddf_hash
+    h1 = ddf_hash.dmHashBufferNoReverse32("foo")
+    h2 = ddf_hash.dmHashBufferNoReverse64("foo")
+
+    assert(0xd861e2f7 == h1)
+    assert(0x97b476b3e71147f7 == h2)

@@ -22,8 +22,8 @@ class TestDlib(unittest.TestCase):
         h1 = dlib.dmHashBuffer32("foo")
         h2 = dlib.dmHashBuffer64("foo")
 
-        self.assertEqual(0xd861e2f7L, h1)
-        self.assertEqual(0x97b476b3e71147f7L, h2)
+        self.assertEqual(0xd861e2f7, h1)
+        self.assertEqual(0x97b476b3e71147f7, h2)
 
     def testLZ4(self):
         #
