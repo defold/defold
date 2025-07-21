@@ -124,6 +124,11 @@ namespace dmFont
         float       m_Descent;
     };
 
+    /*#
+    * Font handle. Holds the info about a loaded font
+    * @name HFont
+    * @typedef
+    */
     typedef struct Font* HFont;
 
     // ****************************************************************

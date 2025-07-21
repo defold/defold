@@ -266,6 +266,7 @@ static void DeleteItem(Context* ctx, JobItem* item)
 
     if (item->m_Callback) // It's the last item
     {
+        free((void*)item->m_Status.m_Error);
         delete item->m_Status;
     }
     delete item;
