@@ -26,7 +26,7 @@ void ToggleProfiler()
     // nop
 }
 
-void RenderProfiler(dmProfile::HProfile , dmGraphics::HContext , dmRender::HRenderContext , dmRender::HFontMap )
+void RenderProfiler(HProfile, dmGraphics::HContext, dmRender::HRenderContext, dmRender::HFontMap )
 {
     // nop
 }

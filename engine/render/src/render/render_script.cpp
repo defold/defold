@@ -3459,7 +3459,7 @@ bail:
                 }
                 else
                 {
-                    if (dmProfile::IsInitialized())
+                    if (ProfileIsInitialized())
                     {
                         // Try to find the message name via id and reverse hash
                         message_name = (const char*)dmHashReverse64(message->m_Id, 0);
