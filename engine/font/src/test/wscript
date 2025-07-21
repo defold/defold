@@ -8,6 +8,6 @@ def build(bld):
 
     bld(features = 'cxx cprogram ddf test',
         source   = bld.path.ant_glob(['*.cpp']),
-        use      = 'TESTMAIN DLIB PROFILE_NULL font',
+        use      = 'TESTMAIN DLIB SOCKET PROFILE_NULL font',
         includes = '. .. ../font',
         target = 'test_font')
