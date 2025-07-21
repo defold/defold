@@ -195,6 +195,7 @@ namespace dmCrash
 
     /**
      * Read out module size from the table stored in a crash dump.
+     * @param dump crash dump handle
      * @param index index of the module to read
      * @return size of the module, 0 if there are no size available
      */
