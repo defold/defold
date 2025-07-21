@@ -882,8 +882,7 @@ namespace dmRender
      */
     int RenderScript_RenderTarget(lua_State* L)
     {
-        int top = lua_gettop(L);
-        (void)top;
+        DM_LUA_STACK_CHECK(L, 1);
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
 
@@ -895,16 +894,16 @@ namespace dmRender
         }
 
         const char* required_keys[] = { "format", "width", "height" };
+        const int required_keys_count = sizeof(required_keys) / sizeof(required_keys[0]);
         uint32_t buffer_type_flags = 0;
         uint32_t max_tex_size = dmGraphics::GetMaxTextureSize(i->m_RenderContext->m_GraphicsContext);
         luaL_checktype(L, table_index, LUA_TTABLE);
 
         dmGraphics::RenderTargetCreationParams params = {};
 
-        lua_pushnil(L);
-        while (lua_next(L, table_index))
+        lua_pushnil(L);                     // [-0,+1 = 1] first key
+        while (lua_next(L, table_index))    // [-1,+2 = 2] pop key, push key-value (buffer_type and table)
         {
-            bool required_found[]                 = { false, false, false };
             dmGraphics::BufferType buffer_type    = CheckBufferType(L, -2);
             buffer_type_flags                    |= (uint32_t) buffer_type;
             dmGraphics::TextureParams* p          = 0;
@@ -931,40 +930,34 @@ namespace dmRender
             }
             else
             {
-                return luaL_error(L, "Invalid buffer type supplied to %s.render_target: (%d)", RENDER_SCRIPT_LIB_NAME, (uint32_t) buffer_type);
+                lua_pop(L, 2); // [-2,+0 = 0] pop key-value pair
+                return DM_LUA_ERROR("Invalid buffer type supplied to %s.render_target: (%d)", RENDER_SCRIPT_LIB_NAME, (uint32_t) buffer_type);
             }
 
             luaL_checktype(L, -1, LUA_TTABLE);
-            lua_pushnil(L);
 
             // Verify that required keys are supplied
-            while (lua_next(L, -2))
+            for (uint32_t i = 0; i < required_keys_count; ++i)
             {
-                const char* key = luaL_checkstring(L, -2);
-                for (uint32_t i = 0; i < sizeof(required_found) / sizeof(required_found[0]); ++i)
+                const char* key = required_keys[i];
+                lua_pushstring(L, key); // [-0,+1 = 3] push key
+                lua_gettable(L, -2);    // [-1,+1 = 3] pop key, push value
+                if (lua_isnil(L, -1))
                 {
-                    if (strncmp(key, required_keys[i], strlen(required_keys[i])) == 0)
-                    {
-                        required_found[i] = true;
-                    }
+                    lua_pop(L, 3);      // [-3,+0 = 0] pop value and key-value pair
+                    return DM_LUA_ERROR("Required parameter key not found: '%s'", key);
                 }
-                lua_pop(L, 1);
+                lua_pop(L, 1);          // [-1,+0 = 2] pop value
             }
-            for (uint32_t i = 0; i < sizeof(required_found) / sizeof(required_found[0]); ++i)
-            {
-                if (!required_found[i])
-                {
-                    return luaL_error(L, "Required parameter key not found: '%s'", required_keys[i]);
-                }
-            }
-            lua_pushnil(L);
 
-            while (lua_next(L, -2))
+            lua_pushnil(L);             // [-0,+1 = 3] first key
+            while (lua_next(L, -2))     // [-1,+2 = 4] pop key, push key-value pair
             {
                 const char* key = luaL_checkstring(L, -2);
                 if (lua_isnil(L, -1) != 0)
                 {
-                    return luaL_error(L, "nil value supplied to %s.render_target: %s.", RENDER_SCRIPT_LIB_NAME, key);
+                    lua_pop(L, 4);          // [-4,+0 = 0] pop key-value pair and key-value pair
+                    return DM_LUA_ERROR("nil value supplied to %s.render_target: %s.", RENDER_SCRIPT_LIB_NAME, key);
                 }
 
                 if (strncmp(key, RENDER_SCRIPT_FORMAT_NAME, strlen(RENDER_SCRIPT_FORMAT_NAME)) == 0)
@@ -974,14 +967,16 @@ namespace dmRender
                     {
                         if(p->m_Format != dmGraphics::TEXTURE_FORMAT_DEPTH)
                         {
-                            return luaL_error(L, "The only valid format for depth buffers is FORMAT_DEPTH.");
+                            lua_pop(L, 4);  // [-4,+0 = 0] pop key-value pair and key-value pair
+                            return DM_LUA_ERROR("The only valid format for depth buffers is FORMAT_DEPTH.");
                         }
                     }
                     if(buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
                     {
                         if(p->m_Format != dmGraphics::TEXTURE_FORMAT_STENCIL)
                         {
-                            return luaL_error(L, "The only valid format for stencil buffers is FORMAT_STENCIL.");
+                            lua_pop(L, 4);  // [-4,+0 = 0] pop key-value pair and key-value pair
+                            return DM_LUA_ERROR("The only valid format for stencil buffers is FORMAT_STENCIL.");
                         }
                     }
                 }
@@ -1025,9 +1020,8 @@ namespace dmRender
                 }
                 else
                 {
-                    lua_pop(L, 2);
-                    assert(top == lua_gettop(L));
-                    return luaL_error(L, "Unknown key supplied to %s.rendertarget: %s. Available keys are: %s, %s, %s, %s, %s, %s, %s, %s.",
+                    lua_pop(L, 4);  // [-4,+0 = 0] pop key-value pair and key-value pair
+                    return DM_LUA_ERROR("Unknown key supplied to %s.rendertarget: %s. Available keys are: %s, %s, %s, %s, %s, %s, %s, %s.",
                         RENDER_SCRIPT_LIB_NAME, key,
                         RENDER_SCRIPT_FORMAT_NAME,
                         RENDER_SCRIPT_WIDTH_NAME,
@@ -1038,15 +1032,14 @@ namespace dmRender
                         RENDER_SCRIPT_V_WRAP_NAME,
                         RENDER_SCRIPT_FLAGS_NAME);
                 }
-                lua_pop(L, 1);
+                lua_pop(L, 1);  // [-1,+0 = 3] pop value, keep key for next iteration
             }
-            lua_pop(L, 1);
+            lua_pop(L, 1);      // [-1,+0 = 1] pop value, keep key for next iteration
 
             if (cp->m_Width > max_tex_size || cp->m_Height > max_tex_size)
             {
-                lua_pop(L, 1);
-                assert(top == lua_gettop(L));
-                return luaL_error(L, "Render target (type %s) of width %d and height %d is greater than max supported texture size %d for this platform.",
+                lua_pop(L, 1);  // [-1,+0 = 0] pop key
+                return DM_LUA_ERROR("Render target (type %s) of width %d and height %d is greater than max supported texture size %d for this platform.",
                     dmGraphics::GetBufferTypeLiteral(buffer_type), cp->m_Width, cp->m_Height, max_tex_size);
             }
         }
@@ -1056,12 +1049,11 @@ namespace dmRender
 
         if (render_target == 0)
         {
-            return luaL_error(L, "Unable to create render target.");
+            return DM_LUA_ERROR("Unable to create render target.");
         }
 
         lua_pushnumber(L, render_target);
 
-        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
@@ -3594,7 +3586,9 @@ bail:
         RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, (void*)&dt);
 
         if (instance->m_CommandBuffer.Size() > 0)
+        {
             ParseCommands(instance->m_RenderContext, &instance->m_CommandBuffer.Front(), instance->m_CommandBuffer.Size());
+        }
         return result;
     }
 

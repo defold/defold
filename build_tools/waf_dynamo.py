@@ -616,15 +616,21 @@ def default_flags(self):
                 'MIN_SAFARI_VERSION=101000',
                 'MIN_CHROME_VERSION=45']
 
+        flags = []
+        linkflags = []
+
         if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
-            emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
-            # This is needed so long as we have to use sleep to make initialization
+            if 'wagyu' in Options.options.enable_features:
+                wagyu_port = '%s/ext/wagyu-port/new/wagyu-port.py:stubs=true:extensions=true' % (os.environ['DYNAMO_HOME'])
+                flags += ['--use-port=%s' % wagyu_port]
+                linkflags += ['--use-port=%s' % wagyu_port]
+                self.env.append_value('DEFINES', ['DM_GRAPHICS_WEBGPU_WAGYU'])
+            else:
+                emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
             emflags_link += ['ASYNCIFY']
             if int(opt_level) >= 3:
                 emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
 
-        flags = []
-        linkflags = []
         if 'wasm' == target_arch:
             emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
             if int(opt_level) < 2:
