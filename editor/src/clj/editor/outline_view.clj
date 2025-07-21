@@ -18,6 +18,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.icons :as icons]
+            [editor.keymap :as keymap]
             [editor.menu-items :as menu-items]
             [editor.outline :as outline]
             [editor.resource :as resource]
@@ -25,14 +26,15 @@
             [editor.types :as types]
             [editor.ui :as ui])
   (:import [com.defold.control TreeCell]
+           [java.awt Toolkit]
            [javafx.collections FXCollections ObservableList]
            [javafx.event Event]
            [javafx.geometry Orientation]
            [javafx.scene Node]
-           [javafx.scene.control Label ScrollBar SelectionMode ToggleButton TreeItem TreeView]
+           [javafx.scene.control ScrollBar SelectionMode TreeItem TreeView ToggleButton Label TextField]
            [javafx.scene.image ImageView]
-           [javafx.scene.input Clipboard DataFormat DragEvent MouseEvent TransferMode]
-           [javafx.scene.layout AnchorPane HBox]
+           [javafx.scene.input Clipboard DataFormat DragEvent KeyCode KeyCodeCombination KeyEvent MouseEvent TransferMode]
+           [javafx.scene.layout AnchorPane HBox Priority]
            [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
@@ -268,6 +270,9 @@
     :icon "icons/32/Icons_M_06_trash.png"
     :command :edit.delete}
    menu-items/separator
+   {:label "Rename..."
+    :command :edit.rename}
+   menu-items/separator
    {:label "Move Up"
     :command :edit.reorder-up}
    {:label "Move Down"
@@ -476,6 +481,91 @@
                                                                   (AnchorPane/setRightAnchor visibility-button (.getMax scrollbar))
                                                                   (AnchorPane/setRightAnchor visibility-button 0.0))))))
 
+(defn- set-editing-id!
+  [^TreeView tree-view node-id]
+  (let [editing-id (ui/user-data tree-view ::editing-id)]
+    (when (not= editing-id node-id)
+      (doto tree-view
+        (ui/user-data! ::editing-id node-id)
+        (.refresh)
+        (.requestFocus)))))
+
+(defn- activate-editing!
+  [^Label label ^TextField text-field]
+  (when-let [node-id (ui/user-data text-field ::node-id)]
+    (when-let [id (g/maybe-node-value node-id :id)]
+      (.setVisible label false)
+      (doto text-field
+        (.setText id)
+        (.setVisible true)
+        (.requestFocus)
+        (.selectAll)))))
+
+(defn- deactivate-editing!
+  [^Label label ^TextField text-field]
+  (.setVisible text-field false)
+  (.setVisible label true))
+
+(defn- commit-edit!
+  [^TreeView tree-view ^TextField text-field]
+  (let [new-text (.getText text-field)
+        node-id (ui/user-data text-field ::node-id)]
+    (when-not (empty? new-text)
+      (g/set-property! node-id :id new-text))
+    (set-editing-id! tree-view nil)))
+
+(defn- get-selected-node-id
+  [^TreeView tree-view]
+  (let [selection-model (.getSelectionModel tree-view)
+        selected-items (.getSelectedItems selection-model)
+        ^TreeItem selected-item (first selected-items)]
+    (item->node-id selected-item)))
+
+(defn- click-handler!
+  [^TreeView tree-view ^Label text-label ^MouseEvent event]
+  (let [current-click-time (System/currentTimeMillis)
+        last-click-time (or (ui/user-data text-label ::last-click-time) 0)
+        time-diff (- current-click-time last-click-time)
+        db-click-threshold (or (-> (Toolkit/getDefaultToolkit)
+                                   (.getDesktopProperty "awt.multiClickInterval"))
+                               500)]
+    (ui/user-data! text-label ::last-click-time current-click-time)
+    (cond
+      (< time-diff db-click-threshold)
+      (do
+        (when-let [future (ui/user-data text-label ::rename-future)]
+          (ui/cancel future)
+          (ui/user-data! text-label ::future-rename nil))
+        (ui/run-command (.getSource event) :file.open-selected))
+
+      (= (get-selected-node-id tree-view)
+         (ui/user-data text-label ::node-id))
+      (let [future-rename (ui/->future (/ db-click-threshold 1000)
+                                       (fn []
+                                         (ui/user-data! text-label ::future-rename nil)
+                                         (ui/run-command (.getSource event) :edit.rename)))]
+        (ui/user-data! text-label ::future-rename future-rename))
+
+      :else nil)))
+
+(defn- editable-id?
+  [node-id]
+  (let [node (g/node-by-id node-id)]
+    (and (g/maybe-node-value node-id :id)
+         (g/with-auto-evaluation-context evaluation-context
+           (and (not (g/node-property-dynamic node :id :read-only? false evaluation-context))
+                (g/node-property-dynamic node :id :visible true evaluation-context))))))
+
+(handler/defhandler :edit.rename :outline
+  (active? [selection outline-view]
+           (and (= 1 (count selection))
+                (when-let [node-id (-> (g/node-value outline-view :raw-tree-view)
+                                       (get-selected-node-id))]
+                  (editable-id? node-id))))
+  (run [outline-view]
+       (let [^TreeView tree-view (g/node-value outline-view :raw-tree-view)]
+         (set-editing-id! tree-view (get-selected-node-id tree-view)))))
+
 (def eye-open-path (ui/load-svg-path "scene/images/eye_open.svg"))
 (def eye-closed-path (ui/load-svg-path "scene/images/eye_closed.svg"))
 
@@ -487,9 +577,23 @@
         visibility-button (doto (ToggleButton.)
                             (ui/add-style! "visibility-toggle")
                             (AnchorPane/setRightAnchor 0.0))
-        text-label (doto (Label.)
-                     (ui/bind-double-click! :file.open-selected))
-        h-box (doto (HBox. 5 (ui/node-array [image-view-icon text-label]))
+        text-label (Label.)
+        text-field (TextField.)
+        update-fn (fn [_] (commit-edit! tree-view text-field))
+        text-field (doto text-field
+                     (.setVisible false)
+                     (AnchorPane/setLeftAnchor 0.0)
+                     (AnchorPane/setRightAnchor 0.0)
+                     (ui/on-action! update-fn)
+                     (ui/on-cancel! identity)
+                     (ui/auto-commit! update-fn)
+                     (ui/on-focus! (fn [got-focus] (when-not got-focus
+                                                     (set-editing-id! tree-view nil)))))
+        _ (.addEventFilter text-label MouseEvent/MOUSE_PRESSED (ui/event-handler e (click-handler! tree-view text-label e)))
+        label-pane (doto (AnchorPane. (ui/node-array [text-label text-field]))
+                     (ui/add-style! "anchor-pane")
+                     (HBox/setHgrow Priority/ALWAYS))
+        h-box (doto (HBox. 5 (ui/node-array [image-view-icon label-pane]))
                 (ui/add-style! "h-box")
                 (AnchorPane/setRightAnchor 0.0)
                 (AnchorPane/setLeftAnchor 0.0))
@@ -507,15 +611,18 @@
                        (proxy-super setGraphic nil)
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))
-                     (let [{:keys [label icon link color outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error? child-overridden? scene-visibility hideable? node-outline-key-path hidden-parent?]} item
+                     (let [{:keys [node-id label icon link color outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error? child-overridden? scene-visibility hideable? node-outline-key-path hidden-parent?]} item
                            icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
                            show-link? (and (some? link)
                                            (or outline-reference? outline-show-link?))
                            text (if show-link? (format "%s - %s" label (resource/resource->proj-path link)) label)
                            hidden? (= :hidden scene-visibility)
-                           visibility-icon (if hidden? eye-icon-closed eye-icon-open)]
+                           visibility-icon (if hidden? eye-icon-closed eye-icon-open)
+                           editing? (= node-id (ui/user-data tree-view ::editing-id))]
                        (.setImage image-view-icon (icons/get-image icon))
                        (.setText text-label text)
+                       (ui/user-data! text-field ::node-id node-id)
+                       (ui/user-data! text-label ::node-id node-id)
                        (doto visibility-button
                          (.setGraphic visibility-icon)
                          (ui/on-click! (partial toggle-visibility! node-outline-key-path)))
@@ -548,7 +655,10 @@
                          (ui/remove-style! this "hidden-parent"))
                        (if hidden?
                          (ui/add-style! this "scene-visibility-hidden")
-                         (ui/remove-style! this "scene-visibility-hidden")))))))]
+                         (ui/remove-style! this "scene-visibility-hidden"))
+                       (if editing?
+                         (activate-editing! text-label text-field)
+                         (deactivate-editing! text-label text-field)))))))]
     (doto cell
       (.setOnDragEntered drag-entered-handler)
       (.setOnDragExited drag-exited-handler))))
@@ -569,6 +679,28 @@
       ;; TODO - handle selection order
       (app-view/select! app-view selection))))
 
+(defn key-pressed-handler!
+  [app-view ^TreeView tree-view ^KeyEvent event]
+  (let [keymap (g/node-value app-view :keymap)
+        rename-shortcuts (keymap/shortcuts keymap :edit.rename)
+        editing-id (ui/user-data tree-view ::editing-id)]
+    (condp = (.getCode event)
+      KeyCode/ENTER
+      ;; We want to commit the rename on Enter, while editing.
+      (when-not editing-id
+        (.consume event)
+        (ui/run-command (.getSource event) :file.open-selected))
+      
+      ;; The key-down `F2` event is consumed by javafx, even though the built-in editing
+      ;; that uses it is set to false, so `:edit.rename :outline` handler will not work
+      ;; for `F2`. Since the shortcut is customizable, we need to check if it exists.
+      KeyCode/F2
+      (when (some #(= "F2" (.toString ^KeyCodeCombination %)) rename-shortcuts)
+        (.consume event)
+        (ui/run-command (.getSource event) :edit.rename))
+
+      nil)))
+
 (defn- setup-tree-view [project ^TreeView tree-view outline-view app-view]
   (let [drag-entered-handler (ui/event-handler e (drag-entered project outline-view e))
         drag-exited-handler (ui/event-handler e (drag-exited e))]
@@ -581,9 +713,9 @@
       (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
       (ui/observe-selection #(propagate-selection %2 app-view))
       (ui/register-context-menu ::outline-menu)
-      (ui/bind-key-commands! {"Enter" :file.open-selected})
-      (ui/context! :outline {} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
-                                                                     resource/Resource :link}))))
+      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (key-pressed-handler! app-view tree-view event)))
+      (ui/context! :outline {:outline-view outline-view} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
+                                                                                               resource/Resource :link}))))
 
 (defn make-outline-view [view-graph project tree-view app-view]
   (let [outline-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph OutlineView :raw-tree-view tree-view))))]

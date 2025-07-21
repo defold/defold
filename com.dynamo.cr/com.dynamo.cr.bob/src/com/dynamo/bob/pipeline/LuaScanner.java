@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -113,7 +114,8 @@ public class LuaScanner extends LuaParserBaseListener {
     private CommonTokenStream tokenStream = null;
     private TokenStreamRewriter rewriter;
 
-    private final List<String> modules = new ArrayList<String>();
+    // Using LinkedHashSet keeps insertion order while giving O(1) look‑ups
+    private final Set<String> modules = new LinkedHashSet<>();
     private final List<Property> properties = new ArrayList<Property>();
     public final List<LuaScannerException> exceptions = new ArrayList<>();
 
@@ -157,14 +159,14 @@ public class LuaScanner extends LuaParserBaseListener {
         public FunctionDescriptor(LuaParser.VariableContext variableCtx) {
             // simple function call, like `require()`
             String varName = null;
-            if(variableCtx.getClass() == LuaParser.NamedvariableContext.class) {
+            if(variableCtx instanceof LuaParser.NamedvariableContext) {
                 varName = ((LuaParser.NamedvariableContext)variableCtx).NAME().getText();
             }
 
-            // indexed function call, like `_G.require()` or `go.property()` where 
+            // indexed function call, like `_G.require()` or `go.property()` where
             // `objectName` is `go` and `indexName` is `property`
             String indexName = null;
-            if(variableCtx.getClass() == LuaParser.IndexContext.class) {
+            if(variableCtx instanceof LuaParser.IndexContext) {
                 LuaParser.IndexContext indexVariableCtx = (LuaParser.IndexContext)variableCtx;
                 TerminalNode nameNode = indexVariableCtx.NAME();
                 if (nameNode != null) {
@@ -208,7 +210,7 @@ public class LuaScanner extends LuaParserBaseListener {
         LuaLexer lexer = new LuaLexer(CharStreams.fromString(str));
         tokenStream = new CommonTokenStream(lexer);
         rewriter = new TokenStreamRewriter(tokenStream);
-        
+
         // Remove comments in rewriter
         tokenStream.fill();
         for (Token token : tokenStream.getTokens()) {
@@ -248,7 +250,8 @@ public class LuaScanner extends LuaParserBaseListener {
      * @return List of Lua modules
      */
     public List<String> getModules() {
-        return modules;
+        // Preserve original ordering but avoid O(n) contains() look‑ups elsewhere
+        return new ArrayList<>(modules);
     }
 
     /**
@@ -382,12 +385,12 @@ public class LuaScanner extends LuaParserBaseListener {
                     // the value isn't a number
                     return false;
                 }
-                
+
             }
             // one value for example vmath.vector3(1), is valid, and all the values should be filled
             if (count == 1) {
                 for (int i = count; i < resultArgs.length; i ++) {
-                   resultArgs[i] = resultArgs[0]; 
+                   resultArgs[i] = resultArgs[0];
                 }
             }
             else if (count != resultArgs.length) {
@@ -413,9 +416,8 @@ public class LuaScanner extends LuaParserBaseListener {
         if (fnDesc.is("require", null) || fnDesc.is("require", "_G")) {
             String module = getFirstStringArg(ctx.nameAndArgs().args());
             // ignore Lua+LuaJIT standard libraries + Defold additions such as LuaSocket
-            // and also don't add the same module twice
-            if (module != null && !LUA_LIBRARIES.contains(module) && !modules.contains(module)) {
-                modules.add(module);
+            if (module != null && !LUA_LIBRARIES.contains(module)) {
+                modules.add(module);      // LinkedHashSet prevents duplicates in O(1)
             }
         }
         else if (fnDesc.is("property", "go")) {
@@ -458,22 +460,21 @@ public class LuaScanner extends LuaParserBaseListener {
      */
     @Override
     public void enterFunctionstat(LuaParser.FunctionstatContext ctx) {
-        TerminalNode funcName = ctx.funcname().NAME(1);
+        LuaParser.FuncnameContext funcNameCtx = ctx.funcname();
+        TerminalNode funcName = funcNameCtx.NAME(1);
         TerminalNode objName = null;
         if (funcName == null) {
-            funcName = ctx.funcname().NAME(0);
+            funcName = funcNameCtx.NAME(0);
         }
         else {
-            objName = ctx.funcname().NAME(0);
+            objName = funcNameCtx.NAME(0);
         }
         if (objName == null || objName.getText().equals("_G")) {
-            for(String name: LIFECYCLE_FUNCTIONS) {
-                if (funcName.getText().equals(name)) {
-                    LuaParser.BlockContext blockCtx = ctx.funcbody().block();
-                    if (blockCtx.stat().isEmpty() && blockCtx.retstat() == null) {
-                        List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
-                        removeTokens(tokens);
-                    }
+            if (LIFECYCLE_FUNCTIONS.contains(funcName.getText())) {
+                LuaParser.BlockContext blockCtx = ctx.funcbody().block();
+                if (blockCtx.stat().isEmpty() && blockCtx.retstat() == null) {
+                    List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
+                    removeTokens(tokens);
                 }
             }
         }

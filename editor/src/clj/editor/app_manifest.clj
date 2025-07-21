@@ -21,9 +21,13 @@
             [editor.resource-io :as resource-io]
             [editor.yaml :as yaml]))
 
+(def macos #{:x86_64-osx :arm64-osx})
+
 (def windows #{:x86-win32 :x86_64-win32})
 
 (def android #{:armv7-android :arm64-android})
+
+(def ios #{:armv7-ios :arm64-ios :x86_64-ios})
 
 (def web #{:js-web :wasm-web :wasm_pthread-web})
 
@@ -219,12 +223,12 @@
 (defn make-check-box-setting [toggles]
   {:setting :check-box :toggles toggles})
 
-(defn make-choice-setting [& kw+toggles-then-none]
-  (let [none (last kw+toggles-then-none)
-        choices (into [] (partition-all 2) (butlast kw+toggles-then-none))]
-    (assert (keyword? none))
-    (assert (every? (fn [[kw toggles]]
-                      (and (keyword? kw) (coll? toggles) (every? map? toggles)))
+(defn make-choice-setting [& id+toggles-then-none]
+  (let [none (last id+toggles-then-none)
+        choices (into [] (partition-all 2) (butlast id+toggles-then-none))]
+    (assert (or (keyword? none) (map? none)))
+    (assert (every? (fn [[id toggles]]
+                      (and (or (keyword? id) (map? id)) (coll? toggles) (every? map? toggles)))
                     choices))
     {:setting :choice
      :choices choices
@@ -240,12 +244,12 @@
 
     :choice
     (let [{:keys [choices none]} setting
-          first-fit-choice (some (fn [[_kw toggles :as choice]]
+          first-fit-choice (some (fn [[_id toggles :as choice]]
                                    (when (properties/unify-values (mapv #(get-toggle-value manifest %) toggles))
                                      choice))
                                  choices)]
       (if first-fit-choice
-        (let [[choice-kw choice-toggles] first-fit-choice
+        (let [[choice-id choice-toggles] first-fit-choice
               choice-toggle? (set choice-toggles)
               remaining-toggle-values (into []
                                             (comp
@@ -255,7 +259,7 @@
                                             choices)]
           (if (or (zero? (count remaining-toggle-values))
                   (false? (properties/unify-values remaining-toggle-values)))
-            choice-kw
+            choice-id
             nil))
         (let [all-toggles-unify-to-nil (nil? (properties/unify-values
                                                (into []
@@ -271,8 +275,8 @@
     :choice (let [{:keys [choices none]} setting
                   enabled-toggles (if (= none value)
                                     nil
-                                    (some (fn [[kw toggles]]
-                                            (when (= kw value) toggles))
+                                    (some (fn [[id toggles]]
+                                            (when (= id value) toggles))
                                           choices))
                   disabled-toggles (if (= none value)
                                      (mapcat second choices)
@@ -294,6 +298,20 @@
   `(g/fnk [~'manifest]
      (get-setting-value ~'manifest ~setting-sym)))
 
+(defn update-setting-value [manifest setting f & args]
+  (let [v (get-setting-value manifest setting)
+        v (if (nil? v)
+            (case (:setting setting)
+              :check-box false
+              :choice (:none setting))
+            v)]
+    (set-setting-value manifest setting (apply f v args))))
+
+(defn setting-property-updater [setting f & args]
+  (fn [_evaluation-context self old new]
+    (when-not (g/error? old)
+      (apply g/update-property self :manifest update-setting-value setting f (concat args [new])))))
+
 ;; endregion
 
 (def record-setting
@@ -305,9 +323,23 @@
 (def profiler-setting
   (make-check-box-setting
     (concat
-      (libs-toggles all-platforms ["profilerext_null"])
-      (exclude-libs-toggles all-platforms ["profilerext"])
-      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerExt"]))))
+      (libs-toggles all-platforms ["profile_null", "profilerext_null"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic"])
+      (exclude-libs-toggles all-platforms ["profile", "profilerext"])
+      (exclude-libs-toggles windows ["profiler_remotery"])
+      (exclude-libs-toggles macos ["profiler_remotery"])
+      (exclude-libs-toggles linux ["profiler_remotery"])
+      (exclude-libs-toggles android ["profiler_remotery"])
+      (exclude-libs-toggles ios ["profiler_remotery"])
+      (exclude-libs-toggles web ["profiler_js"])
+      (generic-contains-toggles windows :excludeSymbols ["ProfilerRemotery"])
+      (generic-contains-toggles macos :excludeSymbols ["ProfilerRemotery"])
+      (generic-contains-toggles linux :excludeSymbols ["ProfilerRemotery"])
+      (generic-contains-toggles android :excludeSymbols ["ProfilerRemotery"])
+      (generic-contains-toggles ios :excludeSymbols ["ProfilerRemotery"])
+      (generic-contains-toggles web :excludeSymbols ["ProfilerJS"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic", "ProfilerRemotery"])
+      )))
 
 (def sound-setting
   (make-check-box-setting
@@ -363,16 +395,41 @@
      (boolean-toggle :arm64-android :jetifier false)]))
 
 (def physics-setting
-  (make-choice-setting
-    :none (concat (libs-toggles all-platforms ["physics_null"]) (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision" "box2d" "box2d_defold" "script_box2d" "script_box2d_defold"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
-    :2d   (concat (libs-toggles all-platforms ["physics_2d_defold"])   (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision"]))
-    :3d   (concat (libs-toggles all-platforms ["physics_3d"])   (exclude-libs-toggles all-platforms ["physics" "box2d" "box2d_defold" "script_box2d" "script_box2d_defold"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
-    :both))
+  ;; by default, legacy 2d and 3d are included in `physics` lib
+  (let [;; must be used when excluding anything
+        exclude-default (exclude-libs-toggles all-platforms ["physics"])
 
-(def physics-2d-setting
-  (make-choice-setting
-    :box2d (concat (libs-toggles all-platforms ["physics_2d" "box2d" "script_box2d"]) (exclude-libs-toggles all-platforms ["physics" "box2d_defold" "script_box2d_defold"]))
-    :box2d-defold))
+        ;; must use at least one of these when excluding default
+        exclude-3d (exclude-libs-toggles all-platforms ["LinearMath" "BulletDynamics" "BulletCollision"])
+        exclude-legacy-2d (exclude-libs-toggles all-platforms ["box2d_defold" "script_box2d_defold"])
+
+        ;; must be used when excluding 2d completely:
+        exclude-all-2d (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"])
+
+        ;; must be used when excluding all physics:
+        exclude-all (libs-toggles all-platforms ["physics_null"])
+
+        ;; can only be used when using exclude-default:
+        include-legacy-2d (libs-toggles all-platforms ["physics_2d_defold"])
+        include-2d-v3 (libs-toggles all-platforms ["physics_2d" "box2d" "script_box2d"])
+        include-3d (libs-toggles all-platforms ["physics_3d"])]
+    (make-choice-setting
+      {:2d :none :3d false}
+      (concat exclude-all exclude-default exclude-3d exclude-legacy-2d exclude-all-2d)
+
+      {:2d :legacy :3d false}
+      (concat exclude-default exclude-3d include-legacy-2d)
+
+      {:2d :v3 :3d false}
+      (concat exclude-default exclude-3d exclude-legacy-2d include-2d-v3)
+
+      {:2d :none :3d true}
+      (concat exclude-default exclude-legacy-2d exclude-all-2d include-3d)
+
+      {:2d :v3 :3d true}
+      (concat exclude-default exclude-legacy-2d include-2d-v3 include-3d)
+
+      {:2d :legacy :3d true})))
 
 (def image-setting
   (make-check-box-setting
@@ -508,22 +565,19 @@
                                   :indent (case (g/node-value self :indent-type evaluation-context)
                                             :two-spaces 2
                                             4)))))))
-  (property physics g/Any
-            (dynamic tooltip (g/constantly "Box2D, Bullet, both or none"))
-            (dynamic edit-type (g/constantly {:type :choicebox
-                                              :options [[:both "2D & 3D"]
-                                                        [:2d "2D"]
-                                                        [:3d "3D"]
-                                                        [:none "None"]]}))
-            (value (setting-property-getter physics-setting))
-            (set (setting-property-setter physics-setting)))
   (property physics-2d g/Any
             (dynamic tooltip (g/constantly "Box2D version 3 or legacy Defold version"))
             (dynamic edit-type (g/constantly {:type :choicebox
-                                              :options [[:box2d "Box2D Version 3"]
-                                                        [:box2d-defold "Box2D (Legacy Defold version)"]]}))
-            (value (setting-property-getter physics-2d-setting))
-            (set (setting-property-setter physics-2d-setting)))
+                                              :options [[:v3 "Box2D Version 3"]
+                                                        [:legacy "Box2D (Legacy Defold version)"]
+                                                        [:none "None"]]}))
+            (value (g/fnk [manifest] (:2d (get-setting-value manifest physics-setting))))
+            (set (setting-property-updater physics-setting assoc :2d)))
+  (property physics-3d g/Any
+            (dynamic tooltip (g/constantly "Bullet or none"))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (g/fnk [manifest] (:3d (get-setting-value manifest physics-setting))))
+            (set (setting-property-updater physics-setting assoc :3d)))
   (property Rig+Model g/Any
             (dynamic tooltip (g/constantly "Rig, Model or none"))
             (dynamic edit-type (g/constantly {:type :choicebox

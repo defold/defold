@@ -25,11 +25,6 @@ namespace dmRender
     typedef struct RenderContext*   HRenderContext;
 }
 
-namespace dmProfile
-{
-    typedef void* HProfile;
-}
-
 namespace dmProfileRender
 {
     typedef struct RenderProfile* HRenderProfile;
@@ -61,8 +56,8 @@ namespace dmProfileRender
     struct ProfilerProperty
     {
         uint32_t                    m_NameHash;
-        dmProfile::PropertyValue    m_Value;
-        dmProfile::PropertyType     m_Type;
+        ProfilePropertyValue        m_Value;
+        ProfilePropertyType         m_Type;
         uint8_t                     m_Indent; // The stack depth
     };
 
@@ -107,7 +102,7 @@ namespace dmProfileRender
     void DeleteProfilerFrame(ProfilerFrame* frame);
     void PruneProfilerThreads(ProfilerFrame* ctx, uint64_t time);
 
-    void AddProperty(ProfilerFrame* frame, uint32_t name_hash, dmProfile::PropertyType type, dmProfile::PropertyValue value, int indent);
+    void AddProperty(ProfilerFrame* frame, uint32_t name_hash, ProfilePropertyType type, ProfilePropertyValue value, int indent);
 }
 
 #endif

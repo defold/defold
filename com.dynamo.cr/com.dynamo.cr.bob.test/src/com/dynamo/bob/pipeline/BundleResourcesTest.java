@@ -158,6 +158,7 @@ public class BundleResourcesTest {
         List<String> folders = ExtenderUtil.getExtensionFolders(project);
         assertEquals(1, folders.size());
         assertEquals("extension1", folders.get(0));
+        project.cleanupResourcePathsCache();
 
         // Add one more extension folder at root
         addFile("extension2/ext.manifest", "name: \"extension2\"");
@@ -165,6 +166,7 @@ public class BundleResourcesTest {
         assertEquals(2, folders.size());
         assertEquals("extension1", folders.get(0));
         assertEquals("extension2", folders.get(1));
+        project.cleanupResourcePathsCache();
 
         // Add one more extension folder in a nested subfolder
         addFile("subfolder/extension3/ext.manifest", "name: \"extension3\"");
@@ -173,7 +175,7 @@ public class BundleResourcesTest {
         assertEquals("extension1", folders.get(0));
         assertEquals("extension2", folders.get(1));
         assertEquals("subfolder/extension3", folders.get(2));
-
+        project.cleanupResourcePathsCache();
     }
 
     @Test
@@ -182,12 +184,14 @@ public class BundleResourcesTest {
         project.getProjectProperties().putStringValue("project", "bundle_exclude_resources", "/extension1/res/common/collision.txt,/extension1/res/common/subdir/subdirtest.txt");
 
         project.getProjectProperties().putStringValue("project", "bundle_resources", "/restest1");
+        project.cleanupResourcePathsCache();
         Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Arrays.asList(Platform.getHostPlatform()));
         assertEquals(2, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt"));
         assertTrue(resourceMap.containsKey("test.txt"));
 
         project.getProjectProperties().putStringValue("project", "bundle_resources", "/restest2");
+        project.cleanupResourcePathsCache();
         resourceMap = ExtenderUtil.collectBundleResources(project, Arrays.asList(Platform.getHostPlatform()));
         assertEquals(3, resourceMap.size());
     }
@@ -196,6 +200,7 @@ public class BundleResourcesTest {
     public void testExtensionResources() throws Exception {
 
         // Should find bundle resources inside the extension1 folder
+        project.cleanupResourcePathsCache();
         Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Arrays.asList(Platform.getHostPlatform()));
         assertEquals(2, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt"));
@@ -206,6 +211,7 @@ public class BundleResourcesTest {
 
         // Add project property for bundle resources
         project.getProjectProperties().putStringValue("project", "bundle_resources", "/does_not_exist/");
+        project.cleanupResourcePathsCache();
         Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Arrays.asList(Platform.getHostPlatform()));
 
         // Will only contain collision.txt and subdirtest.txt from the extension directory.
@@ -222,12 +228,14 @@ public class BundleResourcesTest {
 
         // Exclude the conflicting file from bundle_resources
         project.getProjectProperties().putStringValue("project", "bundle_exclude_resources", "/restest1/common/collision.txt");
+        project.cleanupResourcePathsCache();
         Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Arrays.asList(Platform.getHostPlatform()));
         assertEquals(3, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt"));
 
         // Exclude the conflicting file from extension
         project.getProjectProperties().putStringValue("project", "bundle_exclude_resources", "/extension1/res/common/collision.txt");
+        project.cleanupResourcePathsCache();
         resourceMap = ExtenderUtil.collectBundleResources(project, Arrays.asList(Platform.getHostPlatform()));
         assertEquals(3, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt"));
@@ -241,6 +249,7 @@ public class BundleResourcesTest {
 
         // Test "old" way of specifying custom resources without leading slash (ie non absolute)
         project.getProjectProperties().putStringValue("project", "bundle_resources", "restest1/");
+        project.cleanupResourcePathsCache();
         Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Arrays.asList(Platform.getHostPlatform()));
         assertEquals(2, resourceMap.size());
     }
@@ -253,6 +262,7 @@ public class BundleResourcesTest {
 
         // Test non existing project path
         project.getProjectProperties().putStringValue("project", "bundle_resources", "/not_valid/");
+        project.cleanupResourcePathsCache();
         Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Arrays.asList(Platform.getHostPlatform()));
         assertEquals(0, resourceMap.size());
     }
@@ -260,6 +270,7 @@ public class BundleResourcesTest {
     @Test
     public void testWriteToDisk() throws Exception {
 
+        project.cleanupResourcePathsCache();
         Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Arrays.asList(Platform.getHostPlatform()));
         File folder = tmpFolder.newFolder();
 
@@ -275,6 +286,7 @@ public class BundleResourcesTest {
     @Test
     public void testWriteToZip() throws Exception {
 
+        project.cleanupResourcePathsCache();
         Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Arrays.asList(Platform.getHostPlatform()));
 
         // Write entries to temp zip file
@@ -319,6 +331,7 @@ public class BundleResourcesTest {
             Platform expectedPlatform = entry.getKey();
             String[] expectedFiles = entry.getValue();
 
+            project.cleanupResourcePathsCache();
             Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Arrays.asList(expectedPlatform));
 
             // +3 size since collision.txt, common.txt subdir/subdirtest.txt always included.

@@ -272,11 +272,15 @@ namespace dmGameSystem
         ModelWorld* world = (ModelWorld*)params.m_World;
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclarationSkinned);
+        dmGraphics::DeleteVertexDeclaration(world->m_InstanceVertexDeclaration);
+        dmGraphics::DeleteVertexDeclaration(world->m_InstanceVertexDeclarationSkinned);
 
         for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
         {
             dmRender::DeleteBufferedRenderBuffer(context->m_RenderContext, world->m_VertexBuffers[i]);
         }
+
+        dmRender::DeleteBufferedRenderBuffer(context->m_RenderContext, world->m_InstanceBufferLocalSpace);
 
         for (int i = 0; i < world->m_ScratchConstantBuffers.Size(); ++i)
         {
@@ -1036,6 +1040,27 @@ namespace dmGameSystem
         dmGameObject::DeleteBones(component->m_Instance);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_NodeInstances.SetCapacity(0);
+
+        // Clean up custom vertex buffers
+        for (uint32_t i = 0; i < component->m_MeshAttributeRenderDatas.Size(); ++i)
+        {
+            MeshAttributeRenderData& rd = component->m_MeshAttributeRenderDatas[i];
+            if (rd.m_VertexBuffer)
+            {
+                dmGraphics::DeleteVertexBuffer(rd.m_VertexBuffer);
+                rd.m_VertexBuffer = 0;
+            }
+            if (rd.m_VertexDeclaration)
+            {
+                dmGraphics::DeleteVertexDeclaration(rd.m_VertexDeclaration);
+                rd.m_VertexDeclaration = 0;
+            }
+            if (rd.m_InstanceVertexDeclaration)
+            {
+                dmGraphics::DeleteVertexDeclaration(rd.m_InstanceVertexDeclaration);
+                rd.m_InstanceVertexDeclaration = 0;
+            }
+        }
 
         if (component->m_RigInstance)
         {

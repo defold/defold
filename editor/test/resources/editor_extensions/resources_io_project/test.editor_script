@@ -1,0 +1,81 @@
+local M = {}
+
+---@param resource string
+---@param indent string?
+local function print_tree(resource, indent) 
+    indent = indent or ""
+    print(indent .. "/" .. resource:match("[^/]+$"))
+    local children = editor.can_get(resource, "children") and editor.get(resource, "children") or {}
+    local child_indent = indent .. "  "
+    for i = 1, #children do
+        print_tree(children[i], child_indent)
+    end
+end
+
+local function create_resources(resources)
+    local arg_str = ""
+    for i = 1, #resources do
+        local res = resources[i]
+        if type(res) == "string" then
+            arg_str = arg_str .. '"' .. res .. '"'
+        else
+            arg_str = arg_str .. '{"' .. res[1] .. '"'
+            if res[2] then
+                arg_str = arg_str .. ', "' .. res[2]:gsub("\"", "\\\"") .. '"'
+            end
+            arg_str = arg_str .. "}"
+        end
+        if i ~= #resources then
+            arg_str = arg_str .. ", "
+        end
+    end
+    local success, message = pcall(editor.create_resources, resources)
+    message = success and "ok!" or message or "failed"
+    print(("editor.create_resources({%s}) => %s"):format(arg_str, message))
+    print_tree("/test")
+end
+
+local function pprint_resource(resource, props)
+    local entity = {}
+    for i = 1, #props do
+        local p = props[i]
+        entity[p] = editor.get(resource, p)
+    end
+    print(("%s:"):format(resource))
+    pprint(entity)
+end
+
+function M.get_commands()
+    return {
+        editor.command({
+            label = "Test",
+            locations = {"Edit"},
+            id = "defold.test",
+            run = function()
+                create_resources({
+                    {"/test/config.json", "{\"test\": true}"}
+                })
+                pprint_resource("/test/config.json", {"text"})
+
+                create_resources({
+                    "/test/npc.go", 
+                    "/test/npc.collection"
+                })
+                pprint_resource("/test/npc.go", {"components"})
+                pprint_resource("/test/npc.collection", {"name"})
+
+                create_resources({"/test/UPPER.COLLECTION"})
+                pprint_resource("/test/UPPER.COLLECTION", {"name"})
+                
+                create_resources({"/test/../../../outside.txt"})
+                create_resources({"/test/npc.go"})
+                create_resources({"/test/repeated.go", "/test/repeated.go"})
+
+                editor.delete_directory("/test")
+            end
+        })
+    }
+end
+
+
+return M

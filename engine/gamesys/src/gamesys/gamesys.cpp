@@ -76,6 +76,45 @@ DM_PROPERTY_GROUP(rmtp_Components, "Gameobject Components", 0);
 
 namespace dmGameSystem
 {
+
+#define DEFINE_EXT_CONSTANTS(prefix, ext)              \
+        const char* prefix##_EXT = ext;                \
+        const dmhash_t prefix##_EXT_HASH = dmHashString64(ext);
+
+    // Definitions (see declarations in gamesys_private.h)
+    DEFINE_EXT_CONSTANTS(COLLECTION_FACTORY,   "collectionfactoryc")
+    DEFINE_EXT_CONSTANTS(COLLISION_OBJECT,     "collisionobjectc")
+    DEFINE_EXT_CONSTANTS(FACTORY,              "factoryc")
+    DEFINE_EXT_CONSTANTS(FONT,                 "fontc")
+    DEFINE_EXT_CONSTANTS(MATERIAL,             "materialc")
+    DEFINE_EXT_CONSTANTS(BUFFER,               "bufferc")
+    DEFINE_EXT_CONSTANTS(MODEL,                "modelc")
+    DEFINE_EXT_CONSTANTS(TEXTURE,              "texturec")
+    DEFINE_EXT_CONSTANTS(TEXTURE_SET,          "texturesetc")
+    DEFINE_EXT_CONSTANTS(TILE_MAP,             "tilemapc")
+    DEFINE_EXT_CONSTANTS(RENDER_TARGET,        "render_targetc")
+    DEFINE_EXT_CONSTANTS(COLLECTION_PROXY,     "collectionproxyc")
+
+#undef DEFINE_EXT_CONSTANTS
+
+    const dmhash_t PROP_FONT        = dmHashString64("font");
+    const dmhash_t PROP_FONTS       = dmHashString64("fonts");
+    const dmhash_t PROP_IMAGE       = dmHashString64("image");
+    const dmhash_t PROP_MATERIAL    = dmHashString64("material");
+    const dmhash_t PROP_MATERIALS   = dmHashString64("materials");
+    const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {
+        dmHashString64("texture0"),
+        dmHashString64("texture1"),
+        dmHashString64("texture2"),
+        dmHashString64("texture3"),
+        dmHashString64("texture4"),
+        dmHashString64("texture5"),
+        dmHashString64("texture6"),
+        dmHashString64("texture7")
+    };
+    const dmhash_t PROP_TEXTURES    = dmHashString64("textures");
+    const dmhash_t PROP_TILE_SOURCE = dmHashString64("tile_source");
+
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, dmInput::HContext input_context, PhysicsContext* physics_context)
     {
         dmResource::Result e;

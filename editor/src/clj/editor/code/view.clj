@@ -44,6 +44,7 @@
             [editor.keymap :as keymap]
             [editor.lsp :as lsp]
             [editor.markdown :as markdown]
+            [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
             [editor.os :as os]
             [editor.prefs :as prefs]
@@ -2505,7 +2506,7 @@
    {:command :edit.copy :label "Copy"}
    {:command :edit.paste :label "Paste"}
    {:command :code.select-all :label "Select All"}
-   {:label :separator :id :editor.app-view/edit-end}])
+   (menu-items/separator-with-id :editor.app-view/edit-end)])
 
 (defn handle-mouse-pressed! [view-node ^MouseEvent event]
   (let [^Node target (.getTarget event)
@@ -2762,7 +2763,7 @@
                                                   regions
                                                   breakpoint-rows)))))
 
-(handler/defhandler :code.rename :code-view
+(handler/defhandler :edit.rename :code-view
   (active? [editable] editable)
   (run [view-node]
     (g/with-auto-evaluation-context evaluation-context
@@ -3343,7 +3344,7 @@
    {:command :code.select-next-occurrence :label "Select Next Occurrence"}
    {:command :code.split-selection-into-lines :label "Split Selection Into Lines"}
    {:label :separator}
-   {:command :code.rename :label "Rename"}
+   {:command :edit.rename :label "Rename"}
    {:command :code.goto-definition :label "Go to Definition"}
    {:command :code.show-references :label "Find References"}
    {:label :separator}

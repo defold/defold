@@ -120,9 +120,9 @@ TEST_F(IdTest, TestHierarchies)
     ASSERT_NE((void*)0, (void*)sub1_instance);
     dmGameObject::HInstance sub2_instance = dmGameObject::GetInstanceFromIdentifier(collection, sub2_id);
     ASSERT_NE((void*)0, (void*)sub2_instance);
-    ASSERT_EQ(sub1_id, dmGameObject::GetAbsoluteIdentifier(instance, "sub/go1", strlen("sub/go1")));
-    ASSERT_EQ(id, dmGameObject::GetAbsoluteIdentifier(sub1_instance, "/go", strlen("/go")));
-    ASSERT_EQ(sub2_id, dmGameObject::GetAbsoluteIdentifier(sub1_instance, "go2", strlen("go2")));
-    ASSERT_EQ(id, dmGameObject::GetAbsoluteIdentifier(sub2_instance, "/go", strlen("/go")));
+    ASSERT_EQ(sub1_id, dmGameObject::GetAbsoluteIdentifier(instance, "sub/go1"));
+    ASSERT_EQ(id, dmGameObject::GetAbsoluteIdentifier(sub1_instance, "/go"));
+    ASSERT_EQ(sub2_id, dmGameObject::GetAbsoluteIdentifier(sub1_instance, "go2"));
+    ASSERT_EQ(id, dmGameObject::GetAbsoluteIdentifier(sub2_instance, "/go"));
     dmResource::Release(m_Factory, collection);
 }

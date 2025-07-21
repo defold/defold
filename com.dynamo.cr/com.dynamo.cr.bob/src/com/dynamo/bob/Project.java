@@ -53,6 +53,7 @@ import java.util.zip.ZipOutputStream;
 import com.defold.extension.pipeline.ILuaTranspiler;
 import com.defold.extension.pipeline.texture.TextureCompressorPreset;
 import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.publisher.FolderPublisher;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.DefaultResource;
@@ -138,9 +139,8 @@ public class Project {
     private List<URL> libUrls = new ArrayList<URL>();
     private List<String> propertyFiles = new ArrayList<>();
     private List<String> buildServerHeaders = new ArrayList<>();
-    private List<String> excludedFilesAndFoldersEntries = new ArrayList<>();
     private List<String> engineBuildDirs = new ArrayList<>();
-
+    private List<String> allResourcePathsCache; // Cache for all resource paths, since Bob doesn't change project files during build
     private BobProjectProperties projectProperties;
     private Publisher publisher;
     private Map<String, Map<Long, IResource>> hashToResource = new HashMap<>();
@@ -167,6 +167,7 @@ public class Project {
         this.fileSystem = fileSystem;
         this.fileSystem.setRootDirectory(rootDirectory);
         this.fileSystem.setBuildDirectory(buildDirectory);
+        this.allResourcePathsCache = null;
         clearProjectProperties();
     }
 
@@ -176,6 +177,7 @@ public class Project {
         this.fileSystem = fileSystem;
         this.fileSystem.setRootDirectory(this.rootDirectory);
         this.fileSystem.setBuildDirectory(this.buildDirectory);
+        this.allResourcePathsCache = null;
         clearProjectProperties();
     }
 
@@ -187,7 +189,13 @@ public class Project {
         this.fileSystem = fileSystem;
         this.fileSystem.setRootDirectory(this.rootDirectory);
         this.fileSystem.setBuildDirectory(this.buildDirectory);
+        this.allResourcePathsCache = null;
         clearProjectProperties();
+    }
+
+    // For tests
+    public void cleanupResourcePathsCache() {
+        allResourcePathsCache = null;
     }
 
     public void dispose() {
@@ -350,71 +358,72 @@ public class Project {
     private void doScan(IClassScanner scanner, Set<String> classNames) {
         TimeProfiler.start("doScan");
         boolean is_bob_light = getManifestInfo("is-bob-light") != null;
-        for (String className : classNames) {
-            // Ignore TexcLibrary to avoid it being loaded and initialized
-            // We're also skipping some of the bundler classes, since we're only building content,
-            // not doing bundling when using bob-light
-            boolean skip = className.startsWith("com.dynamo.bob.TexcLibrary") ||
-                    (is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) ||
-                    (is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) ||
-                    (is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper"));
-            if (!skip) {
-                try {
-                    Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
-                    BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
-                    if (builderParams != null) {
-                        for (String inExt : builderParams.inExts()) {
-                            extToBuilder.put(inExt, (Class<? extends Builder>) klass);
-                            inextToOutext.put(inExt, builderParams.outExt());
-                        }
-                        Builder.addParamsDigest(klass, this.getOptions(), builderParams);
-                        ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
-                        if (protoParams != null) {
-                            ProtoBuilder.addMessageClass(builderParams.outExt(), protoParams.messageClass());
-                            ProtoBuilder.addProtoDigest(protoParams.messageClass());
-                            for (String ext : builderParams.inExts()) {
-                                Class<?> inputClass = protoParams.srcClass();
-                                if (inputClass != null) {
-                                    ProtoBuilder.addMessageClass(ext, protoParams.srcClass());
-                                }
+        List<String> filteredClassNames = classNames.stream()
+                .filter(className ->
+                        // classes with static initializers we don't want to initialize on this stage
+                        !className.startsWith("com.dynamo.bob.pipeline.TexcLibrary") &&
+                        !className.startsWith("com.dynamo.bob.pipeline.Shaderc") &&
+                        !className.startsWith("com.dynamo.bob.pipeline.ModelImporter") &&
+                        // namespaces we don't need to scan
+                        !className.startsWith("com.dynamo.bob.pipeline.antlr") &&
+                        // classes we don't need to bob light
+                        !(is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) &&
+                        !(is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) &&
+                        !(is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper")))
+                .collect(Collectors.toList());
+        for (String className : filteredClassNames) {
+            try {
+                TimeProfiler.start(className);
+                Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
+                BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
+                if (builderParams != null) {
+                    for (String inExt : builderParams.inExts()) {
+                        extToBuilder.put(inExt, (Class<? extends Builder>) klass);
+                        inextToOutext.put(inExt, builderParams.outExt());
+                    }
+                    Builder.addParamsDigest(klass, this.getOptions(), builderParams);
+                    ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
+                    if (protoParams != null) {
+                        ProtoBuilder.addMessageClass(builderParams.outExt(), protoParams.messageClass());
+                        ProtoBuilder.addProtoDigest(protoParams.messageClass());
+                        for (String ext : builderParams.inExts()) {
+                            Class<?> inputClass = protoParams.srcClass();
+                            if (inputClass != null) {
+                                ProtoBuilder.addMessageClass(ext, protoParams.srcClass());
                             }
                         }
                     }
-
-                    if (IBundler.class.isAssignableFrom(klass))
-                    {
-                        if (!klass.equals(IBundler.class)) {
-                            bundlerClasses.add( (Class<? extends IBundler>) klass);
-                        }
-                    }
-
-                    if (IShaderCompiler.class.isAssignableFrom(klass))
-                    {
-                        if (!klass.equals(IShaderCompiler.class)) {
-                            shaderCompilerClasses.add((Class<? extends IShaderCompiler>) klass);
-                        }
-                    }
-
-                    if (ITextureCompressor.class.isAssignableFrom(klass))
-                    {
-                        if (!klass.equals(ITextureCompressor.class)) {
-                            textureCompressorClasses.add((Class<? extends ITextureCompressor>) klass);
-                        }
-                    }
-
-                    if (IPlugin.class.isAssignableFrom(klass))
-                    {
-                        if (!klass.equals(IPlugin.class)) {
-                            pluginClasses.add( (Class<? extends IPlugin>) klass);
-                        }
-                    }
-
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
                 }
+
+                if (IBundler.class.isAssignableFrom(klass)) {
+                    if (!klass.equals(IBundler.class)) {
+                        bundlerClasses.add((Class<? extends IBundler>) klass);
+                    }
+                }
+
+                if (IShaderCompiler.class.isAssignableFrom(klass)) {
+                    if (!klass.equals(IShaderCompiler.class)) {
+                        shaderCompilerClasses.add((Class<? extends IShaderCompiler>) klass);
+                    }
+                }
+
+                if (ITextureCompressor.class.isAssignableFrom(klass)) {
+                    if (!klass.equals(ITextureCompressor.class)) {
+                        textureCompressorClasses.add((Class<? extends ITextureCompressor>) klass);
+                    }
+                }
+
+                if (IPlugin.class.isAssignableFrom(klass)) {
+                    if (!klass.equals(IPlugin.class)) {
+                        pluginClasses.add((Class<? extends IPlugin>) klass);
+                    }
+                }
+                TimeProfiler.stop();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
         }
-        TimeProfiler.stop();
+        TimeProfiler.stop(); // Final stop after plugin registration
     }
 
     static String[][] extensionMapping = new String[][] {
@@ -582,6 +591,8 @@ public class Project {
                         this.publisher = new AWSPublisher(settings);
                     } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
                         this.publisher = new ZipPublisher(getRootDirectory(), settings);
+                    } else if (PublisherSettings.PublishMode.Folder.equals(settings.getMode())) {
+                        this.publisher = new FolderPublisher(getRootDirectory(), settings);
                     } else {
                         throw new CompileExceptionError("The publisher specified is not supported", null);
                     }
@@ -618,7 +629,7 @@ public class Project {
 
     // Loads the properties from a game project settings file
     // Also adds any properties specified with the "--settings" flag
-    public static BobProjectProperties loadProperties(Project project, IResource projectFile, List<String> settingsFiles) throws IOException {
+    public static BobProjectProperties loadProperties(Project project, IResource projectFile, List<String> settingsFiles, boolean scanExtensions) throws IOException {
         if (!projectFile.exists()) {
             throw new IOException(String.format("Project file not found: %s", projectFile.getAbsPath()));
         }
@@ -627,14 +638,16 @@ public class Project {
         try {
             // load meta.properties embeded in bob.jar
             properties.loadDefaultMetaFile();
-            // load property files from extensions
-            List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
-            if (!extensionFolders.isEmpty()) {
-                for (String extension : extensionFolders) {
-                    IResource resource = project.getResource(extension + "/" + BobProjectProperties.PROPERTIES_EXTENSION_FILE);
-                    if (resource.exists()) {
-                        // resources from extensions in ZIP files can't be read as files, but getContent() works fine
-                        loadPropertiesData(properties, resource.getContent(), true, resource.getPath());
+            if (scanExtensions) {
+                // load property files from extensions
+                List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
+                if (!extensionFolders.isEmpty()) {
+                    for (String extension : extensionFolders) {
+                        IResource resource = project.getResource(extension + "/" + BobProjectProperties.PROPERTIES_EXTENSION_FILE);
+                        if (resource.exists()) {
+                            // resources from extensions in ZIP files can't be read as files, but getContent() works fine
+                            loadPropertiesData(properties, resource.getContent(), true, resource.getPath());
+                        }
                     }
                 }
             }
@@ -656,11 +669,16 @@ public class Project {
         return properties;
     }
 
-    public void loadProjectFile() throws IOException {
+    public void loadProjectFile(boolean scanExtensions) throws IOException {
         IResource gameProject = getGameProjectResource();
         if (gameProject.exists()) {
-            projectProperties = Project.loadProperties(this, gameProject, this.getPropertyFiles());
+            projectProperties = Project.loadProperties(this, gameProject, this.getPropertyFiles(), scanExtensions);
         }
+    }
+
+    // External API. See https://github.com/defold/extension-prometheus
+    public void loadProjectFile() throws IOException {
+        loadProjectFile(true);
     }
 
     public void addBuildServerHeader(String header) {
@@ -708,7 +726,7 @@ public class Project {
     public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         try {
             TimeProfiler.start("loadProjectFile");
-            loadProjectFile();
+            loadProjectFile(true);
             TimeProfiler.stop();
 
             String title = projectProperties.getStringValue("project", "title");
@@ -842,7 +860,7 @@ public class Project {
                 boolean isGenerated = outStr.contains("_generated_");
                 if (build_map.containsKey(outStr) && !isGenerated) {
                     List<IResource> inputsStored = build_map.get(outStr);
-                    String errMsg = "Conflicting output resource '" + outStr + "‘ generated by the following input files: " + inputs.toString() + " <-> " + inputsStored.toString();
+                    String errMsg = "Conflicting output resource '" + outStr + "' generated by the following input files: " + inputs.toString() + " <-> " + inputsStored.toString();
                     IResource errRes = getConflictingResource(output, inputs, inputsStored);
                     throw new CompileExceptionError(errRes, 0, errMsg);
                 }
@@ -1331,6 +1349,7 @@ public class Project {
     }
 
     private void registerPipelinePlugins() throws CompileExceptionError {
+        TimeProfiler.start("registerPipelinePlugins");
         // Find the plugins and register them now, before we're building the content
         BundleHelper.extractPipelinePlugins(this, getPluginsDirectory());
         List<File> plugins = BundleHelper.getPipelinePlugins(this, getPluginsDirectory());
@@ -1356,6 +1375,7 @@ public class Project {
             logger.info("  %s", relativePath);
         }
         logger.info("");
+        TimeProfiler.stop();
     }
 
     private boolean shouldBuildArtifact(String artifact) {
@@ -1446,6 +1466,7 @@ public class Project {
     }
 
     public void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
+        TimeProfiler.start("configurePreBuildProjectOptions");
         List<GameProjectBuildOption> options = new ArrayList<>();
         options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader","output_spirv",List.of("GraphicsAdapterVulkan")));
         options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader","output_hlsl",List.of("GraphicsAdapterDX12")));
@@ -1495,6 +1516,7 @@ public class Project {
 
         boolean isPhysics2D = this.getProjectProperties().getStringValue("physics", "type", "2D").equals("2D");
         this.setOption("physics-type-2D", Boolean.toString(isPhysics2D));
+        TimeProfiler.stop();
     }
 
     private ArrayList<TextureCompressorPreset> parseTextureCompressorPresetFromJSON(String fromPath, byte[] data) throws CompileExceptionError {
@@ -1661,6 +1683,12 @@ public class Project {
 
             File resourceReportJSONFile = new File(resourceReportJSONPath);
             File resourceReportJSONFolder = resourceReportJSONFile.getParentFile();
+            if (resourceReportJSONFolder != null && !resourceReportJSONFolder.exists()) {
+                boolean success = resourceReportJSONFolder.mkdirs();
+                if (!success) {
+                    throw new IOException("Failed to create directories for path: " + resourceReportJSONFolder.getAbsolutePath());
+                }
+            }
             resourceReportJSONWriter = new FileWriter(resourceReportJSONFile);
 
             String excludedResourceReportJSONName = "excluded_" + resourceReportJSONFile.getName();
@@ -1670,7 +1698,13 @@ public class Project {
         if (this.hasOption("build-report-html")) {
             String resourceReportHTMLPath = this.option("build-report-html", "report.html");
             File resourceReportHTMLFile = new File(resourceReportHTMLPath);
-
+            File parentDir = resourceReportHTMLFile.getParentFile();
+            if (parentDir != null && !parentDir.exists()) {
+                boolean success = parentDir.mkdirs();
+                if (!success) {
+                    throw new IOException("Failed to create directories for path: " + parentDir.getAbsolutePath());
+                }
+            }
             File resourceReportHTMLFolder = resourceReportHTMLFile.getParentFile();
             resourceReportHTMLWriter = new FileWriter(resourceReportHTMLFile);
 
@@ -1973,6 +2007,7 @@ public class Project {
 
     /**
      * Resolve (i.e. download from server) the stored lib URLs.
+     *
      * @throws IOException
      */
     public void resolveLibUrls(IProgress progress) throws IOException, LibraryException {
@@ -1988,137 +2023,167 @@ public class Project {
             IProgress subProgress = progress.subProgress(count);
             subProgress.beginTask("Download archive(s)", count);
             logInfo("Downloading %d archive(s)", count);
+
+            // Use a fixed thread pool with 2 threads for parallel downloads
+            ExecutorService executor = Executors.newFixedThreadPool(2);
+            List<Future<Void>> futures = new ArrayList<>();
+
             for (int i = 0; i < count; ++i) {
-                TimeProfiler.start("Lib %2d", i);
-                BundleHelper.throwIfCanceled(progress);
-                URL url = libUrls.get(i);
-                File f = libFiles.get(url.toString());
+                final int index = i;
+                final URL url = libUrls.get(i);
+                final File f = libFiles.get(url.toString());
 
-                logInfo("%2d: Downloading %s", i, url);
-                TimeProfiler.addData("url", url.toString());
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                // GitLab will respond with a 406 Not Acceptable if the request
-                // is made without an Accept header
-                connection.setRequestProperty("Accept", "application/zip");
+                Future<Void> future = executor.submit(() -> {
+                    try {
+                        TimeProfiler.start("Lib %2d", index);
+                        BundleHelper.throwIfCanceled(progress);
 
-                String etag = null;
-                if (f != null) {
-                    String etagB64 = LibraryUtil.getETagFromName(LibraryUtil.getHashedUrl(url), f.getName());
-                    if (etagB64 != null) {
-                        etag = new String(new Base64().decode(etagB64.getBytes())).replace("\"", ""); // actually includes the quotation marks
-                        etag = String.format("\"%s\"", etag); // fixing broken etag
-                        connection.addRequestProperty("If-None-Match", etag);
-                    }
-                }
+                        logInfo("%2d: Downloading %s", index, url);
+                        TimeProfiler.addData("url", url.toString());
+                        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                        // GitLab will respond with a 406 Not Acceptable if the request
+                        // is made without an Accept header
+                        connection.setRequestProperty("Accept", "application/zip");
 
-                // Check if URL contains basic auth credentials
-                String basicAuthData = null;
-                try {
-                    URI uri = new URI(url.toString());
-                    basicAuthData = uri.getUserInfo();
-                } catch (URISyntaxException e1) {
-                    // Ignored, could not get URI and basic auth data from URL.
-                }
-
-                // Check if basic auth password is a token that should be replaced with
-                // an environment variable.
-                // The token should start and end with __ and exist as an environment
-                // variable.
-                if (basicAuthData != null) {
-                    String[] parts = basicAuthData.split(":");
-                    String username = parts[0];
-                    String password = parts.length > 1 ? parts[1] : "";
-                    if (password.startsWith("__") && password.endsWith("__")) {
-                        String envKey = password.substring(2, password.length() - 2);
-                        String envValue = getSystemEnv(envKey);
-                        if (envValue != null) {
-                            basicAuthData = username + ":" + envValue;
-                        }
-                    }
-                }
-
-                // Pass correct headers along to server depending on auth alternative.
-                final String email = this.options.get("email");
-                final String auth = this.options.get("auth");
-                if (basicAuthData != null) {
-                    String basicAuth = "Basic " + new String(new Base64().encode(basicAuthData.getBytes()));
-                    connection.setRequestProperty("Authorization", basicAuth);
-                } else if (email != null && auth != null) {
-                    connection.addRequestProperty("X-Email", email);
-                    connection.addRequestProperty("X-Auth", auth);
-                }
-
-                InputStream input = null;
-                try {
-                    connection.connect();
-                    int code = connection.getResponseCode();
-
-                    TimeProfiler.addData("status code", code);
-                    if (code == 304) {
-                        logInfo("%2d: Status %d: Already cached", i, code);
-                    } else if (code >= 400) {
-                        logWarning("%2d: Status %d: Failed to download %s", i, code, url);
-                        throw new LibraryException(String.format("Status %d: Failed to download %s", code, url), new Exception());
-                    } else {
-
-                        String serverETag = connection.getHeaderField("ETag");
-                        if (serverETag == null) {
-                            serverETag = connection.getHeaderField("Etag");
+                        String etag = null;
+                        if (f != null) {
+                            String etagB64 = LibraryUtil.getETagFromName(LibraryUtil.getHashedUrl(url), f.getName());
+                            if (etagB64 != null) {
+                                etag = new String(new Base64().decode(etagB64.getBytes())).replace("\"", ""); // actually includes the quotation marks
+                                etag = String.format("\"%s\"", etag); // fixing broken etag
+                                connection.addRequestProperty("If-None-Match", etag);
+                            }
                         }
 
-                        if (serverETag == null) {
-                            logWarning(String.format("The URL %s didn't provide an ETag", url));
-                            serverETag = "";
-                        }
-
-                        if (etag != null && !etag.equals(serverETag)) {
-                            logInfo("%2d: Status %d: ETag mismatch %s != %s. Deleting old file %s", i, code, etag!=null?etag:"", serverETag!=null?serverETag:"", f);
-                            f.delete();
-                            f = null;
-                        }
-
-                        input = new BufferedInputStream(connection.getInputStream());
-
-                        if (f == null) {
-                            f = new File(libPath, LibraryUtil.getFileName(url, serverETag));
-                        }
-                        FileUtils.copyInputStreamToFile(input, f);
-
+                        // Check if URL contains basic auth credentials
+                        String basicAuthData = null;
                         try {
-                            ZipFile zip = new ZipFile(f);
-                            zip.close();
-                        } catch (ZipException e) {
-                            f.delete();
-                            throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                            URI uri = new URI(url.toString());
+                            basicAuthData = uri.getUserInfo();
+                        } catch (URISyntaxException e1) {
+                            // Ignored, could not get URI and basic auth data from URL.
                         }
-                        logInfo("%2d: Status %d: Stored %s", i, code, f);
-                    }
-                    connection.disconnect();
-                } catch (ConnectException e) {
-                    throw new LibraryException(String.format("Connection refused by the server at %s", url.toString()), e);
-                } catch (FileNotFoundException e) {
-                    throw new LibraryException(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
-                } finally {
-                    if(input != null) {
-                        IOUtils.closeQuietly(input);
-                    }
-                    subProgress.worked(1);
-                }
 
-                BundleHelper.throwIfCanceled(subProgress);
-                TimeProfiler.stop();
+                        // Check if basic auth password is a token that should be replaced with
+                        // an environment variable.
+                        // The token should start and end with __ and exist as an environment
+                        // variable.
+                        if (basicAuthData != null) {
+                            String[] parts = basicAuthData.split(":");
+                            String username = parts[0];
+                            String password = parts.length > 1 ? parts[1] : "";
+                            if (password.startsWith("__") && password.endsWith("__")) {
+                                String envKey = password.substring(2, password.length() - 2);
+                                String envValue = getSystemEnv(envKey);
+                                if (envValue != null) {
+                                    basicAuthData = username + ":" + envValue;
+                                }
+                            }
+                        }
+                        // Pass correct headers along to server depending on auth alternative.
+                        final String email = this.options.get("email");
+                        final String auth = this.options.get("auth");
+                        if (basicAuthData != null) {
+                            String basicAuth = "Basic " + new String(new Base64().encode(basicAuthData.getBytes()));
+                            connection.setRequestProperty("Authorization", basicAuth);
+                        } else if (email != null && auth != null) {
+                            connection.addRequestProperty("X-Email", email);
+                            connection.addRequestProperty("X-Auth", auth);
+                        }
+                        InputStream input = null;
+                        try {
+                            connection.connect();
+                            int code = connection.getResponseCode();
+
+                            TimeProfiler.addData("status code", code);
+                            if (code == 304) {
+                                logInfo("%2d: Status %d: Already cached", index, code);
+                            } else if (code >= 400) {
+                                logWarning("%2d: Status %d: Failed to download %s", index, code, url);
+                                throw new LibraryException(String.format("Status %d: Failed to download %s", code, url), new Exception());
+                            } else {
+
+                                String serverETag = connection.getHeaderField("ETag");
+                                if (serverETag == null) {
+                                    serverETag = connection.getHeaderField("Etag");
+                                }
+
+                                if (serverETag == null) {
+                                    logWarning(String.format("The URL %s didn't provide an ETag", url));
+                                    serverETag = "";
+                                }
+
+                                if (etag != null && !etag.equals(serverETag)) {
+                                    logInfo("%2d: Status %d: ETag mismatch %s != %s. Deleting old file %s", index, code, etag != null ? etag : "", serverETag != null ? serverETag : "", f);
+                                    f.delete();
+                                    // Note: f becomes null in the original scope, but we need to handle this differently in parallel context
+                                }
+
+                                input = new BufferedInputStream(connection.getInputStream());
+
+                                File targetFile = f;
+                                if (targetFile == null) {
+                                    targetFile = new File(libPath, LibraryUtil.getFileName(url, serverETag));
+                                }
+                                FileUtils.copyInputStreamToFile(input, targetFile);
+
+                                try {
+                                    ZipFile zip = new ZipFile(targetFile);
+                                    zip.close();
+                                } catch (ZipException e) {
+                                    targetFile.delete();
+                                    throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                                }
+                                logInfo("%2d: Status %d: Stored %s", index, code, targetFile);
+                            }
+                            connection.disconnect();
+                        } catch (ConnectException e) {
+                            throw new LibraryException(String.format("Connection refused by the server at %s", url.toString()), e);
+                        } catch (FileNotFoundException e) {
+                            throw new LibraryException(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
+                        } finally {
+                            if (input != null) {
+                                IOUtils.closeQuietly(input);
+                            }
+                            subProgress.worked(1);
+                        }
+
+                        BundleHelper.throwIfCanceled(subProgress);
+                        TimeProfiler.stop();
+                        return null;
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                futures.add(future);
             }
-        }
-        catch(IOException ioe) {
+            // Wait for all downloads to complete
+            for (Future<Void> future : futures) {
+                try {
+                    future.get();
+                } catch (ExecutionException e) {
+                    Throwable cause = e.getCause();
+                    if (cause instanceof LibraryException) {
+                        throw (LibraryException) cause;
+                    } else if (cause instanceof IOException) {
+                        throw (IOException) cause;
+                    } else {
+                        throw new LibraryException(cause.getMessage(), cause);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new LibraryException("Download interrupted", e);
+                }
+            }
+            executor.shutdown();
+        } catch (IOException ioe) {
             throw ioe;
-        }
-        catch(LibraryException le) {
+        } catch (LibraryException le) {
             throw le;
-        }
-        catch(Exception e) {
+        } catch (Exception e) {
             throw new LibraryException(e.getMessage(), e);
         }
-   }
+    }
 
     /**
      * Set option
@@ -2256,29 +2321,40 @@ public class Project {
     }
 
     private void findResourcePathsByExtension(String _path, String ext, Collection<String> result) {
+        TimeProfiler.start("findResourcePathsByExtension");
+        TimeProfiler.addData("path", _path);
+        TimeProfiler.addData("ext", ext);
+        _path = FilenameUtils.normalize(_path, true);
+        if (_path.startsWith("/")) {
+            _path = _path.substring(1);
+        }
         final String path = Project.stripLeadingSlash(_path);
-        fileSystem.walk(path, new FileSystemWalker() {
-            public void handleFile(String path, Collection<String> results) {
-                boolean shouldAdd = true;
 
-                // Do a first pass on the path to check if it satisfies the ext check
-                if (ext != null) {
-                    shouldAdd = path.endsWith(ext);
+        // Initialize and cache all paths only once
+        if (allResourcePathsCache == null) {
+            List<String> allPaths = new ArrayList<>();
+            fileSystem.walk("", new FileSystemWalker() {
+                public void handleFile(String filePath, Collection<String> results) {
+                    results.add(FilenameUtils.normalize(filePath, true));
                 }
+            }, allPaths);
+            allResourcePathsCache = allPaths;
+        }
 
-                // Ignore for native extensions and the other systems.
-                // Check comment for loadIgnoredFilesAndFolders()
-                for (String prefix : excludedFilesAndFoldersEntries) {
-                    if (path.startsWith(prefix)) {
-                        shouldAdd = false;
-                        break;
-                    }
-                }
-                if (shouldAdd) {
-                    results.add(FilenameUtils.normalize(path, true));
-                }
-            }
-        }, result);
+        // Fast path: if no filter, return everything
+        if ((ext == null || ext.isEmpty()) && (path == null || path.isEmpty())) {
+            result.addAll(allResourcePathsCache);
+            TimeProfiler.stop();
+            return;
+        }
+
+        // Filter the cached list in parallel, collect safely, then add to result
+        List<String> filteredPaths = allResourcePathsCache.parallelStream()
+            .filter(p -> (ext == null || p.endsWith(ext)) &&
+                         (path == null || path.isEmpty() || p.startsWith(path)))
+            .collect(Collectors.toList());
+        result.addAll(filteredPaths);
+        TimeProfiler.stop();
     }
 
     public void findResourcePaths(String _path, Collection<String> result) {

@@ -15,10 +15,4 @@
 #ifndef DM_PROFILE_PRIVATE_H
 #define DM_PROFILE_PRIVATE_H
 
-namespace dmProfile
-{
-// For unit tests only
-void PrintProperty(dmProfile::HProperty property, int indent);
-}
-
 #endif // DM_PROFILE_PRIVATE_H
