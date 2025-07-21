@@ -17,7 +17,8 @@
             [cljfx.fx.text-flow :as fx.text-flow]
             [clojure.core.reducers :as r]
             [editor.fuzzy-text :as fuzzy-text]
-            [editor.util :as util])
+            [editor.util :as util]
+            [util.thread-util :as thread-util])
   (:import [javafx.scene.text Text TextFlow]))
 
 (set! *warn-on-reflection* true)
@@ -53,10 +54,16 @@
 (defn filter-options [option->matched-text option->label-text filter-text options]
   (if (empty? filter-text)
     options
-    (sort (partial option-order option->label-text)
-          (seq (r/foldcat (r/filter some?
-                                    (r/map (partial option->fuzzy-matched-option option->matched-text filter-text)
-                                           options)))))))
+    (let [fuzzy-matched-options
+          (->> options
+               (r/take-while (thread-util/thread-uninterrupted-predicate))
+               (r/map #(option->fuzzy-matched-option option->matched-text filter-text %))
+               (r/filter some?)
+               (r/foldcat))]
+
+      (thread-util/throw-if-interrupted!)
+      (sort (partial option-order option->label-text)
+            (seq fuzzy-matched-options)))))
 
 (defn- make-text-run [text style-class]
   (let [text-view (Text. text)]
