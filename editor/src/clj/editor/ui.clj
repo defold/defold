@@ -1016,7 +1016,8 @@
   (selection [this] (->> this
                          .getSelectionModel
                          .getSelectedItems
-                         (mapv #(.getValue ^TreeItem %))))
+                         (keep #(when % (.getValue ^TreeItem %)))
+                         (into [])))
   (select! [this item] (let [tree-items (tree-item-seq (.getRoot this))]
                          (when-let [tree-item (some (fn [^TreeItem tree-item] (and (= item (.getValue tree-item)) tree-item)) tree-items)]
                            (doto (.getSelectionModel this)
