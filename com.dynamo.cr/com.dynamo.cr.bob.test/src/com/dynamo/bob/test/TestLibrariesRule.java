@@ -61,6 +61,21 @@ public class TestLibrariesRule extends ExternalResource {
         out.close();
     }
 
+    void createTestLib(String root, String sha1) throws IOException {
+        File file = new File(String.format("%s/test.zip", root));
+        ZipOutputStream out = new ZipOutputStream(new FileOutputStream(file));
+        out.setComment(sha1);
+        ZipEntry ze;
+
+        createEntry(out, "game.project", "[library]\ninclude_dirs=test".getBytes());
+        createEntry(out, "test/", null);
+        createEntry(out, "test/testdir1/", null);
+        createEntry(out, "test/testdir2/", null);
+        createEntry(out, "test/file.in", "testfile".getBytes());
+
+        out.close();
+    }
+
     @Override
     protected void before() throws Throwable {
         serverLocation = new File("server_root");
@@ -71,6 +86,7 @@ public class TestLibrariesRule extends ExternalResource {
         createLib(serverLocation.getAbsolutePath(), "subdir/second/", "4", "444");
         createLib(serverLocation.getAbsolutePath(), "", "5", "555");
         createLib(serverLocation.getAbsolutePath(), "", "6", "666");
+        createTestLib(serverLocation.getAbsolutePath(), "test123");
     }
 
     @Override
