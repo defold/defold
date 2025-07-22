@@ -2324,12 +2324,6 @@ public class Project {
         TimeProfiler.start("findResourcePathsByExtension");
         TimeProfiler.addData("path", _path);
         TimeProfiler.addData("ext", ext);
-        _path = FilenameUtils.normalize(_path, true);
-        if (_path.startsWith("/")) {
-            _path = _path.substring(1);
-        }
-        final String path = Project.stripLeadingSlash(_path);
-
         // Initialize and cache all paths only once
         if (allResourcePathsCache == null) {
             List<String> allPaths = new ArrayList<>();
@@ -2340,13 +2334,25 @@ public class Project {
             }, allPaths);
             allResourcePathsCache = allPaths;
         }
-
+        _path = FilenameUtils.normalize(_path, true);
+        _path = stripLeadingSlash(_path);
         // Fast path: if no filter, return everything
-        if ((ext == null || ext.isEmpty()) && (path == null || path.isEmpty())) {
+        if ((ext == null || ext.isEmpty()) && (_path == null || _path.isEmpty())) {
             result.addAll(allResourcePathsCache);
             TimeProfiler.stop();
             return;
         }
+        IResource res = fileSystem.get(_path);
+        try {
+            if ( (_path != null && !_path.isEmpty()) && (!res.isFile() || res.getContent() == null)) {
+                if (!_path.endsWith("/")) {
+                    _path += "/";
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        final String path =_path;
 
         // Filter the cached list in parallel, collect safely, then add to result
         List<String> filteredPaths = allResourcePathsCache.parallelStream()

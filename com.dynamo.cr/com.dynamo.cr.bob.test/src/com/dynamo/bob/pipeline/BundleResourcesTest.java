@@ -191,7 +191,6 @@ public class BundleResourcesTest {
         assertTrue(resourceMap.containsKey("test.txt"));
 
         project.getProjectProperties().putStringValue("project", "bundle_resources", "/restest2");
-        project.cleanupResourcePathsCache();
         resourceMap = ExtenderUtil.collectBundleResources(project, Arrays.asList(Platform.getHostPlatform()));
         assertEquals(3, resourceMap.size());
     }
@@ -228,14 +227,12 @@ public class BundleResourcesTest {
 
         // Exclude the conflicting file from bundle_resources
         project.getProjectProperties().putStringValue("project", "bundle_exclude_resources", "/restest1/common/collision.txt");
-        project.cleanupResourcePathsCache();
         Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Arrays.asList(Platform.getHostPlatform()));
         assertEquals(3, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt"));
 
         // Exclude the conflicting file from extension
         project.getProjectProperties().putStringValue("project", "bundle_exclude_resources", "/extension1/res/common/collision.txt");
-        project.cleanupResourcePathsCache();
         resourceMap = ExtenderUtil.collectBundleResources(project, Arrays.asList(Platform.getHostPlatform()));
         assertEquals(3, resourceMap.size());
         assertTrue(resourceMap.containsKey("collision.txt"));
@@ -331,7 +328,6 @@ public class BundleResourcesTest {
             Platform expectedPlatform = entry.getKey();
             String[] expectedFiles = entry.getValue();
 
-            project.cleanupResourcePathsCache();
             Map<String, IResource> resourceMap = ExtenderUtil.collectBundleResources(project, Arrays.asList(expectedPlatform));
 
             // +3 size since collision.txt, common.txt subdir/subdirtest.txt always included.
