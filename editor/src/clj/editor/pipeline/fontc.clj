@@ -215,6 +215,8 @@
 (defn- get-font-map-props [font-desc]
   {:material (str (:material font-desc) "c")
    :size (:size font-desc)
+   :all-chars (:all-chars font-desc)
+   :characters (:characters font-desc)
    :antialias (:antialias font-desc)
    :shadow-x (:shadow-x font-desc)
    :shadow-y (:shadow-y font-desc)
