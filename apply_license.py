@@ -67,6 +67,7 @@ ext_to_license = {
 excluded_files = [
     "apply_license.py",
     "engine/ddf/src/ddfc.py",
+    "engine/ddf/src/ddf_hash.py",
     "engine/engine/contents/builtins/edn.lua",
     "engine/engine/contents/builtins/mobdebug.lua",
     "engine/font/src/stb_truetype.h",

@@ -1074,6 +1074,7 @@ class Configuration(object):
                 # protoc
                 protoc = os.path.join(self.dynamo_home, 'ext/bin/%s/protoc' % platform)
                 ddfc_py = os.path.join(self.dynamo_home, 'bin/ddfc.py')
+                ddf_hash_py = os.path.join(self.dynamo_home, 'bin/ddf_hash.py')
                 ddfc_cxx = os.path.join(self.dynamo_home, 'bin/ddfc_cxx')
                 ddfc_cxx_bat = os.path.join(self.dynamo_home, 'bin/ddfc_cxx.bat')
                 ddfc_java = os.path.join(self.dynamo_home, 'bin/ddfc_java')
@@ -1085,7 +1086,7 @@ class Configuration(object):
                 ddf_math_pb2 = os.path.join(self.dynamo_home, 'lib/python/ddf/ddf_math_pb2.py')
                 dlib_init = os.path.join(self.dynamo_home, 'lib/python/dlib/__init__.py')
 
-                self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat, plugin_pb2, ddf_init, ddf_extensions_pb2, ddf_math_pb2, dlib_init], self.dynamo_home, topfolder)
+                self._add_files_to_zip(zip, [protoc, ddfc_py, ddf_hash_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat, plugin_pb2, ddf_init, ddf_extensions_pb2, ddf_math_pb2, dlib_init], self.dynamo_home, topfolder)
 
                 # workaround for extender running on x86_64-darwin still:
                 if platform == 'x86_64-macos':
