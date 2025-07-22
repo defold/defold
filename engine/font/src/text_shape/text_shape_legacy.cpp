@@ -29,7 +29,7 @@
 #include "text_shape.h"
 #include "text_layout.h"
 
-static uint32_t GetLineTextMetrics(TextShapeGlyph* glyphs, uint32_t row_start, uint32_t n, int32_t tracking, bool measure_trailing_space)
+static uint32_t GetLineTextMetrics(TextShapeGlyph* glyphs, uint32_t row_start, uint32_t n, bool monospace, float padding, int32_t tracking, bool measure_trailing_space)
 {
     if (n <= 0)
         return 0;
@@ -48,6 +48,14 @@ static uint32_t GetLineTextMetrics(TextShapeGlyph* glyphs, uint32_t row_start, u
     TextShapeGlyph& last = glyphs[n-1];
 
     uint32_t row_start_x = glyphs[0].m_X;
+
+    if (monospace)
+    {
+        uint32_t extent_last = last.m_Advance + padding;
+        uint32_t width = last.m_X - row_start_x + (n-1) * tracking + extent_last;
+        return width;
+    }
+
     // the extent of the last character is left_breaking + width
     uint32_t extent_last = last.m_LeftBearing + last.m_Width;
     uint32_t width = last.m_X - row_start_x + (n-1) * tracking + extent_last;
@@ -73,11 +81,18 @@ static uint32_t GetLineTextMetrics(TextShapeGlyph* glyphs, uint32_t row_start, u
 struct LayoutMetrics
 {
     TextShapeGlyph* m_Glyphs;
+    bool            m_Monospace;
+    int32_t         m_Padding;
     int32_t         m_Tracking;
-    LayoutMetrics(TextShapeGlyph* glyphs, int32_t tracking) : m_Glyphs(glyphs), m_Tracking(tracking) {}
+    LayoutMetrics(TextShapeGlyph* glyphs, bool monospace, int32_t padding, int32_t tracking)
+    : m_Glyphs(glyphs)
+    , m_Monospace(monospace)
+    , m_Padding(padding)
+            , m_Tracking(tracking)
+    {}
     float operator()(uint32_t row_start, uint32_t n, bool measure_trailing_space)
     {
-        return GetLineTextMetrics(m_Glyphs, row_start, n, m_Tracking, measure_trailing_space);
+        return GetLineTextMetrics(m_Glyphs, row_start, n, m_Monospace, m_Padding, m_Tracking, measure_trailing_space);
     }
 };
 
@@ -102,11 +117,17 @@ TextShapeResult TextShapeText(HFont font, uint32_t* codepoints, uint32_t num_cod
     // Lay them all out in a single line, using points
     uint32_t x = 0;
     uint32_t y = 0; // the legacy "shaping" doesn't support Y offsets
+    uint32_t fallback_codepoint = 126; // '~'   ;
     FontGlyph font_glyph;
     for (uint32_t i = 0; i < num_codepoints; ++i)
     {
         uint32_t c = codepoints[i];
         FontResult r = FontGetGlyph(font, c, &options, &font_glyph);
+
+        if (FONT_RESULT_OK != r && fallback_codepoint)
+        {
+            r = FontGetGlyph(font, fallback_codepoint, &options, &font_glyph);
+        }
 
         TextShapeGlyph g = {0};
         if (FONT_RESULT_OK == r)
@@ -149,7 +170,7 @@ TextShapeResult TextLayout(TextMetricsSettings* settings, TextShapeInfo* info,
     if (!settings->m_LineBreak)
         width = INT_MAX;
 
-    LayoutMetrics lm(info->m_Glyphs.Begin(), settings->m_Tracking);
+    LayoutMetrics lm(info->m_Glyphs.Begin(), settings->m_Monospace, settings->m_Padding, settings->m_Tracking);
     uint32_t max_line_width;
     uint32_t num_lines = Layout(info, width, lines, max_num_lines,
                                 &max_line_width, lm, !settings->m_LineBreak);

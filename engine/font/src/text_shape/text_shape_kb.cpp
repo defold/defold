@@ -38,22 +38,7 @@ static uint32_t ShapeText(kbts_font* font, TextShapeInfo* info,
                             uint32_t* codepoints, uint32_t num_codepoints,
                             TextRun* run)
 {
-    // SHapes a single run
-
-    // printf("  SHAPETEXT: \"");
-    // for (uint32_t i = 0; i < num_codepoints; ++i)
-    // {
-    //     printf("%c", (char)codepoints[i]);
-    // }
-    // printf("\" len: %u \n", num_codepoints);
-
-    // kbts_font* font = &backend->m_Font;
-
-    // if (direction == KBTS_DIRECTION_RTL)
-    // {
-    //     font = &backend->m_FontArabic;
-    // }
-
+    // Shapes a single run
 
     // TODO: Look into using some scratch buffer for this
     kbts_glyph* glyphs = (kbts_glyph*)malloc(sizeof(kbts_glyph) * num_codepoints);

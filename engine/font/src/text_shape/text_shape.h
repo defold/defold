@@ -68,7 +68,9 @@ struct TextMetricsSettings
     uint32_t    m_Width;        /// Max width. used only when line_break is true. (in points)
     float       m_Leading;      /// leading scale value (1.0f is default scale)
     uint32_t    m_Tracking;     /// (in points)
+    uint32_t    m_Padding;      /// Legacy: Padding for monospace, glyphbank fonts
     uint8_t     m_LineBreak:1;  /// Allow line breaks
+    uint8_t     m_Monospace:1;  /// Legacy: Is the font a monospace font
 };
 
 struct TextMetrics
