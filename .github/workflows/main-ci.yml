@@ -139,7 +139,7 @@ jobs:
     strategy:
       matrix:
         platform: [x86_64-linux]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
@@ -241,7 +241,7 @@ jobs:
 
   build-bob:
     needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
@@ -294,7 +294,7 @@ jobs:
 
   build-editor:
     needs: [build-bob]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps: [
       {
