@@ -285,30 +285,29 @@ public class ProjectTest {
         System.out.printf("end");
     }
 
-//    @Test
-//    public void testAllResourcePathsCacheLibrary() throws Exception {
-//        System.out.printf("testTestZipLibrary start");
-//        project.resolveLibUrls(new NullProgress());
-//        project.mount(new ClassLoaderResourceScanner());
-//        project.setInputs(Arrays.asList("test/file.in", "builtins/cp_test.in"));
-//        List<TaskResult> results = build("resolve", "build");
-//        assertEquals(2, results.size());
-//        for (TaskResult result : results) {
-//            assertTrue(result.isOk());
-//        }
-//
-//        ArrayList<String> pathResults = new ArrayList<String>();
-//        project.findResourcePaths("/test_non", pathResults);
-//        assertEquals(0, pathResults.size());
-//
-//        ArrayList<String> pathResults1 = new ArrayList<String>();
-//        project.findResourcePaths("/test/file.in", pathResults1);
-//        assertEquals(1, pathResults1.size());
-//
-//        ArrayList<String> pathResults2 = new ArrayList<String>();
-//        project.findResourcePaths("/test", pathResults2);
-//        assertEquals(1, pathResults2.size());
-//    }
+    @Test
+    public void testAllResourcePathsCacheLibrary() throws Exception {
+        project.resolveLibUrls(new NullProgress());
+        project.mount(new ClassLoaderResourceScanner());
+        project.setInputs(Arrays.asList("test/file.in", "builtins/cp_test.in"));
+        List<TaskResult> results = build("resolve", "build");
+        assertEquals(2, results.size());
+        for (TaskResult result : results) {
+            assertTrue(result.isOk());
+        }
+
+        ArrayList<String> pathResults = new ArrayList<String>();
+        project.findResourcePaths("/test_non", pathResults);
+        assertEquals(0, pathResults.size());
+
+        ArrayList<String> pathResults1 = new ArrayList<String>();
+        project.findResourcePaths("/test/file.in", pathResults1);
+        assertEquals(1, pathResults1.size());
+
+        ArrayList<String> pathResults2 = new ArrayList<String>();
+        project.findResourcePaths("/test", pathResults2);
+        assertEquals(1, pathResults2.size());
+    }
 
     private class FileHandler extends ResourceHandler {
         public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException ,javax.servlet.ServletException {
