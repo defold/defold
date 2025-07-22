@@ -494,6 +494,8 @@ def default_flags(self):
 
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
+            if f == 'CFLAGS':
+                self.env.append_value(f, ['-std=gnu11'])
 
         self.env.append_value('LINKFLAGS', [f'--target={clang_arch}'])
 
