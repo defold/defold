@@ -50,8 +50,7 @@ context:
                   "profilerext_null", "libprofilerext_null.lib",
                   "decoder_wav", "libdecoder_wav.lib",
                   "decoder_ogg", "libdecoder_ogg.lib",
-                  "decoder_opus", "libdecoder_opus.lib",
-                  "fontgen","libfontgen.lib"]
+                  "decoder_opus", "libdecoder_opus.lib"]
     allowedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "AudioDecoderOpus", "GraphicsAdapterWebGPU",
                     "ProfilerExt", "ProfilerBasic", "ProfilerJS", "ProfilerRemotery", "GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "GraphicsAdapterNull",
                     "LiveUpdateExt", "ScriptBox2DExt", "ScriptImageExt", "ScriptModelExt", "ScriptTypesExt",
