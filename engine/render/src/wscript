@@ -36,9 +36,9 @@ def build(bld):
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
-    bld.install_files('${PREFIX}/include/render', 'render/font/fontmap.h')
-    bld.install_files('${PREFIX}/include/render', 'render/font/font_glyphbank.h')
-    bld.install_files('${PREFIX}/include/render', 'render/font/font_renderer.h')
+    bld.install_files('${PREFIX}/include/render/font', 'render/font/fontmap.h')
+    bld.install_files('${PREFIX}/include/render/font', 'render/font/font_glyphbank.h')
+    bld.install_files('${PREFIX}/include/render/font', 'render/font/font_renderer.h')
     bld.install_files('${PREFIX}/include/render', 'render/display_profiles.h')
     bld.install_files('${PREFIX}/include/render', 'render/render.h')
 

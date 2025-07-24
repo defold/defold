@@ -53,17 +53,16 @@ message GlyphBank
     message Glyph
     {
         required uint32 character         = 1;                  // utf32 codepoint
-        required uint32 glyph_index       = 2 [default = 0];    // the index inside the font
-        optional float  width             = 3 [default = 0];    // glyph width
-        optional uint32 image_width       = 4 [default = 0];    // glyph image width
-        optional float  advance           = 5 [default = 0.0];
-        optional float  left_bearing      = 6 [default = 0.0];
-        optional int32  ascent            = 7 [default = 0]; // WHY 32 bits???
-        optional int32  descent           = 8 [default = 0]; // WHY 32 bits???
-        optional int32  x                 = 9 [default = 0]; // only used in editor preview
-        optional int32  y                 = 10 [default = 0]; // only used in editor preview
-        optional uint64 glyph_data_offset = 11; // WHY 64 bits???
-        optional uint64 glyph_data_size   = 12; // 32 bits should suffice?
+        optional float  width             = 2 [default = 0];    // glyph width
+        optional uint32 image_width       = 3 [default = 0];    // glyph image width
+        optional float  advance           = 4 [default = 0.0];
+        optional float  left_bearing      = 5 [default = 0.0];
+        optional int32  ascent            = 6 [default = 0]; // WHY 32 bits???
+        optional int32  descent           = 7 [default = 0]; // WHY 32 bits???
+        optional int32  x                 = 8 [default = 0]; // only used in editor preview
+        optional int32  y                 = 9 [default = 0]; // only used in editor preview
+        optional uint64 glyph_data_offset = 10; // WHY 64 bits???
+        optional uint64 glyph_data_size   = 11; // 32 bits should suffice?
     }
 
     repeated Glyph             glyphs                = 1;

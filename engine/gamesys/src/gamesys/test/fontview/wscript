@@ -18,7 +18,7 @@ def build(bld):
 
     font_viewer = bld.program(features = flist,
                               source   = 'fontview.cpp deja_vu_sans.font vera_mo_bd.font font.vp font.fp font.material',
-                              use      = 'RENDER CRASH GRAPHICS RESOURCE HID DDF DMGLFW OPENGL SOCKET SCRIPT LUA EXTENSION DLIB PROFILE_NULL PLATFORM APP gamesys',
+                              use      = 'RENDER CRASH GRAPHICS RESOURCE HID DDF FONT DMGLFW OPENGL SOCKET SCRIPT LUA EXTENSION DLIB PROFILE_NULL PLATFORM APP gamesys',
                               web_libs = ['library_sys.js', glfw_js],
                               includes = ['../../../../src',  '../../../build', '../../../../build/proto'],
                               target   = 'fontview')

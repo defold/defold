@@ -27,6 +27,7 @@
 #include <graphics/graphics_util.h> // for PackRGBA
 
 #include "fontmap.h"
+#include "fontmap_private.h"
 #include "font_renderer_private.h"  // for FontMap, RenderLayerMask
 
 #include "font_renderer.h"       // for FontGlyphCompression

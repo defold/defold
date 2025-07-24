@@ -49,8 +49,10 @@ struct JobItem
     // input
     FontResource*   m_FontResource; // Incref'd for each job item
     TTFResource*    m_TTFResource;  // Incref'd for each job item
+    HFont           m_Font;         // The actual font to use
 
     uint32_t        m_Codepoint;
+    uint32_t        m_GlyphIndex;
 
     float           m_StbttSdfPadding;
     int             m_StbttEdgeValue;
@@ -69,9 +71,9 @@ struct JobItem
     void*           m_CallbackCtx;  // Only set for the last item in the queue
 
     // output
-    dmGameSystem::FontGlyph m_Glyph;
-    uint8_t*                m_Data;     // May be 0. First byte is the compression (0=no compression, 1=deflate)
-    uint32_t                m_DataSize;
+    FontGlyph*      m_Glyph;
+    // uint8_t*        m_Data;     // May be 0. First byte is the compression (0=no compression, 1=deflate)
+    // uint32_t        m_DataSize;
 };
 
 struct Context
@@ -85,8 +87,17 @@ struct Context
 
 Context* g_FontExtContext = 0;
 
+// Assumes the lock is already held
 static void ReleaseResources(Context* ctx, JobItem* item)
 {
+    // If it's still set, it wasn't successfully transferred to the .fontc resource
+    if (item->m_Glyph)
+    {
+        HFont font = dmGameSystem::GetFont(item->m_TTFResource);
+        FontFreeGlyph(font, item->m_Glyph);
+        item->m_Glyph = 0;
+    }
+
     if (item->m_FontResource && !item->m_IsLoading)
         dmResource::Release(ctx->m_ResourceFactory, item->m_FontResource);
     item->m_FontResource = 0;
@@ -126,41 +137,43 @@ static int JobGenerateGlyph(void* context, void* data)
         return 0;
 
     uint32_t codepoint = item->m_Codepoint;
+    uint32_t glyph_index = item->m_GlyphIndex;
 
     uint64_t tstart = dmTime::GetTime();
 
-    item->m_Data = 0;
-    item->m_DataSize = 0;
-    memset(&item->m_Glyph, 0, sizeof(item->m_Glyph));
+    // item->m_Data = 0;
+    // item->m_DataSize = 0;
+    item->m_Glyph = new FontGlyph;
+    memset(item->m_Glyph, 0, sizeof(FontGlyph));
 
-    bool is_whitespace = dmGameSystem::IsWhiteSpace(codepoint);
+    bool is_whitespace = dmUtf8::IsWhiteSpace(codepoint);
 
     dmGameSystem::TTFResource* ttfresource = item->m_TTFResource;
-    dmFont::HFont font = dmGameSystem::GetFont(ttfresource);
+    HFont font = dmGameSystem::GetFont(ttfresource);
 
-    dmFont::GlyphOptions options;
+    FontGlyphOptions options;
     options.m_Scale = item->m_Scale;
     options.m_GenerateImage = true;
 
-    if (dmFont::GetType(font) == dmFont::FONT_TYPE_STBTTF)
+    if (FontGetType(font) == FONT_TYPE_STBTTF)
     {
         options.m_StbttSDFPadding       = item->m_StbttSdfPadding;
         options.m_StbttSDFOnEdgeValue   = item->m_StbttEdgeValue;
     }
 
-    dmFont::Glyph glyph;
-    dmFont::FontResult fr = dmFont::GetGlyph(font, codepoint, &options, &glyph);
-    if (dmFont::RESULT_NOT_SUPPORTED == fr)
+    FontGlyph* glyph = item->m_Glyph;
+    FontResult fr = FontGetGlyphByIndex(font, glyph_index, &options, glyph);
+    if (FONT_RESULT_NOT_SUPPORTED == fr)
     {
         if (is_whitespace)
         {
             return 1; // We deal with white spaces in the next callback
         }
-        dmLogError("Codepoint not supported: '%c' 0x%04X", (char)codepoint, codepoint);
+        dmLogError("Codepoint not supported: '%c' 0x%04X. idx: %u", (char)codepoint, codepoint, glyph_index);
         return 0;
     }
 
-    if (item->m_ShadowBlur > 0.0f && glyph.m_Bitmap.m_Data)
+    if (item->m_ShadowBlur > 0.0f && glyph->m_Bitmap.m_Data)
     {
         // To support the old shadow algorithm, we need to rescale the values,
         // so that values >outline border are within the shapes
@@ -169,10 +182,10 @@ static int JobGenerateGlyph(void* context, void* data)
         // We should look into it if we ever choose the new code path as the default.
 
         // Make a copy
-        glyph.m_Bitmap.m_Channels = 3;
-        uint32_t w = glyph.m_Bitmap.m_Width;
-        uint32_t h = glyph.m_Bitmap.m_Height;
-        uint32_t ch = glyph.m_Bitmap.m_Channels;
+        glyph->m_Bitmap.m_Channels = 3;
+        uint32_t w = glyph->m_Bitmap.m_Width;
+        uint32_t h = glyph->m_Bitmap.m_Height;
+        uint32_t ch = glyph->m_Bitmap.m_Channels;
         uint32_t newsize = w*h*ch;
 
         uint8_t* rgb = (uint8_t*)malloc(newsize);
@@ -184,7 +197,7 @@ static int JobGenerateGlyph(void* context, void* data)
         {
             for (int x = 0; x < w; ++x)
             {
-                uint8_t value = glyph.m_Bitmap.m_Data[y * w + x];
+                uint8_t value = glyph->m_Bitmap.m_Data[y * w + x];
                 uint8_t shadow_value = Remap(value, outline_edge_value);
 
                 rgb[y * (w * ch) + (x * ch) + 0] = value;
@@ -192,40 +205,29 @@ static int JobGenerateGlyph(void* context, void* data)
                 rgb[y * (w * ch) + (x * ch) + 2] = shadow_value;
             }
         }
-        free((void*)glyph.m_Bitmap.m_Data);
-        glyph.m_Bitmap.m_Data = rgb;
+        free((void*)glyph->m_Bitmap.m_Data);
+        glyph->m_Bitmap.m_Data = rgb;
     }
 
-    item->m_Glyph.m_Width = glyph.m_Width;
-    item->m_Glyph.m_Height = glyph.m_Height;
-    item->m_Glyph.m_Advance = glyph.m_Advance;
-    item->m_Glyph.m_Ascent = glyph.m_Ascent;
-    item->m_Glyph.m_Descent = glyph.m_Descent;
-    item->m_Glyph.m_LeftBearing = glyph.m_LeftBearing;
-
-    if (!glyph.m_Bitmap.m_Data) // Some glyphs (e.g. ' ') don't have an image, which is ok
+    if (!glyph->m_Bitmap.m_Data) // Some glyphs (e.g. ' ') don't have an image, which is ok
     {
         if (!is_whitespace)
             return 0; // Something went wrong
     }
     else
     {
-        item->m_Glyph.m_ImageWidth = glyph.m_Bitmap.m_Width;
-        item->m_Glyph.m_ImageHeight = glyph.m_Bitmap.m_Height;
-        item->m_Glyph.m_Channels = glyph.m_Bitmap.m_Channels;
-
         // TODO: avoid this copy altogether!
         //     * copy the pointer as-is
         //     * pass the "flags" parameter separately
         //     * preferably we could pass the dmFont::Glyph as is
 
-        item->m_DataSize = 1 + glyph.m_Bitmap.m_Width * glyph.m_Bitmap.m_Height * glyph.m_Bitmap.m_Channels;
-        item->m_Data = (uint8_t*)malloc(item->m_DataSize);
-        memcpy(item->m_Data+1, glyph.m_Bitmap.m_Data, item->m_DataSize-1);
-        item->m_Data[0] = glyph.m_Bitmap.m_Flags;
+        // item->m_DataSize = 1 + glyph.m_Bitmap.m_Width * glyph.m_Bitmap.m_Height * glyph.m_Bitmap.m_Channels;
+        // item->m_Data = (uint8_t*)malloc(item->m_DataSize);
+        // memcpy(item->m_Data+1, glyph.m_Bitmap.m_Data, item->m_DataSize-1);
+        // item->m_Data[0] = glyph.m_Bitmap.m_Flags;
     }
 
-    dmFont::FreeGlyph(font, &glyph);
+    //dmFont::FreeGlyph(font, &glyph);
 
     uint64_t tend = dmTime::GetTime();
 // TODO: Protect this using a spinlock
@@ -285,11 +287,12 @@ static void JobPostProcessGlyph(void* context, void* data, int result)
     }
 
     uint32_t codepoint = item->m_Codepoint;
+    uint32_t glyph_index = item->m_GlyphIndex;
 
     if (!result)
     {
         char msg[256];
-        dmSnPrintf(msg, sizeof(msg), "Failed to generate glyph '%c' 0x%04X", codepoint, codepoint);
+        dmSnPrintf(msg, sizeof(msg), "Failed to generate glyph '%c' 0x%04X. idx: %u", codepoint, codepoint, glyph_index);
         SetFailedStatus(item, msg);
         InvokeCallback(item);
         DeleteItem(ctx, item);
@@ -297,32 +300,48 @@ static void JobPostProcessGlyph(void* context, void* data, int result)
     }
 
     // The font system takes ownership of the image data
-    dmResource::Result r = dmGameSystem::ResFontAddGlyph(item->m_FontResource, codepoint, &item->m_Glyph, item->m_Data, item->m_DataSize);
-
+    HFont font = dmGameSystem::GetFont(item->m_TTFResource);
+    dmResource::Result r = dmGameSystem::ResFontAddGlyph(item->m_FontResource, font, item->m_Glyph);
     if (dmResource::RESULT_OK != r)
     {
         char msg[256];
-        dmSnPrintf(msg, sizeof(msg), "Failed to add glyph '%c': result: %d", codepoint, r);
+        dmSnPrintf(msg, sizeof(msg), "Failed to add glyph '%c'  0x%04X. idx: %u: result: %d", codepoint, codepoint, glyph_index, r);
         SetFailedStatus(item, msg);
     }
 
     InvokeCallback(item); // reports either first error, or success
+
+    if (dmResource::RESULT_OK == r)
+    {
+        item->m_Glyph = 0; // It was successfully transferred to the .fontc resource (and then the HFontMap)
+    }
     DeleteItem(ctx, item);
 }
 
 // ****************************************************************************************************
 
 static void GenerateGlyph(Context* ctx,
-                            FontResource* fontresource, TTFResource* ttfresource, uint32_t codepoint,
+                            FontResource* fontresource, TTFResource* ttfresource, HFont hfont,
+                            uint32_t codepoint,
                             float scale, float stbtt_padding, int stbtt_edge,
                             bool is_sdf, float outline_width, float shadow_blur,
                             bool is_loading,
                             JobStatus* status, FGlyphCallback cbk, void* cbk_ctx)
 {
+    uint32_t glyph_index =  FontGetGlyphIndex(hfont, codepoint);
+    if (!glyph_index)
+    {
+        dmLogError("Font '%s' doesn't support codepoint '%c' %x", FontGetPath(hfont), codepoint, codepoint);
+        return;
+    }
+
     JobItem* item = new JobItem;
+    item->m_GlyphIndex = glyph_index;
     item->m_FontResource = fontresource;
     item->m_TTFResource = ttfresource;
+    item->m_Font = hfont;
     item->m_Codepoint = codepoint;
+    item->m_Glyph = 0;
     item->m_Callback = cbk;
     item->m_CallbackCtx = cbk_ctx;
     item->m_Status = status;
@@ -334,6 +353,40 @@ static void GenerateGlyph(Context* ctx,
     item->m_StbttSdfPadding = stbtt_padding;
     item->m_StbttEdgeValue = stbtt_edge;
     item->m_Mutex = is_loading ? 0 : ctx->m_Mutex;
+    item->m_Glyph = 0;
+    dmJobThread::PushJob(ctx->m_Jobs, JobGenerateGlyph, JobPostProcessGlyph, ctx, item);
+}
+
+
+static void GenerateGlyphJobByIndex(Context* ctx,
+                                    FontResource* fontresource,
+                                    TTFResource* ttfresource,
+                                    HFont font,
+                                    uint32_t glyph_index,
+                                    float scale, float stbtt_padding, int stbtt_edge,
+                                    bool is_sdf, float outline_width, float shadow_blur,
+                                    bool is_loading,
+                                    JobStatus* status, FGlyphCallback cbk, void* cbk_ctx)
+{
+    JobItem* item = new JobItem;
+    item->m_GlyphIndex = glyph_index;
+    item->m_FontResource = fontresource;
+    item->m_TTFResource = ttfresource;
+    item->m_Font = font;
+    item->m_Codepoint = 0;
+    item->m_Glyph = 0;
+    item->m_Callback = cbk;
+    item->m_CallbackCtx = cbk_ctx;
+    item->m_Status = status;
+    item->m_Scale = scale;
+    item->m_IsSdf = is_sdf;
+    item->m_IsLoading = is_loading;
+    item->m_OutlineWidth = outline_width;
+    item->m_ShadowBlur = shadow_blur;
+    item->m_StbttSdfPadding = stbtt_padding;
+    item->m_StbttEdgeValue = stbtt_edge;
+    item->m_Mutex = is_loading ? 0 : ctx->m_Mutex;
+    item->m_Glyph = 0;
     dmJobThread::PushJob(ctx->m_Jobs, JobGenerateGlyph, JobPostProcessGlyph, ctx, item);
 }
 
@@ -396,15 +449,60 @@ static bool GenerateGlyphs(Context* ctx, FontResource* fontresource,
             dmResource::IncRef(ctx->m_ResourceFactory, fontresource);
         dmResource::IncRef(ctx->m_ResourceFactory, ttfresource);
 
-        dmFont::HFont font = dmGameSystem::GetFont(ttfresource);
-        float scale = dmFont::GetPixelScaleFromSize(font, font_info.m_Size);
+        HFont font = dmGameSystem::GetFont(ttfresource);
+        float scale = FontGetScaleFromSize(font, font_info.m_Size);
 
-        // TODO: Pass dmFont::HFont instead of ttfresource
-        GenerateGlyph(ctx, fontresource, ttfresource, c, scale, stbtt_padding, stbtt_edge, is_sdf,
+        GenerateGlyph(ctx, fontresource, ttfresource, font, c, scale, stbtt_padding, stbtt_edge, is_sdf,
                         font_info.m_OutlineWidth, has_shadow ? font_info.m_ShadowBlur : 0.0f,
                         loading,
                         status, callback, callback_ctx);
     }
+    return true;
+}
+
+static bool GenerateGlyphByIndex(Context* ctx, FontResource* fontresource, TTFResource* ttfresource,
+                                uint32_t glyph_index, bool loading, FGlyphCallback cbk, void* cbk_ctx)
+{
+    // TODO: Should this info be passed in instead?
+    dmGameSystem::FontInfo font_info;
+    dmGameSystem::ResFontGetInfo(fontresource, &font_info);
+
+    bool is_sdf = dmRenderDDF::TYPE_DISTANCE_FIELD == font_info.m_OutputFormat;
+    if (!is_sdf)
+    {
+        dmLogError("Only SDF fonts are supported");
+        return false;
+    }
+
+    JobStatus* status      = new JobStatus;
+    status->m_TimeGlyphGen = 0;
+    status->m_Count        = 1;
+    status->m_Failures     = 0;
+    status->m_Error        = 0;
+
+    int stbtt_edge = ctx->m_StbttDefaultSdfEdge;
+    float stbtt_padding = ctx->m_StbttDefaultSdfPadding + font_info.m_OutlineWidth;
+
+    // See Fontc.java. If we have shadow blur, we need 3 channels
+    bool has_shadow = font_info.m_ShadowAlpha > 0.0f && font_info.m_ShadowBlur > 0.0f;
+
+    if (dmRenderDDF::MODE_MULTI_LAYER == font_info.m_RenderMode)
+    {
+        stbtt_padding += has_shadow ? font_info.m_ShadowBlur : 0.0f;
+    }
+
+    // Incref the resources so that they're not accidentally removed during this threaded work
+    if (!loading) // If we're in the process of creating this resource, then we cannot incref it!
+        dmResource::IncRef(ctx->m_ResourceFactory, fontresource);
+    dmResource::IncRef(ctx->m_ResourceFactory, ttfresource);
+
+    HFont font = dmGameSystem::GetFont(ttfresource);
+    float scale = FontGetScaleFromSize(font, font_info.m_Size);
+
+    GenerateGlyphJobByIndex(ctx, fontresource, ttfresource, font, glyph_index, scale, stbtt_padding, stbtt_edge, is_sdf,
+                    font_info.m_OutlineWidth, has_shadow ? font_info.m_ShadowBlur : 0.0f,
+                    loading,
+                    status, cbk, cbk_ctx);
     return true;
 }
 
@@ -416,7 +514,7 @@ static void RemoveGlyphs(Context* ctx, FontResource* resource, const char* text)
     uint32_t c = 0;
     while ((c = dmUtf8::NextChar(&cursor)))
     {
-        dmGameSystem::ResFontRemoveGlyph(resource, c);
+        dmGameSystem::ResFontRemoveGlyph(resource, 0, c);
     }
 }
 
@@ -462,6 +560,13 @@ float FontGenGetEdgeValue()
     return g_FontExtContext->m_StbttDefaultSdfEdge;
 }
 
+
+// Resource api
+bool FontGenAddGlyphByIndex(FontResource* fontresource, TTFResource* ttfresource, uint32_t glyph_index, bool loading, FGlyphCallback cbk, void* cbk_ctx)
+{
+    Context* ctx = g_FontExtContext;
+    return GenerateGlyphByIndex(ctx, fontresource, ttfresource, glyph_index, loading, cbk, cbk_ctx);
+}
 
 // Scripting
 

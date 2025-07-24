@@ -24,8 +24,8 @@
 #include <dlib/log.h>
 #include <dlib/utf8.h>
 
-#include <render/font.h>
-#include <render/font_renderer.h>
+#include <render/font/fontmap.h>
+#include <render/font/font_renderer.h>
 #include <render/render_ddf.h>
 
 #include <dmsdk/gamesys/resources/res_material.h>
@@ -63,10 +63,12 @@ namespace dmGameSystem
         SwapVar(m_CacheCellPadding, src->m_CacheCellPadding);
         SwapVar(m_IsDynamic, src->m_IsDynamic);
         SwapVar(m_Padding, src->m_Padding);
+
+        this->m_TTFResources.Swap(src->m_TTFResources);
     }
 
-    static void PrintDynamicGlyph(uint32_t codepoint, DynamicGlyph* glyph, FontResource* font);
-    static void PrintGlyph(uint32_t codepoint, dmRenderDDF::GlyphBank::Glyph* glyph, FontResource* font);
+    // static void PrintDynamicGlyph(uint32_t codepoint, DynamicGlyph* glyph, FontResource* font);
+    // static void PrintGlyph(uint32_t codepoint, dmRenderDDF::GlyphBank::Glyph* glyph, FontResource* font);
 
     static void ReleaseResources(dmResource::HFactory factory, FontResource* resource)
     {
@@ -154,19 +156,19 @@ namespace dmGameSystem
     {
         uint32_t size = sizeof(FontResource);
         size += sizeof(dmRenderDDF::FontMap); // the ddf pointer
-        size += font->m_Glyphs.Capacity() * sizeof(dmRenderDDF::GlyphBank::Glyph*);
-        size += font->m_DynamicGlyphs.Capacity() * sizeof(FontGlyph);
+        // size += font->m_Glyphs.Capacity() * sizeof(dmRenderDDF::GlyphBank::Glyph*);
+        // size += font->m_DynamicGlyphs.Capacity() * sizeof(FontGlyph);
         size += font->m_ResourceSize;
         return size + dmRender::GetFontMapResourceSize(font->m_FontMap);
     }
 
-    static void DeleteDynamicGlyphIter(FontResource* font_map, const uint32_t* hash, DynamicGlyph** glyphp)
-    {
-        (void)hash;
-        DynamicGlyph* glyph = *glyphp;
-        free((void*)glyph->m_Data);
-        delete glyph;
-    }
+    // static void DeleteDynamicGlyphIter(FontResource* font_map, const uint32_t* hash, DynamicGlyph** glyphp)
+    // {
+    //     (void)hash;
+    //     DynamicGlyph* glyph = *glyphp;
+    //     free((void*)glyph->m_Data);
+    //     delete glyph;
+    // }
 
     static void DeleteFontResource(dmResource::HFactory factory, FontResource* font_map)
     {
@@ -175,146 +177,146 @@ namespace dmGameSystem
         if (font_map->m_FontMap)
             dmRender::DeleteFontMap(font_map->m_FontMap);
 
-        font_map->m_DynamicGlyphs.Iterate(DeleteDynamicGlyphIter, font_map);
-        font_map->m_DynamicGlyphs.Clear();
+        // font_map->m_DynamicGlyphs.Iterate(DeleteDynamicGlyphIter, font_map);
+        // font_map->m_DynamicGlyphs.Clear();
 
         delete font_map;
     }
 
     // Api for the font renderer
-    static dmRender::FontGlyph* GetDynamicGlyph(uint32_t codepoint, FontResource* resource)
-    {
-        DynamicGlyph** dynglyphp = resource->m_DynamicGlyphs.Get(codepoint);
-        if (dynglyphp)
-            return &(*dynglyphp)->m_Glyph;
-        return 0;
-    }
+    // static dmRender::FontGlyph* GetDynamicGlyph(uint32_t codepoint, FontResource* resource)
+    // {
+    //     DynamicGlyph** dynglyphp = resource->m_DynamicGlyphs.Get(codepoint);
+    //     if (dynglyphp)
+    //         return &(*dynglyphp)->m_Glyph;
+    //     return 0;
+    // }
 
     // Api for the font renderer
-    static dmRender::FontGlyph* GetGlyph(uint32_t codepoint, FontResource* resource)
-    {
-        dmRender::FontGlyph** glyphp = resource->m_Glyphs.Get(codepoint);
-        return glyphp ? *glyphp : 0;
-    }
+    // static dmRender::FontGlyph* GetGlyph(uint32_t codepoint, FontResource* resource)
+    // {
+    //     dmRender::FontGlyph** glyphp = resource->m_Glyphs.Get(codepoint);
+    //     return glyphp ? *glyphp : 0;
+    // }
 
-    static inline uint8_t* GetPointer(void* data, uint32_t offset)
-    {
-        return ((uint8_t*)data) + offset;
-    }
+    // static inline uint8_t* GetPointer(void* data, uint32_t offset)
+    // {
+    //     return ((uint8_t*)data) + offset;
+    // }
 
-    static void* GetDynamicGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels)
-    {
-        DM_STATIC_ASSERT(sizeof(ImageDataHeader) == 1, Invalid_struct_size);
-        FontResource* resource = (FontResource*)user_ctx;
-        DynamicGlyph** dynglyphp = resource->m_DynamicGlyphs.Get(codepoint);
-        if (!dynglyphp)
-            return 0;
+    // static void* GetDynamicGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels)
+    // {
+    //     DM_STATIC_ASSERT(sizeof(ImageDataHeader) == 1, Invalid_struct_size);
+    //     FontResource* resource = (FontResource*)user_ctx;
+    //     DynamicGlyph** dynglyphp = resource->m_DynamicGlyphs.Get(codepoint);
+    //     if (!dynglyphp)
+    //         return 0;
 
-        DynamicGlyph* dynglyph = *dynglyphp;
-        *out_width = dynglyph->m_DataImageWidth;
-        *out_height = dynglyph->m_DataImageHeight;
-        *out_channels = dynglyph->m_DataImageChannels;
-        *out_compression = (uint32_t)dynglyph->m_Compression;
-        *out_size = dynglyph->m_DataSize - sizeof(ImageDataHeader);
-        return dynglyph->m_Data + sizeof(ImageDataHeader); // we return only the image data here
-    }
+    //     DynamicGlyph* dynglyph = *dynglyphp;
+    //     *out_width = dynglyph->m_DataImageWidth;
+    //     *out_height = dynglyph->m_DataImageHeight;
+    //     *out_channels = dynglyph->m_DataImageChannels;
+    //     *out_compression = (uint32_t)dynglyph->m_Compression;
+    //     *out_size = dynglyph->m_DataSize - sizeof(ImageDataHeader);
+    //     return dynglyph->m_Data + sizeof(ImageDataHeader); // we return only the image data here
+    // }
 
-    static void* GetGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels)
-    {
-        FontResource* resource = (FontResource*)user_ctx;
+    // static void* GetGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels)
+    // {
+    //     FontResource* resource = (FontResource*)user_ctx;
 
-        // Make sure to now mix character types, as their sizes don't match
-        if (!resource->m_DynamicGlyphs.Empty())
-        {
-            DynamicGlyph** dynglyphp = resource->m_DynamicGlyphs.Get(codepoint);
-            if (dynglyphp)
-            {
-                DM_STATIC_ASSERT(sizeof(ImageDataHeader) == 1, Invalid_struct_size);
+    //     // Make sure to now mix character types, as their sizes don't match
+    //     if (!resource->m_DynamicGlyphs.Empty())
+    //     {
+    //         DynamicGlyph** dynglyphp = resource->m_DynamicGlyphs.Get(codepoint);
+    //         if (dynglyphp)
+    //         {
+    //             DM_STATIC_ASSERT(sizeof(ImageDataHeader) == 1, Invalid_struct_size);
 
-                DynamicGlyph* dynglyph = *dynglyphp;
-                *out_width = dynglyph->m_DataImageWidth;
-                *out_height = dynglyph->m_DataImageHeight;
-                *out_channels = dynglyph->m_DataImageChannels;
-                *out_compression = (uint32_t)dynglyph->m_Compression;
-                *out_size = dynglyph->m_DataSize - sizeof(ImageDataHeader);
-                return dynglyph->m_Data + sizeof(ImageDataHeader); // we return only the image data here
-            }
-            return 0;
-        }
+    //             DynamicGlyph* dynglyph = *dynglyphp;
+    //             *out_width = dynglyph->m_DataImageWidth;
+    //             *out_height = dynglyph->m_DataImageHeight;
+    //             *out_channels = dynglyph->m_DataImageChannels;
+    //             *out_compression = (uint32_t)dynglyph->m_Compression;
+    //             *out_size = dynglyph->m_DataSize - sizeof(ImageDataHeader);
+    //             return dynglyph->m_Data + sizeof(ImageDataHeader); // we return only the image data here
+    //         }
+    //         return 0;
+    //     }
 
-        dmRender::FontGlyph** glyphp = resource->m_Glyphs.Get(codepoint);
-        if (!glyphp)
-            return 0;
-        dmRender::FontGlyph* glyph = *glyphp;
+    //     dmRender::FontGlyph** glyphp = resource->m_Glyphs.Get(codepoint);
+    //     if (!glyphp)
+    //         return 0;
+    //     dmRender::FontGlyph* glyph = *glyphp;
 
-        dmRenderDDF::GlyphBank* glyph_bank = resource->m_GlyphBankResource->m_DDF;
-        uint8_t* data = (uint8_t*)glyph_bank->m_GlyphData.m_Data;
-        uint8_t* glyph_data = GetPointer(data, glyph->m_GlyphDataOffset);
+    //     dmRenderDDF::GlyphBank* glyph_bank = resource->m_GlyphBankResource->m_DDF;
+    //     uint8_t* data = (uint8_t*)glyph_bank->m_GlyphData.m_Data;
+    //     uint8_t* glyph_data = GetPointer(data, glyph->m_GlyphDataOffset);
 
-        // Currently the header is just a single byte
-        uint8_t compression_type = glyph_data[0];
-        uint32_t header_size = 1;
+    //     // Currently the header is just a single byte
+    //     uint8_t compression_type = glyph_data[0];
+    //     uint32_t header_size = 1;
 
-        *out_size = glyph->m_GlyphDataSize - header_size; // return the size of the payload
-        *out_width = glyph->m_Width + resource->m_CacheCellPadding*2;
-        *out_height = glyph->m_Ascent + glyph->m_Descent + resource->m_CacheCellPadding*2;
-        *out_channels = glyph_bank->m_GlyphChannels;
-        *out_compression = compression_type;
-        return glyph_data + header_size;
-    }
+    //     *out_size = glyph->m_GlyphDataSize - header_size; // return the size of the payload
+    //     *out_width = glyph->m_Width + resource->m_CacheCellPadding*2;
+    //     *out_height = glyph->m_Ascent + glyph->m_Descent + resource->m_CacheCellPadding*2;
+    //     *out_channels = glyph_bank->m_GlyphChannels;
+    //     *out_compression = compression_type;
+    //     return glyph_data + header_size;
+    // }
 
-    static void GetGlyphMetric(dmRender::FontMetrics* metrics, const uint32_t* key, dmRenderDDF::GlyphBank::Glyph** pglyph)
-    {
-        dmRenderDDF::GlyphBank::Glyph* g = *pglyph;
-        metrics->m_MaxAscent = dmMath::Max(metrics->m_MaxAscent, (float)g->m_Ascent);
-        metrics->m_MaxDescent = dmMath::Max(metrics->m_MaxDescent, (float)g->m_Descent);
+    // static void GetGlyphMetric(dmRender::FontMetrics* metrics, const uint32_t* key, dmRenderDDF::GlyphBank::Glyph** pglyph)
+    // {
+    //     dmRenderDDF::GlyphBank::Glyph* g = *pglyph;
+    //     metrics->m_MaxAscent = dmMath::Max(metrics->m_MaxAscent, (float)g->m_Ascent);
+    //     metrics->m_MaxDescent = dmMath::Max(metrics->m_MaxDescent, (float)g->m_Descent);
 
-        float height = g->m_Ascent + g->m_Descent; // perhaps not the best, but should work for now
-        assert(height < 1000.0f);
-        metrics->m_MaxWidth = (uint32_t)dmMath::Max((float)metrics->m_MaxWidth, g->m_Width);
-        metrics->m_MaxHeight = dmMath::Max(metrics->m_MaxHeight, height);
-        // Our old font generator creates an image of the exact same size
-        metrics->m_ImageMaxWidth = metrics->m_MaxWidth;
-        metrics->m_ImageMaxHeight = metrics->m_MaxHeight;
-    }
+    //     float height = g->m_Ascent + g->m_Descent; // perhaps not the best, but should work for now
+    //     assert(height < 1000.0f);
+    //     metrics->m_MaxWidth = (uint32_t)dmMath::Max((float)metrics->m_MaxWidth, g->m_Width);
+    //     metrics->m_MaxHeight = dmMath::Max(metrics->m_MaxHeight, height);
+    //     // Our old font generator creates an image of the exact same size
+    //     metrics->m_ImageMaxWidth = metrics->m_MaxWidth;
+    //     metrics->m_ImageMaxHeight = metrics->m_MaxHeight;
+    // }
 
-    static void GetDynamicGlyphMetric(dmRender::FontMetrics* metrics, const uint32_t* key, DynamicGlyph** pglyph)
-    {
-        if ((*key) == WHITESPACE_NEW_LINE || (*key) == WHITESPACE_CARRIAGE_RETURN) // new line doesn't have a size
-            return;
+    // static void GetDynamicGlyphMetric(dmRender::FontMetrics* metrics, const uint32_t* key, DynamicGlyph** pglyph)
+    // {
+    //     if ((*key) == WHITESPACE_NEW_LINE || (*key) == WHITESPACE_CARRIAGE_RETURN) // new line doesn't have a size
+    //         return;
 
-        DynamicGlyph* g = *pglyph;
-        assert(g->m_DataImageWidth < 1000);
-        assert(g->m_DataImageHeight < 1000);
-        float height = g->m_Glyph.m_Ascent + g->m_Glyph.m_Descent; // perhaps not the best, but should work for now
-        assert(height < 1000.0f);
-        metrics->m_MaxWidth = dmMath::Max(metrics->m_MaxWidth, g->m_Glyph.m_Width);
-        metrics->m_MaxHeight = dmMath::Max(metrics->m_MaxHeight, height);
-        metrics->m_ImageMaxWidth = dmMath::Max(metrics->m_ImageMaxWidth, g->m_DataImageWidth);
-        metrics->m_ImageMaxHeight = dmMath::Max(metrics->m_ImageMaxHeight, g->m_DataImageHeight);
-        metrics->m_MaxAscent = dmMath::Max(metrics->m_MaxAscent, (float)g->m_Glyph.m_Ascent);
-        metrics->m_MaxDescent = dmMath::Max(metrics->m_MaxDescent, (float)g->m_Glyph.m_Descent);
-    }
+    //     DynamicGlyph* g = *pglyph;
+    //     assert(g->m_DataImageWidth < 1000);
+    //     assert(g->m_DataImageHeight < 1000);
+    //     float height = g->m_Glyph.m_Ascent + g->m_Glyph.m_Descent; // perhaps not the best, but should work for now
+    //     assert(height < 1000.0f);
+    //     metrics->m_MaxWidth = dmMath::Max(metrics->m_MaxWidth, g->m_Glyph.m_Width);
+    //     metrics->m_MaxHeight = dmMath::Max(metrics->m_MaxHeight, height);
+    //     metrics->m_ImageMaxWidth = dmMath::Max(metrics->m_ImageMaxWidth, g->m_DataImageWidth);
+    //     metrics->m_ImageMaxHeight = dmMath::Max(metrics->m_ImageMaxHeight, g->m_DataImageHeight);
+    //     metrics->m_MaxAscent = dmMath::Max(metrics->m_MaxAscent, (float)g->m_Glyph.m_Ascent);
+    //     metrics->m_MaxDescent = dmMath::Max(metrics->m_MaxDescent, (float)g->m_Glyph.m_Descent);
+    // }
 
-    static uint32_t GetDynamicFontMetrics(void* user_ctx, dmRender::FontMetrics* metrics)
-    {
-        FontResource* font = (FontResource*)user_ctx;
-        if (!font->m_DynamicGlyphs.Empty())
-        {
-            font->m_DynamicGlyphs.Iterate(GetDynamicGlyphMetric, metrics);
-            return font->m_DynamicGlyphs.Size();
-        }
+    // static uint32_t GetDynamicFontMetrics(void* user_ctx, dmRender::FontMetrics* metrics)
+    // {
+    //     FontResource* font = (FontResource*)user_ctx;
+    //     if (!font->m_DynamicGlyphs.Empty())
+    //     {
+    //         font->m_DynamicGlyphs.Iterate(GetDynamicGlyphMetric, metrics);
+    //         return font->m_DynamicGlyphs.Size();
+    //     }
 
-        font->m_Glyphs.Iterate(GetGlyphMetric, metrics);
-        return font->m_Glyphs.Size();
-    }
+    //     font->m_Glyphs.Iterate(GetGlyphMetric, metrics);
+    //     return font->m_Glyphs.Size();
+    // }
 
-    static uint32_t GetFontMetrics(void* user_ctx, dmRender::FontMetrics* metrics)
-    {
-        FontResource* font = (FontResource*)user_ctx;
-        font->m_Glyphs.Iterate(GetGlyphMetric, metrics);
-        return font->m_Glyphs.Size() + font->m_DynamicGlyphs.Size();
-    }
+    // static uint32_t GetFontMetrics(void* user_ctx, dmRender::FontMetrics* metrics)
+    // {
+    //     FontResource* font = (FontResource*)user_ctx;
+    //     font->m_Glyphs.Iterate(GetGlyphMetric, metrics);
+    //     return font->m_Glyphs.Size() + font->m_DynamicGlyphs.Size();
+    // }
 
     static inline bool IsDynamic(dmRenderDDF::FontMap* ddf)
     {
@@ -363,15 +365,15 @@ namespace dmGameSystem
         return base_padding + *outline_padding + *shadow_padding;
     }
 
-    static float GetPaddedSdfSpread(float padding)
-    {
-        // Make sure the output spread value is not zero. We distribute the distance values over
-        // the spread when we generate the DF glyphs, so if this value is zero we won't be able to map
-        // the distance values to a valid range..
-        // We use sqrt(2) since it is the diagonal length of a pixel, but any small positive value would do.
-        const float sqrt2 = 1.4142f;
-        return sqrt2 + padding;
-    }
+    // static float GetPaddedSdfSpread(float padding)
+    // {
+    //     // Make sure the output spread value is not zero. We distribute the distance values over
+    //     // the spread when we generate the DF glyphs, so if this value is zero we won't be able to map
+    //     // the distance values to a valid range..
+    //     // We use sqrt(2) since it is the diagonal length of a pixel, but any small positive value would do.
+    //     const float sqrt2 = 1.4142f;
+    //     return sqrt2 + padding;
+    // }
 
     static float CalcSdfValue(float padding, float width)
     {
@@ -401,24 +403,24 @@ namespace dmGameSystem
         params->m_SdfShadow          = ddf->m_SdfShadow;
     }
 
-    static void GetMaxCellSize(dmFont::HFont hfont, float scale, const char* text, float* cell_width, float* cell_height)
+    static void GetMaxCellSize(HFont hfont, float scale, const char* text, float* cell_width, float* cell_height)
     {
         *cell_width = 0;
         *cell_height = 0;
 
-        dmFont::GlyphOptions options;
+        FontGlyphOptions options;
 
         const char* cursor = text;
         uint32_t codepoint = 0;
         while ((codepoint = dmUtf8::NextChar(&cursor)))
         {
-            if (IsWhiteSpace(codepoint))
+            if (dmUtf8::IsWhiteSpace(codepoint))
                 continue;
 
-            dmFont::Glyph glyph;
+            FontGlyph glyph;
             options.m_Scale = scale;
-            dmFont::FontResult r = dmFont::GetGlyph(hfont, codepoint, &options, &glyph);
-            if (r == dmFont::RESULT_OK)
+            FontResult r = FontGetGlyph(hfont, codepoint, &options, &glyph);
+            if (r == FONT_RESULT_OK)
             {
                 *cell_width = dmMath::Max(*cell_width, glyph.m_Width);
                 *cell_height = dmMath::Max(*cell_height, glyph.m_Height);
@@ -426,7 +428,7 @@ namespace dmGameSystem
         }
     }
 
-    static void SetupParamsForDynamicFont(dmRenderDDF::FontMap* ddf, const char* filename, dmFont::HFont hfont, dmRender::FontMapParams* params)
+    static void SetupParamsForDynamicFont(dmRenderDDF::FontMap* ddf, const char* filename, HFont hfont, dmRender::FontMapParams* params)
     {
         if (ddf->m_ShadowBlur > 0.0f && ddf->m_ShadowAlpha > 0.0f) {
             params->m_GlyphChannels = 3;
@@ -435,9 +437,9 @@ namespace dmGameSystem
             params->m_GlyphChannels = 1;
         }
 
-        params->m_GetGlyph       = (dmRender::FGetGlyph)GetDynamicGlyph;
-        params->m_GetGlyphData   = (dmRender::FGetGlyphData)GetDynamicGlyphData;
-        params->m_GetFontMetrics = (dmRender::FGetFontMetrics)GetDynamicFontMetrics;
+        // params->m_GetGlyph       = (dmRender::FGetGlyph)GetDynamicGlyph;
+        // params->m_GetGlyphData   = (dmRender::FGetGlyphData)GetDynamicGlyphData;
+        // params->m_GetFontMetrics = (dmRender::FGetFontMetrics)GetDynamicFontMetrics;
 
         float outline_padding;
         float shadow_padding; // the extra padding for the shadow blur
@@ -453,10 +455,9 @@ namespace dmGameSystem
         }
         params->m_SdfShadow = sdf_shadow;
 
-        float scale = dmFont::GetPixelScaleFromSize(hfont, ddf->m_Size);
-        params->m_PixelScale = scale;
-        params->m_MaxAscent = dmFont::GetAscent(hfont, scale);
-        params->m_MaxDescent = -dmFont::GetDescent(hfont, scale);
+        float scale = FontGetScaleFromSize(hfont, ddf->m_Size);
+        params->m_MaxAscent     = FontGetAscent(hfont, scale);
+        params->m_MaxDescent    = -FontGetDescent(hfont, scale);
 
         params->m_CacheWidth    = ddf->m_CacheWidth;
         params->m_CacheHeight   = ddf->m_CacheHeight;
@@ -516,10 +517,40 @@ namespace dmGameSystem
         params->m_CacheCellMaxAscent = glyph_bank->m_CacheCellMaxAscent;
         params->m_CacheCellPadding   = glyph_bank->m_GlyphPadding;
         params->m_IsMonospaced       = glyph_bank->m_IsMonospaced;
+    }
 
-        params->m_GetGlyph           = (dmRender::FGetGlyph)GetGlyph;
-        params->m_GetGlyphData       = (dmRender::FGetGlyphData)GetGlyphData;
-        params->m_GetFontMetrics     = (dmRender::FGetFontMetrics)GetFontMetrics;
+    static void CacheMissGlyphCallback(void* ctx, int result, const char* errmsg)
+    {
+        FontResource* font = (FontResource*)ctx;
+        // font->m_Prewarming = 0;
+        // font->m_PrewarmDone = 1;
+        dmLogWarning("MAWE added glyph index!\n");
+    }
+
+    static FontResult OnGlyphCacheMiss(void* user_ctx, dmRender::HFontMap font_map, HFont font, uint32_t glyph_index, FontGlyph** out)
+    {
+        // We use the ttf resource, as it increfs the resource to make sure it doesn't go out of scope while working on it
+        FontResource* resource = (FontResource*)user_ctx;
+        TTFResource** ttfresource = resource->m_TTFResources.Get(FontGetPathHash(font));
+        if (!ttfresource)
+        {
+            return FONT_RESULT_ERROR;
+        }
+
+        bool result = dmGameSystem::FontGenAddGlyphByIndex(resource, *ttfresource, glyph_index, false, CacheMissGlyphCallback, resource);
+        if (!result)
+        {
+            return FONT_RESULT_ERROR;
+        }
+
+        // Instead of keeping track of the async creation process here, we create a null dummy glyph
+        // and instead rely on the font generator to overwrite the dummy glyph once it's fully generated.
+        // This will prevent from further calls to this cache miss function in the meantime.
+        FontGlyph* glyph = new FontGlyph;
+        memset(glyph, 0, sizeof(*glyph));
+        glyph->m_GlyphIndex = (uint16_t)glyph_index;
+        *out = glyph;
+        return FONT_RESULT_OK;
     }
 
     static dmResource::Result CreateFont(dmRender::HRenderContext context, dmRenderDDF::FontMap* ddf, const char* path, FontResource* resource)
@@ -527,15 +558,29 @@ namespace dmGameSystem
         dmRender::FontMapParams params;
         SetupParamsBase(ddf, path, &params);
 
+        HFont hfont;
+
         resource->m_IsDynamic = IsDynamic(ddf);
         if (resource->m_IsDynamic)
         {
-            dmFont::HFont hfont = dmGameSystem::GetFont(resource->m_TTFResource);
+            hfont = dmGameSystem::GetFont(resource->m_TTFResource);
             SetupParamsForDynamicFont(ddf, path, hfont, &params);
         }
         else
         {
-            SetupParamsForGlyphBank(ddf, path, resource->m_GlyphBankResource->m_DDF, &params);
+            hfont = dmGameSystem::GetFont(resource->m_GlyphBankResource);
+            dmRenderDDF::GlyphBank* glyph_bank = GetGlyphBank(resource->m_GlyphBankResource);
+            SetupParamsForGlyphBank(ddf, path, glyph_bank, &params);
+        }
+
+        params.m_Font = hfont;
+        params.m_Size = ddf->m_Size;
+
+        // If glyphs aren't already present in the .glyph_bankc font, we can't resolve it at runtime either
+        if (resource->m_IsDynamic)
+        {
+            params.m_OnGlyphCacheMiss        = OnGlyphCacheMiss;
+            params.m_OnGlyphCacheMissContext = resource;
         }
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(context);
@@ -583,17 +628,6 @@ namespace dmGameSystem
         }
         else
         {
-            // Add all glyphs into a lookup table
-            dmRenderDDF::GlyphBank* glyph_bank = font->m_GlyphBankResource->m_DDF;
-            uint32_t glyph_count = glyph_bank->m_Glyphs.m_Count;
-            font->m_Glyphs.Clear();
-            font->m_Glyphs.OffsetCapacity(dmMath::Max(1U, glyph_count));
-            for (uint32_t i = 0; i < glyph_count; ++i)
-            {
-                dmRenderDDF::GlyphBank::Glyph* glyph = &glyph_bank->m_Glyphs[i];
-                font->m_Glyphs.Put(glyph->m_Character, glyph);
-            }
-
             font->m_PrewarmDone = 1;
         }
 
@@ -639,6 +673,12 @@ namespace dmGameSystem
                 dmLogError("Currently only distance field fonts are supported: %s", path);
                 return dmResource::RESULT_NOT_SUPPORTED;
             }
+
+            if (font->m_TTFResources.Full())
+                font->m_TTFResources.OffsetCapacity(4);
+
+            HFont hfont = dmGameSystem::GetFont(font->m_TTFResource);
+            font->m_TTFResources.Put(FontGetPathHash(hfont), font->m_TTFResource);
         }
 
         r = CreateFont((dmRender::HRenderContext) params->m_Context, ddf, path, font);
@@ -715,7 +755,7 @@ namespace dmGameSystem
 
     // Api
 
-    dmRender::HFont ResFontGetHandle(FontResource* resource)
+    dmRender::HFontMap ResFontGetHandle(FontResource* resource)
     {
         return resource->m_FontMap;
     }
@@ -742,95 +782,27 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResFontAddGlyph(FontResource* font, uint32_t codepoint, FontGlyph* inglyph, void* imagedata, uint32_t imagedatasize)
+    dmResource::Result ResFontAddGlyph(FontResource* font, HFont hfont, FontGlyph* glyph)
     {
-        DynamicGlyph** glyphp = font->m_DynamicGlyphs.Get(codepoint);
-        if (glyphp != 0)
+        if (hfont == 0)
         {
-            return dmResource::RESULT_OK;
+            hfont = dmGameSystem::GetFont(font->m_TTFResource);
         }
-
-        if (font->m_DynamicGlyphs.Full())
-        {
-            uint32_t cap = font->m_DynamicGlyphs.Capacity() + 64;
-            font->m_DynamicGlyphs.SetCapacity((cap*3)/2, cap);
-        }
-
-        if (!font->m_Glyphs.Empty())
-        {
-            font->m_Glyphs.Clear();
-        }
-
-        DynamicGlyph* glyph = new DynamicGlyph;
-        // dmRender::Glyph is currently a dmRenderDDF::GlyphBank::Glyph
-        dmRenderDDF::GlyphBank::Glyph& g = glyph->m_Glyph;
-        g.m_Character  = codepoint;
-        g.m_Width      = inglyph->m_Width;
-        g.m_ImageWidth = inglyph->m_ImageWidth;
-        g.m_Advance    = inglyph->m_Advance;
-        g.m_LeftBearing= inglyph->m_LeftBearing;
-        g.m_Ascent     = inglyph->m_Ascent;
-        g.m_Descent    = fabs(inglyph->m_Descent);
-
-        // The extra padding is stored in the glyph bank. See Fontc.java: getPadding():
-        //      return fontDesc.getShadowBlur() + (int)(fontDesc.getOutlineWidth()) + 1;
-        g.m_Width += font->m_Padding * 2;
-        g.m_Width = dmMath::Min(g.m_Width, (float)g.m_ImageWidth);
-
-        // Redundant in this setup
-        // g.m_X;
-        // g.m_Y;
-        // g.m_GlyphDataOffset;
-        // g.m_GlyphDataSize;
-
-        ImageDataHeader* header = (ImageDataHeader*)imagedata;
-        glyph->m_Compression = header ? header->m_Compression : FONT_GLYPH_COMPRESSION_NONE;
-        glyph->m_Data = (uint8_t*)imagedata;
-        glyph->m_DataSize = imagedatasize;
-        glyph->m_DataImageWidth = inglyph->m_ImageWidth;
-        glyph->m_DataImageHeight = inglyph->m_ImageHeight;
-        glyph->m_DataImageChannels = inglyph->m_Channels;
-
-        font->m_ResourceSize += glyph->m_DataSize;
-
-        assert(glyph->m_DataImageWidth < 1000);
-        assert(glyph->m_DataImageHeight < 1000);
-
-        font->m_DynamicGlyphs.Put(codepoint, glyph);
-
-        uint32_t prev_width, prev_height, prev_ascent;
-        dmRender::GetFontMapCacheSize(font->m_FontMap, &prev_width, &prev_height, &prev_ascent);
-
-        bool dirty = inglyph->m_ImageWidth > prev_width ||
-                      inglyph->m_ImageHeight > prev_height ||
-                      inglyph->m_Ascent > prev_ascent;
-        if (dirty)
-        {
-            uint32_t cell_width = dmMath::Max((uint32_t)inglyph->m_ImageWidth, prev_width);
-            uint32_t cell_height = dmMath::Max((uint32_t)inglyph->m_ImageHeight, prev_height);
-            uint32_t cell_ascent = dmMath::Max((uint32_t)inglyph->m_Ascent, prev_ascent);
-            dmRender::SetFontMapCacheSize(font->m_FontMap, cell_width, cell_height, cell_ascent);
-        }
-
-        // TODO: Calculate the current size (including the bitmaps!)
+        dmRender::AddGlyphByIndex(font->m_FontMap, hfont, glyph->m_GlyphIndex, glyph);
         dmResource::SetResourceSize(font->m_Resource, GetResourceSize(font));
 
         return dmResource::RESULT_OK;
+
     }
 
-    dmResource::Result ResFontRemoveGlyph(FontResource* font, uint32_t codepoint)
+    dmResource::Result ResFontRemoveGlyph(FontResource* font, HFont hfont, uint32_t glyph_index)
     {
-        DynamicGlyph** glyphp = font->m_DynamicGlyphs.Get(codepoint);
-        if (!glyphp)
-            return dmResource::RESULT_RESOURCE_NOT_FOUND;
-
-        font->m_DynamicGlyphs.Erase(codepoint);
-
-        DynamicGlyph* glyph = *glyphp;
-        font->m_ResourceSize -= glyph->m_DataSize;
-
-        free((void*)glyph->m_Data);
-        delete glyph;
+        if (hfont == 0)
+        {
+            hfont = dmGameSystem::GetFont(font->m_TTFResource);
+        }
+        dmRender::RemoveGlyphByIndex(font->m_FontMap, hfont, glyph_index);
+        dmResource::SetResourceSize(font->m_Resource, GetResourceSize(font));
         return dmResource::RESULT_OK;
     }
 
@@ -886,51 +858,51 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    static void PrintGlyph(uint32_t codepoint, dmRenderDDF::GlyphBank::Glyph* glyph, FontResource* font)
-    {
-        dmRenderDDF::GlyphBank* glyph_bank = font->m_GlyphBankResource->m_DDF;
+    // static void PrintGlyph(uint32_t codepoint, dmRenderDDF::GlyphBank::Glyph* glyph, FontResource* font)
+    // {
+    //     dmRenderDDF::GlyphBank* glyph_bank = font->m_GlyphBankResource->m_DDF;
 
-        printf("    ");
-        printf("c: '%c' 0x%0X w: %.2f    ", codepoint, codepoint, glyph->m_Width);
-        printf("adv: %.2f  l: %.2f ", glyph->m_Advance, glyph->m_LeftBearing);
-        printf("asc/dsc: %d, %d ", glyph->m_Ascent, glyph->m_Descent);
+    //     printf("    ");
+    //     printf("c: '%c' 0x%0X w: %.2f    ", codepoint, codepoint, glyph->m_Width);
+    //     printf("adv: %.2f  l: %.2f ", glyph->m_Advance, glyph->m_LeftBearing);
+    //     printf("asc/dsc: %d, %d ", glyph->m_Ascent, glyph->m_Descent);
 
-        printf("img w/h: %2d, %2d  masc: %2d", glyph_bank->m_CacheCellWidth, glyph_bank->m_CacheCellHeight, glyph_bank->m_CacheCellMaxAscent);
-        printf("\n");
-    }
+    //     printf("img w/h: %2d, %2d  masc: %2d", glyph_bank->m_CacheCellWidth, glyph_bank->m_CacheCellHeight, glyph_bank->m_CacheCellMaxAscent);
+    //     printf("\n");
+    // }
 
-    static void PrintDynamicGlyph(uint32_t codepoint, DynamicGlyph* glyph, FontResource* font)
-    {
-        printf("    ");
-        printf("c: '%c' 0x%0X  w: %.2f  imgw: %.u  ", codepoint, codepoint, glyph->m_Glyph.m_Width, glyph->m_Glyph.m_ImageWidth);
-        printf("adv: %.2f  l: %.2f ", glyph->m_Glyph.m_Advance, glyph->m_Glyph.m_LeftBearing);
-        printf("asc/dsc: %d, %d ", glyph->m_Glyph.m_Ascent, glyph->m_Glyph.m_Descent);
+    // static void PrintDynamicGlyph(uint32_t codepoint, DynamicGlyph* glyph, FontResource* font)
+    // {
+    //     printf("    ");
+    //     printf("c: '%c' 0x%0X  w: %.2f  imgw: %.u  ", codepoint, codepoint, glyph->m_Glyph.m_Width, glyph->m_Glyph.m_ImageWidth);
+    //     printf("adv: %.2f  l: %.2f ", glyph->m_Glyph.m_Advance, glyph->m_Glyph.m_LeftBearing);
+    //     printf("asc/dsc: %d, %d ", glyph->m_Glyph.m_Ascent, glyph->m_Glyph.m_Descent);
 
-        printf("img w/h: %2d, %2d ", glyph->m_DataImageWidth, glyph->m_DataImageHeight);
-        printf("\n");
-    }
+    //     printf("img w/h: %2d, %2d ", glyph->m_DataImageWidth, glyph->m_DataImageHeight);
+    //     printf("\n");
+    // }
 
-    static void PrintGlyphs(FontResource* font, const uint32_t* key, dmRenderDDF::GlyphBank::Glyph** pglyph)
-    {
-        PrintGlyph(*key, *pglyph, font);
-    }
+    // static void PrintGlyphs(FontResource* font, const uint32_t* key, dmRenderDDF::GlyphBank::Glyph** pglyph)
+    // {
+    //     PrintGlyph(*key, *pglyph, font);
+    // }
 
-    static void PrintDynamicGlyphs(FontResource* font, const uint32_t* key, DynamicGlyph** pglyph)
-    {
-        PrintDynamicGlyph(*key, *pglyph, font);
-    }
+    // static void PrintDynamicGlyphs(FontResource* font, const uint32_t* key, DynamicGlyph** pglyph)
+    // {
+    //     PrintDynamicGlyph(*key, *pglyph, font);
+    // }
 
-    void ResFontDebugPrint(FontResource* font)
-    {
-        printf("FONT:\n");
-        printf("  cache cell padding: %u\n", font->m_CacheCellPadding);
-        printf("  glyphs:\n");
-        font->m_Glyphs.Iterate(PrintGlyphs, font);
-        printf("  dyn glyphs:\n");
-        font->m_DynamicGlyphs.Iterate(PrintDynamicGlyphs, font);
+    // void ResFontDebugPrint(FontResource* font)
+    // {
+    //     printf("FONT:\n");
+    //     printf("  cache cell padding: %u\n", font->m_CacheCellPadding);
+    //     printf("  glyphs:\n");
+    //     font->m_Glyphs.Iterate(PrintGlyphs, font);
+    //     printf("  dyn glyphs:\n");
+    //     font->m_DynamicGlyphs.Iterate(PrintDynamicGlyphs, font);
 
-        printf("\n");
-    }
+    //     printf("\n");
+    // }
 
     static ResourceResult RegisterResourceType_Font(HResourceTypeContext ctx, HResourceType type)
     {

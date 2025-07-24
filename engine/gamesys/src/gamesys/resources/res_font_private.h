@@ -18,7 +18,7 @@
 #include <stdint.h>
 
 #include <render/font_ddf.h>
-#include <render/font.h>
+#include <render/font/fontmap.h>
 
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/hashtable.h>
@@ -31,17 +31,6 @@ namespace dmGameSystem
     struct MaterialResource;
     struct GlyphBankResource;
 
-    struct DynamicGlyph
-    {
-        dmRender::FontGlyph     m_Glyph; // for faster access of the text renderer
-        uint8_t*                m_Data;
-        uint16_t                m_DataSize;
-        uint16_t                m_DataImageWidth;
-        uint16_t                m_DataImageHeight;
-        uint8_t                 m_DataImageChannels;
-        uint8_t                 m_Compression; //FontGlyphCompression
-    };
-
     struct GlyphRange
     {
         TTFResource*           m_TTFResource;
@@ -52,11 +41,11 @@ namespace dmGameSystem
     struct FontResource
     {
         dmRenderDDF::FontMap*   m_DDF;
-        dmRender::HFont         m_FontMap;
+        dmRender::HFontMap      m_FontMap;
         HResourceDescriptor     m_Resource;             // For updating the resource size dynamically
         MaterialResource*       m_MaterialResource;
         GlyphBankResource*      m_GlyphBankResource;
-        TTFResource*            m_TTFResource;          // the first ttf resource
+        TTFResource*            m_TTFResource;          // the default ttf resource (if it's a dynamic font)
         dmJobThread::HContext   m_Jobs;
         uint32_t                m_CacheCellPadding;
         uint32_t                m_ResourceSize;         // For correct resource usage reporting
@@ -65,8 +54,8 @@ namespace dmGameSystem
         uint8_t                 m_Prewarming:1;         // If true, it is currently waiting for glyphs to be prewamed (dynamic fonts only)
         uint8_t                 m_PrewarmDone:1;
 
-        dmHashTable32<dmRenderDDF::GlyphBank::Glyph*>   m_Glyphs;
-        dmHashTable32<DynamicGlyph*>                    m_DynamicGlyphs;
+        dmHashTable32<TTFResource*> m_TTFResources;  // Maps HFont path hash to a resource
+
         dmArray<GlyphRange>                             m_Ranges;
 
         FontResource();

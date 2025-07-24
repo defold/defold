@@ -26,7 +26,8 @@
 #include <hid/hid.h>
 
 #include <render/render.h>
-#include <render/font_renderer.h>
+#include <render/font/font_renderer.h>
+#include <render/font/fontmap.h>
 
 #include <render/render_ddf.h>
 

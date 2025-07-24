@@ -24,7 +24,8 @@
 #include <graphics/graphics_util.h>         // for UnpackRGBA
 
 #include "render/render_private.h"          // for TextEntry
-#include "render/font/fontmap.h"                        // for GetGlyph, TextMetri...
+#include "render/font/fontmap.h"
+#include "render/font/fontmap_private.h"
 #include "render/font/font_renderer_private.h"
 
 #include "font/text_shape/text_shape.h"
@@ -113,13 +114,13 @@ static void OutputGlyph(FontGlyph* glyph,
     float f_size_diff;
     if (glyph)
     {
-        assert(glyph->m_ImageWidth != 0);
-        f_width        = glyph->m_ImageWidth;
+        assert(glyph->m_Bitmap.m_Width != 0);
+        f_width        = glyph->m_Bitmap.m_Width;
         f_descent      = glyph->m_Descent;
         f_ascent       = glyph->m_Ascent;
         f_left_bearing = glyph->m_LeftBearing;
         // This is the difference in size of the glyph image and glyph size
-        f_size_diff    = glyph->m_ImageWidth - glyph->m_Width;
+        f_size_diff    = f_width - glyph->m_Width;
     }
     else
     {
@@ -472,17 +473,27 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
             uint32_t cell_y = 0;
 
             uint32_t glyph_index = g->m_GlyphIndex;
-            FontGlyph* glyph = GetGlyphByIndex(font_map, glyph_index);
-            if (glyph && glyph->m_Width > 0) // only add glyphs with a size (image) to the glyph cache
+
+            FontGlyph* glyph = 0;
+            FontResult r = dmRender::GetOrCreateGlyphByIndex(font_map, font, glyph_index, &glyph);
+            if (FONT_RESULT_OK != r)
             {
-                if (!IsInCache(font_map, c))
+                uint32_t fallback_codepoint = 126U; // '~'
+                glyph_index = FontGetGlyphIndex(font, fallback_codepoint);
+                r = dmRender::GetOrCreateGlyphByIndex(font_map, font, glyph_index, &glyph);
+            }
+
+            if (glyph && glyph->m_Bitmap.m_Width > 0) // only add glyphs with a size (image) to the glyph cache
+            {
+                uint64_t glyph_key = dmRender::MakeGlyphIndexKey(font, glyph_index);
+                if (!IsInCache(font_map, glyph_key))
                 {
                     // Calculate y-offset in cache-cell space by moving glyphs down to baseline
                     int16_t px_cell_offset_y = font_map->m_CacheCellMaxAscent - (int16_t)glyph->m_Ascent;
-                    AddGlyphToCache(font_map, frame, glyph, px_cell_offset_y);
+                    AddGlyphToCache(font_map, frame, glyph_key, glyph, px_cell_offset_y);
                 }
 
-                CacheGlyph* cache_glyph = GetFromCache(font_map, glyph_index);
+                CacheGlyph* cache_glyph = GetFromCache(font_map, glyph_key);
                 if (cache_glyph)
                 {
                     cell_x = cache_glyph->m_X;
@@ -491,12 +502,12 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
             }
             else
             {
-                glyph = 0;
+                r = FONT_RESULT_ERROR;
             }
 
             // We've already discarded whitespaces, but the glyph may not yet be cached.
-            // TO minimize overall edge case complexity, we output a zero size quad.
-            OutputGlyph(glyph,
+            // To minimize overall edge case complexity, we output a zero size quad.
+            OutputGlyph(FONT_RESULT_OK == r ? glyph : 0,
                         recip_w, recip_h,
                         cell_x, cell_y, font_map->m_CacheCellMaxAscent, font_map->m_CacheCellPadding,
                         layer_count, layer_mask,

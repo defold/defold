@@ -79,77 +79,11 @@ namespace dmGameSystem
     };
 
     /*#
-     * Represents a glyph.
-     * If there's an associated image, it is of size width * height * channels.
-     * @struct
-     * @name FontGlyph
-     * @member m_Width [type: float] The glyph bounding width
-     * @member m_Height [type: float] The glyph bounding height
-     * @member m_ImageWidth [type: int16_t] The glyph image width
-     * @member m_ImageHeight [type: int16_t] The glyph image height
-     * @member m_Channels [type: int16_t] The glyph image height
-     * @member m_Advance [type: float] The advance step of the glyph (in pixels)
-     * @member m_LeftBearing [type: float] The left bearing of the glyph (in pixels)
-     * @member m_Ascent [type: float] The ascent of the glyph. (in pixels)
-     * @member m_Descent [type: float] The descent of the glyph. Positive! (in pixels)
-     */
-    struct FontGlyph
-    {
-        float   m_Width;
-        float   m_Height;
-        int16_t m_ImageWidth;
-        int16_t m_ImageHeight;
-        int16_t m_Channels;
-        float   m_Advance;
-        float   m_LeftBearing;
-        float   m_Ascent;
-        float   m_Descent;
-    };
-
-    /*#
-     * Describes what compression is used for the glyph image
-     * @enum
-     * @name FontGlyphCompression
-     * @member FONT_GLYPH_COMPRESSION_NONE      No compression
-     * @member FONT_GLYPH_COMPRESSION_DEFLATE   Data is compressed using the deflate() algorithm
-     */
-    enum FontGlyphCompression
-    {
-        FONT_GLYPH_COMPRESSION_NONE = dmFont::GLYPH_BM_FLAG_COMPRESSION_NONE,
-        FONT_GLYPH_COMPRESSION_DEFLATE = dmFont::GLYPH_BM_FLAG_COMPRESSION_DEFLATE,
-    };
-
-    static const uint32_t WHITESPACE_TAB               = 0x09;      // '\t'
-    static const uint32_t WHITESPACE_NEW_LINE          = 0x0A;      // '\n'
-    static const uint32_t WHITESPACE_CARRIAGE_RETURN   = 0x0D;      // '\r'
-    static const uint32_t WHITESPACE_SPACE             = 0x20;      // ' '
-    static const uint32_t WHITESPACE_ZERO_WIDTH_SPACE  = 0x200b;
-    static const uint32_t WHITESPACE_NO_BREAK_SPACE    = 0x00a0;
-    static const uint32_t WHITESPACE_IDEOGRAPHIC_SPACE = 0x3000;
-
-    /*#
-     * Checks if a codepoint is a whitespace
-     * @name IsWhiteSpace
-     * @param c [type: uint32_t] the codepoint
-     * @return result [type: bool] true if it's a whitespace
-     */
-    inline bool IsWhiteSpace(uint32_t c)
-    {
-        return c == WHITESPACE_SPACE ||
-               c == WHITESPACE_NEW_LINE ||
-               c == WHITESPACE_ZERO_WIDTH_SPACE ||
-               c == WHITESPACE_NO_BREAK_SPACE ||
-               c == WHITESPACE_IDEOGRAPHIC_SPACE ||
-               c == WHITESPACE_TAB ||
-               c == WHITESPACE_CARRIAGE_RETURN;
-    }
-
-    /*#
      * @name ResFontGetHandle
      * @param font [type: FontResource*] The font resource
-     * @return result [type: dmRender::HFont] Handle to a font if successful. 0 otherwise.
+     * @return result [type: dmRender::HFontMap] Handle to a font if successful. 0 otherwise.
      */
-    dmRender::HFont ResFontGetHandle(FontResource* font);
+    dmRender::HFontMap ResFontGetHandle(FontResource* font);
 
     /*#
      * @name ResFontGetTTFResourceFromCodepoint
@@ -160,8 +94,16 @@ namespace dmGameSystem
     TTFResource* ResFontGetTTFResourceFromCodepoint(FontResource* resource, uint32_t codepoint);
 
     /*#
+     * @name ResFontGetTTFResourceFromCodepoint
+     * @param font [type: FontResource*] The font resource
+     * @param codepoint [type: uint32_t] The codepoint to query
+     * @return ttfresource [type: TTFResource*] The ttfresource if successful. 0 otherwise.
+     */
+    TTFResource* ResFontGetTTFResourceFromGlyphIndex(FontResource* resource, uint32_t glyph_index);
+
+    /*#
      * @name ResFontGetInfo
-     * @param font [type: FontResource*] The font resource to modify
+     * @param font [type: FontResource*] The font resource to query
      * @param info [type: FontInfo*] The output info
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
@@ -171,21 +113,21 @@ namespace dmGameSystem
 
     /*#
      * @name ResFontAddGlyph
-     * @param font [type: FontResource*] The font resource to modify
-     * @param codepoint [type: uint32_t] The glyph codepoint
-     * @param glyph [type: FontGlyph*] The glyph meta data
-     * @param imagedata [type: void*] The bitmap or sdf data. May be null for e.g. white space characters. The font will now own this data.
+     * @param font [type: FontResource*] The font resource
+     * @param hfont [type: HFont] The font the glyh was created from
+     * @param glyph [type: FontGlyph*] The glyph
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
-    dmResource::Result ResFontAddGlyph(FontResource* font, uint32_t codepoint, FontGlyph* glyph, void* imagedata, uint32_t imagedatasize);
+    dmResource::Result ResFontAddGlyph(FontResource* font, HFont hfont, FontGlyph* glyph);
 
     /*#
      * @name ResFontRemoveGlyph
      * @param font [type: FontResource*] The font resource
-     * @param codepoint [type: uint32_t] The glyph codepoint
+     * @param hfont [type: HFont] The font the glyh was created from
+     * @param glyph_index [type: uint32_t] The glyph index
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
-    dmResource::Result ResFontRemoveGlyph(FontResource* font, uint32_t codepoint);
+    dmResource::Result ResFontRemoveGlyph(FontResource* font, HFont hfont, uint32_t glyph_index);
 
     /*# add a new glyph range
      * Add a new glyph range

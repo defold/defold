@@ -16,11 +16,7 @@
 #define DM_GAMESYS_COMP_LABEL_H
 
 #include <gameobject/component.h>
-
-namespace dmRender
-{
-    struct TextMetrics;
-}
+#include <font/text_shape/text_shape.h>
 
 namespace dmGameSystem
 {
@@ -51,7 +47,7 @@ namespace dmGameSystem
     // For scripting
     struct LabelComponent;
 
-    void CompLabelGetTextMetrics(const LabelComponent* component, struct dmRender::TextMetrics& metrics);
+    void CompLabelGetTextMetrics(const LabelComponent* component, TextMetrics& metrics);
 
     const char* CompLabelGetText(const LabelComponent* component);
 

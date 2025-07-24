@@ -236,7 +236,8 @@ static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buff
 
     if (allocate)
     {
-        font->m_Data = (const void*)malloc(buffer_size);
+        font->m_DataSize = buffer_size;
+        font->m_Data     = (const void*)malloc(buffer_size);
         memcpy((void*)font->m_Data, buffer, buffer_size);
         font->m_Allocated = 1;
     }

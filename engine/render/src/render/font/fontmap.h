@@ -31,44 +31,36 @@ struct TextMetrics;
 
 namespace dmRender
 {
-    // Old typedef, used internally. We want to migrate towards HFont
+    /**
+     * A font map holds the glyph cache, and font information
+     * @name HFontMap
+     * @typedef
+     */
     typedef struct FontMap* HFontMap;
 
-    struct FontMetrics
-    {
-        float m_MaxAscent;
-        float m_MaxDescent;
-        float m_MaxWidth;           // The widest glyph
-        float m_MaxHeight;          // The tallest glyph
-        uint16_t m_ImageMaxWidth;   // The widest glyph (in texels)
-        uint16_t m_ImageMaxHeight;  // The tallest glyph (in texels)
-    };
-
-    typedef dmRenderDDF::GlyphBank::Glyph FontGlyph;
-    typedef FontGlyph*  (*FGetGlyph)(uint32_t codepoint, void* user_ctx);
-    typedef void*       (*FGetGlyphData)(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels);
-    typedef uint32_t    (*FGetFontMetrics)(void* user_ctx, FontMetrics* metrics); // returns number of glyphs
-
-    typedef FontGlyph*  (*FGetGlyphByIndex)(uint32_t glyph_index, void* user_ctx);
-    typedef void*       (*FGetGlyphDataByIndex)(uint32_t glyph_index, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels);
+    /**
+     * When a glyph is missing from the font map, this callback is invoked.
+     * @note may return no pointer to a glyph (if it's too costly to do synchronously)
+     * @name FGlyphCacheMiss
+     * @typedef
+     */
+    typedef FontResult (*FGlyphCacheMiss)(void* ctx, HFontMap font_map, HFont font, uint32_t glyph_index, FontGlyph**);
 
     /**
      * Font map parameters supplied to NewFontMap
+     * @name FontMapParams
+     * @struct
      */
     struct FontMapParams
     {
         /// Default constructor
         FontMapParams();
 
-        // FGetGlyph       m_GetGlyph;
-        // FGetGlyphData   m_GetGlyphData;
-        // FGetFontMetrics m_GetFontMetrics;
-
-        // FGetGlyph       m_GetGlyphByIndex;
-        // FGetGlyphData   m_GetGlyphDataByIndex;
-
         HFont       m_Font;     // The base font (i.e. .ttf)
         dmhash_t    m_NameHash;
+
+        FGlyphCacheMiss   m_OnGlyphCacheMiss;
+        void*             m_OnGlyphCacheMissContext;
 
         /// Size of the font
         float m_Size;
@@ -116,26 +108,43 @@ namespace dmRender
     // TODO: Add api to get the UV quad for the glyph
     struct CacheGlyph
     {
-        dmRender::FontGlyph* m_Glyph;
-        uint32_t             m_Frame; // Age
-        int16_t              m_X;
-        int16_t              m_Y;
-        // todo, add page here as well
+        FontGlyph*  m_Glyph;
+        uint32_t    m_Frame; // Age
+        int16_t     m_X;     // The top left texel in the cache texture
+        int16_t     m_Y;     // The top left texel in the cache texture
+        // TODO: add page here as well
+        // private
+        uint64_t    m_GlyphKey;
     };
 
 
     /**
      * Create a new font map. The parameters struct is consumed and should not be read after this call.
+     * @name NewFontMap
+     * @param render_context Render context handle
      * @param graphics_context Graphics context handle
      * @param params Params used to initialize the font map
      * @return HFontMap on success. NULL on failure
      */
     HFontMap NewFontMap(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params);
 
-    void SetFontMapLineHeight(HFontMap font_map, float max_ascent, float max_descent);
-    void GetFontMapLineHeight(HFontMap font_map, float* max_ascent, float* max_descent);
-    void SetFontMapCacheSize(HFontMap font_map, uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent);
-    void GetFontMapCacheSize(HFontMap font_map, uint32_t* cell_width, uint32_t* cell_height, uint32_t* max_ascent);
+    /**
+     * Check if the font is monospace (set by Fontc.java)
+     * @name GetFontMapMonospaced
+     * @note This is a legacy function
+     * @param font_map Font map handle
+     * @return true if font is monospace
+     */
+    bool GetFontMapMonospaced(dmRender::HFontMap font_map);
+
+    /**
+     * Get extra padding for monospace fonts (set by Fontc.java)
+     * @name GetFontMapPadding
+     * @note This is a legacy function
+     * @param font_map Font map handle
+     * @return padding (in pixels)
+     */
+    uint32_t GetFontMapPadding(dmRender::HFontMap font_map);
 
     /**
      * Delete a font map
@@ -204,57 +213,76 @@ namespace dmRender
     /**
      * Gets a struct representing a slot in the glyph texture cache
      * @param font_map [type: HFontMap] Font map handle
+     * @param glyph_key [type: uint64_t] A key created by #MakeGlyphIndexKey()
      * @return cache_glyph [type: CacheGlyph*] the glyph cache info
      */
-    CacheGlyph* GetFromCache(HFontMap font_map, uint32_t c);
+    CacheGlyph* GetFromCache(HFontMap font_map, uint64_t glyph_key);
 
     /**
      * Checks if a codepoint is already stored within the cache
      * @param font_map [type: HFontMap] Font map handle
-     * @param codepoint [type: uint32_t] The unicode codepoint
+     * @param glyph_key [type: uint64_t] A key created by #MakeGlyphIndexKey()
      * @return result [type: bool] true if the glyph is already cached
      */
-    bool IsInCache(HFontMap font_map, uint32_t codepoint);
+    bool IsInCache(HFontMap font_map, uint64_t glyph_key);
 
     /**
      * Adds a font glyph to the glyph texture cache
+     * @name AddGlyphToCache
      * @param font_map [type: HFontMap] Font map handle
      * @param frame [type: uint32_t] The current frame number. Used to for evicting old cache entries.
+     * @param glyph_key [type: uint64_t] A key created by #MakeGlyphIndexKey()
      * @param glyph [type: dmRender::FontGlyph*] The current frame number. Used to for evicting old cache entries.
      * @param g_offset_y [type: int32_t] The offset from the top of the cache cell. Used to align the glyph with the baseline.
      */
-    void AddGlyphToCache(HFontMap font_map, uint32_t frame, FontGlyph* glyph, int32_t g_offset_y);
+    void AddGlyphToCache(HFontMap font_map, uint32_t frame, uint64_t glyph_key, FontGlyph* glyph, int32_t g_offset_y);
 
     /** Checks if the glyph cache texture needs to be updated
      */
     void UpdateCacheTexture(HFontMap font_map);
 
-    /**
-     * Get the glyph from the font map given a unicode codepoint
-     * @param font_map [type: HFontMap] Font map handle
-     * @param codepoint [type: uint32_t] The unicode codepoint
-     * @return glyph [type: FontGlyph*] the glyph
+    /** Get the default font
+     * @name GetDefaultFont
+     * @param font_map [type: HFontMap] Font map handlet
+     * @return font [type: HFont] the font
      */
-    dmRender::FontGlyph* GetGlyph(dmRender::HFontMap font_map, uint32_t codepoint);
+    HFont GetDefaultFont(dmRender::HFontMap font_map);
 
-    dmRender::FontGlyph* GetGlyphByIndex(dmRender::HFontMap font_map, uint32_t glyph_index);
+    /** Create a unique key fron the font and a glyph index
+     * @name MakeGlyphIndexKey
+     * @param font [type: HFont] the font
+     * @param glyph_index [type: uint32_t] The glyph index inside the font
+     * @return key [type: uint64_t] the key
+     */
+    uint64_t MakeGlyphIndexKey(HFont font, uint32_t glyph_index);
 
     /**
-     * Get the rendered glyph image from the font map given a unicode codepoint.
+     * Get a glyph or create a new instance from the font map
+     * @name GetOrCreateGlyphByIndex
+     * @note Creates the glyph bitmap if the glyph wasn't already present
      * @param font_map [type: HFontMap] Font map handle
-     * @param codepoint [type: uint32_t] The unicode codepoint
-     * @param out_size [out] [type: uint32_t*] The size of the image data payload
-     * @param out_compression [out] [type: uint32_t*] Tells if the data is compressed. 1 = deflate, 0 = uncompressed.
-     * @param out_width [out] [type: uint32_t*] The width of the final image
-     * @param out_height [out] [type: uint32_t*] The height of the final image
-     * @param out_channels [out] [type: uint32_t*] The number of channels of the final image
-     * @return data [type: uint8_t*] the image data. See out_compression.
-     */
-    const uint8_t* GetGlyphData(dmRender::HFontMap font_map, uint32_t codepoint, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels);
+     * @param hfont [type: HFont] Font handle
+     * @param glyph_index [type: uint32_t] The glyph index inside the font
+     * @param glyph [type: FontGlyph**] Returns the pointer to existing or newly created glyph
+     * @return result [type: FontResult] FONT_RESULT_OK if successful
+     **/
+    FontResult GetOrCreateGlyphByIndex(dmRender::HFontMap font_map, HFont font, uint32_t glyph_index, FontGlyph** glyph);
 
-    const uint8_t* GetGlyphDataByIndex(dmRender::HFontMap font_map, uint32_t glyph_index, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels);
+    /**
+     * Get a glyph or create a new instance from the font map
+     * @name AddGlyphByIndex
+     * @param font_map [type: HFontMap] Font map handle
+     * @param hfont [type: HFont] Font handle
+     * @param glyph_index [type: uint32_t] The glyph index inside the font
+     * @param glyph [type: FontGlyph**] Returns the pointer to existing or newly created glyph
+     * @return result [type: FontResult] FONT_RESULT_OK if successful
+     **/
+    void AddGlyphByIndex(dmRender::HFontMap font_map, HFont font, uint32_t glyph_index, FontGlyph* glyph);
+
+    void RemoveGlyphByIndex(dmRender::HFontMap font_map, HFont font, uint32_t glyph_index);
 
     // Used in unit tests
+    FontResult GetOrCreateGlyph(dmRender::HFontMap font_map, HFont font, uint32_t codepoint, FontGlyph** glyph);
     bool VerifyFontMapMinFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter);
     bool VerifyFontMapMagFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter);
 }
