@@ -159,6 +159,7 @@ public class Bob {
     }
 
     public static void initLua() {
+        init();
         PackedResources.unpackAllLibsAsync(Platform.getHostPlatform());
         PackedResources.waitForuUpackAllLibsAsync();
     }
@@ -643,6 +644,7 @@ public class Bob {
     }
 
     private static void setupProject(Project project, boolean resolveLibraries, IProgress progress) throws IOException, LibraryException, CompileExceptionError {
+        project.loadProjectFile(false);
         BobProjectProperties projectProperties = project.getProjectProperties();
         String[] dependencies = projectProperties.getStringArrayValue("project", "dependencies");
         List<URL> libUrls = new ArrayList<>();
@@ -820,10 +822,6 @@ public class Bob {
                     project.addBuildServerHeader(header);
                 }
             }
-            TimeProfiler.stop();
-
-            TimeProfiler.start("loadProjectFile");
-            project.loadProjectFile();
             TimeProfiler.stop();
 
             TimeProfiler.start("setupProject");

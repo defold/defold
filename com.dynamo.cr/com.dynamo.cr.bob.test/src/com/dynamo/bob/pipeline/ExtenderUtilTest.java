@@ -77,7 +77,7 @@ public class ExtenderUtilTest {
 
         project = new Project(fileSystem, tmpDir.getAbsolutePath(), "build/default");
 
-        project.loadProjectFile();
+        project.loadProjectFile(true);
     }
 
     @After

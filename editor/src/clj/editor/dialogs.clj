@@ -23,6 +23,7 @@
             [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.progress-bar :as fx.progress-bar]
+            [cljfx.fx.progress-indicator :as fx.progress-indicator]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.scene :as fx.scene]
             [cljfx.fx.v-box :as fx.v-box]
@@ -38,7 +39,9 @@
             [editor.progress :as progress]
             [editor.ui :as ui]
             [editor.util :as util]
-            [service.log :as log])
+            [service.log :as log]
+            [util.coll :as coll]
+            [util.thread-util :as thread-util])
   (:import [clojure.lang Named]
            [java.io File]
            [java.nio.file Path Paths]
@@ -505,10 +508,13 @@
       (.showDialog owner-window)))
 
 (defn- default-filter-fn [filter-on text items]
-  (let [text (string/lower-case text)]
-    (filterv (fn [item]
-               (string/starts-with? (string/lower-case (filter-on item)) text))
-             items)))
+  (if (coll/empty? text)
+    items
+    (let [text (string/lower-case text)]
+      (filterv (fn [item]
+                 (thread-util/throw-if-interrupted!)
+                 (string/starts-with? (string/lower-case (filter-on item)) text))
+               items))))
 
 (def ext-with-identity-items-props
   (fx/make-ext-with-props
@@ -531,7 +537,7 @@
                               (.put properties "isDefaultAnchor" true)))))))
 
 (defn- select-list-dialog
-  [{:keys [filter-term filtered-items title ok-label prompt cell-fn selection owner]
+  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner]
     :as props}]
   {:fx/type dialog-stage
    :title title
@@ -555,20 +561,28 @@
                                   :fixed-cell-size 27
                                   :cell-factory {:fx/cell-type fx.list-cell/lifecycle
                                                  :describe cell-fn}}}}}
-   :footer {:fx/type dialog-buttons
-            :children [{:fx/type fxui/button
-                        :text ok-label
-                        :variant :primary
-                        :disable (zero? (count filtered-items))
-                        :on-action {:event-type :confirm}
-                        :default-button true}]}})
+   :footer {:fx/type fx.h-box/lifecycle
+            :alignment :center-left
+            :children [{:fx/type fx.progress-indicator/lifecycle
+                        :h-box/hgrow :never
+                        :pref-width 32.0
+                        :pref-height 32.0
+                        :visible filter-in-progress}
+                       {:fx/type dialog-buttons
+                        :h-box/hgrow :always
+                        :children [{:fx/type fxui/button
+                                    :text ok-label
+                                    :variant :primary
+                                    :disable (zero? (count filtered-items))
+                                    :on-action {:event-type :confirm}
+                                    :default-button true}]}]}})
 
 (defn- wrap-cell-fn [f]
   (fn [item]
     (when (some? item)
       (assoc (f item) :on-mouse-clicked {:event-type :select-item-on-double-click}))))
 
-(defn- select-list-dialog-event-handler [filter-fn items]
+(defn- select-list-dialog-event-handler [set-filter-term-fn]
   (fn [state event]
     (case (:event-type event)
       :cancel (assoc state ::fxui/result nil)
@@ -620,12 +634,8 @@
                                   KeyCode/ESCAPE (recur state (assoc event :event-type :cancel))
                                   state))
                               state))
-      :set-filter-term (let [term (:fx/event event)
-                             filtered-items (vec (filter-fn term items))]
-                         (assoc state
-                           :filter-term term
-                           :filtered-items filtered-items
-                           :selected-indices (if (seq filtered-items) [0] []))))))
+      :set-filter-term (let [filter-term (:fx/event event)]
+                         (set-filter-term-fn state filter-term)))))
 
 (defn make-select-list-dialog
   "Show dialog that allows the user to select one or many of the suggested items
@@ -660,12 +670,44 @@
          filter-term (or (:filter options)
                          (some-> filter-atom deref)
                          "")
-         initial-filtered-items (vec (filter-fn filter-term items))
+         filter-future-atom (atom nil)
+         state-atom (atom {:filter-term nil ; Non-string value to ensure set-filter-term won't early-out.
+                           :filter-in-progress false
+                           :filtered-items []
+                           :selected-indices []})
+
+         set-filter-term
+         (fn set-filter-term [state filter-term]
+           (if (= (:filter-term state) filter-term)
+             state
+             (do (swap! filter-future-atom
+                        (fn [pending-filter-future]
+                          (thread-util/cancel-future! pending-filter-future)
+                          (future
+                            (try
+                              (let [filtered-items (vec (filter-fn filter-term items))
+                                    selected-indices (if (coll/empty? filtered-items) [] [0])]
+                                (thread-util/throw-if-interrupted!)
+                                (swap! state-atom
+                                       (fn [state]
+                                         (thread-util/throw-if-interrupted!)
+                                         (assoc state
+                                           :filter-in-progress false
+                                           :filtered-items filtered-items
+                                           :selected-indices selected-indices))))
+                              (catch InterruptedException _
+                                nil)
+                              (catch Throwable error
+                                (error-reporting/report-exception! error))))))
+                 (assoc state
+                   :filter-term filter-term
+                   :filter-in-progress true))))
+
+         _ (swap! state-atom set-filter-term filter-term)
+         event-handler (select-list-dialog-event-handler set-filter-term)
          result (fxui/show-dialog-and-await-result!
-                  :initial-state {:filter-term filter-term
-                                  :filtered-items initial-filtered-items
-                                  :selected-indices (if (seq initial-filtered-items) [0] [])}
-                  :event-handler (select-list-dialog-event-handler filter-fn items)
+                  :state-atom state-atom
+                  :event-handler event-handler
                   :description {:fx/type select-list-dialog
                                 :title (:title options "Select Item")
                                 :ok-label (:ok-label options "OK")
@@ -673,6 +715,7 @@
                                 :cell-fn cell-fn
                                 :owner (or (:owner options) (ui/main-stage))
                                 :selection (:selection options :single)})]
+     (swap! filter-future-atom thread-util/cancel-future!)
      (when result
        (let [{:keys [filter-term selected-items]} result]
          (when (and filter-atom selected-items)

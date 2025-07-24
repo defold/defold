@@ -17,6 +17,10 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
@@ -38,26 +42,57 @@ import com.dynamo.graphics.proto.Graphics.TextureProfile;
 public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
 
     private static Logger logger = Logger.getLogger(CubemapBuilder.class.getName());
+    
+    // Store mapping information to handle duplicate images
+    private int[] sideToUniqueImageIndex;
+    private int uniqueImageCount;
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
         Cubemap.Builder builder = getSrcBuilder(input);
 
+        // Collect all side image paths in order: right, left, top, bottom, front, back
+        String[] sideImagePaths = {
+            builder.getRight(),
+            builder.getLeft(),
+            builder.getTop(),
+            builder.getBottom(),
+            builder.getFront(),
+            builder.getBack()
+        };
+
+        // Build mapping of unique images and which sides use them
+        Map<String, Integer> uniqueImageToInputIndex = new HashMap<>();
+        List<String> uniqueImagePaths = new ArrayList<>();
+        sideToUniqueImageIndex = new int[6];
+
+        for (int sideIndex = 0; sideIndex < 6; sideIndex++) {
+            String imagePath = sideImagePaths[sideIndex];
+            Integer uniqueIndex = uniqueImageToInputIndex.get(imagePath);
+            if (uniqueIndex == null) {
+                // First time seeing this image
+                uniqueIndex = uniqueImagePaths.size();
+                uniqueImagePaths.add(imagePath);
+                uniqueImageToInputIndex.put(imagePath, uniqueIndex);
+            }
+            sideToUniqueImageIndex[sideIndex] = uniqueIndex;
+        }
+
+        uniqueImageCount = uniqueImagePaths.size();
+
         TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
-                .addInput(input)
-                .addInput(input.getResource(builder.getRight()))
-                .addInput(input.getResource(builder.getLeft()))
-                .addInput(input.getResource(builder.getTop()))
-                .addInput(input.getResource(builder.getBottom()))
-                .addInput(input.getResource(builder.getFront()))
-                .addInput(input.getResource(builder.getBack()))
-                // outExt should correspond to the protoclass used to parse proto message it produces
-                // '.texturec' can't be parsed with Cubemap, we specify this output manually
-                .addOutput(input.changeExt(".texturec"));
+                .addInput(input);
+
+        // Add only unique images as inputs
+        for (String uniqueImagePath : uniqueImagePaths) {
+            taskBuilder.addInput(input.getResource(uniqueImagePath));
+        }
+
+        taskBuilder.addOutput(input.changeExt(".texturec"));
 
         TextureUtil.addTextureProfileInput(taskBuilder, project);
-
+        
         return taskBuilder.build();
     }
 
@@ -67,11 +102,12 @@ public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(task.lastInput(), task.input(0).getPath());
         logger.fine("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
 
-        TextureGenerator.GenerateResult[] generateResults = new TextureGenerator.GenerateResult[6];
+        // Generate textures only for unique images
+        TextureGenerator.GenerateResult[] uniqueGenerateResults = new TextureGenerator.GenerateResult[uniqueImageCount];
 
         try {
-            for (int i = 0; i < 6; i++) {
-                ByteArrayInputStream is = new ByteArrayInputStream(task.input(i + 1).getContent());
+            for (int uniqueIndex = 0; uniqueIndex < uniqueImageCount; uniqueIndex++) {
+                ByteArrayInputStream is = new ByteArrayInputStream(task.input(uniqueIndex + 1).getContent());
                 boolean compress = project.option("texture-compression", "false").equals("true");
                 // NOTE: Cubemap sides should not have a flipped Y axis (as opposed to any other texture).
                 // I could only find tidbits of information regarding this online, as far as I understand
@@ -86,9 +122,14 @@ public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
                 // So for cube map textures we don't flip on any axis, meaning the texture data begin in the
                 // upper left corner of the input image.
 
+                uniqueGenerateResults[uniqueIndex] = TextureGenerator.generate(is, texProfile, compress, EnumSet.noneOf(Texc.FlipAxis.class));
+            }
 
-                // NOTE: Setting the same input for more than one side will cause a NPE when generating!
-                generateResults[i] = TextureGenerator.generate(is, texProfile, compress, EnumSet.noneOf(Texc.FlipAxis.class));
+            // Map unique results to the 6 cubemap sides using the stored mapping
+            TextureGenerator.GenerateResult[] generateResults = new TextureGenerator.GenerateResult[6];
+            for (int sideIndex = 0; sideIndex < 6; sideIndex++) {
+                int uniqueIndex = sideToUniqueImageIndex[sideIndex];
+                generateResults[sideIndex] = uniqueGenerateResults[uniqueIndex];
             }
 
             validate(task, generateResults);
@@ -113,5 +154,12 @@ public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
                 }
             }
         }
+    }
+
+    @Override
+    public void clearState() {
+        super.clearState();
+        sideToUniqueImageIndex = null;
+        uniqueImageCount = 0;
     }
 }

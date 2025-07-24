@@ -153,13 +153,6 @@ namespace dmRender
     void DeleteFontMap(HFontMap font_map);
 
     /**
-     * Update the font map with the specified parameters. The parameters are consumed and should not be read after this call.
-     * @param font_map Font map handle
-     * @param params Parameters to update
-     */
-    bool SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params);
-
-    /**
      * Get texture from a font map
      * @param font_map Font map handle
      * @return dmGraphics::HTexture Texture handle

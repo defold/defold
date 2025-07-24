@@ -72,8 +72,6 @@ struct JobItem
 
     // output
     FontGlyph*      m_Glyph;
-    // uint8_t*        m_Data;     // May be 0. First byte is the compression (0=no compression, 1=deflate)
-    // uint32_t        m_DataSize;
 };
 
 struct Context
@@ -136,7 +134,7 @@ static int JobGenerateGlyph(void* context, void* data)
     if (!item->m_TTFResource)
         return 0;
 
-    uint32_t codepoint = item->m_Codepoint;
+    uint32_t codepoint = item->m_Codepoint;     // May well be 0
     uint32_t glyph_index = item->m_GlyphIndex;
 
     uint64_t tstart = dmTime::GetTime();
@@ -227,9 +225,8 @@ static int JobGenerateGlyph(void* context, void* data)
         // item->m_Data[0] = glyph.m_Bitmap.m_Flags;
     }
 
-    //dmFont::FreeGlyph(font, &glyph);
-
     uint64_t tend = dmTime::GetTime();
+
 // TODO: Protect this using a spinlock
     JobStatus* status = item->m_Status;
     status->m_TimeGlyphGen += tend - tstart;
@@ -268,6 +265,7 @@ static void DeleteItem(Context* ctx, JobItem* item)
 
     if (item->m_Callback) // It's the last item
     {
+        free((void*)item->m_Status->m_Error);
         delete item->m_Status;
     }
     delete item;
@@ -559,7 +557,6 @@ float FontGenGetEdgeValue()
 {
     return g_FontExtContext->m_StbttDefaultSdfEdge;
 }
-
 
 // Resource api
 bool FontGenAddGlyphByIndex(FontResource* fontresource, TTFResource* ttfresource, uint32_t glyph_index, bool loading, FGlyphCallback cbk, void* cbk_ctx)

@@ -5855,6 +5855,28 @@ driver
 
 driver
 {
+    device: "8BitDo Micro gamepad"
+    platform: "macos"
+    dead_zone: 0.200
+    map { input: GAMEPAD_LTRIGGER type: GAMEPAD_TYPE_BUTTON index: 8 }
+    map { input: GAMEPAD_LSHOULDER type: GAMEPAD_TYPE_BUTTON index: 6 }
+    map { input: GAMEPAD_LPAD_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LPAD_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LPAD_DOWN type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_LPAD_UP type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
+    map { input: GAMEPAD_RTRIGGER type: GAMEPAD_TYPE_BUTTON index: 9 }
+    map { input: GAMEPAD_RSHOULDER type: GAMEPAD_TYPE_BUTTON index: 7 }
+    map { input: GAMEPAD_RPAD_LEFT type: GAMEPAD_TYPE_BUTTON index: 4 }
+    map { input: GAMEPAD_RPAD_RIGHT type: GAMEPAD_TYPE_BUTTON index: 0 }
+    map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 1 }
+    map { input: GAMEPAD_RPAD_UP type: GAMEPAD_TYPE_BUTTON index: 3 }
+    map { input: GAMEPAD_START type: GAMEPAD_TYPE_BUTTON index: 11 }
+    map { input: GAMEPAD_BACK type: GAMEPAD_TYPE_BUTTON index: 10 }
+    map { input: GAMEPAD_GUIDE type: GAMEPAD_TYPE_BUTTON index: 12 }
+}
+
+driver
+{
     device: "Retroid Pocket Controller"
     platform: "android"
     dead_zone: 0.2

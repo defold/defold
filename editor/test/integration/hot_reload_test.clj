@@ -19,7 +19,6 @@
             [editor.build :as build]
             [editor.defold-project :as project]
             [editor.hot-reload :as hot-reload]
-            [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -35,7 +34,7 @@
 (defn- project-build [project resource-node evaluation-context]
   (let [workspace (project/workspace project)
         old-artifact-map (workspace/artifact-map workspace)
-        build-results (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!)]
+        build-results (build/build-project! project resource-node old-artifact-map nil evaluation-context)]
     (when-not (contains? build-results :error)
       (workspace/artifact-map! workspace (:artifact-map build-results))
       (workspace/etags! workspace (:etags build-results)))

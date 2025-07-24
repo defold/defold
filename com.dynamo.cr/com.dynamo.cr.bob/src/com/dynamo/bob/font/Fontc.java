@@ -155,7 +155,7 @@ public class Fontc {
         public BufferedImage image;
     };
 
-    static final float sdf_edge         = 0.75f;
+    static final float sdfEdge          = 0.75f;
     private InputFontFormat inputFormat = InputFontFormat.FORMAT_TRUETYPE;
     private Stroke outlineStroke        = null;
     private int channelCount            = 3;
@@ -237,33 +237,32 @@ public class Fontc {
 
     public static float GetFontMapSdfSpread(FontDesc fontDesc)
     {
-        float sdf_spread = getPaddedSdfSpread(fontDesc.getOutlineWidth());
-        return sdf_spread;
+        return getPaddedSdfSpread(fontDesc.getOutlineWidth());
     }
 
     public static float GetFontMapSdfOutline(FontDesc fontDesc)
     {
-        float sdf_spread = GetFontMapSdfSpread(fontDesc);
-        float outline_edge = calculateSdfEdgeLimit(-fontDesc.getOutlineWidth(), sdf_spread);
-        return outline_edge;
+        float sdfSpread = GetFontMapSdfSpread(fontDesc);
+        return calculateSdfEdgeLimit(-fontDesc.getOutlineWidth(), sdfSpread);
     }
 
     public static float GetFontMapSdfShadow(FontDesc fontDesc)
     {
-        float shadow_blur = (float)fontDesc.getShadowBlur();
-        float sdf_shadow_spread = getPaddedSdfSpread(shadow_blur);
-        float shadow_edge = calculateSdfEdgeLimit(-shadow_blur, sdf_shadow_spread);
+        float shadowBlur = (float)fontDesc.getShadowBlur();
+        float sdfShadowSpread = getPaddedSdfSpread(shadowBlur);
+        float shadowEdge = calculateSdfEdgeLimit(-shadowBlur, sdfShadowSpread);
 
         // Special case!
         // If there is no blur, the shadow should essentially work the same way as the outline.
         // This enables effects like a hard drop shadow. In the shader, the pseudo code
         // that does this looks something like this:
-        // shadow_alpha = mix(shadow_alpha,outline_alpha,floor(shadow_edge))
+
+        // shadow_alpha = mix(shadow_alpha,outline_alpha,floor(shadowEdge))
         if (fontDesc.getShadowBlur() == 0)
         {
-            shadow_edge = 1.0f;
+            shadowEdge = 1.0f;
         }
-        return shadow_edge;
+        return shadowEdge;
     }
 
     public interface FontResourceResolver {
@@ -440,7 +439,7 @@ public class Fontc {
         float sdfLimitValue = width / spread;
 
         // Map the outgoing limit to the same 'space' as the face edge.
-        return sdfLimitValue * (1.0f - sdf_edge) + sdf_edge;
+        return sdfLimitValue * (1.0f - sdfEdge) + sdfEdge;
     }
 
     private byte[] toByteArray(BufferedImage image, int width, int height, int bpp, int targetBpp) throws IOException {
@@ -489,16 +488,16 @@ public class Fontc {
         int padding = GetFontMapPadding(fontDesc);
         int cell_padding = 1;
         // Spread is the maximum distance to the glyph edge.
-        float sdf_spread = 0.0f;
+        float sdfSpread = 0.0f;
         // Shadow_spread is the maximum distance to the glyph outline.
-        float sdf_shadow_spread = 0.0f;
+        float sdfShadowSpread = 0.0f;
 
         if (Fontc.isBitmapFont(this.fontDesc)) {
             padding = 0;
             cell_padding = 1;
         } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
-            sdf_spread        = getPaddedSdfSpread(fontDesc.getOutlineWidth());
-            sdf_shadow_spread = getPaddedSdfSpread((float)fontDesc.getShadowBlur());
+            sdfSpread        = getPaddedSdfSpread(fontDesc.getOutlineWidth());
+            sdfShadowSpread = getPaddedSdfSpread((float)fontDesc.getShadowBlur());
         }
 
         Color faceColor = new Color(fontDesc.getAlpha(), 0.0f, 0.0f);
@@ -647,7 +646,7 @@ public class Fontc {
                 glyphImage = drawBMFontGlyph(glyph, imageBMFont);
             } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD &&
                        inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
-                glyphImage = makeDistanceField(glyph, padding, sdf_spread, sdf_shadow_spread, font, sdf_edge, shadowConvolve);
+                glyphImage = makeDistanceField(glyph, padding, sdfSpread, sdfShadowSpread, font, sdfEdge, shadowConvolve);
             } else {
                 throw new FontFormatException("Invalid font format combination!");
             }
@@ -801,7 +800,7 @@ public class Fontc {
         return imageBMFontInput.getSubimage(glyph.x, glyph.y, glyph.width, glyph.ascent + glyph.descent);
     }
 
-    private BufferedImage makeDistanceField(Glyph glyph, int padding, float sdf_spread, float sdf_shadow_spread, Font font, float edge, ConvolveOp shadowConvolve) {
+    private BufferedImage makeDistanceField(Glyph glyph, int padding, float sdfSpread, float sdfShadowSpread, Font font, float edge, ConvolveOp shadowConvolve) {
         int width = glyph.width + padding * 2;
         int height = glyph.ascent + glyph.descent + padding * 2;
 
@@ -847,9 +846,9 @@ public class Fontc {
         double u1 = u0 + width;
         double v1 = v0 + height;
 
-        double[] distance_data = new double[width*height];
+        double[] distanceData = new double[width*height];
 
-        df.render(distance_data, u0, v0, u1, v1, width, height);
+        df.render(distanceData, u0, v0, u1, v1, width, height);
 
         double widthInverse  = 1 / (double)width;
         double heightInverse = 1 / (double)height;
@@ -862,38 +861,38 @@ public class Fontc {
             for (int u=0;u<width;u++) {
                 double gx = u0 + widthInverse * u * (u1 - u0);
                 double gy = v0 + heightInverse * v * (v1 - v0);
-                double distance_to_edge   = distance_data[ofs + u];
-                double distance_to_border = -(distance_to_edge - fontDesc.getOutlineWidth());
+                double distanceToEdge   = distanceData[ofs + u];
+                double distanceToBorder = -(distanceToEdge - fontDesc.getOutlineWidth());
 
                 if (!sh.contains(gx, gy)) {
-                    distance_to_edge = -distance_to_edge;
+                    distanceToEdge = -distanceToEdge;
                 }
 
-                float distance_to_edge_normalized = calculateSdfEdgeLimit((float)distance_to_edge, sdf_spread);
+                float distanceToEdgeNormalized = calculateSdfEdgeLimit((float)distanceToEdge, sdfSpread);
 
                 // Map outgoing distance value to 0..255
-                int outline_channel = (int)(255.0f * distance_to_edge_normalized);
-                outline_channel     = Math.max(0,Math.min(255,outline_channel));
+                int outlineChannel = (int)(255.0f * distanceToEdgeNormalized);
+                outlineChannel     = Math.max(0,Math.min(255,outlineChannel));
 
-                float sdf_outline = glyphBankBuilder.getSdfOutline();
+                float sdfOutline = glyphBankBuilder.getSdfOutline();
 
                 // This is needed to 'fill' the shadow body since
                 // we have no good way of knowing if the pixel is inside or outside
                 // of the shadow limit
-                if (distance_to_edge_normalized > sdf_outline)
+                if (distanceToEdgeNormalized > sdfOutline)
                 {
-                	distance_to_border = edge;
+                	distanceToBorder = edge;
                 }
 
                 // Calculate shadow distribution separately in a different channel since we spread the
                 // values across the distance to the outline border and not to the edge.
-                float distance_to_border_normalized = calculateSdfEdgeLimit((float)distance_to_border, sdf_shadow_spread);
+                float distanceToBorder_normalized = calculateSdfEdgeLimit((float)distanceToBorder, sdfShadowSpread);
 
                 // Map outgoing distance value to 0..255
-                int shadow_channel = (int)(255.0f * distance_to_border_normalized);
-                shadow_channel     = Math.max(0,Math.min(255,shadow_channel));
+                int shadowChannel = (int)(255.0f * distanceToBorder_normalized);
+                shadowChannel     = Math.max(0,Math.min(255,shadowChannel));
 
-                image.setRGB(u, v, 0x010000 * outline_channel | 0x000001 * shadow_channel);
+                image.setRGB(u, v, 0x010000 * outlineChannel | 0x000001 * shadowChannel);
             }
         }
 
@@ -912,10 +911,10 @@ public class Fontc {
 
             for (int v=0;v<height;v++) {
                 for (int u=0;u<width;u++) {
-                    int edge_outline_channel = image.getRGB(u,v);
-                    int shadow_channel = blurredShadowImage.getRGB(u,v);
+                    int edgeOutlineChannel = image.getRGB(u,v);
+                    int shadowChannel = blurredShadowImage.getRGB(u,v);
 
-                    image.setRGB(u,v,edge_outline_channel & 0xFFFF00 | shadow_channel & 0xFF);
+                    image.setRGB(u,v,edgeOutlineChannel & 0xFFFF00 | shadowChannel & 0xFF);
                 }
             }
         }

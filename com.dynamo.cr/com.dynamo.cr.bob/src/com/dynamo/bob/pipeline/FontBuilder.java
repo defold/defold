@@ -87,6 +87,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         {
             BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
             // leave glyphbank field empty, as we use that to check at runtime (to toggle runtime generation or not)
+            fontMapBuilder.setFont(fontDesc.getFont()); // Keep the suffix as-is (i.e. ".ttf")
         }
         else
         {
@@ -95,14 +96,13 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             fontMapBuilder.setGlyphBank(glyphBankPath);
         }
 
-        fontMapBuilder.setFont(fontDesc.getFont()); // Keep the suffix as-is (i.e. ".ttf")
         fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
 
-        boolean all_chars = fontDesc.getAllChars();
+        boolean allChars = fontDesc.getAllChars();
 
-        if (all_chars)
+        if (allChars)
         {
-            fontMapBuilder.setAllChars(all_chars); // 0x000000 - 0x10FFFF
+            fontMapBuilder.setAllChars(allChars); // 0x000000 - 0x10FFFF
         }
         else
         {

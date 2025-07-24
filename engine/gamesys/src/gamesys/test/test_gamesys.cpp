@@ -1716,7 +1716,10 @@ TEST_F(FontTest, DynamicGlyph)
     {
         FontGlyph* glyph = 0;
         FontResult r = GetGlyph(font_map, hfont, codepoint, &glyph);
-        ASSERT_NE(FONT_RESULT_OK, r); // Cannot create a sdf bitmap from a ttf font via this api
+        ASSERT_EQ(FONT_RESULT_OK, r); // glyph fallback returns OK, but cannot create a sdf bitmap from a ttf font via this api
+        ASSERT_NE((FontGlyph*)0, glyph);
+        ASSERT_EQ(codepoint, glyph->m_Codepoint);
+        ASSERT_EQ(36U, glyph->m_GlyphIndex);
     }
 
     // Add a new glyph

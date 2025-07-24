@@ -6,8 +6,7 @@ APPNAME='font'
 srcdir = '.'
 blddir = 'build'
 
-import sys
-import waf_dynamo, waf_ddf
+import waf_dynamo
 import waflib.Options
 import TestContext
 
@@ -24,7 +23,6 @@ def options(opt):
 def configure(conf):
     conf.load('waf_dynamo')
 
-    waf_ddf.configure(conf)
     conf.recurse('src')
     conf.env.append_value('INCLUDES', "default/src")
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="FONT"')

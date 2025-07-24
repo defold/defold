@@ -114,7 +114,7 @@ namespace dmGameObject
 
             for (uint32_t j = 0; j < instance_desc.m_Children.m_Count; ++j)
             {
-                dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, dmGameObject::GetAbsoluteIdentifier(parent, instance_desc.m_Children[j], strlen(instance_desc.m_Children[j])));
+                dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, dmGameObject::GetAbsoluteIdentifier(parent, instance_desc.m_Children[j]));
                 if (child)
                 {
                     dmGameObject::Result r = dmGameObject::SetParent(child, parent);

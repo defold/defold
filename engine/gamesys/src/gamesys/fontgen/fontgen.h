@@ -12,7 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#pragma once
+#ifndef DM_GAMESYS_FONTGEN_H
+#define DM_GAMESYS_FONTGEN_H
 
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/extension/extension.h>
@@ -40,3 +41,5 @@ namespace dmGameSystem
     // If we're busy waiting for created glyphs
     void FontGenFlushFinishedJobs(uint64_t timeout);
 }
+
+#endif // DM_GAMESYS_FONTGEN_H
