@@ -170,7 +170,7 @@ static void SegmentText(HFont hfont, uint32_t* codepoints, uint32_t num_codepoin
     info->m_NumValidGlyphs = info->m_Glyphs.Size() - num_whitespaces;
 }
 
-static uint32_t GetLineTextMetrics(TextShapeGlyph* glyphs, uint32_t row_start, uint32_t n, bool measure_trailing_space)
+static int32_t GetLineTextMetrics(TextShapeGlyph* glyphs, int32_t row_start, uint32_t n, bool measure_trailing_space)
 {
     if (n <= 0)
         return 0;
@@ -186,8 +186,8 @@ static uint32_t GetLineTextMetrics(TextShapeGlyph* glyphs, uint32_t row_start, u
         }
     }
 
-    uint32_t row_start_x = glyphs[0].m_X;
-    uint32_t width = glyphs[n-1].m_X + glyphs[n-1].m_Width - row_start_x;
+    int32_t row_start_x = glyphs[0].m_X;
+    int32_t width = glyphs[n-1].m_X + glyphs[n-1].m_Width - row_start_x;
     return width;
 }
 
@@ -195,7 +195,7 @@ struct LayoutMetrics
 {
     TextShapeGlyph* m_Glyphs;
     LayoutMetrics(TextShapeGlyph* glyphs) : m_Glyphs(glyphs) {}
-    float operator()(uint32_t row_start, uint32_t n, bool measure_trailing_space)
+    float operator()(int32_t row_start, uint32_t n, bool measure_trailing_space)
     {
         return GetLineTextMetrics(m_Glyphs, row_start, n, measure_trailing_space);
     }
@@ -222,7 +222,7 @@ TextShapeResult TextLayout(TextMetricsSettings* settings, TextShapeInfo* info,
         width = INT_MAX;
 
     LayoutMetrics lm(info->m_Glyphs.Begin());
-    uint32_t max_line_width;
+    int32_t max_line_width;
     uint32_t num_lines = Layout(info, width, lines, max_num_lines,
                                 &max_line_width, lm, !settings->m_LineBreak);
     if (metrics)

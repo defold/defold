@@ -60,21 +60,6 @@ static uint32_t GetLineTextMetrics(TextShapeGlyph* glyphs, uint32_t row_start, u
     uint32_t extent_last = last.m_LeftBearing + last.m_Width;
     uint32_t width = last.m_X - row_start_x + (n-1) * tracking + extent_last;
 
-    // if (n > 0 && 0 != last)
-    // {
-    //
-    //     if (font_map->m_IsMonospaced) {
-    //         width += font_map->m_Padding;  TODO: Move this to the m_Width of the actual font
-    //     }
-    //     else {
-    //         float last_width = (measure_trailing_space && last->m_Character == ' ') ? last->m_Advance : last->m_Width;
-    //         float last_end_point = last->m_LeftBearing + last_width;
-    //         float last_right_bearing = last->m_Advance - last_end_point;
-    //         width = width - last_right_bearing;
-    //     }
-    //     width -= tracking;
-    // }
-
     return width;
 }
 
@@ -171,7 +156,7 @@ TextShapeResult TextLayout(TextMetricsSettings* settings, TextShapeInfo* info,
         width = INT_MAX;
 
     LayoutMetrics lm(info->m_Glyphs.Begin(), settings->m_Monospace, settings->m_Padding, settings->m_Tracking);
-    uint32_t max_line_width;
+    int32_t max_line_width;
     uint32_t num_lines = Layout(info, width, lines, max_num_lines,
                                 &max_line_width, lm, !settings->m_LineBreak);
     if (metrics)

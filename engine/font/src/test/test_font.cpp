@@ -29,6 +29,8 @@
 
 static const char* g_TextLorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut tempus quam in lacinia imperdiet. Vestibulum interdum erat quis purus lacinia, at ullamcorper arcu sagittis. Etiam molestie varius lacus, eget fringilla enim tempor quis. In at mollis dolor, et dictum sem. Mauris condimentum metus sed auctor tempus.";
 
+static const char* g_TextArabic = "دينيس ريتشي فاش كان خدام ف مختبرات بيل، مابين 1972 و 1973";
+
 
 class FontTest : public jc_test_base_class
 {
@@ -102,7 +104,7 @@ static TextShapeResult TestLayout(HFont font, dmArray<uint32_t>& codepoints,
     return TEXT_SHAPE_RESULT_OK;
 }
 
-static void DebugPrintLayout(const uint32_t* codepoints, TextMetrics* metrics, TextLine* lines, float scale)
+static void DebugPrintLayout(TextShapeInfo* info, TextMetrics* metrics, TextLine* lines, float scale)
 {
     printf("Layout:\n");
     printf("  %u lines, max width: %.3f\n", metrics->m_LineCount, metrics->m_Width*scale);
@@ -117,10 +119,19 @@ static void DebugPrintLayout(const uint32_t* codepoints, TextMetrics* metrics, T
             uint32_t end = line.m_Index + line.m_Length;
             for (uint32_t j = line.m_Index; j < end; ++j)
             {
-                uint32_t c = codepoints[j];
+                TextShapeGlyph* glyph = &info->m_Glyphs[j];
+                uint32_t c = glyph->m_Codepoint;
                 printf("%c", (char)c);
             }
 
+            printf("|  idx: |");
+
+            for (uint32_t j = line.m_Index; j < end; ++j)
+            {
+                TextShapeGlyph* glyph = &info->m_Glyphs[j];
+                uint32_t gi = glyph->m_GlyphIndex;
+                printf("%4u ", gi);
+            }
             printf("|\n");
         }
     }
@@ -148,7 +159,7 @@ TEST_F(FontTest, LayoutSingleLine)
 
     TextShapeResult r = TestLayout(m_Font, codepoints, &settings, &info, &metrics, lines, max_num_lines);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, scale);
+    DebugPrintLayout(&info, &metrics, lines, scale);
     ASSERT_EQ(1u, metrics.m_LineCount);
     ASSERT_EQ(0u, lines[0].m_Index);
     ASSERT_EQ(14u, lines[0].m_Length);
@@ -165,7 +176,7 @@ TEST_F(FontTest, LayoutSingleLine)
     // Test the same without any lines
     r = TestLayout(m_Font, codepoints, &settings, &info, &metrics, 0, 0);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, scale);
+    DebugPrintLayout(&info, &metrics, lines, scale);
     ASSERT_EQ(1u, metrics.m_LineCount);
 }
 
@@ -196,7 +207,7 @@ TEST_F(FontTest, LayoutMultiLine)
     TextShapeResult r = TestLayout(m_Font, codepoints, &settings, &info, &metrics, lines, max_num_lines);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
 
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, scale);
+    DebugPrintLayout(&info, &metrics, lines, scale);
 
     ASSERT_EQ(2u, metrics.m_LineCount);
     ASSERT_EQ(0u, lines[0].m_Index);
@@ -234,7 +245,7 @@ TEST_F(FontTest, TextGetMetrics)
 
     TextShapeResult r = TextGetMetrics(m_Font, codepoints.Begin(), codepoints.Size(), &settings, &metrics);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
-    DebugPrintLayout(codepoints.Begin(), &metrics, 0, scale);
+    //DebugPrintLayout(&info, &metrics, 0, scale);
     ASSERT_EQ(1u, metrics.m_LineCount);
 }
 
@@ -323,7 +334,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 100;
     CreateTestGlyphs(&info, "", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(0, metrics.m_LineCount);
     ASSERT_EQ(0, metrics.m_Width);
@@ -332,7 +343,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 100;
     CreateTestGlyphs(&info, "x", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(1, metrics.m_LineCount);
     ASSERT_LINE(0, 1, lines, 0);
@@ -342,7 +353,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 100;
     CreateTestGlyphs(&info, "x\x00 123", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(1, metrics.m_LineCount);
     ASSERT_LINE(0, 1, lines, 0);
@@ -352,7 +363,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 0;
     CreateTestGlyphs(&info, "x", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(1, metrics.m_LineCount);
     ASSERT_LINE(0, 1, lines, 0);
@@ -362,7 +373,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 3 * char_width;
     CreateTestGlyphs(&info, "abc", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(1, metrics.m_LineCount);
     ASSERT_LINE(0, 3, lines, 0);
@@ -372,7 +383,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 3 * char_width - 1;
     CreateTestGlyphs(&info, "abc", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(1, metrics.m_LineCount);
     ASSERT_LINE(0, 3, lines, 0);
@@ -383,7 +394,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 3 * char_width;
     CreateTestGlyphs(&info, "abc bar", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(2, metrics.m_LineCount);
     ASSERT_LINE(0, 3, lines, 0);
@@ -396,7 +407,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 3 * char_width;
     CreateTestGlyphs(&info, "abc defg", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(2, metrics.m_LineCount);
     ASSERT_LINE(0, 3, lines, 0);
@@ -408,7 +419,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 3 * char_width;
     CreateTestGlyphs(&info, "abcd efg", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(2, metrics.m_LineCount);
     ASSERT_LINE(0, 4, lines, 0);
@@ -420,7 +431,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 1000;
     CreateTestGlyphs(&info, "abc bar", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(1u, metrics.m_LineCount);
     ASSERT_LINE(0, 7, lines, 0);
@@ -431,7 +442,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 1000;
     CreateTestGlyphs(&info, "abc  bar", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(1u, metrics.m_LineCount);
     ASSERT_LINE(0, 8, lines, 0);
@@ -442,7 +453,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 3 * char_width;
     CreateTestGlyphs(&info, "abc\n\nbar", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(3u, metrics.m_LineCount);
     ASSERT_LINE(0, 3, lines, 0);
@@ -456,7 +467,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 3 * char_width;
     CreateTestGlyphs(&info, "abc" "\xe2\x80\x8b" "bar", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(2, metrics.m_LineCount);
     ASSERT_LINE(0, 3, lines, 0);
@@ -470,7 +481,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 3 * char_width;
     CreateTestGlyphs(&info, "abc" "\xe2\x80\x8b\xe2\x80\x8b" "bar", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(2, metrics.m_LineCount);
     ASSERT_LINE(0, 3, lines, 0);
@@ -483,7 +494,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 3 * char_width;
     CreateTestGlyphs(&info, "\xc3\xa5\xc3\xa4\xc3\xb6", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(1, metrics.m_LineCount);
     ASSERT_EQ(char_width * 3, lines[0].m_Width);
@@ -495,7 +506,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 3 * char_width;
     CreateTestGlyphs(&info, "Welcome to the Kingdom of Games...", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(6, metrics.m_LineCount);
     ASSERT_LINE(0, 7, lines, 0);
@@ -511,7 +522,7 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 1000000.0f;
     CreateTestGlyphs(&info, "Hello World!\nHow are you?  ", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(2, metrics.m_LineCount);
     ASSERT_LINE(0, 12, lines, 0);
@@ -523,13 +534,53 @@ TEST_F(FontTest, Layout)
     settings.m_Width = 17 * char_width;
     CreateTestGlyphs(&info, "Hello World!   How are you?  ", char_width, codepoints);
     r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, 1.0f);
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
     ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
     ASSERT_EQ(2, metrics.m_LineCount);
     ASSERT_LINE(0, 12, lines, 0);
     ASSERT_LINE(13, 14, lines, 1);
     ASSERT_EQ(char_width * 14, metrics.m_Width);
 }
+
+#if defined(FONT_USE_KB_TEXT_SHAPE)
+TEST_F(FontTest, TextArabic)
+{
+    char buffer[512];
+    const char* path = dmTestUtil::MakeHostPath(buffer, sizeof(buffer), "src/test/NotoSansArabic-Regular.ttf");
+
+    HFont font = FontLoadFromPath(path);
+    ASSERT_NE((HFont)0, font);
+
+    dmArray<uint32_t> codepoints;
+    TextToCodePoints(g_TextArabic, codepoints);
+
+    const uint32_t  lines_count = 16;
+    TextLine        lines[lines_count];
+
+    TextMetrics metrics;
+
+    TextMetricsSettings settings = {0};
+    settings.m_LineBreak = false;
+
+    printf("Codepoints: %u\n    ", codepoints.Size());
+    for (uint32_t i = 0; i < codepoints.Size(); ++i)
+    {
+        printf("0x%X ", codepoints[i]);
+    }
+
+    TextShapeInfo info;
+    info.m_Font = font;
+    TextShapeResult r = TextShapeText(font, codepoints.Begin(), codepoints.Size(), &info);
+    ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
+
+    r = TextLayout(&settings, &info, lines, lines_count, &metrics);
+    ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
+
+    DebugPrintLayout(&info, &metrics, lines, 1.0f);
+
+    FontDestroy(font);
+}
+#endif
 
 static int TestStandalone(const char* path, float size, float padding, const char* text)
 {
@@ -560,7 +611,7 @@ static int TestStandalone(const char* path, float size, float padding, const cha
 
     TestLayout(font, codepoints, &settings, &info, &metrics, lines, max_num_lines);
 
-    DebugPrintLayout(codepoints.Begin(), &metrics, lines, scale);
+    DebugPrintLayout(&info, &metrics, lines, scale);
 
     FontDestroy(font);
     return 0;

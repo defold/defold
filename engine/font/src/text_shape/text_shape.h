@@ -28,7 +28,7 @@ struct TextShapeGlyph
     int32_t  m_X; // X position on the infinite line (in points)
     int32_t  m_Y; // Y position on the infinite line (in points)
 
-    uint32_t m_Codepoint;
+    uint32_t m_Codepoint;  // Not always available if there was a substitution
     uint16_t m_GlyphIndex; // index into the font
     int16_t  :16;
 
@@ -49,7 +49,7 @@ struct TextRun
 
 struct TextLine
 {
-    uint32_t m_Width;   /// Width of the line (in points)
+    int32_t  m_Width;   /// Width of the line (in points)
     uint16_t m_Index;   /// Index into the list of glyphs
     uint16_t m_Length;  /// Number of glyphs to render
 };
@@ -65,9 +65,9 @@ struct TextShapeInfo
 
 struct TextMetricsSettings
 {
-    uint32_t    m_Width;        /// Max width. used only when line_break is true. (in points)
+    int32_t     m_Width;        /// Max width. used only when line_break is true. (in points)
     float       m_Leading;      /// leading scale value (1.0f is default scale)
-    uint32_t    m_Tracking;     /// (in points)
+    int32_t     m_Tracking;     /// (in points)
     uint32_t    m_Padding;      /// Legacy: Padding for monospace, glyphbank fonts
     uint8_t     m_LineBreak:1;  /// Allow line breaks
     uint8_t     m_Monospace:1;  /// Legacy: Is the font a monospace font
@@ -75,8 +75,8 @@ struct TextMetricsSettings
 
 struct TextMetrics
 {
-    uint32_t m_Width;       /// Total string width (in points)
-    uint32_t m_Height;      /// Total string height (in points)
+    int32_t  m_Width;       /// Total string width (in points)
+    int32_t  m_Height;      /// Total string height (in points)
     uint32_t m_MaxAscent;   /// Max ascent of font (in points)
     uint32_t m_MaxDescent;  /// Max descent of font, positive value. (in points)
     uint32_t m_LineCount;   /// Number of lines of text
