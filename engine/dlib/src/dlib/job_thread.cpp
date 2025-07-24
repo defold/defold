@@ -117,7 +117,7 @@ static void JobThread(void* _ctx)
 #else
 static void UpdateSingleThread(JobThreadContext* ctx, uint64_t max_time)
 {
-    uint64_t tstart = dmTime::GetTime();
+    uint64_t tstart = dmTime::GetMonotonicTime();
     while (!ctx->m_Work.Empty())
     {
         JobItem item = ctx->m_Work.Pop();
@@ -125,7 +125,7 @@ static void UpdateSingleThread(JobThreadContext* ctx, uint64_t max_time)
         item.m_Result = item.m_Process(item.m_Context, item.m_Data);
         PutDone(ctx, &item);
 
-        uint64_t tend = dmTime::GetTime();
+        uint64_t tend = dmTime::GetMonotonicTime();
         if ((tend-tstart) > max_time)
         {
             break;

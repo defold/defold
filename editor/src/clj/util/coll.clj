@@ -28,6 +28,11 @@
   collection specified as the second argument, using a transducer composed of
   the remaining arguments. Returns the resulting collection. Supplying :eduction
   as the destination returns an eduction instead."
+  ([from to]
+   (case to
+     :eduction `(->Eduction identity ~from)
+     `(into ~to
+            ~from)))
   ([from to xform]
    (case to
      :eduction `(->Eduction ~xform ~from)

@@ -17,10 +17,8 @@
 
 #include <stdint.h>
 
-
 void FontDebugPrintBitmap(uint8_t* bitmap, int w, int h);
 
 void* FontReadFile(const char* path, uint32_t* file_size);
-
 
 #endif // DM_FONT_UTIL_H

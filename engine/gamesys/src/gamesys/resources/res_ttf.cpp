@@ -42,7 +42,6 @@ static dmResource::Result TTF_Create(const dmResource::ResourceCreateParams* par
 
     dmResource::SetResource(params->m_Resource, resource);
     dmResource::SetResourceSize(params->m_Resource, FontGetResourceSize(resource->m_Font));
-
     return dmResource::RESULT_OK;
 }
 
@@ -70,7 +69,6 @@ static dmResource::Result TTF_Recreate(const dmResource::ResourceRecreateParams*
     FontDestroy(old_font);
 
     dmResource::SetResourceSize(params->m_Resource, FontGetResourceSize(resource->m_Font));
-
     return dmResource::RESULT_OK;
 }
 

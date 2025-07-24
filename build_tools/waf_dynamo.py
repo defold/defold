@@ -616,15 +616,21 @@ def default_flags(self):
                 'MIN_SAFARI_VERSION=101000',
                 'MIN_CHROME_VERSION=45']
 
+        flags = []
+        linkflags = []
+
         if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
-            emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
-            # This is needed so long as we have to use sleep to make initialization
+            if 'wagyu' in Options.options.enable_features:
+                wagyu_port = '%s/ext/wagyu-port/new/wagyu-port.py:stubs=true:extensions=true' % (os.environ['DYNAMO_HOME'])
+                flags += ['--use-port=%s' % wagyu_port]
+                linkflags += ['--use-port=%s' % wagyu_port]
+                self.env.append_value('DEFINES', ['DM_GRAPHICS_WEBGPU_WAGYU'])
+            else:
+                emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
             emflags_link += ['ASYNCIFY']
             if int(opt_level) >= 3:
                 emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
 
-        flags = []
-        linkflags = []
         if 'wasm' == target_arch:
             emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
             if int(opt_level) < 2:
@@ -2033,16 +2039,15 @@ def detect(conf):
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
-    if TargetOS.WEB == target_os:
-        conf.env['STLIB_PROFILE'] = ['profile_basic']
-    else:
-        conf.env['STLIB_PROFILE'] = ['profile', 'remotery']
-    conf.env['STLIB_PROFILE_NULL'] = ['profile_null', 'remotery_null']
-    conf.env['DEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
-    conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan', 'remotery_null_noasan']
 
-    if platform in ('arm64-nx64',):
-        conf.env['STLIB_PROFILE'] = conf.env['STLIB_PROFILE_NULL']
+    conf.env['STLIB_PROFILE'] = ['profile']
+    conf.env['STLIB_PROFILE_NULL'] = ['profile_null']
+    conf.env['STLIB_PROFILER_BASIC'] = ['profiler_basic']
+    conf.env['STLIB_PROFILER_REMOTERY'] = ['profiler_remotery']
+    conf.env['STLIB_PROFILER_NULL'] = ['profiler_null']
+
+    conf.env['DEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
+    conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan']
 
     if ('record' not in Options.options.disable_features):
         conf.env['STLIB_RECORD'] = 'record_null'

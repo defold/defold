@@ -136,8 +136,8 @@ static void AddGlyphsCallback(void* _ctx, int result, const char* errmsg)
  * @name font.add_glyphs
  *
  * @param path [type:string|hash] The path to the .fontc resource
- * @param text [type:string] A unique list of unicode characters to be loaded
- * @param [callback] [type:function(self, request_id, result, errstring)] A callback function that is called after the request is finished
+ * @param text [type:string] A string with unique unicode characters to be loaded
+ * @param [callback] [type:function(self, request_id, result, errstring)] (optional) A callback function that is called after the request is finished
  *
  * `self`
  * : [type:object] The current object.
@@ -168,11 +168,6 @@ static void AddGlyphsCallback(void* _ctx, int result, const char* errmsg)
  * -- Remove glyphs
  * local requestid = font.remove_glyphs("/path/to/my.fontc", "abcABC123")
  * ```
- *
- * ```lua
- * -- Remove all ranges and glyphs associated with a .ttf resource
- * local requestid = font.remove_subfont("/path/to/my.fontc", "/path/to/my.ttf")
- * ```
  */
 
 static int AddGlyphs(lua_State* L)
@@ -184,7 +179,8 @@ static int AddGlyphs(lua_State* L)
     const char* text = luaL_checkstring(L, 2);
 
     dmScript::LuaCallbackInfo* luacbk = 0;
-    if (top > 2 && !lua_isnil(L, 3)) {
+    if (top > 2 && lua_isfunction(L, 3))
+    {
         luacbk = dmScript::CreateCallback(L, 3);
     }
 
@@ -224,7 +220,7 @@ static int AddGlyphs(lua_State* L)
  *
  * @name font.remove_glyphs
  * @param path [type:string|hash] The path to the .fontc resource
- * @param text [type:string] A unique list of unicode characters to be loaded
+ * @param text [type:string] A string with unique unicode characters to be removed
  */
 static int RemoveGlyphs(lua_State* L)
 {

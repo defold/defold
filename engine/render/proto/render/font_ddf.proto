@@ -70,17 +70,17 @@ message GlyphBank
     optional uint32            glyph_channels        = 3 [default = 0];
     optional bytes             glyph_data            = 4; // glyph data may be compressed
 
-    optional float             max_ascent            = 5 [default = 0];
-    optional float             max_descent           = 6 [default = 0];
-    optional float             max_advance           = 7 [default = 0];
-    optional float             max_width             = 8 [default = 0];
-    optional float             max_height            = 9 [default = 0];
+    optional float             max_ascent            = 5 [default = 0.0];
+    optional float             max_descent           = 6 [default = 0.0];
+    optional float             max_advance           = 7 [default = 0.0];
+    optional float             max_width             = 8 [default = 0.0];
+    optional float             max_height            = 9 [default = 0.0];
     optional FontTextureFormat image_format          = 10 [default = TYPE_BITMAP];
 
     // TODO: Move to fontDesc
-    optional float             sdf_spread            = 11 [default = 1];
-    optional float             sdf_outline           = 12 [default = 0];
-    optional float             sdf_shadow            = 13 [default = 0];
+    optional float             sdf_spread            = 11 [default = 1.0];
+    optional float             sdf_outline           = 12 [default = 0.0];
+    optional float             sdf_shadow            = 13 [default = 0.0];
 
     // TODO: Move to fontDesc
     optional uint32            cache_width           = 14 [default = 0];
@@ -122,9 +122,9 @@ message FontMap
     optional uint32 cache_width   = 18 [default = 0];
     optional uint32 cache_height  = 19 [default = 0];
 
-    optional float sdf_spread     = 20 [default = 1];
-    optional float sdf_outline    = 21 [default = 0];
-    optional float sdf_shadow     = 22 [default = 0];
+    optional float sdf_spread     = 20 [default = 1.0];
+    optional float sdf_outline    = 21 [default = 0.0];
+    optional float sdf_shadow     = 22 [default = 0.0];
     optional uint32 padding       = 23 [default = 0];
 }
 

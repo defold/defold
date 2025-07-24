@@ -37,8 +37,10 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import com.dynamo.bob.archive.publisher.FolderPublisher;
 import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
+import com.dynamo.bob.util.TimeProfiler;
 import com.sun.istack.Nullable;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -515,6 +517,15 @@ public class BundleHelper {
         return new ArrayList<String>(Arrays.asList(line.split("\\s*,\\s*")));
     }
 
+    public static File copyResourceToTempFile(String resourcePath) throws IOException
+    {
+        String filename = FilenameUtils.getName(resourcePath);
+        File file = File.createTempFile("temp", filename);
+        URL url = BundleHelper.class.getResource(resourcePath);
+        FileUtils.writeByteArrayToFile(file, IOUtils.toByteArray(url));
+        return file;
+    }
+
     public static class ResourceInfo
     {
         public String severity;
@@ -925,11 +936,14 @@ public class BundleHelper {
     }
 
     public static List<File> getPipelinePlugins(Project project, String pluginsDir) {
+        TimeProfiler.start("getPipelinePlugins");
         List<File> files = ExtenderUtil.listFilesRecursive(new File(pluginsDir), ExtenderUtil.JAR_RE);
+        TimeProfiler.stop();
         return files;
     }
 
     public static void extractPipelinePlugins(Project project, String pluginsDir) throws CompileExceptionError {
+        TimeProfiler.start("extractPipelinePlugins");
         List<IResource> sources = new ArrayList<>();
         List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
         for (String extension : extensionFolders) {
@@ -942,6 +956,7 @@ public class BundleHelper {
         }
 
         ExtenderUtil.storeResources(new File(pluginsDir), sources);
+        TimeProfiler.stop();
     }
 
     public static boolean isArchiveIncluded(Project project) {
@@ -967,11 +982,23 @@ public class BundleHelper {
     // move archive into bundle folder if it's requested by a user
     public static void moveBundleIfNeed(Project project, File bundleDir) throws IOException {
         Publisher publisher = project.getPublisher();
-        if (publisher != null && publisher.shouldBeMovedIntoBundleFolder() && publisher instanceof ZipPublisher) {
-            ZipPublisher zipPublisher = (ZipPublisher) publisher;
-            File zipFile = zipPublisher.getZipFile();
-            if (zipFile != null && zipFile.exists()) {
-                Files.move(zipFile.toPath(), (new File(bundleDir, zipFile.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
+        if (publisher != null)  {
+            if (publisher.shouldBeMovedIntoBundleFolder() && publisher instanceof ZipPublisher) {
+                ZipPublisher zipPublisher = (ZipPublisher) publisher;
+                File zipFile = zipPublisher.getZipFile();
+                if (zipFile != null && zipFile.exists()) {
+                    Files.move(zipFile.toPath(), (new File(bundleDir, zipFile.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+            } else if (publisher.shouldFolderBeMovedIntoBundleFolder() && publisher instanceof FolderPublisher) {
+                FolderPublisher folderPublisher = (FolderPublisher) publisher;
+                File outputDirectory = folderPublisher.getOutputDirectory();
+                if (outputDirectory != null && outputDirectory.exists()) {
+                    File destFolder = new File(bundleDir, outputDirectory.getName());
+                    if (destFolder.exists()) {
+                        FileUtils.deleteDirectory(destFolder);
+                    }
+                    FileUtils.moveDirectory(outputDirectory, destFolder);
+                }
             }
         }
     }

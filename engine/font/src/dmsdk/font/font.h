@@ -28,7 +28,6 @@
  * @language C++
  */
 
-
 /*#
  * FontResult
  * @enum

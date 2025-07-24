@@ -1792,7 +1792,7 @@ bail:
             }
         }
 
-        dmProfile::HProfile profile = dmProfile::BeginFrame();
+        HProfile profile = ProfileFrameBegin();
         {
             DM_PROFILE("Frame");
 
@@ -1814,7 +1814,7 @@ bail:
                         // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
                         // might have entered background at this point and OpenGL calls are not permitted and will
                         // crash the application
-                        dmProfile::EndFrame(profile);
+                        ProfileFrameEnd(profile);
                         return;
                     }
                 }
@@ -2047,7 +2047,7 @@ bail:
                 }
             }
         }
-        dmProfile::EndFrame(profile);
+        ProfileFrameEnd(profile);
 
         ++engine->m_Stats.m_FrameCount;
         engine->m_Stats.m_TotalTime += dt;
@@ -2367,13 +2367,16 @@ bail:
 
 void dmEngineInitialize()
 {
+#if DM_RELEASE
+    dLib::SetDebugMode(false);
+#endif
+
+    if (dLib::IsDebugMode())
+        ProfileInitialize();
     dmEngine::PlatformInitialize();
 
     dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
 
-#if DM_RELEASE
-    dLib::SetDebugMode(false);
-#endif
     dmHashEnableReverseHash(dLib::IsDebugMode());
 
     dmCrash::Init(dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
@@ -2404,6 +2407,9 @@ void dmEngineFinalize()
     dmSocket::Finalize();
 
     dmEngine::PlatformFinalize();
+
+    if (dLib::IsDebugMode())
+        ProfileFinalize();
 }
 
 const char* ParseArgOneOperand(const char* arg_str, int argc, char *argv[])

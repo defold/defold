@@ -360,8 +360,6 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
 
     // TODO: Create a backend scratch buffer
 
-    uint64_t tstart_seg = dmTime::GetMonotonicTime();
-
     dmArray<uint32_t> codepoints;
     TextToCodePoints(text, codepoints);
 
@@ -432,7 +430,6 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
 
     TextShapeGlyph* glyphs = info.m_Glyphs.Begin();
 
-    uint32_t count = 0;
     for (int line = 0; line < line_count; ++line) {
         TextLine& l = lines[line];
 

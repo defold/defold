@@ -14,7 +14,19 @@
 
 (ns editor.fuzzy-text-test
   (:require [clojure.test :refer :all]
-            [editor.fuzzy-text :as fuzzy-text]))
+            [editor.fuzzy-text :as fuzzy-text]
+            [util.bit-set :as bit-set]))
+
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
+
+(defn- match [^String pattern ^String string]
+  (let [prepared-pattern (fuzzy-text/prepare-pattern pattern)]
+    (fuzzy-text/match prepared-pattern string)))
+
+(defn- match-path [^String pattern ^String path]
+  (let [prepared-pattern (fuzzy-text/prepare-pattern pattern)]
+    (fuzzy-text/match-path prepared-pattern path)))
 
 (deftest match-test
   (are [pattern str str-matches]
@@ -24,8 +36,8 @@
                                                   (filter #(= \= (second %)))
                                                   (map first))
                                             str-matches))
-          [_score matching-indices] (fuzzy-text/match-path pattern str)]
-      (= expected-matching-indices matching-indices))
+          [_score matching-indices] (match-path pattern str)]
+      (= expected-matching-indices (some-> matching-indices bit-set/indices)))
     ;; Empty string matches nothing.
     ""
     "text"
@@ -81,12 +93,11 @@
     "twowords"
     nil))
 
-
 (defn- score [pattern string]
-  (first (fuzzy-text/match pattern string)))
+  (first (match pattern string)))
 
 (defn- score-path [pattern proj-path]
-  (first (fuzzy-text/match-path pattern proj-path)))
+  (first (match-path pattern proj-path)))
 
 (deftest score-test
   (is (< (score-path "game.script" "/game/game.script")
@@ -99,7 +110,7 @@
   ;; don't count a match of the first character towards the score.
 
   (testing "Case is ignored"
-    (is (some? (fuzzy-text/match "cA" "Case"))))
+    (is (some? (match "cA" "Case"))))
 
   (testing "The score is the length of the matching substring."
     (is (= 1 (score "su" "substring")))
@@ -116,13 +127,13 @@
     (is (= 1 (score "amu" "app/models/user.rb"))))
 
   (testing "'ct' will match 'cat' and 'Crate', but not 'tack'."
-    (is (some? (fuzzy-text/match "ct" "cat")))
-    (is (some? (fuzzy-text/match "ct" "Crate")))
-    (is (nil? (fuzzy-text/match "ct" "tack"))))
+    (is (some? (match "ct" "cat")))
+    (is (some? (match "ct" "Crate")))
+    (is (nil? (match "ct" "tack"))))
 
   (testing "'le' will match 'lend' and 'ladder'."
-    (is (some? (fuzzy-text/match "le" "lend")))
-    (is (some? (fuzzy-text/match "le" "ladder")))
+    (is (some? (match "le" "lend")))
+    (is (some? (match "le" "ladder")))
     (testing "'lend' will appear higher in the results because the matching substring is shorter."
       (is (< (score "le" "lend")
              (score "le" "ladder"))))))
@@ -150,7 +161,7 @@
 
 (deftest runs-test
   (are [length matching-indices expected]
-    (is (= expected (fuzzy-text/runs length matching-indices)))
+    (is (= expected (fuzzy-text/runs length (bit-set/from matching-indices))))
 
     0 [] []
     1 [] [[false 0 1]]

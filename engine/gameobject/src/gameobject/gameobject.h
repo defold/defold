@@ -173,17 +173,6 @@ namespace dmGameObject
     Result SetIdentifier(HCollection collection, HInstance instance, const char* identifier);
 
     /**
-     * Get absolute identifier relative to #instance. The returned identifier is the
-     * representation of the qualified name, i.e. the path from root-collection to the sub-collection which the #instance belongs to.
-     * Example: if #instance is part of a sub-collection in the root-collection named "sub" and id == "a" the returned identifier represents the path "sub.a"
-     * @param instance Instance to absolute identifier to
-     * @param id Identifier relative to #instance
-     * @param id_size Lenght of the id
-     * @return Absolute identifier
-     */
-    dmhash_t GetAbsoluteIdentifier(HInstance instance, const char* id, uint32_t id_size);
-
-    /**
      * Get component index from component identifier. This function has complexity O(n), where n is the number of components of the instance.
      * @param instance Instance
      * @param component_id Component id

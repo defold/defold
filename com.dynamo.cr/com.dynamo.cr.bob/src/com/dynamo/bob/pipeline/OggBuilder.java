@@ -37,33 +37,32 @@ public class OggBuilder extends CopyBuilder{
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
+        oggzValidateExePath = Bob.getHostExeOnce("oggz-validate", oggzValidateExePath);
+        return super.create(input);
+    }
+
+    @Override
+    public void build(Task task) throws IOException, CompileExceptionError {
+        super.build(task);
         File tmpOggFile = null;
         try {
             tmpOggFile = File.createTempFile("ogg_tmp", null, Bob.getRootFolder());
             BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(tmpOggFile));
             try {
-                os.write(input.getContent());
+                os.write(task.firstInput().getContent());
             } finally {
                 os.close();
             }
         } catch (IOException exc) {
-            throw new CompileExceptionError(input, 0, 
-                String.format("Cannot copy ogg file to further process", new String(exc.getMessage())));
+            throw new CompileExceptionError(task.firstInput(), 0,
+                    String.format("Cannot copy ogg file to further process", new String(exc.getMessage())));
         }
-        oggzValidateExePath = Bob.getHostExeOnce("oggz-validate", oggzValidateExePath);
         Result result = Exec.execResult(oggzValidateExePath, tmpOggFile.getAbsolutePath());
 
         if (result.ret != 0) {
-            throw new CompileExceptionError(input, 0, 
-                String.format("\nSound file validation failed. Make sure your `ogg` files are correct using `oggz-validate` https://www.xiph.org/oggz/\n%s", new String(result.stdOutErr)));
+            throw new CompileExceptionError(task.firstInput(), 0,
+                    String.format("\nSound file validation failed. Make sure your `ogg` files are correct using `oggz-validate` https://www.xiph.org/oggz/\n%s", new String(result.stdOutErr)));
         }
-
-        return super.create(input);
-    }
-
-    @Override
-    public void build(Task task) throws IOException {
-        super.build(task);
 
         boolean soundStreaming = this.project.option("sound-stream-enabled", "false").equals("true"); // if no value set use old hardcoded path (backward compatability)
         boolean compressSounds = soundStreaming ? false : true; // We want to be able to read directly from the files as-is (without compression)

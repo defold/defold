@@ -45,7 +45,7 @@ documented just below this comment.
 #define RMT_ENABLED 1
 #endif
 
-// Help performance of the server sending data to the client by marking this machine as little-endian 
+// Help performance of the server sending data to the client by marking this machine as little-endian
 #ifndef RMT_ASSUME_LITTLE_ENDIAN
 #define RMT_ASSUME_LITTLE_ENDIAN 0
 #endif
@@ -670,7 +670,7 @@ typedef struct rmtProperty
 
     // Last frame value to see if previous value needs to be updated
     rmtPropertyValue lastFrameValue;
-    
+
     // Previous value only if it's different from the current value, and when it changed
     rmtPropertyValue prevValue;
     rmtU32 prevValueFrame;
