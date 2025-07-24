@@ -25,7 +25,168 @@
 #include <box2d/box2d.h>
 #include <box2d/src/world.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include "box2d_physics.h"
+
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <queue>
+#include <functional>
+#include <atomic>
+#include <memory>
+#include <unordered_map>
+
+//#define DEBUG_THREAD_POOL
+#ifdef DEBUG_THREAD_POOL
+#include <dmsdk/dlib/log.h>
+#define THREAD_LOG(fmt, ...) dmLogInfo(fmt, ##__VA_ARGS__)
+#else
+#define THREAD_LOG(fmt, ...) (void)0
+#endif
+
+static std::vector<std::thread>             s_PhysicsThreads;
+static std::mutex                           s_QueueMutex;
+static std::condition_variable              s_QueueCV;
+static std::queue<std::function<void(int)>> s_JobQueue;
+static std::atomic<bool>                    s_Running { false };
+static const int                            WORKER_COUNT = 0; // multithreaded needs Asyncify on Emscripten
+
+struct TaskHandle {
+    std::atomic<int> pendingCount {0};
+    std::mutex mutex;
+    std::condition_variable cv;
+};
+
+static std::unordered_map<void*, std::shared_ptr<TaskHandle>> s_TaskHandles;
+static std::mutex s_HandleMutex;
+
+static void PhysicsWorker(int threadIndex)
+{
+    THREAD_LOG("Worker %d started", threadIndex);
+    while (s_Running.load())
+    {
+        std::function<void(int)> job;
+        {
+            std::unique_lock<std::mutex> lk(s_QueueMutex);
+            s_QueueCV.wait(lk, []() {
+                return !s_Running.load() || !s_JobQueue.empty();
+            });
+
+            if (!s_Running.load() && s_JobQueue.empty())
+                break;
+            if (s_JobQueue.empty())
+                continue;
+
+            job = std::move(s_JobQueue.front());
+            s_JobQueue.pop();
+        }
+
+        THREAD_LOG("Thread %d running job", threadIndex);
+        job(threadIndex);
+    }
+}
+
+static void EnsurePhysicsThreads()
+{
+    bool expected = false;
+    if (s_Running.compare_exchange_weak(expected, true))
+    {
+        THREAD_LOG("Starting %d worker threads", WORKER_COUNT);
+        for (int tid = 0; tid < WORKER_COUNT; ++tid)
+        {
+            s_PhysicsThreads.emplace_back([tid]() { PhysicsWorker(tid); });
+        }
+    }
+}
+
+static void ShutdownPhysicsThreads()
+{
+    s_Running.store(false);
+    s_QueueCV.notify_all();
+    for (auto& thread : s_PhysicsThreads)
+        if (thread.joinable())
+            thread.join();
+    s_PhysicsThreads.clear();
+}
+
+using b2TaskHandle = void*;
+
+static b2TaskHandle MyEnqueueTask(
+    b2TaskCallback* task,
+    int             itemCount,
+    int             minRange,
+    void*           taskContext,
+    void* /*userContext*/)
+{
+    EnsurePhysicsThreads();
+
+    int chunks = (itemCount + minRange - 1) / minRange;
+    auto handle = std::make_shared<TaskHandle>();
+    handle->pendingCount.store(chunks);
+
+    {
+        std::lock_guard<std::mutex> hlk(s_HandleMutex);
+        s_TaskHandles[handle.get()] = handle;
+    }
+
+    THREAD_LOG("EnqueueTask: %d items, %d minRange, %d chunks", itemCount, minRange, chunks);
+
+    int offset = 0;
+    for (int i = 0; i < chunks; ++i)
+    {
+        int b = offset;
+        int e = std::min(itemCount, offset + minRange);
+        offset += minRange;
+
+        std::lock_guard<std::mutex> lk(s_QueueMutex);
+        s_JobQueue.emplace([=, handle = handle](int threadIndex) {
+            THREAD_LOG("Thread %d executing chunk [%d, %d)", threadIndex, b, e);
+            task(b, e, threadIndex, taskContext);
+            if (handle->pendingCount.fetch_sub(1) == 1)
+            {
+                THREAD_LOG("All chunks done for handle %p", handle.get());
+                std::unique_lock<std::mutex> hlk(handle->mutex);
+                handle->cv.notify_all();
+            }
+        });
+        s_QueueCV.notify_one();
+    }
+
+    return static_cast<void*>(handle.get());
+}
+
+static void MyFinishTasks(b2TaskHandle h, void* /*ctx*/)
+{
+    auto handle = static_cast<TaskHandle*>(h);
+    std::shared_ptr<TaskHandle> handle_ptr;
+    {
+        std::lock_guard<std::mutex> hlk(s_HandleMutex);
+        handle_ptr = s_TaskHandles[handle];
+    }
+
+    THREAD_LOG("Waiting for handle %p to finish", handle);
+
+#ifdef __EMSCRIPTEN__
+    while (handle_ptr->pendingCount.load() > 0) {
+        emscripten_sleep(1);
+    }
+#else
+    std::unique_lock<std::mutex> hlk(handle_ptr->mutex);
+    handle_ptr->cv.wait(hlk, [handle_ptr]() { return handle_ptr->pendingCount.load() == 0; });
+#endif
+
+
+    THREAD_LOG("Finished handle %p", handle);
+
+    {
+        std::lock_guard<std::mutex> hlk(s_HandleMutex);
+        s_TaskHandles.erase(handle);
+    }
+}
 
 namespace dmPhysics
 {
@@ -63,6 +224,16 @@ namespace dmPhysics
         b2WorldDef worldDef           = b2DefaultWorldDef();
         worldDef.gravity              = context->m_Gravity;
         worldDef.restitutionThreshold = context->m_VelocityThreshold * context->m_Scale;
+
+        // optimizations from box2d samples
+        worldDef.contactHertz = 30.0f;
+        worldDef.contactDampingRatio = 10.0f;
+        worldDef.enableContinuous = true;
+
+        worldDef.workerCount = WORKER_COUNT;
+        worldDef.enqueueTask = MyEnqueueTask;
+        worldDef.finishTask = MyFinishTasks;
+        worldDef.userTaskContext = this;
 
         m_WorldId = b2CreateWorld(&worldDef);
 
@@ -546,7 +717,8 @@ namespace dmPhysics
         {
             DM_PROFILE("StepSimulation");
 
-            b2World_Step(world->m_WorldId, dt, 10);
+            int substeps = 10;
+            b2World_Step(world->m_WorldId, dt, substeps);
 
             // Post-solve must happen after stepping
             if (step_context.m_CollisionCallback || step_context.m_ContactPointCallback)
