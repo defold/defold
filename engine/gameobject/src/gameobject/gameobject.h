@@ -182,13 +182,6 @@ namespace dmGameObject
     Result GetComponentIndex(HInstance instance, dmhash_t component_id, uint16_t* component_index);
 
     /**
-     * Returns whether the scale of the supplied instance should be applied along Z or not.
-     * @param instance Instance
-     * @return if the scale should be applied along Z
-     */
-    bool ScaleAlongZ(HInstance instance);
-
-    /**
      * Initializes all game object instances in the supplied collection.
      * @param collection Game object collection
      */
@@ -269,13 +262,6 @@ namespace dmGameObject
      * @return The frame message socket of the specified collection
      */
     dmMessage::HSocket GetFrameMessageSocket(HCollection collection);
-
-    /**
-     * Returns whether the scale of the instances in a collection should be applied along Z or not.
-     * @param collection Collection
-     * @return if the scale should be applied along Z
-     */
-    bool ScaleAlongZ(HCollection collection);
 
     /**
      * Get instance hierarchical depth

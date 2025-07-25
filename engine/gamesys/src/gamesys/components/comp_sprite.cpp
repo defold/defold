@@ -1562,42 +1562,18 @@ namespace dmGameSystem
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
-
-        bool scale_along_z = false;
-        if (n > 0) {
-            SpriteComponent* c = &components[0];
-            scale_along_z = dmGameObject::ScaleAlongZ(dmGameObject::GetCollection(c->m_Instance));
-        }
         // Note: We update all sprites, even though they might be disabled, or not added to update
-
-        if (scale_along_z) {
-            for (uint32_t i = 0; i < n; ++i)
-            {
-                SpriteComponent* c = &components[i];
-                Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(c->m_Position, c->m_Rotation, 1.0f));
-                Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
-                Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
-                c->m_World = dmVMath::AppendScale(world * local, size);
-                // we need to consider the full scale here
-                // I.e. we want the length of the diagonal C, where C = X + Y
-                float radius_sq = dmVMath::LengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
-                sprite_world->m_BoundingVolumes[i] = radius_sq;
-            }
-        } else
+        for (uint32_t i = 0; i < n; ++i)
         {
-            for (uint32_t i = 0; i < n; ++i)
-            {
-                SpriteComponent* c = &components[i];
-                Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(c->m_Position, c->m_Rotation, 1.0f));
-                Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
-                Matrix4 w = dmTransform::MulNoScaleZ(world, local);
-                Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
-                c->m_World = dmVMath::AppendScale(w, size);
-                // we need to consider the full scale here
-                // I.e. we want the length of the diagonal C, where C = X + Y
-                float radius_sq = dmVMath::LengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
-                sprite_world->m_BoundingVolumes[i] = radius_sq;
-            }
+            SpriteComponent* c = &components[i];
+            Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(c->m_Position, c->m_Rotation, 1.0f));
+            Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
+            Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
+            c->m_World = dmVMath::AppendScale(world * local, size);
+            // we need to consider the full scale here
+            // I.e. we want the length of the diagonal C, where C = X + Y
+            float radius_sq = dmVMath::LengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
+            sprite_world->m_BoundingVolumes[i] = radius_sq;
         }
 
         // The "sub_pixels" is set by default

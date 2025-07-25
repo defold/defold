@@ -161,6 +161,17 @@ namespace dmTransform
             m_Scale = dmVMath::Vector3(scale);
         }
 
+        /*# set scale for x and y
+         * @name SetScaleXY
+         * @param scale_x [type: float]
+         * @param scale_y [type: float]
+         */
+        inline void SetScaleXY(float scale_x, float scale_y)
+        {
+            m_Scale.setX(scale_x);
+            m_Scale.setY(scale_y);
+        }
+
         /*# get rotatiom
          * @name GetRotation
          * @return rotation [type: dmVMath::Quat]
@@ -198,20 +209,6 @@ namespace dmTransform
     }
 
     /*#
-     * Apply the transform on a point, but without scaling the Z-component of the point (includes the transform translation).
-     * @name ApplyNoScaleZ
-     * @param t [type: dmTransform::Transform&] Transform
-     * @param p [type: dmVMath::Point3&] Point
-     * @return point [type: dmVMath::Point3] Transformed point
-     */
-    inline dmVMath::Point3 ApplyNoScaleZ(const Transform& t, const dmVMath::Point3 p)
-    {
-        dmVMath::Vector3 s = t.GetScale();
-        s.setZ(1.0f);
-        return dmVMath::Point3(rotate(t.GetRotation(), mulPerElem(dmVMath::Vector3(p), s)) + t.GetTranslation());
-    }
-
-    /*#
      * Apply the transform on a vector (excludes the transform translation).
      * @name Apply
      * @param t [type: dmTransform::Transform&] Transform
@@ -221,20 +218,6 @@ namespace dmTransform
     inline dmVMath::Vector3 Apply(const Transform& t, const dmVMath::Vector3 v)
     {
         return dmVMath::Vector3(rotate(t.GetRotation(), mulPerElem(v, t.GetScale())));
-    }
-
-    /*#
-     * Apply the transform on a vector, but without scaling the Z-component of the vector (excludes the transform translation).
-     * @name ApplyNoScaleZ
-     * @param t [type: dmTransform::Transform&] Transform
-     * @param v [type: dmVMath::Vector3&] Vector
-     * @return point [type: dmVMath::Vector3] Transformed vector
-     */
-    inline dmVMath::Vector3 ApplyNoScaleZ(const Transform& t, const dmVMath::Vector3 v)
-    {
-        dmVMath::Vector3 s = t.GetScale();
-        s.setZ(1.0f);
-        return dmVMath::Vector3(rotate(t.GetRotation(), mulPerElem(v, s)));
     }
 
     /*#
@@ -249,22 +232,6 @@ namespace dmTransform
         Transform res;
         res.SetRotation(lhs.GetRotation() * rhs.GetRotation());
         res.SetTranslation(dmVMath::Vector3(Apply(lhs, dmVMath::Point3(rhs.GetTranslation()))));
-        res.SetScale(mulPerElem(lhs.GetScale(), rhs.GetScale()));
-        return res;
-    }
-
-    /*#
-     * Transforms the right-hand transform by the left-hand transform, without scaling the Z-component of the transition of the transformed transform
-     * @name MulNoScaleZ
-     * @param lhs [type: const dmTransform::Transform&]
-     * @param rhs [type: const dmTransform::Transform&]
-     * @return result [type: dmTransform::Transform] Transformed transform
-     */
-    inline Transform MulNoScaleZ(const Transform& lhs, const Transform& rhs)
-    {
-        Transform res;
-        res.SetRotation(lhs.GetRotation() * rhs.GetRotation());
-        res.SetTranslation(dmVMath::Vector3(ApplyNoScaleZ(lhs, dmVMath::Point3(rhs.GetTranslation()))));
         res.SetScale(mulPerElem(lhs.GetScale(), rhs.GetScale()));
         return res;
     }
@@ -371,23 +338,6 @@ namespace dmTransform
     {
         *target = source;
         NormalizeZScale(target);
-    }
-
-    /*#
-     * Multiply two matrices without z-scaling the translation in m2
-     * @name MulNoScaleZ
-     * @param m1 [type: const dmVMath::Matrix&] First matrix
-     * @param m2 [type: const dmVMath::Matrix&] Second matrix
-     * @return result [type: dmVMath::Matrix] The resulting transform
-     */
-    inline dmVMath::Matrix4 MulNoScaleZ(dmVMath::Matrix4 const &m1, dmVMath::Matrix4 const &m2)
-    {
-        // tmp is the non-z scaling version of m1
-        dmVMath::Matrix4 tmp, res;
-        NormalizeZScale(m1, &tmp);
-        res = m1 * m2;
-        res.setCol(3, tmp * m2.getCol(3));
-        return res;
     }
 }
 
