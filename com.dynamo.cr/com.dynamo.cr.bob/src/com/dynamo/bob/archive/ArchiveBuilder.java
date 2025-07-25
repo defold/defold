@@ -159,11 +159,16 @@ public class ArchiveBuilder {
     }
 
     private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, List<String> excludedResources, ConcurrentHashMap<String, ArchiveEntry> writtenIntoArcd) throws IOException, CompileExceptionError {
+        TimeProfiler.start("writeArchiveEntry");
+        
+        TimeProfiler.start("loadResourceData");
         byte[] buffer = this.loadResourceData(entry.getFilename());
+        TimeProfiler.stop();
 
         int resourceEntryFlags = 0;
 
         if (entry.isCompressed()) {
+            TimeProfiler.start("compression");
             // Compress data
             byte[] compressed = this.compressResourceData(buffer);
             if (this.shouldUseCompressedResourceData(buffer, compressed)) {
@@ -175,17 +180,21 @@ public class ArchiveBuilder {
             } else {
                 entry.setCompressedSize(ArchiveEntry.FLAG_UNCOMPRESSED);
             }
+            TimeProfiler.stop();
         }
 
         // we need to do this last or the compression won't work as well
         if (entry.isEncrypted()) {
+            TimeProfiler.start("encryption");
             buffer = this.encryptResourceData(buffer);
             resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
+            TimeProfiler.stop();
         }
 
         String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
 
         // Calculate hash digest values for resource
+        TimeProfiler.start("hashing");
         String hexDigest = null;
         try {
             byte[] hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
@@ -195,13 +204,18 @@ public class ArchiveBuilder {
         } catch (NoSuchAlgorithmException exception) {
             throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
         }
+        TimeProfiler.stop();
 
         entry.setHexDigest(hexDigest);
+        
+        TimeProfiler.start("hexDigestCache.put");
         hexDigestCache.put(entry.getRelativeFilename(), hexDigest);
+        TimeProfiler.stop();
 
         // Write resource to resource pack or data archive
         if (excludedResources.contains(normalisedPath)) {
             if (this.publisher != null) {
+                TimeProfiler.start("excludedResources.contains");
                 byte[] header = ByteBuffer.allocate(16)
                     .putInt(entry.getSize()) // 4 bytes
                     .put((byte)entry.getFlags()) // 1 byte
@@ -209,6 +223,7 @@ public class ArchiveBuilder {
                     .array();
                 entry.setHeader(header);
                 this.publisher.publish(entry, buffer);
+                TimeProfiler.stop();
             }
             resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
         } else {
@@ -216,11 +231,13 @@ public class ArchiveBuilder {
             if (previousValue == null) {
                 // synchronize on the archive data file so that multiple threads
                 // do not write to it at the same time
+                TimeProfiler.start("archive_write_sync");
                 synchronized (archiveData) {
                     alignBuffer(archiveData, this.resourcePadding);
                     entry.setResourceOffset((int) archiveData.getFilePointer());
                     archiveData.write(buffer, 0, buffer.length);
                 }
+                TimeProfiler.stop();
             }
             else {
                 entry.setDuplicatedDataBlob(true);
@@ -228,9 +245,13 @@ public class ArchiveBuilder {
             resourceEntryFlags |= ResourceEntryFlag.BUNDLED.getNumber();
         }
 
+        TimeProfiler.start("manifest_update_sync");
         synchronized (manifestBuilder) {
             manifestBuilder.addResourceEntry(normalisedPath, buffer, entry.getSize(), entry.getCompressedSize(), resourceEntryFlags);
         }
+        TimeProfiler.stop();
+        
+        TimeProfiler.stop();
     }
 
     private void writeArchiveIndex(RandomAccessFile archiveIndex, List<ArchiveEntry> archiveEntries) throws IOException {
@@ -312,12 +333,16 @@ public class ArchiveBuilder {
     //                    → Final in-memory resource ready for use
     //
     public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources) throws IOException, CompileExceptionError {
+        TimeProfiler.start("ArchiveBuilder.write");
+        
         // create the executor service to write entries in parallel
         int nThreads = project.getMaxCpuThreads();
         logger.info("Creating archive entries with a fixed thread pool executor using %d threads", nThreads);
         ExecutorService executorService = Executors.newFixedThreadPool(nThreads);
 
+        TimeProfiler.start("sort_entries");
         Collections.sort(entries); // Since it has no hash, it sorts on path
+        TimeProfiler.stop();
 
         excludedEntries = new ArrayList<>(entries.size());
         includedEntries = new ArrayList<>(entries.size());
@@ -345,6 +370,7 @@ public class ArchiveBuilder {
         }
 
         // wait for all tasks to finish
+        TimeProfiler.start("parallel_processing");
         try {
             for (Future<ArchiveEntry> future : futures) {
                 ArchiveEntry entry = future.get();
@@ -357,9 +383,12 @@ public class ArchiveBuilder {
             executorService.shutdownNow();
             archiveData.close();
         }
+        TimeProfiler.stop();
 
         entries = new ArrayList<ArchiveEntry>(writtenIntoArcd.values());
         writeArchiveIndex(archiveIndex, entries);
+        
+        TimeProfiler.stop();
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
