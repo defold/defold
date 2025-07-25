@@ -1,0 +1,107 @@
+name: Windows CI
+
+on:
+  push:
+    branches: [master, develop]
+    paths-ignore:
+      - '*.md'
+  pull_request:
+    types: [opened, synchronize]
+    paths-ignore:
+      - '*.md'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cmake:
+    name: CMake - MSVC ${{ matrix.platform }}
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        platform: [x64, Win32]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build in Release Mode
+        continue-on-error: true
+        run: |
+          cmake -S . -B Release `
+            -A ${{ matrix.platform }} `
+            -DSB_CONFIG_UNITY=ON `
+            -DCMAKE_C_STANDARD=90 `
+            -DCMAKE_C_EXTENSIONS=OFF `
+            -DCMAKE_C_STANDARD_REQUIRED=ON
+          cmake --build Release --config Release
+
+      - name: Build in Debug Mode
+        run: |
+          cmake -S. -B Debug `
+            -A ${{ matrix.platform }} `
+            -DSB_CONFIG_UNITY=OFF `
+            -DENABLE_ASAN=ON `
+            -DENABLE_UBSAN=ON `
+            -DCMAKE_C_STANDARD=90 `
+            -DCMAKE_C_EXTENSIONS=OFF `
+            -DCMAKE_C_STANDARD_REQUIRED=ON
+          cmake --build Debug --config Debug
+
+      - name: Run Tests (Debug)
+        run: ctest --test-dir Debug --build-config Debug --output-on-failure
+
+  meson:
+    name: Meson - MSVC ${{ matrix.platform }}
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        platform: [x64, Win32]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Dependencies
+        run: python -m pip install meson ninja
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.platform }}
+
+      - name: Build in Release Mode
+        continue-on-error: true
+        run: |
+          meson setup Release `
+            --buildtype release `
+            "-Dunity_mode=enabled" `
+            "-Dc_std=c89"
+          meson compile -C Release
+
+      - name: Build in Debug Mode
+        run: |
+          meson setup Debug `
+            --buildtype debugoptimized `
+            "-Ddefault_library=static" `
+            "-Dunity_mode=disabled" `
+            "-Db_sanitize=address" `
+            "-Db_lundef=false" `
+            "-Dc_std=c89"
+          meson compile -C Debug
+
+      - name: Run Tests (Debug)
+        run: meson test --print-errorlogs -C Debug

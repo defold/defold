@@ -1,0 +1,100 @@
+#! /usr/bin/env python
+
+srcdir = '.'
+blddir = 'build'
+
+APPNAME='SheenBidi'
+VERSION='2.9.0'
+
+PACKAGE_DIR='package/harfbuzz-main'
+
+import os, shutil
+import waf_dynamo
+import run
+from waflib import Build
+from BuildUtility import create_build_utility
+from build_constants import TargetOS
+
+
+def options(opt):
+    opt.load('waf_dynamo')
+
+def configure(conf):
+    if os.environ['DYNAMO_HOME'] != conf.env.PREFIX:
+        if 'PREFIX' not in os.environ:
+            conf.env.PREFIX = os.environ['DYNAMO_HOME']
+            print("Setting PREFIX=$DYNAMO_HOME")
+
+    conf.load('waf_dynamo')
+    conf.env.append_unique('DEFINES', 'NDEBUG')
+
+def build(bld):
+    name = '%s-%s' % (APPNAME, VERSION)
+    packagedir = 'package/%s/Source' % name
+    includedir = 'package/%s/Headers' % name
+
+    build_util = create_build_utility(bld.env)
+    target_os = build_util.get_target_os()
+
+    remove_flags = {}
+    remove_flags['CFLAGS'] = []
+    remove_flags['CFLAGS'].append(('-Os', 1))
+    remove_flags['CFLAGS'].append(('-O2', 1))
+    remove_flags['CFLAGS'].append(('-O1', 1))
+    remove_flags['CFLAGS'].append(('-O0', 1))
+    remove_flags['CFLAGS'].append(('/O2', 1))
+    remove_flags['CFLAGS'].append(('/O1', 1))
+    remove_flags['CFLAGS'].append(('/Od', 1))
+    remove_flags['CFLAGS'].append(('-std=c++11', 0))
+
+    OPT = '/O2' if TargetOS.WINDOWS == target_os else '-O3'
+
+    sheenbidi = bld.stlib(features = 'c remove_flags',
+                         remove_flags = remove_flags,
+                         source    = [f'{packagedir}/SheenBidi.c'],
+                         defines   = ['SB_CONFIG_UNITY'],
+                         includes  = ['.', '..', packagedir, includedir],
+                         install_path = None,
+                         target    = 'sheenbidi')
+
+    sheenbidi.env.append_unique('CFLAGS', OPT)
+    sheenbidi.install_path = None
+
+    if TargetOS.WINDOWS == target_os:
+        bld.env.STLIB_ST         = 'lib%s.lib'
+        bld.env.cstlib_PATTERN   = 'lib%s.lib'
+        bld.env.cxxstlib_PATTERN = 'lib%s.lib'
+
+    bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'sheenbidi')
+    bld.install_files('${PREFIX}/%s/include' % name,
+                        bld.path.ant_glob('%s/**/*.h' % includedir),
+                        relative_base=bld.path.find_dir(includedir),
+                        relative_trick=True)
+
+    if isinstance(bld, Build.InstallContext):
+        bld.add_group() # make sure the previous install step is done before we create the archive
+
+        output_dir = '%s/%s' % (bld.env.PREFIX, name)
+        pkg = bld(rule=create_package,
+                  cwd=output_dir,
+                  target='%s-%s.tar.gz' % (name, bld.env.PLATFORM),
+                  always=True)
+
+def create_package(self):
+    target = self.outputs[0].abspath()
+    name = self.outputs[0].name
+    args = ['tar', 'zcvf', os.path.normpath(target)]
+    args.extend(os.listdir(self.cwd))
+    run.command(args, cwd=self.cwd)
+    print("Wrote", target)
+
+    # copy to the defold package path
+    source = target
+    target = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'packages', name))
+    shutil.copy2(source, target)
+    print("Installed to", target)
+
+    shutil.rmtree(self.cwd)
+
+def package(self):
+    pass
