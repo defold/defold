@@ -119,7 +119,9 @@ PACKAGES_ALL=[
     "vulkan-v1.4.307",
     "box2d-3.0.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0"]
 
 PACKAGES_HOST=[
     "vpx-1.7.0",
@@ -182,7 +184,9 @@ PACKAGES_MACOS_ARM64=[
     "astcenc-8b0aa01",
     "box2d-3.0.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0"]
 
 PACKAGES_WIN32=[
     "protobuf-3.20.1",

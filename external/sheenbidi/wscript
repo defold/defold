@@ -80,11 +80,38 @@ def build(bld):
                   target='%s-%s.tar.gz' % (name, bld.env.PLATFORM),
                   always=True)
 
+        target_tar = '%s-common.tar.gz' % name
+
+        pkg = bld(rule=create_package,
+                  cwd=output_dir,
+                  target=target_tar,
+                  always=True)
+
+
+## NOTE!
+## This seems a bit hacky, and it sure is. We leave a folder behind in the packages folder now,
+## so when using this to build external libraries, make sure to NOT commit that folder. We can
+## potentially solve it by running some sort of cleanup task after the other package tasks perhaps.
+## I tried with bld.add_groups() after the package tasks, but it was not working.
 def create_package(self):
     target = self.outputs[0].abspath()
     name = self.outputs[0].name
-    args = ['tar', 'zcvf', os.path.normpath(target)]
-    args.extend(os.listdir(self.cwd))
+
+    dirs = []
+    dirs_search = ['lib', 'sdk', 'share']
+
+    # Create the common package with includes
+    if target.find("-common") > 0:
+        dirs_search = ['include']
+
+    print("SELF.CWD", self.cwd)
+    for x in dirs_search:
+        try_path = os.path.join(self.cwd, x)
+        if os.path.exists(try_path):
+            dirs.append(x)
+
+    args = ['tar', 'zcvf', os.path.normpath(target)] + dirs
+
     run.command(args, cwd=self.cwd)
     print("Wrote", target)
 
@@ -93,8 +120,6 @@ def create_package(self):
     target = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'packages', name))
     shutil.copy2(source, target)
     print("Installed to", target)
-
-    shutil.rmtree(self.cwd)
 
 def package(self):
     pass
