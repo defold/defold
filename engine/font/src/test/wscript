@@ -5,7 +5,6 @@ from waflib.Options import options
 def configure(conf):
     conf.env['STLIB_HARFBUZZ'] = ['harfbuzz', 'sheenbidi']
 
-
 def build(bld):
     if options.skip_build_tests:
        return

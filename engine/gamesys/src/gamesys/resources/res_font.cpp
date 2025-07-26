@@ -390,7 +390,6 @@ namespace dmGameSystem
         (void)result;
         (void)errmsg;
         //FontResource* font = (FontResource*)ctx;
-        dmLogWarning("MAWE glyph cache miss: added glyph index!\n");
     }
 
     static FontResult OnGlyphCacheMiss(void* user_ctx, dmRender::HFontMap font_map, HFont font, uint32_t glyph_index, FontGlyph** out)
