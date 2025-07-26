@@ -22,11 +22,26 @@ typedef Font* HFont;
 
 HFont FontLoadFromMemoryTTF(const char* name, const void* data, uint32_t data_size, bool allocate);
 
-// Used in text_shape_kb.cpp
+bool FontGetGlyphBoxTTF(HFont font, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1);
 
-// Only implemented when using the kb_text_shape
-void*  FontGetKbTextShapeFontFromTTF(HFont font);
+#if defined(FONT_USE_KB_TEXT_SHAPE)
+/**
+ * Only implemented when using the kb_text_shape
+ * @name FontGetKbTextShapeFontFromTTF
+ * @param font [type: HFont] font handle
+ * @return internal [type: kbts_font*]
+ * */
+void* FontGetKbTextShapeFontFromTTF(HFont font);
+#endif
 
-bool   FontGetGlyphBoxTTF(HFont font, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1);
+#if defined(FONT_USE_HARFBUZZ_TEXT_SHAPE)
+/**
+ * Only implemented when using the libraqm+harfbuzz
+ * @name FontGetHarfbuzzFontFromTTF
+ * @param font [type: HFont] font handle
+ * @return font [type: hb_font_t*]
+ **/
+void*  FontGetHarfbuzzFontFromTTF(HFont font);
+#endif
 
 #endif // DM_FONT_TTF_H

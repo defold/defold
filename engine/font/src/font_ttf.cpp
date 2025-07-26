@@ -27,6 +27,10 @@
     #include "external/kb_text_shape.h"
 #endif
 
+#if defined(FONT_USE_HARFBUZZ_TEXT_SHAPE)
+    #include <harfbuzz/hb.h>
+#endif
+
 struct TTFFont
 {
     Font            m_Base;
@@ -37,7 +41,12 @@ struct TTFFont
     kbts_font       m_KBFont;
     void*           m_KBData;       // Note: Due to the incompabitilies of kb_text_shape + stb_truetype,
     uint32_t        m_KBDataSize;   // we currently need an extra copy
+#endif
 
+#if defined(FONT_USE_HARFBUZZ_TEXT_SHAPE)
+    hb_blob_t*      m_HBBlob;
+    hb_face_t*      m_HBFace;
+    hb_font_t*      m_HBFont;
 #endif
 
     const char*     m_Path;
@@ -63,6 +72,21 @@ static void FontDestroyTTF(HFont hfont)
     if (font->m_KBData)
     {
         kbts_FreeFont(&font->m_KBFont);
+    }
+#endif
+
+#if defined(FONT_USE_HARFBUZZ_TEXT_SHAPE)
+    if (font->m_HBFont)
+    {
+        hb_font_destroy(font->m_HBFont);
+    }
+    if (font->m_HBFace)
+    {
+        hb_face_destroy(font->m_HBFace);
+    }
+    if (font->m_HBBlob)
+    {
+        hb_blob_destroy(font->m_HBBlob);
     }
 #endif
 
@@ -218,6 +242,25 @@ static int LoadKBFont(kbts_font* font, void* buffer, uint32_t buffer_size)
 }
 #endif
 
+#if defined(FONT_USE_HARFBUZZ_TEXT_SHAPE)
+static int LoadHBFont(TTFFont* font, void* buffer, uint32_t buffer_size)
+{
+    font->m_HBBlob = hb_blob_create((const char*)buffer, buffer_size, HB_MEMORY_MODE_READONLY, 0, 0);
+    if (!font->m_HBBlob)
+        return 0;
+
+    font->m_HBFace = hb_face_create(font->m_HBBlob, 0);
+    if (!font->m_HBFace)
+        return 0;
+
+    font->m_HBFont = hb_font_create(font->m_HBFace);
+    if (!font->m_HBFont)
+        return 0;
+
+    return 1;
+}
+#endif
+
 static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buffer_size, bool allocate)
 {
     TTFFont* font = new TTFFont;
@@ -260,6 +303,16 @@ static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buff
     }
 #endif
 
+#if defined(FONT_USE_HARFBUZZ_TEXT_SHAPE)
+    if (!LoadHBFont(font, (void*)font->m_Data, font->m_DataSize))
+    {
+        dmLogError("Failed to create Harfbuzz font from '%s'", path);
+        FontDestroyTTF((HFont)font);
+        delete font;
+        return 0;
+    }
+#endif
+
     int index = stbtt_GetFontOffsetForIndex((const unsigned char*)font->m_Data,0);
     int result = stbtt_InitFont(&font->m_Font, (const unsigned char*)font->m_Data, index);
     if (!result)
@@ -282,11 +335,19 @@ void* FontGetKbTextShapeFontFromTTF(HFont hfont)
     TTFFont* font = ToFont(hfont);
     return &font->m_KBFont;
 }
+#endif
+
+#if defined(FONT_USE_HARFBUZZ_TEXT_SHAPE)
+void* FontGetHarfbuzzFontFromTTF(HFont hfont)
+{
+    TTFFont* font = ToFont(hfont);
+    return font->m_HBFont;
+}
+#endif
+
 
 bool FontGetGlyphBoxTTF(HFont hfont, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
 {
     TTFFont* font = ToFont(hfont);
     return stbtt_GetGlyphBox(&font->m_Font, glyph_index, x0, y0, x1, y1);
 }
-#endif
-

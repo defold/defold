@@ -5,18 +5,33 @@ from waf_dynamo import dmsdk_add_files
 def options(opt):
     pass
 
+def configure(conf):
+    conf.recurse('test')
+
 def build(bld):
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
-    bld.stlib(features          = 'cxx ddf',
+    bld.stlib(features          = 'cxx',
                 includes        = ['.', '..'],
                 target          = 'font',
                 defines         = [],
                 source          = bld.path.ant_glob(['*.cpp']) + ['text_shape/text_shape.cpp', 'text_shape/text_shape_legacy.cpp'])
 
-    bld.stlib(features          = 'cxx ddf',
-                includes        = ['.', '..', '../build/proto'],
+    bld.stlib(features          = 'c cxx',
+                includes        = ['.', '..'],
+                target          = 'font_hb',
+                defines         = ['FONT_USE_HARFBUZZ_TEXT_SHAPE',
+                                   'RAQM_SHEENBIDI',
+                                   'RAQM_SHEENBIDI_GT_2_9',
+                                   'RAQM_DEBUG'],
+                source          = bld.path.ant_glob(['*.cpp']) +
+                                    ['text_shape/text_shape.cpp',
+                                     'text_shape/text_shape_raqm.cpp',
+                                     'external/raqm.c'])
+
+    bld.stlib(features          = 'cxx',
+                includes        = ['.', '..'],
                 target          = 'font_kb',
                 defines         = ['FONT_USE_KB_TEXT_SHAPE'],
                 source          = bld.path.ant_glob(['*.cpp']) + ['text_shape/text_shape.cpp', 'text_shape/text_shape_kb.cpp'])
@@ -26,7 +41,3 @@ def build(bld):
     bld.install_files('${PREFIX}/include/font/text_shape', 'text_shape/text_shape.h')
 
     bld.recurse('test')
-
-def configure(conf):
-    pass
-

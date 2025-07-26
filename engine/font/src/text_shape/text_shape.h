@@ -30,13 +30,11 @@ struct TextShapeGlyph
 
     uint32_t m_Codepoint;  // Not always available if there was a substitution
     uint16_t m_GlyphIndex; // index into the font
-    int16_t  :16;
-
     int16_t  m_Width;
     int16_t  m_Height;
 
-    int16_t  m_Advance;
-    int16_t  m_LeftBearing;
+    int16_t  m_Advance;     // LEGACY SHAPING ONLY!
+    int16_t  m_LeftBearing; // LEGACY SHAPING ONLY!
 };
 
 struct TextRun

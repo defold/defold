@@ -2,20 +2,31 @@
 
 from waflib.Options import options
 
+def configure(conf):
+    conf.env['STLIB_HARFBUZZ'] = ['harfbuzz', 'sheenbidi']
+
+
 def build(bld):
     if options.skip_build_tests:
        return
 
     bld.add_group()
 
-    bld(features = 'cxx cprogram ddf test',
+    bld(features = 'cxx cprogram test',
         source   = bld.path.ant_glob(['*.cpp']),
         use      = 'TESTMAIN DLIB PROFILE_NULL font',
         includes = '. .. ../font',
         target = 'test_font')
 
-    bld(features = 'cxx cprogram ddf test',
+    bld(features = 'cxx cprogram test',
+        source   = bld.path.ant_glob(['*.cpp']),
+        use      = 'TESTMAIN DLIB PROFILE_NULL HARFBUZZ font_hb',
+        includes = '. .. ../font',
+        target = 'test_font_hb')
+
+    bld(features = 'cxx cprogram test',
         source   = bld.path.ant_glob(['*.cpp']),
         use      = 'TESTMAIN DLIB PROFILE_NULL font_kb',
+        defines  = ['FONT_USE_KB_TEXT_SHAPE'],
         includes = '. .. ../font',
         target = 'test_font_kb')

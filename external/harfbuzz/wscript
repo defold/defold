@@ -65,7 +65,7 @@ def build(bld):
 
     bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % APPNAME)
     bld.install_files('${PREFIX}/%s/include/harfbuzz' % name,
-                        bld.path.ant_glob('%s/*.hh' % packagedir),
+                        bld.path.ant_glob('%s/*.hh' % packagedir) + bld.path.ant_glob('%s/*.h' % packagedir),
                         relative_base=bld.path.find_dir(packagedir),
                         relative_trick=True)
 
