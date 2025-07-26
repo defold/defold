@@ -18,13 +18,14 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <font/text_shape/text_shape.h>
+#include <gameobject/gameobject.h>
 #include <gamesys/mesh_ddf.h>
 #include <gamesys/texture_set_ddf.h>
 #include <graphics/graphics_ddf.h>
-#include <render/font_renderer.h>
+#include <render/font/font_renderer.h>
 #include <resource/resource.h>
 #include <resource/resource_util.h>
-#include <gameobject/gameobject.h>
 
 #include "script_resource.h"
 #include "script_buffer.h"
@@ -3421,7 +3422,7 @@ static int SetBuffer(lua_State* L)
     return 0;
 }
 
-static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metrics)
+static void PushTextMetricsTable(lua_State* L, const TextMetrics* metrics)
 {
     lua_createtable(L, 0, 4);
     lua_pushliteral(L, "width");
@@ -3501,14 +3502,19 @@ static int GetTextMetrics(lua_State* L)
         line_break = CheckTableBoolean(L, table_index, "line_break", line_break);
     }
 
-    dmRender::TextMetricsSettings settings;
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+
+    TextMetricsSettings settings;
     settings.m_Width = width;
     settings.m_LineBreak = line_break;
     settings.m_Leading = leading;
     settings.m_Tracking = tracking;
+    // legacy options for glyph bank fonts
+    settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
+    settings.m_Padding = dmRender::GetFontMapPadding(font_map);
 
-    dmRender::TextMetrics metrics;
-    dmRender::GetTextMetrics(dmGameSystem::ResFontGetHandle(font), text, &settings, &metrics);
+    TextMetrics metrics;
+    dmRender::GetTextMetrics(font_map, text, &settings, &metrics);
     PushTextMetricsTable(L, &metrics);
     return 1;
 }
