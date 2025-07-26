@@ -21,20 +21,25 @@
             [editor.resource-io :as resource-io]
             [editor.yaml :as yaml]))
 
+(def macos #{:x86_64-osx :arm64-osx})
+
 (def windows #{:x86-win32 :x86_64-win32})
 
 (def android #{:armv7-android :arm64-android})
 
-(def web #{:js-web :wasm-web})
+(def ios #{:armv7-ios :arm64-ios :x86_64-ios})
+
+(def web #{:js-web :wasm-web :wasm_pthread-web})
 
 (def linux #{:x86_64-linux :arm64-linux})
 
 (def vulkan
-  #{:x86_64-osx :arm64-osx
-    :x86_64-linux :arm64-linux
+  #{:x86_64-linux :arm64-linux
     :x86-win32 :x86_64-win32
     :armv7-android :arm64-android
     :arm64-ios})
+
+(def vulkan-osx #{:x86_64-osx :arm64-osx})
 
 (def all-platforms
   #{;; ios
@@ -48,7 +53,7 @@
     ;; windows
     :x86-win32 :x86_64-win32
     ;; web
-    :js-web :wasm-web})
+    :js-web :wasm-web :wasm_pthread-web})
 
 (def custom-lib-names
   {:x86-win32 {"vpx" "vpx"
@@ -218,12 +223,12 @@
 (defn make-check-box-setting [toggles]
   {:setting :check-box :toggles toggles})
 
-(defn make-choice-setting [& kw+toggles-then-none]
-  (let [none (last kw+toggles-then-none)
-        choices (into [] (partition-all 2) (butlast kw+toggles-then-none))]
-    (assert (keyword? none))
-    (assert (every? (fn [[kw toggles]]
-                      (and (keyword? kw) (coll? toggles) (every? map? toggles)))
+(defn make-choice-setting [& id+toggles-then-none]
+  (let [none (last id+toggles-then-none)
+        choices (into [] (partition-all 2) (butlast id+toggles-then-none))]
+    (assert (or (keyword? none) (map? none)))
+    (assert (every? (fn [[id toggles]]
+                      (and (or (keyword? id) (map? id)) (coll? toggles) (every? map? toggles)))
                     choices))
     {:setting :choice
      :choices choices
@@ -239,12 +244,12 @@
 
     :choice
     (let [{:keys [choices none]} setting
-          first-fit-choice (some (fn [[_kw toggles :as choice]]
+          first-fit-choice (some (fn [[_id toggles :as choice]]
                                    (when (properties/unify-values (mapv #(get-toggle-value manifest %) toggles))
                                      choice))
                                  choices)]
       (if first-fit-choice
-        (let [[choice-kw choice-toggles] first-fit-choice
+        (let [[choice-id choice-toggles] first-fit-choice
               choice-toggle? (set choice-toggles)
               remaining-toggle-values (into []
                                             (comp
@@ -254,7 +259,7 @@
                                             choices)]
           (if (or (zero? (count remaining-toggle-values))
                   (false? (properties/unify-values remaining-toggle-values)))
-            choice-kw
+            choice-id
             nil))
         (let [all-toggles-unify-to-nil (nil? (properties/unify-values
                                                (into []
@@ -270,8 +275,8 @@
     :choice (let [{:keys [choices none]} setting
                   enabled-toggles (if (= none value)
                                     nil
-                                    (some (fn [[kw toggles]]
-                                            (when (= kw value) toggles))
+                                    (some (fn [[id toggles]]
+                                            (when (= id value) toggles))
                                           choices))
                   disabled-toggles (if (= none value)
                                      (mapcat second choices)
@@ -293,6 +298,20 @@
   `(g/fnk [~'manifest]
      (get-setting-value ~'manifest ~setting-sym)))
 
+(defn update-setting-value [manifest setting f & args]
+  (let [v (get-setting-value manifest setting)
+        v (if (nil? v)
+            (case (:setting setting)
+              :check-box false
+              :choice (:none setting))
+            v)]
+    (set-setting-value manifest setting (apply f v args))))
+
+(defn setting-property-updater [setting f & args]
+  (fn [_evaluation-context self old new]
+    (when-not (g/error? old)
+      (apply g/update-property self :manifest update-setting-value setting f (concat args [new])))))
+
 ;; endregion
 
 (def record-setting
@@ -304,9 +323,23 @@
 (def profiler-setting
   (make-check-box-setting
     (concat
-      (libs-toggles all-platforms ["profilerext_null"])
-      (exclude-libs-toggles all-platforms ["profilerext"])
-      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerExt"]))))
+      (libs-toggles all-platforms ["profile_null", "profilerext_null"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic"])
+      (exclude-libs-toggles all-platforms ["profile", "profilerext"])
+      (exclude-libs-toggles windows ["profiler_remotery"])
+      (exclude-libs-toggles macos ["profiler_remotery"])
+      (exclude-libs-toggles linux ["profiler_remotery"])
+      (exclude-libs-toggles android ["profiler_remotery"])
+      (exclude-libs-toggles ios ["profiler_remotery"])
+      (exclude-libs-toggles web ["profiler_js"])
+      (generic-contains-toggles windows :excludeSymbols ["ProfilerRemotery"])
+      (generic-contains-toggles macos :excludeSymbols ["ProfilerRemotery"])
+      (generic-contains-toggles linux :excludeSymbols ["ProfilerRemotery"])
+      (generic-contains-toggles android :excludeSymbols ["ProfilerRemotery"])
+      (generic-contains-toggles ios :excludeSymbols ["ProfilerRemotery"])
+      (generic-contains-toggles web :excludeSymbols ["ProfilerJS"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic", "ProfilerRemotery"])
+      )))
 
 (def sound-setting
   (make-check-box-setting
@@ -314,6 +347,24 @@
       (exclude-libs-toggles all-platforms ["sound" "tremolo"])
       (generic-contains-toggles all-platforms :excludeSymbols ["DefaultSoundDevice" "AudioDecoderWav" "AudioDecoderStbVorbis" "AudioDecoderTremolo"])
       (libs-toggles all-platforms ["sound_null"]))))
+
+(def sound-decoder-wav-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["decoder_wav"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["AudioDecoderWav" "ResourceTypeWav"]))))
+
+(def sound-decoder-ogg-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["decoder_ogg"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["AudioDecoderStbVorbis" "AudioDecoderTremolo" "ResourceTypeOgg"]))))
+
+(def sound-decoder-opus-setting
+  (make-check-box-setting
+    (concat
+      (libs-toggles all-platforms ["decoder_opus" "opus"])
+      (generic-contains-toggles all-platforms :symbols ["AudioDecoderOpus" "ResourceTypeOpus"]))))
 
 (def input-setting
   (make-check-box-setting
@@ -344,11 +395,41 @@
      (boolean-toggle :arm64-android :jetifier false)]))
 
 (def physics-setting
-  (make-choice-setting
-    :none (concat (libs-toggles all-platforms ["physics_null"]) (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision" "Box2D" "script_box2d"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
-    :2d   (concat (libs-toggles all-platforms ["physics_2d"])   (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision"]))
-    :3d   (concat (libs-toggles all-platforms ["physics_3d"])   (exclude-libs-toggles all-platforms ["physics" "Box2D" "script_box2d"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
-    :both))
+  ;; by default, legacy 2d and 3d are included in `physics` lib
+  (let [;; must be used when excluding anything
+        exclude-default (exclude-libs-toggles all-platforms ["physics"])
+
+        ;; must use at least one of these when excluding default
+        exclude-3d (exclude-libs-toggles all-platforms ["LinearMath" "BulletDynamics" "BulletCollision"])
+        exclude-legacy-2d (exclude-libs-toggles all-platforms ["box2d_defold" "script_box2d_defold"])
+
+        ;; must be used when excluding 2d completely:
+        exclude-all-2d (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"])
+
+        ;; must be used when excluding all physics:
+        exclude-all (libs-toggles all-platforms ["physics_null"])
+
+        ;; can only be used when using exclude-default:
+        include-legacy-2d (libs-toggles all-platforms ["physics_2d_defold"])
+        include-2d-v3 (libs-toggles all-platforms ["physics_2d" "box2d" "script_box2d"])
+        include-3d (libs-toggles all-platforms ["physics_3d"])]
+    (make-choice-setting
+      {:2d :none :3d false}
+      (concat exclude-all exclude-default exclude-3d exclude-legacy-2d exclude-all-2d)
+
+      {:2d :legacy :3d false}
+      (concat exclude-default exclude-3d include-legacy-2d)
+
+      {:2d :v3 :3d false}
+      (concat exclude-default exclude-3d exclude-legacy-2d include-2d-v3)
+
+      {:2d :none :3d true}
+      (concat exclude-default exclude-legacy-2d exclude-all-2d include-3d)
+
+      {:2d :v3 :3d true}
+      (concat exclude-default exclude-legacy-2d include-2d-v3 include-3d)
+
+      {:2d :legacy :3d true})))
 
 (def image-setting
   (make-check-box-setting
@@ -366,14 +447,13 @@
 
 (def vulkan-toggles
   (concat
-    (exclude-libs-toggles [:x86_64-osx :arm64-osx :x86-win32 :x86_64-win32] ["platform"])
-    (libs-toggles [:x86_64-osx :arm64-osx :x86-win32 :x86_64-win32] ["platform_vulkan"])
-    (libs-toggles [:x86_64-osx :arm64-osx :arm64-ios] ["graphics_vulkan" "MoltenVK"])
+    (exclude-libs-toggles [:x86-win32 :x86_64-win32] ["platform"])
+    (libs-toggles [:x86-win32 :x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
+    (libs-toggles [:arm64-ios] ["graphics_vulkan" "MoltenVK"])
     (libs-toggles android ["graphics_vulkan"])
     (libs-toggles windows ["graphics_vulkan" "vulkan"])
     (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
     (generic-contains-toggles linux :dynamicLibs ["vulkan"])
-    (generic-contains-toggles [:x86_64-osx :arm64-osx] :frameworks ["Metal" "IOSurface" "QuartzCore"])
     (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "IOSurface" "QuartzCore"])
     (generic-contains-toggles vulkan :symbols ["GraphicsAdapterVulkan"])))
 
@@ -382,16 +462,32 @@
     :vulkan (concat
               vulkan-toggles
               (exclude-libs-toggles vulkan ["graphics"])
-              (generic-contains-toggles vulkan :excludeSymbols ["GraphicsAdapterOpenGL"]))
+              (generic-contains-toggles (disj vulkan :arm64-linux) :excludeSymbols ["GraphicsAdapterOpenGL"])
+              [(contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGLES")])
     :both vulkan-toggles
     :open-gl))
+
+(def open-gl-osx-toggles
+  (concat
+    (libs-toggles vulkan-osx ["graphics" "platform"])
+    (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterOpenGL"])
+    (generic-contains-toggles vulkan-osx :frameworks ["OpenGL"])))
+
+(def graphics-setting-osx
+  (make-choice-setting
+    :open-gl (concat
+               open-gl-osx-toggles
+               (exclude-libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+               (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterVulkan"]))
+    :both open-gl-osx-toggles
+    :vulkan))
 
 (def webgpu-toggles
   (concat
     (libs-toggles web ["graphics_webgpu"])
     (generic-contains-toggles web :symbols ["GraphicsAdapterWebGPU"])
     (generic-contains-toggles web :emscriptenLinkFlags ["USE_WEBGPU=1" "GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0"])
-    (generic-contains-toggles [:wasm-web] :emscriptenLinkFlags ["ASYNCIFY=1" "ASYNCIFY_IGNORE_INDIRECT=1" "ASYNCIFY_ADD=[\"main\",\"dmEngineCreate(*)\",\"requestDeviceCallback(*)\",\"WebGPUCreateSwapchain(*)\",\"instanceRequestAdapterCallback(*)\"]"])))
+    (generic-contains-toggles [:wasm-web :wasm_pthread-web] :emscriptenLinkFlags ["ASYNCIFY=1" "ASYNCIFY_IGNORE_INDIRECT=1" "ASYNCIFY_ADD=[\"main\",\"dmEngineCreate(*)\",\"requestDeviceCallback(*)\",\"WebGPUCreateSwapchain(*)\",\"instanceRequestAdapterCallback(*)\"]"])))
 
 (def graphics-web-setting
   (make-choice-setting
@@ -440,7 +536,8 @@
                   [:x86_64-win32 platform-pattern]
                   ;; web
                   [:js-web platform-pattern]
-                  [:wasm-web platform-pattern]]]]))
+                  [:wasm-web platform-pattern]
+                  [:wasm_pthread-web platform-pattern]]]]))
 
 (g/defnode AppManifestNode
   (inherits r/CodeEditorResourceNode)
@@ -462,15 +559,19 @@
                                   :indent (case (g/node-value self :indent-type evaluation-context)
                                             :two-spaces 2
                                             4)))))))
-  (property physics g/Any
-            (dynamic tooltip (g/constantly "Box2D, Bullet, both or none"))
+  (property physics-2d g/Any
+            (dynamic tooltip (g/constantly "Box2D version 3 or legacy Defold version"))
             (dynamic edit-type (g/constantly {:type :choicebox
-                                              :options [[:both "2D & 3D"]
-                                                        [:2d "2D"]
-                                                        [:3d "3D"]
+                                              :options [[:v3 "Box2D Version 3"]
+                                                        [:legacy "Box2D (Legacy Defold version)"]
                                                         [:none "None"]]}))
-            (value (setting-property-getter physics-setting))
-            (set (setting-property-setter physics-setting)))
+            (value (g/fnk [manifest] (:2d (get-setting-value manifest physics-setting))))
+            (set (setting-property-updater physics-setting assoc :2d)))
+  (property physics-3d g/Any
+            (dynamic tooltip (g/constantly "Bullet or none"))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (g/fnk [manifest] (:3d (get-setting-value manifest physics-setting))))
+            (set (setting-property-updater physics-setting assoc :3d)))
   (property Rig+Model g/Any
             (dynamic tooltip (g/constantly "Rig, Model or none"))
             (dynamic edit-type (g/constantly {:type :choicebox
@@ -493,6 +594,18 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter sound-setting))
             (set (setting-property-setter sound-setting)))
+  (property exclude-sound-decoder-wav g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter sound-decoder-wav-setting))
+            (set (setting-property-setter sound-decoder-wav-setting)))
+  (property exclude-sound-decoder-ogg g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter sound-decoder-ogg-setting))
+            (set (setting-property-setter sound-decoder-ogg-setting)))
+  (property include-sound-decoder-opus g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter sound-decoder-opus-setting))
+            (set (setting-property-setter sound-decoder-opus-setting)))
   (property exclude-input g/Any
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter input-setting))
@@ -519,13 +632,21 @@
             (value (setting-property-getter use-android-support-lib-setting))
             (set (setting-property-setter use-android-support-lib-setting)))
   (property graphics g/Any
-            (dynamic tooltip (g/constantly "Vulkan support is in BETA (desktop and mobile platforms)"))
+            (dynamic tooltip (g/constantly "Vulkan supports desktop and mobile platforms only"))
             (dynamic edit-type (g/constantly {:type :choicebox
                                               :options [[:open-gl "OpenGL"]
                                                         [:vulkan "Vulkan"]
                                                         [:both "OpenGL & Vulkan"]]}))
             (value (setting-property-getter graphics-setting))
             (set (setting-property-setter graphics-setting)))
+  (property graphics-osx g/Any
+            (dynamic tooltip (g/constantly "Vulkan is the default renderer for OSX"))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:vulkan "Vulkan"]
+                                                        [:open-gl "OpenGL"]
+                                                        [:both "OpenGL & Vulkan"]]}))
+            (value (setting-property-getter graphics-setting-osx))
+            (set (setting-property-setter graphics-setting-osx)))
   (property graphics-web g/Any
             (dynamic tooltip (g/constantly "WebGPU support is in BETA (web platforms)"))
             (dynamic edit-type (g/constantly {:type :choicebox

@@ -18,6 +18,7 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
+            [editor.progress :as progress]
             [integration.test-util :as test-util]
             [internal.graph :as ig]
             [support.test-support :refer [with-clean-system]]))
@@ -31,7 +32,7 @@
           proj-graph-id (g/make-graph! :history true :volatility 1)
           extensions (extensions/make proj-graph-id)
           project-id (project/make-project proj-graph-id workspace extensions)]
-      (project/load-project project-id)
+      (project/load-project! project-id)
       (is (not= 0 (node-count (g/graph proj-graph-id))))
       (g/delete-node! project-id)
       (let [final-node-ids (set (ig/node-ids (g/graph proj-graph-id)))
@@ -46,8 +47,11 @@
           old-node-ids (set (ig/node-ids (g/graph graph-id)))
           old-basis (g/now)
           mem-resource (project/make-embedded-resource project :editable resource-type-name inline-resource)
-          resource-node-ids (#'project/make-nodes! project [mem-resource] nil)]
-      (test-util/load-project-nodes! project resource-node-ids)
+          node-id+resource-pairs (project/make-node-id+resource-pairs graph-id [mem-resource])
+          node-load-infos (project/read-nodes node-id+resource-pairs)
+          prelude-tx-data (project/make-resource-nodes-tx-data project node-id+resource-pairs)
+          migrated-resource-node-ids (project/load-nodes! project prelude-tx-data node-load-infos progress/null-render-progress! nil nil)]
+      (project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
       (let [new-resource-node (project/get-resource-node project mem-resource)
             new-count (node-count (g/graph graph-id))]
         (is (> new-count old-count))

@@ -36,6 +36,7 @@ mkdir -p libexec/x86_64-ios
 mkdir -p libexec/arm64-android
 # mkdir -p libexec/js-web
 mkdir -p libexec/wasm-web
+mkdir -p libexec/wasm_pthread-web
 
 SHA1=`git log --pretty=%H -n1`
 
@@ -85,13 +86,10 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libshaderc_shared.dylib l
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libshaderc_shared.dylib lib/arm64-macos/libshaderc_shared.dylib
 
 
-cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/luajit-32 libexec/x86_64-linux/luajit-32
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/luajit-64 libexec/x86_64-linux/luajit-64
-cp -v $DYNAMO_HOME/ext/bin/arm64-linux/luajit-32 libexec/arm64-linux/luajit-32
 cp -v $DYNAMO_HOME/ext/bin/arm64-linux/luajit-64 libexec/arm64-linux/luajit-64
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/luajit-64 libexec/x86_64-macos/luajit-64
 cp -v $DYNAMO_HOME/ext/bin/arm64-macos/luajit-64 libexec/arm64-macos/luajit-64
-cp -v $DYNAMO_HOME/ext/bin/win32/luajit-32.exe libexec/x86_64-win32/luajit-32.exe
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/luajit-64.exe libexec/x86_64-win32/luajit-64.exe
 jar cfM lib/luajit-share.zip -C $DYNAMO_HOME/ext/share/ luajit
 
@@ -140,6 +138,11 @@ copy wasm-web/dmengine.js wasm-web/dmengine.js
 copy wasm-web/dmengine.wasm wasm-web/dmengine.wasm
 copy wasm-web/dmengine_release.js wasm-web/dmengine_release.js
 copy wasm-web/dmengine_release.wasm wasm-web/dmengine_release.wasm
+
+copy wasm_pthread-web/dmengine.js wasm_pthread-web/dmengine.js
+copy wasm_pthread-web/dmengine.wasm wasm_pthread-web/dmengine.wasm
+copy wasm_pthread-web/dmengine_release.js wasm_pthread-web/dmengine_release.js
+copy wasm_pthread-web/dmengine_release.wasm wasm_pthread-web/dmengine_release.wasm
 
 if [ -e "${DIR}/copy_private.sh" ]; then
     sh ${DIR}/copy_private.sh

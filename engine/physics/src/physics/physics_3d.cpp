@@ -292,7 +292,7 @@ namespace dmPhysics
         context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
         context->m_AllowDynamicTransforms = params.m_AllowDynamicTransforms;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
-        if (result != dmMessage::RESULT_OK)
+        if (result != dmMessage::RESULT_OK && result != dmMessage::RESULT_SOCKET_EXISTS)
         {
             dmLogFatal("Could not create socket '%s'.", PHYSICS_SOCKET_NAME);
             DeleteContext3D(context);
@@ -588,9 +588,9 @@ namespace dmPhysics
                 }
                 if (max_distance >= context->m_TriggerEnterLimit)
                 {
-                    add_data.m_ObjectA = object_a;
+                    add_data.m_ObjectA = (uint64_t) object_a;
                     add_data.m_UserDataA = object_a->getUserPointer();
-                    add_data.m_ObjectB = object_b;
+                    add_data.m_ObjectB = (uint64_t) object_b;
                     add_data.m_UserDataB = object_b->getUserPointer();
                     add_data.m_GroupA = object_a->getBroadphaseHandle()->m_collisionFilterGroup;
                     add_data.m_GroupB = object_b->getBroadphaseHandle()->m_collisionFilterGroup;
@@ -802,7 +802,7 @@ namespace dmPhysics
     void DeleteCollisionObject3D(HWorld3D world, HCollisionObject3D collision_object)
     {
         CollisionObject3D* co = (CollisionObject3D*)collision_object;
-        OverlapCacheRemove(&world->m_TriggerOverlaps, co->m_CollisionObject);
+        OverlapCacheRemove(&world->m_TriggerOverlaps, (uint64_t) co->m_CollisionObject);
         btCollisionObject* bt_co = co->m_CollisionObject;
         if (bt_co == 0x0)
             return;

@@ -354,7 +354,7 @@ Text {
 }
 
 .context-menu {
-  -fx-background-color: -df-component-light;
+  -fx-background-color: -df-component-dark;
   -fx-background-radius: 2px;
   -fx-padding: 5px;
   .menu-item {
@@ -362,7 +362,7 @@ Text {
       > .label {
         -fx-text-fill: -df-text-selected;
       }
-      -fx-background-color: -df-component-light;
+      -fx-background-color: -df-component-lighter;
       -fx-background-radius: 1px;
     }
     &:disabled {
@@ -427,13 +427,4 @@ Text {
   &.matched {
     -fx-fill: -df-defold-blue-lighter;
   }
-}
-
-.hover-popup {
-  -fx-background-color: -df-background-lighter;
-  -fx-border-color: -df-background;
-}
-.hover-separator {
-  -fx-min-height: 1px;
-  -fx-background-color: -df-background;
 }

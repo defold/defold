@@ -28,9 +28,33 @@ namespace dmSound
 
     bool PlatformIsAudioInterrupted();
 
+    uint32_t GetDefaultFrameCount(uint32_t mix_rate);
+
+    /*
+     * @param pan [type: float] Range [0, 1]. 0.5 == center panning, 0 == full left, 1 == full right
+     * @param left_scale [type: float*] (out)Range [0, 1]
+     * @param right_scale [type: float*] (out)Range [0, 1]
+     */
+    void GetPanScale(float pan, float* left_scale, float* right_scale);
+
     // Unit tests
     int64_t GetInternalPos(HSoundInstance);
     int32_t GetRefCount(HSoundData);
+
+    #define SOUND_MAX_DECODE_CHANNELS (2)
+    #define SOUND_MAX_MIX_CHANNELS (2)
+    #define SOUND_OUTBUFFER_COUNT (3)
+    #define SOUND_OUTBUFFER_COUNT_NO_THREADS (4)
+    #define SOUND_OUTBUFFER_MAX_COUNT (6)
+    #define SOUND_MAX_SPEED (5)
+    #define SOUND_MAX_HISTORY (4)
+    #define SOUND_MAX_FUTURE (4)
+    #define SOUND_INSTANCE_STATEFRAMECOUNT (SOUND_MAX_HISTORY + SOUND_MAX_SPEED + SOUND_MAX_FUTURE)         // "max speed" is used as "extra sample count" as we can at most leave these many samples in the buffers due to fractional positions etc.
+
+    const uint32_t RESAMPLE_FRACTION_BITS = 11; // matches number of polyphase filter bank entries (2048)
+
+    const dmhash_t MASTER_GROUP_HASH = dmHashString64("master");
+    const uint32_t GROUP_MEMORY_BUFFER_COUNT = 64;
 }
 
 #endif // #ifndef DM_SOUND_PRIVATE_H

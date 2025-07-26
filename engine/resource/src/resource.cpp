@@ -64,7 +64,7 @@
  *  - Handle out of resources. Eg Hashtables full.
  */
 
-DM_PROPERTY_U32(rmtp_Resource, 0, FrameReset, "# resources");
+DM_PROPERTY_U32(rmtp_Resource, 0, PROFILE_PROPERTY_FRAME_RESET, "# resources", 0);
 
 
 struct ResourceReloadedCallbackPair
@@ -92,6 +92,8 @@ struct ResourceFactory
     // with GetRaw (used for async threaded loading). Liveupdate, HttpClient, m_Buffer
     // m_BuiltinsManifest, m_Manifest
     dmMutex::HMutex                              m_LoadMutex;
+
+    dmHttpCache::HCache                          m_HttpCache;
 
     // dmResource::Get recursion depth
     uint32_t                                     m_RecursionDepth;
@@ -226,6 +228,8 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         return 0;
     }
 
+    factory->m_HttpCache = params->m_HttpCache;
+
     factory->m_Mounts = 0;
 
     // Mount the base archive, regardless of the liveupdate.mounts
@@ -241,6 +245,11 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         {"dmanif", "archive", true},
         {"file", "file", true},
     };
+
+    dmResourceProvider::ArchiveLoaderParams archive_loader_params;
+    archive_loader_params.m_Factory = factory;
+    archive_loader_params.m_HttpCache = params->m_HttpCache;
+    dmResourceProvider::InitializeLoaders(&archive_loader_params);
 
     dmJobThread::JobThreadCreationParams job_thread_create_param;
     job_thread_create_param.m_ThreadNames[0] = "ResourceJobThread";
@@ -380,6 +389,16 @@ void DeleteFactory(HFactory factory)
         factory->m_JobThreadContext = 0;
     }
 
+    ReleaseBuiltinsArchive(factory);
+
+    if (factory->m_Mounts)
+        dmResourceMounts::Destroy(factory->m_Mounts);
+
+    dmResourceProvider::ArchiveLoaderParams archive_loader_params;
+    archive_loader_params.m_Factory = factory;
+    archive_loader_params.m_HttpCache = 0;
+    dmResourceProvider::FinalizeLoaders(&archive_loader_params);
+
     if (factory->m_Socket)
     {
         dmMessage::DeleteSocket(factory->m_Socket);
@@ -388,11 +407,6 @@ void DeleteFactory(HFactory factory)
     {
         dmMutex::Delete(factory->m_LoadMutex);
     }
-
-    ReleaseBuiltinsArchive(factory);
-
-    if (factory->m_Mounts)
-        dmResourceMounts::Destroy(factory->m_Mounts);
 
     if (factory->m_Resources && !factory->m_Resources->Empty())
     {
@@ -446,7 +460,7 @@ void UpdateFactory(HFactory factory)
 {
     DM_PROFILE(__FUNCTION__);
     dmMessage::Dispatch(factory->m_Socket, &Dispatch, factory);
-    dmJobThread::Update(factory->m_JobThreadContext);
+    dmJobThread::Update(factory->m_JobThreadContext, 0);
     DM_PROPERTY_ADD_U32(rmtp_Resource, factory->m_Resources->Size());
 }
 
@@ -797,6 +811,7 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
         params.m_Context     = resource_type->m_Context;
         params.m_PreloadData = preload_data;
         params.m_Resource    = &tmp_resource;
+        params.m_Filename    = name;
         for(;;)
         {
             create_error = (Result)resource_type->m_PostCreateFunction(&params);

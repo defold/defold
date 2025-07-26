@@ -16,6 +16,7 @@
 #define DM_PROFILER_H
 
 #include <stdint.h>
+#include <dlib/profile.h>
 
 namespace dmRender
 {
@@ -28,16 +29,14 @@ namespace dmGraphics
     typedef void* HContext;
 } // dmGraphics
 
-namespace dmProfile
-{
-    typedef void* HProfile;
-} // dmProfile
-
 namespace dmProfiler
 {
     void SetUpdateFrequency(uint32_t update_frequency);
     void ToggleProfiler();
-    void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_context, dmRender::HRenderContext render_context, dmRender::HFontMap system_font_map);
+    void RenderProfiler(HProfile profile, dmGraphics::HContext graphics_context, dmRender::HRenderContext render_context, dmRender::HFontMap system_font_map);
+
+    // Tag the currently recorded frame for output to console
+    void SetDumpFrame();
 
 } // dmProfiler
 

@@ -25,7 +25,8 @@
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
-            [util.fn :as fn]))
+            [util.fn :as fn]
+            [util.thread-util :as thread-util]))
 
 (def ^:private fuzzy-resource-filter-fn (partial fuzzy-choices/filter-options resource/proj-path resource/proj-path))
 
@@ -33,11 +34,13 @@
   (let [project-resources
         (into []
               (comp
+                (map thread-util/abortable-identity!)
                 (map #(resource-node/resource basis %))
                 (filter (fn [resource]
                           (and (some? (resource/proj-path resource))
                                (resource/exists? resource)))))
               resource-node-ids)]
+    (thread-util/throw-if-interrupted!)
     (sort-by resource/proj-path project-resources)))
 
 (defn- node-ids->owner-resource-node-ids [basis node-ids]
@@ -55,6 +58,7 @@
             nodes-we-depend-on
             (into #{}
                   (comp
+                    (map thread-util/abortable-identity!)
                     (mapcat #(g/explicit-arcs-by-target basis %))
                     (map gt/source-id))
                   nodes-in-resource)
@@ -81,6 +85,7 @@
             nodes-that-depend-on-us
             (into #{}
                   (comp
+                    (map thread-util/abortable-identity!)
                     (mapcat #(g/explicit-arcs-by-source basis %))
                     (map gt/target-id))
                   all-overrides-of-nodes-in-resource)
@@ -110,12 +115,15 @@
         items        (into []
                            (filter #(and (= :file (resource/source-type %))
                                          (accepted-ext (resource/type-ext %))
+                                         (resource/loaded? %)
                                          (not (resource/internal? %))
                                          (accept-fn %)))
                            (g/node-value workspace :resource-list))
         tooltip-gen (:tooltip-gen options)
+        special-filter-fns {"refs" (partial refs-filter-fn project)
+                            "deps" (partial deps-filter-fn project)}
         options (-> {:title "Select Resource"
-                     :cell-fn (fn [r]
+                     :cell-fn (fn cell-fn [r]
                                 (let [text (resource/proj-path r)
                                       icon (workspace/resource-icon r)
                                       tooltip (when tooltip-gen (tooltip-gen r))
@@ -127,14 +135,12 @@
                                                      :matching-indices matching-indices}}
                                           tooltip
                                           (assoc :tooltip tooltip))))
-                     :filter-fn (fn [filter-value items]
-                                  (let [fns {"refs" (partial refs-filter-fn project)
-                                             "deps" (partial deps-filter-fn project)}
-                                        [command arg] (let [parts (string/split filter-value #":")]
+                     :filter-fn (fn filter-fn [filter-value items]
+                                  (let [[command arg] (let [parts (string/split filter-value #":")]
                                                         (if (< 1 (count parts))
                                                           parts
                                                           [nil (first parts)]))
-                                        f (get fns command fuzzy-resource-filter-fn)]
+                                        f (get special-filter-fns command fuzzy-resource-filter-fn)]
                                     (f arg items)))}
                     (merge options))]
     (dialogs/make-select-list-dialog items options)))

@@ -23,14 +23,14 @@ namespace dmPhysics
 
 namespace dmGameSystem
 {
-    struct ConvexShapeResource
+    struct ConvexShapeResourceBox2D
     {
-        union
-        {
-            dmPhysics::HCollisionShape3D m_Shape3D;
-            dmPhysics::HCollisionShape2D m_Shape2D;
-        };
-        bool m_3D;
+        dmPhysics::HCollisionShape2D m_Shape2D;
+    };
+
+    struct ConvexShapeResourceBullet3D
+    {
+        dmPhysics::HCollisionShape3D m_Shape3D;
     };
 }
 

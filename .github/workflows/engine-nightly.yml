@@ -44,7 +44,7 @@ jobs:
       }]
 
   bld-eng-linux-x64:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
@@ -76,7 +76,7 @@ jobs:
       }]
 
   bld-eng-linux-arm64:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-22.04-arm
     steps: [
       { name: 'Checkout', uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
@@ -110,14 +110,14 @@ jobs:
   bld-eng-web:
     strategy:
       matrix:
-        platform: [js-web, wasm-web]
-    runs-on: ubuntu-20.04
+        platform: [js-web, wasm-web, wasm_pthread-web]
+    runs-on: ubuntu-22.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '21.0.5+11.0.LTS', distribution: 'temurin'} },
       { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x'}},
-      { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@v14, with: {version: '3.1.65'}},
+      { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@v14, with: {version: '4.0.6'}},
       { name: 'Verify emsdk',
         run: 'emcc -v && export | grep EM'
       },

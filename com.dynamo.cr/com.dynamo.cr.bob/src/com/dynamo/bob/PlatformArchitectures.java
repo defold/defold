@@ -20,9 +20,10 @@ public enum PlatformArchitectures {
     Windows32(new String[] {"x86-win32"}, new String[] {"x86-win32"}),
     Windows64(new String[] {"x86_64-win32"}, new String[] {"x86_64-win32"}),
     Linux(new String[] {"x86_64-linux"}, new String[] {"x86_64-linux"}),
+    LinuxArm64(new String[] {"arm64-linux"}, new String[] {"arm64-linux"}),
     iOS(new String[] {"arm64-ios", "x86_64-ios"}, new String[] {"arm64-ios"}),
     Android(new String[] {"arm64-android", "armv7-android"}, new String[] {"armv7-android","arm64-android"}),
-    Web(new String[] {"js-web", "wasm-web"}, new String[] {"js-web", "wasm-web"}),
+    Web(new String[] {"js-web", "wasm-web", "wasm_pthread-web"}, new String[] {"js-web", "wasm-web", "wasm_pthread-web"}),
     NX64(new String[] {"arm64-nx64"}, new String[] {"arm64-nx64"}),
     PS4(new String[] {"x86_64-ps4"}, new String[] {"x86_64-ps4"}),
     PS5(new String[] {"x86_64-ps5"}, new String[] {"x86_64-ps5"});
@@ -34,11 +35,11 @@ public enum PlatformArchitectures {
         this.defaultArchitectures = defaultArchitectures;
     }
 
-    String[] getArchitectures() {
+    public String[] getArchitectures() {
         return architectures;
     }
 
-    String[] getDefaultArchitectures() {
+    public String[] getDefaultArchitectures() {
         return defaultArchitectures;
     }
 }

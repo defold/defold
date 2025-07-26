@@ -64,6 +64,7 @@ namespace dmGraphics
      * @name Graphics
      * @namespace dmGraphics
      * @path engine/dlib/src/dmsdk/graphics/graphics_native.h
+     * @language C++
      */
 
     /*# get iOS UIWindow

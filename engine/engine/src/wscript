@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import os, re
-from waf_dynamo import dmsdk_add_files, copy_file_task, apidoc_extract_task, platform_supports_feature
+from waf_dynamo import dmsdk_add_files, copy_file_task, apidoc_extract_task, platform_supports_feature, platform_graphics_libs_and_symbols
 import waflib.Options
 
 def options(opt):
@@ -35,7 +35,7 @@ def build(bld):
                     target = 'engine',
                     proto_gen_py = True,
                     protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
-                    embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/game.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
+                    embed_source='../content/materials/debug.spc ../content/builtins/connect/game.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
                     source='engine.cpp engine_main.cpp engine_loop.cpp extension.cpp physics_debug_render.cpp ../proto/engine/engine_ddf.proto ' + platform_main_cpp,
                     install_path = platform_lib_install_path,
                     use = 'engine_service')
@@ -59,14 +59,16 @@ def build(bld):
 
     resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua',
                              'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript',
-                             'ResourceTypeOgg', 'ResourceTypeWav',
+                             'ResourceTypeOgg', 'ResourceTypeOpus', 'ResourceTypeWav',
+                             'ResourceTypeFont','ResourceTypeTTF',
                              'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable', 'ResourceProviderZip']
     component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh', 'ComponentTypeSound']
 
-    exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt', 'LiveUpdateExt', 'ScriptBox2DExt', 'ScriptImageExt', 'ScriptModelExt', 'ScriptTypesExt']
+    exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'LiveUpdateExt',
+                        'ScriptBox2DExt', 'ScriptImageExt', 'ScriptModelExt', 'ScriptTypesExt', 'ScriptHttp', 'ScriptFont']
 
     # Add stb_vorbis and/or tremolo depending on platform
-    if bld.env['PLATFORM'] in ('arm64-nx64', 'win32', 'x86_64-win32', 'js-web', 'wasm-web'):
+    if bld.env['PLATFORM'] in ('arm64-nx64', 'win32', 'x86_64-win32', 'js-web', 'wasm-web', 'wasm_pthread-web'):
         exported_symbols.append('AudioDecoderStbVorbis')
     elif bld.env['PLATFORM'] in ('x86_64-ps4','x86_64-ps5',):
         pass # dont't add tremolo
@@ -74,32 +76,11 @@ def build(bld):
         exported_symbols.append('AudioDecoderTremolo')
         additional_libs.append('TREMOLO')
 
-    graphics_lib = 'GRAPHICS DMGLFW OPENGL'
-    graphics_lib_symbols = ['GraphicsAdapterOpenGL']
+    if waflib.Options.options.with_opus:
+        additional_libs.append('OPUS')
+        exported_symbols += ['AudioDecoderOpus']
 
-    if waflib.Options.options.with_vulkan:
-        graphics_lib += ' GRAPHICS_VULKAN VULKAN'
-        graphics_lib_symbols.append('GraphicsAdapterVulkan')
-
-    if waflib.Options.options.with_dx12 and platform_supports_feature(bld.env.PLATFORM, 'dx12', {}):
-        graphics_lib += ' GRAPHICS_DX12'
-        graphics_lib_symbols.append('GraphicsAdapterDX12')
-
-    if waflib.Options.options.with_webgpu and platform_supports_feature(bld.env.PLATFORM, 'webgpu', {}):
-        graphics_lib += ' GRAPHICS_WEBGPU'
-        graphics_lib_symbols.append('GraphicsAdapterWebGPU')
-
-    if bld.env['PLATFORM'] in ('arm64-nx64',):
-        graphics_lib = 'GRAPHICS_VULKAN DMGLFW VULKAN'
-        graphics_lib_symbols = ['GraphicsAdapterVulkan']
-
-    if bld.env['PLATFORM'] in ('x86_64-ps4',):
-        graphics_lib = 'GRAPHICS'
-        graphics_lib_symbols = ['GraphicsAdapterPS4']
-
-    if bld.env['PLATFORM'] in ('x86_64-ps5'):
-        graphics_lib = 'GRAPHICS'
-        graphics_lib_symbols = ['GraphicsAdapterPS5']
+    graphics_lib, graphics_lib_symbols = platform_graphics_libs_and_symbols(bld.env['PLATFORM'])
 
     exported_symbols += graphics_lib_symbols
 
@@ -113,7 +94,6 @@ def build(bld):
         sound_lib = 'SOUND OPENAL'
 
     sound_lib = sound_lib.split()
-    graphics_lib = graphics_lib.split()
 
     dynamo_home = os.getenv('DYNAMO_HOME')
 
@@ -132,9 +112,22 @@ def build(bld):
 
     bld.add_group()
 
+    profile_null_libs = ['PROFILE_NULL', 'PROFILEREXT_NULL']
+    profile_null_symbols = ['ProfilerExt'] # for dmProfiler::SetUpdateFrequency
+    profile_symbols = ['ProfilerExt', 'ProfilerBasic']
     profile_lib = ['PROFILE', 'PROFILEREXT']
-    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
-        profile_lib = ['PROFILE_NULL', 'PROFILEREXT_NULL']
+    if bld.env['PLATFORM'] in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+        profile_lib = ['PROFILE', 'PROFILEREXT']
+
+    # remotery isn't supported on all platforms
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+        profile_lib += ['PROFILER_REMOTERY']
+        profile_symbols += ['ProfilerRemotery']
+
+    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'wasm_pthread-web'):
+        profile_lib += ['PROFILER_JS']
+        profile_symbols += ['ProfilerJS']
+        web_libs += ['library_profile.js']
 
     if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5', 'x86_64-linux', 'arm64-linux'):
         additional_libs.append('APP')
@@ -145,9 +138,9 @@ def build(bld):
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'engine_rs PROFILEREXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine engine_service'.split() + graphics_lib + sound_lib + profile_lib + platform_lib + additional_libs,
+        use = 'engine_rs PROFILEREXT GAMEOBJECT DDF FONT LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine engine_service'.split() + graphics_lib + sound_lib + profile_lib + platform_lib + additional_libs,
         web_libs = web_libs,
-        exported_symbols = exported_symbols + resource_type_symbols + ['ResourceProviderHttp'] + component_type_symbols,
+        exported_symbols = exported_symbols + profile_symbols + resource_type_symbols + ['ResourceProviderHttp'] + component_type_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
         defines = '_XBOX',
@@ -173,9 +166,9 @@ def build(bld):
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'PROFILE_NULL PROFILEREXT_NULL GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine_release engine_service_null'.split() + graphics_lib + sound_lib + platform_lib + additional_libs,
+        use = 'GAMEOBJECT DDF FONT LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine_release engine_service_null'.split() + graphics_lib + sound_lib + platform_lib + additional_libs + profile_null_libs,
         web_libs = web_libs,
-        exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
+        exported_symbols = exported_symbols + profile_null_symbols + resource_type_symbols + component_type_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
         defines = '_XBOX DM_RELEASE=1',
@@ -197,6 +190,9 @@ def build(bld):
     if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5'):
         additional_libs.append('APP')
 
+    exported_symbols = ['ProfilerExt', 'LiveUpdateExt', 'ScriptTypesExt', 'GraphicsAdapterNull',
+                        'ScriptFont','ResourceTypeFont','ResourceTypeTTF']
+
     graphics_lib = 'GRAPHICS_NULL'
     if bld.env['PLATFORM'] in ('arm64-android','armv7-android', 'arm64-ios', 'x86_64-ios'):
         graphics_lib = 'GRAPHICS_NULL DMGLFW' # g_AndroidApp is currently in glfw. UIApplicationMain is currently in glfw
@@ -205,8 +201,8 @@ def build(bld):
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE PLATFORM_NULL RIG GUI CRASH DLIB SOUND_NULL engine engine_service'.split() + graphics_lib.split() + profile_lib + additional_libs,
-        exported_symbols = ['ProfilerExt', 'LiveUpdateExt', 'ScriptTypesExt', 'GraphicsAdapterNull'] + resource_type_symbols + component_type_symbols,
+        use = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE FONT GAMESYS RESOURCE PHYSICS RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE PLATFORM_NULL RIG GUI CRASH DLIB SOUND_NULL engine engine_service'.split() + graphics_lib.split() + profile_lib + additional_libs,
+        exported_symbols = ['LiveUpdateExt', 'ScriptTypesExt', 'GraphicsAdapterNull'] + profile_symbols + resource_type_symbols + component_type_symbols,
         web_libs = web_libs,
         includes = '../build ../proto . ..',
         proto_gen_py = True,

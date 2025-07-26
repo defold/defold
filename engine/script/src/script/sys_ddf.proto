@@ -15,6 +15,7 @@ option java_outer_classname = "System";
  * @document
  * @name System
  * @namespace sys
+ * @language Lua
  */
 
 /*# exits application
@@ -201,7 +202,7 @@ message Reboot
  *
  * @message
  * @name set_vsync
- * @param swap_interval target swap interval.
+ * @param swap_interval [type:number] target swap interval.
  * @examples
  * <pre>
  * msg.post("@system:", "set_vsync", { swap_interval = 1 } )
@@ -223,7 +224,7 @@ message SetVsync
  *
  * @message
  * @name set_update_frequency
- * @param frequency target frequency. 60 for 60 fps
+ * @param frequency [type:number] target frequency. 60 for 60 fps
  * @examples
  * <pre>
  * msg.post("@system:", "set_update_frequency", { frequency = 60 } )

@@ -73,7 +73,7 @@ public abstract class LuaBuilder extends Builder {
 
     private static Logger logger = Logger.getLogger(LuaBuilder.class.getName());
 
-    private static ArrayList<Platform> LUA51_PLATFORMS = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
+    private static ArrayList<Platform> LUA51_PLATFORMS = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb, Platform.WasmPthreadWeb));
     private static boolean useLua51;
     private static String luaJITExePath;
 
@@ -171,17 +171,9 @@ public abstract class LuaBuilder extends Builder {
 
         // check if the platform is using Lua 5.1 or LuaJIT
         // get path of LuaJIT executable if the platform uses LuaJIT
-        //
-        // note: Bob.getExe() will also copy the executable from the archive
-        // so that it can be used. We do this here to avoid problems if the
-        // exe is copied in the multi-threaded build stage
-        // https://bugs.openjdk.org/browse/JDK-8068370
         Bob.initLua();
         useLua51 = LUA51_PLATFORMS.contains(this.project.getPlatform());
-        if (!useLua51 && luaJITExePath == null) {
-            final Platform host = Platform.getHostPlatform();
-            luaJITExePath = Bob.getExe(host, host.is64bit() ? "luajit-64" : "luajit-32");
-        }
+        luaJITExePath = Bob.getHostExeOnce("luajit-64", luaJITExePath);
 
         return taskBuilder.build();
     }
@@ -534,11 +526,13 @@ public abstract class LuaBuilder extends Builder {
         // this is unacceptable for html5 games where size is a key factor
         // see https://github.com/defold/defold/issues/6891 for more info
         if (useLua51) {
+            constructLuaJITBytecode(task, script, false);
             srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
         }
         // include uncompressed Lua source code instead of bytecode
         // see https://forum.defold.com/t/urgent-need-help-i-have-huge-problem-with-game-submission-to-apple/68031
         else if (useUncompressedLuaSource) {
+            constructLuaJITBytecode(task, script, false);
             srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
         }
         else {

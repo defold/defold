@@ -18,12 +18,14 @@
             [editor.editor-extensions.actions :as actions]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.error-handling :as error-handling]
+            [editor.editor-extensions.prefs-docs :as prefs-docs]
             [editor.editor-extensions.runtime :as rt]
             [editor.future :as future]
             [editor.handler :as handler]
             [editor.lsp.async :as lsp.async]
             [editor.outline :as outline]
-            [editor.resource :as resource]))
+            [editor.resource :as resource]
+            [editor.scene :as scene]))
 
 (set! *warn-on-reflection* true)
 
@@ -64,8 +66,14 @@
                                           (node-ids->lua-selection q))
                                   (some-> selection
                                           (handler/adapt-every resource/Resource)
-                                          (->> (keep #(project/get-resource-node project % evaluation-context)))
-                                          (node-ids->lua-selection q)))]
+                                          (->> (into
+                                                 []
+                                                 (keep
+                                                   (fn [resource]
+                                                     (if-let [node-id (project/get-resource-node project resource evaluation-context)]
+                                                       (rt/wrap-userdata node-id)
+                                                       (resource/proj-path resource))))))
+                                          (ensure-selection-cardinality q)))]
                  (when-not (:evaluation-context env)
                    (g/update-cache-from-evaluation-context! evaluation-context))
                  (cont assoc :selection res)))))
@@ -74,6 +82,13 @@
   (gen-query acc [env cont]
              (when-let [res (some-> (:selection env)
                                     (handler/adapt-every outline/OutlineNode)
+                                    (node-ids->lua-selection q))]
+               (cont assoc :selection res))))
+
+(defmethod gen-selection-query :scene [q acc _]
+  (gen-query acc [env cont]
+             (when-let [res (some-> (:selection env)
+                                    (handler/adapt-every scene/SceneNode)
                                     (node-ids->lua-selection q))]
                (cont assoc :selection res))))
 
@@ -89,21 +104,58 @@
         (lua-fn env {})))
     q))
 
+(def ^:private command-definition-coercer
+  (coerce/hash-map
+    :req {:label coerce/string
+          :locations (coerce/vector-of
+                       (coerce/enum "Assets" "Bundle" "Debug" "Edit" "Outline" "Project" "Scene" "View")
+                       :distinct true
+                       :min-count 1)}
+    :opt {:query (coerce/hash-map
+                   :opt {:selection (coerce/hash-map
+                                      :req {:type (coerce/enum :resource :outline :scene)
+                                            :cardinality (coerce/enum :one :many)})
+                         :argument (coerce/const true)})
+          :id prefs-docs/serializable-keyword-coercer
+          :active coerce/function
+          :run coerce/function}))
+
+(def command-coercer
+  (coerce/one-of
+    (coerce/wrap-with-pred coerce/userdata #(= :command (:type (meta %))) "is not a command")
+    command-definition-coercer))
+
+(def ^:private ext-command-args-coercer
+  (coerce/regex :command command-definition-coercer))
+
+(def ext-command-fn
+  (rt/varargs-lua-fn ext-command [{:keys [rt]} varargs]
+    (let [{:keys [command]} (rt/->clj rt ext-command-args-coercer varargs)]
+      (-> command
+          (with-meta {:type :command})
+          (rt/wrap-userdata "editor.command(...)")))))
+
 (defn command->dynamic-handler [{:keys [label query active id run locations]} path project state]
   (let [{:keys [rt display-output!]} state
         lua-fn->env-fn (compile-query query project)
         contexts (into #{}
                        (map {"Assets" :asset-browser
                              "Bundle" :global
-                             "Outline" :outline
+                             "Debug" :global
                              "Edit" :global
+                             "Outline" :outline
+                             "Project" :global
+                             "Scene" :global
                              "View" :global})
                        locations)
         locations (into #{}
                         (map {"Assets" :editor.asset-browser/context-menu-end
                               "Bundle" :editor.bundle/menu
-                              "Outline" :editor.outline-view/context-menu-end
+                              "Debug" :editor.debug-view/debug-end
                               "Edit" :editor.app-view/edit-end
+                              "Outline" :editor.outline-view/context-menu-end
+                              "Project" ::project/project-end
+                              "Scene" :editor.scene-selection/context-menu-end
                               "View" :editor.app-view/view-end})
                         locations)]
     (cond-> {:contexts contexts

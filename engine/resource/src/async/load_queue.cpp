@@ -54,6 +54,7 @@ dmResource::Result DoLoadResource(dmResource::HFactory factory, HRequest request
             params.m_FileSize               = request->m_ResourceSize;
             params.m_IsBufferPartial        = request->m_BufferSize != request->m_ResourceSize;
             params.m_IsBufferTransferrable  = 1;
+            params.m_Filename               = request->m_CanonicalPath;
             params.m_HintInfo               = &request->m_PreloadInfo.m_HintInfo;
 
             // out

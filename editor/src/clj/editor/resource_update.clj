@@ -271,8 +271,17 @@
                   (resource-moved-case-plan case move-pairs plan-info))
                 move-cases))))
 
-(defn resource-change-plan [old-nodes-by-path old-node->old-disk-sha256 {:keys [added removed changed moved] :as changes}]
-  (let [basis (g/now)
+(defn- exclude-extension-changes [moved]
+  ;; It's possible to add an extension to file when renaming it, e.g.,
+  ;; /foo -> /foo.lua
+  ;; We should not redirect such nodes, because different resource extensions
+  ;; might imply different resource node types
+  (filterv #(= (resource/type-ext (first %)) (resource/type-ext (second %))) moved))
+
+(defn resource-change-plan [old-nodes-by-path old-node->old-disk-sha256 changes]
+  (let [changes (update changes :moved exclude-extension-changes)
+        {:keys [added removed changed moved]} changes
+        basis (g/now)
         move-sources (map first moved)
         move-targets (map second moved)
         move-source-paths (into #{} (map resource/proj-path) move-sources)

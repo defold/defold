@@ -43,6 +43,7 @@ namespace dmGameSystem
      * @document
      * @name Tilemap
      * @namespace tilemap
+     * @language Lua
      */
 
     /*# [type:hash] tile source
@@ -649,27 +650,27 @@ namespace dmGameSystem
     /*# flip tile horizontally
      *
      * @name tilemap.H_FLIP
-     * @variable
+     * @constant
      */
     /*# flip tile vertically
      *
      * @name tilemap.V_FLIP
-     * @variable
+     * @constant
      */
     /*# rotate tile 90 degrees clockwise
      *
      * @name tilemap.ROTATE_90
-     * @variable
+     * @constant
      */
     /*# rotate tile 180 degrees clockwise
      *
      * @name tilemap.ROTATE_180
-     * @variable
+     * @constant
      */
     /*# rotate tile 270 degrees clockwise
      *
      * @name tilemap.ROTATE_270
-     * @variable
+     * @constant
      */
 
     void ScriptTileMapRegister(const ScriptLibContext& context)

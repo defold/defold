@@ -117,6 +117,16 @@ static void DestroyAnimation(Animation* animation)
 static void DestroyMaterial(Material* material)
 {
     free((void*)material->m_Name);
+    delete material->m_PbrMetallicRoughness;
+    delete material->m_PbrSpecularGlossiness;
+    delete material->m_Clearcoat;
+    delete material->m_Ior;
+    delete material->m_Specular;
+    delete material->m_Sheen;
+    delete material->m_Transmission;
+    delete material->m_Volume;
+    delete material->m_EmissiveStrength;
+    delete material->m_Iridescence;
 }
 
 static void DestroyBuffer(Buffer* buffer)
@@ -270,7 +280,7 @@ bool NeedsResolve(Scene* scene)
     for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
     {
         if (!scene->m_Buffers[i].m_Buffer)
-            return true;;
+            return true;
     }
     return false;
 }

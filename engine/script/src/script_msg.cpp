@@ -47,14 +47,10 @@ namespace dmScript
      * @document
      * @name Message
      * @namespace msg
+     * @language Lua
      */
 
     const uint32_t MAX_MESSAGE_DATA_SIZE = 2048;
-
-    bool IsURL(lua_State *L, int index)
-    {
-        return (dmMessage::URL*)dmScript::ToUserType(L, index, SCRIPT_URL_TYPE_HASH);
-    }
 
     const char* UrlToString(const dmMessage::URL* url, char* buffer, uint32_t buffer_size)
     {
@@ -549,7 +545,7 @@ namespace dmScript
             UrlToString(&receiver, receiver_buffer, sizeof(receiver_buffer));
             char sender_buffer[512];
             UrlToString(&sender, sender_buffer, sizeof(sender_buffer));
-            return luaL_error(L, "Could not send message '%s' from '%s' to '%s'.", dmHashReverseSafe64(message_id), sender_buffer, receiver_buffer);
+            return luaL_error(L, "Could not find socket '%s' when sending message '%s' from '%s' to '%s'.", dmHashReverseSafe64(receiver.m_Socket), dmHashReverseSafe64(message_id), sender_buffer, receiver_buffer);
         }
         else if (result != dmMessage::RESULT_OK)
         {
@@ -584,6 +580,16 @@ namespace dmScript
         *urlp = url;
         luaL_getmetatable(L, SCRIPT_TYPE_NAME_URL);
         lua_setmetatable(L, -2);
+    }
+
+    bool IsURL(lua_State *L, int index)
+    {
+        return dmScript::GetUserType(L, index) == SCRIPT_URL_TYPE_HASH;
+    }
+
+    dmMessage::URL* ToURL(lua_State* L, int index)
+    {
+        return (dmMessage::URL*)dmScript::ToUserType(L, index, SCRIPT_URL_TYPE_HASH);
     }
 
     dmMessage::URL* CheckURL(lua_State* L, int index)

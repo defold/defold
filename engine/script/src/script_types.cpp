@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 #include "script.h"
 
 extern "C"
@@ -32,6 +32,7 @@ namespace dmScript
      * @document
      * @name Types
      * @namespace types
+     * @language Lua
      */
 
     /*# Check if passed type is vector.

@@ -329,11 +329,12 @@ var LibraryGLFW = {
         if (event.touches.length == 0){
             GLFW.buttons &= ~(1 << 0);
         }
-        // Audio is blocked by default in some browsers until a user performs an interaction,
-        // so we need to try to resume it here (on mouse button up and touch end).
+
+        // Audio is blocked by default in browsers until a user performs an interaction,
+        // so we need to try to resume on mouse button down/up and touch start/end.
         // We must also check that the sound device hasn't been stripped
         if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
-            DefoldSoundDevice.TryResumeAudio();
+          DefoldSoundDevice.TryResumeAudio();
         }
 
         event.preventDefault();
@@ -410,6 +411,11 @@ var LibraryGLFW = {
           GLFW.fillTouch(touch.identifier, canvasX, canvasY, GLFW.GLFW_PHASE_BEGAN);
         }
 
+        // Resume audio on user interaction (see explanation in touchWasFinished).
+        if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
+          DefoldSoundDevice.TryResumeAudio();
+        }
+
         event.preventDefault();
     },
 
@@ -420,6 +426,11 @@ var LibraryGLFW = {
 
       GLFW.buttons |= (1 << event['button']);
       GLFW.onMouseButtonChanged(event, 1);// GLFW_PRESS
+
+      // Resume audio on user interaction (see explanation in touchWasFinished).
+      if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
+        DefoldSoundDevice.TryResumeAudio();
+      }
     },
 
     onMouseButtonUp: function(event) {
@@ -428,11 +439,9 @@ var LibraryGLFW = {
       GLFW.buttons &= ~(1 << event['button']);
       GLFW.onMouseButtonChanged(event, 0);// GLFW_RELEASE
 
-      // Audio is blocked by default in some browsers until a user performs an interaction,
-      // so we need to try to resume it here (on mouse button up and touch end).
-      // We must also check that the sound device hasn't been stripped
+      // Resume audio on user interaction (see explanation in touchWasFinished).
       if ((typeof DefoldSoundDevice != "undefined") && (DefoldSoundDevice != null)) {
-          DefoldSoundDevice.TryResumeAudio();
+        DefoldSoundDevice.TryResumeAudio();
       }
     },
 
@@ -557,20 +566,19 @@ var LibraryGLFW = {
       }
     },
 
-    //adaptation for our needs of https://github.com/emscripten-core/emscripten/blob/941bbc6b9b35d3124f17d2503d7a32cc81032dac/src/library_glfw.js#L662
     joys: {}, // glfw joystick data
     lastGamepadState: null,
-    lastGamepadStateFrame: null, // The integer value of Browser.mainLoop.currentFrameNumber of when the last gamepad state was produced.
+    lastGamepadStateFrame: null, // The integer value of MainLoop.currentFrameNumber of when the last gamepad state was produced.
 
     refreshJoysticks: function(forceUpdate) {
         // Produce a new Gamepad API sample if we are ticking a new game frame, or if not using emscripten_set_main_loop() at all to drive animation.
         if (GLFW.gamepadFunc) {
-          if (forceUpdate || Browser.mainLoop.currentFrameNumber !== GLFW.lastGamepadStateFrame || !Browser.mainLoop.currentFrameNumber) {
+          if (forceUpdate || MainLoop.currentFrameNumber !== GLFW.lastGamepadStateFrame || !MainLoop.currentFrameNumber) {
             GLFW.lastGamepadState = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : null);
             if (!GLFW.lastGamepadState) {
               return;
             }
-            GLFW.lastGamepadStateFrame = Browser.mainLoop.currentFrameNumber;
+            GLFW.lastGamepadStateFrame = MainLoop.currentFrameNumber;
             for (var joy = 0; joy < GLFW.lastGamepadState.length; ++joy) {
               var gamepad = GLFW.lastGamepadState[joy];
 
@@ -627,30 +635,6 @@ var LibraryGLFW = {
     GLFW.addEventListenerCanvas('focus', GLFW.onFocus, true);
     GLFW.addEventListenerCanvas('blur', GLFW.onBlur, true);
 
-    __ATEXIT__.push({ func: function() {
-        GLFW.removeEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
-        GLFW.removeEventListener("gamepaddisconnected", GLFW.onJoystickDisconnected, true);
-        GLFW.removeEventListener("keydown", GLFW.onKeydown, true);
-        GLFW.removeEventListener("keypress", GLFW.onKeyPress, true);
-        GLFW.removeEventListener("keyup", GLFW.onKeyup, true);
-        GLFW.removeEventListener("mousemove", GLFW.onMousemove, true);
-        GLFW.removeEventListener("mousedown", GLFW.onMouseButtonDown, true);
-        GLFW.removeEventListener("mouseup", GLFW.onMouseButtonUp, true);
-        GLFW.removeEventListener('DOMMouseScroll', GLFW.onMouseWheel, { capture: true, passive: false });
-        GLFW.removeEventListener('mousewheel', GLFW.onMouseWheel, { capture: true, passive: false });
-        GLFW.removeEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
-        GLFW.removeEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
-        GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchEnd, true);
-        GLFW.removeEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
-        GLFW.removeEventListenerCanvas('focus', GLFW.onFocus, true);
-        GLFW.removeEventListenerCanvas('blur', GLFW.onBlur, true);
-
-        var canvas = Module["canvas"];
-        if (typeof canvas !== 'undefined') {
-            Module["canvas"].width = Module["canvas"].height = 1;
-        }
-    }});
-
     //TODO: Init with correct values
     GLFW.params = new Array();
     GLFW.params[0x00030001] = true; // GLFW_MOUSE_CURSOR
@@ -700,7 +684,29 @@ var LibraryGLFW = {
     return 1; // GL_TRUE
   },
 
-  glfwTerminate: function() {},
+  glfwTerminate: () => {
+    GLFW.removeEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
+    GLFW.removeEventListener("gamepaddisconnected", GLFW.onJoystickDisconnected, true);
+    GLFW.removeEventListener("keydown", GLFW.onKeydown, true);
+    GLFW.removeEventListener("keypress", GLFW.onKeyPress, true);
+    GLFW.removeEventListener("keyup", GLFW.onKeyup, true);
+    GLFW.removeEventListener("mousemove", GLFW.onMousemove, true);
+    GLFW.removeEventListener("mousedown", GLFW.onMouseButtonDown, true);
+    GLFW.removeEventListener("mouseup", GLFW.onMouseButtonUp, true);
+    GLFW.removeEventListener('DOMMouseScroll', GLFW.onMouseWheel, { capture: true, passive: false });
+    GLFW.removeEventListener('mousewheel', GLFW.onMouseWheel, { capture: true, passive: false });
+    GLFW.removeEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
+    GLFW.removeEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
+    GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchEnd, true);
+    GLFW.removeEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
+    GLFW.removeEventListenerCanvas('focus', GLFW.onFocus, true);
+    GLFW.removeEventListenerCanvas('blur', GLFW.onBlur, true);
+
+    var canvas = Module["canvas"];
+    if (typeof canvas !== 'undefined') {
+        Module["canvas"].width = Module["canvas"].height = 1;
+    }
+  },
 
   glfwGetVersion: function(major, minor, rev) {
     setValue(major, 2, 'i32');
@@ -921,6 +927,7 @@ var LibraryGLFW = {
       return 1;
     }
     catch(e) {
+      console.error(e);
       GLFW.gamepadFunc = null;
       return 0;
     }

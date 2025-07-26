@@ -24,9 +24,9 @@
 #include <dlib/profile.h>
 #include <dlib/math.h>
 
-DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics");
-DM_PROPERTY_U32(rmtp_DrawCalls, 0, FrameReset, "# vertices", &rmtp_Graphics);
-DM_PROPERTY_U32(rmtp_DispatchCalls, 0, FrameReset, "# dispatches", &rmtp_Graphics);
+DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics", 0);
+DM_PROPERTY_U32(rmtp_DrawCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Graphics);
+DM_PROPERTY_U32(rmtp_DispatchCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# dispatches", &rmtp_Graphics);
 
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
@@ -75,12 +75,12 @@ namespace dmGraphics
     static bool SelectAdapterByPriority()
     {
         GraphicsAdapter* next     = g_adapter_list;
-        GraphicsAdapter* selected = next;
+        GraphicsAdapter* selected = 0x0;
 
         while(next)
         {
             bool is_supported = next->m_IsSupportedCb();
-            if (next->m_Priority < selected->m_Priority && is_supported)
+            if (is_supported && ((selected != 0x0 && next->m_Priority < selected->m_Priority) || selected == 0x0))
             {
                 selected = next;
             }
@@ -106,6 +106,8 @@ namespace dmGraphics
             return ADAPTER_FAMILY_NULL;
         if (dmStrCaseCmp("opengl", adapter_name) == 0)
             return ADAPTER_FAMILY_OPENGL;
+        if (dmStrCaseCmp("opengles", adapter_name) == 0)
+            return ADAPTER_FAMILY_OPENGLES;
         if (dmStrCaseCmp("vulkan", adapter_name) == 0)
             return ADAPTER_FAMILY_VULKAN;
         if (dmStrCaseCmp("webgpu", adapter_name) == 0)
@@ -127,6 +129,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NONE);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NULL);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGLES);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VULKAN);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_WEBGPU);
@@ -262,7 +265,6 @@ namespace dmGraphics
         switch(language)
         {
             SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM120);
-            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM140);
             SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM100);
             SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM300);
             SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM430);
@@ -316,37 +318,75 @@ namespace dmGraphics
         return GetRenderTargetTexture(render_target, GetAttachmentBufferType(attachment));
     }
 
-    ShaderDesc::Shader* GetShaderProgram(HContext context, ShaderDesc* shader_desc)
+    static ShaderDesc::Shader* HasShader(ShaderDesc* shader_desc, ShaderDesc::ShaderType shader_type)
     {
-        assert(shader_desc);
+        for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
+        {
+            ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
+            if (shader->m_ShaderType == shader_type)
+            {
+                return shader;
+            }
+        }
+        return 0;
+    }
+
+    static ShaderDesc::Shader* GetShader(HContext context, ShaderDesc* shader_desc, ShaderDesc::ShaderType shader_type)
+    {
         ShaderDesc::Shader* selected_shader = 0x0;
 
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
         {
             ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
-            if(IsShaderLanguageSupported(context, shader->m_Language, shader_desc->m_ShaderType))
+            if (shader->m_ShaderType != shader_type || !IsShaderLanguageSupported(context, shader->m_Language, shader->m_ShaderType))
             {
-                if (shader->m_VariantTextureArray)
+                continue;
+            }
+
+            if (shader->m_VariantTextureArray)
+            {
+                // Only select this variant if we don't support texture arrays natively
+                if (!IsContextFeatureSupported(context, CONTEXT_FEATURE_TEXTURE_ARRAY))
                 {
-                    // Only select this variant if we don't support texture arrays natively
-                    if (!IsContextFeatureSupported(context, CONTEXT_FEATURE_TEXTURE_ARRAY))
-                    {
-                        return shader;
-                    }
-                }
-                else
-                {
-                    selected_shader = shader;
+                    return shader;
                 }
             }
+            else
+            {
+                selected_shader = shader;
+            }
         }
-
-        if (selected_shader == 0)
-        {
-            dmLogError("Unable to get a valid shader from a ShaderDesc for this context.");
-        }
-
         return selected_shader;
+    }
+
+    bool GetShaderProgram(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** vp, ShaderDesc::Shader** fp, ShaderDesc::Shader** cp)
+    {
+        assert(shader_desc);
+        ShaderDesc::Shader* selected_shader_vp = GetShader(context, shader_desc, ShaderDesc::SHADER_TYPE_VERTEX);
+        ShaderDesc::Shader* selected_shader_fp = GetShader(context, shader_desc, ShaderDesc::SHADER_TYPE_FRAGMENT);
+
+        if (selected_shader_vp && selected_shader_fp)
+        {
+            *vp = selected_shader_vp;
+            *fp = selected_shader_fp;
+            return true;
+        }
+
+        ShaderDesc::Shader* selected_shader = GetShader(context, shader_desc, ShaderDesc::SHADER_TYPE_COMPUTE);
+        if (selected_shader)
+        {
+            *cp = selected_shader;
+            return true;
+        }
+
+        const char* extra_msg = "";
+        if (HasShader(shader_desc, ShaderDesc::SHADER_TYPE_COMPUTE) != 0x0 && !IsContextFeatureSupported(context, CONTEXT_FEATURE_COMPUTE_SHADER))
+        {
+            extra_msg = "Reason: Compute shaders are not supported.";
+        }
+
+        dmLogError("Unable to get a valid shader from a ShaderDesc for this context. %s", extra_msg);
+        return 0;
     }
 
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
@@ -471,13 +511,20 @@ namespace dmGraphics
             case ShaderDesc::SHADER_TYPE_MAT3:            return TYPE_FLOAT_MAT3;
             case ShaderDesc::SHADER_TYPE_MAT4:            return TYPE_FLOAT_MAT4;
             case ShaderDesc::SHADER_TYPE_SAMPLER:         return TYPE_SAMPLER;
-            case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
+            case ShaderDesc::SHADER_TYPE_TEXTURE_CUBE:    return TYPE_TEXTURE_CUBE;
+            // 2D
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             case ShaderDesc::SHADER_TYPE_IMAGE2D:         return TYPE_IMAGE_2D;
             case ShaderDesc::SHADER_TYPE_TEXTURE2D:       return TYPE_TEXTURE_2D;
             case ShaderDesc::SHADER_TYPE_TEXTURE2D_ARRAY: return TYPE_TEXTURE_2D_ARRAY;
-            case ShaderDesc::SHADER_TYPE_TEXTURE_CUBE:    return TYPE_TEXTURE_CUBE;
+            // 3D
+            case ShaderDesc::SHADER_TYPE_SAMPLER3D:       return TYPE_SAMPLER_3D;
+            case ShaderDesc::SHADER_TYPE_SAMPLER3D_ARRAY: return TYPE_SAMPLER_3D_ARRAY;
+            case ShaderDesc::SHADER_TYPE_IMAGE3D:         return TYPE_IMAGE_3D;
+            case ShaderDesc::SHADER_TYPE_TEXTURE3D:       return TYPE_TEXTURE_3D;
+            case ShaderDesc::SHADER_TYPE_TEXTURE3D_ARRAY: return TYPE_TEXTURE_3D_ARRAY;
             default: break;
         }
 
@@ -822,7 +869,7 @@ namespace dmGraphics
         ps.m_WriteDepth               = 1;
         ps.m_PrimtiveType             = PRIMITIVE_TRIANGLES;
         ps.m_DepthTestEnabled         = 1;
-        ps.m_DepthTestFunc            = COMPARE_FUNC_LEQUAL;
+        ps.m_DepthTestFunc            = COMPARE_FUNC_LESS;
         ps.m_BlendEnabled             = 0;
         ps.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
         ps.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
@@ -947,6 +994,7 @@ namespace dmGraphics
             res.m_ElementCount         = (uint16_t) dmMath::Max(bindings[i].m_ElementCount, (uint32_t) 1);
             res.m_Type.m_UseTypeIndex  = bindings[i].m_Type.m_UseTypeIndex;
             res.m_BindingFamily        = family;
+            res.m_StageFlags           = bindings[i].m_StageFlags;
 
             if (bindings[i].m_InstanceName)
             {
@@ -1011,6 +1059,9 @@ namespace dmGraphics
             if (bindings[i].m_InstanceName)
                 free(bindings[i].m_InstanceName);
         }
+
+        bindings.SetSize(0);
+        bindings.SetCapacity(0);
     }
 
     void DestroyShaderMeta(ShaderMeta& meta)
@@ -1027,7 +1078,12 @@ namespace dmGraphics
             {
                 free(meta.m_TypeInfos[i].m_Members[j].m_Name);
             }
+
+            meta.m_TypeInfos[i].m_Members.SetSize(0);
+            meta.m_TypeInfos[i].m_Members.SetCapacity(0);
         }
+        meta.m_TypeInfos.SetSize(0);
+        meta.m_TypeInfos.SetCapacity(0);
     }
 
     uint32_t CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count)
@@ -1227,6 +1283,8 @@ namespace dmGraphics
 
         program->m_Uniforms.SetCapacity(0);
         program->m_Uniforms.SetSize(0);
+
+        DestroyShaderMeta(program->m_ShaderMeta);
     }
 
     void FillProgramResourceBindings(
@@ -1236,7 +1294,6 @@ namespace dmGraphics
         ResourceBindingDesc              bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
         uint32_t                         ubo_alignment,
         uint32_t                         ssbo_alignment,
-        ShaderStageFlag                  stage_flag,
         ProgramResourceBindingsInfo&     info)
     {
         for (int i = 0; i < resources.Size(); ++i)
@@ -1252,7 +1309,7 @@ namespace dmGraphics
 
                 program_resource_binding.m_Res         = &res;
                 program_resource_binding.m_TypeInfos   = &stage_type_infos;
-                program_resource_binding.m_StageFlags |= (int) stage_flag;
+                program_resource_binding.m_StageFlags |= res.m_StageFlags;
 
                 switch(res.m_BindingFamily)
                 {
@@ -1272,8 +1329,7 @@ namespace dmGraphics
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         assert(res.m_Type.m_UseTypeIndex);
-                        program_resource_binding.m_DataOffset         = info.m_UniformDataSize;
-                        program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
+                        program_resource_binding.m_DataOffset = info.m_UniformDataSize;
 
                         info.m_UniformBufferCount++;
                         info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
@@ -1296,18 +1352,16 @@ namespace dmGraphics
 
     void FillProgramResourceBindings(
         Program*                     program,
-        ShaderMeta*                  meta,
         ResourceBindingDesc          bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
         uint32_t                     ubo_alignment,
         uint32_t                     ssbo_alignment,
-        ShaderStageFlag              stage_flag,
         ProgramResourceBindingsInfo& info)
     {
-        if (program && meta)
+        if (program)
         {
-            FillProgramResourceBindings(program, meta->m_UniformBuffers, meta->m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-            FillProgramResourceBindings(program, meta->m_StorageBuffers, meta->m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-            FillProgramResourceBindings(program, meta->m_Textures, meta->m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
+            FillProgramResourceBindings(program, program->m_ShaderMeta.m_UniformBuffers, program->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
+            FillProgramResourceBindings(program, program->m_ShaderMeta.m_StorageBuffers, program->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
+            FillProgramResourceBindings(program, program->m_ShaderMeta.m_Textures, program->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
         }
     }
 
@@ -1593,42 +1647,14 @@ namespace dmGraphics
     {
         g_functions.m_DispatchCompute(context, group_count_x, group_count_y, group_count_z);
     }
-    HVertexProgram NewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
+    HProgram NewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX);
-        return g_functions.m_NewVertexProgram(context, ddf, error_buffer, error_buffer_size);
-    }
-    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT);
-        return g_functions.m_NewFragmentProgram(context, ddf, error_buffer, error_buffer_size);
-    }
-    HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
-    {
-        return g_functions.m_NewProgram(context, vertex_program, fragment_program);
+        return g_functions.m_NewProgram(context, ddf, error_buffer, error_buffer_size);
     }
     void DeleteProgram(HContext context, HProgram program)
     {
         DestroyProgram((Program*) program);
         g_functions.m_DeleteProgram(context, program);
-    }
-    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
-    {
-        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX);
-        return g_functions.m_ReloadVertexProgram(prog, ddf);
-    }
-    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf)
-    {
-        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT);
-        return g_functions.m_ReloadFragmentProgram(prog, ddf);
-    }
-    void DeleteVertexProgram(HVertexProgram prog)
-    {
-        g_functions.m_DeleteVertexProgram(prog);
-    }
-    void DeleteFragmentProgram(HFragmentProgram prog)
-    {
-        g_functions.m_DeleteFragmentProgram(prog);
     }
     ShaderDesc::Language GetProgramLanguage(HProgram program)
     {
@@ -1646,20 +1672,10 @@ namespace dmGraphics
     {
         g_functions.m_DisableProgram(context);
     }
-    bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
+    bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf)
     {
         DestroyProgram((Program*) program);
-        return g_functions.m_ReloadProgramGraphics(context, program, vert_program, frag_program);
-    }
-    bool ReloadProgram(HContext context, HProgram program, HComputeProgram compute_program)
-    {
-        DestroyProgram((Program*) program);
-        return g_functions.m_ReloadProgramCompute(context, program, compute_program);
-    }
-    bool ReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)
-    {
-        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE);
-        return g_functions.m_ReloadComputeProgram(prog, ddf);
+        return g_functions.m_ReloadProgram(context, program, ddf);
     }
     uint32_t GetAttributeCount(HProgram prog)
     {
@@ -1841,9 +1857,9 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureStatusFlags(texture);
     }
-    void ReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+    void ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
-        g_functions.m_ReadPixels(context, buffer, buffer_size);
+        g_functions.m_ReadPixels(context, x, y, width, height, buffer, buffer_size);
     }
     void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
@@ -1886,6 +1902,10 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureUsageHintFlags(texture);
     }
+    uint8_t GetTexturePageCount(HTexture texture)
+    {
+        return g_functions.m_GetTexturePageCount(texture);
+    }
     bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
     {
         assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
@@ -1895,18 +1915,9 @@ namespace dmGraphics
     {
         g_functions.m_InvalidateGraphicsHandles(context);
     }
-    HComputeProgram NewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
+    void GetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
     {
-        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE);
-        return g_functions.m_NewComputeProgram(context, ddf, error_buffer, error_buffer_size);
-    }
-    HProgram NewProgram(HContext context, HComputeProgram compute_program)
-    {
-        return g_functions.m_NewProgramFromCompute(context, compute_program);
-    }
-    void DeleteComputeProgram(HComputeProgram prog)
-    {
-        return g_functions.m_DeleteComputeProgram(prog);
+        g_functions.m_GetViewport(context, x, y, width, height);
     }
 
 #if defined(DM_PLATFORM_IOS)

@@ -22,7 +22,7 @@
             [internal.graph.error-values :as ie]
             [plumbing.core :as pc]
             [schema.core :as s]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
            [schema.core Maybe ConditionalSchema]
@@ -284,19 +284,39 @@
 (defn value-type-form [value-type-ref] (when (ref? value-type-ref) (some-> value-type-ref deref form)))
 (defn value-type-dispatch-value [value-type-ref] (when (ref? value-type-ref) (some-> value-type-ref deref dispatch-value)))
 
+(defn- prop-info-default [prop-info]
+  ;; TODO(save-value-cleanup): Figure out why we have so much wrapping from (default ...) declarations.
+  (some-> prop-info :default :fn util/var-get-recursive (util/apply-if-fn {}) util/var-get-recursive))
+
+(defn- defaults-raw [node-type-deref]
+  (assert (satisfies? NodeType node-type-deref))
+  (let [declared-property-labels (:declared-property node-type-deref)]
+    (into {}
+          (keep (fn [[prop-kw prop-info]]
+                  (when (contains? declared-property-labels prop-kw)
+                    (pair prop-kw
+                          (prop-info-default prop-info)))))
+          (:property node-type-deref))))
+
+(def defaults
+  "Return a map of default values for the node type."
+  (comp (fn/memoize defaults-raw) deref))
+
 ;;; ----------------------------------------
 ;;; Construction support
 
-(defrecord NodeImpl [node-type]
+(defrecord NodeImpl [_node-id node-type]
   gt/Node
-  (node-id [this]
-    (:_node-id this))
+  (node-id [_] _node-id)
 
   (node-type [_]
     node-type)
 
-  (get-property [this basis property]
-    (get this property))
+  (get-property [this _basis property]
+    (let [value (get this property ::not-found)]
+      (case value
+        ::not-found (get (defaults node-type) property)
+        value)))
 
   (set-property [this basis property value]
     (assert (contains? (-> node-type all-properties) property)
@@ -304,7 +324,7 @@
                     property (:name @node-type)))
     (assoc this property value))
 
-  (own-properties [this] (.__extmap this))
+  (assigned-properties [this] (.__extmap this))
   (overridden-properties [this] {})
   (property-overridden?  [this property] false)
 
@@ -333,24 +353,6 @@
   (override-id [this]
     nil))
 
-(defn- prop-info-default [prop-info]
-  ;; TODO(save-value-cleanup): Figure out why we have so much wrapping from (default ...) declarations.
-  (some-> prop-info :default :fn util/var-get-recursive (util/apply-if-fn {}) util/var-get-recursive))
-
-(defn- defaults-raw [node-type-deref]
-  (assert (satisfies? NodeType node-type-deref))
-  (let [declared-property-labels (:declared-property node-type-deref)]
-    (into {}
-          (keep (fn [[prop-kw prop-info]]
-                  (when (contains? declared-property-labels prop-kw)
-                    (pair prop-kw
-                          (prop-info-default prop-info)))))
-          (:property node-type-deref))))
-
-(def defaults
-  "Return a map of default values for the node type."
-  (comp (memoize defaults-raw) deref))
-
 (defn- args-without-properties [node-type-ref args]
   (set/difference
     (util/key-set args)
@@ -359,14 +361,15 @@
 (defn construct
   [node-type-ref args]
   (assert (and node-type-ref (deref node-type-ref)))
+  (assert (or (nil? args) (map? args)))
   (assert (empty? (args-without-properties node-type-ref args))
           (str "You have given values for properties "
                (args-without-properties node-type-ref args)
                ", but those don't exist on nodes of type "
                (:k node-type-ref)))
-  (merge (->NodeImpl node-type-ref)
-         (defaults node-type-ref)
-         args))
+  (coll/merge
+    (->NodeImpl nil node-type-ref)
+    args))
 
 ;;; ----------------------------------------
 ;;; Evaluating outputs
@@ -1686,14 +1689,14 @@
   (node-type [this] node-type)
   (get-property [this basis property]
     (let [value (get properties property ::not-found)]
-      (if (identical? ::not-found value)
-        (gt/get-property (gt/node-by-id-at basis original-id) basis property)
+      (case value
+        ::not-found (gt/get-property (gt/node-by-id-at basis original-id) basis property)
         value)))
   (set-property [this basis property value]
     (if (= :_output-jammers property)
       (throw (ex-info "Not possible to mark override nodes as defective" {}))
       (assoc-in this [:properties property] value)))
-  (own-properties [this] properties)
+  (assigned-properties [this] properties)
   (overridden-properties [this] properties)
   (property-overridden?  [this property] (contains? properties property))
 

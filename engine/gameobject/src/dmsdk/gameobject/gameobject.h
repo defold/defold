@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/message.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/hid/hid.h>
@@ -30,6 +31,7 @@
  * @name Gameobject
  * @namespace dmGameObject
  * @path engine/gameobject/src/dmsdk/gameobject/gameobject.h
+ * @language C++
  */
 
 namespace dmMessage
@@ -101,6 +103,20 @@ namespace dmGameObject
     typedef void* HComponent;
 
     /*#
+     * Used for mapping instance ids from a collection definition to newly spawned instances
+     * @typedef
+     * @name InstanceIdMap
+     */
+    typedef dmHashTable<dmhash_t, dmhash_t> InstanceIdMap;
+
+    /*#
+     * Contains property containers for game objects to be spawned
+     * @typedef
+     * @name InstancePropertyContainers
+     */
+    typedef dmHashTable<dmhash_t, HPropertyContainer> InstancePropertyContainers;
+
+    /*#
      * Opaque handle to internal representation of a component instance
      * @typedef
      * @name HComponentInternal
@@ -147,6 +163,12 @@ namespace dmGameObject
      * @member dmGameObject::RESULT_INVALID_OPERATION
      * @member dmGameObject::RESULT_RESOURCE_TYPE_NOT_FOUND
      * @member dmGameObject::RESULT_BUFFER_OVERFLOW
+     * @member dmGameObject::RESULT_IDENTIFIER_INVALID
+     * @member dmGameObject::RESULT_RESOURCE_ERROR
+     * @member dmGameObject::RESULT_CHILD_NOT_FOUND
+     * @member dmGameObject::RESULT_INVALID_PROPERTIES
+     * @member dmGameObject::RESULT_UNABLE_TO_CREATE_COMPONENTS
+     * @member dmGameObject::RESULT_UNABLE_TO_INIT_INSTANCE
      * @member dmGameObject::RESULT_UNKNOWN_ERROR
      */
     enum Result
@@ -161,6 +183,12 @@ namespace dmGameObject
         RESULT_INVALID_OPERATION = -7,      //!< RESULT_INVALID_OPERATION
         RESULT_RESOURCE_TYPE_NOT_FOUND = -8,    //!< RESULT_COMPONENT_TYPE_NOT_FOUND
         RESULT_BUFFER_OVERFLOW = -9,        //!< RESULT_BUFFER_OVERFLOW
+        RESULT_IDENTIFIER_INVALID = -10,    //!< RESULT_IDENTIFIER_INVALID
+        RESULT_RESOURCE_ERROR = -11,       //!< RESULT_RESOURCE_ERROR
+        RESULT_CHILD_NOT_FOUND = -12,     //!< RESULT_CHILD_NOT_FOUND
+        RESULT_INVALID_PROPERTIES = -13,   //!< RESULT_INVALID_PROPERTIES
+        RESULT_UNABLE_TO_CREATE_COMPONENTS = -14,   //!< RESULT_UNABLE_TO_CREATE_COMPONENTS
+        RESULT_UNABLE_TO_INIT_INSTANCE = -15,   //!< RESULT_UNABLE_TO_INIT_INSTANCE
         RESULT_UNKNOWN_ERROR = -1000,       //!< RESULT_UNKNOWN_ERROR
     };
 
@@ -528,11 +556,21 @@ namespace dmGameObject
     HCollection GetCollection(HInstance instance);
 
     /*#
+     * Retrieve a collection by socket name hash
+     * Note: in native extensions, the register can be retrieved during init using dmEngine::GetGameObjectRegister(dmExtension::AppParams *params)
+     * @name GetCollectionByHash
+     * @param regist [type: dmGameObject::HRegister] Register
+     * @param socket_name [type: dmhash_t] The socket name
+     * @return collection [type: dmGameObject::HCollection] The collection if successful. 0 otherwise.
+     */
+    HCollection GetCollectionByHash(HRegister regist, dmhash_t socket_name);
+
+    /*#
      * Create a new gameobject instance
      * @note Calling this function during update is not permitted. Use #Spawn instead for deferred creation
      * @name New
      * @param collection [type: dmGameObject::HCollection] Gameobject collection
-     * @param prototype_name |type: const char*] Prototype file name. May be 0.
+     * @param prototype_name [type: const char*] Prototype file name. May be 0.
      * @return instance [type: dmGameObject::HInstance] New gameobject instance. NULL if any error occured
      */
     HInstance New(HCollection collection, const char* name);
@@ -547,12 +585,11 @@ namespace dmGameObject
     void Delete(HCollection collection, HInstance instance, bool recursive);
 
     /*#
-     * Construct a hash of an instance id based on the index provided.
-     * @name ConstructInstanceId
-     * @param index [type: uint32_t] The index to base the id off of.
-     * @return id [type: dmhash_t] hash of the instance id constructed.
+     * Creates a new unique instance ID and returns its hash.
+     * @name CreateInstanceId
+     * @return id [type: dmhash_t] hash of the new unique instance id
      */
-    dmhash_t ConstructInstanceId(uint32_t index);
+    dmhash_t CreateInstanceId();
 
     /*#
      * Retrieve an instance index from the index pool for the collection.
@@ -589,7 +626,21 @@ namespace dmGameObject
     Result SetIdentifier(HCollection collection, HInstance instance, dmhash_t identifier);
 
     /*#
+     * Get absolute identifier relative to instance. The returned identifier is the
+     * representation of the qualified name, i.e. the path from root-collection to
+     * the sub-collection which the instance belongs to.
+     * Example: if the instance is part of a sub-collection in the root-collection
+     * named "sub" and id == "a" the returned identifier represents the path "sub.a"
+     * @name GetAbsoluteIdentifier
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance to get absolute identifier to
+     * @param identifier [type:const char*] Identifier relative to instance
+     * @return [type:dmhash_t] Absolute identifier.
+     */
+    dmhash_t GetAbsoluteIdentifier(HInstance instance, const char* identifier);
+
+    /*#
      * Get instance from identifier
+     * @name GetInstanceFromIdentifier
      * @param collection [type: dmGameObject::HCollection] Collection
      * @param identifier [type: dmhash_t] Identifier
      * @return instance [type: dmGameObject::HInstance] Instance. NULL if instance isn't found.
@@ -608,6 +659,7 @@ namespace dmGameObject
 
     /*#
      * Get the component, component type and its world
+     * @name GetComponent
      * @param instance [type: dmGameObject::HInstance] Instance
      * @param component_id [type: dmhash_t] Component id
      * @param component_type [type: uint32_t*] (out) Component type. Used for validation.
@@ -621,7 +673,7 @@ namespace dmGameObject
      * Set gameobject instance position
      * @name SetPosition
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @param position [type:dmGameObject::Point3] New Position
+     * @param position [type:dmVMath::Point3] New Position
      */
     void SetPosition(HInstance instance, dmVMath::Point3 position);
 
@@ -637,7 +689,7 @@ namespace dmGameObject
      * Set gameobject instance rotation
      * @name SetRotation
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @param position New Position
+     * @param rotation [type:dmVmath::Quat] New rotation
      */
     void SetRotation(HInstance instance, dmVMath::Quat rotation);
 
@@ -653,7 +705,7 @@ namespace dmGameObject
      * Set gameobject instance uniform scale
      * @name SetScale
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @param scale New uniform scale
+     * @param scale [type:float] New uniform scale
      */
     void SetScale(HInstance instance, float scale);
 
@@ -661,7 +713,7 @@ namespace dmGameObject
      * Set gameobject instance non-uniform scale
      * @name SetScale
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @param scale New uniform scale
+     * @param scale [type:dmVmath::Vector3] New non-uniform scale
      */
     void SetScale(HInstance instance, dmVMath::Vector3 scale);
 
@@ -734,7 +786,7 @@ namespace dmGameObject
      * Instances flagged as bones can have their transforms updated in a batch through SetBoneTransforms.
      * Used for animated skeletons.
      * @name SetBone
-     * @param instance [type: HImstance] Instance
+     * @param instance [type: HInstance] Instance
      * @param bone [type: bool] true if the instance is a bone
      */
     void SetBone(HInstance instance, bool bone);
@@ -742,7 +794,7 @@ namespace dmGameObject
     /*#
      * Check whether the instance is flagged as a bone.
      * @name IsBone
-     * @param instance [type: HImstance] Instance
+     * @param instance [type: HInstance] Instance
      * @return result [type: bool] True if flagged as a bone
      */
     bool IsBone(HInstance instance);
@@ -751,10 +803,10 @@ namespace dmGameObject
      * Set the local transforms recursively of all instances flagged as bones, starting with component with id.
      * The order of the transforms is depth-first.
      * @name SetBoneTransforms
-     * @param instance [type: HImstance] First Instance of the hierarchy to set
+     * @param instance [type: HInstance] First Instance of the hierarchy to set
      * @param component_transform [type: dmTransform::Transform] the transform for component root
-     * @param transforms Array of transforms to set depth-first for the bone instances
-     * @param transform_count Size of the transforms array
+     * @param transforms [type: dmTransform::Transform*]  Array of transforms to set depth-first for the bone instances
+     * @param transform_count [type: uint32_t] Size of the transforms array
      * @return Number of instances found
      */
     uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform& component_transform, dmTransform::Transform* transforms, uint32_t transform_count);
@@ -788,24 +840,26 @@ namespace dmGameObject
     /*#
      * Get the component type index
      * @name GetComponentTypeIndex
-     * @param collection Collection handle
-     * @param type_hash [type:dhmash_t] The hashed name of the registered component type (e.g. dmHashString("guic"))
+     * @param collection [type:HCollection] Collection handle
+     * @param type_hash [type:dmhash_t] The hashed name of the registered component type (e.g. dmHashString("guic"))
      * @return type_index [type:uint32_t] The component type index. 0xFFFFFFFF if not found
      */
     uint32_t GetComponentTypeIndex(HCollection collection, dmhash_t type_hash);
 
     /*#
      * Retrieve the world in the collection connected to the supplied component
-     * @param collection Collection handle
-     * @param component_type_index index of the component type
+     * @name GetWorld
+     * @param collection [type:HCollection] Collection handle
+     * @param component_type_index [type:uint32_t] index of the component type
      * @return world [type:void*] The pointer to the world, 0x0 if not found
      */
     HComponentWorld GetWorld(HCollection collection, uint32_t component_type_index);
 
     /*#
      * Retrieve the context for a component type
-     * @param collection Collection handle
-     * @param component_type_index index of the component type
+     * @name GetContext
+     * @param collection [type:HCollection] Collection handle
+     * @param component_type_index [type:uint32_t] index of the component type
      * @return context [type:void*] The pointer to the context, 0x0 if not found
      */
     void* GetContext(HCollection collection, uint32_t component_type_index);

@@ -16,11 +16,14 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.attachment :as attachment]
             [editor.build-target :as bt]
             [editor.collision-groups :as collision-groups]
             [editor.defold-project :as project]
+            [editor.editor-extensions.node-types :as node-types]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
+            [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.math :as math]
@@ -38,6 +41,7 @@
             [schema.core :as s]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Physics$CollisionObjectDesc Physics$CollisionObjectType Physics$CollisionShape$Shape]
+           [com.jogamp.opengl GL2]
            [javax.vecmath Matrix4d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -113,7 +117,7 @@
                                                      {:node-id _node-id
                                                       :node-outline-key node-outline-key
                                                       :label (if (empty? id)
-                                                               (shape-type-label shape-type)
+                                                               (str "<Unnamed " (shape-type-label shape-type) ">")
                                                                id)
                                                       :icon (shape-type-icon shape-type)})))
 
@@ -140,6 +144,8 @@
 (def ^:private render-lines-uniform-scale (wrap-uniform-scale scene-shapes/render-lines))
 
 (def ^:private render-triangles-uniform-scale (wrap-uniform-scale scene-shapes/render-triangles))
+
+(def ^:private render-points-uniform-scale (wrap-uniform-scale scene-shapes/render-points))
 
 (g/defnk produce-sphere-shape-scene
   [_node-id transform diameter color node-outline-key project-physics-type]
@@ -251,6 +257,7 @@
   (inherits Shape)
 
   (property diameter g/Num ; Always assigned in load-fn.
+            (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? diameter)))
 
   (display-order [Shape :diameter])
@@ -277,6 +284,7 @@
   (inherits Shape)
 
   (property dimensions types/Vec3 ; Always assigned in load-fn.
+            (default [0.0 0.0 0.0]) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic error (validation/prop-error-fnk :fatal
                                                       (fn [d _] (when (some #(<= % 0.0) d)
                                                                   "All dimensions must be greater than zero"))
@@ -303,8 +311,10 @@
   (inherits Shape)
 
   (property diameter g/Num ; Always assigned in load-fn.
+            (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? diameter)))
   (property height g/Num ; Always assigned in load-fn.
+            (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? height)))
 
   (display-order [Shape :diameter :height])
@@ -322,24 +332,33 @@
         old-height (g/node-value node-id :height evaluation-context)
         new-diameter (properties/scale-by-absolute-value-and-round old-diameter (.getX delta))
         new-height (properties/scale-by-absolute-value-and-round old-height (.getY delta))]
-    (g/set-property node-id :diameter new-diameter :height new-height)))
+    (g/set-properties node-id :diameter new-diameter :height new-height)))
 
 (defmethod scene-tools/manip-scale-manips ::CapsuleShape
   [node-id]
   [:scale-x :scale-y :scale-xy])
 
+(defn- resolve-shape-node-outline-key [evaluation-context parent-node shape-node]
+  (let [type-label (:label (shape-type-ui (g/node-value shape-node :shape-type evaluation-context)))
+        taken-keys (outline/taken-node-outline-keys parent-node evaluation-context)]
+    (g/update-property shape-node :node-outline-key (fnil outline/next-node-outline-key type-label) taken-keys)))
+
 (defn attach-shape-node
-  [resolve-node-outline-key? parent shape-node]
-  (concat
-    (g/connect shape-node :_node-id              parent     :nodes)
-    (g/connect shape-node :node-outline          parent     :child-outlines)
-    (g/connect shape-node :scene                 parent     :child-scenes)
-    (g/connect shape-node :shape                 parent     :shapes)
-    (g/connect parent     :id-counts             shape-node :id-counts)
-    (g/connect parent     :collision-group-color shape-node :color)
-    (g/connect parent     :project-physics-type  shape-node :project-physics-type)
-    (when resolve-node-outline-key?
-      (g/update-property shape-node :node-outline-key outline/next-node-outline-key (outline/taken-node-outline-keys parent)))))
+  ([parent shape-node]
+   (attach-shape-node true parent shape-node))
+  ([resolve-node-outline-key? parent shape-node]
+   (concat
+     (when resolve-node-outline-key?
+       ;; resolve the node outline key before connecting the shape node so taken
+       ;; node outline keys don't include the shape node key
+       (g/expand-ec resolve-shape-node-outline-key parent shape-node))
+     (g/connect shape-node :_node-id              parent     :nodes)
+     (g/connect shape-node :node-outline          parent     :child-outlines)
+     (g/connect shape-node :scene                 parent     :child-scenes)
+     (g/connect shape-node :shape                 parent     :shapes)
+     (g/connect parent     :id-counts             shape-node :id-counts)
+     (g/connect parent     :collision-group-color shape-node :color)
+     (g/connect parent     :project-physics-type  shape-node :project-physics-type))))
 
 (defmulti decode-shape-data
   (fn [shape data] (:shape-type shape)))
@@ -409,12 +428,57 @@
                   (outline/gen-node-outline-keys (map (comp shape-type-label :shape-type)
                                                       shapes)))))))
 
+(defn convex-hull-scene
+  [_node-id convex-shape-data color project-physics-type]
+  (when (and (= (:shape-type convex-shape-data) :type-hull)
+             (not-empty (:data convex-shape-data)))
+    (let [points (partition 3 (:data convex-shape-data))
+          [min-coords max-coords] (reduce (fn [[min-point max-point] point]
+                                            [(mapv min min-point point) (mapv max max-point point)])
+                                          [(repeat Double/MAX_VALUE) (repeat Double/MIN_VALUE)]
+                                          points)
+          aabb (geom/coords->aabb max-coords min-coords)
+          vbuf (vtx/flip! (reduce (fn [vb [x y z]] (scene-shapes/pos-vtx-put! vb x y z 0.0))
+                                  (scene-shapes/->pos-vtx (count points) :static)
+                                  points))]
+      (if (= "2D" project-physics-type)
+        {:node-id _node-id
+         :node-outline-key "2D Convex Hull"
+         :aabb aabb
+         :renderable {:render-fn render-triangles-uniform-scale
+                      :tags #{:collision-shape}
+                      :passes [pass/transparent pass/selection]
+                      :user-data {:color color
+                                  :double-sided true
+                                  :geometry {:primitive-type GL2/GL_POLYGON
+                                             :vbuf vbuf}}}
+         :children [{:node-id _node-id
+                     :aabb aabb
+                     :renderable {:render-fn render-lines-uniform-scale
+                                  :tags #{:collision-shape :outline}
+                                  :passes [pass/outline]
+                                  :user-data {:color color
+                                              :geometry {:primitive-type GL2/GL_LINE_LOOP
+                                                         :vbuf vbuf}}}}]}
+        {:node-id _node-id
+         :node-outline-key "3D Convex Hull"
+         :aabb aabb
+         :renderable {:render-fn render-points-uniform-scale
+                      :tags #{:collision-shape :outline}
+                      :passes [pass/outline]
+                      :user-data {:color color
+                                  :point-size 3.0
+                                  :geometry {:primitive-type GL2/GL_POINTS
+                                             :vbuf vbuf}}}}))))
+
 (g/defnk produce-scene
-  [_node-id child-scenes]
+  [_node-id child-scenes convex-shape-data collision-group-color project-physics-type]
   {:node-id _node-id
    :aabb geom/null-aabb
    :renderable {:passes [pass/selection]}
-   :children child-scenes})
+   :children (if convex-shape-data
+               [(convex-hull-scene _node-id convex-shape-data collision-group-color project-physics-type)]
+               child-scenes)})
 
 (defn- make-embedded-collision-shape [shapes]
   (loop [idx 0
@@ -555,13 +619,15 @@
   (input dep-build-targets g/Any :array)
   (input collision-groups-data g/Any)
   (input project-settings g/Any)
+  (input convex-shape-data g/Any)
 
   (property collision-shape resource/Resource ; Nil is valid default.
             (value (gu/passthrough collision-shape-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :collision-shape-resource]
-                                            [:build-targets :dep-build-targets])))
+                                            [:build-targets :dep-build-targets]
+                                            [:save-value :convex-shape-data])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"convexshape" "tilemap"}}))
             (dynamic error (g/fnk [_node-id collision-shape shapes]
                              (or (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")
@@ -614,7 +680,7 @@
                                                       :icon collision-object-icon
                                                       :children (outline/natural-sort child-outlines)
                                                       :child-reqs [{:node-type Shape
-                                                                    :tx-attach-fn (partial attach-shape-node true)}]}))
+                                                                    :tx-attach-fn attach-shape-node}]}))
 
   (output id-counts NameCounts :cached (g/fnk [shapes] (frequencies (keep :id shapes))))
   (output save-value g/Any :cached produce-save-value)
@@ -622,23 +688,34 @@
   (output collision-group-node g/Any :cached (g/fnk [_node-id group] {:node-id _node-id :collision-group group}))
   (output collision-group-color g/Any :cached produce-collision-group-color))
 
+(node-types/register-node-type-name! SphereShape "shape-type-sphere")
+(node-types/register-node-type-name! BoxShape "shape-type-box")
+(node-types/register-node-type-name! CapsuleShape "shape-type-capsule")
+
 (defn- sanitize-collision-object [collision-object-desc]
   (strip-empty-embedded-collision-shape collision-object-desc))
 
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext "collisionobject"
-    :node-type CollisionObjectNode
-    :ddf-type Physics$CollisionObjectDesc
-    :load-fn load-collision-object
-    :sanitize-fn sanitize-collision-object
-    :icon collision-object-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:grid true}}
-    :tags #{:component}
-    :tag-opts {:component {:transform-properties #{}}}
-    :label "Collision Object"))
+  (concat
+    (attachment/register
+      workspace CollisionObjectNode :shapes
+      :add {SphereShape attach-shape-node
+            BoxShape attach-shape-node
+            CapsuleShape attach-shape-node}
+      :get attachment/nodes-getter)
+    (resource-node/register-ddf-resource-type workspace
+      :ext "collisionobject"
+      :node-type CollisionObjectNode
+      :ddf-type Physics$CollisionObjectDesc
+      :load-fn load-collision-object
+      :sanitize-fn sanitize-collision-object
+      :icon collision-object-icon
+      :icon-class :design
+      :view-types [:scene :text]
+      :view-opts {:scene {:grid true}}
+      :tags #{:component}
+      :tag-opts {:component {:transform-properties #{}}}
+      :label "Collision Object")))
 
 ;; outline context menu
 
@@ -672,7 +749,7 @@
 (defn- selection->collision-object [selection]
   (handler/adapt-single selection CollisionObjectNode))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data]
          (if-not user-data
            "Add Shape"
@@ -687,7 +764,7 @@
                     (reduce-kv (fn [res shape-type {:keys [label icon]}]
                                  (conj res {:label label
                                             :icon icon
-                                            :command :add
+                                            :command :edit.add-embedded-component
                                             :user-data {:_node-id self :shape-type shape-type}}))
                                [])
                     (sort-by :label)

@@ -155,7 +155,8 @@ namespace dmGameSystem
     {
         TextureSetResource* tile_set = new TextureSetResource();
 
-        dmResource::Result r = AcquireResources(((PhysicsContext*) params->m_Context)->m_Context2D, params->m_Factory, (dmGameSystemDDF::TextureSet*) params->m_PreloadData, tile_set, params->m_Filename, false);
+        PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*) params->m_Context;
+        dmResource::Result r = AcquireResources(physics_context->m_Context, params->m_Factory, (dmGameSystemDDF::TextureSet*) params->m_PreloadData, tile_set, params->m_Filename, false);
         if (r == dmResource::RESULT_OK)
         {
             dmResource::SetResource(params->m_Resource, tile_set);
@@ -186,9 +187,10 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
+        PhysicsContextBox2D* physics_context = (PhysicsContextBox2D*) params->m_Context;
         TextureSetResource* tile_set = (TextureSetResource*)dmResource::GetResource(params->m_Resource);
         TextureSetResource tmp_tile_set;
-        dmResource::Result r = AcquireResources(((PhysicsContext*) params->m_Context)->m_Context2D, params->m_Factory, texture_set_ddf, &tmp_tile_set, params->m_Filename, true);
+        dmResource::Result r = AcquireResources(physics_context->m_Context, params->m_Factory, texture_set_ddf, &tmp_tile_set, params->m_Filename, true);
         if (r == dmResource::RESULT_OK)
         {
             ReleaseResources(params->m_Factory, tile_set);

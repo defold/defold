@@ -17,7 +17,7 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 eval $(python $SCRIPT_DIR/../../../build_tools/set_sdk_vars.py VERSION_XCODE)
 pushd $SCRIPT_DIR/..
-BUILD_DIR=$(realpath ./build/src)
+BUILD_DIR=$(realpath ${DYNAMO_HOME}/../../engine/modelc/build/src)
 
 set -e
 
@@ -99,4 +99,6 @@ fi
 
 export DM_MODELIMPORTER_LOG_LEVEL=DEBUG
 
-java ${JNI_DEBUG_FLAGS} -Djava.library.path=${BUILD_DIR} -Djni.library.path=${BUILD_DIR} ${JNA_DEBUG_FLAGS} -cp ${JAR} ${CLASS_NAME} $*
+MODELINPUT=$1
+shift
+java ${JNI_DEBUG_FLAGS} -Djava.library.path=${BUILD_DIR} -Djni.library.path=${BUILD_DIR} ${JNA_DEBUG_FLAGS} -cp ${JAR} ${CLASS_NAME} "${MODELINPUT}" $*

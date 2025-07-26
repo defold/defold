@@ -31,7 +31,7 @@
 #include "../gamesys_private.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_CollectionFactory, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_CollectionFactory, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
 
 namespace dmGameSystem
 {
@@ -407,5 +407,13 @@ namespace dmGameSystem
         component->m_CustomResource = resource;
     }
 
+    dmGameObject::Result CompCollectionFactorySpawn(HCollectionFactoryWorld world, HCollectionFactoryComponent component, dmGameObject::HCollection collection,
+                                                const char* id_prefix,
+                                                const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
+                                                dmGameObject::InstancePropertyContainers* properties, dmGameObject::InstanceIdMap* out_instances)
+    {
+        return dmGameObject::SpawnFromCollection(collection, CompCollectionFactoryGetResource(component)->m_CollectionDesc, id_prefix,
+                                                         properties, position, rotation, scale, out_instances);
+    }
 }
 

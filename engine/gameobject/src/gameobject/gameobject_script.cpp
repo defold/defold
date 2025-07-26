@@ -60,6 +60,7 @@ namespace dmGameObject
      * @document
      * @name Game object
      * @namespace go
+     * @language Lua
      */
 
     /*# [type:vector3] game object position
@@ -166,17 +167,6 @@ namespace dmGameObject
         "on_message",
         "on_input",
         "on_reload"
-    };
-
-    static const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
-        "number",        // PROPERTY_TYPE_NUMBER
-        "hash",          // PROPERTY_TYPE_HASH
-        "msg.url",       // PROPERTY_TYPE_URL
-        "vmath.vector3", // PROPERTY_TYPE_VECTOR3
-        "vmath.vector4", // PROPERTY_TYPE_VECTOR4
-        "vmath.quat",    // PROPERTY_TYPE_QUAT
-        "boolean",       // PROPERTY_TYPE_BOOLEAN
-        "vmath.matrix4", // PROPERTY_TYPE_MATRIX4
     };
 
     HRegister g_Register = 0;
@@ -297,11 +287,11 @@ namespace dmGameObject
         out_url->m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
     }
 
-    static dmhash_t ScriptInstanceResolvePathCB(uintptr_t resolve_user_data, const char* path, uint32_t path_size) {
+    static dmhash_t ScriptInstanceResolvePathCB(uintptr_t resolve_user_data, const char* path) {
         ScriptInstance* i = (ScriptInstance*)resolve_user_data;
         if (path != 0x0 && *path != 0)
         {
-            return GetAbsoluteIdentifier(i->m_Instance, path, strlen(path));
+            return GetAbsoluteIdentifier(i->m_Instance, path);
         }
         else
         {
@@ -335,7 +325,7 @@ namespace dmGameObject
 
         if (path != 0x0 && *path != 0)
         {
-            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, path, strlen(path)));
+            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, path));
         }
         else
         {
@@ -373,6 +363,13 @@ namespace dmGameObject
         return 1;
     }
 
+    static int ScriptGetUniqueScriptId(lua_State* L)
+    {
+        ScriptInstance* inst = (ScriptInstance*)lua_touserdata(L, 1);
+        lua_pushinteger(L, (lua_Integer)inst->m_UniqueScriptId);
+        return 1;
+    }
+
     static const luaL_reg ScriptInstance_methods[] =
     {
         {0,0}
@@ -389,6 +386,7 @@ namespace dmGameObject
         {dmScript::META_TABLE_IS_VALID,                 ScriptInstanceIsValid},
         {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, ScriptGetInstanceContextTableRef},
         {dmScript::META_GET_INSTANCE_DATA_TABLE_REF,    ScriptGetInstanceDataTableRef},
+        {dmScript::META_GET_UNIQUE_SCRIPT_ID,           ScriptGetUniqueScriptId},
         {0, 0}
     };
 
@@ -551,9 +549,9 @@ namespace dmGameObject
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to retrieve
      * @param [options] [type:table] optional options table
-     * - index [type:integer] index into array property (1 based)
+     * - index [type:number] index into array property (1 based)
      * - key [type:hash] name of internal property
-     * @return value [type:any] the value of the specified property
+     * @return value [type:number|boolean|hash|url|vector3|vector4|quaternion|resource] the value of the specified property
      *
      * @examples
      * Get a property "speed" from a script "player", the property must be declared in the player-script:
@@ -677,76 +675,12 @@ namespace dmGameObject
         return CheckGetPropertyResult(L, "go", result, property_desc, property_id, target, property_options, index_requested);
     }
 
-    static int HandleGoSetResult(lua_State* L, dmGameObject::PropertyResult result, dmhash_t property_id, dmGameObject::HInstance target_instance, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options)
-    {
-        DM_HASH_REVERSE_MEM(hash_ctx, 512);
-
-        switch (result)
-        {
-            case dmGameObject::PROPERTY_RESULT_OK:
-                return 0;
-            case PROPERTY_RESULT_NOT_FOUND:
-            {
-                // The supplied URL parameter don't need to be a string,
-                // we let Lua handle the "conversion" to string using concatenation.
-                const char* name = "nil";
-                if (!lua_isnil(L, 1))
-                {
-                    lua_pushliteral(L, "");
-                    lua_pushvalue(L, 1);
-                    lua_concat(L, 2);
-                    name = lua_tostring(L, -1);
-                    lua_pop(L, 1);
-                }
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            }
-            case PROPERTY_RESULT_UNSUPPORTED_TYPE:
-            case PROPERTY_RESULT_TYPE_MISMATCH:
-            {
-                dmGameObject::PropertyDesc property_desc;
-                dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_options, property_desc);
-                return luaL_error(L, "the property '%s' of '%s' must be a %s", dmHashReverseSafe64Alloc(&hash_ctx, property_id), lua_tostring(L, 1), TYPE_NAMES[property_desc.m_Variant.m_Type]);
-            }
-            case PROPERTY_RESULT_READ_ONLY:
-            {
-                return luaL_error(L, "Unable to set the property '%s' since it is read only", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            }
-            case dmGameObject::PROPERTY_RESULT_INVALID_INDEX:
-            {
-                if (property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Property '%s' is an array, but in options table specified key instead of index.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-                }
-                return luaL_error(L, "Invalid index %d for property '%s'", property_options.m_Index+1, dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            }
-            case dmGameObject::PROPERTY_RESULT_INVALID_KEY:
-            {
-                if (!property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Property '%s' is a hashtable, but in options table specified index instead of key.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-                }
-                return luaL_error(L, "Invalid key '%s' for property '%s'", dmHashReverseSafe64Alloc(&hash_ctx, property_options.m_Key), dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            }
-            case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-                return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Fragment), lua_tostring(L, 1));
-            case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE:
-                return luaL_error(L, "go.set failed because the value is unsupported");
-            case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION:
-                return luaL_error(L, "could not perform unsupported operation on '%s'", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            default:
-                // Should never happen, programmer error
-                return luaL_error(L, "go.set failed with error code %d", result);
-        }
-
-        return 0;
-    }
-
     /*# sets a named property of the specified game object or component, or a material constant
      *
      * @name go.set
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to set
-     * @param value [type:any|table] the value to set
+     * @param value [type:number|boolean|hash|url|vector3|vector4|quaternion|resource] the value to set
      * @param [options] [type:table] optional options table
      * - index [type:integer] index into array property (1 based)
      * - key [type:hash] name of internal property
@@ -867,7 +801,7 @@ namespace dmGameObject
                     result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_options, property_var);
                     if (result != PROPERTY_RESULT_OK)
                     {
-                        return HandleGoSetResult(L, result, property_id, target_instance, target, property_options);
+                        return dmGameObject::HandleGoSetResult(L, result, property_id, target_instance, target, property_options);
                     }
                 }
 
@@ -885,7 +819,7 @@ namespace dmGameObject
                 result = dmGameObject::SetProperty(target_instance, target.m_Fragment, property_id, property_options, property_var);
             }
 
-            return HandleGoSetResult(L, result, property_id, target_instance, target, property_options);
+            return dmGameObject::HandleGoSetResult(L, result, property_id, target_instance, target, property_options);
         }
 
         return 0;
@@ -1445,7 +1379,7 @@ namespace dmGameObject
         if (lua_gettop(L) > 0)
         {
             const char* ident = luaL_checkstring(L, 1);
-            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, ident, strlen(ident)));
+            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, ident));
         }
         else
         {
@@ -1525,7 +1459,7 @@ namespace dmGameObject
      * @name go.animate
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to animate
-     * @param playback [type:constant] playback mode of the animation
+     * @param playback [type:go.PLAYBACK_ONCE_FORWARD|go.PLAYBACK_ONCE_BACKWARD|go.PLAYBACK_ONCE_PINGPONG|go.PLAYBACK_LOOP_FORWARD|go.PLAYBACK_LOOP_BACKWARD|go.PLAYBACK_LOOP_PINGPONG] playback mode of the animation
      *
      * - `go.PLAYBACK_ONCE_FORWARD`
      * - `go.PLAYBACK_ONCE_BACKWARD`
@@ -1535,7 +1469,7 @@ namespace dmGameObject
      * - `go.PLAYBACK_LOOP_PINGPONG`
      *
      * @param to [type:number|vector3|vector4|quaternion] target property value
-     * @param easing [type:constant|vector] easing to use during animation. Either specify a constant, see the <a href="/manuals/animation#_easing">animation guide</a> for a complete list, or a vmath.vector with a curve
+     * @param easing [type:vector|go.EASING_INBACK|go.EASING_INBOUNCE|go.EASING_INCIRC|go.EASING_INCUBIC|go.EASING_INELASTIC|go.EASING_INEXPO|go.EASING_INOUTBACK|go.EASING_INOUTBOUNCE|go.EASING_INOUTCIRC|go.EASING_INOUTCUBIC|go.EASING_INOUTELASTIC|go.EASING_INOUTEXPO|go.EASING_INOUTQUAD|go.EASING_INOUTQUART|go.EASING_INOUTQUINT|go.EASING_INOUTSINE|go.EASING_INQUAD|go.EASING_INQUART|go.EASING_INQUINT|go.EASING_INSINE|go.EASING_LINEAR|go.EASING_OUTBACK|go.EASING_OUTBOUNCE|go.EASING_OUTCIRC|go.EASING_OUTCUBIC|go.EASING_OUTELASTIC|go.EASING_OUTEXPO|go.EASING_OUTINBACK|go.EASING_OUTINBOUNCE|go.EASING_OUTINCIRC|go.EASING_OUTINCUBIC|go.EASING_OUTINELASTIC|go.EASING_OUTINEXPO|go.EASING_OUTINQUAD|go.EASING_OUTINQUART|go.EASING_OUTINQUINT|go.EASING_OUTINSINE|go.EASING_OUTQUAD|go.EASING_OUTQUART|go.EASING_OUTQUINT|go.EASING_OUTSINE] easing to use during animation. Either specify a constant, see the <a href="/manuals/animation#_easing">animation guide</a> for a complete list, or a vmath.vector with a curve
      * @param duration [type:number] duration of the animation in seconds
      * @param [delay] [type:number] delay before the animation starts in seconds
      * @param [complete_function] [type:function(self, url, property)] optional function to call when the animation has completed
@@ -1677,7 +1611,7 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "The property '%s' of '%s' has incorrect type", dmHashReverseSafe64Alloc(&hash_ctx, property_id), name);
+                return luaL_error(L, "The property '%s' of '%s' has incorrect type %d (errcode: %d)", dmHashReverseSafe64Alloc(&hash_ctx, property_id), name, property_var.m_Type, result);
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
             return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Fragment), lua_tostring(L, 1));
@@ -1823,10 +1757,6 @@ namespace dmGameObject
                 {
                     return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64Alloc(&hash_ctx, dmGameObject::GetIdentifier(todelete)));
                 }
-                if (todelete->m_Generated)
-                {
-                    dmScript::ReleaseHash(L, todelete->m_Identifier);
-                }
                 dmGameObject::Delete(hcollection, todelete, recursive);
             }
             else
@@ -1935,20 +1865,16 @@ namespace dmGameObject
             }
             else if(lua_isnil(L, 1))
             {
-                dmLogWarning("go.delete() invoked with nil and self will be deleted");
+                return luaL_error(L, "go.delete() invoked with first argument 'id' set to 'nil'");
             }
         }
 
-        // Resolive argument #1 url
+        // Resolve argument #1 url
         dmGameObject::HInstance instance = ResolveInstance(L, 1);
         if(dmGameObject::IsBone(instance))
         {
             DM_HASH_REVERSE_MEM(hash_ctx, 256);
             return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64Alloc(&hash_ctx, dmGameObject::GetIdentifier(instance)));
-        }
-        if (instance->m_Generated)
-        {
-            dmScript::ReleaseHash(L, instance->m_Identifier);
         }
         dmGameObject::HCollection collection = instance->m_Collection->m_HCollection;
         dmGameObject::Delete(collection, instance, recursive);
@@ -2069,10 +1995,12 @@ namespace dmGameObject
 
 
     /*# check if the specified game object exists
-     *
+     * A lua-error will be raised if the game object belongs to another
+     * collection than the collection from which the function was called.
+     * 
      * @name go.exists
      * @param url [type:string|hash|url] url of the game object to check
-     * @return exists [type:bool] true if the game object exists
+     * @return exists [type:boolean] true if the game object exists
      *
      * @examples
      * Check if game object "my_game_object" exists
@@ -2084,13 +2012,23 @@ namespace dmGameObject
     int Script_Exists(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        int top = lua_gettop(L);
-        if (top == 1 && lua_isnil(L, 1))
+        if (lua_isnil(L, 1))
         {
             return luaL_error(L, "The url shouldn't be `nil`");
         }
+
+        // get "this" instance
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
+
+        // resolve instance provided as argument and make sure it is the same as "this"
+        dmMessage::URL receiver;
+        dmScript::ResolveURL(L, 1, &receiver, 0x0);
+        if (receiver.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
+        {
+            luaL_error(L, "function called can only access instances within the same collection.");
+        }
+
         dmMessage::URL sender;
         dmScript::GetURL(L, &sender);
         dmMessage::URL target;
@@ -2521,6 +2459,7 @@ bail:
         i->m_Instance = instance;
         i->m_ScriptWorld = script_world->m_ScriptWorld;
         i->m_ComponentIndex = component_index;
+        i->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
         NewPropertiesParams params;
         params.m_ResolvePathCallback = ScriptInstanceResolvePathCB;
         params.m_ResolvePathUserData = (uintptr_t)L;
@@ -2573,7 +2512,7 @@ bail:
 #define CHECK_PROP_RESULT(key, type, expected_type, result)\
     if (result == PROPERTY_RESULT_OK) {\
         if (type != expected_type) {\
-            dmLogError("The property '%s' must be of type '%s'.", key, TYPE_NAMES[expected_type]);\
+            dmLogError("The property '%s' must be of type '%s'.", key, dmGameObject::TYPE_NAMES[expected_type]);\
             result = PROPERTY_RESULT_TYPE_MISMATCH;\
         }\
     }\
@@ -2673,7 +2612,7 @@ bail:
      * to set the initial state of the script.
      *
      * @name init
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * ```lua
@@ -2690,7 +2629,7 @@ bail:
      * or release user input focus (see [ref:release_input_focus]).
      *
      * @name final
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * ```lua
@@ -2706,7 +2645,7 @@ bail:
      * It can be used to perform any kind of game related tasks, e.g. moving the game object instance.
      *
      * @name update
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param dt [type:number] the time-step of the frame update
      * @examples
      *
@@ -2733,7 +2672,7 @@ bail:
      * physics (enabled by ticking 'Use Fixed Timestep' in the Physics section of game.project).
      *
      * @name fixed_update
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param dt [type:number] the time-step of the frame update
      * @examples
      */
@@ -2747,7 +2686,7 @@ bail:
      * documentation of the message specifies which data is supplied.
      *
      * @name on_message
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param message_id [type:hash] id of the received message
      * @param message [type:table] a table containing the message data
      * @param sender [type:url] address of the sender
@@ -2810,22 +2749,36 @@ bail:
      *
      * Here is a brief description of the available table fields:
      *
-     * Field       | Description
-     * ----------- | ----------------------------------------------------------
-     * `value`     | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.
-     * `pressed`   | If the input was pressed this frame. This is not present for mouse movement.
-     * `released`  | If the input was released this frame. This is not present for mouse movement.
-     * `repeated`  | If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.
-     * `x`         | The x value of a pointer device, if present.
-     * `y`         | The y value of a pointer device, if present.
-     * `screen_x`  | The screen space x value of a pointer device, if present.
-     * `screen_y`  | The screen space y value of a pointer device, if present.
-     * `dx`        | The change in x value of a pointer device, if present.
-     * `dy`        | The change in y value of a pointer device, if present.
-     * `screen_dx` | The change in screen space x value of a pointer device, if present.
-     * `screen_dy` | The change in screen space y value of a pointer device, if present.
-     * `gamepad`   | The index of the gamepad device that provided the input.
-     * `touch`     | List of touch input, one element per finger, if present. See table below about touch input
+     * Field         | Description
+     * ------------- | ----------------------------------------------------------
+     * `value`       | The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement and text input.
+     * `pressed`     | If the input was pressed this frame. This is not present for mouse movement and text input.
+     * `released`    | If the input was released this frame. This is not present for mouse movement and text input.
+     * `repeated`    | If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement and text input.
+     * `x`           | The x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `y`           | The y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_x`    | The screen space x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_y`    | The screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `dx`          | The change in x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `dy`          | The change in y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_dx`   | The change in screen space x value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `screen_dy`   | The change in screen space y value of a pointer device, if present. This is not present for gamepad, key and text input.
+     * `gamepad`     | The index of the gamepad device that provided the input. See table below about gamepad input.
+     * `touch`       | List of touch input, one element per finger, if present. See table below about touch input
+     * `text`        | Text input from a (virtual) keyboard or similar.
+     * `marked_text` | Sequence of entered symbols while entering a symbol combination, for example Japanese Kana.
+     *
+     * Gamepad specific fields:
+     *
+     * Field             | Description
+     * ----------------- | ----------------------------------------------------------
+     * `gamepad`         | The index of the gamepad device that provided the input.
+     * `userid`          | Id of the user associated with the controller. Usually only relevant on consoles.
+     * `gamepad_unknown` | True if the inout originated from an unknown/unmapped gamepad.
+     * `gamepad_name`    | Name of the gamepad
+     * `gamepad_axis`    | List of gamepad axis values. For raw gamepad input only.
+     * `gamepadhats`     | List of gamepad hat values. For raw gamepad input only.
+     * `gamepad_buttons` | List of gamepad button values. For raw gamepad input only.
      *
      * Touch input table:
      *
@@ -2844,7 +2797,7 @@ bail:
      * `acc_z`     | Accelerometer z value (if present).
      *
      * @name on_input
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
      * @param action [type:table] a table containing the input data, see above for a description
      * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
@@ -2886,7 +2839,7 @@ bail:
      * It can be used for live development, e.g. to tweak constants or set up the state properly for the instance.
      *
      * @name on_reload
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * This example demonstrates how to tweak the speed of a game object instance that is moved on user input.
@@ -2927,242 +2880,242 @@ bail:
     /*# no playback
      *
      * @name go.PLAYBACK_NONE
-     * @variable
+     * @constant
      */
     /*# once forward
      *
      * @name go.PLAYBACK_ONCE_FORWARD
-     * @variable
+     * @constant
      */
     /*# once backward
      *
      * @name go.PLAYBACK_ONCE_BACKWARD
-     * @variable
+     * @constant
      */
     /*# once ping pong
      *
      * @name go.PLAYBACK_ONCE_PINGPONG
-     * @variable
+     * @constant
      */
     /*# loop forward
      *
      * @name go.PLAYBACK_LOOP_FORWARD
-     * @variable
+     * @constant
      */
     /*# loop backward
      *
      * @name go.PLAYBACK_LOOP_BACKWARD
-     * @variable
+     * @constant
      */
     /*# ping pong loop
      *
      * @name go.PLAYBACK_LOOP_PINGPONG
-     * @variable
+     * @constant
      */
 
     /*# linear interpolation
      *
      * @name go.EASING_LINEAR
-     * @variable
+     * @constant
      */
     /*# in-quadratic
      *
      * @name go.EASING_INQUAD
-     * @variable
+     * @constant
      */
     /*# out-quadratic
      *
      * @name go.EASING_OUTQUAD
-     * @variable
+     * @constant
      */
     /*# in-out-quadratic
      *
      * @name go.EASING_INOUTQUAD
-     * @variable
+     * @constant
      */
     /*# out-in-quadratic
      *
      * @name go.EASING_OUTINQUAD
-     * @variable
+     * @constant
      */
     /*# in-cubic
      *
      * @name go.EASING_INCUBIC
-     * @variable
+     * @constant
      */
     /*# out-cubic
      *
      * @name go.EASING_OUTCUBIC
-     * @variable
+     * @constant
      */
     /*# in-out-cubic
      *
      * @name go.EASING_INOUTCUBIC
-     * @variable
+     * @constant
      */
     /*# out-in-cubic
      *
      * @name go.EASING_OUTINCUBIC
-     * @variable
+     * @constant
      */
     /*# in-quartic
      *
      * @name go.EASING_INQUART
-     * @variable
+     * @constant
      */
     /*# out-quartic
      *
      * @name go.EASING_OUTQUART
-     * @variable
+     * @constant
      */
     /*# in-out-quartic
      *
      * @name go.EASING_INOUTQUART
-     * @variable
+     * @constant
      */
     /*# out-in-quartic
      *
      * @name go.EASING_OUTINQUART
-     * @variable
+     * @constant
      */
     /*# in-quintic
      *
      * @name go.EASING_INQUINT
-     * @variable
+     * @constant
      */
     /*# out-quintic
      *
      * @name go.EASING_OUTQUINT
-     * @variable
+     * @constant
      */
     /*# in-out-quintic
      *
      * @name go.EASING_INOUTQUINT
-     * @variable
+     * @constant
      */
     /*# out-in-quintic
      *
      * @name go.EASING_OUTINQUINT
-     * @variable
+     * @constant
      */
     /*# in-sine
      *
      * @name go.EASING_INSINE
-     * @variable
+     * @constant
      */
     /*# out-sine
      *
      * @name go.EASING_OUTSINE
-     * @variable
+     * @constant
      */
     /*# in-out-sine
      *
      * @name go.EASING_INOUTSINE
-     * @variable
+     * @constant
      */
     /*# out-in-sine
      *
      * @name go.EASING_OUTINSINE
-     * @variable
+     * @constant
      */
     /*# in-exponential
      *
      * @name go.EASING_INEXPO
-     * @variable
+     * @constant
      */
     /*# out-exponential
      *
      * @name go.EASING_OUTEXPO
-     * @variable
+     * @constant
      */
     /*# in-out-exponential
      *
      * @name go.EASING_INOUTEXPO
-     * @variable
+     * @constant
      */
     /*# out-in-exponential
      *
      * @name go.EASING_OUTINEXPO
-     * @variable
+     * @constant
      */
     /*# in-circlic
      *
      * @name go.EASING_INCIRC
-     * @variable
+     * @constant
      */
     /*# out-circlic
      *
      * @name go.EASING_OUTCIRC
-     * @variable
+     * @constant
      */
     /*# in-out-circlic
      *
      * @name go.EASING_INOUTCIRC
-     * @variable
+     * @constant
      */
     /*# out-in-circlic
      *
      * @name go.EASING_OUTINCIRC
-     * @variable
+     * @constant
      */
     /*# in-elastic
      *
      * @name go.EASING_INELASTIC
-     * @variable
+     * @constant
      */
     /*# out-elastic
      *
      * @name go.EASING_OUTELASTIC
-     * @variable
+     * @constant
      */
     /*# in-out-elastic
      *
      * @name go.EASING_INOUTELASTIC
-     * @variable
+     * @constant
      */
     /*# out-in-elastic
      *
      * @name go.EASING_OUTINELASTIC
-     * @variable
+     * @constant
      */
     /*# in-back
      *
      * @name go.EASING_INBACK
-     * @variable
+     * @constant
      */
     /*# out-back
      *
      * @name go.EASING_OUTBACK
-     * @variable
+     * @constant
      */
     /*# in-out-back
      *
      * @name go.EASING_INOUTBACK
-     * @variable
+     * @constant
      */
     /*# out-in-back
      *
      * @name go.EASING_OUTINBACK
-     * @variable
+     * @constant
      */
     /*# in-bounce
      *
      * @name go.EASING_INBOUNCE
-     * @variable
+     * @constant
      */
     /*# out-bounce
      *
      * @name go.EASING_OUTBOUNCE
-     * @variable
+     * @constant
      */
     /*# in-out-bounce
      *
      * @name go.EASING_INOUTBOUNCE
-     * @variable
+     * @constant
      */
     /*# out-in-bounce
      *
      * @name go.EASING_OUTINBOUNCE
-     * @variable
+     * @constant
      */
 }

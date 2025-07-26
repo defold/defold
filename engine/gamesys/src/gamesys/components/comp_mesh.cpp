@@ -45,9 +45,9 @@
 #include "../resources/res_mesh.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_Mesh, 0, FrameReset, "# components", &rmtp_Components);
-DM_PROPERTY_U32(rmtp_MeshVertexCount, 0, FrameReset, "# vertices", &rmtp_Mesh);
-DM_PROPERTY_U32(rmtp_MeshVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Mesh);
+DM_PROPERTY_U32(rmtp_Mesh, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_MeshVertexCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Mesh);
+DM_PROPERTY_U32(rmtp_MeshVertexSize, 0, PROFILE_PROPERTY_FRAME_RESET, "size of vertices in bytes", &rmtp_Mesh);
 
 namespace dmGameSystem
 {
@@ -490,7 +490,9 @@ namespace dmGameSystem
             MeshComponent& component = *components[i];
 
             if (!component.m_Enabled || !component.m_AddedToUpdate)
+            {
                 continue;
+            }
 
             dmRender::HMaterial material = GetMaterial(&component, component.m_Resource);
             if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
@@ -900,8 +902,10 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < count; ++i)
         {
             MeshComponent& component = *components[i];
-            if (!component.m_Enabled)
+            if (!component.m_Enabled || !component.m_AddedToUpdate)
+            {
                 continue;
+            }
 
             DM_PROPERTY_ADD_U32(rmtp_Mesh, 1);
             const Vector4 trans = component.m_World.getCol(3);

@@ -107,6 +107,72 @@ local function test_success_compressed(self)
     resource.set_texture(go.get("#sprite", "texture0"), args, tex_buffer)
 end
 
+function test_success_mipmap()
+    local tparams_mipmaps = {
+        width          = 32,
+        height         = 32,
+        depth          = 1,
+        mipmap         = 0,
+        type           = graphics.TEXTURE_TYPE_2D,
+        format         = graphics.TEXTURE_FORMAT_RGBA,
+        max_mipmaps    = 6,
+    }
+
+    local t_id = resource.create_texture("/test_mipmap_textures.texturec", tparams_mipmaps)
+    local num_mipmaps = 6 -- 32,16,8,4,2,1
+
+    -- num mipmaps
+    for i=0,num_mipmaps-1 do
+        local mm_buffer = buffer.create(tparams_mipmaps.width * tparams_mipmaps.height, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 4 }})
+
+        tparams_mipmaps.mipmap = i
+        resource.set_texture(t_id, tparams_mipmaps, mm_buffer)
+        tparams_mipmaps.width = tparams_mipmaps.width / 2
+        tparams_mipmaps.height = tparams_mipmaps.height / 2
+    end
+end
+
+local function test_slice_array()
+    local t_param = {
+        width          = 32,
+        height         = 32,
+        page_count     = 3,
+        type           = graphics.TEXTURE_TYPE_2D_ARRAY,
+        format         = graphics.TEXTURE_FORMAT_RGB
+    }
+    local t_id   = resource.create_texture("/test_get_texture_info.texturec", t_param)
+
+    for page = 0, t_param.page_count - 1 do
+        local mm_buffer = buffer.create(t_param.width * t_param.height, {{ name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 3 }})
+        resource.set_texture(t_id, {
+            width          = t_param.width,
+            height         = t_param.height,
+            page           = page,
+            type           = t_param.type,
+            format         = t_param.format
+        }, mm_buffer)
+    end
+end
+
+local function test_slice_idx_out_of_layer_count()
+    local t_param = {
+        width          = 32,
+        height         = 32,
+        page_count     = 3,
+        type           = graphics.TEXTURE_TYPE_2D_ARRAY,
+        format         = graphics.TEXTURE_FORMAT_RGB
+    }
+    local t_id   = resource.create_texture("/test_get_texture_info.texturec", t_param)
+    local mm_buffer = buffer.create(t_param.width * t_param.height, {{ name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 3 }})
+    resource.set_texture(t_id, {
+        width          = t_param.width,
+        height         = t_param.height,
+        slice          = 3,
+        type           = t_param.type,
+        format         = t_param.format
+    }, mm_buffer)
+end
+
 function update(self, dt)
     self.update_counter = self.update_counter + 1
 
@@ -116,6 +182,9 @@ function update(self, dt)
         test_fail_out_of_bounds,
         test_fail_wrong_mipmap,
         test_success_compressed,
+        test_success_mipmap,
+        test_slice_array,
+        test_slice_idx_out_of_layer_count
     }
 
     tests[self.update_counter](self)

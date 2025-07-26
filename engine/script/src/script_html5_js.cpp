@@ -37,6 +37,7 @@ namespace dmScript
      * @document
      * @name HTML5
      * @namespace html5
+     * @language Lua
      */
 
     static dmScript::LuaCallbackInfo* g_InteractionCallback = 0x0;

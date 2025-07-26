@@ -18,7 +18,8 @@
             [internal.graph.types :as gt]
             [internal.history :as h]
             [internal.node :as in]
-            [internal.util :as util])
+            [internal.util :as util]
+            [util.coll :as coll])
   (:import [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
@@ -202,19 +203,34 @@
     (first (drop-while used (range 0 gt/MAX-GROUP-ID)))))
 
 (defn next-node-id*
-  [id-generators graph-id]
+  ^long [id-generators ^long graph-id]
   (gt/make-node-id graph-id (.getAndIncrement ^AtomicLong (get id-generators graph-id))))
 
 (defn next-node-id
-  [system graph-id]
+  ^long [system ^long graph-id]
   (next-node-id* (id-generators system) graph-id))
 
+(defn take-node-ids*
+  [id-generators ^long graph-id ^long node-id-count]
+  (let [^AtomicLong id-generator (get id-generators graph-id)
+        node-ids (long-array node-id-count)]
+    (loop [index 0]
+      (when (< index node-id-count)
+        (let [node-id (gt/make-node-id graph-id (.getAndIncrement id-generator))]
+          (aset node-ids index node-id)
+          (recur (inc index)))))
+    node-ids))
+
+(defn take-node-ids
+  [system ^long graph-id ^long node-id-count]
+  (take-node-ids* (id-generators system) graph-id node-id-count))
+
 (defn next-override-id*
-  [override-id-generator graph-id]
-  (gt/make-override-id graph-id (.getAndIncrement ^AtomicLong override-id-generator)))
+  ^long [^AtomicLong override-id-generator ^long graph-id]
+  (gt/make-override-id graph-id (.getAndIncrement override-id-generator)))
 
 (defn next-override-id
-  [system graph-id]
+  ^long [system ^long graph-id]
   (next-override-id* (override-id-generator system) graph-id))
 
 (defn- attach-graph*
@@ -370,19 +386,19 @@
           evaluation-context-misses @(:local evaluation-context)]
       (if (identical? invalidate-counters initial-invalidate-counters) ; nice case
         (cond-> system
-                (seq evaluation-context-hits)
+                (coll/not-empty evaluation-context-hits)
                 (update :cache c/cache-hit evaluation-context-hits)
 
-                (seq evaluation-context-misses)
+                (coll/not-empty evaluation-context-misses)
                 (update :cache c/cache-encache evaluation-context-misses (:basis evaluation-context)))
         (let [invalidated-during-node-value? #(endpoint-invalidated-since? % initial-invalidate-counters invalidate-counters)
               safe-cache-hits (remove invalidated-during-node-value? evaluation-context-hits)
               safe-cache-misses (remove (comp invalidated-during-node-value? first) evaluation-context-misses)]
           (cond-> system
-                  (seq safe-cache-hits)
+                  (coll/not-empty safe-cache-hits)
                   (update :cache c/cache-hit safe-cache-hits)
 
-                  (seq safe-cache-misses)
+                  (coll/not-empty safe-cache-misses)
                   (update :cache c/cache-encache safe-cache-misses (:basis evaluation-context))))))
     system))
 
@@ -403,7 +419,7 @@
     :user-data (reduce (fn [user-data [graph-id values-by-key-by-node-id]]
                          (assoc user-data
                            graph-id (reduce (fn [graph-user-data [node-id values-by-key]]
-                                              (update graph-user-data node-id merge values-by-key))
+                                              (update graph-user-data node-id coll/merge values-by-key))
                                             (get user-data graph-id)
                                             values-by-key-by-node-id)))
                        (:user-data system)

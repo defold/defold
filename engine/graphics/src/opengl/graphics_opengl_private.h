@@ -17,6 +17,7 @@
 
 #include <dlib/atomic.h>
 #include <dlib/math.h>
+#include <dlib/mutex.h>
 #include <dmsdk/dlib/atomic.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/opaque_handle_container.h>
@@ -54,6 +55,7 @@ namespace dmGraphics
         uint16_t          m_OriginalHeight;
         uint16_t          m_MipMapCount;
         uint8_t           m_UsageHintFlags;
+        uint8_t           m_PageCount; // page count of texture array
     };
 
     struct OpenGLRenderTargetAttachment
@@ -116,10 +118,26 @@ namespace dmGraphics
     struct OpenGLProgram
     {
         Program                        m_BaseProgram;
+        OpenGLShader*                  m_VertexShader;
+        OpenGLShader*                  m_FragmentShader;
+        OpenGLShader*                  m_ComputeShader;
         uint32_t                       m_Id;
         ShaderDesc::Language           m_Language;
         dmArray<OpenGLVertexAttribute> m_Attributes;
         dmArray<OpenGLUniformBuffer>   m_UniformBuffers;
+    };
+
+    /*
+    * Store all allocated OpenGL handles in one array.
+    * All other abstractions should use index of handles inside that array instead of direct use of GL handle.
+    * It helps to avoid changing relationship between resource/component and graphical handle.
+    * But it enables to recreate all underlying handles without changes of external connection.
+    */
+    struct OpenGLHandlesData
+    {
+        dmMutex::HMutex    m_Mutex; /// Guards access to m_AllGLHandles and m_FreeIndexes
+        dmArray<GLuint>    m_AllGLHandles;
+        dmArray<HOpenglID> m_FreeIndexes; /// contains indexes that can be reused in m_AllGLHandles
     };
 
     struct OpenGLContext
@@ -137,15 +155,9 @@ namespace dmGraphics
 
         OpenGLProgram*          m_CurrentProgram;
 
+        dmMutex::HMutex                    m_AssetHandleContainerMutex;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
-        /*
-        * Store all allocated OpenGL handles in one array.
-        * All other abstractions should use index of handles inside that array instead of direct use of GL handle.
-        * It helps to avoid changing relationship between resource/component and graphical handle.
-        * But it enables to recreate all underlying handles without changes of external connection.
-        */
-        dmArray<GLuint>         m_AllGLHandles;
-        dmArray<HOpenglID>      m_FreeIndexes; /// contains indexes that can be reused in m_AllGLHandles
+        OpenGLHandlesData       m_GLHandlesData;
 
         PipelineState           m_PipelineState;
 
@@ -180,6 +192,7 @@ namespace dmGraphics
         uint32_t                m_StorageBufferSupport             : 1;
         uint32_t                m_InstancingSupport                : 1;
         uint32_t                m_ASTCSupport                      : 1;
+        uint32_t                m_3DTextureSupport                 : 1;
     };
 }
 #endif // __GRAPHICS_DEVICE_OPENGL__

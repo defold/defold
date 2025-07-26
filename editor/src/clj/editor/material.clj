@@ -16,11 +16,13 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.code.shader :as code.shader]
+            [editor.code.data :as code.data]
+            [editor.code.shader-compilation :as shader-compilation]
             [editor.defold-project :as project]
             [editor.gl.shader :as shader]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
+            [editor.pipeline.shader-gen :as shader-gen]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.protobuf-forms-util :as protobuf-forms-util]
@@ -33,9 +35,7 @@
             [util.coll :as coll :refer [pair]]
             [util.murmur :as murmur]
             [util.num :as num])
-  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor Shaderc$ShaderResource]
-           [com.dynamo.bob.pipeline.shader SPIRVReflector]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
+  (:import [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -78,7 +78,7 @@
 (defn- build-target-attributes [attribute-infos]
   (mapv graphics/attribute-info->build-target-attribute attribute-infos))
 
-(g/defnk produce-base-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space max-page-count]
+(g/defnk produce-base-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants ^:raw samplers tags vertex-space max-page-count]
   (protobuf/make-map-without-defaults Material$MaterialDesc
     :name name
     :vertex-program (resource/resource->proj-path vertex-program)
@@ -98,8 +98,7 @@
   (let [build-resource->fused-build-resource-path (comp resource/proj-path build-resource->fused-build-resource)
         material-desc-with-fused-build-resource-paths
         (-> (:material-desc-with-build-resources user-data)
-            (update :vertex-program build-resource->fused-build-resource-path)
-            (update :fragment-program build-resource->fused-build-resource-path))]
+            (update :program build-resource->fused-build-resource-path))]
     {:resource resource
      :content (protobuf/map->bytes Material$MaterialDesc material-desc-with-fused-build-resource-paths)}))
 
@@ -124,20 +123,17 @@
                          (format "'%s' attribute uses normalize with float data type"
                                  name)))]))
 
-(g/defnk produce-build-targets [_node-id attribute-infos base-pb-msg fragment-program fragment-shader-source-info max-page-count resource vertex-program vertex-shader-source-info]
+(g/defnk produce-build-targets [_node-id attribute-infos base-pb-msg fragment-program fragment-shader-source-info max-page-count exclude-gles-sm100 resource vertex-program vertex-shader-source-info]
   (or (g/flatten-errors
         (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
         (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
         (mapcat #(attribute-info->error-values % _node-id :attributes) attribute-infos))
-      (let [compile-spirv true
-            vertex-shader-build-target (code.shader/make-shader-build-target vertex-shader-source-info compile-spirv max-page-count)
-            fragment-shader-build-target (code.shader/make-shader-build-target fragment-shader-source-info compile-spirv max-page-count)
+      (let [shader-desc-build-target (shader-compilation/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count exclude-gles-sm100)
             build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count)
             build-target-attributes (build-target-attributes attribute-infos)
-            dep-build-targets [vertex-shader-build-target fragment-shader-build-target]
+            dep-build-targets [shader-desc-build-target]
             material-desc-with-build-resources (assoc base-pb-msg
-                                                 :vertex-program (:resource vertex-shader-build-target)
-                                                 :fragment-program (:resource fragment-shader-build-target)
+                                                 :program (:resource shader-desc-build-target)
                                                  :samplers build-target-samplers
                                                  :attributes build-target-attributes)]
         [(bt/with-content-hash
@@ -146,46 +142,6 @@
             :build-fn build-material
             :user-data {:material-desc-with-build-resources material-desc-with-build-resources}
             :deps dep-build-targets})])))
-
-"A resource namespace is the first literal up until the first dot in a resource binding.
-For example, if we have a uniform buffer with some nested data types:
-
-struct MyMaterial {
-  vec4 diffuse;
-  vec4 specular;
-};
-
-uniform my_uniforms {
-  MyMaterial material;
-};
-
-When crosscompiled to SM120 (which is used by the editor), we will get two uniforms:
-_<id>.material.diffuse
-_<id>.material.specular
-
-To be able to map this in a material constant, we need to strip the namespace from the
-reflected data when the shader is created (see editor.gl.shader:make-shader-program) since
-there is no way a user can know what the generated id will be for older shaders.
-"
-(defn- resource-binding-namespaces [^SPIRVReflector reflector]
-  ;; Storage buffers (also known as SSBOs) will need the same mapping as uniform buffers,
-  ;; but since we don't support them in the editor, we don't gather their namespaces here.
-  (mapv
-    (fn [^Shaderc$ShaderResource uniform-buffer-object]
-      (str "_" (.id uniform-buffer-object)))
-    (.getUBOs reflector)))
-
-(defn- transpile-shader-source [shader-ext ^String shader-source ^long max-page-count]
-  (let [shader-type (code.shader/shader-type-from-ext shader-ext)
-        shader-language (code.shader/shader-language-to-java :language-glsl-sm120) ; use the old gles2 compatible shaders
-        is-debug true
-        result (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-source shader-type shader-language is-debug max-page-count)
-        full-source (.source result)
-        array-sampler-names-array (.arraySamplers result)
-        ^SPIRVReflector reflector (.reflector result)]
-    {:shader-source full-source
-     :resource-binding-namespaces (resource-binding-namespaces reflector)
-     :array-sampler-names (vec array-sampler-names-array)}))
 
 (defn- constant->val [constant]
   (case (:type constant)
@@ -209,41 +165,100 @@ there is no way a user can know what the generated id will be for older shaders.
 (defn- resource-binding-namespaces->regex-str [resource-binding-namespaces]
   (str "^(" (string/join "|" resource-binding-namespaces) ")\\."))
 
-(g/defnk produce-shader [_node-id vertex-shader-source-info vertex-program fragment-shader-source-info fragment-program vertex-constants fragment-constants samplers max-page-count]
+(defn- transpile-shader-source
+  [shader-resource-node-id shader-resource ^String shader-source ^long max-page-count]
+  ;; TODO(instancing): The shader-source has been preprocessed and will contain
+  ;; lines from include directives, so we do not report the correct source paths
+  ;; and line numbers here.
+  (let [shader-proj-path (resource/proj-path shader-resource)]
+    (try
+      (shader-gen/transpile-shader-source shader-proj-path shader-source max-page-count)
+      (catch Exception exception
+        (let [ex-data (ex-data exception)]
+          (if-not (shader-gen/shader-transpile-ex-data? ex-data)
+            (throw exception)
+            (let [ex-cause (ex-cause exception)
+                  ex-message (ex-message exception)
+                  cause-message (.getMessage ex-cause)
+                  message (str ex-message \newline cause-message)
+                  error-resource (or (some->> ex-data :error-proj-path (workspace/resolve-resource shader-resource))
+                                     shader-resource)
+                  error-cursor-range (some-> ex-data :error-line-number code.data/line-number->CursorRange)
+                  user-data (cond-> {:resource error-resource}
+                                    error-cursor-range (assoc :cursor-range error-cursor-range))]
+              (g/->error shader-resource-node-id :lines :fatal nil message user-data))))))))
+
+(g/defnk produce-shader-request-data [_node-id vertex-program vertex-shader-source-info fragment-program fragment-shader-source-info max-page-count]
   (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
       (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
-      (let [augmented-vertex-shader-info (transpile-shader-source "vp" (:shader-source vertex-shader-source-info) max-page-count)
-            augmented-fragment-shader-info (transpile-shader-source "fp" (:shader-source fragment-shader-source-info) max-page-count)
-            array-sampler-name->slice-sampler-names
-            (into {}
-                  (comp (distinct)
-                        (map (fn [array-sampler-name]
-                               (pair array-sampler-name
-                                     (mapv (fn [page-index]
-                                             (str array-sampler-name "_" page-index))
-                                           (range max-page-count))))))
-                  (concat
-                    (:array-sampler-names augmented-vertex-shader-info)
-                    (:array-sampler-names augmented-fragment-shader-info)))
+      (let [augmented-shader-infos
+            (mapv (fn [{:keys [node-id resource shader-source]}]
+                    (transpile-shader-source node-id resource shader-source max-page-count))
+                  [vertex-shader-source-info
+                   fragment-shader-source-info])]
+        (g/precluding-errors augmented-shader-infos
+          (let [shader-type+source-pairs
+                (mapv (fn [{:keys [shader-type transpiled-shader-source]}]
+                        (pair shader-type transpiled-shader-source))
+                      augmented-shader-infos)
 
-            strip-resource-binding-namespace-regex-str
-            (resource-binding-namespaces->regex-str
-              (concat
-                (:resource-binding-namespaces augmented-vertex-shader-info)
-                (:resource-binding-namespaces augmented-fragment-shader-info)))
+                array-sampler-name->slice-sampler-names
+                (coll/transfer augmented-shader-infos {}
+                  (mapcat :array-sampler-names)
+                  (distinct)
+                  (map (fn [array-sampler-name]
+                         (pair array-sampler-name
+                               (mapv (fn [page-index]
+                                       (str array-sampler-name "_" page-index))
+                                     (range max-page-count))))))
 
-            uniforms (-> {}
-                         (into (map (fn [constant]
-                                      (pair (:name constant) (constant->val constant))))
-                               (concat vertex-constants fragment-constants))
-                         (into (comp
-                                 (mapcat (fn [{sampler-name :name}]
-                                           (or (array-sampler-name->slice-sampler-names sampler-name)
-                                               [sampler-name])))
-                                 (map (fn [resolved-sampler-name]
-                                        (pair resolved-sampler-name nil))))
-                               samplers))]
-        (shader/make-shader _node-id (:shader-source augmented-vertex-shader-info) (:shader-source augmented-fragment-shader-info) uniforms array-sampler-name->slice-sampler-names strip-resource-binding-namespace-regex-str))))
+                strip-resource-binding-namespace-regex-str
+                (resource-binding-namespaces->regex-str
+                  (coll/transfer augmented-shader-infos (sorted-set)
+                    (mapcat :resource-binding-namespaces)))]
+
+            (shader/make-shader-request-data
+              shader-type+source-pairs
+              array-sampler-name->slice-sampler-names
+              strip-resource-binding-namespace-regex-str))))))
+
+(g/defnk produce-shader [_node-id shader-request-data vertex-constants fragment-constants samplers]
+  (let [array-sampler-name->slice-sampler-names (:array-sampler-name->uniform-names shader-request-data)
+
+        uniform-values-by-name
+        (-> {}
+            (into (map (fn [constant]
+                         (pair (:name constant) (constant->val constant))))
+                  (concat vertex-constants fragment-constants))
+            (into (comp
+                    (mapcat (fn [{sampler-name :name}]
+                              (or (array-sampler-name->slice-sampler-names sampler-name)
+                                  [sampler-name])))
+                    (map (fn [resolved-sampler-name]
+                           (pair resolved-sampler-name nil))))
+                  samplers))]
+
+    (shader/make-shader-lifecycle _node-id shader-request-data uniform-values-by-name)))
+
+(g/defnk produce-samplers [^:raw samplers default-sampler-filter-modes]
+  ;; Replace any default filter modes with the setting from game.project.
+  (let [{:keys [filter-mode-mag-default filter-mode-min-default]} default-sampler-filter-modes]
+    (mapv (fn [sampler]
+            {:pre [(map? sampler)]} ; Material$MaterialDesc$Sampler in map format.
+            (-> sampler
+                (update
+                  :filter-mag
+                  (fn [filter-mag]
+                    (case filter-mag
+                      :filter-mode-mag-default filter-mode-mag-default
+                      filter-mag)))
+                (update
+                  :filter-min
+                  (fn [filter-min]
+                    (case filter-min
+                      :filter-mode-min-default filter-mode-min-default
+                      filter-min)))))
+          samplers)))
 
 (defn- vector-type->form-field-type [vector-type]
   (case vector-type
@@ -255,11 +270,15 @@ there is no way a user can know what the generated id will be for older shaders.
     :vector-type-mat3 :mat4
     :vector-type-mat4 :mat4))
 
+(def unsupported-semantic-types
+  #{:semantic-type-bone-weights
+    :semantic-type-bone-indices})
+
 (def ^:private vertex-attribute-fields
   [{:path [:semantic-type]
     :label "Semantic Type"
     :type :choicebox
-    :options (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType)
+    :options (remove #(unsupported-semantic-types (first %)) (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType))
     :default graphics/default-attribute-semantic-type}
    {:path [:step-function]
     :label "Step Function"
@@ -425,7 +444,7 @@ there is no way a user can know what the generated id will be for older shaders.
   (let [processed-value (set-form-value-fn property value user-data)]
     (g/set-property! node-id property processed-value)))
 
-(g/defnk produce-form-data [_node-id name attributes vertex-program fragment-program vertex-constants fragment-constants max-page-count samplers tags vertex-space :as args]
+(g/defnk produce-form-data [_node-id name attributes vertex-program fragment-program vertex-constants fragment-constants max-page-count ^:raw samplers tags vertex-space :as args]
   (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
@@ -440,21 +459,21 @@ there is no way a user can know what the generated id will be for older shaders.
 
 (defn- filter-mode-min->gl [filter-min default-tex-params]
   (case filter-min
-    :filter-mode-min-default (:min-filter default-tex-params)
+    :filter-mode-min-default (or (:min-filter default-tex-params) GL2/GL_NEAREST_MIPMAP_LINEAR)
     :filter-mode-min-nearest GL2/GL_NEAREST
     :filter-mode-min-linear GL2/GL_LINEAR
     :filter-mode-min-nearest-mipmap-nearest GL2/GL_NEAREST_MIPMAP_NEAREST
     :filter-mode-min-nearest-mipmap-linear GL2/GL_NEAREST_MIPMAP_LINEAR
     :filter-mode-min-linear-mipmap-nearest GL2/GL_LINEAR_MIPMAP_NEAREST
     :filter-mode-min-linear-mipmap-linear GL2/GL_LINEAR_MIPMAP_LINEAR
-    nil))
+    GL2/GL_NEAREST_MIPMAP_LINEAR))
 
 (defn- filter-mode-mag->gl [filter-mag default-tex-params]
   (case filter-mag
-    :filter-mode-mag-default (:mag-filter default-tex-params)
+    :filter-mode-mag-default (or (:mag-filter default-tex-params) GL2/GL_LINEAR)
     :filter-mode-mag-nearest GL2/GL_NEAREST
     :filter-mode-mag-linear GL2/GL_LINEAR
-    nil))
+    GL2/GL_LINEAR))
 
 (def ^:private default-pb-sampler
   (protobuf/make-map-without-defaults Material$MaterialDesc$Sampler
@@ -557,37 +576,43 @@ there is no way a user can know what the generated id will be for older shaders.
 
   (output form-data g/Any :cached produce-form-data)
 
+  (input default-sampler-filter-modes g/Any)
   (input vertex-resource resource/Resource)
   (input vertex-shader-source-info g/Any)
   (input fragment-resource resource/Resource)
   (input fragment-shader-source-info g/Any)
+  (input exclude-gles-sm100 g/Any)
 
   (output base-pb-msg g/Any produce-base-pb-msg)
 
   (output save-value g/Any produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
+  (output shader-request-data g/Any :cached produce-shader-request-data)
   (output shader ShaderLifecycle :cached produce-shader)
-  (output samplers [g/KeywordMap] (gu/passthrough samplers))
+  (output samplers [g/KeywordMap] :cached produce-samplers)
   (output attribute-infos [g/KeywordMap] :cached produce-attribute-infos))
 
 (defn- legacy-texture->sampler [name]
   (assoc default-pb-sampler :name name))
 
-(defn load-material [_project self resource material-desc]
+(defn load-material [project self resource material-desc]
   {:pre [(map? material-desc)]} ; Material$MaterialDesc in map format.
   (let [resolve-resource #(workspace/resolve-resource resource %)
         attributes->editable-attributes #(mapv attribute->editable-attribute %)]
-    (gu/set-properties-from-pb-map self Material$MaterialDesc material-desc
-      vertex-program (resolve-resource :vertex-program)
-      fragment-program (resolve-resource :fragment-program)
-      vertex-constants (render-program-utils/constants->editable-constants :vertex-constants)
-      fragment-constants (render-program-utils/constants->editable-constants :fragment-constants)
-      attributes (attributes->editable-attributes :attributes)
-      name :name
-      samplers (render-program-utils/samplers->editable-samplers :samplers)
-      tags :tags
-      vertex-space :vertex-space
-      max-page-count :max-page-count)))
+    (concat
+      (g/connect project :default-sampler-filter-modes self :default-sampler-filter-modes)
+      (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
+      (gu/set-properties-from-pb-map self Material$MaterialDesc material-desc
+        vertex-program (resolve-resource :vertex-program)
+        fragment-program (resolve-resource :fragment-program)
+        vertex-constants (render-program-utils/constants->editable-constants :vertex-constants)
+        fragment-constants (render-program-utils/constants->editable-constants :fragment-constants)
+        attributes (attributes->editable-attributes :attributes)
+        name :name
+        samplers (render-program-utils/samplers->editable-samplers :samplers)
+        tags :tags
+        vertex-space :vertex-space
+        max-page-count :max-page-count))))
 
 (defn- sanitize-material
   "The old format specified :textures as string names. Convert these into

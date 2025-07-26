@@ -28,6 +28,20 @@
 *
 *     'resize_window_callback':
 *         Function that is called when resize/orientationchanges/focus events happened
+*
+*     'start_success':
+*         Function that is called just before main is called upon successful load.
+*
+*     'start_error':
+*         Function that is called if startup fails for any reason.
+*
+*     'update_progress':
+*         Function that is called as progress is updated. Parameter progress is updated 0-100.
+*
+*     'update_imports':
+*         Function that is called right before wasm instantiation. Imports
+*         are passed into the function and can be modified and will be
+*         subsequently passed on to WebAssembly.
 */
 var CUSTOM_PARAMETERS = {
     archive_location_filter: function( path ) {
@@ -42,6 +56,14 @@ var CUSTOM_PARAMETERS = {
     unsupported_webgl_callback: function() {
         var e = document.getElementById("webgl-not-supported");
         e.style.display = "block";
+    },
+    start_success: function() {
+    },
+    start_error: function(error) {
+    },
+    update_progress: function(progress) {
+    },
+    update_imports: function(imports) {
     },
     resize_window_callback: function() {
         var is_iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -237,12 +259,16 @@ var FileLoader = {
 
 
 var EngineLoader = {
-    {{#DEFOLD_ARCHIVE_SHA1}}arc_sha1: "{{DEFOLD_ARCHIVE_SHA1}}",{{/DEFOLD_ARCHIVE_SHA1}}
-    {{#DEFOLD_WASM_SHA1}}wasm_sha1: "{{DEFOLD_WASM_SHA1}}",{{/DEFOLD_WASM_SHA1}}
+    arc_sha1: "{{DEFOLD_ARCHIVE_SHA1}}",
+    wasm_sha1: "{{DEFOLD_WASM_SHA1}}",
     wasm_size: {{ DEFOLD_WASM_SIZE }},
-    {{#DEFOLD_WASMJS_SHA1}}wasmjs_sha1: "{{DEFOLD_WASMJS_SHA1}}",{{/DEFOLD_WASMJS_SHA1}}
+    wasmjs_sha1: "{{DEFOLD_WASMJS_SHA1}}",
     wasmjs_size: {{ DEFOLD_WASMJS_SIZE }},
-    {{#ASMJS_SHA1}}asmjs_sha1: "{{ASMJS_SHA1}}",{{/ASMJS_SHA1}}
+    wasm_pthread_sha1: "{{DEFOLD_WASM_PTHREAD_SHA1}}",
+    wasm_pthread_size: {{ DEFOLD_WASM_PTHREAD_SIZE }},
+    wasmjs_pthread_sha1: "{{DEFOLD_WASMJS_PTHREAD_SHA1}}",
+    wasmjs_pthread_size: {{ DEFOLD_WASMJS_PTHREAD_SIZE }},
+    asmjs_sha1: "{{ASMJS_SHA1}}",
     asmjs_size: {{ ASMJS_SIZE }},
     wasm_instantiate_progress: 0,
 
@@ -252,28 +278,72 @@ var EngineLoader = {
         EngineLoader.wasm_instantiate_progress = totalDownloadedSize * 0.1;
     },
 
+    getWasmSize: function() {
+        if (Module['isWASMPthreadSupported'])
+            return EngineLoader.wasm_pthread_size;
+        return EngineLoader.wasm_size;
+    },
+
+    getWasmJSSize: function() {
+        if (Module['isWASMPthreadSupported'])
+            return EngineLoader.wasmjs_pthread_size;
+        return EngineLoader.wasmjs_size;
+    },
+
+    getWasmSha1: function() {
+        if (Module['isWASMPthreadSupported'])
+            return EngineLoader.wasm_pthread_sha1;
+        return EngineLoader.wasm_sha1;
+    },
+
+    getWasmJSSha1: function() {
+        if (Module['isWASMPthreadSupported'])
+            return EngineLoader.wasmjs_pthread_sha1;
+        return EngineLoader.wasmjs_sha1;
+    },
+
+    getWasmName: function(exeName) {
+        if (Module['isWASMPthreadSupported'])
+            return exeName + '_pthread.wasm';
+        return exeName + '.wasm';
+    },
+
+    getWasmJSName: function(exeName) {
+        if (Module['isWASMPthreadSupported'])
+            return exeName + '_pthread_wasm.js';
+        return exeName + '_wasm.js';
+    },
+
     // load and instantiate .wasm file using XMLHttpRequest
     loadAndInstantiateWasmAsync: function(src, imports, successCallback) {
         FileLoader.load(src, "arraybuffer",
-            function(delta) { 
+            function(delta) {
                 ProgressUpdater.updateCurrent(delta);
             },
             function(error) { throw error; },
             async function(wasm) {
-                if (wasm.byteLength != EngineLoader.wasm_size) {
-                   console.warn("Unexpected wasm size: " + wasm.byteLength + ", expected: " + EngineLoader.wasm_size);
+                if (wasm.byteLength != EngineLoader.getWasmSize()) {
+                   console.warn("Unexpected wasm size: " + wasm.byteLength + ", expected: " + EngineLoader.getWasmSize());
                 }
-                if (EngineLoader.wasm_sha1) {
+                if (EngineLoader.getWasmSha1()) {
                     const digest = await window.crypto.subtle.digest("SHA-1", wasm);
                     const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-                    if (sha1 != EngineLoader.wasm_sha1) {
-                        console.warn("Unexpected wasm sha1: " + sha1 + ", expected: " + EngineLoader.wasm_sha1);
+                    if (sha1 != EngineLoader.getWasmSha1()) {
+                        const error = new Error("Unexpected wasm sha1: " + sha1 + ", expected: " + EngineLoader.getWasmSha1());
+                        if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
+                           CUSTOM_PARAMETERS["start_error"](error);
+                        }
+                        throw error;
                     }
                 }
                 var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
-                    successCallback(output.instance);
+                    Module.instance = output.instance;
+                    successCallback(output.instance, output.module);
                 }).catch(function(e) {
                     console.log('wasm instantiation failed! ' + e);
+                    if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
+                        CUSTOM_PARAMETERS["start_error"](e);
+                    }
                     throw e;
                 });
             },
@@ -307,11 +377,20 @@ var EngineLoader = {
 
         WebAssembly.instantiateStreaming(fetchFn(src), imports).then(function(output) {
             ProgressUpdater.updateCurrent(EngineLoader.wasm_instantiate_progress);
-            successCallback(output.instance);
+            Module.instance = output.instance;
+            successCallback(output.instance, output.module);
         }).catch(function(e) {
             console.log('wasm streaming instantiation failed! ' + e);
             console.log('Fallback to wasm loading');
-            EngineLoader.loadAndInstantiateWasmAsync(src, imports, successCallback);
+            try {
+                EngineLoader.loadAndInstantiateWasmAsync(src, imports, successCallback);
+            } catch (error) {
+                 if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
+                    CUSTOM_PARAMETERS["start_error"](error);
+                 } else {
+                    throw error;
+                 }
+            }
         });
     },
 
@@ -319,15 +398,20 @@ var EngineLoader = {
     // https://github.com/emscripten-core/emscripten/blob/main/test/manual_wasm_instantiate.html
     loadWasmAsync: function(exeName) {
         Module.instantiateWasm = function(imports, successCallback) {
+            if (typeof CUSTOM_PARAMETERS["update_imports"] === "function") {
+                var callback = CUSTOM_PARAMETERS["update_imports"];
+                callback(imports);
+            }
             if (EngineLoader.stream_wasm && (typeof WebAssembly.instantiateStreaming === "function")) {
-                EngineLoader.streamAndInstantiateWasmAsync(exeName + ".wasm", imports, successCallback);
+                EngineLoader.streamAndInstantiateWasmAsync(EngineLoader.getWasmName(exeName), imports, successCallback);
             }
             else {
-                EngineLoader.loadAndInstantiateWasmAsync(exeName + ".wasm", imports, successCallback);
+                EngineLoader.loadAndInstantiateWasmAsync(EngineLoader.getWasmName(exeName), imports, successCallback);
             }
             return {}; // Compiling asynchronously, no exports.
         };
-        EngineLoader.loadAndRunScriptAsync(exeName + '_wasm.js', EngineLoader.wasmjs_size, EngineLoader.wasmjs_sha1);
+
+        EngineLoader.loadAndRunScriptAsync(EngineLoader.getWasmJSName(exeName), EngineLoader.getWasmJSSize(), EngineLoader.getWasmJSSha1());
     },
 
     loadAsmJsAsync: function(exeName) {
@@ -349,12 +433,20 @@ var EngineLoader = {
                     const digest = await window.crypto.subtle.digest("SHA-1", new TextEncoder().encode(response));
                     const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
                     if (sha1 != expectedSHA1) {
-                        throw new Error("Unexpected sha1: " + sha1 + ", expected: " + expectedSHA1);
+                        const error = new Error("Unexpected sha1: " + sha1 + ", expected: " + expectedSHA1);
+                        if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
+                            CUSTOM_PARAMETERS["start_error"](error);
+                        } else {
+                             throw error;
+                        }
                     }
                 }
-                var tag = document.createElement("script");
-                tag.text = response;
-                document.body.appendChild(tag);
+                Module["mainScriptUrlOrBlob"] = src;
+
+                const script = document.createElement('script');
+                script.src = src;
+                script.type = "text/javascript";
+                document.body.appendChild(script);
             },
             function(loadedDelta, currentAttempt){
                 ProgressUpdater.updateCurrent(-loadedDelta);
@@ -365,15 +457,23 @@ var EngineLoader = {
     // start loading archive_files.json
     // after receiving it - start loading engine and data concurrently
     load: function(appCanvasId, exeName) {
+        if (typeof CUSTOM_PARAMETERS["update_progress"] === "function") {
+            ProgressUpdater.addListener(CUSTOM_PARAMETERS["update_progress"]);
+        }
+
         ProgressView.addProgress(Module.setupCanvas(appCanvasId));
         CUSTOM_PARAMETERS['exe_name'] = exeName;
 
         FileLoader.options.retryCount = CUSTOM_PARAMETERS["retry_count"];
         FileLoader.options.retryInterval = CUSTOM_PARAMETERS["retry_time"] * 1000;
-        if (typeof CUSTOM_PARAMETERS["can_not_download_file_callback"] === "function") {
-            GameArchiveLoader.addFileDownloadErrorListener(CUSTOM_PARAMETERS["can_not_download_file_callback"]);
-        }
         // Load and assemble archive
+        GameArchiveLoader.addFileDownloadErrorListener((error) => {
+           if (typeof CUSTOM_PARAMETERS["can_not_download_file_callback"] === "function") {
+               CUSTOM_PARAMETERS["can_not_download_file_callback"](error);
+           } else if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
+               CUSTOM_PARAMETERS["start_error"](error);
+           }
+        });
         GameArchiveLoader.addFileLoadedListener(Module.onArchiveFileLoaded);
         GameArchiveLoader.addArchiveLoadedListener(Module.onArchiveLoaded);
         GameArchiveLoader.setFileLocationFilter(CUSTOM_PARAMETERS["archive_location_filter"]);
@@ -387,7 +487,7 @@ var EngineLoader = {
             window.addEventListener('resize', callback, false);
             window.addEventListener('orientationchange', callback, false);
             window.addEventListener('focus', callback, false);
-        }        
+        }
     }
 };
 
@@ -501,7 +601,7 @@ var GameArchiveLoader = {
         var isWASMSupported = Module['isWASMSupported'];
         if (isWASMSupported) {
             EngineLoader.loadWasmAsync(exeName);
-            totalSize += EngineLoader.wasm_size + EngineLoader.wasmjs_size;
+            totalSize += EngineLoader.getWasmSize() + EngineLoader.getWasmJSSize();
         } else {
             EngineLoader.loadAsmJsAsync(exeName);
             totalSize += EngineLoader.asmjs_size;
@@ -685,12 +785,13 @@ var GameArchiveLoader = {
                     data = FS.mmap(file.stream, file.size, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
                 } catch(e) { }
             }
-            return window.crypto.subtle.digest("SHA-1", data).then((digest) => {
-                const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-                if (sha1 !== file.sha1)
-                    return Promise.reject(new Error(`Unexpected hash ${sha1} wanted ${file.sha1}`));
-                return;
-            });
+            if(data) {
+                return window.crypto.subtle.digest("SHA-1", data).then((digest) => {
+                    const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+                    if (sha1 !== file.sha1)
+                        return Promise.reject(new Error(`Unexpected hash ${sha1} wanted ${file.sha1}`));
+                });
+            }
         }
         return Promise.resolve();
     },
@@ -826,6 +927,8 @@ var Progress = {
 /* ********************************************************************* */
 
 var Module = {
+    engineVersion: "{{DEFOLD_ENGINE_VERSION}}",
+    engineSdkSha1: "{{DEFOLD_SDK_SHA1}}",
     noInitialRun: true,
 
     _filesToPreload: [],
@@ -1152,6 +1255,9 @@ var Module = {
         if (!Module._isMainCalled) {
             Module._isMainCalled = true;
             ProgressView.removeProgress();
+            if (typeof CUSTOM_PARAMETERS["start_success"] === "function") {
+                CUSTOM_PARAMETERS["start_success"]();
+            }
             if (Module.callMain === undefined) {
                 Module.noInitialRun = false;
             } else {
@@ -1199,12 +1305,20 @@ Module['onRuntimeInitialized'] = function() {
     Module.runApp("canvas");
 };
 
+Module["isWASMPthreadSupported"] = {{DEFOLD_HAS_WASM_PTHREAD_ENGINE}} 
+    && ((typeof window === 'undefined') || window.isSecureContext && window.crossOriginIsolated)
+    && typeof SharedArrayBuffer !== 'undefined';
+
 Module["locateFile"] = function(path, scriptDirectory)
 {
     // dmengine*.wasm is hardcoded in the built JS loader for WASM,
     // we need to replace it here with the correct project name.
     if (path == "dmengine.wasm" || path == "dmengine_release.wasm" || path == "dmengine_headless.wasm") {
-        path = "{{exe-name}}.wasm";
+        if (Module['isWASMPthreadSupported']) {
+            path = "{{exe-name}}_pthread.wasm";
+        } else {
+            path = "{{exe-name}}.wasm";
+        }
     }
     return scriptDirectory + path;
 };
@@ -1214,6 +1328,9 @@ Module["isWASMSupported"] = false;
 {{/DEFOLD_HAS_WASM_ENGINE}}
 
 window.addEventListener("error", (errorEvent) => {
+    if (typeof CUSTOM_PARAMETERS["start_error"] === "function") {
+        CUSTOM_PARAMETERS["start_error"](errorEvent);
+    }
     Module.setStatus('Exception thrown, see JavaScript console');
     Module.setStatus = function(text) {
         if (text) Module.printErr('[post-exception status] ' + text);

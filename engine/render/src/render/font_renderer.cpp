@@ -33,8 +33,8 @@
 #include "font_renderer_api.h"   // for the font renderer backend api
 
 DM_PROPERTY_EXTERN(rmtp_Render);
-DM_PROPERTY_U32(rmtp_FontCharacterCount, 0, FrameReset, "# glyphs", &rmtp_Render);
-DM_PROPERTY_U32(rmtp_FontVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Render);
+DM_PROPERTY_U32(rmtp_FontCharacterCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# glyphs", &rmtp_Render);
+DM_PROPERTY_U32(rmtp_FontVertexSize, 0, PROFILE_PROPERTY_FRAME_RESET, "size of vertices in bytes", &rmtp_Render);
 
 namespace dmRender
 {
@@ -293,6 +293,9 @@ namespace dmRender
         dmRender::SetNamedConstant(constants_buffer, g_TextureSizeRecipHash, &texture_size_recip, 1);
 
         ro->m_ConstantBuffer = constants_buffer;
+
+        // The cache size may have changed, and we need to update the font map glyph texture
+        UpdateCacheTexture(font_map);
 
         for (uint32_t *i = begin;i != end; ++i)
         {

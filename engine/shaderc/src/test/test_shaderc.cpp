@@ -63,7 +63,7 @@ TEST(Shaderc, TestSimpleShader)
     void* data = ReadFile("./build/src/test/data/simple.spv", &data_size);
     ASSERT_NE((void*) 0, data);
 
-    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_VERTEX, data, data_size);
     dmShaderc::DeleteShaderContext(shader_ctx);
 }
 
@@ -73,7 +73,7 @@ TEST(Shaderc, TestShaderReflection)
     void* data = ReadFile("./build/src/test/data/reflection.spv", &data_size);
     ASSERT_NE((void*) 0, data);
 
-    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
     const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
 
     ASSERT_EQ(3, reflection->m_UniformBuffers.Size());
@@ -113,7 +113,7 @@ TEST(Shaderc, ModifyBindings)
     void* data = ReadFile("./build/src/test/data/bindings.spv", &data_size);
     ASSERT_NE((void*) 0, data);
 
-    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_VERTEX, data, data_size);
     const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
 
     const dmShaderc::ShaderResource* position  = GetShaderResourceByNameHash(reflection->m_Inputs, dmHashString64("position"));
@@ -143,7 +143,6 @@ TEST(Shaderc, ModifyBindings)
     dmShaderc::SetResourceBinding(shader_ctx, compiler, dmHashString64("extra"), 4);
 
     dmShaderc::ShaderCompilerOptions options;
-    options.m_Stage   = dmShaderc::SHADER_STAGE_VERTEX;
     options.m_Version = 460;
 
     dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
@@ -166,7 +165,7 @@ TEST(Shaderc, TestCompilerSPIRV)
     void* data = ReadFile("./build/src/test/data/simple.spv", &data_size);
     ASSERT_NE((void*) 0, data);
 
-    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
     dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_SPIRV);
 
     dmShaderc::ShaderCompilerOptions options;
@@ -186,7 +185,7 @@ TEST(Shaderc, ModifyBindingsSPIRV)
     void* data = ReadFile("./build/src/test/data/bindings.spv", &data_size);
     ASSERT_NE((void*) 0, data);
 
-    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_VERTEX, data, data_size);
     const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
 
     dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_SPIRV);
@@ -201,7 +200,7 @@ TEST(Shaderc, ModifyBindingsSPIRV)
     ASSERT_NE((void*) 0, dst->m_Data.Begin());
 
     {
-        dmShaderc::HShaderContext spirv_shader_ctx = dmShaderc::NewShaderContext(dst->m_Data.Begin(), dst->m_Data.Size());
+        dmShaderc::HShaderContext spirv_shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_VERTEX, dst->m_Data.Begin(), dst->m_Data.Size());
         const dmShaderc::ShaderReflection* spirv_reflection = dmShaderc::GetReflection(spirv_shader_ctx);
         ASSERT_NE((void*) 0, reflection);
 
@@ -267,7 +266,7 @@ TEST(Shaderc, Types)
     void* data = ReadFile("./build/src/test/data/types.spv", &data_size);
     ASSERT_NE((void*) 0, data);
 
-    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
     const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
 
 #if 0
@@ -315,7 +314,7 @@ TEST(Shaderc, SSBO)
     void* data = ReadFile("./build/src/test/data/ssbo.spv", &data_size);
     ASSERT_NE((void*) 0, data);
 
-    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
     const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
 
 #if 0
@@ -357,7 +356,7 @@ TEST(Shaderc, LegacyPipeline)
     void* data = ReadFile("./build/src/test/data/legacy_pipeline.spv", &data_size);
     ASSERT_NE((void*) 0, data);
 
-    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
     const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
 
 #if 0
@@ -409,7 +408,7 @@ TEST(Shaderc, Structs)
     void* data = ReadFile("./build/src/test/data/structs.spv", &data_size);
     ASSERT_NE((void*) 0, data);
 
-    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
     const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
 
 #if 0
@@ -453,15 +452,34 @@ TEST(Shaderc, Structs)
     dmShaderc::DeleteShaderContext(shader_ctx);
 }
 
-static int TestStandalone(const char* filename)
+static int TestStandalone(const char* filename, const char* compileTo = 0)
 {
     uint32_t data_size;
     void* data = ReadFile(filename, &data_size);
 
-    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_VERTEX, data, data_size);
     const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
 
     dmShaderc::DebugPrintReflection(reflection);
+
+    if (compileTo)
+    {
+        if (strcmp(compileTo, "es100") == 0)
+        {
+            dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_GLSL);
+            dmShaderc::ShaderCompilerOptions options;
+            options.m_Version                    = 100;
+            options.m_No420PackExtension         = 1;
+            options.m_GlslEmitUboAsPlainUniforms = 1;
+            options.m_GlslEs                     = 1;
+            options.m_EntryPoint                 = "main";
+
+            dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
+            dmLogInfo("%s", (const char*) dst->m_Data.Begin());
+
+            dmShaderc::DeleteShaderCompiler(compiler);
+        }
+    }
 
     dmShaderc::DeleteShaderContext(shader_ctx);
 
@@ -472,6 +490,11 @@ int main(int argc, char **argv)
 {
     if (argc > 1 && (strstr(argv[1], ".spv") != 0))
     {
+        if (argc > 2)
+        {
+            return TestStandalone(argv[1], argv[2]);
+        }
+
         return TestStandalone(argv[1]);
     }
 

@@ -13,9 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.tile-map
-  ;; switch to released version once https://dev.clojure.org/jira/browse/DIMAP-15 has been fixed
-  (:require [clojure.data.int-map-fixed :as int-map]
+  (:require [clojure.data.int-map :as int-map]
             [dynamo.graph :as g]
+            [editor.attachment :as attachment]
             [editor.build-target :as bt]
             [editor.core :as core]
             [editor.defold-project :as project]
@@ -26,7 +26,9 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
+            [editor.grid :as grid]
             [editor.handler :as handler]
+            [editor.id :as id]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -36,13 +38,15 @@
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
-            [editor.tile-map-grid :as tile-map-grid]
+            [editor.tile-map-common :as tile-map-common]
             [editor.tile-source :as tile-source]
             [editor.validation :as validation]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [internal.graph.types :as gt])
   (:import [com.dynamo.gamesys.proto Tile$TileCell Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
+           [editor.tile_map_common Tile]
            [editor.types AABB]
            [javax.vecmath Matrix4d Point3d Vector3d]))
 
@@ -79,17 +83,11 @@
 
 ;; manipulating cells
 
-(defrecord Tile [^long x ^long y ^long tile ^boolean h-flip ^boolean v-flip ^boolean rotate90])
-
-(defn cell-index ^long [^long x ^long y]
-  (bit-or (bit-shift-left y Integer/SIZE)
-          (bit-and x 0xFFFFFFFF)))
-
 (defn paint-cell!
   [cell-map x y tile h-flip v-flip rotate90]
   (if tile
-    (assoc! cell-map (cell-index x y) (->Tile x y tile h-flip v-flip rotate90))
-    (dissoc! cell-map (cell-index x y))))
+    (assoc! cell-map (tile-map-common/cell-index x y) (tile-map-common/->Tile x y tile h-flip v-flip rotate90))
+    (dissoc! cell-map (tile-map-common/cell-index x y))))
 
 (defn make-cell-map
   [cells]
@@ -125,7 +123,7 @@
            cell-map (transient cell-map)]
       (if (< y y1)
         (if (< x x1)
-          (recur (inc x) y (dissoc! cell-map (cell-index x y)))
+          (recur (inc x) y (dissoc! cell-map (tile-map-common/cell-index x y)))
           (recur x0 (inc y) cell-map))
         (persistent! cell-map)))))
 
@@ -149,7 +147,7 @@
      :height h
      :tiles (vec (for [y (range y0 y1)
                        x (range x0 x1)]
-                   (get cell-map (cell-index x y))))}))
+                   (get cell-map (tile-map-common/cell-index x y))))}))
 
 (defn palette-x [n tiles-per-row]
   (mod n tiles-per-row))
@@ -435,7 +433,7 @@
               u1 (aget uvs (if (.h-flip tile) 0 2))
               v1 (aget uvs (if (.v-flip tile) 1 3))]
           (recur it
-            (if (.rotate90 tile)
+                 (if (.rotate90 tile)
                    (-> vbuf
                        (pos-uv-vtx-put! x0 y1 0 u0 v1)
                        (pos-uv-vtx-put! x1 y1 0 u0 v0)
@@ -486,7 +484,7 @@
                     :passes [pass/transparent pass/selection]}})))
 
 (g/defnk produce-layer-outline
-  [_node-id id z]
+  [_node-id id z visible]
   {:node-id _node-id
    :node-outline-key id
    :label id
@@ -522,6 +520,7 @@
 
   (property id g/Str) ; Required protobuf field.
   (property z g/Num ; Required protobuf field.
+            (default protobuf/float-zero) ; Default for nodes constructed by editor scripts
             (dynamic error (validation/prop-error-fnk :warning validation/prop-1-1? z)))
 
   (property visible g/Bool (default (protobuf/int->boolean (protobuf/default Tile$TileLayer :is-visible))))
@@ -725,7 +724,6 @@
   (output node-outline outline/OutlineData :cached produce-node-outline)
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
-
 
 ;;--------------------------------------------------------------------
 ;; tool
@@ -1436,15 +1434,6 @@
       (some-> (selection->layer selection)
         core/scope)))
 
-(defn- gen-unique-name
-  [basename existing-names]
-  (let [existing-names (set existing-names)]
-    (loop [postfix 0]
-      (let [name (if (= postfix 0) basename (str basename postfix))]
-        (if (existing-names name)
-          (recur (inc postfix))
-          name)))))
-
 (defn- make-new-layer
   [id]
   (protobuf/make-map-without-defaults Tile$TileLayer
@@ -1453,14 +1442,13 @@
 
 (defn- add-layer-handler
   [tile-map-node]
-  (let [layer-ids (set (g/node-value tile-map-node :layer-ids))
-        layer-id (gen-unique-name "layer" layer-ids)]
+  (let [layer-id (id/gen "layer" (g/node-value tile-map-node :layer-ids))]
     (g/transact
      (concat
       (g/operation-label "Add layer")
       (make-layer-node tile-map-node (make-new-layer layer-id))))))
 
-(handler/defhandler :add :workbench
+(handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data] "Add layer")
   (active? [selection] (selection->tile-map selection))
   (run [selection user-data] (add-layer-handler (selection->tile-map selection))))
@@ -1487,7 +1475,7 @@
   (let [input-handlers (map first (g/sources-of scene-view :input-handlers))]
     (first (filter (partial g/node-instance? TileMapController) input-handlers))))
 
-(handler/defhandler :erase-tool :workbench
+(handler/defhandler :scene.select-erase-tool :workbench
   (label [user-data] "Select Eraser")
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
@@ -1501,7 +1489,7 @@
 (defn- tile-map-palette-handler [tool-controller]
   (g/update-property! tool-controller :mode (toggler :palette :editor)))
 
-(handler/defhandler :show-palette :workbench
+(handler/defhandler :scene.toggle-tile-palette :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
@@ -1517,7 +1505,7 @@
         tool-controller (scene-view->tool-controller scene-view)]
     (g/update-property! tool-controller :brush transform-brush-fn)))
 
-(handler/defhandler :flip-brush-horizontally :workbench
+(handler/defhandler :scene.flip-brush-horizontally :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
@@ -1527,7 +1515,7 @@
              (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (transform-brush! app-view flip-brush-horizontally)))
 
-(handler/defhandler :flip-brush-vertically :workbench
+(handler/defhandler :scene.flip-brush-vertically :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
@@ -1537,7 +1525,7 @@
                      (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (transform-brush! app-view flip-brush-vertically)))
 
-(handler/defhandler :rotate-brush-90-degrees :workbench
+(handler/defhandler :scene.rotate-brush-90-degrees :workbench
   (active? [app-view evaluation-context]
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
@@ -1549,29 +1537,52 @@
 
 (handler/register-menu! ::menubar :editor.app-view/edit-end
   [{:label "Select Tile..."
-    :command :show-palette}
+    :command :scene.toggle-tile-palette}
    {:label "Select Eraser"
-    :command :erase-tool}
+    :command :scene.select-erase-tool}
    {:label "Flip Brush Horizontally"
-    :command :flip-brush-horizontally}
+    :command :scene.flip-brush-horizontally}
    {:label "Flip Brush Vertically"
-    :command :flip-brush-vertically}
+    :command :scene.flip-brush-vertically}
    {:label "Rotate Brush 90 Degrees"
-    :command :rotate-brush-90-degrees}])
+    :command :scene.rotate-brush-90-degrees}])
+
+(g/defnode TileMapGrid
+  (inherits grid/Grid)
+  (input grid-size g/Any :substitute nil)
+  (output options g/Any (g/fnk [grid-size]
+                          {:active-plane :z
+                           :auto-scale false
+                           :size {:x (first grid-size)
+                                  :y (second grid-size)
+                                  :z 1}})))
+
+(defmethod scene/attach-grid ::TileMapGrid
+  [_ grid-node-id view-id resource-node camera]
+  (concat
+    (g/connect grid-node-id :_node-id view-id :grid)
+    (g/connect grid-node-id :renderable view-id :aux-renderables)
+    (g/connect camera :camera grid-node-id :camera)
+    (g/connect resource-node :tile-dimensions grid-node-id :grid-size)))
 
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext ["tilemap" "tilegrid"]
-    :build-ext "tilemapc"
-    :node-type TileMapNode
-    :ddf-type Tile$TileGrid
-    :load-fn load-tile-map
-    :sanitize-fn sanitize-tile-map
-    :icon tile-map-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:grid tile-map-grid/TileMapGrid
-                        :tool-controller TileMapController}}
-    :tags #{:component :non-embeddable}
-    :tag-opts {:component {:transform-properties #{:position :rotation}}}
-    :label "Tile Map"))
+  (concat
+    (attachment/register
+      workspace TileMapNode :layers
+      :add {LayerNode attach-layer-node}
+      :get attachment/nodes-getter)
+    (resource-node/register-ddf-resource-type workspace
+      :ext ["tilemap" "tilegrid"]
+      :build-ext "tilemapc"
+      :node-type TileMapNode
+      :ddf-type Tile$TileGrid
+      :load-fn load-tile-map
+      :sanitize-fn sanitize-tile-map
+      :icon tile-map-icon
+      :icon-class :design
+      :view-types [:scene :text]
+      :view-opts {:scene {:grid TileMapGrid
+                          :tool-controller TileMapController}}
+      :tags #{:component :non-embeddable}
+      :tag-opts {:component {:transform-properties #{:position :rotation}}}
+      :label "Tile Map")))

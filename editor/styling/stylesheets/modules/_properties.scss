@@ -3,12 +3,66 @@
         -fx-spacing: 0;
     }
 
+    .text-field {
+        -fx-min-width: 32px;
+    }
+
     .composite-property-control-container {
         .button {
             &:focused {
                 // Tabbed to button
                 -fx-background-color: -df-background;
             }
+        }
+    }
+
+    .overlay-action-pane {
+        -fx-background-color: transparent;
+
+        .action-button {
+            -fx-max-width: 24px;
+            -fx-min-width: 24px;
+            -fx-background-radius: 0;
+            -fx-border-radius: 0;
+            -fx-border-color: transparent;
+            visibility: hidden;
+
+            &.drag-handle {
+                -fx-max-width: 16px;
+                -fx-min-width: 16px;
+
+                &:hover {
+                    -fx-cursor: v-resize;
+                }
+            }
+
+            &.color-dropper {
+                -fx-background-color: transparent;
+            }
+
+            &:hover {
+                visibility: visible;
+
+                .image-view {
+                    -fx-effect: innershadow(gaussian, -df-text-selected, 20, 1.0, 0, 0);
+                }
+            }
+
+            &.active {
+                visibility: visible;
+
+                .image-view {
+                    -fx-effect: innershadow(gaussian, -df-defold-blue-light, 20, 1.0, 0, 0);
+                }
+            }
+
+            &.hidden {
+                visibility: hidden;
+            }
+        }
+
+        &:hover .action-button {
+            visibility: visible;
         }
     }
 }

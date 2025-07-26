@@ -47,10 +47,10 @@
 #include <dmsdk/gamesys/resources/res_textureset.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_Sprite, 0, FrameReset, "# components", &rmtp_Components);
-DM_PROPERTY_U32(rmtp_SpriteVertexCount, 0, FrameReset, "# vertices", &rmtp_Sprite);
-DM_PROPERTY_U32(rmtp_SpriteVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Sprite);
-DM_PROPERTY_U32(rmtp_SpriteIndexSize, 0, FrameReset, "size of indices in bytes", &rmtp_Sprite);
+DM_PROPERTY_U32(rmtp_Sprite, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_SpriteVertexCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Sprite);
+DM_PROPERTY_U32(rmtp_SpriteVertexSize, 0, PROFILE_PROPERTY_FRAME_RESET, "size of vertices in bytes", &rmtp_Sprite);
+DM_PROPERTY_U32(rmtp_SpriteIndexSize, 0, PROFILE_PROPERTY_FRAME_RESET, "size of indices in bytes", &rmtp_Sprite);
 
 namespace dmGameSystem
 {
@@ -899,7 +899,7 @@ namespace dmGameSystem
 
                 (*scratch_positions_world)[vertex_index] = world_matrix * p;
 
-                vertices = dmGraphics::WriteAttributes(vertices, vertex_index++, params);
+                vertices = dmGraphics::WriteAttributes(vertices, vertex_index++, 1, params);
             }
         }
 
@@ -1296,7 +1296,7 @@ namespace dmGameSystem
                     }
 
                     sprite_world->m_ScratchPositionWorld[vertex_index] = world_matrix * sprite_world->m_ScratchPositionWorld[vertex_index];
-                    vertices = dmGraphics::WriteAttributes(vertices, vertex_index, write_params);
+                    vertices = dmGraphics::WriteAttributes(vertices, vertex_index, 1, write_params);
                 }
 
                 const dmGameSystemDDF::SpriteGeometry* geometry = textures.m_Geometries[0];
@@ -1404,10 +1404,7 @@ namespace dmGameSystem
                         (const float**) scratch_pi_ptrs,
                         textures.m_NumTextures);
 
-                    vertices = dmGraphics::WriteAttributes(vertices, 0, write_params);
-                    vertices = dmGraphics::WriteAttributes(vertices, 1, write_params);
-                    vertices = dmGraphics::WriteAttributes(vertices, 2, write_params);
-                    vertices = dmGraphics::WriteAttributes(vertices, 3, write_params);
+                    vertices = dmGraphics::WriteAttributes(vertices, 0, 4, write_params);
 
                 #if 0
                     for (int f = 0; f < 4; ++f)
@@ -2384,12 +2381,13 @@ namespace dmGameSystem
                     type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4;
                     break;
                 case 2:
-                    {
-                        // Since the size is baked into the matrix, we divide by it here
-                        Vector3 size( component->m_Size.getX() * component->m_Scale.getX(), component->m_Size.getY() * component->m_Scale.getY(), 1);
-                        value = Vector4(dmVMath::DivPerElem(transform.GetScale(), size));
-                    }
+                {
+                    Matrix4 parent_world = dmGameObject::GetWorldMatrix(component->m_Instance);
+                    Vector3 parent_scale = dmTransform::ToTransform(parent_world).GetScale();
+                    Vector3 world_scale = dmVMath::MulPerElem(parent_scale, component->m_Scale);
+                    value = Vector4(world_scale);
                     break;
+                }
                 case 3:
                     // the size is baked into this matrix as the scale
                     value = Vector4(transform.GetScale());

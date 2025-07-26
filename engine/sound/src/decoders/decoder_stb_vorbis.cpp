@@ -77,7 +77,8 @@ namespace dmSoundCodec
                 streamInfo->m_Info.m_Rate = info.sample_rate;
                 streamInfo->m_Info.m_Size = 0;
                 streamInfo->m_Info.m_Channels = info.channels;
-                streamInfo->m_Info.m_BitsPerSample = 16;
+                streamInfo->m_Info.m_BitsPerSample = 32;
+                streamInfo->m_Info.m_IsInterleaved = false;
                 streamInfo->m_StbVorbis = vorbis;
 
                 *stream = streamInfo;
@@ -96,33 +97,28 @@ namespace dmSoundCodec
         return RESULT_INVALID_FORMAT;
     }
 
-    static inline int16_t FloatToS16(float in)
+    static void ConvertDecoderOutput(uint32_t channels, char *out[], uint32_t out_offset, float **data, uint32_t in_offset, uint32_t frames)
     {
-        int32_t t = (int32_t)(in * 32767.0f);
-        return (int16_t)dmMath::Clamp(t, -32768, 32767);
-    }
-
-    static void ConvertDecoderOutput(uint32_t channels, int16_t *out, float **data, uint32_t offset, uint32_t frames)
-    {
-        assert(channels == 1 || channels == 2);
-        uint32_t s = channels - 1;
-
-        for(uint32_t c=0; c<channels; ++c) {
-            for(uint32_t f=0; f<frames; ++f) {
-                out[(f << s) + c] = FloatToS16(data[c][f + offset]);
+        // Copy out data from Vorbis internal buffer & scale it up from normalized representation to fit the mixer's expectations
+        for(uint32_t c=0; c<channels; ++c)
+        {
+            const float* src = data[c] + in_offset;
+            float* dest = (float*)out[c] + out_offset;
+            for(uint32_t i=0; i<frames; ++i)
+            {
+                *(dest++) = *(src++) * 32767.0f;
             }
         }
     }
 
-    static Result StbVorbisDecode(HDecodeStream stream, char* buffer, uint32_t buffer_size, uint32_t* decoded)
+    static Result StbVorbisDecode(HDecodeStream stream, char* buffer[], uint32_t buffer_size, uint32_t* decoded)
     {
         // note: EOS detection is solely based on data consumption and hence not sample precise (the last decoded block may contain silence not part of the original material)
         
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
-
         DM_PROFILE(__FUNCTION__);
 
-        int needed_frames = buffer_size / (streamInfo->m_Info.m_Channels * sizeof(int16_t));
+        int needed_frames = buffer_size / sizeof(float);    // in non-interleaved case (here) we have per channel sizes
         int done_frames = 0;
 
         bool bEOS = false;
@@ -184,7 +180,7 @@ namespace dmSoundCodec
                 uint32_t out_frames = dmMath::Min(streamInfo->m_LastOutputFrames, needed_frames - done_frames);
                 // This might be called with a NULL buffer to avoid delivering data, so we need to check...
                 if (buffer) {
-                    ConvertDecoderOutput(streamInfo->m_Info.m_Channels, (short*)buffer + done_frames * streamInfo->m_Info.m_Channels, streamInfo->m_LastOutput, streamInfo->m_LastOutputOffset, out_frames);
+                    ConvertDecoderOutput(streamInfo->m_Info.m_Channels, buffer, done_frames, streamInfo->m_LastOutput, streamInfo->m_LastOutputOffset, out_frames);
                 }
                 
                 done_frames += out_frames;
@@ -198,7 +194,7 @@ namespace dmSoundCodec
 
         }
 
-        *decoded = done_frames * streamInfo->m_Info.m_Channels * sizeof(int16_t);
+        *decoded = done_frames * sizeof(float);
 
         return (done_frames == 0 && bEOS) ? RESULT_END_OF_STREAM : RESULT_OK;
     }
@@ -226,7 +222,7 @@ namespace dmSoundCodec
         // NOTE POST STREAMING-REFACTOR:
         //
         // - modifications in Vorbis are no longer needed
-        // - NULL buffer really (old & new version) just skips the final float to short conversion - decode of the actual data still happens (unless decoder is in seek mode)
+        // - NULL buffer really (old & new version) just skips very little to nothing - decode of the actual data still happens (unless decoder is in seek mode)
         // - we still need to decode to be able to monitor data consumption & keep decode state to reengage output later on / detect EOS
         //
         return StbVorbisDecode(stream, NULL, num_bytes, skipped);

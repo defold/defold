@@ -16,16 +16,15 @@
   "Helpers for interacting with the YourKit Java profiler.
 
   Prerequisites:
-  * The JVM must have been started with `-agentpath:<path-to-libyjpagent+opts>`.
+  * The JVM must have been started with `-agentpath:<path-to-libyjpagent>`.
   * `yjp-controller-api-redist.jar` must be on the classpath.
 
   You can achieve this by putting something like this in `~/.lein/profiles.clj`:
-  ```
-  {:user {:jvm-opts [\"-agentpath:/Applications/YourKit-Java-Profiler-2023.5.app/Contents/Resources/bin/mac/libyjpagent.dylib=disablestacktelemetry,exceptions=disable\"]
-          :resource-paths [\"/Applications/YourKit-Java-Profiler-2023.5.app/Contents/Resources/lib/yjp-controller-api-redist.jar\"]}}
-  ```"
+
+  {:user {:jvm-opts [\"-agentpath:/Applications/YourKit Java Profiler.app/Contents/Resources/bin/mac/libyjpagent.dylib\"]
+          :resource-paths [\"/Applications/YourKit Java Profiler.app/Contents/Resources/lib/yjp-controller-api-redist.jar\"]}}"
   (:require [editor.process :as process])
-  (:import [com.yourkit.api.controller.v2 AllocationProfilingSettings Controller CpuProfilingSettings]))
+  (:import [com.yourkit.api.controller.v2 AllocationProfilingMode AllocationProfilingSettings Controller CpuProfilingSettings]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -222,7 +221,9 @@
 ;; Allocation recording
 ;; -----------------------------------------------------------------------------
 
-(def ^AllocationProfilingSettings default-allocation-profiling-settings (AllocationProfilingSettings.))
+(def ^AllocationProfilingSettings default-allocation-profiling-settings
+  (doto (AllocationProfilingSettings.)
+    (.setMode AllocationProfilingMode/HEAP_SAMPLING)))
 
 (defmacro start-allocation-recording!
   "Starts recording memory allocations. The call clears previously recorded

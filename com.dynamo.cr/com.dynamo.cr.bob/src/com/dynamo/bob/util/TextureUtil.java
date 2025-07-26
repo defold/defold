@@ -26,13 +26,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.stream.Collectors;
 
 import javax.imageio.ImageIO;
 
+import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.pipeline.TextureGeneratorException;
+import com.dynamo.bob.pipeline.TextureProfilesBuilder;
 import com.dynamo.graphics.proto.Graphics.PathSettings;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
@@ -216,6 +222,24 @@ public class TextureUtil {
 
         return null;
     }
+    private static String textureProfilesExt = TextureProfilesBuilder.class.getAnnotation(BuilderParams.class).outExt();
+
+    public static TextureProfile getTextureProfileByPath(IResource textureProfiles, String path) throws IOException {
+        TextureProfiles.Builder builder = TextureProfiles.newBuilder();
+        if (!textureProfiles.exists() || !textureProfiles.getPath().endsWith(textureProfilesExt)) {
+            return null;
+        }
+        builder.mergeFrom(textureProfiles.getContent());
+        return getTextureProfileByPath(builder.build(), path);
+    }
+
+    public static void addTextureProfileInput(Task.TaskBuilder taskBuilder, Project project) {
+        String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");
+        if (textureProfilesPath != null) {
+            String fileName = ResourceUtil.changeExt(textureProfilesPath, textureProfilesExt);
+            taskBuilder.addInput(project.getResource(fileName).output());
+        }
+    }
 
     private static int getTextureGenerateResultImageDatasIndex(TextureImage textureImage, int alternative, int mipMap) throws TextureGeneratorException {
         int mipMapOffset = 0;
@@ -377,16 +401,28 @@ public class TextureUtil {
 
     // Public api
     public static List<BufferedImage> loadImages(List<IResource> resources) throws IOException, CompileExceptionError {
-        List<BufferedImage> images = new ArrayList<BufferedImage>(resources.size());
-
-        for (IResource resource : resources) {
-            BufferedImage image = ImageIO.read(new ByteArrayInputStream(resource.getContent()));
-            if (image == null) {
-                throw new CompileExceptionError(resource, -1, "Unable to load image " + resource.getPath());
+        try {
+            return resources.parallelStream()
+                    .map(resource -> {
+                        try {
+                            BufferedImage image = ImageIO.read(new ByteArrayInputStream(resource.getContent()));
+                            if (image == null) {
+                                throw new CompileExceptionError(resource, -1, "Unable to load image " + resource.getPath());
+                            }
+                            return image;
+                        } catch (IOException e) {
+                            throw new RuntimeException(new CompileExceptionError(resource, -1, "Unable to load image " + resource.getPath(), e));
+                        } catch (CompileExceptionError e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .collect(Collectors.toList());
+        } catch (RuntimeException e) {
+            if (e.getCause() instanceof CompileExceptionError) {
+                throw (CompileExceptionError) e.getCause();
             }
-            images.add(image);
+            throw e;
         }
-        return images;
     }
 
     static HashMap<String, String> ATLAS_FILE_TYPES = new HashMap<>();

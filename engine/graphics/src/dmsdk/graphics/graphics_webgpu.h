@@ -20,6 +20,8 @@
 #ifdef __EMSCRIPTEN__
     #include <webgpu/webgpu.h>
 #else
+    typedef int WGPUInstance;
+    typedef int WGPUAdapter;
     typedef int WGPUQueue;
     typedef int WGPUDevice;
     typedef int WGPUTextureView;
@@ -33,10 +35,13 @@
  * @document
  * @name Graphics WebGPU
  * @namespace dmGraphics
+ * @language C++
  */
 
 namespace dmGraphics
 {
+    WGPUInstance    WebGPUGetInstance(HContext context);
+    WGPUAdapter     WebGPUGetAdapter(HContext context);
     WGPUDevice      WebGPUGetDevice(HContext context);
     WGPUQueue       WebGPUGetQueue(HContext context);
     WGPUTextureView WebGPUGetTextureView(HContext context, HTexture texture);

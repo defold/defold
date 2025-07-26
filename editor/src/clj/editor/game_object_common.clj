@@ -26,8 +26,7 @@
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [service.log :as log]
-            [util.fn :as fn])
+            [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [java.io StringReader]
            [javax.vecmath Matrix4d]))
@@ -38,11 +37,15 @@
 
 (def component-transform-property-keys (set (keys scene/identity-transform-properties)))
 
-(defn template-pb-map [workspace resource-type]
-  (let [template (workspace/template workspace resource-type)
-        read-fn (:read-fn resource-type)]
-    (with-open [reader (StringReader. template)]
-      (read-fn reader))))
+(defn template-pb-map
+  ([workspace resource-type]
+   (g/with-auto-evaluation-context evaluation-context
+     (template-pb-map workspace resource-type evaluation-context)))
+  ([workspace resource-type evaluation-context]
+   (let [template (workspace/template workspace resource-type evaluation-context)
+         read-fn (:read-fn resource-type)]
+     (with-open [reader (StringReader. template)]
+       (read-fn reader)))))
 
 (defn strip-default-scale-from-component-desc [component-desc]
   ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
@@ -225,7 +228,6 @@
 (defn game-object-build-target [source-resource host-resource-node-id component-instance-datas component-build-targets]
   {:pre [(workspace/source-resource? source-resource)
          (g/node-id? host-resource-node-id)
-         (vector? component-instance-datas)
          (vector? component-build-targets)]}
   ;; Extract the :component-instance-datas from the component build targets so
   ;; that overrides can be embedded in the resulting game object binary. We also

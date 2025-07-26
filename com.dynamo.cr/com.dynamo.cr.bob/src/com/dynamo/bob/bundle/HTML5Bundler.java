@@ -47,8 +47,9 @@ import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.archive.EngineVersion;
 
-@BundlerParams(platforms = {Platform.JsWeb, Platform.WasmWeb})
+@BundlerParams(platforms = {"js-web", "wasm-web", "wasm_pthread-web"})
 public class HTML5Bundler implements IBundler {
     private static Logger logger = Logger.getLogger(HTML5Bundler.class.getName());
 
@@ -62,6 +63,12 @@ public class HTML5Bundler implements IBundler {
     private long WasmSize = 2000000;
     private String WasmjsSHA1 = "";
     private long WasmjsSize = 250000;
+
+    private String WasmPthreadSHA1 = "";
+    private long WasmPthreadSize = 2000000;
+    private String WasmPthreadjsSHA1 = "";
+    private long WasmPthreadjsSize = 250000;
+
     private String AsmjsSHA1 = "";
     private long AsmjsSize = 4000000;
     public static final String MANIFEST_NAME = "engine_template.html";
@@ -105,6 +112,12 @@ public class HTML5Bundler implements IBundler {
         properties.put("DEFOLD_WASM_SIZE", WasmSize);
         properties.put("DEFOLD_WASMJS_SHA1", WasmjsSHA1);
         properties.put("DEFOLD_WASMJS_SIZE", WasmjsSize);
+        properties.put("DEFOLD_WASM_PTHREAD_SHA1", WasmPthreadSHA1);
+        properties.put("DEFOLD_WASM_PTHREAD_SIZE", WasmPthreadSize);
+        properties.put("DEFOLD_WASMJS_PTHREAD_SHA1", WasmPthreadjsSHA1);
+        properties.put("DEFOLD_WASMJS_PTHREAD_SIZE", WasmPthreadjsSize);
+        properties.put("DEFOLD_ENGINE_VERSION", EngineVersion.version);
+        properties.put("DEFOLD_SDK_SHA1", project.option("defoldsdk", EngineVersion.sha1));
         properties.put("ASMJS_SHA1", AsmjsSHA1);
         properties.put("ASMJS_SIZE", AsmjsSize);
 
@@ -165,7 +178,10 @@ public class HTML5Bundler implements IBundler {
         // set flag so that we can disable wasm support in the engine_template.html if we're not
         // bundling with a wasm engine
         final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
-        properties.put("DEFOLD_HAS_WASM_ENGINE", architectures.contains(Platform.WasmWeb));
+        boolean hasWasm = architectures.contains(Platform.WasmWeb) || architectures.contains(Platform.WasmPthreadWeb);
+        properties.put("DEFOLD_HAS_WASM_ENGINE", hasWasm);
+
+        properties.put("DEFOLD_HAS_WASM_PTHREAD_ENGINE", architectures.contains(Platform.WasmPthreadWeb));
     }
 
     class SplitFile {
@@ -305,6 +321,71 @@ public class HTML5Bundler implements IBundler {
     private void createDmLoader(BundleHelper helper, URL inputResource, File targetFile) throws IOException {
         helper.formatResourceToFile(inputResource.openStream().readAllBytes(), inputResource.getPath(), targetFile);
     }
+
+    private void buildWasm(Project project, ICanceled canceled, Platform platform, File appDir, String variant, String enginePrefix, String suffix) throws IOException {
+        BundleHelper.throwIfCanceled(canceled);
+        List<File> binsWasm = ExtenderUtil.getNativeExtensionEngineBinaries(project, platform);
+        if (binsWasm == null) {
+            try {
+                binsWasm = Bob.getDefaultDmengineFiles(platform, variant);
+            } catch(IOException e) {
+                System.err.println(String.format("Unable to bundle platform %s: %s", platform, e.getMessage()));
+            }
+        }
+        else {
+            logger.info("Using extender binary for WASM");
+        }
+        if(binsWasm != null) {
+            // Copy dwarf debug file if it is generated
+            String dwarfName = "dmengine.wasm.debug.wasm";
+            if (variant.equals(Bob.VARIANT_RELEASE)) {
+                dwarfName = "dmengine_release.wasm.debug.wasm";
+            }
+            String dwarfZipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), Platform.WasmWeb.getExtenderPair());
+            File bundleDwarf = new File(dwarfZipDir, dwarfName);
+            if (bundleDwarf.exists()) {
+                File dwarfOut = new File(appDir, enginePrefix + ".wasm.debug.wasm");
+                FileUtils.copyFile(bundleDwarf, dwarfOut);
+            }
+
+            for (File bin : binsWasm) {
+                BundleHelper.throwIfCanceled(canceled);
+                String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
+                if (binExtension.equals("js")) {
+                    FileUtils.copyFile(bin, new File(appDir, enginePrefix + suffix + "_wasm.js"));
+
+                    if (platform == Platform.WasmWeb)
+                        WasmjsSize = bin.length();
+                    else if (platform == Platform.WasmPthreadWeb)
+                        WasmPthreadjsSize = bin.length();
+
+                    if (project.hasOption("with-sha1")) {
+                        if (platform == Platform.WasmWeb)
+                            WasmjsSHA1 = HTML5Bundler.calculateSHA1(bin);
+                        else if (platform == Platform.WasmPthreadWeb)
+                            WasmPthreadjsSHA1 = HTML5Bundler.calculateSHA1(bin);
+                    }
+                } else if (binExtension.equals("wasm")) {
+                    FileUtils.copyFile(bin, new File(appDir, enginePrefix + suffix + ".wasm"));
+
+                    if (platform == Platform.WasmWeb)
+                        WasmSize = bin.length();
+                    else if (platform == Platform.WasmPthreadWeb)
+                        WasmPthreadSize = bin.length();
+
+                    if (project.hasOption("with-sha1")) {
+                        if (platform == Platform.WasmWeb)
+                            WasmSHA1 = HTML5Bundler.calculateSHA1(bin);
+                        else if (platform == Platform.WasmPthreadWeb)
+                            WasmPthreadSHA1 = HTML5Bundler.calculateSHA1(bin);
+                    }
+                } else {
+                    throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
+                }
+            }
+        }
+    }
+
     @Override
     public void bundleApplication(Project project, Platform platform, File bundleDirectory, ICanceled canceled)
             throws IOException, CompileExceptionError {
@@ -390,52 +471,11 @@ public class HTML5Bundler implements IBundler {
         }
 
         if (architectures.contains(Platform.WasmWeb)) {
-            BundleHelper.throwIfCanceled(canceled);
-            Platform targetPlatform = Platform.WasmWeb;
-            List<File> binsWasm = ExtenderUtil.getNativeExtensionEngineBinaries(project, targetPlatform);
-            if (binsWasm == null) {
-                try {
-                    binsWasm = Bob.getDefaultDmengineFiles(targetPlatform, variant);
-                } catch(IOException e) {
-                    System.err.println("Unable to bundle wasm-web: " + e.getMessage());
-                }
-            }
-            else {
-                logger.info("Using extender binary for WASM");
-            }
-            if(binsWasm != null) {
-                // Copy dwarf debug file if it is generated
-                String dwarfName = "dmengine.wasm.debug.wasm";
-                if (variant.equals(Bob.VARIANT_RELEASE)) {
-                    dwarfName = "dmengine_release.wasm.debug.wasm";
-                }
-                String dwarfZipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), Platform.WasmWeb.getExtenderPair());
-                File bundleDwarf = new File(dwarfZipDir, dwarfName);
-                if (bundleDwarf.exists()) {
-                    File dwarfOut = new File(appDir, enginePrefix + ".wasm.debug.wasm");
-                    FileUtils.copyFile(bundleDwarf, dwarfOut);
-                }
+            buildWasm(project, canceled, Platform.WasmWeb, appDir, variant, enginePrefix, "");
+        }
 
-                for (File bin : binsWasm) {
-                    BundleHelper.throwIfCanceled(canceled);
-                    String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
-                    if (binExtension.equals("js")) {
-                        FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_wasm.js"));
-                        WasmjsSize = bin.length();
-                        if (project.hasOption("with-sha1")) {
-                            WasmjsSHA1 = HTML5Bundler.calculateSHA1(bin);
-                        }
-                    } else if (binExtension.equals("wasm")) {
-                        FileUtils.copyFile(bin, new File(appDir, enginePrefix + ".wasm"));
-                        WasmSize = bin.length();
-                        if (project.hasOption("with-sha1")) {
-                            WasmSHA1 = HTML5Bundler.calculateSHA1(bin);
-                        }
-                    } else {
-                        throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
-                    }
-                }
-            }
+        if (architectures.contains(Platform.WasmPthreadWeb)) {
+            buildWasm(project, canceled, Platform.WasmPthreadWeb, appDir, variant, enginePrefix, "_pthread");
         }
 
         BundleHelper.throwIfCanceled(canceled);

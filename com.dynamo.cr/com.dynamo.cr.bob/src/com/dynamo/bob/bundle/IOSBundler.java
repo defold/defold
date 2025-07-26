@@ -54,7 +54,7 @@ import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.FileUtil;
 
-@BundlerParams(platforms = {Platform.Arm64Ios, Platform.X86_64Ios})
+@BundlerParams(platforms = {"arm64-ios", "x86_64-ios"})
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
 
@@ -500,6 +500,24 @@ public class IOSBundler implements IBundler {
                 File dest = new File(frameworksDir, extensionFrameworkDir.getName());
                 FileUtils.copyDirectory(extensionFrameworkDir, dest);
                 logger.fine("Copy framework " + extensionFrameworkDir);
+            }
+        }
+
+        // Copy all resources that were return as build result from Extender
+        // TODO: resources should be shared between architectures but it's not supported by Extender
+        for (Platform architecture : architectures) {
+            File architectureDir = new File(project.getBinaryOutputDirectory(), architecture.getExtenderPair());
+            if (!architectureDir.exists()) continue;
+            File resourcesDir = new File(architectureDir, "resources");
+            if (!resourcesDir.exists()) continue;
+            for (File resource : resourcesDir.listFiles()) {
+                File dest = new File(appDir, resource.getName());
+                if (resource.isDirectory()) {
+                    FileUtils.copyDirectory(resource, dest);
+                } else {
+                    FileUtils.copyFile(resource, dest);
+                }
+                logger.info("Copy resource " + resource);
             }
         }
 

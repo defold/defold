@@ -25,7 +25,8 @@
             [internal.graph.types]
             [internal.system :as is]
             [service.log :as log]
-            [util.debug-util :as du])
+            [util.debug-util :as du]
+            [util.eduction :as e])
   (:import [java.util List]))
 
 (set! *warn-on-reflection* true)
@@ -44,7 +45,7 @@
   ;; You are responsible for calling (task-fn) and returning its return value.
   (case task-key
     ;; We can selectively activate and deactivate profiling around these tasks.
-    (:make-nodes :read-resources :load-nodes)
+    (:read-resources :load-nodes)
     (do
       ;; Start profiling.
       (let [result (task-fn)]
@@ -58,13 +59,9 @@
   [:setup-workspace
    :fetch-libraries
    :resource-sync
-   :make-project
    :list-resources
-   :make-nodes
-   :setup-project
+   :make-project
    :read-resources
-   :sort-source-values
-   :store-source-values
    :load-nodes
    :cache-save-data])
 
@@ -108,7 +105,7 @@
 (defonce runtime (Runtime/getRuntime))
 (defonce start-allocated-bytes (du/allocated-bytes runtime))
 (defonce start-time-nanos (System/nanoTime))
-(defonce system-config (shared-editor-settings/load-project-system-config project-path))
+(defonce system-config (assoc (shared-editor-settings/load-project-system-config project-path) :cache-retain? project/cache-retain?))
 (defonce ^:private -set-system- (do (reset! g/*the-system* (is/make-system system-config)) nil))
 (defonce workspace-graph-id (g/last-graph-added))
 
@@ -117,14 +114,16 @@
     :setup-workspace
     (test-util/setup-workspace! workspace-graph-id project-path)))
 
+(defonce game-project-resource
+  (workspace/find-resource workspace "/game.project"))
+
 (defonce up-to-date-lib-states
   (when (run-task? :fetch-libraries)
     (dev/run-with-progress "Fetching Libraries..."
       (fn fetch-libraries-with-progress [render-progress!]
         (measure-task!
           :fetch-libraries
-          (let [game-project-resource (workspace/find-resource workspace "/game.project")
-                dependencies (project/read-dependencies game-project-resource)
+          (let [dependencies (project/read-dependencies game-project-resource)
                 stale-lib-states (workspace/fetch-and-validate-libraries workspace dependencies render-progress!)]
             (workspace/install-validated-libraries! workspace stale-lib-states)))))))
 
@@ -136,84 +135,53 @@
 
 (defonce project-graph-id (g/make-graph! :history true :volatility 1))
 
+(defonce node-id+resource-pairs
+  (run-and-measure-task!
+    :list-resources
+    (project/make-node-id+resource-pairs
+      project-graph-id
+      (g/node-value workspace :resource-list))))
+
+(defonce game-project-node-id
+  (some (fn [[node-id resource]]
+          (when (identical? game-project-resource resource)
+            node-id))
+        node-id+resource-pairs))
+
 (defonce project
   (run-and-measure-task!
     :make-project
     (let [extensions (extensions/make project-graph-id)]
       (project/make-project project-graph-id workspace extensions))))
 
-(defonce resources
-  (run-and-measure-task!
-    :list-resources
-    (g/node-value project :resources)))
-
-(defonce resource-node-ids
-  (let [resource-node-ids
-        (run-and-measure-task!
-          :make-nodes
-          (#'project/make-nodes! project resources transact-opts))]
-    (when-not change-tracked-transact
-      (g/clear-system-cache!))
-    resource-node-ids))
-
-(defn- make-resource-node-progress-fn [^String label render-progress!]
-  {:pre [(string? label)
-         (fn? render-progress!)]}
-  (first
-    (#'project/make-progress-fns
-      [[1 label]]
-      (count resource-node-ids)
-      render-progress!)))
-
-(defonce ^:private -setup-project-
-  (when (run-task? :setup-project)
-    (when-let [game-project (project/get-resource-node project "/game.project")]
-      (let [script-intel (project/script-intelligence project)]
-        (g/transact transact-opts
-          (concat
-            (g/connect script-intel :build-errors game-project :build-errors)
-            (g/connect game-project :display-profiles-data project :display-profiles)
-            (g/connect game-project :texture-profiles-data project :texture-profiles)
-            (g/connect game-project :settings-map project :settings)))
-        (when-not change-tracked-transact
-          (g/clear-system-cache!))))))
-
 (defonce node-load-infos
-  (let [node-load-infos
-        (when (run-task? :read-resources)
-          (dev/run-with-progress "Reading Files..."
-            (fn read-files-with-progress [render-progress!]
-              (let [progress-reading! (make-resource-node-progress-fn "Reading" render-progress!)]
-                (measure-task!
-                  :read-resources
-                  (#'project/read-node-load-infos resource-node-ids progress-reading! resource-metrics))))))
-
-        node-load-infos
-        (run-and-measure-task!
-          :sort-source-values
-          (#'project/sort-node-load-infos-for-loading node-load-infos {} {}))]
-
-    (run-and-measure-task!
-      :store-source-values
-      (#'project/store-loaded-disk-sha256-hashes! node-load-infos workspace)
-      (#'project/store-loaded-source-values! node-load-infos))
-
-    node-load-infos))
+  (when (run-task? :read-resources)
+    (dev/run-with-progress "Reading Files..."
+      (fn read-resources-with-progress [render-progress!]
+        (measure-task!
+          :read-resources
+          (project/read-nodes node-id+resource-pairs
+            :render-progress! render-progress!
+            :resource-metrics resource-metrics))))))
 
 (defonce migrated-resource-node-ids
-  (let [migrated-resource-node-ids
+  (let [prelude-tx-data
+        (e/concat
+          (project/make-resource-nodes-tx-data project node-id+resource-pairs)
+          (project/setup-game-project-tx-data project game-project-node-id))
+
+        migrated-resource-node-ids
         (when (run-task? :load-nodes)
           (dev/run-with-progress "Loading Nodes..."
             (fn load-nodes-with-progress [render-progress!]
-              (let [progress-loading! (make-resource-node-progress-fn "Loading" render-progress!)]
-                (measure-task!
-                  :load-nodes
-                  (#'project/load-nodes-into-graph! node-load-infos project progress-loading! resource-metrics transact-opts))))))]
+              (measure-task!
+                :load-nodes
+                (project/load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))))]
     (when-not change-tracked-transact
       (g/clear-system-cache!))
     (run-and-measure-task!
       :cache-save-data
-      (#'project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids))
+      (project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids))
     (let [basis (g/now)
           migrated-proj-paths
           (into (sorted-set)

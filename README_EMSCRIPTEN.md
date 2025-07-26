@@ -1,37 +1,12 @@
 # Emscripten
 
-**TODO**
-
-* Run all tests
-* In particular (LuaTableTest, Table01) and setjmp
-* Profiler (disable http-server)
-* Non-release (disable engine-service)
-* Verify that exceptions are disabled
-* Alignments. Alignment to natural boundary is required for emscripten. uint16_t to 2, uint32_t to 4, etc
-  However, unaligned loads/stores of floats seems to be valid though.
-* Create a node.js package with uvrun for all platforms (osx, linux and windows)
-
 ## Updating emscripten version
 
-Note: This information is based on the latest update (3.1.55 -> 3.1.65)
+Make sure to read the release notes of each Emscripten version you upgrade to:
 
-* update the `EMSCRIPTEN_VERSION_STR` in `scripts/build.py`
-* package_emscripten:
-  - update the `VERSION` to the new version
-  - run the script `./script/package/package_emscripten.sh` on both OSX (x86_64 and arm64) and linux (x86_64) (tested on ubuntu 22.x)
-  - copy the artifact(s) from the `local_sdk` folder to the s3-bucket `defold-packages`
-* run `./scripts/build.py install_ems` to get the latest sdk for your host platform
-* build protobuf for js-web and wasm-web (ubuntu/linux) and copy into the `defold/packages` folder
-* build bullet3d for js-web and wasm-web (ubuntu/linux)
-  - `./scripts/build.py build_external --platform=js-web`
-  - `./scripts/build.py build_external --platform=wasm-web`
-  - these are automatically copied to packages
-* building:
-  - refresh the shell (`exit` + subsequent `scripts/build.py shell`)
-  - make sure `$EMSCRIPTEN` points to the updated version
-    - occasionally there has been issues with `fastcomp` vs `upstream` in the path so make sure the folder from the env variable exists
+https://github.com/emscripten-core/emscripten/blob/main/ChangeLog.md
 
-## Create SDK Packages (DEPRECATED?)
+### Create SDK Packages (DEPRECATED?)
 
 * Download [emsdk_portable](http://kripken.github.io/emscripten-site/docs/getting_started/downloads.html)
 * Compile on 32-bit Linux
@@ -45,28 +20,53 @@ Note: This information is based on the latest update (3.1.55 -> 3.1.65)
 
 In order to run on 64-bit Ubuntu install the following packages `lib32z1 lib32ncurses5 lib32bz2-1.0 lib32stdc++6`
 
+### Rebuild 3rd party engine packages
+
+Note: This information is based on the latest update (3.1.55 -> 3.1.65)
+
+* update the `EMSCRIPTEN_VERSION_STR` in `scripts/build.py`
+* package_emscripten:
+  - update the `VERSION` to the new version
+  - run the script `./script/package/package_emscripten.sh` on both OSX (x86_64 and arm64) and linux (x86_64) (tested on ubuntu 22.x)
+  - copy the artifact(s) from the `local_sdk` folder to the s3-bucket `defold-packages`
+* run `./scripts/build.py install_ems` to get the latest sdk for your host platform
+* build protobuf for js-web, wasm-web and wasm_pthread-web (ubuntu/linux) and copy into the `defold/packages` folder
+* build bullet3d for js-web, wasm-web and wasm_pthread-web (ubuntu/linux)
+  - `./scripts/build.py build_external --platform=js-web`
+  - `./scripts/build.py build_external --platform=wasm-web`
+  - `./scripts/build.py build_external --platform=wasm_pthread-web`
+  - these are automatically copied to packages
+* building:
+  - refresh the shell (`exit` + subsequent `scripts/build.py shell`)
+  - make sure `$EMSCRIPTEN` points to the updated version
+    - occasionally there has been issues with `fastcomp` vs `upstream` in the path so make sure the folder from the env variable exists
+
 ## Installation
 
-To install the emscripten tools, invoke 'build.py install_ems'.
+### Using a locally installed Emscripten
 
-Emscripten creates a configuration file in your home directory (~/.emscripten).Should you wish to change branches to one
-in which a different version of these tools is used then call 'build.py activate_ems' after doing so. This will cause the .emscripten file to be updated.
+As all other platforms, our builds can pick up a locally installed Emscripten by setting `EMSDK`:
+```bash
+> export EMSDK=/path/to/emsdk-4.x
+> ./scripts/build.py shell
+```
 
-Emscripten also relies upon python2 being on your path. You may find that this is not the case (which python2), it should be sufficient to create a symbolic link to
-the python binary in order to solve this problem.
+### Using a remote packaged Emscripten
 
-waf_dynamo contains changes relating to emscripten. The simplest way to collect these changes is to run 'build_ext'
+For our internal team (and CI), we rely on a CDN for packages.
+```bash
+> export DM_PACKAGES_URL=<url>
+> ./scripts/build.py install_sdk --platform=wasm-web
+```
 
-    > scripts/build.py install_ext
+## Running tests
 
-Building for js-web requires installation of the emscripten tools. This is a slow process, so not included in install_ext, instead run install_ems:
+By installing `node.js`, you can run tests.
 
-    > scripts/build.py install_ems
-
-As of 1.22.0, the emscripten tools emit separate *.js.mem memory initialisation files by default, rather than embedding this data directly into files.
-This is more efficient than storing this data as text within the javascript files, however it does add to a new set of files to include in the build process.
-Should you wish to manually update the contents of the editor's engine files (com.dynamo.cr.engine/engine/js-web) then remember to include these items in those
-that you copy. Build scripts have been updated to move these items to the expected location under *DYNAMO HOME* (bin/js-web), as has the copy_dmengine.sh script.
+Installing on macOS:
+```bash
+> brew install node
+```
 
 ## Running Headless Builds
 

@@ -15,19 +15,35 @@
 #ifndef DMSDK_GAMESYS_FACTORY_H
 #define DMSDK_GAMESYS_FACTORY_H
 
+/*# Factory component functions
+ *
+ * API for spawning gameobject instances from a factory component.
+ *
+ * @document
+ * @name Factory
+ * @namespace dmGameSystem
+ * @path engine/gamesys/src/dmsdk/gamesys/components/comp_factory.h
+ * @language C++
+ */
+
 #include <stdint.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/vmath.h>
-
-namespace dmGameObject
-{
-    typedef struct CollectionHandle* HCollection;
-    typedef struct PropertyContainer* HPropertyContainer;
-    typedef struct Instance* HInstance;
-}
+#include <dmsdk/gameobject/gameobject.h>
 
 namespace dmGameSystem
 {
+    /*# Factory component functions
+     *
+     * Factory component functions.
+     *
+     * @document
+     * @namespace dmGameSystem
+     * @name Factory
+     * @path engine/gamesys/src/dmsdk/gamesys/component/comp_factory.h
+     * @language C++
+     */
+
     typedef struct FactoryWorld* HFactoryWorld;
     typedef struct FactoryComponent* HFactoryComponent;
     typedef struct FactoryResource* HFactoryResource;
@@ -47,10 +63,23 @@ namespace dmGameSystem
     bool                CompFactoryIsLoading(HFactoryWorld world, HFactoryComponent component);
     bool                CompFactoryIsDynamicPrototype(HFactoryWorld world, HFactoryComponent component);
 
-    dmGameObject::HInstance CompFactorySpawn(HFactoryWorld world, HFactoryComponent component, dmGameObject::HCollection collection,
-                                                uint32_t index, dmhash_t id,
+    /*# 
+     * Spawns a new gameobject instance in a collection using a factory component.
+     * @name CompFactorySpawn
+     * @param world [type: HFactoryWorld] Factory world
+     * @param component [type: HFactoryComponent] Factory component
+     * @param collection [type: HCollection] Gameobject collection to spawn into
+     * @param id [type: dmhash_t] Identifier for the new instance. Must be unique within the collection. Pass 0 to automatically generate a unique identifier (e.g. /instance1, /instance2 etc.).
+     * @param position [type: dmVMath::Point3] Position of the spawned object
+     * @param rotation [type: dmVMath::Quat] Rotation of the spawned object
+     * @param scale [type: dmVMath::Vector3] Scale of the spawned object
+     * @param properties [type: dmGameObject::HPropertyContainer] Property container with override properties
+     * @param out_instance [type: dmGameObject::HInstance] Output parameter for the new instance
+     * @return result [type: dmGameObject::Result] Result of the operation
+     */
+    dmGameObject::Result CompFactorySpawn(HFactoryWorld world, HFactoryComponent component, dmGameObject::HCollection collection, dmhash_t id,
                                                 const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
-                                                dmGameObject::HPropertyContainer properties);
+                                                dmGameObject::HPropertyContainer properties, dmGameObject::HInstance* out_instance);
 }
 
 #endif // DMSDK_GAMESYS_FACTORY_H

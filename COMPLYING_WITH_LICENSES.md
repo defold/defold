@@ -41,6 +41,7 @@ The following software has licenses which require inclusion of their respective 
     * [lipo](https://github.com/konoui/lipo) - Used when building bundles for macOS and iOS. Included in all Editor/bob.jar builds.
     * [miniz](https://github.com/richgel999/miniz) - Rich Geldrich
     * [zip](https://github.com/kuba--/zip) - Kuba Podgórski
+    * [SampleRateConverter] (https://github.com/zephray/SampleRateConverter/tree/master) - Used off line to generate polyphase filter coefficients for sound system
   * Simplified BSD license (2-clause license)
     * [LZ4](/licenses/NOTICE-lz4) - Used internally by the engine to read game archives. Included in all builds.
   * BSD 2.0 license (3-clause license)
@@ -57,6 +58,7 @@ The following third party software has licenses which does not require inclusion
 
   * Public Domain
     * stb_image - Sean Barrett
+    * stb_truetype - Sean Barrett
     * stb_vorbis - Sean Barrett
   * ZLib
     * zlib - Jean-loup Gailly and Mark Adler

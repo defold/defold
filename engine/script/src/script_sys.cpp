@@ -76,6 +76,7 @@ union SaveLoadBuffer
      * @document
      * @name System
      * @namespace sys
+     * @language Lua
      */
 
     char* Sys_SetupTableSerializationBuffer(int required_size)
@@ -277,7 +278,7 @@ union SaveLoadBuffer
      *
      * @name sys.exists
      * @param path [type:string] path to check
-     * @return result [type:bool] `true` if the path exists, `false` otherwise
+     * @return result [type:boolean] `true` if the path exists, `false` otherwise
      * @examples
      *
      * Load data but return nil if path didn't exist
@@ -341,11 +342,28 @@ union SaveLoadBuffer
      * @return path [type:string] path to save-file
      * @examples
      *
-     * Find a path where we can store data (the example path is on the macOS platform):
+     * Find a path where we can store data:
      *
      * ```lua
      * local my_file_path = sys.get_save_file("my_game", "my_file")
-     * print(my_file_path) --> /Users/my_users/Library/Application Support/my_game/my_file
+     * -- macOS: /Users/foobar/Library/Application Support/my_game/my_file
+     * print(my_file_path) --> /Users/foobar/Library/Application Support/my_game/my_file
+     *
+     * -- Windows: C:\Users\foobar\AppData\Roaming\my_game\my_file
+     * print(my_file_path) --> C:\Users\foobar\AppData\Roaming\my_game\my_file
+     *
+     * -- Linux: $XDG_DATA_HOME/my_game/my_file or /home/foobar/.my_game/my_file
+     * -- Linux: Defaults to /home/foobar/.local/share/my_game/my_file if neither exist.
+     * print(my_file_path) --> /home/foobar/.local/share/my_game/my_file
+     *
+     * -- Android package name: com.foobar.packagename
+     * print(my_file_path) --> /data/data/0/com.foobar.packagename/files/my_file
+     *
+     * -- iOS: /var/mobile/Containers/Data/Application/123456AB-78CD-90DE-12345678ABCD/my_game/my_file
+     * print(my_file_path) --> /var/containers/Bundle/Applications/123456AB-78CD-90DE-12345678ABCD/my_game.app
+     *
+     * -- HTML5 path inside the IndexedDB: /data/.my_game/my_file or /.my_game/my_file
+     * print(my_file_path) --> /data/.my_game/my_file
      * ```
      */
     static int Sys_GetSaveFile(lua_State* L)
@@ -484,8 +502,8 @@ union SaveLoadBuffer
      *
      * @name sys.get_config_int
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
-     * @param [default_value] [type:integer] (optional) default value to return if the value does not exist
-     * @return value [type:integer] config value as an integer. default_value if the config key does not exist. 0 if no default value was supplied.
+     * @param [default_value] [type:number] (optional) default value to return if the value does not exist
+     * @return value [type:number] config value as an integer. default_value if the config key does not exist. 0 if no default value was supplied.
      * @examples
      *
      * Get user config value
@@ -1463,17 +1481,17 @@ union SaveLoadBuffer
 
     /*# no network connection found
      * @name sys.NETWORK_DISCONNECTED
-     * @variable
+     * @constant
      */
 
     /*# network connected through mobile cellular
      * @name sys.NETWORK_CONNECTED_CELLULAR
-     * @variable
+     * @constant
      */
 
     /*# network connected through other, non cellular, connection
      * @name sys.NETWORK_CONNECTED
-     * @variable
+     * @constant
      */
 
     void InitializeSys(lua_State* L)

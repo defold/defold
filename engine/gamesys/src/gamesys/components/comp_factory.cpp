@@ -31,7 +31,7 @@
 #include "../gamesys_private.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_Factory, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_Factory, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
 
 namespace dmGameSystem
 {
@@ -75,6 +75,49 @@ namespace dmGameSystem
         dmIndexPool32               m_IndexPool;
         uint32_t                    m_TotalFactoryCount;
     };
+
+    inline dmGameObject::Result DoSpawn(HFactoryWorld world, HFactoryComponent component, dmGameObject::HCollection collection,
+                                        dmhash_t id, const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
+                                        dmGameObject::HPropertyContainer properties, dmGameObject::HInstance* out_instance)
+    {
+        uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
+        if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
+        {
+            dmLogWarning("Gameobject buffer is full. See `collection.max_instances` in game.project.");
+            return dmGameObject::RESULT_OUT_OF_RESOURCES;
+        }
+
+        if (!id)
+        {
+            id = dmGameObject::CreateInstanceId();
+        }
+
+        dmGameObject::HPrototype prototype = CompFactoryGetPrototype(world, component);
+        if (prototype == 0x0)
+        {
+            dmLogError("Unable to find the prototype specified in the factory component.");
+            return dmGameObject::RESULT_RESOURCE_ERROR;
+        }
+
+        const char* path = CompFactoryGetPrototypePath(world, component);
+
+        dmGameObject::Result result = dmGameObject::Spawn(collection, prototype, path, id, properties, position, rotation, scale, out_instance);
+        if (result != dmGameObject::RESULT_OK)
+        {
+            dmLogError("Could not spawn an instance of prototype %s.", path);
+            return result;
+        }
+
+        if (*out_instance != 0x0)
+        {
+            dmGameObject::AssignInstanceIndex(index, *out_instance);
+        }
+        else
+        {
+            dmGameObject::ReleaseInstanceIndex(index, collection);
+        }
+        return result;
+    }
 
     dmGameObject::CreateResult CompFactoryNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -196,26 +239,7 @@ namespace dmGameSystem
                 properties = dmGameObject::PropertyContainerAllocateWithSize(property_buffer_size);
                 PropertyContainerDeserialize(property_buffer, property_buffer_size, properties);
             }
-            FactoryComponent* fc = (FactoryComponent*) *params.m_UserData;
-
-            uint32_t index = create->m_Index;
-            dmhash_t id = create->m_Id;
-
-            if (id == 0)
-            {
-                if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
-                {
-                    index = dmGameObject::AcquireInstanceIndex(collection);
-                }
-
-                if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
-                {
-                    dmLogError("Can not create gameobject since the buffer is full.");
-                    return dmGameObject::UPDATE_RESULT_OK;
-                }
-
-                id = dmGameObject::ConstructInstanceId(index);
-            }
+            FactoryComponent* component = (FactoryComponent*) *params.m_UserData;
 
             // m_Scale is legacy, so use it if Scale3 is all zeroes
             Vector3 scale;
@@ -227,23 +251,14 @@ namespace dmGameSystem
             {
                 scale = create->m_Scale3;
             }
-            dmGameObject::HPrototype prototype = CompFactoryGetPrototype(world, fc);
-            dmGameObject::HInstance spawned_instance =  dmGameObject::Spawn(collection, prototype, CompFactoryGetPrototypePath(world, fc),
-                                                                            id, properties, create->m_Position, create->m_Rotation, scale);
-            if (index != dmGameObject::INVALID_INSTANCE_POOL_INDEX)
-            {
-                if (spawned_instance != 0x0)
-                {
-                    dmGameObject::AssignInstanceIndex(index, spawned_instance);
-                }
-                else
-                {
-                    dmGameObject::ReleaseInstanceIndex(index, collection);
-                }
-            }
+
+            dmGameObject::HInstance spawned_instance;
+            dmGameObject::Result result = DoSpawn(world, component, collection, create->m_Id, create->m_Position, create->m_Rotation, scale, properties, &spawned_instance);
 
             if (properties)
+            {
                 dmGameObject::PropertyContainerDestroy(properties);
+            }
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -463,26 +478,11 @@ namespace dmGameSystem
         assert(top == lua_gettop(L));
     }
 
-
-    dmGameObject::HInstance CompFactorySpawn(HFactoryWorld world, HFactoryComponent component, dmGameObject::HCollection collection,
-                                                uint32_t index, dmhash_t id,
+    dmGameObject::Result CompFactorySpawn(HFactoryWorld world, HFactoryComponent component, dmGameObject::HCollection collection, dmhash_t id,
                                                 const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
-                                                dmGameObject::HPropertyContainer properties)
+                                                dmGameObject::HPropertyContainer properties, dmGameObject::HInstance* out_instance)
     {
-        dmGameObject::HPrototype prototype = CompFactoryGetPrototype(world, component);
-        const char* path = CompFactoryGetPrototypePath(world, component);
-
-        dmGameObject::HInstance instance = dmGameObject::Spawn(collection, prototype, path, id, properties, position, rotation, scale);
-        if (instance != 0x0)
-        {
-            dmGameObject::AssignInstanceIndex(index, instance);
-        }
-        else
-        {
-            dmGameObject::ReleaseInstanceIndex(index, collection);
-        }
-        return instance;
+        return DoSpawn(world, component, collection, id, position, rotation, scale, properties, out_instance);
     }
-
 
 }

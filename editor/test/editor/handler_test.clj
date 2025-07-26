@@ -40,13 +40,13 @@
 
 (deftest run-test
   (with-clean-system
-    (handler/defhandler :open :global
+    (handler/defhandler :file.open :global
       (enabled? [instances] (every? #(= % :foo) instances))
       (run [instances] 123))
-    (are [inst exp] (= exp (enabled? :open [(handler/->context :global {:instances [inst]})] {}))
+    (are [inst exp] (= exp (enabled? :file.open [(handler/->context :global {:instances [inst]})] {}))
          :foo true
          :bar false)
-    (is (= 123 (run :open [(handler/->context :global {:instances [:foo]})] {})))))
+    (is (= 123 (run :file.open [(handler/->context :global {:instances [:foo]})] {})))))
 
 (deftest context
   (with-clean-system
@@ -269,14 +269,15 @@
   (mapv (fn [ctx] (get-in ctx [:env :selection])) (handler/eval-contexts ctxs all-selections?)))
 
 (deftest contexts
-  (let [global (handler/->context :global {:selection [0]} nil {} {})]
-    (is (= [0] (eval-selection [global] true))))
-  (let [global (handler/->context :global {} (StaticSelection. [0]) {} {})]
-    (is (= [0] (eval-selection [global] true)))
-    (let [local (handler/->context :local {} (StaticSelection. [1]) {} {})]
-      (is (= [[1] [1] [0]] (eval-selections [local global] true))))
-    (let [local (handler/->context :local {} (StaticSelection. [1]) {} {})]
-      (is (= [[1] [1]] (eval-selections [local global] false))))))
+  (with-clean-system
+    (let [global (handler/->context :global {:selection [0]} nil {} {})]
+      (is (= [0] (eval-selection [global] true))))
+    (let [global (handler/->context :global {} (StaticSelection. [0]) {} {})]
+      (is (= [0] (eval-selection [global] true)))
+      (let [local (handler/->context :local {} (StaticSelection. [1]) {} {})]
+        (is (= [[1] [1] [0]] (eval-selections [local global] true))))
+      (let [local (handler/->context :local {} (StaticSelection. [1]) {} {})]
+        (is (= [[1] [1]] (eval-selections [local global] false)))))))
 
 (g/defnode ImposterStringNode
   (input source g/NodeID)
@@ -321,21 +322,21 @@
                       :id ::file
                       :children [{:label "New"
                                   :id ::new
-                                  :command :new}
+                                  :command :file.new}
                                  {:label "Open"
                                   :id ::open
-                                  :command :open}]}
+                                  :command :file.open}]}
                      {:label "Edit"
                       :id ::edit
                       :children [{:label "Undo"
                                   :icon "icons/undo.png"
-                                  :command :undo}
+                                  :command :edit.undo}
                                  {:label "Redo"
                                   :icon "icons/redo.png"
-                                  :command :redo}]}
+                                  :command :edit.redo}]}
                      {:label "Help"
                       :children [{:label "About"
-                                  :command :about}]}])
+                                  :command :app.about}]}])
 
 (def scene-menu-data [{:label "Scene"
                        :children [{:label "Do stuff"}

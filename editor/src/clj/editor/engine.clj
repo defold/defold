@@ -15,11 +15,11 @@
 (ns editor.engine
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
+            [clojure.data.json :as json]
             [editor.code.util :refer [split-lines]]
             [editor.engine.native-extensions :as native-extensions]
             [editor.fs :as fs]
             [editor.prefs :as prefs]
-            [editor.process :as process]
             [editor.process :as process]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -82,6 +82,15 @@
                                        height)})))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
+      (finally
+        (.disconnect conn)))))
+
+(defn get-engine-state! [target]
+  (let [uri (URI. (str (:url target) "/state"))
+        conn ^HttpURLConnection (get-connection uri)]
+    (try
+      (with-open [is (.getInputStream conn)]
+        (json/read-str (slurp is) :key-fn keyword))  ;; Read and return the response
       (finally
         (.disconnect conn)))))
 
@@ -165,6 +174,11 @@
              {:log-port log-port
               :address loopback-address}))))
 
+;; Parse a line from engine output to extract engine version info.
+(defn parse-engine-version-line [line]
+  (when (re-find #"INFO:ENGINE: Defold Engine ([^\s]+) \(([^)]+)\)" line)
+    line))
+
 (defn- dmengine-filename
   ^String [^String platform]
   ;; Only the WasmWeb platform use two binary names, '.js' and '.wasm'.
@@ -202,9 +216,7 @@
   [project evaluation-context prefs platform]
   (or (dev-custom-engine prefs platform)
       (if (native-extensions/has-engine-extensions? project evaluation-context)
-        (let [build-server-url (native-extensions/get-build-server-url prefs project evaluation-context)
-              build-server-headers (native-extensions/get-build-server-headers prefs)]
-          (native-extensions/get-engine-archive project evaluation-context platform build-server-url build-server-headers))
+        (native-extensions/get-engine-archive project platform prefs evaluation-context)
         (bundled-engine platform))))
 
 (defn- unpack-dmengine!

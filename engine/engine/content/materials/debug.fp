@@ -1,6 +1,10 @@
-varying lowp vec4 var_color;
+#version 140
+
+in mediump vec4 var_color;
+
+out vec4 out_fragColor;
 
 void main()
 {
-    gl_FragColor = var_color;
+    out_fragColor = var_color;
 }

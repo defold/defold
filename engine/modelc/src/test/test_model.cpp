@@ -15,12 +15,15 @@
 
 #include "modelimporter.h"
 #include <dlib/dstrings.h>
+#include <dlib/log.h>
 #include <dlib/time.h>
 #include <string.h>
 
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
+int g_AssertMode = 1; // 1 for unit tests
 
 static void* BufferResolveUri(const char* dirname, const char* uri, uint32_t* file_size)
 {
@@ -50,12 +53,19 @@ static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Opti
         *c = 0;
 
     dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size);
+    if (!scene)
+    {
+        dmLogError("Failed to load scene '%s'", path);
+        return 0;
+    }
 
     if (dmModelImporter::NeedsResolve(scene))
     {
         for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
         {
             if (scene->m_Buffers[i].m_Buffer)
+                continue;
+            if (!scene->m_Buffers[i].m_Uri)
                 continue;
 
             uint32_t buffermem_size = 0;
@@ -64,7 +74,23 @@ static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Opti
             free(buffermem);
         }
 
-        assert(!dmModelImporter::NeedsResolve(scene));
+        bool still_needs_resolve = dmModelImporter::NeedsResolve(scene);
+        if (still_needs_resolve)
+        {
+            dmLogError("There are still unresolved buffers");
+        }
+
+        if (g_AssertMode)
+        {
+            assert(!still_needs_resolve);
+        }
+
+        if (still_needs_resolve)
+        {
+            dmModelImporter::DestroyScene(scene);
+            free(mem);
+            return 0;
+        }
     }
 
     bool result = dmModelImporter::LoadFinalize(scene);
@@ -247,7 +273,7 @@ TEST(ModelCrashtest, FindSkinCrash)
     ASSERT_NE((dmModelImporter::Scene*)0, scene);
 
     ASSERT_EQ(1, scene->m_Buffers.Size());
-    ASSERT_STREQ("buffer_0", scene->m_Buffers[0].m_Uri);
+    ASSERT_EQ(0U, scene->m_Buffers[0].m_Uri);
 
     ASSERT_EQ(1, scene->m_Skins.Size());
     ASSERT_STREQ("skin_0", scene->m_Skins[0].m_Name);
@@ -287,12 +313,53 @@ TEST(ModelSkinnedTopNodes, MultipleModels)
 
     ASSERT_EQ(9, num_non_skinned_models);
 
+    ASSERT_EQ(1u, scene->m_Materials.Size());
+    ASSERT_EQ(1u, scene->m_DynamicMaterials.Size());
+
+    dmModelImporter::Material* material = &scene->m_Materials[0];
+    ASSERT_STREQ("knight_texture", material->m_Name);
+    ASSERT_TRUE(material->m_IsSkinned);
+
+    dmModelImporter::Material* dynmaterial = scene->m_DynamicMaterials[0];
+    ASSERT_STREQ("knight_texture_no_skin", dynmaterial->m_Name);
+    ASSERT_FALSE(dynmaterial->m_IsSkinned);
+
+#define CHECKPROP(DNAME) \
+    if ((material->m_ ## DNAME && !dynmaterial->m_ ## DNAME) || (!material->m_ ## DNAME && dynmaterial->m_ ## DNAME)) { \
+        ASSERT_FALSE(true); \
+    } \
+    if (material->m_ ## DNAME && dynmaterial->m_ ## DNAME) { \
+        printf("Testing m_" # DNAME "\n"); \
+        ASSERT_ARRAY_EQ_LEN((uint8_t*)material->m_ ## DNAME, (uint8_t*)dynmaterial->m_ ## DNAME, sizeof(dmModelImporter:: DNAME)); \
+    }
+
+    CHECKPROP(PbrMetallicRoughness);
+    CHECKPROP(PbrSpecularGlossiness);
+    CHECKPROP(Clearcoat);
+    CHECKPROP(Ior);
+    CHECKPROP(Specular);
+    CHECKPROP(Sheen);
+    CHECKPROP(Transmission);
+    CHECKPROP(Volume);
+    CHECKPROP(EmissiveStrength);
+    CHECKPROP(Iridescence);
+
+#undef CHECKPROP
+
+    ASSERT_ARRAY_EQ(material->m_EmissiveFactor, dynmaterial->m_EmissiveFactor);
+
+    ASSERT_EQ(material->m_AlphaCutoff, dynmaterial->m_AlphaCutoff);
+    ASSERT_EQ(material->m_AlphaMode, dynmaterial->m_AlphaMode);
+    ASSERT_EQ(material->m_DoubleSided, dynmaterial->m_DoubleSided);
+    ASSERT_EQ(material->m_Unlit, dynmaterial->m_Unlit);
+
     dmModelImporter::DestroyScene(scene);
 }
 
 
 static int TestStandalone(const char* path)
 {
+    g_AssertMode = 0;
     uint64_t tstart = dmTime::GetMonotonicTime();
 
     dmModelImporter::Options options;

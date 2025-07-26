@@ -68,6 +68,8 @@ message VertexAttribute
         SEMANTIC_TYPE_TANGENT       = 7;
         SEMANTIC_TYPE_WORLD_MATRIX  = 8;
         SEMANTIC_TYPE_NORMAL_MATRIX = 9;
+        SEMANTIC_TYPE_BONE_WEIGHTS  = 10;
+        SEMANTIC_TYPE_BONE_INDICES  = 11;
     }
 
     message LongValues
@@ -127,6 +129,8 @@ message TextureImage
         TYPE_CUBEMAP  = 2;
         TYPE_2D_ARRAY = 3;
         TYPE_2D_IMAGE = 4;
+        TYPE_3D       = 5;
+        TYPE_3D_IMAGE = 6;
     }
 
     enum CompressionType
@@ -209,15 +213,17 @@ message TextureImage
     {
         required uint32 width                     = 1;
         required uint32 height                    = 2;
-        required uint32 original_width            = 3;
-        required uint32 original_height           = 4;
-        required TextureFormat format             = 5;
-        repeated uint32 mip_map_offset            = 6;
-        repeated uint32 mip_map_size              = 7; // always uncompressed (native) size
-        optional CompressionType compression_type = 8 [default = COMPRESSION_TYPE_DEFAULT];
-        repeated uint32 mip_map_size_compressed   = 9;
-        repeated uint32 mip_map_dimensions        = 10; // w0, h0, w1, h1, ...
-        optional uint32 data_size                 = 11;
+        optional uint32 depth                     = 3 [default = 1];
+        required uint32 original_width            = 4;
+        required uint32 original_height           = 5;
+        optional uint32 original_depth            = 6 [default = 1];
+        required TextureFormat format             = 7;
+        repeated uint32 mip_map_offset            = 8;
+        repeated uint32 mip_map_size              = 9; // always uncompressed (native) size
+        optional CompressionType compression_type = 10 [default = COMPRESSION_TYPE_DEFAULT];
+        repeated uint32 mip_map_size_compressed   = 11;
+        repeated uint32 mip_map_dimensions        = 12; // w0, h0, w1, h1, ...
+        optional uint32 data_size                 = 13;
     }
 
     repeated Image alternatives = 1;
@@ -274,6 +280,7 @@ message PlatformProfile
         OS_ID_SWITCH  = 7;
         OS_ID_PS4     = 8;
         OS_ID_PS5     = 9;
+        OS_ID_XBOX    = 10;
     }
 
     required OS os                              = 1;
@@ -302,15 +309,14 @@ message ShaderDesc
     enum Language
     {
         LANGUAGE_GLSL_SM120 = 1;  // OpenGL 2 compatible
-        LANGUAGE_GLSL_SM140 = 2;  // OpenGL 3 compatible
-        LANGUAGE_GLES_SM100 = 3;  // OpenGLES 2 / WebGL 1
-        LANGUAGE_GLES_SM300 = 4;  // OpenGLES 3 / WebGL 2
-        LANGUAGE_SPIRV      = 5;  // Vulkan / MoltenVK
-        LANGUAGE_PSSL       = 6;  // Playstation
-        LANGUAGE_GLSL_SM430 = 7;  // OpenGL 4.3+ compatible
-        LANGUAGE_GLSL_SM330 = 8;  // OpenGL 3.3 (used for macos)
-        LANGUAGE_WGSL       = 9;  // WebGPU
-        LANGUAGE_HLSL       = 10; // Windows / XBox compatible
+        LANGUAGE_GLES_SM100 = 2;  // OpenGLES 2 / WebGL 1
+        LANGUAGE_GLES_SM300 = 3;  // OpenGLES 3 / WebGL 2
+        LANGUAGE_SPIRV      = 4;  // Vulkan / MoltenVK
+        LANGUAGE_PSSL       = 5;  // Playstation
+        LANGUAGE_GLSL_SM430 = 6;  // OpenGL 4.3+ compatible
+        LANGUAGE_GLSL_SM330 = 7;  // OpenGL 3.3 (used for desktop platforms)
+        LANGUAGE_WGSL       = 8;  // WebGPU
+        LANGUAGE_HLSL       = 9;  // Windows / XBox compatible
     }
 
     enum ShaderType
@@ -351,6 +357,13 @@ message ShaderDesc
         SHADER_TYPE_STORAGE_BUFFER    = 24;
         SHADER_TYPE_TEXTURE2D_ARRAY   = 25;
         SHADER_TYPE_TEXTURE_CUBE      = 26;
+
+        SHADER_TYPE_TEXTURE3D         = 27;
+        SHADER_TYPE_UTEXTURE3D        = 28;
+        SHADER_TYPE_UIMAGE3D          = 29;
+        SHADER_TYPE_IMAGE3D           = 30;
+        SHADER_TYPE_SAMPLER3D_ARRAY   = 31;
+        SHADER_TYPE_TEXTURE3D_ARRAY   = 32;
     }
 
     message ResourceType
@@ -393,17 +406,18 @@ message ShaderDesc
         optional uint32         set                = 7;
         optional uint32         binding            = 8;
         optional uint32         element_count      = 9;
+        optional uint32         stage_flags        = 10; // 0x1=vert, 0x2=frag, 0x4=compute
 
         oneof BindingInfo
         {
             // Uniform buffer block size
-            uint32 block_size = 10;
+            uint32 block_size = 11;
             // Sampler object index
             // Since we split combined samplers into
             // a texture + sampler object we need to
             // keep track of which of the textures
             // the sampler originally is pointing to.
-            uint32 sampler_texture_index = 11;
+            uint32 sampler_texture_index = 12;
         }
     }
 
@@ -419,13 +433,12 @@ message ShaderDesc
 
     message Shader
     {
-        required Language language              = 1;
-        optional bytes    source                = 2;
-        optional string   name                  = 3;
-        optional bool     variant_texture_array = 4 [default = false];
+        required bytes      source                = 1;
+        required ShaderType shader_type           = 2;
+        required Language   language              = 3;
+        optional bool       variant_texture_array = 4 [default = false];
     }
 
     repeated Shader shaders              = 1;
-    required ShaderReflection reflection = 2;
-    required ShaderType shader_type      = 3;
+    optional ShaderReflection reflection = 2;
 }

@@ -29,12 +29,14 @@ extern "C" {
  *
  * @document
  * @name ConfigFile
+ * @namespace dmConfigFile
  * @path engine/dlib/src/dmsdk/dlib/configfile.h
+ * @language C++
  */
 
 /*# HConfigFile type definition
  *
- * Each game session has a single config file that holds all parameters from game.projec,t and any overridden values.
+ * Each game session has a single config file that holds all parameters from game.project and any overridden values.
  * @note Properties can be overridden on command line or via the config file extension system. (See [ref:DM_DECLARE_CONFIGFILE_EXTENSION])
  *
  * @typedef
@@ -178,7 +180,7 @@ typedef bool (*FConfigFileGetFloat)(HConfigFile config, const char* key, float d
 
 /*# Used when registering new config file extensions.
  * It defines the minimum size of the description blob being registered.
- * @variable
+ * @constant
  * @name ConfigFileExtensionDescBufferSize
  */
 const uint32_t ConfigFileExtensionDescBufferSize = 64;

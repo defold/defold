@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.changes-view
-  (:require [clojure.java.io :as io]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
@@ -22,6 +21,8 @@
             [editor.error-reporting :as error-reporting]
             [editor.git :as git]
             [editor.handler :as handler]
+            [editor.menu-items :as menu-items]
+            [editor.notifications :as notifications]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.vcs-status :as vcs-status]
@@ -66,44 +67,43 @@
               (error-reporting/report-exception! error))))))))
 
 (handler/register-menu! ::changes-menu
-  [{:label "Open"
-    :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :open}
-   {:label "Open As"
-    :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :open-as}
-   {:label :separator}
-   {:label "Copy Project Path"
-    :command :copy-project-path}
+  [menu-items/open-selected
+   menu-items/open-as
+   menu-items/separator
+   {:label "Copy Resource Path"
+    :command :edit.copy-resource-path}
    {:label "Copy Full Path"
-    :command :copy-full-path}
+    :command :edit.copy-absolute-path}
    {:label "Copy Require Path"
-    :command :copy-require-path}
-   {:label :separator}
+    :command :edit.copy-require-path}
+   menu-items/separator
    {:label "Show in Asset Browser"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :show-in-asset-browser}
+    :command :file.show-in-assets}
    {:label "Show in Desktop"
     :icon "icons/32/Icons_S_14_linkarrow.png"
-    :command :show-in-desktop}
+    :command :file.show-in-desktop}
    {:label "Referencing Files..."
-    :command :referencing-files}
+    :command :file.show-references}
    {:label "Dependencies..."
-    :command :dependencies}
-   {:label "Show Overrides"
-    :command :show-overrides}
-   {:label :separator}
+    :command :file.show-dependencies}
+   menu-items/separator
+   menu-items/show-overrides
+   menu-items/pull-up-overrides
+   menu-items/push-down-overrides
+   menu-items/separator
    {:label "View Diff"
     :icon "icons/32/Icons_S_06_arrowup.png"
-    :command :diff}
+    :command :vcs.diff}
    {:label "Revert"
     :icon "icons/32/Icons_S_02_Reset.png"
-    :command :revert}])
+    :command :vcs.revert}])
 
-(defn- path->file [workspace ^String path]
-  (File. ^File (workspace/project-path workspace) path))
+(defn- path->file
+  ^File [workspace ^String path]
+  (File. (workspace/project-directory workspace) path))
 
-(handler/defhandler :revert :changes-view
+(handler/defhandler :vcs.revert :changes-view
   (enabled? [selection]
             (and (disk-availability/available?)
                  (pos? (count selection))))
@@ -124,7 +124,7 @@
         (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
         (async-reload! changes-view moved-files)))))
 
-(handler/defhandler :diff :changes-view
+(handler/defhandler :vcs.diff :changes-view
   (enabled? [selection]
             (git/selection-diffable? selection))
   (run [selection ^Git git]
@@ -143,13 +143,22 @@
 
 (defn- try-open-git
   ^Git [workspace]
-  (let [repo-path (io/as-file (g/node-value workspace :root))
-        git (git/try-open repo-path)
-        head-commit (some-> git .getRepository (git/get-commit "HEAD"))]
-    (if (some? head-commit)
-      git
-      (when (some? git)
-        (.close git)))))
+  (try
+    (let [repo-directory (workspace/project-directory workspace)
+          git (git/try-open repo-directory)
+          head-commit (some-> git .getRepository (git/get-commit "HEAD"))]
+      (if (some? head-commit)
+        git
+        (when (some? git)
+          (.close git))))
+    (catch Exception e
+      (let [msg (str "Git error: " (.getMessage e))]
+        (log/error :msg msg :exception e)
+        (notifications/show!
+          (workspace/notifications workspace)
+          {:type :warning
+           :text "Due to a Git error, Git features are not available for this project."})
+        nil))))
 
 (defn make-changes-view [view-graph workspace prefs ^Parent parent async-reload!]
   (assert (fn? async-reload!))
@@ -169,12 +178,13 @@
                  {resource/Resource (fn [status] (status->resource workspace status))})
     (ui/register-context-menu list-view ::changes-menu)
     (ui/cell-factory! list-view vcs-status/render)
-    (ui/bind-action! diff-button :diff)
-    (ui/bind-action! revert-button :revert)
+    (ui/bind-action! diff-button :vcs.diff)
+    (ui/bind-action! revert-button :vcs.revert)
     (ui/disable! diff-button true)
     (ui/disable! revert-button true)
     (ui/visible! progress-overlay false)
-    (ui/bind-double-click! list-view :open)
+    (ui/bind-double-click! list-view :file.open-selected)
+    (ui/bind-key-commands! list-view {"Enter" :file.open-selected})
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?
     (try

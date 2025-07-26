@@ -132,7 +132,7 @@ namespace dmRecord
         else if (params->m_Width % 8 != 0 || params->m_Height % 8 != 0
                 || params->m_Width == 0 || params->m_Height == 0)
         {
-            dmLogError("Window width and height must be a multiple of 8");
+            dmLogError("Window width and height must be a multiple of 8. Current width: %d; height: %d", params->m_Width, params->m_Height);
             return RESULT_INVAL_ERROR;
         }
 
@@ -190,12 +190,11 @@ namespace dmRecord
      * Links:
      * http://groups.google.com/a/chromium.org/group/chromium-reviews/browse_thread/thread/720aafe35a78942a?pli=1
      */
-    static void RGBAToYV12FlipY(const uint8_t *rgba, uint32_t width, uint32_t height, void *y_plane, void *u_plane, void *v_plane)
+    static void RGBAToYV12(const uint8_t *rgba, uint32_t width, uint32_t height, void *y_plane, void *u_plane, void *v_plane)
     {
         for (uint32_t iy = 0; iy < height; ++iy)
         {
-            char* y_plane_row = (char*) y_plane;
-            y_plane_row += (height - 1 - iy) * width;
+            char* y_plane_row = (char*) y_plane + iy * width;
             for (uint32_t ix = 0; ix < width; ++ix)
             {
                 int i = (iy * width + ix) * 4;
@@ -213,14 +212,11 @@ namespace dmRecord
 
         for (uint32_t iy = 0; iy < half_height; iy++)
         {
-            uint32_t base_src = (iy*2) * width * 4;
+            uint32_t base_src = (iy * 2) * width * 4;
+            uint8_t *v_plane_row = (uint8_t*)v_plane + iy * half_width;
+            uint8_t *u_plane_row = (uint8_t*)u_plane + iy * half_width;
 
-            uint8_t *v_plane_row = (uint8_t*)v_plane;
-            uint8_t *u_plane_row = (uint8_t*)u_plane;
-            v_plane_row += (half_height - 1 - iy) * half_width;
-            u_plane_row += (half_height - 1 - iy) * half_width;
-
-            for (uint32_t xPixel = 0; xPixel < half_width; xPixel++ )
+            for (uint32_t xPixel = 0; xPixel < half_width; xPixel++)
             {
                 uint8_t B = rgba[base_src+0];
                 uint8_t G = rgba[base_src+1];
@@ -264,7 +260,7 @@ namespace dmRecord
         vpx_codec_err_t res;
         int flags = 0;
 
-        RGBAToYV12FlipY((const uint8_t*) frame_buffer, recorder->m_Width, recorder->m_Height, recorder->m_VpxImage.planes[0], recorder->m_VpxImage.planes[1], recorder->m_VpxImage.planes[2]);
+        RGBAToYV12((const uint8_t*) frame_buffer, recorder->m_Width, recorder->m_Height, recorder->m_VpxImage.planes[0], recorder->m_VpxImage.planes[1], recorder->m_VpxImage.planes[2]);
         res = vpx_codec_encode(&recorder->m_Codec, &recorder->m_VpxImage, recorder->m_FrameCount, 1, flags, VPX_DL_REALTIME);
         if (res)
         {

@@ -66,6 +66,7 @@ namespace dmScript
      * @document
      * @name Vector math
      * @namespace vmath
+     * @language Lua
      */
 
 #define SCRIPT_LIB_NAME "vmath"
@@ -1848,7 +1849,7 @@ namespace dmScript
      * Returns the squared length of the supplied vector or quaternion.
      *
      * @name vmath.length_sqr
-     * @param v [type:vector3|vector4|quat] value of which to calculate the squared length
+     * @param v [type:vector3|vector4|quaternion] value of which to calculate the squared length
      * @return n [type:number] squared length
      * @examples
      *
@@ -1894,7 +1895,7 @@ namespace dmScript
      * (it eliminates a square root calculation).
      *
      * @name vmath.length
-     * @param v [type:vector3|vector4|quat] value of which to calculate the length
+     * @param v [type:vector3|vector4|quaternion] value of which to calculate the length
      * @return n [type:number] length
      * @examples
      *
@@ -1943,8 +1944,8 @@ namespace dmScript
      * division-by-zero will occur.
      *
      * @name vmath.normalize
-     * @param v1 [type:vector3|vector4|quat] vector to normalize
-     * @return v [type:vector3|vector4|quat] new normalized vector
+     * @param v1 [type:vector3|vector4|quaternion] vector to normalize
+     * @return v [type:vector3|vector4|quaternion] new normalized vector
      * @examples
      *
      * ```lua
@@ -2410,7 +2411,7 @@ namespace dmScript
      * translation vector, roation quaternion and scale vector
      *
      * @name vmath.matrix4_compose
-     * @param translation [type:vector3|vecto4] translation
+     * @param translation [type:vector3|vector4] translation
      * @param rotation [type:quaternion] rotation
      * @param scale [type:vector3] scale
      * @return matrix [type:matrix4] new matrix4

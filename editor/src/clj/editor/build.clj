@@ -24,7 +24,8 @@
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.workspace :as workspace]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.fn :as fn])
   (:import [java.util ArrayDeque HashMap HashSet]))
 
 (defn- batched-pmap [f batches]
@@ -41,11 +42,6 @@
     "Compiling..."
     (when-some [resource-path (node-id->resource-path node-id)]
       (str "Compiling " resource-path))))
-
-(defn make-collect-progress-steps-tracer [watched-label steps-atom]
-  (fn [state node output-type label]
-    (when (and (= label watched-label) (= state :begin) (= output-type :output))
-      (swap! steps-atom conj node))))
 
 (defn- flatten-build-targets [build-targets]
   (let [seen (HashSet.)
@@ -71,9 +67,15 @@
         (persistent! acc)))))
 
 (defn- resolve-deps-impl
-  ([build-targets project proj-path->dynamic-build-targets evaluation-context]
-   (resolve-deps-impl (HashMap.) [] build-targets project proj-path->dynamic-build-targets evaluation-context))
-  ([^HashMap seen stack build-targets project proj-path->dynamic-build-targets evaluation-context]
+  ([build-targets project report-node-id-progress! evaluation-context]
+   (let [proj-path->dynamic-build-targets (code.transpilers/build-output
+                                            (project/code-transpilers (:basis evaluation-context) project)
+                                            evaluation-context)]
+     (if (g/error-value? proj-path->dynamic-build-targets)
+       proj-path->dynamic-build-targets
+       (let [ret (resolve-deps-impl (HashMap.) [] build-targets project proj-path->dynamic-build-targets report-node-id-progress! evaluation-context)]
+         (cond-> ret (not (g/error-value? ret)) flatten-build-targets)))))
+  ([^HashMap seen stack build-targets project proj-path->dynamic-build-targets report-node-id-progress! evaluation-context]
    (let [ret
          (into
            []
@@ -85,14 +87,16 @@
                       (let [content-hash (build-target :content-hash)]
                         (if-let [resolved (.get seen content-hash)]
                           resolved
-                          (let [result
+                          (let [node-id (build-target :node-id)
+                                _ (when report-node-id-progress! (report-node-id-progress! node-id))
+                                result
                                 (if (coll/some #(identical? build-target %) stack)
                                   (let [cycle (into []
                                                     (comp
                                                       (drop-while #(not (identical? % build-target)))
                                                       (keep (comp resource/proj-path :resource :resource)))
                                                     (conj stack build-target))]
-                                    (g/map->error {:_node-id (build-target :node-id)
+                                    (g/map->error {:_node-id node-id
                                                    :_label :build-targets
                                                    :severity :fatal
                                                    :message (format "Dependency cycle detected: %s."
@@ -112,10 +116,11 @@
                                                       (g/node-value node :build-targets evaluation-context)
                                                       (or
                                                         (proj-path->dynamic-build-targets proj-path)
-                                                        (resource-io/file-not-found-error (build-target :node-id) nil :fatal (project/resolve-path-or-resource project proj-path evaluation-context))))))
+                                                        (resource-io/file-not-found-error node-id nil :fatal (project/resolve-path-or-resource project proj-path evaluation-context))))))
                                              dynamic-deps)]
                                           project
                                           proj-path->dynamic-build-targets
+                                          report-node-id-progress!
                                           evaluation-context)]
                                     (if (g/error-value? resolved-deps)
                                       resolved-deps
@@ -136,15 +141,9 @@
     - error value"
   ([build-targets project]
    (g/with-auto-evaluation-context evaluation-context
-     (resolve-dependencies build-targets project evaluation-context)))
+     (resolve-deps-impl build-targets project nil evaluation-context)))
   ([build-targets project evaluation-context]
-   (let [proj-path->dynamic-build-targets (code.transpilers/build-output
-                                            (project/code-transpilers (:basis evaluation-context) project)
-                                            evaluation-context)]
-     (if (g/error-value? proj-path->dynamic-build-targets)
-       proj-path->dynamic-build-targets
-       (let [ret (resolve-deps-impl build-targets project proj-path->dynamic-build-targets evaluation-context)]
-         (cond-> ret (not (g/error-value? ret)) flatten-build-targets))))))
+   (resolve-deps-impl build-targets project nil evaluation-context)))
 
 (defn resolve-node-dependencies
   "Fully resolve node's build target dependencies
@@ -157,19 +156,48 @@
    (g/with-auto-evaluation-context evaluation-context
      (resolve-node-dependencies node project evaluation-context)))
   ([node project evaluation-context]
-   (resolve-dependencies
-     (g/node-value node :build-targets evaluation-context)
-     project
-     evaluation-context)))
+   (let [build-targets (g/node-value node :build-targets evaluation-context)]
+     (if (g/error-value? build-targets)
+       build-targets
+       (resolve-deps-impl build-targets project nil evaluation-context)))))
+
+(defn- throw-build-cancelled-exception! []
+  (throw (ex-info "Build cancelled." {:ex-type :task-cancelled})))
 
 (defn build-project!
-  [project node evaluation-context extra-build-targets old-artifact-map render-progress!]
-  (let [steps (atom [])
-        collect-tracer (make-collect-progress-steps-tracer :build-targets steps)
-        _ (g/node-value node :build-targets (assoc evaluation-context :dry-run true :tracer collect-tracer))
-        progress-message-fn (partial compiling-progress-message (set/map-invert (g/node-value project :nodes-by-resource-path evaluation-context)))
+  [project node-id old-artifact-map opts evaluation-context]
+  (let [extra-build-targets (:extra-build-targets opts)
+        task-cancelled? (or (:task-cancelled? opts)
+                            fn/constantly-false)
+        supplied-render-progress! (or (:render-progress! opts)
+                                      progress/null-render-progress!)
+
+        render-progress!
+        (if (= fn/constantly-false task-cancelled?)
+          supplied-render-progress!
+          (fn render-progress! [progress]
+            (if (task-cancelled?)
+              (throw-build-cancelled-exception!)
+              (supplied-render-progress! progress))))
+
+        steps (atom [])
+
+        collect-tracer-fn
+        (fn collect-tracer-fn [state node output-type label]
+          (cond
+            (task-cancelled?)
+            (throw-build-cancelled-exception!)
+
+            (and (= :build-targets label)
+                 (= :begin state)
+                 (= :output output-type))
+            (swap! steps conj node)))
+
+        _ (g/node-value node-id :build-targets (assoc evaluation-context :dry-run true :tracer collect-tracer-fn))
+        node-id->resource-path (set/map-invert (g/node-value project :nodes-by-resource-path evaluation-context))
+        progress-message-fn (partial compiling-progress-message node-id->resource-path)
         step-count (count @steps)
-        progress-tracer (project/make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make "" 10) 5))
+        progress-tracer (project/make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make "" 10 0 true) 5))
         evaluation-context-with-progress-trace (assoc evaluation-context :tracer progress-tracer)
         _ (doseq [node-id (rseq @steps)]
             (try
@@ -179,9 +207,15 @@
         #_#_#_#_
         prewarm-partitions (partition-all (max (quot step-count (+ (available-processors) 2)) 1000) (rseq @steps))
         _ (batched-pmap (fn [node-id] (g/node-value node-id :build-targets evaluation-context-with-progress-trace)) prewarm-partitions)
-        node-build-targets (g/node-value node :build-targets evaluation-context)
-        build-targets (resolve-dependencies [node-build-targets extra-build-targets] project evaluation-context)]
+        node-build-targets (g/node-value node-id :build-targets evaluation-context)
+        build-targets (resolve-deps-impl
+                        [node-build-targets extra-build-targets]
+                        project
+                        (fn report-resolve-deps-node-id-progress! [node-id]
+                          (when-let [path (node-id->resource-path node-id)]
+                            (render-progress! (progress/make-indeterminate (str "Resolving " path)))))
+                        evaluation-context)]
     (if (g/error? build-targets)
       {:error build-targets}
       (let [build-dir (workspace/build-path (project/workspace project evaluation-context))]
-        (pipeline/build! build-targets build-dir old-artifact-map evaluation-context (progress/nest-render-progress render-progress! (progress/make "" 10 5) 5))))))
+        (pipeline/build! build-targets build-dir old-artifact-map evaluation-context (progress/nest-render-progress render-progress! (progress/make "" 10 5 true) 5))))))

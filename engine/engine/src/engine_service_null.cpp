@@ -23,7 +23,7 @@ void dmEngineService::Delete(dmEngineService::HEngineService)
 {
 }
 
-void dmEngineService::Update(dmEngineService::HEngineService, dmProfile::HProfile)
+void dmEngineService::Update(dmEngineService::HEngineService, HProfile)
 {
 }
 
@@ -44,4 +44,8 @@ dmWebServer::HServer dmEngineService::GetWebServer(dmEngineService::HEngineServi
 
 void dmEngineService::InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist)
 {
+}
+
+void dmEngineService::InitState(HEngineService engine_service, EngineState* state)
+{	
 }

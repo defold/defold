@@ -137,5 +137,5 @@ message ManifestFile {
     required bytes              data = 1;
     required bytes              signature = 2;
     optional bytes              archive_identifier = 3; // deprecated
-    optional uint32             version = 4 [default = 0]; // dmResource::MANIFEST_VERSION
+    required uint32             version = 4 [default = 0]; // dmResource::MANIFEST_VERSION
 }

@@ -20,7 +20,8 @@
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [service.log :as log]))
 
 (defmacro with-schemas [id->schema & body]
   `(try
@@ -62,6 +63,14 @@
 (defspec string-schema-invalid-spec 10
   (prop/for-all [x (gen/such-that (complement string?) gen/any)]
     (not (prefs/valid? {:type :string} x))))
+
+(defspec password-schema-valid-spec 100
+  (prop/for-all [x gen/string]
+    (prefs/valid? {:type :password} x)))
+
+(defspec password-schema-invalid-spec 10
+  (prop/for-all [x (gen/such-that (complement string?) gen/any)]
+    (not (prefs/valid? {:type :password} x))))
 
 (defspec keyword-schema-valid-spec 100
   (prop/for-all [x gen/keyword]
@@ -149,6 +158,7 @@
                                                :properties {:any {:type :any}
                                                             :boolean {:type :boolean :default true}
                                                             :string {:type :string}
+                                                            :password {:type :password}
                                                             :keyword {:type :keyword :default :none}
                                                             :integer {:type :integer :default -1}
                                                             :number {:type :number :default 0.5}
@@ -163,6 +173,7 @@
       (is (= {:types {:any nil
                       :boolean true
                       :string ""
+                      :password ""
                       :keyword :none
                       :integer -1
                       :number 0.5
@@ -176,6 +187,7 @@
       (prefs/set! p [] {:types {:any 'foo/bar
                                 :boolean false
                                 :string "str"
+                                :password "1337"
                                 :keyword :something
                                 :integer 42
                                 :number 42
@@ -188,6 +200,7 @@
       (is (= {:types {:any 'foo/bar
                       :boolean false
                       :string "str"
+                      :password "1337"
                       :keyword :something
                       :integer 42
                       :number 42
@@ -209,6 +222,7 @@
           (test-util/check-thrown-with-data! (value-error-data? path) (prefs/set! p path value)))
         {[:types :boolean] "not-a-boolean"
          [:types :string] 12
+         [:types :password] 1337
          [:types :keyword] "not-a-keyword"
          [:types :integer] "not-an-int"
          [:types :number] "NaN"
@@ -221,6 +235,7 @@
       (is (= {:types {:any 'foo/bar
                       :boolean false
                       :string "str"
+                      :password "1337"
                       :keyword :something
                       :integer 42
                       :number 42
@@ -286,11 +301,12 @@
 
 (deftest invalid-edn-test
   (with-schemas {::invalid-edn {:type :object :properties {:name {:type :string}}}}
-    (let [file (fs/create-temp-file! "global" "test.editor_settings")
-          _ (spit file "{")
-          p (prefs/make :scopes {:global file}
-                        :schemas [::invalid-edn])]
-      (is (= "" (prefs/get p [:name]))))))
+    (log/without-logging ;; no need to additionally log the error here
+      (let [file (fs/create-temp-file! "global" "test.editor_settings")
+            _ (spit file "{")
+            p (prefs/make :scopes {:global file}
+                          :schemas [::invalid-edn])]
+        (is (= "" (prefs/get p [:name])))))))
 
 (deftest scopes-test
   (with-schemas {::scopes
@@ -552,3 +568,38 @@
   (is (= {:a {:b "val" :other true}} (prefs/safe-assoc-in {:a {:other true}} [:a :b] "val")))
   (is (= {:a {:other true} :x "val"} (prefs/safe-assoc-in {:a {:other true}} [:x] "val"))))
 
+(deftest secure-password-storage-test
+  (with-schemas {::test {:type :password :default "pass"}}
+    (testing "storage"
+      (let [global-file (fs/create-temp-file! "global" "test.editor_settings")
+            p (prefs/make :scopes {:global global-file}
+                          :schemas [::test])]
+        (is (= "pass" (prefs/get p [])))
+        (prefs/set! p [] "secret")
+        (is (= "secret" (prefs/get p [])))
+        (prefs/sync!)
+        (let [stored-value (edn/read-string (slurp global-file))]
+          (is (string? stored-value))
+          (is (not= "secret" stored-value)))))
+    (testing "loading invalid human-edited password strings"
+      (let [global-file (doto (fs/create-temp-file! "global" "test.editor_settings")
+                          (spit "\"invalid base64 string\""))
+            p (prefs/make :scopes {:global global-file}
+                          :schemas [::test])]
+        (is (not (prefs/set? p [])))
+        (is (= "pass" (prefs/get p [])))))))
+
+(deftest update-test
+  (with-schemas {::test {:type :object
+                         :properties {:counter {:type :integer}}}}
+    (let [p (prefs/make :scopes {:global (fs/create-temp-file! "global" "test.editor_settings")}
+                        :schemas [::test])
+          thread-count 20
+          inc-count-per-thread 1000]
+      (->> #(future
+              (dotimes [_ inc-count-per-thread]
+                (prefs/update! p [:counter] inc)))
+           (repeatedly thread-count)
+           (vec)
+           (run! deref))
+      (is (= (* thread-count inc-count-per-thread) (prefs/get p [:counter]))))))

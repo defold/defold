@@ -32,7 +32,7 @@ namespace dmResourceMounts
 
 const char* MOUNTS_FILENAME = "liveupdate.mounts";
 
-const int MAX_NAME_LENGTH = 64;
+const int MAX_NAME_LENGTH = 128;
 
 struct ArchiveMount
 {
@@ -171,6 +171,7 @@ static dmResource::Result RemoveMountByIndexInternal(HContext ctx, uint32_t inde
     if (index >= ctx->m_Mounts.Size())
         return dmResource::RESULT_RESOURCE_NOT_FOUND;
 
+    free((void*)ctx->m_Mounts[index].m_Name);
     ctx->m_Mounts.EraseSwap(index); // TODO: We'd like an Erase() function in dmArray, to keep the internal ordering
     SortMounts(ctx->m_Mounts);
 

@@ -33,6 +33,7 @@ namespace dmGameObject
      * @document
      * @name Component
      * @namespace dmGameObject
+     * @language C++
      */
 
     struct ComponentType;
@@ -741,7 +742,7 @@ namespace dmGameObject
      * set the component child iterator function. Called during inspection
      * @name ComponentTypeSetChildIteratorFn
      * @param type [type: HComponentType] the type
-     * @param fn [type: FIteratorChildren] child iterator function
+     * @param fn [type: dmGameObject::FIteratorChildren] child iterator function
      */
     void ComponentTypeSetChildIteratorFn(HComponentType type, FIteratorChildren fn);
 
@@ -749,7 +750,7 @@ namespace dmGameObject
      * set the component property iterator function. Called during inspection
      * @name ComponentTypeSetPropertyIteratorFn
      * @param type [type: HComponentType] the type
-     * @param fn [type: FIteratorProperties] property iterator function
+     * @param fn [type: dmGameObject::FIteratorProperties] property iterator function
      */
     void ComponentTypeSetPropertyIteratorFn(HComponentType type, FIteratorProperties fn);
 
@@ -796,8 +797,10 @@ namespace dmGameObject
         dmGameObject::RegisterComponentTypeDescriptor((struct dmGameObject::ComponentTypeDescriptor*) &desc, name, type_create_fn, type_destroy_fn); \
     }
 
-    /*# register a new component type
-     * @param symbol [type: cpp_symbol_name] The unique C++ symbol name
+    /*# Register a new component type
+     * @macro
+     * @name DM_DECLARE_COMPONENT_TYPE
+     * @param symbol [type: symbol] The unique C++ symbol name
      * @param name [type: const char*] name of the component type (i.e. the resource suffix)
      * @param create_fn [type: dmGameObject::Result (*fn)(const ComponentTypeCreateCtx* ctx, HComponentType type)] The type configuration function. May not be 0.
      * @param destroy_fn [type: dmGameObject::Result (*fn)(const ComponentTypeCreateCtx* ctx, HComponentType type)] The type destruction function. May be 0.

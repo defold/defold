@@ -13,8 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
-  (:refer-clojure :exclude [bounded-count empty? mapcat merge merge-with not-empty some])
-  (:import [clojure.lang Cons IEditableCollection MapEntry]
+  (:refer-clojure :exclude [any? bounded-count empty? every? mapcat merge merge-with not-any? not-empty not-every? some])
+  (:import [clojure.core Eduction]
+           [clojure.lang Cons Cycle IEditableCollection LazySeq MapEntry Repeat]
            [java.util ArrayList]))
 
 (set! *warn-on-reflection* true)
@@ -27,6 +28,11 @@
   collection specified as the second argument, using a transducer composed of
   the remaining arguments. Returns the resulting collection. Supplying :eduction
   as the destination returns an eduction instead."
+  ([from to]
+   (case to
+     :eduction `(->Eduction identity ~from)
+     `(into ~to
+            ~from)))
   ([from to xform]
    (case to
      :eduction `(->Eduction ~xform ~from)
@@ -189,9 +195,35 @@
     nil
     coll))
 
-(def into-set (fnil into #{}))
+(definline lazy?
+  "Returns true if the supplied value is a lazily evaluated collection. Lazy
+  sequences might be infinite or may retain references to large objects that
+  prevent them from being garbage-collected. Does not check if elements in the
+  collection are themselves lazily-evaluated."
+  [value]
+  `(condp identical? (class ~value)
+     LazySeq true
+     Eduction true
+     Repeat true
+     Cycle true
+     false))
 
-(def into-vector (fnil into []))
+(defn eager-seqable?
+  "Returns true if the supplied value is seqable and eagerly evaluated. Useful
+  in places where you want a keep around a reference to a seqable object without
+  realizing it into a concrete collection. Note that this function will return
+  true for nil, since it is a valid seqable value."
+  [value]
+  (and (not (lazy? value))
+       (seqable? value)))
+
+(defonce conj-set (fnil conj #{}))
+
+(defonce conj-vector (fnil conj []))
+
+(defonce into-set (fnil into #{}))
+
+(defonce into-vector (fnil into []))
 
 (defn pair-map-by
   "Returns a hash-map where the keys are the result of applying the supplied
@@ -221,6 +253,7 @@
    (cond
      (empty? a) b
      (empty? b) a
+     (and (map? a) (supports-transient? a) (map? b)) (-> (reduce-kv assoc! (transient a) b) persistent! (with-meta (meta a)))
      :else (into a b)))
   ([a b & maps]
    (reduce merge
@@ -250,10 +283,10 @@
                      b)
              (persistent!)
              (with-meta (meta a)))
-         (reduce (fn [result [b-key b-value]]
-                   (assoc result b-key (merged-value b-key b-value)))
-                 a
-                 b)))))
+         (reduce-kv (fn [result b-key b-value]
+                      (assoc result b-key (merged-value b-key b-value)))
+                    a
+                    b)))))
   ([f a b & maps]
    (reduce #(merge-with f %1 %2)
            (merge-with f a b)
@@ -276,10 +309,10 @@
                    ::not-found b-value
                    (f b-key a-value b-value))))]
        (if (supports-transient? a)
-         (-> (reduce (fn [result [b-key b-value]]
-                       (assoc! result b-key (merged-value b-key b-value)))
-                     (transient a)
-                     b)
+         (-> (reduce-kv (fn [result b-key b-value]
+                          (assoc! result b-key (merged-value b-key b-value)))
+                        (transient a)
+                        b)
              (persistent!)
              (with-meta (meta a)))
          (reduce (fn [result [b-key b-value]]
@@ -603,10 +636,50 @@
        :else (rf result input)))))
 
 (defn some
-  "Like clojure.core/some, but uses reduce instead of lazy sequences"
+  "Like clojure.core/some, but uses reduce instead of lazy sequences."
   [pred coll]
   (reduce (fn [_ v]
             (when-let [ret (pred v)]
               (reduced ret)))
           nil
           coll))
+
+(defn any?
+  "Returns whether any item in the supplied collection matches the predicate. Do
+  not confuse with clojure.core/any?, which takes a single argument and always
+  returns true."
+  [pred coll]
+  (boolean (some pred coll)))
+
+(defn not-any?
+  "Like clojure.core/not-any?, but uses reduce instead of lazy sequences."
+  [pred coll]
+  (not (some pred coll)))
+
+(defn every?
+  "Like clojure.core/every?, but uses reduce instead of lazy sequences."
+  [pred coll]
+  (reduce (fn [result item]
+            (if (pred item)
+              result
+              (reduced false)))
+          true
+          coll))
+
+(defn not-every?
+  "Like clojure.core/not-every?, but uses reduce instead of lazy sequences."
+  [pred coll]
+  (not (every? pred coll)))
+
+(defn str-rf
+  "Reducing function for string concatenation, useful for transduce context"
+  ([] (StringBuilder.))
+  ([^StringBuilder result] (.toString result))
+  ([^StringBuilder acc input] (.append acc (str input))))
+
+(defn join-to-string
+  "Like clojure.string/join, but uses reduce instead of lazy sequences"
+  ([coll]
+   (transduce identity str-rf coll))
+  ([sep coll]
+   (transduce (interpose (str sep)) str-rf coll)))

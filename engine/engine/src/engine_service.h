@@ -29,10 +29,7 @@ namespace dmGameObject
     typedef struct Register* HRegister;
 }
 
-namespace dmProfile
-{
-    typedef void* HProfile;
-}
+typedef uint32_t HProfile; // dlib/profile.h
 
 namespace dmWebServer
 {
@@ -48,7 +45,7 @@ namespace dmEngineService
 
     HEngineService New(uint16_t port);
     void Delete(HEngineService engine_service);
-    void Update(HEngineService engine_service, dmProfile::HProfile);
+    void Update(HEngineService engine_service, HProfile);
     uint16_t GetPort(HEngineService engine_service);
     dmWebServer::HServer GetWebServer(HEngineService engine_service);
 
@@ -59,6 +56,13 @@ namespace dmEngineService
         dmResource::HFactory      m_Factory;
         dmGameObject::HRegister   m_Regist;
     };
+
+    struct EngineState
+    {
+        bool   m_ConnectionAppMode;
+    };
+
+    void InitState(HEngineService engine_service, EngineState* state);
 }
 
 #endif // DM_ENGINE_SERVICE

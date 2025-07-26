@@ -26,8 +26,8 @@
 #include <dlib/spinlock.h>
 #include <dlib/profile/profile.h>
 
-DM_PROPERTY_GROUP(rmtp_Message, "dmMessage");
-DM_PROPERTY_U32(rmtp_Messages, 0, FrameReset, "# messages/frame", &rmtp_Message);
+DM_PROPERTY_GROUP(rmtp_Message, "dmMessage", 0);
+DM_PROPERTY_U32(rmtp_Messages, 0, PROFILE_PROPERTY_FRAME_RESET, "# messages/frame", &rmtp_Message);
 
 namespace dmMessage
 {
@@ -528,10 +528,10 @@ namespace dmMessage
         return w_ptr;
     }
 
-    // Low level string concatenation to void the overhead of dmSnPrintf and having to call strlen
+    // Low level string concatenation to avoid the overhead of dmSnPrintf and having to call strlen
     static const char* GetProfilerString(const char* socket_name, char* buffer, uint32_t buffer_size)
     {
-        if (!dmProfile::IsInitialized())
+        if (!ProfileIsInitialized())
             return 0;
 
         char* w_ptr = buffer;

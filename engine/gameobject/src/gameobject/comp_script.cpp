@@ -33,7 +33,7 @@ extern "C"
 }
 
 DM_PROPERTY_EXTERN(rmtp_GameObject);
-DM_PROPERTY_U32(rmtp_ScriptCount, 0, FrameReset, "# components", &rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_ScriptCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_GameObject);
 
 namespace dmGameObject
 {
@@ -337,7 +337,7 @@ namespace dmGameObject
         }
         else
         {
-            if (dmProfile::IsInitialized())
+            if (ProfileIsInitialized())
             {
                 // Try to find the message name via id and reverse hash
                 message_name = (const char*)dmHashReverse64(message->m_Id, 0);
@@ -564,7 +564,7 @@ namespace dmGameObject
                 lua_settable(L, -3);
             }
 
-            if (params.m_InputAction->m_ActionId != 0)
+            if (params.m_InputAction->m_ActionId != 0 && !params.m_InputAction->m_HasText)
             {
                 lua_pushliteral(L, "value");
                 lua_pushnumber(L, params.m_InputAction->m_Value);

@@ -27,19 +27,27 @@
 #include <webgpu/webgpu.h>
 #endif
 
+#ifdef DM_GRAPHICS_WEBGPU_WAGYU
+#include <webgpu/webgpu_compat.h>
+#define DM_GRAPHICS_WEBGPU2
+#endif
+
 namespace dmGraphics
 {
     const static uint32_t MAX_TEXTURE_COUNT = 32u;
 
     struct WebGPUBuffer
     {
-        WebGPUBuffer(WGPUBufferUsageFlags usage)
-            : m_Usage(usage)
-        {
-        }
+#if defined(DM_GRAPHICS_WEBGPU2)
+        WebGPUBuffer(WGPUBufferUsage usage) : m_Usage(usage) { }
+        const WGPUBufferUsage m_Usage; // uint32_t
+#else
+        WebGPUBuffer(WGPUBufferUsageFlags usage) : m_Usage(usage) {}
+        const WGPUBufferUsageFlags m_Usage; // uint32_t
+#endif
 
         WGPUBuffer                 m_Buffer = NULL;
-        const WGPUBufferUsageFlags m_Usage; // uint32_t
+
 
         size_t                     m_Size = 0;
         size_t                     m_Used = 0;
@@ -60,7 +68,6 @@ namespace dmGraphics
 
     struct WebGPUShaderModule
     {
-        ShaderMeta       m_ShaderMeta;
         WGPUShaderModule m_Module = NULL;
         uint64_t         m_Hash;
     };
@@ -112,7 +119,11 @@ namespace dmGraphics
         TextureType           m_Type;
         TextureFormat         m_GraphicsFormat;
         WGPUTextureFormat     m_Format;
+#if defined(DM_GRAPHICS_WEBGPU2)
+        WGPUTextureUsage      m_UsageFlags;
+#else
         WGPUTextureUsageFlags m_UsageFlags;
+#endif
         uint32_t              m_Width;
         uint32_t              m_Height;
         uint32_t              m_OriginalWidth;
@@ -121,6 +132,7 @@ namespace dmGraphics
         uint16_t              m_TextureSamplerIndex : 10;
         uint16_t              m_MipMapCount : 5;
         uint8_t               m_UsageHintFlags;
+        uint8_t               m_PageCount; // page count of texture array
         uint8_t               m_Destroyed : 1;
     };
 
@@ -203,13 +215,17 @@ namespace dmGraphics
 
         WGPUInstance                       m_Instance;
         WGPUAdapter                        m_Adapter;
-        WGPUSupportedLimits                m_AdapterLimits;
         WGPUDevice                         m_Device;
+#if defined(DM_GRAPHICS_WEBGPU2)
+        WGPULimits                         m_AdapterLimits;
+        WGPULimits                         m_DeviceLimits;
+#else
+        WGPUSupportedLimits                m_AdapterLimits;
         WGPUSupportedLimits                m_DeviceLimits;
+#endif
         WGPUQueue                          m_Queue;
         WGPUSurface                        m_Surface;
         WGPUTextureFormat                  m_Format;
-        WGPUSwapChain                      m_SwapChain;
         WGPUCommandEncoder                 m_CommandEncoder;
         uint32_t                           m_RenderPasses;
         uint32_t                           m_LastSubmittedRenderPass;

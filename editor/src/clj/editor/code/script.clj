@@ -33,18 +33,101 @@
 
 (g/deftype Modules [String])
 
+
+;; Lua block open/close keywords for indentation
+(def lua-open-keywords #{"do" "then" "function" "else" "repeat"})
+(def lua-close-keywords #{"end" "until"})
+
+;; This function replicates the behavior of the regex:
+;;   ^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b)[^\"'])*)|(\{\s*))$
+;;
+;; It performs the following checks:
+;; - Skips full-line comments (equivalent to ^([^-]|-(?!-))* for avoiding -- comments)
+;; - Ignores anything inside string literals (quoted "..." or '...')
+;; - Skips trailing inline comments (-- outside of string)
+;; - After cleaning, checks for:
+;;     * Ending with `{` (equivalent to (\{\s*)$)
+;;     * Presence of open block keywords (else, function, then, do, repeat)
+;;       not followed by closing keywords (end, until)
+(defn lua-opens-block? [^String line]
+  (let [len (.length line)]
+    (if (or (zero? len)
+            (.startsWith (clojure.string/triml line) "--"))
+      false
+      (loop [i 0
+             token (StringBuilder.)
+             in-quote nil
+             escaped false
+             skip-rest false
+             last-non-space nil
+             tokens #{}]
+        (if (>= i len)
+          (let [tokens (if (pos? (.length token)) (conj tokens (.toString token)) tokens)]
+            (or (= last-non-space \{)
+                (and (some lua-open-keywords tokens)
+                     (not (some lua-close-keywords tokens)))))
+          (let [ch (.charAt line (long i))]
+            (cond
+              skip-rest
+              (recur (inc i) token in-quote false true last-non-space tokens)
+
+              in-quote
+              (cond
+                escaped (recur (inc i) token in-quote false skip-rest last-non-space tokens)
+                (= ch \\) (recur (inc i) token in-quote true skip-rest last-non-space tokens)
+                (= ch (.charValue ^Character in-quote)) (recur (inc i) token nil false skip-rest last-non-space tokens)
+                :else (recur (inc i) token in-quote false skip-rest last-non-space tokens))
+
+              ;; Inline comment
+              (and (= ch \-) (< (inc i) len) (= (.charAt line (inc i)) \-))
+              (recur len token in-quote false true last-non-space tokens)
+
+              ;; Start of quote
+              (or (= ch \") (= ch \'))
+              (recur (inc i) token ch false skip-rest last-non-space tokens)
+
+              ;; Word character
+              (or (Character/isLetter ch) (Character/isDigit ch) (= ch \_))
+              (do (.append token ch)
+                  (recur (inc i) token in-quote false skip-rest ch tokens))
+
+              ;; Non-word character
+              :else
+              (let [tokens (if (pos? (.length token))
+                             (let [tok (.toString token)]
+                               (.setLength token 0)
+                               (conj tokens tok))
+                             tokens)]
+                (recur (inc i) token in-quote false skip-rest
+                        (if (Character/isWhitespace ch) last-non-space ch)
+                        tokens)))))))))
+
 (def lua-grammar
   {:name "Lua"
    :scope-name "source.lua"
    ;; indent patterns shamelessly stolen from textmate:
    ;; https://github.com/textmate/lua.tmbundle/blob/master/Preferences/Indent.tmPreferences
-   :indent {:begin #"^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b)[^\"'])*)|(\{\s*))$"
+   :indent {:begin lua-opens-block?
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
    :line-comment "--"
-   :commit-characters {:method #{"("}
-                       :function #{"("}
-                       :field #{"."}
-                       :module #{"."}}
+   :auto-insert {:characters {\" \"
+                              \' \'
+                              \[ \]
+                              \( \)
+                              \{ \}}
+                 :close-characters #{\" \' \] \) \}}
+                 :exclude-scopes #{"punctuation.definition.string.quoted.begin.lua"
+                                   "punctuation.definition.string.begin.lua"
+                                   "string.quoted.other.multiline.lua"
+                                   "string.quoted.double.lua"
+                                   "string.quoted.single.lua"
+                                   "constant.character.escape.lua"}
+                 :open-scopes {\' "punctuation.definition.string.quoted.begin.lua"
+                               \" "punctuation.definition.string.quoted.begin.lua"
+                               \[ "punctuation.definition.string.begin.lua"}
+                 :close-scopes {\' "punctuation.definition.string.quoted.end.lua"
+                                \" "punctuation.definition.string.quoted.end.lua"
+                                \] "punctuation.definition.string.end.lua"}}
    :completion-trigger-characters #{"."}
    :ignored-completion-trigger-characters #{"{" ","}
    :patterns [{:captures {1 {:name "keyword.control.lua"}
@@ -58,16 +141,16 @@
               {:match #"(?<![\d.])\s0x[a-fA-F\d]+|\b\d+(\.\d+)?([eE]-?\d+)?|\.\d+([eE]-?\d+)?"
                :name "constant.numeric.lua"}
               {:begin #"'"
-               :begin-captures {0 {:name "punctuation.definition.string.begin.lua"}}
+               :begin-captures {0 {:name "punctuation.definition.string.quoted.begin.lua"}}
                :end #"'"
-               :end-captures {0 {:name "punctuation.definition.string.end.lua"}}
+               :end-captures {0 {:name "punctuation.definition.string.quoted.end.lua"}}
                :name "string.quoted.single.lua"
                :patterns [{:match #"\\."
                            :name "constant.character.escape.lua"}]}
               {:begin #"\""
-               :begin-captures {0 {:name "punctuation.definition.string.begin.lua"}}
+               :begin-captures {0 {:name "punctuation.definition.string.quoted.begin.lua"}}
                :end #"\""
-               :end-captures {0 {:name "punctuation.definition.string.end.lua"}}
+               :end-captures {0 {:name "punctuation.definition.string.quoted.end.lua"}}
                :name "string.quoted.double.lua"
                :patterns [{:match #"\\."
                            :name "constant.character.escape.lua"}]}
@@ -255,7 +338,7 @@
 (def ^:private xform-to-name-info-pairs (map (juxt :name #(dissoc % :name))))
 
 (defn- edit-script-property [node-id type resource-kind value]
-  (g/set-property node-id :type type :resource-kind resource-kind :value value))
+  (g/set-properties node-id :type type :resource-kind resource-kind :value value))
 
 (defn- create-script-property [script-node-id name type resource-kind value]
   (g/make-nodes (g/node-id->graph-id script-node-id) [node-id [ScriptPropertyNode :name name]]

@@ -30,4 +30,17 @@ public class ResourceUtil {
         fileName = fileName.substring(0, i);
         return fileName + ext;
     }
+
+    /**
+     * Get extension of filename
+     * @param fileName file-name to get extension for
+     * @return the ext, including the '.' character
+     */
+    public static String getExt(String fileName) {
+        int i = fileName.lastIndexOf(".");
+        if (i == -1) {
+            throw new IllegalArgumentException(String.format("Missing extension in name '%s'", fileName));
+        }
+        return fileName.substring(i);
+    }
 }

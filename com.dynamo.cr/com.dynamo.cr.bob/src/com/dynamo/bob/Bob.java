@@ -14,6 +14,27 @@
 
 package com.dynamo.bob;
 
+import com.dynamo.bob.archive.EngineVersion;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.LogHelper;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.BuildInputDataCollector;
+import com.dynamo.bob.util.FileUtil;
+import com.dynamo.bob.util.HttpUtil;
+import com.dynamo.bob.util.PackedResources;
+import com.dynamo.bob.util.TimeProfiler;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.PosixParser;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -25,6 +46,7 @@ import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,30 +57,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-import java.lang.NumberFormatException;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.PosixParser;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-
-import com.dynamo.bob.archive.EngineVersion;
-import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.logging.Logger;
-import com.dynamo.bob.logging.LogHelper;
-import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.bob.util.HttpUtil;
-import com.dynamo.bob.cache.ResourceCacheKey;
-import com.dynamo.bob.util.FileUtil;
-
-import static com.dynamo.bob.Bob.CommandLineOption.ArgCount.*;
+import static com.dynamo.bob.Bob.CommandLineOption.ArgCount.MANY;
+import static com.dynamo.bob.Bob.CommandLineOption.ArgCount.ONE;
+import static com.dynamo.bob.Bob.CommandLineOption.ArgCount.ZERO;
 import static com.dynamo.bob.Bob.CommandLineOption.ArgType.ABS_OR_CWD_REL_PATH;
 
 public class Bob {
@@ -71,7 +73,6 @@ public class Bob {
     public static final String ARTIFACTS_URL = "http://d.defold.com/archive/";
 
     private static File rootFolder = null;
-    private static boolean luaInitialized = false;
 
     public static class OptionValidationException extends Exception {
         public final int exitCode;
@@ -120,7 +121,11 @@ public class Bob {
                     System.out.println("Warning: Failed to clean up temp directory '" + tmpDirFile.getAbsolutePath() + "'");
                 }
                 finally {
-                    luaInitialized = false;
+                    try {
+                        PackedResources.reset();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             }
         }));
@@ -154,16 +159,9 @@ public class Bob {
     }
 
     public static void initLua() {
-        if (luaInitialized) {
-            return;
-        }
         init();
-        try {
-            extract(Bob.class.getResource("/lib/luajit-share.zip"), new File(rootFolder, "share"));
-            luaInitialized = true;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        PackedResources.unpackAllLibsAsync(Platform.getHostPlatform());
+        PackedResources.waitForuUpackAllLibsAsync();
     }
 
     public static File getRootFolder() {
@@ -243,28 +241,6 @@ public class Bob {
         return exes.get(0);
     }
 
-    public static void unpackSharedLibraries(Platform platform, List<String> names) throws IOException {
-        init();
-
-        TimeProfiler.start("unpackSharedLibraries");
-        String libSuffix = platform.getLibSuffix();
-        for (String name : names) {
-            TimeProfiler.start(name);
-            String depName = platform.getPair() + "/" + name + libSuffix;
-            File f = new File(rootFolder, depName);
-            if (!f.exists()) {
-                URL url = Bob.class.getResource("/libexec/" + depName);
-                if (url == null) {
-                    throw new RuntimeException(String.format("/libexec/%s could not be found.", depName));
-                }
-
-                atomicCopy(url, f, true);
-            }
-            TimeProfiler.stop();
-        }
-        TimeProfiler.stop();
-    }
-
     // https://stackoverflow.com/a/30755071/468516
     private static final String ENOTEMPTY = "Directory not empty";
     private static void move(final File source, final File target) throws FileAlreadyExistsException, IOException {
@@ -306,6 +282,7 @@ public class Bob {
 
     private static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
         init();
+        PackedResources.waitForuUpackAllLibsAsync();
         TimeProfiler.start("getExeWithExtension %s.%s", name, extension);
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
         File f = new File(rootFolder, exeName);
@@ -339,20 +316,11 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    public static String getJarFile(String filename) throws IOException {
-        init();
-        TimeProfiler.start("getJarFile %s", filename);
-        File f = new File(rootFolder, filename);
-        if (!f.exists()) {
-            URL url = Bob.class.getResource("/share/java/" + filename);
-            if (url == null) {
-                throw new RuntimeException(String.format("/share/java/%s not found", filename));
-            }
-            atomicCopy(url, f, false);
+    public static String getHostExeOnce(String exeName, String currentExe) throws IOException {
+        if (currentExe != null && Files.exists(Path.of(currentExe))) {
+            return currentExe;
         }
-        TimeProfiler.addData("path", f.getAbsolutePath());
-        TimeProfiler.stop();
-        return f.getAbsolutePath();
+        return Bob.getExe(Platform.getHostPlatform(), exeName);
     }
 
     private static List<File> downloadExes(Platform platform, String variant, String artifactsURL) throws IOException {
@@ -448,6 +416,7 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
+    // Used by JNI tools, see ModelImporterJni.java, ShadercJni.java and TexcLibraryJni.java in engine folder
     public static File getSharedLib(String name) throws IOException {
         init();
         TimeProfiler.start("getSharedLib %s", name);
@@ -485,7 +454,7 @@ public class Bob {
         // Set the concatenated jna.library path
         System.setProperty(variable, newPath);
     }
-
+    // Used by JNI tools, see ModelImporterJni.java, ShadercJni.java and TexcLibraryJni.java in engine folder
     static public void addToPaths(String dir) {
         addToPath("jni.library.path", dir);
         addToPath("jna.library.path", dir);
@@ -512,102 +481,99 @@ public class Bob {
         public enum ArgType {UNSPECIFIED, ABS_OR_CWD_REL_PATH}
     }
 
-    private static CommandLineOption opt(String shortOpt, String longOpt, CommandLineOption.ArgCount argCount, CommandLineOption.ArgType argType, String description,
-                                         boolean usedByResourceCacheKey) {
-        if (usedByResourceCacheKey) {
-            ResourceCacheKey.includeOption(longOpt);
-        }
+    private static CommandLineOption opt(String shortOpt, String longOpt, CommandLineOption.ArgCount argCount, CommandLineOption.ArgType argType, String description) {
         if (argCount == MANY) {
             description = description + ". More than one occurrence is allowed";
         }
         return new CommandLineOption(shortOpt, longOpt, argCount, argType, description);
     };
 
-    private static CommandLineOption opt(String shortOpt, String longOpt, CommandLineOption.ArgCount argCount, String description, boolean usedByResourceCacheKey) {
-        return opt(shortOpt, longOpt, argCount, CommandLineOption.ArgType.UNSPECIFIED, description, usedByResourceCacheKey);
+    private static CommandLineOption opt(String shortOpt, String longOpt, CommandLineOption.ArgCount argCount, String description) {
+        return opt(shortOpt, longOpt, argCount, CommandLineOption.ArgType.UNSPECIFIED, description);
     }
 
     public static List<CommandLineOption> getCommandLineOptions() {
         return List.of(
-                opt("r", "root", ONE, ABS_OR_CWD_REL_PATH, "Build root directory. Default is current directory", true),
-                opt("o", "output", ONE, "Output directory. Default is \"build/default\"", false),
-                opt("i", "input", ONE, "DEPRECATED! Use --root instead", true),
-                opt("v", "verbose", ZERO, "Verbose output", false),
-                opt("h", "help", ZERO, "This help message", false),
-                opt("a", "archive", ZERO, "Build archive", false),
-                opt("ea", "exclude-archive", ZERO, "Exclude resource archives from application bundle. Use this to create an empty Defold application for use as a build target", false),
-                opt("e", "email", ONE, "User email", false),
-                opt("u", "auth", ONE, "User auth token", false),
+                opt("r", "root", ONE, ABS_OR_CWD_REL_PATH, "Build root directory. Default is current directory"),
+                opt("o", "output", ONE, "Output directory. Default is \"build/default\""),
+                opt("i", "input", ONE, "DEPRECATED! Use --root instead"),
+                opt("v", "verbose", ZERO, "Verbose output"),
+                opt("h", "help", ZERO, "This help message"),
+                opt("a", "archive", ZERO, "Build archive"),
+                opt("ea", "exclude-archive", ZERO, "Exclude resource archives from application bundle. Use this to create an empty Defold application for use as a build target"),
+                opt("e", "email", ONE, "User email"),
+                opt("u", "auth", ONE, "User auth token"),
 
-                opt("p", "platform", ONE, "Platform (when building and bundling)", true),
-                opt("bo", "bundle-output", ONE, ABS_OR_CWD_REL_PATH,"Bundle output directory", false),
-                opt("bf", "bundle-format", ONE, "Which formats to create the application bundle in. Comma separated list. (Android: 'apk' and 'aab')", false),
+                opt("p", "platform", ONE, "Platform (when building and bundling)"),
+                opt("bo", "bundle-output", ONE, ABS_OR_CWD_REL_PATH,"Bundle output directory"),
+                opt("bf", "bundle-format", ONE, "Which formats to create the application bundle in. Comma separated list. (Android: 'apk' and 'aab')"),
 
-                opt("mp", "mobileprovisioning", ONE, ABS_OR_CWD_REL_PATH, "mobileprovisioning profile (iOS)", false),
-                opt(null, "identity", ONE, "Sign identity (iOS)", false),
+                opt("mp", "mobileprovisioning", ONE, ABS_OR_CWD_REL_PATH, "mobileprovisioning profile (iOS)"),
+                opt(null, "identity", ONE, "Sign identity (iOS)"),
 
-                opt("ce", "certificate", ONE, "DEPRECATED! Use --keystore instead", false),
-                opt("pk", "private-key", ONE, "DEPRECATED! Use --keystore instead", false),
+                opt("ce", "certificate", ONE, "DEPRECATED! Use --keystore instead"),
+                opt("pk", "private-key", ONE, "DEPRECATED! Use --keystore instead"),
 
-                opt("ks", "keystore", ONE, "Deployment keystore used to sign APKs (Android)", false),
-                opt("ksp", "keystore-pass", ONE, "Password of the deployment keystore (Android)", false),
-                opt("ksa", "keystore-alias", ONE, "The alias of the signing key+cert you want to use (Android)", false),
-                opt("kp", "key-pass", ONE, "Password of the deployment key if different from the keystore password (Android)", false),
+                opt("ks", "keystore", ONE, "Deployment keystore used to sign APKs (Android)"),
+                opt("ksp", "keystore-pass", ONE, "Password of the deployment keystore (Android)"),
+                opt("ksa", "keystore-alias", ONE, "The alias of the signing key+cert you want to use (Android)"),
+                opt("kp", "key-pass", ONE, "Password of the deployment key if different from the keystore password (Android)"),
 
-                opt("d", "debug", ZERO, "DEPRECATED! Use --variant=debug instead", false),
-                opt(null, "variant", ONE, "Specify debug, release or headless version of dmengine (when bundling)", false),
-                opt(null, "strip-executable", ZERO, "Strip the dmengine of debug symbols (when bundling iOS or Android)", false),
-                opt(null, "with-symbols", ZERO, "Generate the symbol file (if applicable)", false),
+                opt("d", "debug", ZERO, "DEPRECATED! Use --variant=debug instead"),
+                opt(null, "variant", ONE, "Specify debug, release or headless version of dmengine (when bundling)"),
+                opt(null, "strip-executable", ZERO, "Strip the dmengine of debug symbols (when bundling iOS or Android)"),
+                opt(null, "with-symbols", ZERO, "Generate the symbol file (if applicable)"),
 
-                opt("tp", "texture-profiles", ONE, "DEPRECATED! Use --texture-compression instead", true),
-                opt("tc", "texture-compression", ZERO, "Use texture compression as specified in texture profiles", true),
+                opt("tp", "texture-profiles", ONE, "DEPRECATED! Use --texture-compression instead"),
+                opt("tc", "texture-compression", ZERO, "Use texture compression as specified in texture profiles"),
 
-                opt(null, "exclude-build-folder", ONE, "DEPRECATED! Use '.defignore' file instead", true),
+                opt(null, "exclude-build-folder", ONE, "DEPRECATED! Use '.defignore' file instead"),
 
-                opt("br", "build-report", ONE, ABS_OR_CWD_REL_PATH, "DEPRECATED! Use --build-report-json instead", false),
-                opt("brjson", "build-report-json", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a build report as JSON", false),
-                opt("brhtml", "build-report-html", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a build report as HTML", false),
+                opt("br", "build-report", ONE, ABS_OR_CWD_REL_PATH, "DEPRECATED! Use --build-report-json instead"),
+                opt("brjson", "build-report-json", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a build report as JSON"),
+                opt("brhtml", "build-report-html", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a build report as HTML"),
 
-                opt(null, "build-server", ONE, "The build server (when using native extensions)", true),
-                opt(null, "build-server-header", MANY, "Additional build server header to set", true),
-                opt(null, "use-async-build-server", ZERO, "DEPRECATED! Asynchronous build is now the default", true),
-                opt(null, "defoldsdk", ONE, "What version of the defold sdk (sha1) to use", true),
-                opt(null, "binary-output", ONE, ABS_OR_CWD_REL_PATH, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"", true),
+                opt(null, "build-server", ONE, "The build server (when using native extensions)"),
+                opt(null, "build-server-header", MANY, "Additional build server header to set"),
+                opt(null, "use-async-build-server", ZERO, "DEPRECATED! Asynchronous build is now the default"),
+                opt(null, "defoldsdk", ONE, "What version of the defold sdk (sha1) to use"),
+                opt(null, "binary-output", ONE, ABS_OR_CWD_REL_PATH, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\""),
 
-                opt(null, "use-vanilla-lua", ZERO, "DEPRECATED! Use --use-uncompressed-lua-source instead", true),
-                opt(null, "use-uncompressed-lua-source", ZERO, "Use uncompressed and unencrypted Lua source code instead of byte code", true),
-                opt(null, "use-lua-bytecode-delta", ZERO, "Use byte code delta compression when building for multiple architectures", true),
-                opt(null, "archive-resource-padding", ONE, "The alignment of the resources in the game archive. Default is 4", true),
+                opt(null, "use-vanilla-lua", ZERO, "DEPRECATED! Use --use-uncompressed-lua-source instead"),
+                opt(null, "use-uncompressed-lua-source", ZERO, "Use uncompressed and unencrypted Lua source code instead of byte code"),
+                opt(null, "use-lua-bytecode-delta", ZERO, "Use byte code delta compression when building for multiple architectures"),
+                opt(null, "archive-resource-padding", ONE, "The alignment of the resources in the game archive. Default is 4"),
 
-                opt("l", "liveupdate", ONE, "Yes if liveupdate content should be published", true),
+                opt("l", "liveupdate", ONE, "Yes if liveupdate content should be published"),
 
-                opt(null, "with-sha1", ZERO, "Generate (and verify) sha1 signatures from build artifacts (when bunding for web)", false),
+                opt(null, "with-sha1", ZERO, "Generate (and verify) sha1 signatures from build artifacts (when bunding for web)"),
 
-                opt("ar", "architectures", ONE, "Comma separated list of architectures to include for the platform", true),
+                opt("ar", "architectures", ONE, "Comma separated list of architectures to include for the platform"),
 
-                opt(null, "settings", MANY, ABS_OR_CWD_REL_PATH, "Path to a game project settings file. The settings files are applied left to right", false),
+                opt(null, "settings", MANY, ABS_OR_CWD_REL_PATH, "Path to a game project settings file. The settings files are applied left to right"),
 
-                opt(null, "version", ZERO, "Prints the version number to the output", false),
+                opt(null, "version", ZERO, "Prints the version number to the output"),
 
-                opt(null, "build-artifacts", ONE, "If left out, will default to build the engine. Choices: 'engine', 'plugins', 'library'. Comma separated list", false),
-                opt(null, "ne-build-dir", MANY, ABS_OR_CWD_REL_PATH, "Specify a folder with includes or source, to build a specific library", false),
-                opt(null, "ne-output-name", ONE, "Specify a library target name", false),
+                opt(null, "build-artifacts", ONE, "If left out, will default to build the engine. Choices: 'engine', 'plugins', 'library'. Comma separated list"),
+                opt(null, "ne-build-dir", MANY, ABS_OR_CWD_REL_PATH, "Specify a folder with includes or source, to build a specific library"),
+                opt(null, "ne-output-name", ONE, "Specify a library target name"),
 
-                opt(null, "resource-cache-local", ONE, ABS_OR_CWD_REL_PATH, "Path to local resource cache", false),
-                opt(null, "resource-cache-remote", ONE, "URL to remote resource cache", false),
-                opt(null, "resource-cache-remote-user", ONE, "Username to authenticate access to the remote resource cache", false),
-                opt(null, "resource-cache-remote-pass", ONE, "Password/token to authenticate access to the remote resource cache", false),
+                opt(null, "resource-cache-local", ONE, ABS_OR_CWD_REL_PATH, "Path to local resource cache"),
+                opt(null, "resource-cache-remote", ONE, "URL to remote resource cache"),
+                opt(null, "resource-cache-remote-user", ONE, "Username to authenticate access to the remote resource cache"),
+                opt(null, "resource-cache-remote-pass", ONE, "Password/token to authenticate access to the remote resource cache"),
 
-                opt(null, "manifest-private-key", ONE, "Private key to use when signing manifest and archive", false),
-                opt(null, "manifest-public-key", ONE, "Public key to use when signing manifest and archive", false),
+                opt(null, "manifest-private-key", ONE, "Private key to use when signing manifest and archive"),
+                opt(null, "manifest-public-key", ONE, "Public key to use when signing manifest and archive"),
 
-                opt(null, "max-cpu-threads", ONE, "Max count of threads that bob.jar can use", false),
+                opt(null, "max-cpu-threads", ONE, "Max count of threads that bob.jar can use"),
 
                 // debug options
-                opt(null, "debug-ne-upload", ZERO, "Outputs the files sent to build server as upload.zip", false),
-                opt(null, "debug-output-spirv", ONE, "Force build SPIR-V shaders", false),
-                opt(null, "debug-output-wgsl", ONE, "Force build WGSL shaders", false),
-                opt(null, "debug-output-hlsl", ONE, "Force build HLSL shaders", false)
+                opt(null, "debug-ne-upload", ZERO, "Outputs the files sent to build server as upload.zip"),
+                opt(null, "debug-output-spirv", ONE, "Force build SPIR-V shaders"),
+                opt(null, "debug-output-wgsl", ONE, "Force build WGSL shaders"),
+                opt(null, "debug-output-hlsl", ONE, "Force build HLSL shaders"),
+                opt(null, "debug-output-glsl", ONE, "Force build GLSL shaders")
         );
     }
 
@@ -678,6 +644,7 @@ public class Bob {
     }
 
     private static void setupProject(Project project, boolean resolveLibraries, IProgress progress) throws IOException, LibraryException, CompileExceptionError {
+        project.loadProjectFile(false);
         BobProjectProperties projectProperties = project.getProjectProperties();
         String[] dependencies = projectProperties.getStringArrayValue("project", "dependencies");
         List<URL> libUrls = new ArrayList<>();
@@ -751,12 +718,16 @@ public class Bob {
 
         String cwd = new File(".").getAbsolutePath();
 
+        BuildInputDataCollector.setArgs(args);
         CommandLine cmd = parse(args);
         if (cmd == null) { // nothing to do: requested to print help
             return new InvocationResult(true, Collections.emptyList());
         }
         String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
+
+        init();
+        PackedResources.unpackAllLibsAsync(Platform.getHostPlatform());
 
         String build_report_json = null;
         String build_report_html = null;
@@ -851,10 +822,6 @@ public class Bob {
                     project.addBuildServerHeader(header);
                 }
             }
-            TimeProfiler.stop();
-
-            TimeProfiler.start("loadProjectFile");
-            project.loadProjectFile();
             TimeProfiler.stop();
 
             TimeProfiler.start("setupProject");

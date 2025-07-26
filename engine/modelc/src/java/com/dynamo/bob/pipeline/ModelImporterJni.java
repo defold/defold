@@ -444,6 +444,9 @@ public class ModelImporterJni {
         }
 
         public byte[] getData(String path, String uri) {
+            if (uri == null)
+                return null; // Usually compressed buffers, which we don't support yet
+
             File file;
             if (cwd != null)
                 file = new File(cwd, path);
@@ -488,11 +491,14 @@ public class ModelImporterJni {
 
         long timeEnd = System.currentTimeMillis();
 
+        if (scene == null)
+        {
+            System.exit(1);
+            return;
+        }
+
         System.out.printf("Loaded %s %s\n", path, scene!=null ? "ok":"failed");
         System.out.printf("Loading took %d ms\n", (timeEnd - timeStart));
-
-        if (scene == null)
-            return;
 
         System.out.printf("--------------------------------\n");
 

@@ -29,9 +29,20 @@ namespace dmRender
     // Old typedef, used internally. We want to migrate towards HFont
     typedef struct FontMap* HFontMap;
 
+    struct FontMetrics
+    {
+        float m_MaxAscent;
+        float m_MaxDescent;
+        float m_MaxWidth;           // The widest glyph
+        float m_MaxHeight;          // The tallest glyph
+        uint16_t m_ImageMaxWidth;   // The widest glyph (in texels)
+        uint16_t m_ImageMaxHeight;  // The tallest glyph (in texels)
+    };
+
     typedef dmRenderDDF::GlyphBank::Glyph FontGlyph;
-    typedef FontGlyph* (*FGetGlyph)(uint32_t codepoint, void* user_ctx);
-    typedef void*  (*FGetGlyphData)(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height);
+    typedef FontGlyph*  (*FGetGlyph)(uint32_t codepoint, void* user_ctx);
+    typedef void*       (*FGetGlyphData)(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels);
+    typedef uint32_t    (*FGetFontMetrics)(void* user_ctx, FontMetrics* metrics); // returns number of glyphs
 
     /**
      * Font map parameters supplied to NewFontMap
@@ -43,6 +54,7 @@ namespace dmRender
 
         FGetGlyph       m_GetGlyph;
         FGetGlyphData   m_GetGlyphData;
+        FGetFontMetrics m_GetFontMetrics;
 
         dmhash_t        m_NameHash;
 
@@ -56,8 +68,6 @@ namespace dmRender
         float m_MaxDescent;
         /// Value to scale SDF texture values with
         float m_SdfSpread;
-        /// Value to offset SDF texture values with
-        float m_SdfOffset;
         /// Distance value where outline should end
         float m_SdfOutline;
         /// Distance value where shadow should end
@@ -71,6 +81,8 @@ namespace dmRender
 
         uint32_t m_CacheWidth;
         uint32_t m_CacheHeight;
+        uint32_t m_CacheMaxWidth;
+        uint32_t m_CacheMaxHeight;
         uint32_t m_CacheCellWidth;
         uint32_t m_CacheCellHeight;
         uint32_t m_CacheCellMaxAscent;
@@ -79,7 +91,8 @@ namespace dmRender
         uint8_t m_LayerMask;
 
         uint8_t m_IsMonospaced:1;
-        uint8_t m_Padding:7;
+        uint8_t m_IsDynamic:1;
+        uint8_t m_Padding:6;        // Note: Not C struct padding, but actual glyph padding.
 
         dmRenderDDF::FontTextureFormat m_ImageFormat;
     };
@@ -137,6 +150,8 @@ namespace dmRender
      */
     HFontMap NewFontMap(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params);
 
+    void SetFontMapLineHeight(HFontMap font_map, float max_ascent, float max_descent);
+    void GetFontMapLineHeight(HFontMap font_map, float* max_ascent, float* max_descent);
     void SetFontMapCacheSize(HFontMap font_map, uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent);
     void GetFontMapCacheSize(HFontMap font_map, uint32_t* cell_width, uint32_t* cell_height, uint32_t* max_ascent);
 
@@ -145,13 +160,6 @@ namespace dmRender
      * @param font_map Font map handle
      */
     void DeleteFontMap(HFontMap font_map);
-
-    /**
-     * Update the font map with the specified parameters. The parameters are consumed and should not be read after this call.
-     * @param font_map Font map handle
-     * @param params Parameters to update
-     */
-    void SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params);
 
     /**
      * Get texture from a font map
@@ -228,6 +236,10 @@ namespace dmRender
      */
     void AddGlyphToCache(HFontMap font_map, uint32_t frame, FontGlyph* glyph, int32_t g_offset_y);
 
+    /** Checks if the glyph cache texture needs to be updated
+     */
+    void UpdateCacheTexture(HFontMap font_map);
+
     /**
      * Get the glyph from the font map given a unicode codepoint
      * @param font_map [type: HFontMap] Font map handle
@@ -244,9 +256,10 @@ namespace dmRender
      * @param out_compression [out] [type: uint32_t*] Tells if the data is compressed. 1 = deflate, 0 = uncompressed.
      * @param out_width [out] [type: uint32_t*] The width of the final image
      * @param out_height [out] [type: uint32_t*] The height of the final image
+     * @param out_channels [out] [type: uint32_t*] The number of channels of the final image
      * @return data [type: uint8_t*] the image data. See out_compression.
      */
-    const uint8_t* GetGlyphData(dmRender::HFontMap font_map, uint32_t codepoint, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height);
+    const uint8_t* GetGlyphData(dmRender::HFontMap font_map, uint32_t codepoint, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height, uint32_t* out_channels);
 
     // Used in unit tests
     bool VerifyFontMapMinFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter);

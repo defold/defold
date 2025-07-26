@@ -38,6 +38,7 @@ namespace dmGameSystem
      * @document
      * @name System
      * @namespace sys
+     * @language Lua
      */
 
     enum RequestStatus
@@ -289,7 +290,7 @@ namespace dmGameSystem
      * `buffer`
      * : [type:buffer] If the request was successfull, this will contain the request payload in a buffer object, and nil otherwise. Make sure to check the status before doing anything with the buffer value!
      *
-     * @return handle [type:handle] a handle to the request
+     * @return handle [type:number] a handle to the request
      * @examples
      *
      * Load binary data from a custom project resource and update a texture resource:
@@ -381,17 +382,17 @@ namespace dmGameSystem
 
     /*# an asyncronous request has finished successfully
      * @name sys.REQUEST_STATUS_FINISHED
-     * @variable
+     * @constant
      */
 
     /*# an asyncronous request is unable to read the resource
      * @name sys.REQUEST_STATUS_ERROR_IO_ERROR
-     * @variable
+     * @constant
      */
 
     /*# an asyncronous request is unable to locate the resource
      * @name sys.REQUEST_STATUS_ERROR_NOT_FOUND
-     * @variable
+     * @constant
      */
 
     void ScriptSysGameSysRegister(const ScriptLibContext& context)

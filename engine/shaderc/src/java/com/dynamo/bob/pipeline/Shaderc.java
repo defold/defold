@@ -46,7 +46,7 @@ public class Shaderc {
     public enum ShaderStage {
         SHADER_STAGE_VERTEX(1),
         SHADER_STAGE_FRAGMENT(2),
-        SHADER_STAGE_COMPUTE(3);
+        SHADER_STAGE_COMPUTE(4);
         private final int value;
         private ShaderStage(int value) {
             this.value = value;
@@ -206,7 +206,6 @@ public class Shaderc {
     public static class ShaderCompilerOptions {
         public int version = 0;
         public String entryPoint;
-        public ShaderStage stage = ShaderStage.SHADER_STAGE_VERTEX;
         public byte removeUnusedVariables = 0;
         public byte no420PackExtension = 0;
         public byte glslEmitUboAsPlainUniforms = 0;
@@ -248,6 +247,7 @@ public class Shaderc {
         public byte location = 0;
         public byte binding = 0;
         public byte set = 0;
+        public byte stageFlags = 0;
     };
     public static class ShaderReflection {
         public ShaderResource[] inputs;
@@ -259,6 +259,7 @@ public class Shaderc {
     };
     public static class ShaderCompileResult {
         public byte[] data;
+        public String lastError;
     };
 }
 

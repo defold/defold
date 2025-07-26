@@ -14,6 +14,7 @@
 
 (ns editor.collection-non-editable
   (:require [dynamo.graph :as g]
+            [editor.attachment :as attachment]
             [editor.build-target :as bt]
             [editor.collection-common :as collection-common]
             [editor.collection-string-data :as collection-string-data]
@@ -47,7 +48,7 @@
             referenced-component-build-targets
             resource-property-build-targets)))
 
-(defn- any-instance-desc->pose [{:keys [position rotation scale3] :as any-instance-desc}]
+(defn- any-instance-desc->pose [{:keys [position rotation scale3] :as _any-instance-desc}]
   ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
   (let [scale (or scale3 scene/default-scale)]
     (pose/make position rotation scale)))
@@ -210,26 +211,26 @@
     (distinct)
     instance-property-descs))
 
-(defn- collection-desc->referenced-collection-resources [collection-desc workspace]
+(defn- collection-desc->referenced-collection-resources [collection-desc proj-path->resource]
   (eduction
     (map :collection)
     (distinct)
-    (map (partial workspace/resolve-workspace-resource workspace))
+    (map proj-path->resource)
     (:collection-instances collection-desc)))
 
-(defn- collection-desc->referenced-game-object-resources [collection-desc workspace]
+(defn- collection-desc->referenced-game-object-resources [collection-desc proj-path->resource]
   (eduction
     (map :prototype)
     (distinct)
-    (map (partial workspace/resolve-workspace-resource workspace))
+    (map proj-path->resource)
     (:instances collection-desc)))
 
-(defn- collection-desc->referenced-component-resources [collection-desc workspace]
+(defn- collection-desc->referenced-component-resources [collection-desc proj-path->resource]
   (eduction
     (map :data)
     (mapcat game-object-non-editable/prototype-desc->referenced-component-proj-paths)
     (distinct)
-    (map (partial workspace/resolve-workspace-resource workspace))
+    (map proj-path->resource)
     (:embedded-instances collection-desc)))
 
 (defn- collection-desc->embedded-component-resource-datas [collection-desc]
@@ -357,42 +358,32 @@
 (def ^:private resource-property-connections
   [[:build-targets :own-resource-property-build-targets]])
 
+(defn connect-referenced-game-objects-tx-data [evaluation-context self referenced-game-object-resources]
+  (game-object-non-editable/connect-referenced-resources-tx-data evaluation-context self referenced-game-object-resources :referenced-game-object-resources referenced-game-object-connections))
+
+(defn connect-referenced-collections-tx-data [evaluation-context self referenced-collection-resources]
+  (game-object-non-editable/connect-referenced-resources-tx-data evaluation-context self referenced-collection-resources :referenced-collection-resources referenced-collection-connections))
+
 (g/defnode NonEditableCollectionNode
   (inherits game-object-non-editable/ComponentHostResourceNode)
 
   (property collection-desc g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   ;; We use default evaluation-context in queries to ensure the
-                   ;; results are cached. See comment in connect-resource-node.
                    (let [basis (:basis evaluation-context)
                          project (project/get-project basis self)
-                         workspace (project/workspace project)
-                         proj-path->resource (g/node-value workspace :resource-map)]
+                         workspace (project/workspace project evaluation-context)
+                         proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)]
                      (letfn [(connect-resource [proj-path-or-resource connections]
                                (:tx-data (project/connect-resource-node evaluation-context project proj-path-or-resource self connections)))]
                        (-> (g/set-property self :embedded-component-resource-data->index
                              (collection-desc->embedded-component-resource-data->index new-value))
-                           (into (g/set-property self :referenced-components
-                                   (collection-desc->referenced-component-resources new-value workspace)))
-                           (into (g/set-property self :referenced-game-objects
-                                   (collection-desc->referenced-game-object-resources new-value workspace)))
-                           (into (g/set-property self :referenced-collections
-                                   (collection-desc->referenced-collection-resources new-value workspace)))
+                           (into (game-object-non-editable/connect-referenced-components-tx-data evaluation-context self (collection-desc->referenced-component-resources new-value proj-path->resource)))
+                           (into (connect-referenced-game-objects-tx-data evaluation-context self (collection-desc->referenced-game-object-resources new-value proj-path->resource)))
+                           (into (connect-referenced-collections-tx-data evaluation-context self (collection-desc->referenced-collection-resources new-value proj-path->resource)))
                            (into (game-object-non-editable/disconnect-connected-nodes-tx-data basis self :own-resource-property-build-targets resource-property-connections))
                            (into (mapcat #(connect-resource % resource-property-connections))
                                  (collection-desc->referenced-property-resources new-value proj-path->resource))))))))
-
-  (property referenced-collections resource/ResourceVec; No protobuf counterpart.
-            (dynamic visible (g/constantly false))
-            (set (fn [evaluation-context self _old-value new-value]
-                   (game-object-non-editable/referenced-resources-setter evaluation-context self new-value :referenced-collection-resources referenced-collection-connections))))
-
-  (property referenced-game-objects resource/ResourceVec; No protobuf counterpart.
-            (dynamic visible (g/constantly false))
-            (value (gu/passthrough referenced-game-object-resources))
-            (set (fn [evaluation-context self _old-value new-value]
-                   (game-object-non-editable/referenced-resources-setter evaluation-context self new-value :referenced-game-object-resources referenced-game-object-connections))))
 
   (input referenced-collection-build-targets g/Any :array)
   (input referenced-collection-resources g/Any :array)
@@ -436,17 +427,20 @@
   (g/set-property self :collection-desc collection-desc))
 
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :editable false
-    :ext "collection"
-    :label "Non-Editable Collection"
-    :node-type NonEditableCollectionNode
-    :ddf-type GameObject$CollectionDesc
-    :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :non-editable "go"))
-    :sanitize-fn (partial sanitize-non-editable-collection workspace)
-    :string-encode-fn (partial string-encode-non-editable-collection workspace)
-    :load-fn load-non-editable-collection
-    :icon collection-common/collection-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:grid true}}))
+  (concat
+    (attachment/register workspace NonEditableCollectionNode :children :get (constantly []))
+    (resource-node/register-ddf-resource-type workspace
+      :editable false
+      :ext "collection"
+      :label "Non-Editable Collection"
+      :node-type NonEditableCollectionNode
+      :ddf-type GameObject$CollectionDesc
+      :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :non-editable "go"))
+      :sanitize-fn (partial sanitize-non-editable-collection workspace)
+      :string-encode-fn (partial string-encode-non-editable-collection workspace)
+      :load-fn load-non-editable-collection
+      :allow-unloaded-use true
+      :icon collection-common/collection-icon
+      :icon-class :design
+      :view-types [:scene :text]
+      :view-opts {:scene {:grid true}})))

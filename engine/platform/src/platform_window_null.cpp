@@ -95,6 +95,9 @@ namespace dmPlatform
         return 1.0f;
     }
 
+    void SetWindowTitle(HWindow window, const char* title)
+    {}
+
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
         window->m_WindowWidth  = width;
@@ -105,6 +108,9 @@ namespace dmPlatform
             window->m_CreateParams.m_ResizeCallback(window->m_CreateParams.m_ResizeCallbackUserData, width, height);
         }
     }
+
+    void SetWindowPosition(HWindow window, int32_t x, int32_t y)
+    {}
 
     void ShowWindow(HWindow window)
     {}

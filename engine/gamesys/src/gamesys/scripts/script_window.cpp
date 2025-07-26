@@ -17,6 +17,7 @@
 #include "../gamesys.h"
 #include <script/script.h>
 #include <hid/hid.h>
+#include <platform/platform_window.h>
 
 #include "script_window.h"
 
@@ -30,6 +31,7 @@ namespace dmGameSystem
      * @document
      * @name Window
      * @namespace window
+     * @language Lua
      */
 
 enum WindowEvent
@@ -45,6 +47,7 @@ enum WindowEvent
 struct WindowInfo
 {
     dmHID::HContext m_HidContext;
+    dmPlatform::HWindow m_Window;
     dmScript::LuaCallbackInfo* m_Callback;
     int m_Width;
     int m_Height;
@@ -181,7 +184,7 @@ static int SetListener(lua_State* L)
  */
 static int SetMouseLock(lua_State* L)
 {
-    int top = lua_gettop(L);
+    DM_LUA_STACK_CHECK(L, 0);
 
     bool flag = dmScript::CheckBoolean(L, 1);
 
@@ -195,7 +198,6 @@ static int SetMouseLock(lua_State* L)
         dmHID::ShowMouseCursor(g_Window.m_HidContext);
     }
 
-    assert(top == lua_gettop(L));
     return 0;
 }
 
@@ -254,12 +256,11 @@ static int SetDimMode(lua_State* L)
  */
 static int GetDimMode(lua_State* L)
 {
-    int top = lua_gettop(L);
+    DM_LUA_STACK_CHECK(L, 1);
 
     DimMode mode = dmGameSystem::PlatformGetDimMode();
     lua_pushnumber(L, (lua_Number) mode);
 
-    assert(top + 1 == lua_gettop(L));
     return 1;
 }
 
@@ -273,14 +274,14 @@ static int GetDimMode(lua_State* L)
  */
 static int GetSize(lua_State* L)
 {
-    int top = lua_gettop(L);
+    DM_LUA_STACK_CHECK(L, 2);
 
     lua_pushnumber(L, g_Window.m_Width);
     lua_pushnumber(L, g_Window.m_Height);
 
-    assert(top + 2 == lua_gettop(L));
     return 2;
 }
+
 
 /*# get the cursor lock state
  *
@@ -291,23 +292,100 @@ static int GetSize(lua_State* L)
  */
 static int GetMouseLock(lua_State* L)
 {
-    int top = lua_gettop(L);
+    DM_LUA_STACK_CHECK(L, 1);
+
     bool cursor_visible = dmHID::GetCursorVisible(g_Window.m_HidContext);
     // If cursor is visible, it is not locked
     lua_pushboolean(L, !cursor_visible);
 
-    assert(top + 1 == lua_gettop(L));
     return 1;
+}
+
+/*# get the display scale
+ *
+ * This returns the content scale of the current display.
+ *
+ * @name window.get_display_scale
+ * @return scale [type:number] The display scale
+ */
+static int GetDisplayScale(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    float scale = dmPlatform::GetDisplayScaleFactor(g_Window.m_Window);
+    lua_pushnumber(L, scale);
+
+    return 1;
+}
+
+/*# set the title of the window
+ *
+ * Sets the window title. Works on desktop platforms.
+ *
+ * @name window.set_title
+ * @param title [type:string] The title, encoded as UTF-8
+ */
+static int SetTitle(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    const char* title = luaL_checkstring(L, 1);
+    dmPlatform::SetWindowTitle(g_Window.m_Window, title);
+
+    return 0;
+}
+
+/*# set the size of the window
+ *
+ * Sets the window size. Works on desktop platforms only.
+ *
+ * @name window.set_size
+ * @param width [type:number] Width of window
+ * @param height [type:number] Height of window
+ */
+static int SetSize(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    int width = luaL_checkinteger(L, 1);
+    int height = luaL_checkinteger(L, 2);
+    dmPlatform::SetWindowSize(g_Window.m_Window, width, height);
+
+    return 0;
+}
+
+
+/*# set the position of the window
+ *
+ * Sets the window position.
+ *
+ * @name window.set_position
+ * @param x [type:number] Horizontal position of window
+ * @param y [type:number] Vertical position of window
+ */
+static int SetPosition(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    int x = luaL_checkinteger(L, 1);
+    int y = luaL_checkinteger(L, 2);
+    dmPlatform::SetWindowPosition(g_Window.m_Window, x, y);
+
+    return 0;
 }
 
 static const luaL_reg Module_methods[] =
 {
-    {"set_listener",   SetListener},
-    {"set_dim_mode",   SetDimMode},
-    {"set_mouse_lock", SetMouseLock},
-    {"get_dim_mode",   GetDimMode},
-    {"get_size",       GetSize},
-    {"get_mouse_lock", GetMouseLock},
+    {"set_listener",      SetListener},
+    {"set_dim_mode",      SetDimMode},
+    {"set_mouse_lock",    SetMouseLock},
+    {"set_title",         SetTitle},
+    {"get_dim_mode",      GetDimMode},
+    {"get_size",          GetSize},
+    {"set_size",          SetSize},
+    {"set_position",      SetPosition},
+    {"get_display_scale", GetDisplayScale},
+    {"get_mouse_lock",    GetMouseLock},
     {0, 0}
 };
 
@@ -316,7 +394,7 @@ static const luaL_reg Module_methods[] =
  * This event is sent to a window event listener when the game window or app screen has lost focus.
  *
  * @name window.WINDOW_EVENT_FOCUS_LOST
- * @variable
+ * @constant
  */
 
 /*# focus gained window event
@@ -326,7 +404,7 @@ static const luaL_reg Module_methods[] =
  * This event is also sent at game startup and the engine gives focus to the game.
  *
  * @name window.WINDOW_EVENT_FOCUS_GAINED
- * @variable
+ * @constant
  */
 
 /*# resized window event
@@ -335,7 +413,7 @@ static const luaL_reg Module_methods[] =
  * The new size is passed along in the data field to the event listener.
  *
  * @name window.WINDOW_EVENT_RESIZED
- * @variable
+ * @constant
  */
 
 /*# iconify window event
@@ -344,7 +422,7 @@ static const luaL_reg Module_methods[] =
  * iconified (reduced to an application icon in a toolbar, application tray or similar).
  *
  * @name window.WINDOW_EVENT_ICONFIED
- * @variable
+ * @constant
  */
 
 /*# deiconified window event
@@ -353,26 +431,26 @@ static const luaL_reg Module_methods[] =
  * restored after being iconified.
  *
  * @name window.WINDOW_EVENT_DEICONIFIED
- * @variable
+ * @constant
  */
 
 /*# dimming mode on
   * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
   * @name window.DIMMING_ON
-  * @variable
+  * @constant
   */
 
 /*# dimming mode off
   * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
   * @name window.DIMMING_OFF
-  * @variable
+  * @constant
   */
 
 /*# dimming mode unknown
   * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
   * This mode indicates that the dim mode can't be determined, or that the platform doesn't support dimming.
   * @name window.DIMMING_UNKNOWN
-  * @variable
+  * @constant
   */
 
 static void LuaInit(lua_State* L)
@@ -404,6 +482,7 @@ void ScriptWindowRegister(const ScriptLibContext& context)
 {
     LuaInit(context.m_LuaState);
     g_Window.m_HidContext = context.m_HidContext;
+    g_Window.m_Window = context.m_Window;
 }
 
 void ScriptWindowFinalize(const ScriptLibContext& context)

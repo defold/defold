@@ -62,12 +62,16 @@ namespace dmGameSystem
 
     void ResSoundDataSetStreamingCacheSize(uint32_t cache_size)
     {
+        if (!g_SoundDataContext)
+            return;
         g_SoundDataContext->m_CacheSize = cache_size;
     }
 
     // set the size of each streaming chunk size
     void ResSoundDataSetStreamingChunkSize(uint32_t chunk_size)
     {
+        if (!g_SoundDataContext)
+            return;
         g_SoundDataContext->m_ChunkSize = chunk_size;
     }
 
@@ -80,8 +84,27 @@ namespace dmGameSystem
         // positions according to format specs (ogg, wav)
         if (buffer[0] == 'O' && buffer[1] == 'g' && buffer[2] == 'g')
         {
-            *out = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
-            return true;
+            if (buffer_size < 35)
+            {
+                return false;
+            }
+
+            // Make sure Ogg laccing table is only one entry long (should be the case; following offsets depend on it)
+            assert(buffer[26] == 1);
+
+            if (buffer[29] == 'v' && buffer[30] == 'o' && buffer[31] == 'r' && buffer[32] == 'b' && buffer[33] == 'i' && buffer[34] == 's')
+            {
+                *out = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
+                return true;
+            }
+
+            if (buffer[28] == 'O' && buffer[29] == 'p' && buffer[30] == 'u' && buffer[31] == 's')
+            {
+                *out = dmSound::SOUND_DATA_TYPE_OPUS;
+                return true;
+            }
+
+            return false;
         }
         if (buffer_size < 11)
         {
@@ -381,4 +404,5 @@ namespace dmGameSystem
 }
 
 DM_DECLARE_RESOURCE_TYPE(ResourceTypeOgg, "oggc", dmGameSystem::ResourceTypeSoundData_Register, dmGameSystem::ResourceTypeSoundData_Deregister);
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeOpus, "opusc", dmGameSystem::ResourceTypeSoundData_Register, dmGameSystem::ResourceTypeSoundData_Deregister);
 DM_DECLARE_RESOURCE_TYPE(ResourceTypeWav, "wavc", dmGameSystem::ResourceTypeSoundData_Register, dmGameSystem::ResourceTypeSoundData_Deregister);

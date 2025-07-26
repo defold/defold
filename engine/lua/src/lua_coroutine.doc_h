@@ -12,6 +12,7 @@
  * @document
  * @name Coroutine
  * @namespace coroutine
+ * @language Lua
  */
 
 /*# creates a new coroutine thread
@@ -23,7 +24,7 @@
  * 
  * 
  * @name coroutine.create
- * @param f
+ * @param f [type:function]
  */
 
 /*# start or resume a thread
@@ -47,8 +48,8 @@
  * 
  * 
  * @name coroutine.resume
- * @param co
- * @param [val1]
+ * @param co [type:thread]
+ * @param [val1] [type:any]
  * @param [...]
  */
 
@@ -75,7 +76,7 @@
  * 
  * 
  * @name coroutine.status
- * @param co
+ * @param co [type:thread]
  */
 
 /*# creates a thread and returns a function to resume it
@@ -91,7 +92,7 @@
  * 
  * 
  * @name coroutine.wrap
- * @param f
+ * @param f [type:function]
  */
 
 /*# yields execution of thread back to the caller

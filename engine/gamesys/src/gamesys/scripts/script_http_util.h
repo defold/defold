@@ -84,6 +84,13 @@ namespace dmGameSystem
             lua_setfield(L, -2, "url");
         }
 
+        lua_pushinteger(L, resp->m_RangeStart);
+        lua_setfield(L, -2, "range_start");
+        lua_pushinteger(L, resp->m_RangeEnd);
+        lua_setfield(L, -2, "range_end");
+        lua_pushinteger(L, resp->m_DocumentSize);
+        lua_setfield(L, -2, "document_size");
+
         lua_pushliteral(L, "headers");
         lua_newtable(L);
         if (resp->m_HeadersLength > 0) {

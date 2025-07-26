@@ -31,15 +31,16 @@ namespace dmThread
         void*       m_Arg;
     };
 
-    static void ThreadStartProxy(void* arg)
+    static void *ThreadStartProxy(void* arg)
     {
         ThreadData* data = (ThreadData*) arg;
         SetThreadName(GetCurrentThread(), data->m_Name);
-        dmProfile::SetThreadName(data->m_Name);
+        ProfileSetThreadName(data->m_Name);
 
         data->m_Start(data->m_Arg);
         free(data->m_Name);
         delete data;
+        return nullptr;
     }
 
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)

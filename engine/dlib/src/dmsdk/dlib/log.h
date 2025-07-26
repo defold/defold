@@ -25,9 +25,9 @@
  *
  * @document
  * @name Log
- * @namespace dmLog
  * @path engine/dlib/src/dmsdk/dlib/log.h
-*/
+ * @language C++
+ */
 
 /*# macro for debug category logging
  *
@@ -226,13 +226,13 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
 #define dmLogOnceFatal(format, args... ) dmLogOnceInternal(dmLogFatal, format, ## args )
 #endif
 
-/*# dmLog:LogListener callback typedef
+/*# Log listener callback typedef
  *
  * dmLog listener function type. Provides all logs from dmLog* functions and print/pprint Lua functions.
  * Used with dmLogRegisterListener() and dmLogUnregisterListener()
  *
  * @typedef
- * @name dmLog:LogListener
+ * @name FLogListener
  * @param severity [type:LogSeverity]
  * @param domain [type:const char*]
  * @param formatted_string [type:const char*] null terminated string
@@ -256,7 +256,7 @@ void dmLogRegisterListener(FLogListener listener);
  * Unregisters a log listener.
  *
  * @name dmLogUnregisterListener
- * @param [type:FLogListener] listener
+ * @param listener [type:FLogListener]
  */
 void dmLogUnregisterListener(FLogListener listener);
 
@@ -265,7 +265,7 @@ void dmLogUnregisterListener(FLogListener listener);
  * Set log system severity level.
  *
  * @name dmLogSetLevel
- * @param [type:LogSeverity] severity
+ * @param severity [type:LogSeverity] Log system severity level to set
  */
 void dmLogSetLevel(LogSeverity severity);
 
@@ -275,7 +275,7 @@ void dmLogSetLevel(LogSeverity severity);
  * Get log system severity level.
  *
  * @name dmLogGetLevel
- * @return [type:LogSeverity] severity
+ * @return severity [type:LogSeverity] Current log system severity level
  */
 LogSeverity dmLogGetLevel();
 

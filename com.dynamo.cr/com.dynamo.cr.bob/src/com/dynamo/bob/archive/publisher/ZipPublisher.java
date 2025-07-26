@@ -14,23 +14,22 @@
 
 package com.dynamo.bob.archive.publisher;
 
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.archive.ArchiveEntry;
+import com.dynamo.bob.logging.Logger;
+import org.apache.commons.io.IOUtils;
+
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.Set;
-import java.util.HashSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-
-import org.apache.commons.io.IOUtils;
-
-import com.dynamo.bob.logging.Logger;
-import com.dynamo.bob.archive.ArchiveEntry;
-import com.dynamo.bob.CompileExceptionError;
 
 public class ZipPublisher extends Publisher {
 
@@ -41,7 +40,7 @@ public class ZipPublisher extends Publisher {
     private String projectRoot = null;
     private String filename = null;
     private ZipOutputStream zipOutputStream;
-    private Set<String> zipEntries =  new HashSet<>();
+    private Set<String> zipEntries = ConcurrentHashMap.newKeySet();
 
     public ZipPublisher(String projectRoot, PublisherSettings settings) {
         super(settings);
@@ -83,9 +82,11 @@ public class ZipPublisher extends Publisher {
             }
 
             zipEntries.clear();
+            entries.clear();
 
-            FileOutputStream resourcePackOutputStream = new FileOutputStream(this.tempZipFile);
+            BufferedOutputStream resourcePackOutputStream = new BufferedOutputStream(Files.newOutputStream(this.tempZipFile.toPath()));
             zipOutputStream = new ZipOutputStream(resourcePackOutputStream);
+            zipOutputStream.setLevel(settings.getCompressionLevel());
         } catch (IOException exception) {
             throw new CompileExceptionError("Unable to create zip archive for liveupdate resources: " + exception.getMessage(), exception);
         }
@@ -94,6 +95,7 @@ public class ZipPublisher extends Publisher {
     @Override
     public void stop() throws CompileExceptionError {
         try {
+            zipOutputStream.flush();
             IOUtils.closeQuietly(zipOutputStream);
 
             // make sure parent directories exist
@@ -118,11 +120,9 @@ public class ZipPublisher extends Publisher {
         final String archiveEntryHexdigest = entry.getHexDigest();
         final String archiveEntryName = entry.getName();
         final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
-        synchronized (zipEntries) {
-            if (zipEntries.contains(zipEntryName)) {
-                return;
-            }
-            zipEntries.add(zipEntryName);
+        entries.put(archiveEntryName, entry);
+        if (!zipEntries.add(zipEntryName)) {
+            return;
         }
         try {
             ZipEntry currentEntry = new ZipEntry(zipEntryName);
@@ -130,7 +130,6 @@ public class ZipPublisher extends Publisher {
                 zipOutputStream.putNextEntry(currentEntry);
                 zipOutputStream.write(entry.getHeader());
                 data.transferTo(zipOutputStream);
-                zipOutputStream.flush();
                 zipOutputStream.closeEntry();
             }
         } catch (FileNotFoundException exception) {
@@ -146,11 +145,9 @@ public class ZipPublisher extends Publisher {
         final String archiveEntryName = entry.getName();
         final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
         entries.put(archiveEntryName, entry);
-        synchronized (zipEntries) {
-            if (zipEntries.contains(zipEntryName)) {
-                return;
-            }
-            zipEntries.add(zipEntryName);
+        if (!zipEntries.add(zipEntryName)) {
+            entry.setDuplicatedDataBlob(true);
+            return;
         }
         try {
             ZipEntry currentEntry = new ZipEntry(zipEntryName);
@@ -158,7 +155,6 @@ public class ZipPublisher extends Publisher {
                 zipOutputStream.putNextEntry(currentEntry);
                 zipOutputStream.write(entry.getHeader());
                 zipOutputStream.write(data);
-                zipOutputStream.flush();
                 zipOutputStream.closeEntry();
             }
         } catch (FileNotFoundException exception) {

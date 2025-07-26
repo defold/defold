@@ -28,6 +28,7 @@
  * @document
  * @name Component Render Constants
  * @namespace dmGameSystem
+ * @language C++
  */
 
 namespace dmGameObject
@@ -43,6 +44,13 @@ namespace dmRender
 
 namespace dmGameSystem
 {
+
+    /*#
+     * Found in hash.h
+     * @typedef
+     * @name HashState32
+     */
+
     /*#
      * Render constants handle
      * @typedef

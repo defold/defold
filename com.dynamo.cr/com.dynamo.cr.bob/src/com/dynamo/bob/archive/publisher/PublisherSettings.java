@@ -15,6 +15,7 @@
 package com.dynamo.bob.archive.publisher;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,12 +25,15 @@ import java.text.ParseException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import com.dynamo.bob.fs.IResource;
 import org.apache.commons.io.IOUtils;
 
 public class PublisherSettings {
 
+    private IResource resource;
+
     public enum PublishMode {
-        Amazon, Zip
+        Amazon, Zip, Folder
     };
 
     private Map<String, Map<String, String>> properties = new LinkedHashMap<String, Map<String, String>>();
@@ -156,6 +160,38 @@ public class PublisherSettings {
         return value != null && value.equals("1");
     }
 
+    public int getCompressionLevel() {
+        if (this.getValue("liveupdate", "zip-compression-level") != null) {
+            return Integer.parseInt(this.getValue("liveupdate", "zip-compression-level"));
+        }
+        return 1;
+    }
+
+    public void setOutputDirectory(String value) {
+        this.setValue("liveupdate", "output-directory", value);
+    }
+
+    public String getOutputDirectory() {
+        return this.getValue("liveupdate", "output-directory");
+    }
+
+    public void setOutputFolderName(String value) {
+        this.setValue("liveupdate", "output-folder-name", value);
+    }
+
+    public String getOutputFolderName() {
+        return this.getValue("liveupdate", "output-folder-name");
+    }
+
+    public void setSaveFolderInBundleFolder(String value) {
+        this.setValue("liveupdate", "save-folder-in-bundle-folder", value);
+    }
+
+    public Boolean getSaveFolderInBundleFolder() {
+        String value = this.getValue("liveupdate", "save-folder-in-bundle-folder");
+        return value != null && value.equals("1");
+    }
+
     private static PublisherSettings doLoad(InputStream in) throws IOException, ParseException {
         PublisherSettings settings = new PublisherSettings();
         BufferedReader reader = new BufferedReader(new InputStreamReader(in));
@@ -191,12 +227,23 @@ public class PublisherSettings {
         return settings;
     }
 
-    public static PublisherSettings load(InputStream in) throws IOException, ParseException {
+    public static PublisherSettings load(IResource publisherSettingsResorce) throws IOException, ParseException {
+        ByteArrayInputStream in = new ByteArrayInputStream(publisherSettingsResorce.getContent());
         try {
-            return PublisherSettings.doLoad(in);
+            PublisherSettings publisherSettings = PublisherSettings.doLoad(in);
+            publisherSettings.setResource(publisherSettingsResorce);
+            return publisherSettings;
         } finally {
             IOUtils.closeQuietly(in);
         }
+    }
+
+    private void setResource(IResource publisherSettingsResorce) {
+        this.resource = publisherSettingsResorce;
+    }
+
+    public IResource getResource() {
+        return resource;
     }
 
     public static void save(PublisherSettings settings, File fhandle) {

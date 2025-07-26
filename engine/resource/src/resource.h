@@ -19,6 +19,8 @@
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
+#include <dlib/http_cache.h>
+#include <dlib/job_thread.h>
 #include <dlib/mutex.h>
 
 struct ResourceDescriptor;
@@ -68,11 +70,6 @@ namespace dmResource
      * Enable resource reloading support. Both over files and http.
      */
     #define RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT (1 << 0)
-
-    /**
-     * Enable HTTP cache
-     */
-    #define RESOURCE_FACTORY_FLAGS_HTTP_CACHE     (1 << 2)
 
     /**
      * Enable Live update
@@ -138,6 +135,8 @@ namespace dmResource
         EmbeddedResource m_ArchiveIndex;
         EmbeddedResource m_ArchiveData;
         EmbeddedResource m_ArchiveManifest;
+
+        dmHttpCache::HCache m_HttpCache;
 
         uint32_t m_Reserved[5];
 
@@ -438,6 +437,9 @@ namespace dmResource
     typedef int (*FPreloadDataCallback)(HFactory factory, void* cbk_ctx, HResourceDescriptor resource, uint32_t offset, uint32_t nread, uint8_t* buffer);
 
     Result PreloadData(HFactory factory, const char* path, uint32_t offset, uint32_t size, FPreloadDataCallback cbk, void* cbk_ctx);
+
+    // Get the assigned Job thread
+    dmJobThread::HContext GetJobThread(const dmResource::HFactory factory);
 }
 
 #endif // DM_RESOURCE_H

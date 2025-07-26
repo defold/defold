@@ -24,9 +24,10 @@ end
 
 function load_complete(self, url, result)
     assert(result == true)
-    factory.create(url)
-    factory.create(url)
+    first_instance = factory.create(url)
+    second_instance = factory.create(url)
     self.loaded = true
+    global_created = true
 end
 
 function update(self, dt)
@@ -48,8 +49,9 @@ function update(self, dt)
         if self.repeatloadunload == true then
            self.repeatloadunload = false
            self.load = true
-            go.delete("/instance0", true)
-            go.delete("/instance1", true)
+            go.delete(first_instance, true)
+            go.delete(second_instance, true)
+            global_created = nil
         else
             self.testunloadtwice = true
         end
@@ -68,21 +70,26 @@ function update(self, dt)
     if self.delete == true then
         self.delete = false
         self.create = true
-        go.delete("/instance0", true)
-        go.delete("/instance1", true)
+        go.delete(first_instance, true)
+        go.delete(second_instance, true)
+        global_created = nil
         return
     end
 
     --- step 5 ---
     if self.create == true then
         self.create = false
-        factory.create("/go#factory")
-        factory.create("/go#factory")
+        first_instance = factory.create("/go#factory")
+        second_instance = factory.create("/go#factory")
+        global_created = true
         return
     end
 end
 
 function final(self)
-    go.delete("/instance0", true)
-    go.delete("/instance1", true)
+    go.delete(first_instance, true)
+    go.delete(second_instance, true)
+    global_created = nil
+    first_instance = nil
+    second_instance = nil
 end

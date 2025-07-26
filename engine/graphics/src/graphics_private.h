@@ -108,6 +108,7 @@ namespace dmGraphics
         uint16_t           m_Binding;
         uint16_t           m_ElementCount;
         BindingInfo        m_BindingInfo;
+        uint8_t            m_StageFlags;
     };
 
     struct ShaderMeta
@@ -161,7 +162,6 @@ namespace dmGraphics
 
         union
         {
-            uint16_t m_DynamicOffsetIndex;
             uint16_t m_TextureUnit;
             uint16_t m_StorageBufferUnit;
         };
@@ -177,6 +177,7 @@ namespace dmGraphics
     struct Program
     {
         ProgramResourceBinding m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        ShaderMeta             m_ShaderMeta;
         dmArray<Uniform>       m_Uniforms;
         uint8_t                m_MaxSet;
         uint8_t                m_MaxBinding;
@@ -235,7 +236,7 @@ namespace dmGraphics
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
     uint32_t             GetShaderTypeSize(ShaderDesc::ShaderDataType type);
     Type                 ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
-    ShaderDesc::Shader*  GetShaderProgram(HContext context, ShaderDesc* shader_desc);
+    bool                 GetShaderProgram(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** vp, ShaderDesc::Shader** fp, ShaderDesc::Shader** cp);
 
     void                 CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta);
     void                 DestroyShaderMeta(ShaderMeta& meta);
@@ -250,16 +251,13 @@ namespace dmGraphics
         ResourceBindingDesc                   bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
         uint32_t                              ubo_alignment,
         uint32_t                              ssbo_alignment,
-        ShaderStageFlag                       stage_flag,
         ProgramResourceBindingsInfo&          info);
 
     void FillProgramResourceBindings(
         Program*                     program,
-        ShaderMeta*                  meta,
         ResourceBindingDesc          bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
         uint32_t                     ubo_alignment,
         uint32_t                     ssbo_alignment,
-        ShaderStageFlag              stage_flag,
         ProgramResourceBindingsInfo& info);
 
     void                  InitializeSetTextureAsyncState(SetTextureAsyncState& state);
@@ -268,6 +266,26 @@ namespace dmGraphics
     uint16_t              PushSetTextureAsyncState(SetTextureAsyncState& state, HTexture texture, TextureParams params, SetTextureAsyncCallback callback, void* user_data);
     void                  ReturnSetTextureAsyncIndex(SetTextureAsyncState& state, uint16_t index);
     void                  PushSetTextureAsyncDeleteTexture(SetTextureAsyncState& state, HTexture texture);
+
+    struct ScopedLock
+    {
+        ScopedLock(dmMutex::HMutex mutex)
+        : m_Mutex(mutex)
+        {
+            if (m_Mutex)
+            {
+                dmMutex::Lock(m_Mutex);
+            }
+        }
+        ~ScopedLock()
+        {
+            if (m_Mutex)
+            {
+                dmMutex::Unlock(m_Mutex);
+            }
+        }
+        dmMutex::HMutex m_Mutex;
+    };
 
     static inline void ClearTextureParamsData(TextureParams& params)
     {

@@ -21,7 +21,6 @@
             [editor.build :as build]
             [editor.defold-project :as project]
             [editor.git :as git]
-            [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
@@ -131,8 +130,8 @@
           atlas-path2 "/atlas/single2.atlas"
           atlas-res2 (workspace/resolve-workspace-resource workspace atlas-path2)
           [atlas scene-view] (test-util/open-scene-view! project app-view atlas-path 64 64)
-          proj-path (.getAbsolutePath (workspace/project-path workspace))
-          git (init-git proj-path)
+          project-path (.getAbsolutePath (workspace/project-directory workspace))
+          git (init-git project-path)
           atlas-outline (fn [path] (test-util/outline (g/node-value app-view :active-resource-node) path))]
       (is (= atlas-res (g/node-value app-view :active-resource)))
       (test-util/move-file! workspace atlas-path atlas-path2)
@@ -158,7 +157,7 @@
       (is main-dir)
       (let [evaluation-context (g/make-evaluation-context)
             old-artifact-map (workspace/artifact-map workspace)
-            build-results (build/build-project! project game-project evaluation-context nil old-artifact-map progress/null-render-progress!)]
+            build-results (build/build-project! project game-project old-artifact-map nil evaluation-context)]
         (g/update-cache-from-evaluation-context! evaluation-context)
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
@@ -167,7 +166,7 @@
       (is (nil? (workspace/find-resource workspace "/main")))
       (is (workspace/find-resource workspace "/blahonga"))
       (let [old-artifact-map (workspace/artifact-map workspace)
-            build-results (build/build-project! project game-project (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)]
+            build-results (build/build-project! project game-project old-artifact-map nil (g/make-evaluation-context))]
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
         (workspace/artifact-map! workspace (:artifact-map build-results))))))

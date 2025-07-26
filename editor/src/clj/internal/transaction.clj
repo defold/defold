@@ -21,11 +21,11 @@
             [internal.system :as is]
             [internal.util :as util]
             [schema.core :as s]
-            [util.array :as array]
             [util.coll :as coll :refer [pair]]
             [util.debug-util :as du]
             [util.eduction :as e])
-  (:import [internal.graph.types Arc]))
+  (:import [internal.graph.types Arc]
+           [java.util.concurrent.atomic AtomicInteger]))
 
 (set! *warn-on-reflection* true)
 
@@ -40,7 +40,7 @@
 ;; ---------------------------------------------------------------------------
 (def ^:dynamic *tx-debug* nil)
 
-(def ^:private ^java.util.concurrent.atomic.AtomicInteger next-txid (java.util.concurrent.atomic.AtomicInteger. 1))
+(def ^:private ^AtomicInteger next-txid (AtomicInteger. 1))
 (defn- new-txid [] (.getAndIncrement next-txid))
 
 (defmacro txerrstr [ctx & rest]
@@ -88,26 +88,36 @@
     :from-id->to-id from-id->to-id}])
 
 (defn update-property
-  "*transaction step* - Expects a node, a property label, and a
-  function f (with optional args) to be performed on the current value
-  of the property."
-  [node-id pr f args]
+  "*transaction step* - Expects a node-id, a property-label, and an update-fn
+  (with optional args) to be performed on the current value of the property."
+  [node-id property-label update-fn args opts]
+  {:pre [(gt/node-id? node-id)
+         (keyword? property-label)
+         (ifn? update-fn)
+         (coll/eager-seqable? args)
+         (or (nil? opts) (map? opts))]}
   [{:type :update-property
     :node-id node-id
-    :property pr
-    :fn f
-    :args args}])
+    :property property-label
+    :fn update-fn
+    :args args
+    :opts opts}])
+
+(def inject-evaluation-context-opts
+  {:inject-evaluation-context true})
 
 (defn update-property-ec
   "Same as update-property, but injects the in-transaction evaluation-context
   as the first argument to the update-fn."
-  [node-id pr f args]
-  [{:type :update-property
-    :node-id node-id
-    :property pr
-    :fn f
-    :args args
-    :inject-evaluation-context true}])
+  [node-id property-label update-fn args]
+  (update-property node-id property-label update-fn args inject-evaluation-context-opts))
+
+(defn set-property-update-fn [_old-value new-value] new-value)
+
+(defn set-property
+  "*transaction step* - Sets a property value on a node."
+  [node-id property-label new-value opts]
+  (update-property node-id property-label set-property-update-fn [new-value] opts))
 
 (defn clear-property
   [node-id pr]
@@ -123,19 +133,14 @@
     :args args}])
 
 (defn callback
-  [f args]
+  [callback-fn args opts]
+  {:pre [(ifn? callback-fn)
+         (coll/eager-seqable? args)
+         (or (nil? opts) (map? opts))]}
   [{:type :callback
-    :fn f
-    :args args}])
-
-(defn callback-ec
-  "Same as callback, but injects the in-transaction evaluation-context as the
-  first argument to the callback-fn."
-  [f args]
-  [{:type :callback
-    :fn f
+    :fn callback-fn
     :args args
-    :inject-evaluation-context true}])
+    :opts opts}])
 
 (defn connect
   "*transaction step* - Creates a transaction step connecting a source node and label  and a target node and label. It returns a value suitable for consumption by [[perform]]."
@@ -145,6 +150,19 @@
     :source-label source-label
     :target-id target-id
     :target-label target-label}])
+
+(defn expand
+  [fn args]
+  [{:type :expand
+    :fn fn
+    :args args}])
+
+(defn expand-ec
+  [fn args]
+  [{:type :expand
+    :fn fn
+    :args args
+    :inject-evaluation-context true}])
 
 (defn disconnect
   "*transaction step* - The reverse of [[connect]]. Creates a
@@ -337,22 +355,44 @@
   root-id)
 
 (defn- flag-all-successors-changed [ctx node-ids]
-  (let [successors (get ctx :successors-changed)]
-    (assoc ctx :successors-changed (reduce (fn [successors node-id]
-                                             (assoc successors node-id nil))
-                                           successors
-                                           node-ids))))
+  (let [successors-changed (:successors-changed ctx)
+        affected-node-ids (filterv #(get successors-changed % ::not-found) node-ids)]
+    (if (coll/empty? affected-node-ids)
+      ctx
+      (assoc ctx
+        :successors-changed
+        (persistent!
+          (reduce
+            (fn [successors-changed node-id]
+              (assoc! successors-changed node-id nil))
+            (transient successors-changed)
+            affected-node-ids))))))
 
 (defn- flag-successors-changed [ctx changes]
-  (let [successors (get ctx :successors-changed)]
-    (assoc ctx :successors-changed (reduce (fn [successors [node-id label]]
-                                             (let [node-succ (get successors node-id ::not-found)]
-                                               (case node-succ
-                                                 nil successors ; Found nil - all successors already flagged as changed.
-                                                 ::not-found (assoc successors node-id #{label})
-                                                 (assoc successors node-id (conj node-succ label)))))
-                                           successors
-                                           changes))))
+  (let [successors-changed (:successors-changed ctx)
+
+        affected-node-id+label-pairs
+        (filterv (fn [[node-id label]]
+                   (let [old-affected-node-labels (get successors-changed node-id ::not-found)]
+                     (case old-affected-node-labels
+                       nil false ; Found nil - all node labels already flagged as changed. We can skip this pair.
+                       ::not-found true ; Nothing is flagged for this node yet. We should process this pair.
+                       (not (contains? old-affected-node-labels label))))) ; Process this pair if the label has not been flagged for the node yet.
+                 changes)]
+
+    (if (coll/empty? affected-node-id+label-pairs)
+      ctx
+      (assoc ctx
+        :successors-changed
+        (persistent!
+          (reduce
+            (fn [successors-changed [node-id label]]
+              (assoc! successors-changed
+                node-id (if-let [old-affected-node-labels (get successors-changed node-id)]
+                          (conj old-affected-node-labels label)
+                          #{label})))
+            (transient successors-changed)
+            affected-node-id+label-pairs))))))
 
 (defn- ctx-override-node [ctx original-node-id override-node-id]
   (assert (= (gt/node-id->graph-id original-node-id) (gt/node-id->graph-id override-node-id))
@@ -410,7 +450,7 @@
     (as-> ctx ctx'
       (apply-tx ctx' (concat new-override-nodes-tx-data
                              new-override-tx-data))
-      (apply-tx ctx' (init-fn (in/custom-evaluation-context {:basis (:basis ctx')})
+      (apply-tx ctx' (init-fn (in/custom-evaluation-context {:basis (:basis ctx') :tx-data-context (:tx-data-context ctx')})
                               original-node-id->override-node-id)))))
 
 (defmethod metrics-key :override
@@ -427,8 +467,8 @@
 (defn- ctx-make-override-nodes [ctx override-id node-ids init-props-fn]
   (reduce (fn [ctx node-id]
             (let [basis (:basis ctx)]
-              (if (some #(= override-id (node-id->override-id basis %))
-                        (ig/get-overrides basis node-id))
+              (if (coll/some #(= override-id (node-id->override-id basis %))
+                             (ig/get-overrides basis node-id))
                 ctx
                 (let [graph-id (gt/node-id->graph-id node-id)
                       original-node (gt/node-by-id-at basis node-id)
@@ -619,24 +659,30 @@
   ;; activated, as we're doing this on a newly constructed node and ctx-add-node
   ;; will mark all our outputs activated regardless.
   (let [node-id (gt/node-id node)
-        node-type (gt/node-type node)
-        property-entries (gt/own-properties node)]
-    (reduce (fn [ctx property-entry]
-              (let [property-value (val property-entry)]
-                (if (nil? property-value)
-                  ctx
-                  (let [property-label (key property-entry)
-                        setter-fn (in/property-setter node-type property-label)]
-                    (validate-property-value node-type node-id property-label property-value)
-                    (if (nil? setter-fn)
-                      ctx
-                      (apply-tx ctx (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id nil property-value)))))))
-            ctx
-            property-entries)))
+        node-type (gt/node-type node)]
+    (reduce
+      (fn [ctx [property-label property-value]]
+        (if (nil? property-value)
+          ctx
+          (let [setter-fn (in/property-setter node-type property-label)]
+            (validate-property-value node-type node-id property-label property-value)
+            (if (nil? setter-fn)
+              ctx
+              (apply-tx ctx (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id nil property-value))))))
+      ctx
+      (if (some? (gt/original node))
+        (gt/overridden-properties node)
+        (let [default-property-values (in/defaults node-type)
+              assigned-property-values (gt/assigned-properties node)]
+          (e/map (fn [[property-label default-property-value]]
+                   (pair property-label
+                         (get assigned-property-values property-label default-property-value)))
+                 default-property-values))))))
 
 (defn- ctx-add-node [ctx node]
   (let [basis-after (gt/add-node (:basis ctx) node)
         node-id (gt/node-id node)]
+    (assert (gt/node-id? node-id))
     (-> ctx
         (assoc :basis basis-after)
         (apply-defaults node)
@@ -652,7 +698,7 @@
   [{:keys [node]}]
   (gt/node-id node))
 
-(defmethod perform :update-property [ctx {:keys [node-id property fn args inject-evaluation-context] :as tx-step}]
+(defmethod perform :update-property [ctx {:keys [node-id property fn args opts] :as tx-step}]
   (let [basis (:basis ctx)]
     (when (and *tx-debug* (nil? node-id)) (println "NIL NODE ID: update-property " tx-step))
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
@@ -660,7 +706,7 @@
             ;; The context is intentionally bare, i.e. only :basis, for this reason
             evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context (:tx-data-context ctx)})
             old-value (in/node-property-value node property evaluation-context)
-            new-value (if inject-evaluation-context
+            new-value (if (:inject-evaluation-context opts)
                         (apply fn evaluation-context old-value args)
                         (apply fn old-value args))
             override-node? (some? (gt/original node))
@@ -695,8 +741,8 @@
   [{:keys [node-id property]}]
   [node-id property])
 
-(defmethod perform :callback [ctx {:keys [fn args inject-evaluation-context]}]
-  (if inject-evaluation-context
+(defmethod perform :callback [ctx {:keys [fn args opts]}]
+  (if (:inject-evaluation-context opts)
     (let [basis (:basis ctx)
           tx-data-context (:tx-data-context ctx)
           evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})]
@@ -707,6 +753,18 @@
 (defmethod metrics-key :callback
   [_]
   nil)
+
+(defmethod perform :expand [ctx {:keys [fn args inject-evaluation-context]}]
+  (apply-tx
+    ctx
+    (if inject-evaluation-context
+      (let [basis (:basis ctx)
+            tx-data-context (:tx-data-context ctx)
+            evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})]
+        (apply fn evaluation-context args))
+      (apply fn args))))
+
+(defmethod metrics-key :expand [_] nil)
 
 (defn- ctx-disconnect-single [ctx target target-id target-label]
   (if (= :one (in/input-cardinality (gt/node-type target) target-label))
@@ -771,8 +829,8 @@
             ;; nodes of the source node, since these will inherit an implicit
             ;; connection between them and the corresponding override nodes of
             ;; the target node.
-            (flag-successors-changed (e/concat
-                                       (array/of (pair source-id source-label))
+            (flag-successors-changed (e/cons
+                                       (pair source-id source-label)
                                        (e/map #(pair % source-label)
                                               (ig/get-overrides basis source-id))))
             (flag-override-nodes-affected target target-label)))
@@ -813,8 +871,8 @@
       ;; When updating the successors, we must also consider any override nodes
       ;; of the source node, since these will inherit an implicit connection
       ;; between them and the corresponding override nodes of the target node.
-      (flag-successors-changed (e/concat
-                                 (array/of (pair source-id source-label))
+      (flag-successors-changed (e/cons
+                                 (pair source-id source-label)
                                  (e/map #(pair % source-label)
                                         (ig/get-overrides (:basis ctx) source-id))))
       (ctx-remove-overrides source-id source-label target-id target-label)))
@@ -955,9 +1013,10 @@
 
 (defn- trace-dependencies
   [ctx]
-  ;; at this point, :outputs-modified contains [node-id output] pairs.
-  ;; afterwards, it will have the transitive closure of all [node-id output] pairs
-  ;; reachable from the original collection.
+  ;; At this point, :nodes-affected is a set of all output Endpoints that have
+  ;; been directly affected by the transaction changes.
+  ;; We now follow these outputs recursively to obtain a sequence of all the
+  ;; outputs that depend on them in the entire graph.
   (du/measuring (:metrics ctx) :trace-dependencies
     (let [outputs-modified (gt/dependencies (:basis ctx) (:nodes-affected ctx))]
       (assoc ctx :outputs-modified outputs-modified))))

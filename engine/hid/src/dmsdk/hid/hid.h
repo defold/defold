@@ -25,6 +25,7 @@
  * @name Hid
  * @namespace dmHid
  * @path engine/hid/src/dmsdk/hid/hid.h
+ * @language C++
  */
 
 namespace dmHID
@@ -462,8 +463,9 @@ namespace dmHID
      */
     struct MousePacket
     {
-        int32_t m_PositionX, m_PositionY;
-        int32_t m_Wheel;
+        int32_t  m_PositionX;
+        int32_t  m_PositionY;
+        int32_t  m_Wheel;
         uint32_t m_Buttons[MAX_MOUSE_BUTTON_COUNT / 32 + 1];
     };
 
@@ -650,29 +652,31 @@ namespace dmHID
      */
     void AddKeyboardChar(HContext context, int chr);
 
-    /**
+    /*#
      * Obtain a gamepad packet reflecting the current input state of the gamepad in a  HID context.
-     *
-     * @param gamepad gamepad handle
-     * @param out_packet Gamepad packet out argument
-     * @return True if the packet was successfully updated.
+     * @name GetGamepadPacket
+     * @param gamepad [type: dmHID::HGamepad] gamepad handle
+     * @param out_packet [type: dmHID::GamepadPacket] Gamepad packet out argument
+     * @return success [type: bool] True if the packet was successfully updated.
      */
     bool GetGamepadPacket(HGamepad gamepad, GamepadPacket* out_packet);
 
-    /**
+    /*#
      * Convenience function to retrieve the state of a gamepad button from a gamepad packet.
-     * @param packet Gamepad packet
-     * @param button The requested button
-     * @return True if the button is currently pressed down.
+     * @name GetGamepadButton
+     * @param packet [type: dmHID::GamepadPacket] Gamepad packet
+     * @param button [type: uint32_t] The requested button
+     * @return success [type: bool] True if the button is currently pressed down.
      */
     bool GetGamepadButton(GamepadPacket* packet, uint32_t button);
 
-    /**
+    /*#
      * Convenience function to retrieve the state of a gamepad hat from a gamepad packet.
-     * @param packet Gamepad packet
-     * @param hat The requested hat index
-     * @param out_hat_value Hat value out argument
-     * @return True if the hat has data.
+     * @name GetGamepadHat
+     * @param packet [type: dmHID::GamepadPacket] Gamepad packet
+     * @param hat [type: uint32_t] The requested hat index
+     * @param out_hat_value [type: uint8_t] Hat value out argument
+     * @return success [type: bool] True if the hat has data.
      */
     bool GetGamepadHat(GamepadPacket* packet, uint32_t hat, uint8_t* out_hat_value);
 }

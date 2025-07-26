@@ -17,6 +17,8 @@
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/job_thread.h>
+#include <dlib/thread.h>
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
@@ -121,6 +123,7 @@ namespace dmGraphics
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
         m_SwapInterval            = params.m_SwapInterval;
+        m_JobThread               = params.m_JobThread;
 
         // We need to have some sort of valid default filtering
         if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
@@ -145,6 +148,7 @@ namespace dmGraphics
 
     static inline bool IsRenderTargetbound(VulkanContext* context, HRenderTarget rt)
     {
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, rt);
         return current_rt ? current_rt->m_IsBound : 0;
     }
@@ -325,6 +329,7 @@ namespace dmGraphics
 
     static bool EndRenderPass(VulkanContext* context)
     {
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
         if (!current_rt->m_IsBound)
@@ -339,6 +344,7 @@ namespace dmGraphics
 
     static void BeginRenderPass(VulkanContext* context, HRenderTarget render_target)
     {
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
         RenderTarget* rt         = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, render_target);
 
@@ -454,8 +460,9 @@ namespace dmGraphics
             vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
         }
 
-        VkResult res = CreateTexture2D(
-            vk_physical_device, vk_device, width, height, 1, 1,
+        VkResult res = CreateTexture(
+            vk_physical_device, vk_device,
+            width, height, 1, 1, 1,
             vk_sample_count, vk_depth_format, vk_depth_tiling,
             vk_usage_flags,
             vk_memory_type,
@@ -673,18 +680,18 @@ namespace dmGraphics
         TextureCreationParams default_texture_creation_params;
         default_texture_creation_params.m_Width          = 1;
         default_texture_creation_params.m_Height         = 1;
-        default_texture_creation_params.m_Depth          = 1;
+        default_texture_creation_params.m_LayerCount     = 1;
         default_texture_creation_params.m_OriginalWidth  = default_texture_creation_params.m_Width;
         default_texture_creation_params.m_OriginalHeight = default_texture_creation_params.m_Height;
 
         const uint8_t default_texture_data[4 * 6] = {}; // RGBA * 6 (for cubemap)
 
         TextureParams default_texture_params;
-        default_texture_params.m_Width  = 1;
-        default_texture_params.m_Height = 1;
-        default_texture_params.m_Depth  = 1;
-        default_texture_params.m_Data   = default_texture_data;
-        default_texture_params.m_Format = TEXTURE_FORMAT_RGBA;
+        default_texture_params.m_Width      = 1;
+        default_texture_params.m_Height     = 1;
+        default_texture_params.m_LayerCount = 1;
+        default_texture_params.m_Data       = default_texture_data;
+        default_texture_params.m_Format     = TEXTURE_FORMAT_RGBA;
 
         context->m_DefaultTexture2D = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultTexture2D, default_texture_params);
@@ -694,7 +701,7 @@ namespace dmGraphics
         VulkanSetTextureInternal(context->m_DefaultTexture2D32UI, default_texture_params);
 
         default_texture_params.m_Format                 = TEXTURE_FORMAT_RGBA;
-        default_texture_creation_params.m_Depth         = 1;
+        default_texture_creation_params.m_LayerCount    = 1;
         default_texture_creation_params.m_Type          = TEXTURE_TYPE_IMAGE_2D;
         default_texture_creation_params.m_UsageHintBits = TEXTURE_USAGE_FLAG_STORAGE | TEXTURE_USAGE_FLAG_SAMPLE;
         context->m_DefaultStorageImage2D                = VulkanNewTextureInternal(default_texture_creation_params);
@@ -702,11 +709,12 @@ namespace dmGraphics
 
         default_texture_creation_params.m_UsageHintBits = TEXTURE_USAGE_FLAG_SAMPLE;
         default_texture_creation_params.m_Type          = TEXTURE_TYPE_2D_ARRAY;
-        default_texture_creation_params.m_Depth         = 1;
+        default_texture_creation_params.m_LayerCount    = 1;
         context->m_DefaultTexture2DArray                = VulkanNewTextureInternal(default_texture_creation_params);
 
-        default_texture_creation_params.m_Type  = TEXTURE_TYPE_CUBE_MAP;
-        default_texture_creation_params.m_Depth = 6;
+        default_texture_creation_params.m_Type       = TEXTURE_TYPE_CUBE_MAP;
+        default_texture_creation_params.m_Depth      = 6;
+        default_texture_creation_params.m_LayerCount = 1;
         context->m_DefaultTextureCubeMap = VulkanNewTextureInternal(default_texture_creation_params);
 
         memset(context->m_TextureUnits, 0x0, sizeof(context->m_TextureUnits));
@@ -952,7 +960,10 @@ namespace dmGraphics
         }
 
         context->m_FragmentShaderInterlockFeatures       = {};
-        context->m_FragmentShaderInterlockFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT;
+        if (VulkanIsExtensionSupported((HContext) context, VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME))
+        {
+            context->m_FragmentShaderInterlockFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT;
+        }
 
         PhysicalDevice* device_list     = new PhysicalDevice[device_count];
         PhysicalDevice* selected_device = NULL;
@@ -1112,6 +1123,13 @@ namespace dmGraphics
         context->m_PipelineCache.SetCapacity(32,64);
         context->m_TextureSamplers.SetCapacity(4);
 
+        context->m_AsyncProcessingSupport = context->m_JobThread != 0x0 && dmThread::PlatformHasThreadSupport();
+        if (context->m_AsyncProcessingSupport)
+        {
+            InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
+            context->m_AssetHandleContainerMutex = dmMutex::New();
+        }
+
         // Create framebuffers, default renderpass etc.
         res = CreateMainRenderingResources(context);
         if (res != VK_SUCCESS)
@@ -1147,7 +1165,6 @@ bail:
             return 0x0;
         }
     #endif
-
 
         // GLFW 3.4 doesn't support static linking with vulkan,
         // instead we need to pass in the function that loads symbol for any
@@ -1225,11 +1242,20 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         if (context != 0x0)
         {
+            dmAtomicStore32(&context->m_DeleteContextRequested, 1);
+
             if (context->m_Instance != VK_NULL_HANDLE)
             {
                 vkDestroyInstance(context->m_Instance, 0);
                 context->m_Instance = VK_NULL_HANDLE;
             }
+
+            if (context->m_AssetHandleContainerMutex)
+            {
+                dmMutex::Delete(context->m_AssetHandleContainerMutex);
+            }
+
+            ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
 
             delete context;
             g_VulkanContext = 0x0;
@@ -1605,6 +1631,11 @@ bail:
             vk_scissor.offset.y = 0;
 
             VkResult res = CreateGraphicsPipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexDeclaration, vertexDeclarationCount, rt, &new_pipeline);
+            if (res == VK_ERROR_INITIALIZATION_FAILED)
+            {
+                dmLogError("Failed to create VkPipeline");
+                return 0;
+            }
             CHECK_VK_ERROR(res);
 
             if (pipelineCache.Full())
@@ -1868,9 +1899,8 @@ bail:
 
     static void VulkanEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program)
     {
-        VulkanContext* context      = (VulkanContext*) _context;
-        VulkanProgram* program_ptr        = (VulkanProgram*) program;
-        VulkanShaderModule* vertex_shader = program_ptr->m_VertexModule;
+        VulkanContext* context     = (VulkanContext*) _context;
+        VulkanProgram* program_ptr = (VulkanProgram*) program;
 
         context->m_MainVertexDeclaration[binding_index]                = {};
         context->m_MainVertexDeclaration[binding_index].m_Stride       = vertex_declaration->m_Stride;
@@ -1881,15 +1911,15 @@ bail:
         context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
 
         uint32_t stream_ix = 0;
-        uint32_t num_inputs = vertex_shader->m_BaseShaderModule.m_ShaderMeta.m_Inputs.Size();
+        uint32_t num_inputs = program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs.Size();
 
         for (int i = 0; i < vertex_declaration->m_StreamCount; ++i)
         {
             for (int j = 0; j < num_inputs; ++j)
             {
-                ShaderResourceBinding& input = vertex_shader->m_BaseShaderModule.m_ShaderMeta.m_Inputs[j];
+                ShaderResourceBinding& input = program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs[j];
 
-                if (input.m_NameHash == vertex_declaration->m_Streams[i].m_NameHash)
+                if (input.m_StageFlags & SHADER_STAGE_FLAG_VERTEX && input.m_NameHash == vertex_declaration->m_Streams[i].m_NameHash)
                 {
                     VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration[binding_index].m_Streams[stream_ix];
                     stream.m_NameHash  = input.m_NameHash;
@@ -1951,10 +1981,13 @@ bail:
             case ShaderDesc::SHADER_TYPE_SAMPLER3D:
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY:
+            case ShaderDesc::SHADER_TYPE_SAMPLER3D_ARRAY:
                 return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
             case ShaderDesc::SHADER_TYPE_IMAGE2D:
             case ShaderDesc::SHADER_TYPE_UIMAGE2D:
+            case ShaderDesc::SHADER_TYPE_IMAGE3D:
+            case ShaderDesc::SHADER_TYPE_UIMAGE3D:
                 return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 
             // Render pass inputs
@@ -1962,10 +1995,13 @@ bail:
                 return VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
 
             // Texture objects
+            case ShaderDesc::SHADER_TYPE_TEXTURE_CUBE:
             case ShaderDesc::SHADER_TYPE_TEXTURE2D:
             case ShaderDesc::SHADER_TYPE_TEXTURE2D_ARRAY:
-            case ShaderDesc::SHADER_TYPE_TEXTURE_CUBE:
             case ShaderDesc::SHADER_TYPE_UTEXTURE2D:
+            case ShaderDesc::SHADER_TYPE_TEXTURE3D:
+            case ShaderDesc::SHADER_TYPE_TEXTURE3D_ARRAY:
+            case ShaderDesc::SHADER_TYPE_UTEXTURE3D:
                 return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 
             // Storage buffers
@@ -2053,6 +2089,8 @@ bail:
         uint16_t image_to_write_index   = 0;
         uint16_t buffer_to_write_index  = 0;
 
+        uint32_t dynamic_offset_index = 0;
+
         ProgramResourceBindingIterator it(&program->m_BaseProgram);
         const ProgramResourceBinding* next;
         while((next = it.Next()))
@@ -2092,9 +2130,9 @@ bail:
                 } break;
                 case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                 {
-                    dynamic_offsets[next->m_DynamicOffsetIndex] = (uint32_t) scratch_buffer->m_MappedDataCursor;
-                    const uint32_t uniform_size_nonalign          = res->m_BindingInfo.m_BlockSize;
-                    const uint32_t uniform_size_align             = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
+                    dynamic_offsets[dynamic_offset_index] = (uint32_t) scratch_buffer->m_MappedDataCursor;
+                    const uint32_t uniform_size_nonalign  = res->m_BindingInfo.m_BlockSize;
+                    const uint32_t uniform_size_align     = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
 
                     assert(uniform_size_nonalign > 0);
 
@@ -2113,6 +2151,7 @@ bail:
                         uniform_size_align);
 
                     scratch_buffer->m_MappedDataCursor += uniform_size_align;
+                    dynamic_offset_index++;
                 } break;
                 case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
                 default: continue;
@@ -2217,7 +2256,7 @@ bail:
         vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, *pipeline);
     }
 
-    static void DrawSetup(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
+    static bool DrawSetup(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
     {
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
         BeginRenderPass(context, context->m_CurrentRenderTarget);
@@ -2301,6 +2340,11 @@ bail:
             pipeline_state_draw, context->m_PipelineCache,
             program_ptr, current_rt, vx_declarations, num_vx_buffers);
 
+        if (!pipeline)
+        {
+            return false;
+        }
+
         if (pipeline != context->m_CurrentPipeline)
         {
             vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
@@ -2322,6 +2366,7 @@ bail:
         }
 
         vkCmdBindVertexBuffers(vk_command_buffer, 0, num_vx_buffers, vk_buffers, vk_buffer_offsets);
+        return true;
     }
 
     static void VulkanDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count)
@@ -2335,7 +2380,11 @@ bail:
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
         context->m_PipelineState.m_PrimtiveType = prim_type;
-        DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], (DeviceBuffer*) index_buffer, type);
+        if (!DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], (DeviceBuffer*) index_buffer, type))
+        {
+            dmLogError("Failed setup draw state");
+            return;
+        }
 
         // The 'first' value that comes in is intended to be a byte offset,
         // but vkCmdDrawIndexed only operates with actual offset values into the index buffer
@@ -2375,79 +2424,49 @@ bail:
         vkCmdDispatch(vk_command_buffer, group_count_x, group_count_y, group_count_z);
     }
 
-    static bool ValidateShaderModule(VulkanContext* context, VulkanShaderModule* shader, char* error_buffer, uint32_t error_buffer_size)
+    static bool ValidateShaderModule(VulkanContext* context, ShaderMeta* meta, ShaderModule* shader, ShaderStageFlag stage_flags, char* error_buffer, uint32_t error_buffer_size)
     {
-        if (shader->m_BaseShaderModule.m_ShaderMeta.m_UniformBuffers.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
+        uint32_t stage_uniform_buffers = 0;
+        uint32_t stage_storage_buffers = 0;
+        uint32_t stage_textures        = 0;
+
+        for (int i = 0; i < meta->m_UniformBuffers.Size(); ++i)
+        {
+            if (meta->m_UniformBuffers[i].m_StageFlags & stage_flags)
+                stage_uniform_buffers++;
+        }
+
+        for (int i = 0; i < meta->m_StorageBuffers.Size(); ++i)
+        {
+            if (meta->m_StorageBuffers[i].m_StageFlags & stage_flags)
+                stage_storage_buffers++;
+        }
+
+        for (int i = 0; i < meta->m_Textures.Size(); ++i)
+        {
+            if (meta->m_Textures[i].m_StageFlags & stage_flags)
+                stage_textures++;
+        }
+
+        if (stage_uniform_buffers > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
         {
             dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of uniform buffers exceeded: shader has %d buffers, but maximum is %d.",
-                shader->m_BaseShaderModule.m_ShaderMeta.m_UniformBuffers.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
+                stage_uniform_buffers, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
             return false;
         }
-        else if (shader->m_BaseShaderModule.m_ShaderMeta.m_StorageBuffers.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers)
+        else if (stage_storage_buffers > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers)
         {
             dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of storage exceeded: shader has %d buffer, but maximum is %d.",
-                shader->m_BaseShaderModule.m_ShaderMeta.m_StorageBuffers.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers);
+                stage_storage_buffers, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers);
             return false;
         }
-        else if (shader->m_BaseShaderModule.m_ShaderMeta.m_Textures.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
+        else if (stage_textures > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
         {
             dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of texture samplers exceeded: shader has %d samplers, but maximum is %d.",
-                shader->m_BaseShaderModule.m_ShaderMeta.m_Textures.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
+                stage_textures, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
             return false;
         }
         return true;
-    }
-
-    static HVertexProgram VulkanNewVertexProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        ShaderDesc::Shader* ddf_shader = GetShaderProgram(_context, ddf);
-        if (ddf_shader == 0x0)
-        {
-            return 0x0;
-        }
-
-        VulkanShaderModule* shader = new VulkanShaderModule;
-        memset(shader, 0, sizeof(*shader));
-        VulkanContext* context = (VulkanContext*) _context;
-
-        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, VK_SHADER_STAGE_VERTEX_BIT, shader);
-        CHECK_VK_ERROR(res);
-
-        CreateShaderMeta(&ddf->m_Reflection, &shader->m_BaseShaderModule.m_ShaderMeta);
-
-        if (!ValidateShaderModule(context, shader, error_buffer, error_buffer_size))
-        {
-            DeleteVertexProgram((HVertexProgram) shader);
-            return 0;
-        }
-
-        return (HVertexProgram) shader;
-    }
-
-    static HFragmentProgram VulkanNewFragmentProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        ShaderDesc::Shader* ddf_shader = GetShaderProgram(_context, ddf);
-        if (ddf_shader == 0x0)
-        {
-            return 0x0;
-        }
-
-        VulkanShaderModule* shader = new VulkanShaderModule;
-        memset(shader, 0, sizeof(*shader));
-        VulkanContext* context = (VulkanContext*) _context;
-
-        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, VK_SHADER_STAGE_FRAGMENT_BIT, shader);
-        CHECK_VK_ERROR(res);
-
-        CreateShaderMeta(&ddf->m_Reflection, &shader->m_BaseShaderModule.m_ShaderMeta);
-
-        if (!ValidateShaderModule(context, shader, error_buffer, error_buffer_size))
-        {
-            DeleteFragmentProgram((HFragmentProgram) shader);
-            return 0;
-        }
-
-        return (HFragmentProgram) shader;
     }
 
     static inline VkDescriptorType GetDescriptorType(const ShaderResourceBinding& res)
@@ -2521,6 +2540,24 @@ bail:
         }
     }
 
+    static inline VkFlags GetShaderStageFlags(uint8_t flag_bits)
+    {
+        VkFlags bits = 0;
+        if (flag_bits & SHADER_STAGE_FLAG_VERTEX)
+        {
+            bits |= VK_SHADER_STAGE_VERTEX_BIT;
+        }
+        if (flag_bits & SHADER_STAGE_FLAG_FRAGMENT)
+        {
+            bits |= VK_SHADER_STAGE_FRAGMENT_BIT;
+        }
+        if (flag_bits & SHADER_STAGE_FLAG_COMPUTE)
+        {
+            bits |= VK_SHADER_STAGE_COMPUTE_BIT;
+        }
+        return bits;
+    }
+
     static void FillProgramResourceBindings(
         VulkanProgram*                   program,
         dmArray<ShaderResourceBinding>&  resources,
@@ -2528,7 +2565,6 @@ bail:
         VkDescriptorSetLayoutBinding     bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
         uint32_t                         ubo_alignment,
         uint32_t                         ssbo_alignment,
-        VkShaderStageFlagBits            stage_flag,
         ProgramResourceBindingsInfo&     info)
     {
         for (int i = 0; i < resources.Size(); ++i)
@@ -2581,8 +2617,7 @@ bail:
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         assert(res.m_Type.m_UseTypeIndex);
-                        program_resource_binding.m_DataOffset         = info.m_UniformDataSize;
-                        program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
+                        program_resource_binding.m_DataOffset = info.m_UniformDataSize;
 
                         info.m_UniformBufferCount++;
                         info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
@@ -2600,25 +2635,23 @@ bail:
             #endif
             }
 
-            binding.stageFlags |= stage_flag;
+            binding.stageFlags |= GetShaderStageFlags(res.m_StageFlags);
         }
     }
 
     static void FillProgramResourceBindings(
         VulkanProgram*               program,
-        VulkanShaderModule*                module,
         VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
         uint32_t                     ubo_alignment,
         uint32_t                     ssbo_alignment,
-        VkShaderStageFlagBits        stage_flag,
         ProgramResourceBindingsInfo& info)
     {
-        FillProgramResourceBindings(program, module->m_BaseShaderModule.m_ShaderMeta.m_UniformBuffers, module->m_BaseShaderModule.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-        FillProgramResourceBindings(program, module->m_BaseShaderModule.m_ShaderMeta.m_StorageBuffers, module->m_BaseShaderModule.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-        FillProgramResourceBindings(program, module->m_BaseShaderModule.m_ShaderMeta.m_Textures, module->m_BaseShaderModule.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
+        FillProgramResourceBindings(program, program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
+        FillProgramResourceBindings(program, program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
+        FillProgramResourceBindings(program, program->m_BaseProgram.m_ShaderMeta.m_Textures, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, info);
 
         // Each module must resolve samplers individually since there is no contextual information across modules (currently)
-        ResolveSamplerTextureUnits(program, module->m_BaseShaderModule.m_ShaderMeta.m_Textures);
+        ResolveSamplerTextureUnits(program, program->m_BaseProgram.m_ShaderMeta.m_Textures);
     }
 
     static void CreateProgramResourceBindings(VulkanContext* context, VulkanProgram* program)
@@ -2629,17 +2662,7 @@ bail:
         uint32_t ssbo_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minStorageBufferOffsetAlignment;
 
         ProgramResourceBindingsInfo binding_info = {};
-
-        if (program->m_ComputeModule)
-        {
-            FillProgramResourceBindings(program, program->m_ComputeModule, bindings, ubo_alignment, ssbo_alignment, VK_SHADER_STAGE_COMPUTE_BIT, binding_info);
-        }
-        else
-        {
-            assert(program->m_VertexModule && program->m_FragmentModule);
-            FillProgramResourceBindings(program, program->m_VertexModule, bindings, ubo_alignment, ssbo_alignment, VK_SHADER_STAGE_VERTEX_BIT, binding_info);
-            FillProgramResourceBindings(program, program->m_FragmentModule, bindings, ubo_alignment, ssbo_alignment, VK_SHADER_STAGE_FRAGMENT_BIT, binding_info);
-        }
+        FillProgramResourceBindings(program, bindings, ubo_alignment, ssbo_alignment, binding_info);
 
         program->m_UniformData = new uint8_t[binding_info.m_UniformDataSize];
         memset(program->m_UniformData, 0, binding_info.m_UniformDataSize);
@@ -2657,14 +2680,14 @@ bail:
         BuildUniforms(&program->m_BaseProgram);
     }
 
-    static void CreateComputeProgram(VulkanContext* context, VulkanProgram* program, VulkanShaderModule* compute_module)
+    static void CreateComputeProgram(VulkanContext* context, VulkanProgram* program, ShaderModule* compute_module)
     {
         program->m_ComputeModule  = compute_module;
         program->m_Hash           = compute_module->m_Hash;
         CreateProgramResourceBindings(context, program);
     }
 
-    static void CreateGraphicsProgram(VulkanContext* context, VulkanProgram* program, VulkanShaderModule* vertex_module, VulkanShaderModule* fragment_module)
+    static void CreateGraphicsProgram(VulkanContext* context, VulkanProgram* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
     {
         program->m_Hash           = 0;
         program->m_UniformData    = 0;
@@ -2674,9 +2697,12 @@ bail:
         HashState64 program_hash;
         dmHashInit64(&program_hash, false);
 
-        for (uint32_t i=0; i < vertex_module->m_BaseShaderModule.m_ShaderMeta.m_Inputs.Size(); i++)
+        for (uint32_t i=0; i < program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); i++)
         {
-            dmHashUpdateBuffer64(&program_hash, &vertex_module->m_BaseShaderModule.m_ShaderMeta.m_Inputs[i].m_Binding, sizeof(vertex_module->m_BaseShaderModule.m_ShaderMeta.m_Inputs[i].m_Binding));
+            if (program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_StageFlags & SHADER_STAGE_FLAG_VERTEX)
+            {
+                dmHashUpdateBuffer64(&program_hash, &program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_Binding, sizeof(program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_Binding));
+            }
         }
 
         dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Hash, sizeof(vertex_module->m_Hash));
@@ -2684,13 +2710,6 @@ bail:
         program->m_Hash = dmHashFinal64(&program_hash);
 
         CreateProgramResourceBindings(context, program);
-    }
-
-    static HProgram VulkanNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
-    {
-        VulkanProgram* program = new VulkanProgram;
-        CreateGraphicsProgram((VulkanContext*) context, program, (VulkanShaderModule*) vertex_program, (VulkanShaderModule*) fragment_program);
-        return (HProgram) program;
     }
 
     static void DestroyProgram(HContext context, VulkanProgram* program)
@@ -2710,64 +2729,131 @@ bail:
         delete program_ptr;
     }
 
-    static void DestroyShader(VulkanShaderModule* shader)
+    static void DestroyShader(VulkanContext* context, ShaderModule* shader)
     {
         if (!shader)
         {
             return;
         }
 
-        DestroyShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, shader);
-        DestroyShaderMeta(shader->m_BaseShaderModule.m_ShaderMeta);
+        DestroyShaderModule(context->m_LogicalDevice.m_Device, shader);
     }
 
-    static bool ReloadShader(VulkanShaderModule* shader, ShaderDesc* ddf, VkShaderStageFlagBits stage_flag)
+    static bool ReloadShader(VulkanContext* context, ShaderModule* shader, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage_flag)
     {
-        ShaderDesc::Shader* ddf_shader = GetShaderProgram((HContext) g_VulkanContext, ddf);
-        if (ddf_shader == 0x0)
-        {
-            return false;
-        }
-        VulkanShaderModule tmp_shader;
-        VkResult res = CreateShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, stage_flag, &tmp_shader);
+        ShaderModule tmp_shader;
+        VkResult res = CreateShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, stage_flag, &tmp_shader);
         if (res == VK_SUCCESS)
         {
-            DestroyShader(shader);
+            DestroyShader(context, shader);
             memset(shader, 0, sizeof(*shader));
 
             // Transfer created module to old pointer and recreate resource bindings
             shader->m_Hash    = tmp_shader.m_Hash;
             shader->m_Module  = tmp_shader.m_Module;
-
-            CreateShaderMeta(&ddf->m_Reflection, &shader->m_BaseShaderModule.m_ShaderMeta);
             return true;
         }
 
         return false;
     }
 
-    static bool VulkanReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
+    static inline ShaderModule* NewShaderModule(VulkanContext* context, ShaderMeta* meta, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage, char* error_buffer, uint32_t error_buffer_size)
     {
-        return ReloadShader((VulkanShaderModule*) prog, ddf, VK_SHADER_STAGE_VERTEX_BIT);
+        ShaderModule* module = new ShaderModule;
+        memset(module, 0, sizeof(*module));
+
+        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, stage, module);
+        CHECK_VK_ERROR(res);
+
+        ShaderStageFlag stage_flag = (ShaderStageFlag) -1;
+        if (stage == VK_SHADER_STAGE_VERTEX_BIT)
+        {
+            stage_flag = SHADER_STAGE_FLAG_VERTEX;
+        }
+        else if (stage == VK_SHADER_STAGE_FRAGMENT_BIT)
+        {
+            stage_flag = SHADER_STAGE_FLAG_FRAGMENT;
+        }
+        else if (stage == VK_SHADER_STAGE_COMPUTE_BIT)
+        {
+            stage_flag = SHADER_STAGE_FLAG_COMPUTE;
+        }
+        if (!ValidateShaderModule(context, meta, module, stage_flag, error_buffer, error_buffer_size))
+        {
+            DestroyShader(context, module);
+            delete module;
+            return 0;
+        }
+        return module;
     }
 
-    static bool VulkanReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf)
+    static HProgram VulkanNewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return ReloadShader((VulkanShaderModule*) prog, ddf, VK_SHADER_STAGE_FRAGMENT_BIT);
+        ShaderDesc::Shader* ddf_vp = 0x0;
+        ShaderDesc::Shader* ddf_fp = 0x0;
+        ShaderDesc::Shader* ddf_cp = 0x0;
+
+        if (!GetShaderProgram(_context, ddf, &ddf_vp, &ddf_fp, &ddf_cp))
+        {
+            return 0;
+        }
+
+        VulkanContext* context = (VulkanContext*) _context;
+        VulkanProgram* program = new VulkanProgram;
+
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+
+        if (ddf_cp)
+        {
+            ShaderModule* module_cp = NewShaderModule(context, &program->m_BaseProgram.m_ShaderMeta, ddf_cp, VK_SHADER_STAGE_COMPUTE_BIT, error_buffer, error_buffer_size);
+            CreateComputeProgram(context, program, module_cp);
+        }
+        else
+        {
+            ShaderModule* vertex_module = NewShaderModule(context, &program->m_BaseProgram.m_ShaderMeta, ddf_vp, VK_SHADER_STAGE_VERTEX_BIT, error_buffer, error_buffer_size);
+            ShaderModule* fragment_module = NewShaderModule(context, &program->m_BaseProgram.m_ShaderMeta, ddf_fp, VK_SHADER_STAGE_FRAGMENT_BIT, error_buffer, error_buffer_size);
+            CreateGraphicsProgram((VulkanContext*) context, program, vertex_module, fragment_module);
+        }
+
+        return (HProgram) program;
     }
 
-    static void VulkanDeleteVertexProgram(HVertexProgram prog)
+    static bool VulkanReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf)
     {
-        VulkanShaderModule* shader = (VulkanShaderModule*) prog;
-        DestroyShader(shader);
-        delete shader;
-    }
+        ShaderDesc::Shader* ddf_vp = 0x0;
+        ShaderDesc::Shader* ddf_fp = 0x0;
+        ShaderDesc::Shader* ddf_cp = 0x0;
 
-    static void VulkanDeleteFragmentProgram(HFragmentProgram prog)
-    {
-        VulkanShaderModule* shader = (VulkanShaderModule*) prog;
-        DestroyShader(shader);
-        delete shader;
+        if (!GetShaderProgram(_context, ddf, &ddf_vp, &ddf_fp, &ddf_cp))
+        {
+            return 0;
+        }
+
+        VulkanContext* context = (VulkanContext*) _context;
+        VulkanProgram* program = (VulkanProgram*) _program;
+
+        if (ddf_cp)
+        {
+            if (!ReloadShader(context, program->m_ComputeModule, ddf_cp, VK_SHADER_STAGE_COMPUTE_BIT))
+                return false;
+
+            DestroyProgram(context, program);
+            CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+            CreateComputeProgram(context, program, program->m_ComputeModule);
+        }
+        else
+        {
+            if (!ReloadShader(context, program->m_VertexModule, ddf_vp, VK_SHADER_STAGE_VERTEX_BIT))
+                return false;
+            if (!ReloadShader(context, program->m_FragmentModule, ddf_fp, VK_SHADER_STAGE_FRAGMENT_BIT))
+                return false;
+
+            DestroyProgram(context, program);
+            CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+            CreateGraphicsProgram(context, program, program->m_VertexModule, program->m_FragmentModule);
+        }
+
+        return true;
     }
 
     static bool VulkanIsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
@@ -2790,44 +2876,40 @@ bail:
         g_VulkanContext->m_CurrentProgram = 0;
     }
 
-    static bool VulkanReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
-    {
-        VulkanProgram* program_ptr = (VulkanProgram*) program;
-        DestroyProgram(context, program_ptr);
-        CreateGraphicsProgram((VulkanContext*) context, program_ptr, (VulkanShaderModule*) vert_program, (VulkanShaderModule*) frag_program);
-        return true;
-    }
-
-    static bool VulkanReloadProgramCompute(HContext context, HProgram program, HComputeProgram compute_program)
-    {
-        VulkanProgram* program_ptr = (VulkanProgram*) program;
-        DestroyProgram(context, program_ptr);
-        CreateComputeProgram((VulkanContext*) context, program_ptr, (VulkanShaderModule*) compute_program);
-        return true;
-    }
-
-    static bool VulkanReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)
-    {
-        return ReloadShader((VulkanShaderModule*) prog, ddf, VK_SHADER_STAGE_COMPUTE_BIT);
-    }
-
     static uint32_t VulkanGetAttributeCount(HProgram prog)
     {
         VulkanProgram* program_ptr = (VulkanProgram*) prog;
-        return program_ptr->m_VertexModule->m_BaseShaderModule.m_ShaderMeta.m_Inputs.Size();
+        uint32_t num_vx_inputs = 0;
+        for (int i = 0; i < program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); ++i)
+        {
+            if (program_ptr->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_StageFlags & SHADER_STAGE_FLAG_VERTEX)
+            {
+                num_vx_inputs++;
+            }
+        }
+        return num_vx_inputs;
     }
 
     static void VulkanGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
     {
-        VulkanProgram* program_ptr = (VulkanProgram*) prog;
-        assert(index < program_ptr->m_VertexModule->m_BaseShaderModule.m_ShaderMeta.m_Inputs.Size());
-        ShaderResourceBinding& attr = program_ptr->m_VertexModule->m_BaseShaderModule.m_ShaderMeta.m_Inputs[index];
-
-        *name_hash     = attr.m_NameHash;
-        *type          = ShaderDataTypeToGraphicsType(attr.m_Type.m_ShaderType);
-        *num_values    = 1;
-        *location      = attr.m_Binding;
-        *element_count = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
+        VulkanProgram* program = (VulkanProgram*) prog;
+        uint32_t input_ix = 0;
+        for (int i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); ++i)
+        {
+            if (program->m_BaseProgram.m_ShaderMeta.m_Inputs[i].m_StageFlags & SHADER_STAGE_FLAG_VERTEX)
+            {
+                if (input_ix == index)
+                {
+                    ShaderResourceBinding& attr = program->m_BaseProgram.m_ShaderMeta.m_Inputs[i];
+                    *name_hash                  = attr.m_NameHash;
+                    *type                       = ShaderDataTypeToGraphicsType(attr.m_Type.m_ShaderType);
+                    *num_values                 = 1;
+                    *location                   = attr.m_Binding;
+                    *element_count              = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
+                }
+                input_ix++;
+            }
+        }
     }
 
     static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)
@@ -2898,6 +2980,12 @@ bail:
         viewport.m_H       = (uint16_t) height;
 
         g_VulkanContext->m_ViewportChanged = 1;
+    }
+
+    static void VulkanGetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
+    {
+        const Viewport& viewport = g_VulkanContext->m_MainViewport;
+        *x = viewport.m_X, *y = viewport.m_Y, *width = viewport.m_W, *height = viewport.m_H;
     }
 
     static void VulkanEnableState(HContext context, State state)
@@ -3281,10 +3369,10 @@ bail:
                     vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
                 }
 
-                VkResult res = CreateTexture2D(
+                VkResult res = CreateTexture(
                     g_VulkanContext->m_PhysicalDevice.m_Device,
                     g_VulkanContext->m_LogicalDevice.m_Device,
-                    new_texture_color->m_Width, new_texture_color->m_Height, 1, new_texture_color->m_MipMapCount,
+                    new_texture_color->m_Width, new_texture_color->m_Height, 1, 1, new_texture_color->m_MipMapCount,
                     VK_SAMPLE_COUNT_1_BIT,
                     vk_color_format,
                     VK_IMAGE_TILING_OPTIMAL,
@@ -3450,10 +3538,11 @@ bail:
                 texture_color->m_ImageLayout[0] = VK_IMAGE_LAYOUT_PREINITIALIZED;
 
                 DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture_color);
-                VkResult res = CreateTexture2D(
+                VkResult res = CreateTexture(
                     g_VulkanContext->m_PhysicalDevice.m_Device,
                     g_VulkanContext->m_LogicalDevice.m_Device,
-                    width, height, texture_color->m_MipMapCount, 1, VK_SAMPLE_COUNT_1_BIT,
+                    width, height, 1,
+                    texture_color->m_MipMapCount, 1, VK_SAMPLE_COUNT_1_BIT,
                     texture_color->m_Format,
                     VK_IMAGE_TILING_OPTIMAL,
                     vk_usage_flags,
@@ -3530,10 +3619,13 @@ bail:
         tex->m_Type           = params.m_Type;
         tex->m_Width          = params.m_Width;
         tex->m_Height         = params.m_Height;
-        tex->m_Depth          = params.m_Depth;
+        tex->m_Depth          = dmMath::Max((uint16_t)1, params.m_Depth);
+        tex->m_LayerCount     = dmMath::Max((uint8_t)1, params.m_LayerCount);
         tex->m_MipMapCount    = params.m_MipMapCount;
         tex->m_UsageFlags     = GetVulkanUsageFromHints(params.m_UsageHintBits);
         tex->m_UsageHintFlags = params.m_UsageHintBits;
+        tex->m_PageCount      = params.m_LayerCount;
+        tex->m_DataState      = 0;
 
         for (int i = 0; i < DM_ARRAY_SIZE(tex->m_ImageLayout); ++i)
         {
@@ -3544,18 +3636,23 @@ bail:
         {
             tex->m_OriginalWidth  = params.m_Width;
             tex->m_OriginalHeight = params.m_Height;
+            tex->m_OriginalDepth  = params.m_Depth;
         }
         else
         {
             tex->m_OriginalWidth  = params.m_OriginalWidth;
             tex->m_OriginalHeight = params.m_OriginalHeight;
+            tex->m_OriginalDepth  = params.m_OriginalDepth;
         }
         return tex;
     }
 
-    static HTexture VulkanNewTexture(HContext context, const TextureCreationParams& params)
+    static HTexture VulkanNewTexture(HContext _context, const TextureCreationParams& params)
     {
-        return StoreAssetInContainer(g_VulkanContext->m_AssetHandleContainer, VulkanNewTextureInternal(params), ASSET_TYPE_TEXTURE);
+        VulkanContext* context = (VulkanContext*) _context;
+        VulkanTexture* texture = VulkanNewTextureInternal(params);
+        ScopedLock lock(context->m_AssetHandleContainerMutex);
+        return StoreAssetInContainer(g_VulkanContext->m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
     }
 
     static void VulkanDeleteTextureInternal(VulkanTexture* texture)
@@ -3566,6 +3663,7 @@ bail:
 
     static void VulkanDeleteTexture(HTexture texture)
     {
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanDeleteTextureInternal(GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture));
         g_VulkanContext->m_AssetHandleContainer.Release(texture);
     }
@@ -3588,11 +3686,52 @@ bail:
         return offset;
     }
 
+    static void CopyToTextureLayerWithtStageBuffer(VkCommandBuffer cmd_buffer, VkBufferImageCopy* copy_regions, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t layer_count, uint32_t slice_size)
+    {
+        for (int i = 0; i < layer_count; ++i)
+        {
+            VkBufferImageCopy& vk_copy_region = copy_regions[i];
+            vk_copy_region.bufferOffset                    = i * slice_size;
+            vk_copy_region.bufferRowLength                 = 0;
+            vk_copy_region.bufferImageHeight               = 0;
+            vk_copy_region.imageOffset.x                   = params.m_X;
+            vk_copy_region.imageOffset.y                   = params.m_Y;
+            vk_copy_region.imageOffset.z                   = params.m_Z;
+            vk_copy_region.imageExtent.width               = params.m_Width;
+            vk_copy_region.imageExtent.height              = params.m_Height;
+            vk_copy_region.imageExtent.depth               = dmMath::Max((uint32_t) 1, (uint32_t) params.m_Depth);
+            vk_copy_region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            vk_copy_region.imageSubresource.mipLevel       = params.m_MipMap;
+            vk_copy_region.imageSubresource.baseArrayLayer = i;
+            vk_copy_region.imageSubresource.layerCount     = 1;
+        }
+
+        vkCmdCopyBufferToImage(cmd_buffer, stage_buffer->m_Handle.m_Buffer,
+            texture->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            layer_count, copy_regions);
+    }
+
+    static void CopyToTextureWithStageBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t tex_data_size, const void* tex_data_ptr)
+    {
+        VkResult res = WriteToDeviceBuffer(context->m_LogicalDevice.m_Device, tex_data_size, 0, tex_data_ptr, stage_buffer);
+        CHECK_VK_ERROR(res);
+
+        uint32_t slice_size = tex_data_size / texture->m_LayerCount;
+        uint32_t layer_count = texture->m_LayerCount;
+
+        // NOTE: We should check max layer count in the device properties!
+        VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[layer_count];
+
+        CopyToTextureLayerWithtStageBuffer(cmd_buffer, vk_copy_regions, stage_buffer, texture, params, layer_count, slice_size);
+
+        delete[] vk_copy_regions;
+    }
+
     static void CopyToTexture(VulkanContext* context, const TextureParams& params,
         bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, VulkanTexture* textureOut)
     {
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
-        uint8_t layer_count = textureOut->m_Depth;
+        uint8_t layer_count = textureOut->m_LayerCount;
         assert(layer_count > 0);
 
         // TODO There is potentially a bunch of redundancy here.
@@ -3633,15 +3772,6 @@ bail:
             vk_submit_info.commandBufferCount = 1;
             vk_submit_info.pCommandBuffers    = &vk_command_buffer;
 
-            DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-
-            res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, vk_device, texDataSize,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
-            CHECK_VK_ERROR(res);
-
-            res = WriteToDeviceBuffer(vk_device, texDataSize, 0, texDataPtr, &stage_buffer);
-            CHECK_VK_ERROR(res);
-
             // Transition image to transfer dst for the mipmap level we are uploading
             res = TransitionImageLayout(vk_device,
                 context->m_LogicalDevice.m_CommandPool,
@@ -3653,25 +3783,19 @@ bail:
                 layer_count);
             CHECK_VK_ERROR(res);
 
+            DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+
+            res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, vk_device, texDataSize,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
+            CHECK_VK_ERROR(res);
+
+            res = WriteToDeviceBuffer(vk_device, texDataSize, 0, texDataPtr, &stage_buffer);
+            CHECK_VK_ERROR(res);
+
             // NOTE: We should check max layer count in the device properties!
             VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[layer_count];
-            for (int i = 0; i < layer_count; ++i)
-            {
-                VkBufferImageCopy& vk_copy_region = vk_copy_regions[i];
-                vk_copy_region.bufferOffset                    = i * slice_size;
-                vk_copy_region.bufferRowLength                 = 0;
-                vk_copy_region.bufferImageHeight               = 0;
-                vk_copy_region.imageOffset.x                   = params.m_X;
-                vk_copy_region.imageOffset.y                   = params.m_Y;
-                vk_copy_region.imageOffset.z                   = 0;
-                vk_copy_region.imageExtent.width               = params.m_Width;
-                vk_copy_region.imageExtent.height              = params.m_Height;
-                vk_copy_region.imageExtent.depth               = 1;
-                vk_copy_region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-                vk_copy_region.imageSubresource.mipLevel       = params.m_MipMap;
-                vk_copy_region.imageSubresource.baseArrayLayer = i;
-                vk_copy_region.imageSubresource.layerCount     = 1;
-            }
+            
+            CopyToTextureLayerWithtStageBuffer(vk_command_buffer, vk_copy_regions, &stage_buffer, textureOut, params, layer_count, slice_size);
 
             vkCmdCopyBufferToImage(vk_command_buffer, stage_buffer.m_Handle.m_Buffer,
                 textureOut->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -3741,7 +3865,8 @@ bail:
         }
 
         TextureFormat format_orig   = params.m_Format;
-        uint16_t tex_layer_count    = dmMath::Max(texture->m_Depth, params.m_Depth);
+        uint8_t tex_layer_count     = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
+        uint16_t tex_depth          = dmMath::Max(texture->m_Depth, params.m_Depth);
         uint8_t tex_bpp             = GetTextureFormatBitsPerPixel(params.m_Format);
         size_t tex_data_size        = params.m_DataSize * tex_layer_count * 8; // Convert into bits
         void*  tex_data_ptr         = (void*)params.m_Data;
@@ -3777,12 +3902,12 @@ bail:
             vk_format     = VK_FORMAT_R8G8B8A8_UNORM;
             tex_data_ptr  = data_new;
             tex_bpp       = 32;
-            tex_data_size = tex_bpp * params.m_Width * params.m_Height * tex_layer_count;
         }
 
+        tex_data_size             = tex_bpp * params.m_Width * params.m_Height * tex_depth * tex_layer_count;
         texture->m_GraphicsFormat = params.m_Format;
         texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
-        texture->m_Depth          = tex_layer_count;
+        texture->m_LayerCount     = tex_layer_count;
 
         VulkanSetTextureParamsInternal(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
 
@@ -3794,12 +3919,16 @@ bail:
         }
         else if (params.m_MipMap == 0)
         {
-            if (texture->m_Format != vk_format || texture->m_Width != params.m_Width || texture->m_Height != params.m_Height)
+            if (texture->m_Format != vk_format ||
+                texture->m_Width != params.m_Width ||
+                texture->m_Height != params.m_Height ||
+                (IsTextureType3D(texture->m_Type) && (texture->m_Depth != params.m_Depth)))
             {
                 DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture);
-                texture->m_Format      = vk_format;
-                texture->m_Width       = params.m_Width;
-                texture->m_Height      = params.m_Height;
+                texture->m_Format = vk_format;
+                texture->m_Width  = params.m_Width;
+                texture->m_Height = params.m_Height;
+                texture->m_Depth  = params.m_Depth;
 
                 // Note:
                 // If the texture has requested mipmaps and we need to recreate the texture, make sure to allocate enough mipmaps.
@@ -3858,10 +3987,12 @@ bail:
                 texture->m_MipMapCount = 1;
             }
 
-            VkResult res = CreateTexture2D(vk_physical_device,
+            VkResult res = CreateTexture(
+                vk_physical_device,
                 logical_device.m_Device,
                 texture->m_Width,
                 texture->m_Height,
+                tex_depth,
                 tex_layer_count,
                 texture->m_MipMapCount,
                 VK_SAMPLE_COUNT_1_BIT,
@@ -3943,18 +4074,264 @@ bail:
 
     static void VulkanSetTexture(HTexture texture, const TextureParams& params)
     {
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         VulkanSetTextureInternal(tex, params);
     }
 
+    static VkCommandBuffer BeginSingleTimeCommands(VkDevice device, VkCommandPool cmd_pool)
+    {
+        VkCommandBufferAllocateInfo alloc_info = {};
+        alloc_info.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        alloc_info.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        alloc_info.commandPool                 = cmd_pool;
+        alloc_info.commandBufferCount          = 1;
+
+        VkCommandBuffer cmd_buffer;
+        vkAllocateCommandBuffers(device, &alloc_info, &cmd_buffer);
+
+        VkCommandBufferBeginInfo begin_info = {};
+        begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin_info.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(cmd_buffer, &begin_info);
+
+        return cmd_buffer;
+    }
+
+    static int AsyncProcessCallback(void* _context, void* data)
+    {
+        VulkanContext* context     = (VulkanContext*) _context;
+        uint16_t param_array_index = (uint16_t) (size_t) data;
+        SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
+
+        if (dmAtomicGet32(&context->m_DeleteContextRequested))
+        {
+            return 0;
+        }
+
+        ScopedLock lock(context->m_AssetHandleContainerMutex);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, ap.m_Texture);
+
+        // Texture might have been deleted before the job thread has started processing this job.
+        if (tex == NULL)
+        {
+            return 0;
+        }
+
+        // Async texture uploading
+        {
+            VkSemaphore semaphore;
+            VkFence fence;
+            VkCommandBuffer cmd_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
+
+            uint8_t tex_layer_count   = dmMath::Max(tex->m_LayerCount, ap.m_Params.m_LayerCount);
+            uint16_t tex_depth        = dmMath::Max(tex->m_Depth, ap.m_Params.m_Depth);
+            uint8_t tex_bpp           = GetTextureFormatBitsPerPixel(ap.m_Params.m_Format);
+            uint32_t tex_data_size    = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
+            TextureFormat format_orig = ap.m_Params.m_Format;
+            void*  tex_data_ptr       = (void*) ap.m_Params.m_Data;
+            bool is_memoryless        = IsTextureMemoryless(tex);
+
+            DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+
+            if (!is_memoryless)
+            {
+                TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex->m_Depth);
+
+                VkResult res = CreateDeviceBuffer(
+                    context->m_PhysicalDevice.m_Device,
+                    context->m_LogicalDevice.m_Device, tex_data_size,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
+                CHECK_VK_ERROR(res);
+
+                // Note: There's no RGB support in Vulkan. We have to expand this to four channels
+                // TODO: Can we use R11G11B10 somehow?
+                if (format_orig == TEXTURE_FORMAT_RGB)
+                {
+                    uint32_t data_pixel_count = ap.m_Params.m_Width * ap.m_Params.m_Height * tex_layer_count;
+                    uint8_t* data_new         = new uint8_t[data_pixel_count * 4]; // RGBA => 4 bytes per pixel
+
+                    RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
+                    tex_data_ptr  = data_new;
+                    tex_bpp       = 32;
+                    tex_data_size = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
+                }
+
+                tex_data_size = (uint32_t) ceil((float) tex_data_size / 8.0f);
+
+                CopyToTextureWithStageBuffer(context, cmd_buffer, &stage_buffer, tex, ap.m_Params, tex_data_size, tex_data_ptr);
+            }
+
+            TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex->m_LayerCount);
+
+            vkEndCommandBuffer(cmd_buffer);
+
+            VkSemaphoreCreateInfo vk_create_semaphore_info = {};
+            vk_create_semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+            vkCreateSemaphore(context->m_LogicalDevice.m_Device, &vk_create_semaphore_info, 0, &semaphore);
+
+            VkFenceCreateInfo vk_create_fence_info = {};
+            vk_create_fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+            vkCreateFence(context->m_LogicalDevice.m_Device, &vk_create_fence_info, 0, &fence);
+
+            VkSubmitInfo submit_info         = {};
+            submit_info.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submit_info.commandBufferCount   = 1;
+            submit_info.pCommandBuffers      = &cmd_buffer;
+            submit_info.signalSemaphoreCount = 1;
+            submit_info.pSignalSemaphores    = &semaphore;
+
+            vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submit_info, fence);
+            vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
+            vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker, 1, &cmd_buffer);
+
+            if (!is_memoryless)
+            {
+                DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &stage_buffer.m_Handle);
+
+                if (format_orig == TEXTURE_FORMAT_RGB)
+                {
+                    delete[] (uint8_t*)tex_data_ptr;
+                }
+            }
+        }
+
+        int32_t data_state = dmAtomicGet32(&tex->m_DataState);
+        data_state &= ~(1<<ap.m_Params.m_MipMap);
+        dmAtomicStore32(&tex->m_DataState, data_state);
+
+        tex->m_DataState  &= ~(1<<ap.m_Params.m_MipMap);
+
+        return 0;
+    }
+
+    // Called on thread where we update (which should be the main thread)
+    static void AsyncCompleteCallback(void* _context, void* data, int result)
+    {
+        VulkanContext* context     = (VulkanContext*) _context;
+        uint16_t param_array_index = (uint16_t) (size_t) data;
+        SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
+
+        if (ap.m_Callback)
+        {
+            ap.m_Callback(ap.m_Texture, ap.m_UserData);
+        }
+
+        ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
+    }
+
+    static void PrepareTextureForUploading(VulkanContext* context, VulkanTexture* texture, const TextureParams& params)
+    {
+        VkFormat vk_format = GetVulkanFormatFromTextureFormat(params.m_Format);
+        if (!params.m_SubUpdate && params.m_MipMap == 0)
+        {
+            if (texture->m_Format != vk_format ||
+                texture->m_Width != params.m_Width ||
+                texture->m_Height != params.m_Height ||
+                (IsTextureType3D(texture->m_Type) && (texture->m_Depth != params.m_Depth)))
+            {
+                DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture);
+                texture->m_Format = vk_format;
+                texture->m_Width  = params.m_Width;
+                texture->m_Height = params.m_Height;
+                texture->m_Depth  = params.m_Depth;
+
+                // Note:
+                // If the texture has requested mipmaps and we need to recreate the texture, make sure to allocate enough mipmaps.
+                // For vulkan this means that we can't cap a texture to a specific mipmap count since the engine expects
+                // that setting texture data works like the OpenGL backend where we set the mipmap count to zero and then
+                // update the mipmap count based on the params. If we recreate the texture when that is detected (i.e we have too few mipmaps in the texture)
+                // we will lose all the data that was previously uploaded. We could copy that data, but for now this is the easiest way of dealing with this..
+
+                if (texture->m_MipMapCount > 1)
+                {
+                    texture->m_MipMapCount = (uint16_t) GetMipmapCount(dmMath::Max(texture->m_Width, texture->m_Height));
+                }
+            }
+        }
+        // If texture hasn't been used yet or if it has been changed
+        if (texture->m_Destroyed || texture->m_Handle.m_Image == VK_NULL_HANDLE)
+        {
+            VkImageTiling vk_image_tiling           = VK_IMAGE_TILING_OPTIMAL;
+            VkImageUsageFlags vk_usage_flags        = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+            VkFormatFeatureFlags vk_format_features = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+            VkMemoryPropertyFlags vk_memory_type    = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+            uint16_t tex_depth                      = dmMath::Max(texture->m_Depth, params.m_Depth);
+            uint8_t tex_layer_count                 = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
+            TextureFormat format_orig               = params.m_Format;
+            if (format_orig == TEXTURE_FORMAT_RGB)
+            {
+                vk_format = VK_FORMAT_R8G8B8A8_UNORM;
+            }
+
+            vk_usage_flags |= texture->m_UsageFlags;
+
+            if (IsTextureMemoryless(texture))
+            {
+                vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
+            }
+
+            // Check this format for optimal layout support
+            if (GetSupportedTilingFormat(context->m_PhysicalDevice.m_Device, &vk_format, 1, vk_image_tiling, vk_format_features) == VK_FORMAT_UNDEFINED)
+            {
+                // Linear doesn't support mipmapping (for MoltenVK only?)
+                vk_image_tiling        = VK_IMAGE_TILING_LINEAR;
+                texture->m_MipMapCount = 1;
+            }
+
+            VkResult res = CreateTexture(
+                context->m_PhysicalDevice.m_Device,
+                context->m_LogicalDevice.m_Device,
+                texture->m_Width,
+                texture->m_Height,
+                tex_depth,
+                tex_layer_count,
+                texture->m_MipMapCount,
+                VK_SAMPLE_COUNT_1_BIT,
+                vk_format,
+                vk_image_tiling,
+                vk_usage_flags,
+                vk_memory_type,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                texture);
+            CHECK_VK_ERROR(res);
+
+            texture->m_GraphicsFormat = params.m_Format;
+            texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
+            texture->m_LayerCount     = tex_layer_count;
+
+            // Not thread safe, but no-one should be touching the texture right now anyway
+            VulkanSetTextureParamsInternal(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
+        }
+    }
+
     static void VulkanSetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
-        // Async texture loading is not supported in Vulkan, defaulting to syncronous loading until then
-        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
-        VulkanSetTextureInternal(tex, params);
-        if (callback)
+        if (g_VulkanContext->m_AsyncProcessingSupport)
         {
-            callback(texture, user_data);
+            ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
+            VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+
+            PrepareTextureForUploading(g_VulkanContext, tex, params);
+
+            tex->m_DataState          |= 1<<params.m_MipMap;
+            uint16_t param_array_index = PushSetTextureAsyncState(g_VulkanContext->m_SetTextureAsyncState, texture, params, callback, user_data);
+
+            dmJobThread::PushJob(g_VulkanContext->m_JobThread,
+                AsyncProcessCallback,
+                AsyncCompleteCallback,
+                (void*) g_VulkanContext,
+                (void*) (uintptr_t) param_array_index);
+        } 
+        else
+        {
+            VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+            VulkanSetTextureInternal(tex, params);
+            if (callback)
+            {
+                callback(texture, user_data);
+            }
         }
     }
 
@@ -3987,6 +4364,7 @@ bail:
 
     static void VulkanSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         VulkanSetTextureParamsInternal(tex, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
@@ -3994,6 +4372,7 @@ bail:
     // NOTE: Currently over estimates the resource usage for compressed formats!
     static uint32_t VulkanGetTextureResourceSize(HTexture texture)
     {
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         if (!tex)
         {
@@ -4015,42 +4394,65 @@ bail:
 
     static uint16_t VulkanGetTextureWidth(HTexture texture)
     {
-        return GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_Width;
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Width : 0;
     }
 
     static uint16_t VulkanGetTextureHeight(HTexture texture)
     {
-        return GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_Height;
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Height : 0;
     }
 
     static uint16_t VulkanGetOriginalTextureWidth(HTexture texture)
     {
-        return GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_OriginalWidth;
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        return tex ? tex->m_OriginalWidth : 0;
     }
 
     static uint16_t VulkanGetOriginalTextureHeight(HTexture texture)
     {
-        return GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_OriginalHeight;
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        return tex ? tex->m_OriginalHeight : 0;
     }
 
     static uint16_t VulkanGetTextureDepth(HTexture texture)
     {
-        return GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_Depth;
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Depth : 0;
     }
 
     static uint8_t VulkanGetTextureMipmapCount(HTexture texture)
     {
-        return GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_MipMapCount;
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        return tex ? tex->m_MipMapCount : 0;
     }
 
     static TextureType VulkanGetTextureType(HTexture texture)
     {
-        return GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_Type;
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        return tex ? tex->m_Type : TEXTURE_TYPE_2D;
     }
 
     static uint32_t VulkanGetTextureUsageHintFlags(HTexture texture)
     {
-        return GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_UsageHintFlags;
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        return tex ? tex->m_UsageHintFlags : 0;
+    }
+
+    static uint8_t VulkanGetTexturePageCount(HTexture texture)
+    {
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        return tex ? tex->m_PageCount : 0;
     }
 
     static HandleResult VulkanGetTextureHandle(HTexture texture, void** out_handle)
@@ -4083,16 +4485,21 @@ bail:
 
     static uint32_t VulkanGetTextureStatusFlags(HTexture texture)
     {
-        return 0;
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
+        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        uint32_t flags     = TEXTURE_STATUS_OK;
+        if(tex && dmAtomicGet32(&tex->m_DataState))
+        {
+            flags |= TEXTURE_STATUS_DATA_PENDING;
+        }
+        return flags;
     }
 
-    static void VulkanReadPixels(HContext _context, void* buffer, uint32_t buffer_size)
+    static void VulkanReadPixels(HContext _context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
         VulkanContext* context = (VulkanContext*) _context;
 
-        uint32_t w = context->m_WindowWidth;
-        uint32_t h = context->m_WindowHeight;
-        assert (buffer_size >= w * h * 4);
+        assert (buffer_size >= width * height * 4);
 
         HRenderTarget currentt_rt_h = context->m_CurrentRenderTarget;
         bool in_render_pass = IsRenderTargetbound(context, currentt_rt_h);
@@ -4118,6 +4525,7 @@ bail:
         res = cmd_buffer.Begin();
         CHECK_VK_ERROR(res);
 
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
 
         res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
@@ -4129,8 +4537,10 @@ bail:
         CHECK_VK_ERROR(res);
 
         VkBufferImageCopy vk_copy_region = {};
-        vk_copy_region.imageExtent.width           = w;
-        vk_copy_region.imageExtent.height          = h;
+        vk_copy_region.imageOffset.x               = x;
+        vk_copy_region.imageOffset.y               = y;
+        vk_copy_region.imageExtent.width           = width;
+        vk_copy_region.imageExtent.height          = height;
         vk_copy_region.imageExtent.depth           = 1;
         vk_copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         vk_copy_region.imageSubresource.layerCount = 1;
@@ -4208,6 +4618,7 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         AssetType type         = GetAssetType(asset_handle);
 
+        ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         if (type == ASSET_TYPE_TEXTURE)
         {
             return GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, asset_handle) != 0;
@@ -4217,45 +4628,6 @@ bail:
             return GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;
-    }
-
-    static HComputeProgram VulkanNewComputeProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        ShaderDesc::Shader* ddf_shader = GetShaderProgram(_context, ddf);
-        if (ddf_shader == 0x0)
-        {
-            return 0x0;
-        }
-
-        VulkanContext* context = (VulkanContext*) _context;
-        VulkanShaderModule* shader   = new VulkanShaderModule;
-        memset(shader, 0, sizeof(*shader));
-
-        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, VK_SHADER_STAGE_COMPUTE_BIT, shader);
-        CHECK_VK_ERROR(res);
-        CreateShaderMeta(&ddf->m_Reflection, &shader->m_BaseShaderModule.m_ShaderMeta);
-
-        if (!ValidateShaderModule(context, shader, error_buffer, error_buffer_size))
-        {
-            DeleteComputeProgram((HComputeProgram) shader);
-            return 0;
-        }
-
-        return (HComputeProgram) shader;
-    }
-
-    static HProgram VulkanNewProgramFromCompute(HContext context, HComputeProgram compute_program)
-    {
-        VulkanProgram* program = new VulkanProgram;
-        CreateComputeProgram((VulkanContext*) context, program, (VulkanShaderModule*) compute_program);
-        return (HProgram) program;
-    }
-
-    static void VulkanDeleteComputeProgram(HComputeProgram prog)
-    {
-        VulkanShaderModule* shader = (VulkanShaderModule*) prog;
-        DestroyShader(shader);
-        delete shader;
     }
 
     static void VulkanInvalidateGraphicsHandles(HContext context)

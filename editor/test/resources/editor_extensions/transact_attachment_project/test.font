@@ -1,0 +1,4 @@
+font: "/builtins/fonts/vera_mo_bd.ttf"
+material: "/builtins/fonts/font.material"
+size: 15
+characters: " !\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"

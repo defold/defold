@@ -103,12 +103,13 @@ namespace dmSoundCodec
         tmp->m_Info.m_Rate = info->rate;
         tmp->m_Info.m_Channels = info->channels;
         tmp->m_Info.m_BitsPerSample = 16;
+        tmp->m_Info.m_IsInterleaved = true;
 
         *stream = tmp;
         return RESULT_OK;
     }
 
-    static Result TremoloDecode(HDecodeStream stream, char* buffer, uint32_t buffer_size, uint32_t* decoded)
+    static Result TremoloDecode(HDecodeStream stream, char* buffer[], uint32_t buffer_size, uint32_t* decoded)
     {
         // note: EOS detection is solely based on data consumption and hence not sample precise (the last decoded block may contain silence not part of the original material)
 
@@ -129,7 +130,7 @@ namespace dmSoundCodec
             }
 
             int bitstream;
-            int bytes = ov_read(&streamInfo->m_File, buffer ? &buffer[buffer_size - remaining] : NULL, (int) remaining, &bitstream);
+            int bytes = ov_read(&streamInfo->m_File, buffer[0] ? &buffer[0][buffer_size - remaining] : NULL, (int) remaining, &bitstream);
 
             if (bytes == 0)
             {
@@ -190,16 +191,19 @@ namespace dmSoundCodec
     {
         // Decode to 'NIL' (unfortunately with zero cycle savings vs. a real decode)
         char buffer[4096];
+        char* ptrs[1] = {buffer};
+        *skipped = 0;
         Result ret = RESULT_OK;
         while(bytes && ret == RESULT_OK)
         {
             uint32_t chunk = dmMath::Min(bytes, (uint32_t)sizeof(buffer));
             uint32_t decoded = 0;
-            ret = TremoloDecode(stream, buffer, chunk, &decoded);
+            ret = TremoloDecode(stream, ptrs, chunk, &decoded);
             (*skipped) += decoded;
             bytes -= decoded;
         }
-        return ret;
+
+        return (ret == RESULT_END_OF_STREAM && *skipped != 0) ? RESULT_OK : ret;
     }
 
     static void TremoloCloseStream(HDecodeStream stream)

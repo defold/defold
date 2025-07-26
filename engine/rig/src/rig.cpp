@@ -38,6 +38,7 @@ namespace dmRig
     struct RigContext
     {
         dmObjectPool<HRigInstance>      m_Instances;
+        PoseMatrixCache                 m_PoseMatrixCache;
         // Temporary scratch buffers used for store pose as transform and matrices
         // (avoids modifying the real pose transform data during rendering).
         dmArray<dmVMath::Matrix4>       m_ScratchPoseMatrixBuffer;
@@ -49,6 +50,13 @@ namespace dmRig
         dmArray<dmVMath::Vector4>       m_ScratchTangentBuffer;
     };
 
+    static void ResetPoseMatrixCache(PoseMatrixCache* cache)
+    {
+        cache->m_PoseMatrices.SetSize(0);
+        cache->m_CacheEntryOffsets.SetSize(0);
+        cache->m_TotalPoseCount = 0;
+        cache->m_MaxBoneCount = 0;
+    }
 
     Result NewContext(const NewContextParams& params, HRigContext* out)
     {
@@ -59,6 +67,9 @@ namespace dmRig
 
         context->m_Instances.SetCapacity(params.m_MaxRigInstanceCount);
         context->m_ScratchPoseMatrixBuffer.SetCapacity(0);
+
+        ResetPoseMatrixCache(&context->m_PoseMatrixCache);
+
         *out = context;
         return dmRig::RESULT_OK;
     }
@@ -66,6 +77,15 @@ namespace dmRig
     void DeleteContext(HRigContext context)
     {
         delete context;
+    }
+
+    template <typename T>
+    static inline void EnsureSize(T& array, uint32_t size)
+    {
+        if (array.Capacity() < size) {
+            array.OffsetCapacity(size - array.Capacity());
+        }
+        array.SetSize(size);
     }
 
     static const dmRigDDF::RigAnimation* FindAnimation(const dmRigDDF::AnimationSet* anim_set, dmhash_t animation_id)
@@ -449,6 +469,19 @@ namespace dmRig
     {
         DM_PROFILE("RigAnimate");
 
+        // set the size of pose matrix cache once per frame - resize if needed
+        // size is based on the total number of bones in rig instances which
+        // have acquired a pose matrix cache entry prior to the call to
+        // Animate()
+        // See AcquirePoseMatrixCacheEntry
+        dmArray<Matrix4>& cache_pose_matrices = context->m_PoseMatrixCache.m_PoseMatrices;
+        uint32_t size = context->m_PoseMatrixCache.m_TotalPoseCount;
+        cache_pose_matrices.SetCapacity(size);
+        cache_pose_matrices.SetSize(size);
+
+        // animate each rig instance
+        // the final step of DoAnimate will commit the bone poses to the pose
+        // matrix cache which is resized above
         const dmArray<RigInstance*>& instances = context->m_Instances.GetRawObjects();
         uint32_t n = instances.Size();
         for (uint32_t i = 0; i < n; ++i)
@@ -483,7 +516,7 @@ namespace dmRig
         }
     }
 
-    static void PoseToMatrix(const dmArray<BonePose>& pose, dmArray<Matrix4>& out_matrices)
+    static void PoseToMatrix(const dmArray<BonePose>& pose, Matrix4* out_matrices)
     {
         uint32_t bone_count = pose.Size();
         for (uint32_t bi = 0; bi < bone_count; ++bi)
@@ -492,14 +525,47 @@ namespace dmRig
         }
     }
 
+    static void CommitPoseMatrixToCache(HRigContext context, HRigInstance instance)
+    {
+        uint32_t bone_count = GetBoneCount(instance);
+        if (bone_count == 0 || instance->m_PoseMatrixCacheIndex == INVALID_POSE_MATRIX_CACHE_ENTRY)
+        {
+            return;
+        }
+
+        PoseMatrixCache* cache = &context->m_PoseMatrixCache;
+        uint32_t cache_entry_offset = cache->m_CacheEntryOffsets[instance->m_PoseMatrixCacheIndex];
+
+        Matrix4* pose_matrix_write_ptr = cache->m_PoseMatrices.Begin() + cache_entry_offset;
+        PoseToMatrix(instance->m_Pose, pose_matrix_write_ptr);
+
+        // Premultiply pose matrices with the bind pose inverse so they
+        // can be directly be used to transform each vertex.
+        const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
+        for (uint32_t bi = 0; bi < bone_count; ++bi)
+        {
+            Matrix4& pose_matrix = pose_matrix_write_ptr[bi];
+            pose_matrix = pose_matrix * bind_pose[bi].m_ModelToLocal;
+        }
+
+        cache->m_MaxBoneCount = dmMath::Max(cache->m_MaxBoneCount, (uint32_t) instance->m_MaxBoneCount);
+    }
+
+    bool IsAnimating(HRigInstance instance)
+    {
+        RigPlayer* player = GetPlayer(instance);
+        return player->m_Playing && player->m_Animation && instance->m_Enabled;
+    }
+
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt)
     {
         // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
-        RigPlayer* player = GetPlayer(instance);
-
-        if (!player->m_Playing || !instance->m_Enabled || !player->m_Animation)
+        if (!IsAnimating(instance))
+        {
             return;
+        }
 
+        RigPlayer* player = GetPlayer(instance);
         const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
 
         dmArray<BonePose>& pose = instance->m_Pose;
@@ -566,6 +632,8 @@ namespace dmRig
         }
 
         UpdatePoseTransforms(pose);
+
+        CommitPoseMatrixToCache(context, instance);
     }
 
     static Result PostUpdate(HRigContext context)
@@ -586,16 +654,16 @@ namespace dmRig
 
     static bool DoPostUpdate(RigInstance* instance)
     {
-            // If pose is empty, there are no bones to update
-            dmArray<BonePose>& pose = instance->m_Pose;
-            if (pose.Empty())
-                return false;
+        // If pose is empty, there are no bones to update
+        dmArray<BonePose>& pose = instance->m_Pose;
+        if (pose.Empty())
+            return false;
 
-            // Notify any listener that the pose has been recalculated
-            if (instance->m_PoseCallback) {
-                instance->m_PoseCallback(instance->m_PoseCBUserData1, instance->m_PoseCBUserData2);
-                return true;
-            }
+        // Notify any listener that the pose has been recalculated
+        if (instance->m_PoseCallback) {
+            instance->m_PoseCallback(instance->m_PoseCBUserData1, instance->m_PoseCBUserData2);
+            return true;
+        }
 
         return false;
     }
@@ -1035,9 +1103,8 @@ namespace dmRig
         for (uint32_t i = 0; i < num_indices; ++i)
         {
             uint32_t idx   = indices32?indices32[i]:indices16[i];
-            out_write_ptr  = dmGraphics::WriteAttributes(out_write_ptr, idx, params);
+            out_write_ptr  = dmGraphics::WriteAttributes(out_write_ptr, idx, 1, params);
         }
-
         return out_write_ptr;
     }
 
@@ -1118,13 +1185,66 @@ namespace dmRig
         return out_write_ptr;
     }
 
-    template <typename T>
-    static void EnsureSize(T& array, uint32_t size)
+    void ResetPoseMatrixCache(HRigContext context)
     {
-        if (array.Capacity() < size) {
-            array.OffsetCapacity(size - array.Capacity());
+        ResetPoseMatrixCache(&context->m_PoseMatrixCache);
+
+        const dmArray<RigInstance*>& instances = context->m_Instances.GetRawObjects();
+        uint32_t n = context->m_Instances.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            instances[i]->m_PoseMatrixCacheIndex = INVALID_POSE_MATRIX_CACHE_ENTRY;
         }
-        array.SetSize(size);
+    }
+
+    void GetPoseMatrixCacheData(HRigContext context, const dmVMath::Matrix4** pose_matrices, uint32_t* pose_matrices_count)
+    {
+        *pose_matrices = context->m_PoseMatrixCache.m_PoseMatrices.Begin();
+        *pose_matrices_count = context->m_PoseMatrixCache.m_PoseMatrices.Size();
+    }
+
+    // These should typically not be stored across multiple frames, since dispatch order might differ.
+    HCachePoseMatrixEntry AcquirePoseMatrixCacheEntry(HRigContext context, HRigInstance instance)
+    {
+        if (instance == 0)
+        {
+            return INVALID_POSE_MATRIX_CACHE_ENTRY;
+        }
+        else if (instance->m_PoseMatrixCacheIndex != INVALID_POSE_MATRIX_CACHE_ENTRY)
+        {
+            return instance->m_PoseMatrixCacheIndex;
+        }
+
+        PoseMatrixCache* cache = &context->m_PoseMatrixCache;
+
+        uint16_t next_index = cache->m_CacheEntryOffsets.Size();
+        if (cache->m_CacheEntryOffsets.Full())
+        {
+            cache->m_CacheEntryOffsets.OffsetCapacity(32);
+        }
+
+        cache->m_CacheEntryOffsets.SetSize(next_index + 1);
+
+        instance->m_PoseMatrixCacheIndex = next_index;
+
+        cache->m_CacheEntryOffsets[next_index] = cache->m_TotalPoseCount;
+        cache->m_TotalPoseCount += instance->m_BindPose->Size();
+        return next_index;
+    }
+
+    uint32_t GetPoseMatrixCacheDataOffset(HRigContext context, HRigInstance instance)
+    {
+        if (instance->m_PoseMatrixCacheIndex == INVALID_POSE_MATRIX_CACHE_ENTRY)
+        {
+            return INVALID_POSE_MATRIX_CACHE_ENTRY;
+        }
+        return context->m_PoseMatrixCache.m_CacheEntryOffsets[instance->m_PoseMatrixCacheIndex];
+    }
+
+    // For tests
+    PoseMatrixCache* GetPoseMatrixCache(HRigContext context)
+    {
+        return &context->m_PoseMatrixCache;
     }
 
     uint8_t* GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* vertex_data_out)
@@ -1158,15 +1278,8 @@ namespace dmRig
         {
             if (bone_count)
             {
-                // Make sure pose scratch buffers have enough space
-                if (pose_matrices.Capacity() < bone_count)
-                {
-                    uint32_t size_offset = bone_count - pose_matrices.Capacity();
-                    pose_matrices.OffsetCapacity(size_offset);
-                }
-                pose_matrices.SetSize(bone_count);
-
-                PoseToMatrix(instance->m_Pose, pose_matrices);
+                EnsureSize(pose_matrices, bone_count);
+                PoseToMatrix(instance->m_Pose, pose_matrices.Begin());
 
                 // Premultiply pose matrices with the bind pose inverse so they
                 // can be directly be used to transform each vertex.
@@ -1225,14 +1338,8 @@ namespace dmRig
         uint32_t bone_count = GetBoneCount(instance);
         if (bone_count)
         {
-            // Make sure pose scratch buffers have enough space
-            if (pose_matrices.Capacity() < bone_count) {
-                uint32_t size_offset = bone_count - pose_matrices.Capacity();
-                pose_matrices.OffsetCapacity(size_offset);
-            }
-            pose_matrices.SetSize(bone_count);
-
-            PoseToMatrix(instance->m_Pose, pose_matrices);
+            EnsureSize(pose_matrices, bone_count);
+            PoseToMatrix(instance->m_Pose, pose_matrices.Begin());
 
             // Premultiply pose matrices with the bind pose inverse so they
             // can be directly be used to transform each vertex.
@@ -1242,7 +1349,9 @@ namespace dmRig
                 Matrix4& pose_matrix = pose_matrices[bi];
                 pose_matrix = pose_matrix * bind_pose[bi].m_ModelToLocal;
             }
-        } else {
+        }
+        else
+        {
             pose_matrices.SetSize(0);
         }
 
@@ -1407,6 +1516,8 @@ namespace dmRig
         instance->m_Skeleton           = params.m_Skeleton;
         instance->m_MeshSet            = params.m_MeshSet;
         instance->m_AnimationSet       = params.m_AnimationSet;
+
+        instance->m_PoseMatrixCacheIndex = INVALID_POSE_MATRIX_CACHE_ENTRY;
 
         instance->m_Enabled = 1;
 

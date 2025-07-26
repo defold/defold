@@ -54,7 +54,7 @@
 #include <dmsdk/resource/resource.h>
 
 DM_PROPERTY_EXTERN(rmtp_Gui);
-DM_PROPERTY_U32(rmtp_GuiVertexCount, 0, FrameReset, "#", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiVertexCount, 0, PROFILE_PROPERTY_FRAME_RESET, "#", &rmtp_Gui);
 
 namespace dmGameSystem
 {
@@ -302,6 +302,7 @@ namespace dmGameSystem
         GuiWorld* gui_world = new GuiWorld();
         if (!gui_context->m_Worlds.Full())
         {
+            gui_world->m_RenderOrder = gui_context->m_Worlds.Size();
             gui_context->m_Worlds.Push(gui_world);
         }
         else
@@ -365,6 +366,7 @@ namespace dmGameSystem
         tex_params.m_DataSize = sizeof(white_texture);
         tex_params.m_Width = 2;
         tex_params.m_Height = 2;
+        tex_params.m_Depth = 1;
         tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
 
@@ -423,6 +425,7 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < gui_world->m_RenderConstants.Size(); ++i)
         {
+            gui_world->m_RenderOrder = i;
             if (gui_world->m_RenderConstants[i])
             {
                 dmGameSystem::DestroyRenderConstants(gui_world->m_RenderConstants[i]);
@@ -928,7 +931,8 @@ namespace dmGameSystem
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxDynamicTextures = scene_desc->m_MaxDynamicTextures;
-        scene_params.m_MaxTextures = 128;
+        uint32_t texture_count = scene_resource->m_GuiTextureSets.Size();
+        scene_params.m_MaxTextures = texture_count > 0 ? texture_count : 1;
         scene_params.m_MaxMaterials = 16;
         scene_params.m_MaxAnimations = gui_world->m_MaxAnimationCount;
         scene_params.m_MaxParticlefx = gui_world->m_MaxParticleFXCount;
@@ -1027,9 +1031,13 @@ namespace dmGameSystem
         return (dmGameObject::HComponent)params.m_UserData;
     }
 
-    inline uint32_t MakeFinalRenderOrder(uint32_t scene_order, uint32_t sub_order)
+    // we can use only 24 bits, take a look render_private.h -> RenderListSortValue
+    inline uint32_t MakeFinalRenderOrder(uint32_t world_order, uint32_t scene_order, uint32_t sub_order)
     {
-        return (scene_order << 16) + sub_order;
+        // scene_order: 4 bits (max 15)
+        // world_order: 7 bits (max 127)
+        // sub_order:   13 bits (max 8191)
+        return (scene_order << 20) | (world_order << 13) | sub_order;
     }
 
     static void SetBlendMode(dmRender::RenderObject& ro, dmGui::BlendMode blend_mode)
@@ -1146,6 +1154,7 @@ namespace dmGameSystem
                          uint32_t node_count,
                          RenderGuiContext* gui_context)
     {
+        GuiWorld* gui_world = gui_context->m_GuiWorld;
         for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
@@ -1234,7 +1243,7 @@ namespace dmGameSystem
             dmRender::DrawText(gui_context->m_RenderContext, font_map, material, 0, params);
         }
 
-        dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
+        dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(gui_world->m_RenderOrder, dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
     }
 
     static void RenderParticlefxNodes(dmGui::HScene scene,
@@ -2326,6 +2335,7 @@ namespace dmGameSystem
         params.m_Data               = data;
         params.m_Width              = width;
         params.m_Height             = height;
+        params.m_Depth              = 1;
         params.m_MaxMipMaps         = 1;
         params.m_TextureBpp         = dmGraphics::GetTextureFormatBitsPerPixel(params.m_Format);
         params.m_UsageFlags         = dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE;
@@ -2346,7 +2356,12 @@ namespace dmGameSystem
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
         char resource_path[dmResource::RESOURCE_PATH_MAX];
         dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
-        ReleaseDynamicResource(dmGameObject::GetFactory(component->m_Instance), dmGameObject::GetCollection(component->m_Instance), resolved_path_hash);
+        dmResource::HFactory factory = dmGameObject::GetFactory(component->m_Instance);
+        ResourceDescriptor* rd = dmResource::FindByHash(factory, resolved_path_hash);
+        if (rd)
+        {
+            dmResource::Release(factory, dmResource::GetResource(rd));
+        }
     }
 
     static void SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
@@ -2580,12 +2595,13 @@ namespace dmGameSystem
             dmRender::RenderListEntry* write_ptr = render_list;
 
             uint32_t render_order = dmGui::GetRenderOrder(c->m_Scene);
+            uint32_t world_order = gui_world->m_RenderOrder;
             while (lastEnd < gui_world->m_GuiRenderObjects.Size())
             {
                 const GuiRenderObject& gro = gui_world->m_GuiRenderObjects[lastEnd];
                 write_ptr->m_MinorOrder = 0;
                 write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_AFTER_WORLD;
-                write_ptr->m_Order = MakeFinalRenderOrder(render_order, gro.m_SortOrder);
+                write_ptr->m_Order = MakeFinalRenderOrder(world_order, render_order, gro.m_SortOrder);
                 write_ptr->m_UserData = (uintptr_t) &gro.m_RenderObject;
                 write_ptr->m_BatchKey = lastEnd;
                 write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(gro.m_RenderObject.m_Material);
@@ -2727,12 +2743,13 @@ namespace dmGameSystem
     }
 
     // Public function used by engine (as callback from gui system)
-    dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size)
+    dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        uint32_t path_size = strlen(path);
         if (path_size > 0)
         {
-            return dmGameObject::GetAbsoluteIdentifier(component->m_Instance, path, path_size);
+            return dmGameObject::GetAbsoluteIdentifier(component->m_Instance, path);
         }
         else
         {
@@ -2841,7 +2858,7 @@ namespace dmGameSystem
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
                 dmGraphics::HTexture texture = texture_source->m_Texture->m_Texture;
-                dmGui::Result r = dmGui::AddTexture(gui_component->m_Scene, params.m_Options.m_Key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
+                dmGui::Result r = dmGui::AddDynamicTexture(gui_component->m_Scene, params.m_Options.m_Key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
                 if (r != dmGui::RESULT_OK)
                 {
                     dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(params.m_Options.m_Key),  r);
@@ -3147,8 +3164,14 @@ namespace dmGameSystem
         gui_context->m_MaxAnimationCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_animation_count", 1024);
         gui_context->m_MaxParticleBufferCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particle_buffer_count", 1024);
 
-        int32_t max_gui_count = dmConfigFile::GetInt(ctx->m_Config, "gui.max_instance_count", 128);
-        gui_context->m_Worlds.SetCapacity(max_gui_count);
+        // TODO: it seems like this is a hidden game.project property which should be gui.world_count like it is in physics
+        int32_t max_world_count = dmConfigFile::GetInt(ctx->m_Config, "gui.max_instance_count", 128);
+        if (max_world_count > 128)
+        {
+            dmLogError("`gui.max_instance_count` has a maximum value of 128, but it is set to %d. Decrease the value in `game.project`", max_world_count);
+            return dmGameObject::RESULT_UNKNOWN_ERROR;
+        }
+        gui_context->m_Worlds.SetCapacity(max_world_count);
 
         dmGui::InitializeScript(gui_context->m_ScriptContext);
 

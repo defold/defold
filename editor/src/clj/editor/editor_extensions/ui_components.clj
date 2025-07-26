@@ -16,18 +16,13 @@
   (:require [cljfx.api :as fx]
             [cljfx.component :as fx.component]
             [cljfx.fx.button :as fx.button]
-            [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.combo-box :as fx.combo-box]
-            [cljfx.fx.grid-pane :as fx.grid-pane]
-            [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.row-constraints :as fx.row-constraints]
-            [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.stage :as fx.stage]
-            [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
@@ -53,20 +48,16 @@
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn])
   (:import [com.defold.control DefoldStringConverter]
-           [com.defold.editor.luart DefoldVarArgFn]
+           [com.defold.editor.luart DefoldLuaFn]
            [java.nio.file Path]
            [java.util Collection List]
            [javafx.animation SequentialTransition TranslateTransition]
-           [javafx.beans Observable]
-           [javafx.beans.binding Bindings]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
            [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control CheckBox ComboBox ScrollPane TextField]
-           [javafx.scene.control.skin ScrollPaneSkin]
+           [javafx.scene.control CheckBox ComboBox TextField]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.scene.layout Region]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
            [javafx.util Duration]
            [org.luaj.vm2 LuaError LuaValue]))
@@ -143,26 +134,6 @@
 ;;   - `grid` does not expand its children, unless `grow` row or column
 ;;     setting is used.
 
-(def ^:private ^{:arglists '([props padding])} apply-spacing
-  (let [spacing->style-class (coll/pair-map-by identity #(str "ext-spacing-" (name %)) (:spacing ui-docs/enums))]
-    (fn apply-spacing [props spacing]
-      {:pre [(some? spacing)]}
-      (if-let [style-class (spacing->style-class spacing)]
-        (fxui/add-style-classes props style-class)
-        (if (number? spacing)
-          (assoc props :spacing spacing)
-          (throw (AssertionError. (str "Invalid spacing: " spacing))))))))
-
-(def ^:private ^{:arglists '([props padding])} apply-padding
-  (let [padding->style-class (coll/pair-map-by identity #(str "ext-padding-" (name %)) (:padding ui-docs/enums))]
-    (fn apply-padding [props padding]
-      {:pre [(some? padding)]}
-      (if-let [style-class (padding->style-class padding)]
-        (fxui/add-style-classes props style-class)
-        (if (number? padding)
-          (assoc props :padding padding)
-          (throw (AssertionError. (str "Invalid padding: " padding))))))))
-
 (defn- apply-alignment [props alignment]
   {:pre [(some? alignment)]}
   (case alignment
@@ -172,96 +143,44 @@
     :right (assoc props :alignment :center-right)
     :bottom (assoc props :alignment :bottom-center)))
 
-(def ^:private ext-with-expanded-scroll-pane-content-props
-  (fx/make-ext-with-props
-    {:content (fx.prop/make
-                (fx.mutator/adder-remover
-                  (fn add-scroll-pane-content [^ScrollPane scroll-pane ^Region content]
-                    (let [^Region scroll-bar (.lookup scroll-pane ".ext-scroll-pane>.scroll-bar:horizontal")]
-                      (.setContent scroll-pane content)
-                      (.bind (.minHeightProperty content)
-                             (Bindings/createDoubleBinding
-                               (fn []
-                                 (cond-> (.getHeight scroll-pane)
-                                         (.isVisible scroll-bar)
-                                         (- (.getHeight scroll-bar))))
-                               (into-array
-                                 Observable
-                                 [(.heightProperty scroll-pane)
-                                  (.visibleProperty scroll-bar)
-                                  (.heightProperty scroll-bar)])))))
-                  (fn remove-scroll-pane-content [_ ^Region content]
-                    (.unbind (.minHeightProperty content))))
-                fx.lifecycle/dynamic)}))
-
-(def ^:private ext-with-scroll-pane-skin-props
-  (fx/make-ext-with-props
-    {:skin (fx.prop/make
-             (fx.mutator/adder-remover
-               (fn add-skin [^ScrollPane instance flag]
-                 {:pre [(true? flag)]}
-                 (.setSkin instance (ScrollPaneSkin. instance)))
-               (fn remove-skin [_ _]
-                 (throw (AssertionError. "Can't remove skin!"))))
-             fx.lifecycle/scalar)}))
-
 (defn- scroll-view [{:keys [content]}]
-  ;; We need to set ScrollPane skin, so it creates ScrollBars, so we can grow
-  ;; the content to fill the ScrollPane
-  {:fx/type ext-with-expanded-scroll-pane-content-props
-   :props {:content content}
-   :desc {:fx/type ext-with-scroll-pane-skin-props
-          :props {:skin true}
-          :desc {:fx/type fx.scroll-pane/lifecycle
-                 :style-class "ext-scroll-pane"
-                 :fit-to-width true}}})
+  {:fx/type fxui/scroll
+   :content content})
 
-
-
-(defn- apply-constraints [props lifecycle grow-key constraints]
-  (assoc props :column-constraints (mapv (fn [maybe-column]
-                                           (let [ret {:fx/type lifecycle}]
-                                             (if maybe-column
-                                               (let [{:keys [grow]} maybe-column]
-                                                 (cond-> ret grow (assoc grow-key :always)))
-                                               ret)))
-                                         constraints)))
-
-(def ^:private ^{:arglists '([props padding])} apply-grid-spacing
-  (let [spacing->style-class (coll/pair-map-by identity #(str "ext-grid-spacing-" (name %)) (:spacing ui-docs/enums))]
-    (fn apply-grid-spacing [props spacing]
-      {:pre [(some? spacing)]}
-      (if-let [style-class (spacing->style-class spacing)]
-        (fxui/add-style-classes props style-class)
-        (if (number? spacing)
-          (assoc props :hgap spacing :vgap spacing)
-          (throw (AssertionError. (str "Invalid spacing: " spacing))))))))
+(defn- apply-constraints [props props-key lifecycle grow-key constraints]
+  (assoc props props-key (mapv (fn [maybe-constraint]
+                                 (let [ret {:fx/type lifecycle}]
+                                   (if maybe-constraint
+                                     (let [{:keys [grow]} maybe-constraint]
+                                       (cond-> ret grow (assoc grow-key :always)))
+                                     ret)))
+                               constraints)))
 
 (defn- grid-view [{:keys [children rows columns alignment padding spacing]
                    :or {spacing :medium}}]
-  (-> {:fx/type fx.grid-pane/lifecycle}
-      (apply-grid-spacing spacing)
-      (cond->
-        children (assoc :children
-                        (into []
-                              (coll/mapcat-indexed
-                                (fn [row row-children]
-                                  (eduction
-                                    (keep-indexed
-                                      (fn [column child]
-                                        (when child
-                                          (let [{:keys [row_span column_span]
-                                                 :or {row_span 1 column_span 1}} (:props (meta child))]
-                                            (assoc child :grid-pane/row row
-                                                         :grid-pane/column column
-                                                         :grid-pane/row-span row_span
-                                                         :grid-pane/column-span column_span)))))
-                                    row-children)))
-                              children))
-        rows (apply-constraints fx.row-constraints/lifecycle :vgrow rows)
-        columns (apply-constraints fx.column-constraints/lifecycle :hgrow columns)
-        padding (apply-padding padding)
-        alignment (apply-alignment alignment))))
+  (cond->
+    {:fx/type fxui/grid
+     :spacing spacing}
+    children (assoc :children
+                    (into []
+                          (coll/mapcat-indexed
+                            (fn [row row-children]
+                              (eduction
+                                (keep-indexed
+                                  (fn [column child]
+                                    (when child
+                                      (let [{:keys [row_span column_span]
+                                             :or {row_span 1 column_span 1}} (:props (meta child))]
+                                        (assoc child :grid-pane/row row
+                                                     :grid-pane/column column
+                                                     :grid-pane/row-span row_span
+                                                     :grid-pane/column-span column_span)))))
+                                row-children)))
+                          children))
+    rows (apply-constraints :row-constraints fx.row-constraints/lifecycle :vgrow rows)
+    columns (apply-constraints :column-constraints fx.column-constraints/lifecycle :hgrow columns)
+    padding (assoc :padding padding)
+    alignment (assoc :alignment alignment)))
 
 (defn- separator-view [{:keys [alignment orientation]
                         :or {alignment :center
@@ -277,23 +196,23 @@
 (defn- make-list-view-fn [fx-type grow-key]
   (fn list-view [{:keys [children padding spacing alignment]
                   :or {spacing :medium}}]
-    (-> {:fx/type fx-type
-         :children (into []
-                         (keep-indexed
-                           (fn [i desc]
-                             (when desc
-                               (-> desc
-                                   (assoc :fx/key i)
-                                   (cond-> (:grow (:props (meta desc)))
-                                           (assoc grow-key :always))))))
-                         children)}
-        (apply-spacing spacing)
-        (cond-> padding (apply-padding padding)
-                alignment (apply-alignment alignment)))))
+    (cond-> {:fx/type fx-type
+             :children (into []
+                             (keep-indexed
+                               (fn [i desc]
+                                 (when desc
+                                   (-> desc
+                                       (assoc :fx/key i)
+                                       (cond-> (:grow (:props (meta desc)))
+                                               (assoc grow-key :always))))))
+                             children)
+             :spacing spacing}
+            padding (assoc :padding padding)
+            alignment (assoc :alignment alignment))))
 
-(def ^:private horizontal-view (make-list-view-fn fx.h-box/lifecycle :h-box/hgrow))
+(def ^:private horizontal-view (make-list-view-fn fxui/horizontal :h-box/hgrow))
 
-(def ^:private vertical-view (make-list-view-fn fx.v-box/lifecycle :v-box/vgrow))
+(def ^:private vertical-view (make-list-view-fn fxui/vertical :v-box/vgrow))
 
 ;; endregion
 
@@ -315,31 +234,22 @@
 (defn- label-view [{:keys [alignment text text_alignment color tooltip]
                     :or {alignment :top-left
                          color :text}}]
-  (-> {:fx/type fx.label/lifecycle
-       :style-class ["label" "ext-label"]
-       :min-width :use-pref-size
-       :min-height :use-pref-size
-       :max-width Double/MAX_VALUE
-       :max-height Double/MAX_VALUE}
-      (apply-alignment alignment)
-      (apply-label-color color)
-      (cond-> text (assoc :text text)
-              tooltip (apply-tooltip tooltip)
-              text_alignment (assoc :text-alignment text_alignment))))
+  (cond-> {:fx/type fxui/label :alignment alignment}
+          text (assoc :text text)
+          color (assoc :color color)
+          text_alignment (assoc :text-alignment text_alignment)
+          tooltip (assoc :tooltip tooltip)))
 
 (defn- paragraph-view [{:keys [alignment text text_alignment color word_wrap]
                         :or {alignment :top-left
                              word_wrap true
                              color :text}}]
-  (-> {:fx/type fx.label/lifecycle
-       :style-class ["label"]
-       :max-width Double/MAX_VALUE
-       :max-height Double/MAX_VALUE
-       :wrap-text word_wrap}
-      (apply-alignment alignment)
-      (apply-label-color color)
-      (cond-> text (assoc :text text)
-              text_alignment (assoc :text-alignment text_alignment))))
+  (cond-> {:fx/type fxui/paragraph
+           :wrap-text word_wrap
+           :alignment alignment
+           :color color}
+          text (assoc :text text)
+          text_alignment (assoc :text-alignment text_alignment)))
 
 (def ^:private heading-style->label-style-class
   (fn/make-case-fn (coll/pair-map-by identity #(str "ext-heading-style-" (name %)) (:heading-style ui-docs/enums))))
@@ -487,24 +397,23 @@
                                                         (str message "\n\n" tooltip)
                                                         (or message tooltip))))))
 
+(defn- set-tooltip-and-issue [props tooltip issue]
+  (let [message (:message issue)]
+    (cond-> props (or message tooltip) (assoc :tooltip (if (and message tooltip)
+                                                         (str message "\n\n" tooltip)
+                                                         (or message tooltip))))))
+
 (defn- check-box-view [{:keys [rt text text_alignment alignment issue tooltip enabled value on_value_changed]
                         :or {enabled true
                              value false}}]
   (wrap-in-alignment-container
     {:fx/type ext-with-extra-check-box-props
-     :desc (-> {:fx/type fx.check-box/lifecycle
-                :style-class ["check-box" "ext-check-box"]
-                :mnemonic-parsing false
-                :alignment :center-left
-                :min-width :use-pref-size
-                :min-height :use-pref-size
-                :max-width Double/MAX_VALUE
-                :max-height Double/MAX_VALUE
-                :pseudo-classes (or (some-> issue :severity hash-set) #{})
+     :desc (-> {:fx/type fxui/check-box
                 :disable (not enabled)
                 :selected value}
-               (apply-tooltip-and-issue tooltip issue)
+               (set-tooltip-and-issue tooltip issue)
                (cond->
+                 issue (assoc :color (:severity issue))
                  text (assoc :text text)
                  text_alignment (assoc :text-alignment text_alignment)))
      :props (cond-> {} on_value_changed (assoc :on-selected-changed (make-event-handler-1 :window :value rt "on_value_changed" on_value_changed)))}
@@ -577,13 +486,11 @@
                          :or {text "" enabled true}}]
   (wrap-in-alignment-container
     {:fx/type ext-with-extra-text-field-props
-     :desc (apply-tooltip-and-issue
-             {:fx/type fx.text-field/lifecycle
-              :style-class ["text-field" "ext-text-field"]
-              :pseudo-classes (or (some-> issue :severity hash-set) #{})
-              :disable (not enabled)
-              :text text}
-             tooltip issue)
+     :desc (-> {:fx/type fxui/text-field
+                :disable (not enabled)
+                :text text}
+               (set-tooltip-and-issue tooltip issue)
+               (cond-> issue (assoc :color (:severity issue))))
      :props (cond-> {} on_text_changed (assoc :on-text-changed (make-event-handler-1 :window :value rt "on_text_changed" on_text_changed)))}
     alignment true))
 
@@ -684,15 +591,12 @@
       {:fx/type ext-with-extra-value-field-props
        :props {:text (or edit text)
                :on-focused-changed #(on-value-field-focus-changed rt value text on_value_changed to_value edit swap-state %)}
-       :desc (apply-tooltip-and-issue
-               {:fx/type fx.text-field/lifecycle
-                :style-class ["text-field" "ext-text-field"]
-                :disable (not enabled)
-                :pseudo-classes (or (some-> issue :severity hash-set) #{})
-                :on-text-changed #(swap-state assoc :edit %)
-                :on-key-pressed #(on-value-field-key-pressed rt value text on_value_changed to_value edit swap-state %)}
-               tooltip
-               issue)}
+       :desc (-> {:fx/type fxui/text-field
+                  :disable (not enabled)
+                  :on-text-changed #(swap-state assoc :edit %)
+                  :on-key-pressed #(on-value-field-key-pressed rt value text on_value_changed to_value edit swap-state %)}
+                 (set-tooltip-and-issue tooltip issue)
+                 (cond-> issue (assoc :color (:severity issue))))}
       alignment
       true)))
 
@@ -723,7 +627,7 @@
 ;; regions value_field's friends
 
 (def ^:private lua-to-string-fn
-  (DefoldVarArgFn.
+  (DefoldLuaFn.
     (fn to-lua-string [^LuaValue arg]
       ;; translated from package-private org.luaj.vm2.lib.BaseLib$tostring
       (let [h (.metatag arg LuaValue/TOSTRING)]
@@ -740,7 +644,7 @@
                :to_value lua-to-string-fn))
 
 (def ^:private lua-to-integer-fn
-  (DefoldVarArgFn.
+  (DefoldLuaFn.
     (fn to-lua-integer [^LuaValue arg]
       (rt/->lua (field-expression/to-long (.tojstring arg))))))
 
@@ -750,7 +654,7 @@
                :to_value lua-to-integer-fn))
 
 (def ^:private lua-to-number-fn
-  (DefoldVarArgFn.
+  (DefoldLuaFn.
     (fn to-lua-number [^LuaValue arg]
       (rt/->lua (field-expression/to-double (.tojstring arg))))))
 
@@ -779,7 +683,7 @@
       button)))
 
 (defn- dialog-view [{:keys [title header content buttons]}]
-  (let [header (or header {:fx/type fxui/label :text title :variant :header})
+  (let [header (or header {:fx/type fxui/legacy-label :text title :variant :header})
         buttons (into []
                       (keep-indexed
                         (fn [i desc]
@@ -1141,7 +1045,7 @@
 
 (def ^:private function-component-lua-fn
   (rt/lua-fn function-component [{:keys [rt]} lua-fn]
-    (DefoldVarArgFn.
+    (DefoldLuaFn.
       (fn create-function-component [lua-props]
         (let [read-only-props (rt/->clj rt ui-docs/read-only-props-coercer lua-props)]
           (-> {:fx/type lua-component-lifecycle
@@ -1250,7 +1154,7 @@
 ;; endregion
 
 (defn- make-hook-lua-fn [hook]
-  (DefoldVarArgFn.
+  (DefoldLuaFn.
     (fn hook-fn [& lua-args]
       (let [component-atom (or *current-component-atom*
                                (throw (LuaError. (format "Cannot use '%s' hook outside of component functions" (:name hook)))))

@@ -23,7 +23,6 @@
             [editor.fs :as fs]
             [editor.game-project :as game-project]
             [editor.math :as math]
-            [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -32,23 +31,15 @@
             [integration.test-util :refer [with-loaded-project] :as test-util]
             [support.test-support :refer [with-clean-system]]
             [util.murmur :as murmur])
-  (:import [com.dynamo.bob.pipeline CubemapBuilder]
-           [com.dynamo.bob.util TextureUtil]
+  (:import [com.dynamo.bob.util TextureUtil]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc]
-           [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
-           [com.dynamo.graphics.proto Graphics$TextureImage]
-           [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
-           [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.dynamo.gamesys.proto Sound$SoundDesc]
-           [com.dynamo.rig.proto Rig$RigScene Rig$Skeleton Rig$AnimationSet Rig$MeshSet]
-           [com.dynamo.gamesys.proto ModelProto$Model]
-           [com.dynamo.gamesys.proto Physics$CollisionObjectDesc]
-           [com.dynamo.gamesys.proto Label$LabelDesc]
+           [com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
            [com.dynamo.lua.proto Lua$LuaModule]
-           [com.dynamo.gamesys.proto Gui$SceneDesc]
+           [com.dynamo.particle.proto Particle$ParticleFX]
+           [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
+           [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$RigScene Rig$Skeleton]
            [java.io ByteArrayOutputStream File]
-           [org.apache.commons.io FilenameUtils IOUtils]))
+           [org.apache.commons.io IOUtils]))
 
 (def project-path "test/resources/build_project/SideScroller")
 
@@ -68,7 +59,7 @@
                         "collectionc" GameObject$CollectionDesc})
 
 (defn- target [path targets]
-  (let [ext (FilenameUtils/getExtension path)
+  (let [ext (resource/filename->type-ext path)
         pb-class (get target-pb-classes ext)]
     (when (nil? pb-class)
       (throw (ex-info (str "No target-pb-classes entry for extension \"" ext "\", path \"" path "\".")
@@ -243,7 +234,7 @@
            ~'resource-node     (test-util/resource-node ~'project ~path)
            evaluation-context# (g/make-evaluation-context)
            old-artifact-map#   (workspace/artifact-map ~'workspace)
-           ~'build-results     (build/build-project! ~'project ~'resource-node evaluation-context# nil old-artifact-map# progress/null-render-progress!)
+           ~'build-results     (build/build-project! ~'project ~'resource-node old-artifact-map# nil evaluation-context#)
            ~'build-artifacts   (:artifacts ~'build-results)
            ~'_                 (when-not (contains? ~'build-results :error)
                                  (workspace/artifact-map! ~'workspace (:artifact-map ~'build-results))
@@ -291,7 +282,7 @@
 (defn- project-build [project resource-node evaluation-context]
   (let [workspace (project/workspace project)
         old-artifact-map (workspace/artifact-map workspace)
-        build-results (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!)]
+        build-results (build/build-project! project resource-node old-artifact-map nil evaluation-context)]
     (when-not (contains? build-results :error)
       (workspace/artifact-map! workspace (:artifact-map build-results))
       (workspace/etags! workspace (:etags build-results)))
@@ -418,7 +409,7 @@
       (let [content    (get content-by-source path)
             desc       (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc content)
             sound-path (get-in desc [:components 0 :component])
-            ext        (FilenameUtils/getExtension sound-path)]
+            ext        (resource/filename->type-ext sound-path)]
         (is (= ext "soundc"))
         (let [sound-desc (protobuf/bytes->map-with-defaults Sound$SoundDesc (content-by-target sound-path))]
           (is (contains? content-by-target (:sound sound-desc))))))))
@@ -473,7 +464,7 @@
   (io/file (workspace/build-path workspace) proj-path))
 
 (defn- abs-project-path [workspace proj-path]
-  (io/file (workspace/project-path workspace) proj-path))
+  (io/file (workspace/project-directory workspace) proj-path))
 
 (defn mtime [^File f]
   (.lastModified f))
@@ -665,7 +656,7 @@
                        "/main/blob.tilemap"
                        "/collisionobject/tile_map.collisionobject"
                        "/collisionobject/convex_shape.collisionobject"]
-          exp-exts    ["vpc" "fpc" "texturec"]]
+          exp-exts    ["spc" "texturec"]]
       (when (contains? build-results :error)
          (log-errors (:error build-results)))
       (is (not (contains? build-results :error)))
@@ -847,26 +838,19 @@
       (let [br (project-build project game-project (g/make-evaluation-context))]
         (is (not (contains? br :error))))
       (testing "Removing an unreferenced collisionobject should not break the build"
-        (let [f (File. (workspace/project-path workspace) "knight.collisionobject")]
+        (let [f (File. (workspace/project-directory workspace) "knight.collisionobject")]
           (fs/delete-file! f)
           (workspace/resource-sync! workspace))
         (let [br (project-build project game-project (g/make-evaluation-context))]
           (is (not (contains? br :error))))))))
 
 (deftest inexact-path-casing-produces-build-error
-  (with-loaded-project project-path
+  (with-loaded-project "test/resources/inexact_path_casing_project"
     (let [game-project-node (test-util/resource-node project "/game.project")
-          atlas-node (test-util/resource-node project "/background/background.atlas")
-          atlas-image-node (ffirst (g/sources-of atlas-node :image-resources))
-          image-resource (g/node-value atlas-image-node :image)
-          workspace (resource/workspace image-resource)
-          uppercase-image-path (string/upper-case (resource/proj-path image-resource))
-          uppercase-image-resource (workspace/resolve-workspace-resource workspace uppercase-image-path)]
-      (g/set-property! atlas-image-node :image uppercase-image-resource)
-      (let [build-error (:error (project-build project game-project-node (g/make-evaluation-context)))
-            error-message (some :message (tree-seq :causes :causes build-error))]
-        (is (g/error? build-error))
-        (is (= (str "The file '" uppercase-image-path "' could not be found.") error-message))))))
+          build-error (:error (project-build project game-project-node (g/make-evaluation-context)))
+          error-message (some :message (tree-seq :causes :causes build-error))]
+      (is (g/error? build-error))
+      (is (= "The file '/MAIN/BUTTON_CLOUDY.png' could not be found." error-message)))))
 
 (deftest build-process-detects-cyclic-lua-dependencies
   (with-loaded-project "test/resources/build_cyclic_lua_project"
@@ -874,10 +858,9 @@
       (is (= "Dependency cycle detected: '/main/1.lua' -> '/main/2.lua' -> '/main/1.lua'."
              (->> (build/build-project! project
                                         (test-util/resource-node project "/game.project")
-                                        evaluation-context
-                                        nil
                                         (workspace/artifact-map workspace)
-                                        progress/null-render-progress!)
+                                        nil
+                                        evaluation-context)
                   :error
                   (tree-seq :causes :causes)
                   (keep :message)

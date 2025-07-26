@@ -28,9 +28,11 @@ Repository for the Defold engine, editor and command line tools.
 * **com.dynamo.cr** - Bob
 * **engine** - Engine
 * **editor** - Editor
-* **packages** - External packages
+* **external** - External libraries that can be rebuilt using our build system
+* **packages** - Prebuilt external packages
 * **scripts** - Build and utility scripts
 * **share** - Misc shared stuff used by other tools. Waf build-scripts, valgrind suppression files, etc.
+* **share/ext** - External libraries that are built using custom build steps
 
 ## Setup and Build
 

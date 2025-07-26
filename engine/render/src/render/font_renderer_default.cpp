@@ -105,7 +105,7 @@ namespace dmRender
                 width += font_map->m_Padding;
             }
             else {
-                uint32_t last_width = (measure_trailing_space && last->m_Character == ' ') ? last->m_Advance : last->m_Width;
+                float last_width = (measure_trailing_space && last->m_Character == ' ') ? last->m_Advance : last->m_Width;
                 float last_end_point = last->m_LeftBearing + last_width;
                 float last_right_bearing = last->m_Advance - last_end_point;
                 width = width - last_right_bearing;
@@ -214,6 +214,8 @@ namespace dmRender
         uint8_t  vertices_per_quad  = 6;
         uint8_t  layer_count        = 1;
         uint8_t  layer_mask         = font_map->m_LayerMask;
+        float shadow_x              = font_map->m_ShadowX;
+        float shadow_y              = font_map->m_ShadowY;
 
         #define HAS_LAYER(mask,layer) ((mask & layer) == layer)
 
@@ -229,10 +231,9 @@ namespace dmRender
         //     back to front layer in the order of shadow -> outline -> face, where the offset of each
         //     layer depends on how many glyphs we actually can place in the buffer. To get a valid count, we
         //     do a dry run first over the input string and place glyphs in the cache if they are renderable.
-        if (HAS_LAYER(layer_mask,OUTLINE) || HAS_LAYER(layer_mask,SHADOW))
+        layer_count += HAS_LAYER(layer_mask,OUTLINE) + HAS_LAYER(layer_mask,SHADOW);
+        if (layer_count > 1)
         {
-            layer_count += HAS_LAYER(layer_mask,OUTLINE) + HAS_LAYER(layer_mask,SHADOW);
-
             // Calculate number of valid glyphs
             for (int line = 0; line < line_count; ++line)
             {
@@ -314,10 +315,16 @@ namespace dmRender
 
                 if (glyph->m_Width > 0)
                 {
-                    int16_t width        = (int16_t) glyph->m_Width;
-                    int16_t descent      = (int16_t) glyph->m_Descent;
-                    int16_t ascent       = (int16_t) glyph->m_Ascent;
-                    int16_t left_bearing = (int16_t) glyph->m_LeftBearing;
+                    float f_width        = glyph->m_ImageWidth;
+                    float f_descent      = glyph->m_Descent;
+                    float f_ascent       = glyph->m_Ascent;
+                    float f_left_bearing = glyph->m_LeftBearing;
+                    // This is the difference in size of the glyph image and glyph size
+                    float f_size_diff    = glyph->m_ImageWidth - glyph->m_Width;
+
+                    int16_t width        = (int16_t) f_width;
+                    int16_t descent      = (int16_t) f_descent;
+                    int16_t ascent       = (int16_t) f_ascent;
 
                     // Calculate y-offset in cache-cell space by moving glyphs down to baseline
                     int16_t px_cell_offset_y = font_map->m_CacheCellMaxAscent - ascent;
@@ -343,10 +350,11 @@ namespace dmRender
                         GlyphVertex& v5_layer_face = vertices[face_index + 4];
                         GlyphVertex& v6_layer_face = vertices[face_index + 5];
 
-                        (Vector4&) v1_layer_face.m_Position = te.m_Transform * Vector4(x + left_bearing, y - descent, 0, 1);
-                        (Vector4&) v2_layer_face.m_Position = te.m_Transform * Vector4(x + left_bearing, y + ascent, 0, 1);
-                        (Vector4&) v3_layer_face.m_Position = te.m_Transform * Vector4(x + left_bearing + width, y - descent, 0, 1);
-                        (Vector4&) v6_layer_face.m_Position = te.m_Transform * Vector4(x + left_bearing + width, y + ascent, 0, 1);
+                        float xx = x - f_size_diff * 0.5f;
+                        (Vector4&) v1_layer_face.m_Position = te.m_Transform * Vector4(xx + f_left_bearing, y - f_descent, 0, 1);
+                        (Vector4&) v2_layer_face.m_Position = te.m_Transform * Vector4(xx + f_left_bearing, y + f_ascent, 0, 1);
+                        (Vector4&) v3_layer_face.m_Position = te.m_Transform * Vector4(xx + f_left_bearing + f_width, y - f_descent, 0, 1);
+                        (Vector4&) v6_layer_face.m_Position = te.m_Transform * Vector4(xx + f_left_bearing + f_width, y + f_ascent, 0, 1);
 
                         v1_layer_face.m_UV[0] = (tx + font_map->m_CacheCellPadding) * recip_w;
                         v1_layer_face.m_UV[1] = (ty + font_map->m_CacheCellPadding + ascent + descent + px_cell_offset_y) * recip_h;
@@ -428,8 +436,6 @@ namespace dmRender
                         if (HAS_LAYER(layer_mask,SHADOW))
                         {
                             uint32_t shadow_index = vertexindex;
-                            float shadow_x        = font_map->m_ShadowX;
-                            float shadow_y        = font_map->m_ShadowY;
 
                             GlyphVertex& v1_layer_shadow = vertices[shadow_index];
                             GlyphVertex& v2_layer_shadow = vertices[shadow_index + 1];
@@ -444,10 +450,10 @@ namespace dmRender
                             v6_layer_shadow = v6_layer_face;
 
                             // Shadow offsets must be calculated since we need to offset in local space (before vertex transformation)
-                            (Vector4&) v1_layer_shadow.m_Position = te.m_Transform * Vector4(x + left_bearing + shadow_x, y - descent + shadow_y, 0, 1);
-                            (Vector4&) v2_layer_shadow.m_Position = te.m_Transform * Vector4(x + left_bearing + shadow_x, y + ascent + shadow_y, 0, 1);
-                            (Vector4&) v3_layer_shadow.m_Position = te.m_Transform * Vector4(x + left_bearing + shadow_x + width, y - descent + shadow_y, 0, 1);
-                            (Vector4&) v6_layer_shadow.m_Position = te.m_Transform * Vector4(x + left_bearing + shadow_x + width, y + ascent + shadow_y, 0, 1);
+                            (Vector4&) v1_layer_shadow.m_Position = te.m_Transform * Vector4(xx + f_left_bearing + shadow_x, y - f_descent + shadow_y, 0, 1);
+                            (Vector4&) v2_layer_shadow.m_Position = te.m_Transform * Vector4(xx + f_left_bearing + shadow_x, y + f_ascent + shadow_y, 0, 1);
+                            (Vector4&) v3_layer_shadow.m_Position = te.m_Transform * Vector4(xx + f_left_bearing + shadow_x + f_width, y - f_descent + shadow_y, 0, 1);
+                            (Vector4&) v6_layer_shadow.m_Position = te.m_Transform * Vector4(xx + f_left_bearing + shadow_x + f_width, y + f_ascent + shadow_y, 0, 1);
 
                             v4_layer_shadow = v3_layer_shadow;
                             v5_layer_shadow = v2_layer_shadow;

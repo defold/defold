@@ -16,7 +16,7 @@
 #include <testmain/testmain.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 
 
 // Extension in a separate library. See comment in test_sdk_lib.cpp

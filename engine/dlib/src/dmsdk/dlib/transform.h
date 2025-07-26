@@ -26,6 +26,7 @@
  * @document
  * @name Transform
  * @namespace dmTransform
+ * @language C++
  */
 
 namespace dmTransform
@@ -289,7 +290,7 @@ namespace dmTransform
     /*#
      * Convert a transform into a 4-dim matrix
      * @name ToMatrix4
-     * @param t Transform to convert
+     * @param t [type: Transform] Transform to convert
      * @return Matrix representing the same transform
      */
     inline dmVMath::Matrix4 ToMatrix4(const Transform& t)
@@ -302,7 +303,7 @@ namespace dmTransform
     /*#
      * Extract the absolute values of the scale component from a matrix.
      * @name ExtractScale
-     * @param mtx Source matrix
+     * @param mtx [type: dmVMath::Matrix4] Source matrix
      * @return Vector3 with scale values for x,y,z
      */
     inline dmVMath::Vector3 ExtractScale(const dmVMath::Matrix4& mtx)
@@ -316,7 +317,7 @@ namespace dmTransform
     /*#
      * Eliminate the scaling components in a matrix
      * @name ResetScale
-     * @param mtx Matrix to operate on
+     * @param mtx [type: dmVMath::Matrix4] Matrix to operate on
      * @return Vector containing the scaling by component
      */
     inline dmVMath::Vector3 ResetScale(dmVMath::Matrix4 *mtx)
@@ -334,7 +335,7 @@ namespace dmTransform
     /*#
      * Convert a matrix into a transform
      * @name ToTransform
-     * @param mtx Matrix4 to convert
+     * @param mtx [type: dmVMath::Matrix4] Matrix4 to convert
      * @return Transform representing the same transform
      */
     inline Transform ToTransform(const dmVMath::Matrix4& mtx)
@@ -348,7 +349,7 @@ namespace dmTransform
     /*#
      * Eliminate the z scaling components in a matrix
      * @name NormalizeZScale
-     * @param mtx Matrix to operate on
+     * @param mtx [type: dmVMath::Matrix4] Matrix to operate on
      */
     inline void NormalizeZScale(dmVMath::Matrix4 *mtx)
     {

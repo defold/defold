@@ -26,7 +26,7 @@
 
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/model_ddf.h>
-#include <extension/extension.h>
+#include <extension/extension.hpp>
 
 extern "C"
 {
@@ -45,6 +45,7 @@ namespace dmGameSystem
      * @document
      * @name Model
      * @namespace model
+     * @language Lua
      */
 
     /*# [type:number] model cursor
@@ -610,18 +611,102 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*# get the AABB of the whole model in local coordinate space
+     * Get AABB of the whole model in local coordinate space.
+     * AABB information return as a table with `min` and `max` fields, where `min` and `max` has type `vmath.vector3`.
+     *
+     * @name model.get_aabb
+     * @param url [type:string|hash|url] the model
+     * @return aabb [type:table] A table containing AABB of the model. If model has no meshes - return vmath.vector3(0,0,0) for min and max fields.
+     * @examples
+     *
+     * ```lua
+     * model.get_aabb("#model") -> { min = vmath.vector3(-2.5, -3.0, 0), max = vmath.vector3(1.5, 5.5, 0) }
+     * model.get_aabb("#empty") -> { min = vmath.vector3(0, 0, 0), max = vmath.vector3(0, 0, 0) }
+     * ```
+     */
+    static int LuaModelComp_GetAabb(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        ModelComponent* component = 0;
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+        lua_newtable(L);
+        dmVMath::Vector3 min, max;
+        CompModelGetAABB(component, &min, &max);
+
+        dmScript::PushVector3(L, min);
+        lua_setfield(L, -2, "min");
+        dmScript::PushVector3(L, max);
+        lua_setfield(L, -2, "max");
+
+        return 1;
+    }
+
+    /*# get the AABB of all meshes
+     * Get AABB of all meshes.
+     * AABB information return as a table with `min` and `max` fields, where `min` and `max` has type `vmath.vector3`.
+     *
+     * @name model.get_mesh_aabb
+     * @param url [type:string|hash|url] the model
+     * @return aabb [type:table] A table containing info about all AABB in the format <hash(mesh_id), aabb_info>
+     * @examples
+     *
+     * ```lua
+     * model.get_mesh_aabb("#model") -> { hash("Sword") = { min = vmath.vector3(-0.5, -0.5, 0), max = vmath.vector3(0.5, 0.5, 0) }, hash("Shield") = { min = vmath.vector3(-0.5, -0.5, -0.5), max = vmath.vector3(0.5, 0.5, 0.5) } }
+     * ```
+     */
+    static int LuaModelComp_GetMeshAabb(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        ModelComponent* component = 0;
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+
+        uint32_t mesh_count = CompModelGetMeshCount(component);
+        lua_createtable(L, 0, mesh_count);
+        for (uint32_t idx = 0; idx < mesh_count; ++idx)
+        {
+            dmVMath::Vector3 min, max;
+            dmhash_t mesh_id;
+            CompModelGetMeshAABB(component, idx, &mesh_id, &min, &max);
+            dmScript::PushHash(L, mesh_id);
+
+            lua_newtable(L);
+            dmScript::PushVector3(L, min);
+            lua_setfield(L, -2, "min");
+            dmScript::PushVector3(L, max);
+            lua_setfield(L, -2, "max");
+
+            lua_settable(L, -3);
+        }
+        return 1;
+    }
+
     static const luaL_reg MODEL_COMP_FUNCTIONS[] =
     {
-            {"play",    LuaModelComp_Play}, // Deprecated
-            {"play_anim", LuaModelComp_PlayAnim},
-            {"cancel",  LuaModelComp_Cancel},
-            {"get_go",  LuaModelComp_GetGO},
-            {"set_constant",    LuaModelComp_SetConstant},
-            {"reset_constant",  LuaModelComp_ResetConstant},
+        {"play",    LuaModelComp_Play}, // Deprecated
+        {"play_anim", LuaModelComp_PlayAnim},
+        {"cancel",  LuaModelComp_Cancel},
+        {"get_go",  LuaModelComp_GetGO},
+        {"set_constant",    LuaModelComp_SetConstant},
+        {"reset_constant",  LuaModelComp_ResetConstant},
 
-            {"set_mesh_enabled",  LuaModelComp_SetMeshEnabled},
-            {"get_mesh_enabled",  LuaModelComp_GetMeshEnabled},
-            {0, 0}
+        {"set_mesh_enabled",  LuaModelComp_SetMeshEnabled},
+        {"get_mesh_enabled",  LuaModelComp_GetMeshEnabled},
+        {"get_aabb",          LuaModelComp_GetAabb},
+        {"get_mesh_aabb",     LuaModelComp_GetMeshAabb},
+        {0, 0}
     };
 
     static dmExtension::Result ScriptModelInitialize(dmExtension::Params* params)

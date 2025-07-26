@@ -3,7 +3,7 @@
    :help "Target"
    :default "Amazon"
    :path ["liveupdate" "mode"]
-   :options [["Zip" "Zip"] ["Amazon" "Amazon"]]}
+   :options [["Zip" "Zip"] ["Amazon" "Amazon"] ["Folder" "Folder"]]}
   {:type :string,
    :help "Amazon credentials profile",
    :default "",
@@ -37,6 +37,32 @@
    :default ""
    :presentation-category "Zip"
    :path ["liveupdate" "zip-filename"]}
+  {:type :integer,
+   :title "Zip archive compression level"
+   :help "compression level will be used when creating LiveUpdate zip archive",
+   :default 1,
+   :minimum 0,
+   :maximum 9,
+   :presentation-category "Zip"
+   :path ["liveupdate" "zip-compression-level"]}
+   {:type :boolean
+   :title "Save folder in bundle folder"
+   :help "Moves output folder into bundle directory after the bundle process"
+   :default false
+   :presentation-category "Folder"
+   :path ["liveupdate" "save-folder-in-bundle-folder"]}
+   {:type :directory
+   :title "Select output directory"
+   :help "Output directory"
+   :default ""
+   :presentation-category "Folder"
+   :path ["liveupdate" "output-directory"]}
+   {:type :string
+   :title "Select output folder name"
+   :help "Output folder name"
+   :default ""
+   :presentation-category "Folder"
+   :path ["liveupdate" "output-folder-name"]}
   {:type :file,
    :title "Select Manifest Public Key"
    :filter [["Public key (*.der)" "*.der"]]
@@ -62,5 +88,6 @@
  {"liveupdate" {:title "Live Update"}
   "Amazon" {}
   "Zip" {}
+  "Folder" {}
   "Manifest" {}}}
 
