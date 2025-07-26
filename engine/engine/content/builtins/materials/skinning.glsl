@@ -41,12 +41,29 @@ vec4 get_skinned_position(vec4 local_position)
 #else
     vec4 skinned_position = vec4(0.0);
     if (animation_data.y > 0.0) {
-        for (int i = 0; i < 4; i++)
-        {
-            int bone_index    = int(bone_indices[i]);
-            mat4 bone_matrix  = get_bone_matrix(bone_index);
-            skinned_position += bone_weights[i] * (bone_matrix * vec4(position.xyz, 1.0));
-        }
+        vec4 base_pos = vec4(position.xyz, 1.0);
+        // for (int i = 0; i < 4; i++)
+        // {
+        //     int bone_index    = int(bone_indices[i]);
+        //     mat4 bone_matrix  = get_bone_matrix(bone_index);
+        //     skinned_position += bone_weights[i] * (bone_matrix * base_pos);
+        // }
+        // Manually unrolled loop for compatibility with WebGL1 and OpenGL ES 2.0.
+        int  bone_index0   = int(bone_indices.x);
+        mat4 bone_matrix0  = get_bone_matrix(bone_index0);
+        skinned_position  += bone_weights.x * (bone_matrix0 * base_pos);
+
+        int  bone_index1   = int(bone_indices.y);
+        mat4 bone_matrix1  = get_bone_matrix(bone_index1);
+        skinned_position  += bone_weights.y * (bone_matrix1 * base_pos);
+
+        int  bone_index2   = int(bone_indices.z);
+        mat4 bone_matrix2  = get_bone_matrix(bone_index2);
+        skinned_position  += bone_weights.z * (bone_matrix2 * base_pos);
+
+        int  bone_index3   = int(bone_indices.w);
+        mat4 bone_matrix3  = get_bone_matrix(bone_index3);
+        skinned_position  += bone_weights.w * (bone_matrix3 * base_pos);
     }
     else
     {
