@@ -286,7 +286,9 @@ PACKAGES_EMSCRIPTEN=[
     "wagyu-24",
     "box2d-3.0.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "harfbuzz-11.3.2",
+    "SheenBidi-2.9.0"]
 
 PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
