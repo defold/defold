@@ -2073,6 +2073,7 @@ def detect(conf):
 
     conf.env['STLIB_FONT']            = ['font']
     conf.env['STLIB_FONT_KB']         = ['font_kb']
+    conf.env['STLIB_FONT_HB']         = ['font_hb', 'harfbuzz', 'sheenbidi']
 
     if platform_glfw_version(platform) == 3:
         conf.env['STLIB_DMGLFW'] = 'glfw3'
