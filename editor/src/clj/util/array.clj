@@ -15,7 +15,8 @@
 (ns util.array
   (:require [util.fn :as fn])
   (:import [clojure.lang LazilyPersistentVector]
-           [java.lang.reflect Array]))
+           [java.lang.reflect Array]
+           [java.util Arrays]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -154,3 +155,28 @@
 ;; from-longs
 ;; from-floats
 ;; from-doubles
+
+(defn hash-code
+  (^long [array]
+   (condp = (class array)
+     boolean/1 (Arrays/hashCode ^booleans array)
+     char/1 (Arrays/hashCode ^chars array)
+     byte/1 (Arrays/hashCode ^bytes array)
+     short/1 (Arrays/hashCode ^shorts array)
+     int/1 (Arrays/hashCode ^ints array)
+     long/1 (Arrays/hashCode ^longs array)
+     float/1 (Arrays/hashCode ^floats array)
+     double/1 (Arrays/hashCode ^doubles array)))
+  (^long [array ^long start ^long end]
+   (if (and (zero? start)
+            (= (Array/getLength array) end))
+     (hash-code array)
+     (condp = (class array)
+       boolean/1 (Arrays/hashCode (Arrays/copyOfRange ^booleans array start end))
+       char/1 (Arrays/hashCode (Arrays/copyOfRange ^chars array start end))
+       byte/1 (Arrays/hashCode (Arrays/copyOfRange ^bytes array start end))
+       short/1 (Arrays/hashCode (Arrays/copyOfRange ^shorts array start end))
+       int/1 (Arrays/hashCode (Arrays/copyOfRange ^ints array start end))
+       long/1 (Arrays/hashCode (Arrays/copyOfRange ^longs array start end))
+       float/1 (Arrays/hashCode (Arrays/copyOfRange ^floats array start end))
+       double/1 (Arrays/hashCode (Arrays/copyOfRange ^doubles array start end))))))

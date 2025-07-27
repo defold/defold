@@ -237,6 +237,14 @@
        (finally
          (.swapBuffers ~canvas)))))
 
+(defn clear-attributes!
+  [^GL2 gl ^long base-location ^long attribute-count]
+  (loop [attribute-index 0]
+    (when (< attribute-index attribute-count)
+      (let [location (+ base-location attribute-index)]
+        (gl-disable-vertex-attrib-array gl location)
+        (recur (inc location))))))
+
 (defmacro with-gl-bindings
   [glsymb render-args-symb gl-stuff & body]
   (assert (vector? gl-stuff) (str "GL objects must be a vector of values that satisfy GlBind" gl-stuff))

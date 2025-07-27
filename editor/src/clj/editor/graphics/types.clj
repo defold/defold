@@ -15,6 +15,8 @@
 (ns editor.graphics.types
   (:require [editor.protobuf :as protobuf]
             [util.coll :as coll]
+            [util.defonce :as defonce]
+            [util.ensure :as ensure]
             [util.fn :as fn])
   (:import [clojure.lang IHashEq]
            [com.dynamo.bob.pipeline GraphicsUtil]
@@ -131,6 +133,21 @@
     :vector-type-mat3 9
     :vector-type-mat4 16))
 
+(defn vector-type-attribute-count
+  ;; Each GLSL attribute hosts up to four components. Matrix attributes are
+  ;; spread across multiple attributes, even if the value could technically fit
+  ;; into four components. This means a mat2 will use the x and y components of
+  ;; two attributes.
+  ^long [vector-type]
+  (case vector-type
+    :vector-type-scalar 1
+    :vector-type-vec2 1
+    :vector-type-vec3 1
+    :vector-type-vec4 1
+    :vector-type-mat2 2
+    :vector-type-mat3 3
+    :vector-type-mat4 4))
+
 (defn vector-type-row-column-count
   ^long [vector-type]
   (case vector-type
@@ -165,3 +182,66 @@
   (or (number? value)
       (and (instance? IHashEq value)
            (not (coll/lazy? value)))))
+
+(defonce/record ElementType
+  [vector-type
+   data-type
+   ^boolean normalize])
+
+(definline element-type? [value]
+  `(instance? ElementType ~value))
+
+(defn element-data-types-assignable? [^ElementType source ^ElementType target]
+  (let [source-data-type (.-data-type source)
+        target-data-type (.-data-type target)]
+    (or (= target-data-type source-data-type)
+        (case source-data-type
+          (:type-byte :type-unsigned-byte :type-short :type-unsigned-short :type-int :type-unsigned-int)
+          (case target-data-type
+            (:type-float) (.-normalize source)
+            (<= (data-type-byte-size source-data-type)
+                (data-type-byte-size target-data-type)))
+
+          (:type-float)
+          (case target
+            (:type-float) true
+            false)))))
+
+(defn element-vector-types-assignable? [^ElementType source ^ElementType target]
+  (let [source-vector-type (.-vector-type source)
+        target-vector-type (.-vector-type target)]
+    (or (= target-vector-type source-vector-type)
+        (case source-vector-type
+          (:vector-type-scalar :vector-type-vec2 :vector-type-vec3 :vector-type-vec4)
+          (case target-vector-type
+            (:vector-type-scalar :vector-type-vec2 :vector-type-vec3 :vector-type-vec4) true
+            false)
+
+          (:vector-type-mat2 :vector-type-mat3 :vector-type-mat4)
+          (case target-vector-type
+            (:vector-type-mat2 :vector-type-mat3 :vector-type-mat4) true
+            false)))))
+
+(defn element-types-assignable? [^ElementType source ^ElementType target]
+  (and (element-data-types-assignable? source target)
+       (element-vector-types-assignable? source target)))
+
+(defn floating-point-element-type? [value]
+  (and (element-type? value)
+       (= :type-float (.-data-type ^ElementType value))))
+
+(defn ensure-floating-point-target-element-type [^ElementType target-element-type]
+  (when-not (floating-point-element-type? target-element-type)
+    (throw
+      (IllegalArgumentException.
+        (str "floating-point values cannot be assigned to target data-type: "
+             (.-data-type target-element-type))))))
+
+(defn- make-element-type-raw
+  ^ElementType [vector-type data-type normalize]
+  (ensure/argument vector-type vector-type?)
+  (ensure/argument data-type data-type?)
+  (ensure/argument normalize boolean? "%s must be a boolean")
+  (->ElementType vector-type data-type normalize))
+
+(def ^{:arglists '(^ElementType [vector-type data-type normalize])} make-element-type (fn/memoize make-element-type-raw))

@@ -131,6 +131,18 @@
                (map (juxt identity types/vector-type-component-count))
                types/vector-types))))
 
+(deftest vector-type-attribute-count-test
+  (is (= {:vector-type-scalar 1
+          :vector-type-vec2 1
+          :vector-type-vec3 1
+          :vector-type-vec4 1
+          :vector-type-mat2 2
+          :vector-type-mat3 3
+          :vector-type-mat4 4}
+         (into {}
+               (map (juxt identity types/vector-type-attribute-count))
+               types/vector-types))))
+
 (deftest vector-type-row-column-count-test
   (is (= {:vector-type-scalar -1
           :vector-type-vec2 -1

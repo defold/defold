@@ -342,7 +342,7 @@
 
 (defn- render-mesh-opaque-impl [^GL2 gl render-args renderable request-prefix override-shader override-vertex-description extra-render-args]
   (let [{:keys [node-id user-data ^Matrix4d world-transform]} renderable
-        {:keys [material-attribute-infos mesh-renderable-data textures vertex-attribute-bytes]} user-data
+        {:keys [material-attribute-infos mesh-renderable-buffers mesh-renderable-data textures vertex-attribute-bytes]} user-data
         shader (or override-shader (:shader user-data))
         default-coordinate-space (case (:vertex-space user-data :vertex-space-local)
                                    :vertex-space-local :coordinate-space-local
@@ -398,8 +398,16 @@
       (doseq [[_name t] textures]
         (gl/unbind gl t render-args)))))
 
-(defn- render-mesh-opaque [^GL2 gl render-args renderable]
-  (render-mesh-opaque-impl gl render-args renderable ::mesh nil nil nil))
+(defn- render-mesh-opaque [^GL2 gl render-args renderables]
+  ;; TODO(instancing): Work-in-progress.
+  (let [{:keys [attribute-bindings index-buffer shader]} (:user-data (first renderables))]
+    (gl/with-gl-bindings gl render-args [shader attribute-bindings index-buffer]
+      (gl/gl-disable gl GL/GL_BLEND)
+      (gl/gl-enable gl GL/GL_CULL_FACE)
+      (gl/gl-cull-face gl GL/GL_BACK)
+      (gl/gl-draw-elements gl GL/GL_TRIANGLES 0 (gl.buffer/vertex-count index-buffer))
+      (gl/gl-disable gl GL/GL_CULL_FACE)
+      (gl/gl-enable gl GL/GL_BLEND))))
 
 (defn- render-mesh-opaque-selection [^GL2 gl render-args renderable]
   ;; TODO(instancing): We should use instanced rendering and put the id as a per-instance attribute.
@@ -413,7 +421,7 @@
         renderable (first renderables)]
     (condp = pass
       pass/opaque
-      (render-mesh-opaque gl render-args renderable)
+      (render-mesh-opaque gl render-args renderables)
 
       pass/opaque-selection
       (render-mesh-opaque-selection gl render-args renderable))))
@@ -528,7 +536,7 @@
       renderable-mesh-set-or-error-value)))
 
 (defn- make-mesh-scene [renderable-mesh model-scene-resource-node-id]
-  (let [{:keys [aabb material-name renderable-data]} renderable-mesh]
+  (let [{:keys [aabb material-name renderable-data renderable-buffers]} renderable-mesh]
     {:aabb aabb
      :renderable {:render-fn render-mesh
                   :tags #{:model}
@@ -536,6 +544,7 @@
                   :select-batch-key model-scene-resource-node-id
                   :passes [pass/opaque pass/opaque-selection]
                   :user-data {:mesh-renderable-data renderable-data
+                              :mesh-renderable-buffers renderable-buffers
                               :vertex-space :vertex-space-local
                               :material-name material-name
                               :shader preview-shader
@@ -685,3 +694,42 @@
 (defn- destroy-vertex-buffers [^GL2 gl vbs _])
 
 (scene-cache/register-object-cache! ::vertex-buffer make-vertex-buffer update-vertex-buffer destroy-vertex-buffers)
+
+(comment
+  ;; TODO: Desired renderable :user-data for models.
+  ;; TODO: Use keywords keys?
+  ;; TODO: Or maybe use GL location for keys?
+  ;; TODO: Should we separate out stuff that would break the batching?
+  {:shader shader-lifecycle
+   :indices index-buffer-lifecycle
+   :uniforms {"mtx_view" :view
+              "mtx_proj" :projection
+              "diffuse_texture" texture-lifecycle
+              "normal_texture" texture-lifecycle}
+
+   ;; These values are typically AttributeBufferBindings.
+   :attributes {"position" (attribute/make-buffer-binding position-buffer-lifecycle)
+                "normal" (attribute/make-buffer-binding normal-buffer-lifecycle)}
+
+   ;; These values can be AttributeValueBindings or AttributeRenderArgBindings.
+   :instance-attributes {"mtx_normal" (attribute/make-render-arg-binding :semantic-type-normal-matrix)
+                         "mtx_world" (attribute/make-render-arg-binding :semantic-type-world-matrix)
+                         "color" (attribute/make-value-binding (Vector4d. 1.0 1.0 1.0 1.0))}}
+
+  ;; Distinct uniforms. If used as values in :uniforms, break the batch.
+  #{:world
+    :normal
+    :world-view
+    :world-view-proj}
+
+  ;; Everything that is a Lifecycle should have only the bare stuff to re-create
+  ;; itself on the GPU. No texture filtering properties, uniform values, or
+  ;; anything like that. These should be storable in the graph.
+
+  ;; TODO: Include semantic-type->attribute-names map in ShaderLifecycle?
+  ;; TODO: Again, perhaps it should be locations?
+  {:semantic-type-position ["position"]
+   :semantic-type-normal ["normal"]
+   :semantic-type-tangent ["tangent"]
+   :semantic-type-texcoord ["model_uvs" "lightmap_uvs"]
+   :semantic-type-color ["color" "thickness"]})

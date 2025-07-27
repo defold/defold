@@ -14,11 +14,13 @@
 
 (ns editor.buffers
   (:refer-clojure :exclude [empty?])
-  (:require [util.defonce :as defonce]
+  (:require [internal.java :as java]
+            [util.array :as array]
+            [util.defonce :as defonce]
             [util.num :as num])
-  (:import [clojure.lang IReduceInit Murmur3 Util]
+  (:import [clojure.lang IHashEq IReduceInit Murmur3 Util]
            [com.google.protobuf ByteString]
-           [java.nio Buffer ByteBuffer CharBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]
+           [java.nio Buffer ByteBuffer ByteOrder CharBuffer DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]
            [java.nio.charset StandardCharsets]))
 
 (set! *warn-on-reflection* true)
@@ -247,6 +249,17 @@
   (* (item-byte-size buffer)
      (item-count buffer)))
 
+(defn data-hash
+  ^long [^Buffer buffer]
+  (if (.hasArray buffer)
+    (array/hash-code (.array buffer) (.arrayOffset buffer) (.limit buffer))
+    (let [original-position (.position buffer)]
+      (.rewind buffer)
+      (try
+        (.hashCode buffer)
+        (finally
+          (.position buffer original-position))))))
+
 (defn topology-hash
   ^long [^Buffer buffer]
   (-> (hash (class buffer))
@@ -282,6 +295,57 @@
         (if-not (zero? byte-order-comparison)
           byte-order-comparison
           (compare (total-byte-size a) (total-byte-size b)))))))
+
+;; A wrapper around Buffer with equality semantics based on the topology of the
+;; Buffer and an explicit data version number.
+(defonce/type BufferData
+  [^Buffer data
+   ^int data-version
+   ^int topology-hash]
+
+  Comparable
+  (compareTo [_this that]
+    (let [^BufferData that that]
+      (java/combine-comparisons
+        (Integer/compare data-version (.-data-version that))
+        (Integer/compare topology-hash (.-topology-hash that)))))
+
+  IHashEq
+  (hasheq [_this]
+    (java/combine-hashes topology-hash data-version))
+
+  Object
+  (hashCode [this]
+    (.hasheq this))
+  (equals [this that]
+    (or (identical? this that)
+        (let [^BufferData that that]
+          (and (instance? BufferData that)
+               (= data-version (.-data-version that))
+               (= topology-hash (.-topology-hash that)))))))
+
+(defn make-buffer-data
+  (^BufferData [^Buffer data]
+   (let [data-version (data-hash data)]
+     (make-buffer-data data data-version)))
+  (^BufferData [^Buffer data ^long data-version]
+   (cond
+     (nil? data)
+     (throw (IllegalArgumentException. "data Buffer cannot be nil"))
+
+     (not (flipped? data))
+     (throw (IllegalArgumentException. "data Buffer must be flipped"))
+
+     :else
+     (let [topology-hash (topology-hash data)]
+       (->BufferData data data-version topology-hash)))))
+
+(defn invalidate-buffer-data
+  ^BufferData [^BufferData buffer-data]
+  (->BufferData
+    (.-data buffer-data)
+    (unchecked-inc-int (.-data-version buffer-data))
+    (.-topology-hash buffer-data)))
 
 (defn blit!
   ^ByteBuffer [^ByteBuffer buffer ^long byte-offset ^bytes bytes]
