@@ -23,13 +23,27 @@ typedef struct Font* HFont;
 // Common api for the default renderers
 
 
+enum TextShapeResult
+{
+    TEXT_SHAPE_RESULT_OK,
+    TEXT_SHAPE_RESULT_ERROR,
+};
+
+enum TextDirection
+{
+    TEXT_DIRECTION_LTR = 0,
+    TEXT_DIRECTION_RTL = 1,
+};
+
+
 struct TextShapeGlyph
 {
     int32_t  m_X; // X position on the infinite line (in points)
     int32_t  m_Y; // Y position on the infinite line (in points)
 
-    uint32_t m_Codepoint;  // Not always available if there was a substitution
-    uint16_t m_GlyphIndex; // index into the font
+    uint32_t m_Codepoint;   // Not always available if there was a substitution
+    uint16_t m_GlyphIndex;  // index into the font
+    uint16_t m_Cluster;     // index into the original text (i.e. into codepoints)
     int16_t  m_Width;
     int16_t  m_Height;
 
@@ -41,8 +55,6 @@ struct TextRun
 {
     uint16_t m_Index;   /// index into list of glyphs
     uint16_t m_Length;  /// number of glyphs to render
-
-    // if needed: script, direction, language
 };
 
 struct TextLine
@@ -57,8 +69,9 @@ struct TextShapeInfo
     // TODO: Make these C arrays?
     dmArray<TextShapeGlyph> m_Glyphs;
     dmArray<TextRun>        m_Runs;
-    uint32_t                m_NumValidGlyphs;   // non renderable glyphs
     HFont                   m_Font;
+    uint32_t                m_NumValidGlyphs;   // non renderable glyphs
+    TextDirection           m_Direction;
 };
 
 struct TextMetricsSettings
@@ -78,13 +91,6 @@ struct TextMetrics
     uint32_t m_MaxAscent;   /// Max ascent of font (in points)
     uint32_t m_MaxDescent;  /// Max descent of font, positive value. (in points)
     uint32_t m_LineCount;   /// Number of lines of text
-};
-
-
-enum TextShapeResult
-{
-    TEXT_SHAPE_RESULT_OK,
-    TEXT_SHAPE_RESULT_ERROR,
 };
 
 // Shapes text into final glyphs and positions

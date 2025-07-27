@@ -123,6 +123,7 @@ TextShapeResult TextShapeText(HFont font, uint32_t* codepoints, uint32_t num_cod
             g.m_Height = font_glyph.m_Height;
             g.m_Codepoint = font_glyph.m_Codepoint;
             g.m_GlyphIndex = font_glyph.m_GlyphIndex;
+            g.m_Cluster = i;
             g.m_Advance = font_glyph.m_Advance;
             g.m_LeftBearing = font_glyph.m_LeftBearing;
 

@@ -49,9 +49,10 @@ static bool SegmentText(HFont hfont, raqm_t* rq, uint32_t* codepoints, uint32_t 
 
     uint32_t num_whitespaces = 0;
 
-    int dir = RAQM_DIRECTION_RTL == raqm_get_par_resolved_direction(rq) ? -1 : 1;
+    info->m_Direction = RAQM_DIRECTION_RTL == raqm_get_par_resolved_direction(rq) ?
+                            TEXT_DIRECTION_RTL : TEXT_DIRECTION_LTR;
 
-    int debug = 0;//dir < 0;
+    int dir = TEXT_DIRECTION_RTL == info->m_Direction ? -1 : 1;
 
     size_t count;
     raqm_glyph_t *glyphs = raqm_get_glyphs(rq, &count);
@@ -90,18 +91,6 @@ static bool SegmentText(HFont hfont, raqm_t* rq, uint32_t* codepoints, uint32_t 
             y += glyphs[i].y_advance;
         }
 
-        if (debug)
-        {
-            printf ("gid#%d off: (%d, %d) adv: (%d, %d) idx: %d  %d x %d\n",
-                    glyphs[i].index,
-                    glyphs[i].x_offset,
-                    glyphs[i].y_offset,
-                    glyphs[i].x_advance,
-                    glyphs[i].y_advance,
-                    glyphs[i].cluster,
-                    xx, yy);
-        }
-
         uint32_t glyph_index = glyphs[i].index;
 
         int32_t width = 0;
@@ -117,7 +106,8 @@ static bool SegmentText(HFont hfont, raqm_t* rq, uint32_t* codepoints, uint32_t 
         glyph.m_X           = xx;
         glyph.m_Y           = yy;
         glyph.m_GlyphIndex  = glyph_index;
-        glyph.m_Codepoint   = codepoints[glyphs[i].cluster];
+        glyph.m_Cluster     = glyphs[i].cluster;
+        glyph.m_Codepoint   = codepoints[glyph.m_Cluster];
         glyph.m_Width       = width;
         glyph.m_Height      = height;
 
@@ -132,7 +122,7 @@ static bool SegmentText(HFont hfont, raqm_t* rq, uint32_t* codepoints, uint32_t 
 }
 
 
-static int32_t GetLineTextMetrics(TextShapeGlyph* glyphs, int32_t row_start, uint32_t n, bool measure_trailing_space)
+static int32_t GetLineTextMetrics(TextShapeGlyph* glyphs, int32_t row_start, uint32_t n, TextDirection dir, bool measure_trailing_space)
 {
     if (n <= 0)
         return 0;
@@ -148,18 +138,34 @@ static int32_t GetLineTextMetrics(TextShapeGlyph* glyphs, int32_t row_start, uin
         }
     }
 
+    int32_t glyph_width;
+    if (TEXT_DIRECTION_RTL == dir)
+    {
+        glyph_width = -glyphs[0].m_Width;
+    }
+    else
+    {
+        glyph_width = glyphs[n-1].m_Width;
+    }
+
     int32_t row_start_x = glyphs[0].m_X;
-    int32_t width = glyphs[n-1].m_X + glyphs[n-1].m_Width - row_start_x;
+    int32_t row_end_x   = glyphs[n-1].m_X + glyph_width;
+    int32_t width = row_end_x - row_start_x;
+
     return width;
 }
 
 struct LayoutMetrics
 {
     TextShapeGlyph* m_Glyphs;
-    LayoutMetrics(TextShapeGlyph* glyphs) : m_Glyphs(glyphs) {}
+    TextDirection   m_Direction;
+    LayoutMetrics(TextShapeGlyph* glyphs, TextDirection dir)
+        : m_Glyphs(glyphs)
+        , m_Direction(dir)
+        {}
     float operator()(int32_t row_start, uint32_t n, bool measure_trailing_space)
     {
-        return GetLineTextMetrics(m_Glyphs, row_start, n, measure_trailing_space);
+        return GetLineTextMetrics(m_Glyphs, row_start, n, m_Direction, measure_trailing_space);
     }
 };
 
@@ -202,7 +208,7 @@ TextShapeResult TextLayout(TextMetricsSettings* settings, TextShapeInfo* info,
     if (!settings->m_LineBreak)
         width = INT_MAX;
 
-    LayoutMetrics lm(info->m_Glyphs.Begin());
+    LayoutMetrics lm(info->m_Glyphs.Begin(), info->m_Direction);
     int32_t max_line_width;
     uint32_t num_lines = Layout(info, width, lines, max_num_lines,
                                 &max_line_width, lm, !settings->m_LineBreak);

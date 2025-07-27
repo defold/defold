@@ -134,7 +134,7 @@ namespace dmRender
     static dmhash_t g_TextureSizeRecipHash = dmHashString64("texture_size_recip");
 
     static dmVMath::Point3 CalcCenterPoint(HFontMap font_map, const TextEntry& te, const TextMetrics& metrics) {
-        float x_offset = OffsetX(te.m_Align, te.m_Width);
+        float x_offset = OffsetX(te.m_Align, 1, te.m_Width);
         float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, metrics.m_LineCount);
 
         // find X,Y local coordinate of text center

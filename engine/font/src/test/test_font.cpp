@@ -542,7 +542,7 @@ TEST_F(FontTest, Layout)
     ASSERT_EQ(char_width * 14, metrics.m_Width);
 }
 
-#if defined(FONT_USE_KB_TEXT_SHAPE)
+#if defined(FONT_USE_KB_TEXT_SHAPE) || defined(FONT_USE_HARFBUZZ_TEXT_SHAPE)
 TEST_F(FontTest, TextArabic)
 {
     char buffer[512];
@@ -567,6 +567,7 @@ TEST_F(FontTest, TextArabic)
     {
         printf("0x%X ", codepoints[i]);
     }
+    printf("\n");
 
     TextShapeInfo info;
     info.m_Font = font;

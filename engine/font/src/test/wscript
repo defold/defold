@@ -20,6 +20,7 @@ def build(bld):
     bld(features = 'cxx cprogram test',
         source   = bld.path.ant_glob(['*.cpp']),
         use      = 'TESTMAIN DLIB PROFILE_NULL HARFBUZZ font_hb',
+        defines  = ['FONT_USE_HARFBUZZ_TEXT_SHAPE'],
         includes = '. .. ../font',
         target = 'test_font_hb')
 

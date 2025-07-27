@@ -421,7 +421,9 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
         return 0;
     }
     uint32_t line_count = metrics.m_LineCount;
-    float x_offset = OffsetX(te.m_Align, te.m_Width);
+    int32_t dir = info.m_Direction == TEXT_DIRECTION_RTL ? -1 : 1;
+    uint32_t align = te.m_Align;
+    float x_offset = OffsetX(align, 1, te.m_Width); // the box alignment is LTR direction (in pixels)
     if (font_map->m_IsMonospaced)
     {
         x_offset -= font_map->m_Padding * 0.5f;
@@ -433,14 +435,14 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
     for (int line = 0; line < line_count; ++line) {
         TextLine& l = lines[line];
 
-        uint32_t align = te.m_Align;
-
-        const float line_start_x = x_offset - OffsetX(align, l.m_Width);
-        const float line_start_y = y_offset - line * leading;
-
         // all glyphs are positions on an infinite line, so we want the position of the first glyph on the line
-        int32_t first_x = glyphs[l.m_Index].m_X;
-        int32_t first_y = glyphs[l.m_Index].m_Y;
+        int32_t first_x     = glyphs[l.m_Index].m_X;
+        int32_t first_y     = glyphs[l.m_Index].m_Y;
+        int32_t first_width = glyphs[l.m_Index].m_Width;
+
+        const float glyph_offset_x = dir > 0 ? 0 : ((align == TEXT_ALIGN_LEFT) ? 0 : -first_width * pixel_scale);
+        const float line_start_x = x_offset - OffsetX(align, dir, l.m_Width * pixel_scale) + glyph_offset_x;
+        const float line_start_y = y_offset - line * leading;
 
         int n = l.m_Length;
         for (int j = 0; j < n; ++j)

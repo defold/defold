@@ -37,18 +37,14 @@ namespace dmRender
     ///////////////////////////////////////////////////////////////////////////////
 
     // Helper to calculate horizontal pivot point
-    static inline float OffsetX(uint32_t align, float width)
+    static inline float OffsetX(uint32_t align, int32_t dir, float width)
     {
         switch (align)
         {
-            case TEXT_ALIGN_LEFT:
-                return 0.0f;
-            case TEXT_ALIGN_CENTER:
-                return width * 0.5f;
-            case TEXT_ALIGN_RIGHT:
-                return width;
-            default:
-                return 0.0f;
+            case TEXT_ALIGN_LEFT:   return dir > 0 ? 0.0f : width;
+            case TEXT_ALIGN_RIGHT:  return dir > 0 ? width : 0.0f;
+            case TEXT_ALIGN_CENTER: return width * 0.5f;
+            default:                return 0.0f;
         }
     }
 
