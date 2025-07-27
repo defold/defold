@@ -20,8 +20,6 @@
 
 namespace dmGraphics
 {
-    typedef struct ShaderModule* HShaderModule;
-
     struct ShaderResourceType
     {
         union
@@ -48,7 +46,7 @@ namespace dmGraphics
         dmArray<ShaderResourceMember> m_Members;
     };
 
-    void GetShaderResourceTypes(HShaderModule shader, const ShaderResourceTypeInfo** types, uint32_t* count);
+    void GetShaderResourceTypes(HProgram prog, const ShaderResourceTypeInfo** types, uint32_t* count);
 }
 
 #endif // DM_GRAPHICS_REFLECTION_H

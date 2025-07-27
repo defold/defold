@@ -1191,7 +1191,6 @@ namespace dmGameSystem
         return has_skin_data && dmRender::GetMaterialHasSkinnedAttributes(material) ? world->m_InstanceVertexDeclarationSkinned : world->m_InstanceVertexDeclaration;
     }
 
->>>>>>> dev
     static void RenderBatchLocalVSInstanced(ModelWorld* world, dmRender::HRenderContext render_context,
         dmRender::HMaterial render_context_material, uint32_t material_index,
         ModelComponent* component, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end, dmGraphics::HVertexDeclaration inst_decl)

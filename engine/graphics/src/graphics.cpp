@@ -1510,11 +1510,11 @@ namespace dmGraphics
         Program* p = (Program*) prog;
         *uniform_desc = p->m_Uniforms[index];
     }
-    void GetShaderResourceTypes(HShaderModule _shader, const ShaderResourceTypeInfo** types, uint32_t* count)
+    void GetShaderResourceTypes(HProgram prog, const ShaderResourceTypeInfo** types, uint32_t* count)
     {
-        ShaderModule* shader = (ShaderModule*) _shader;
-        *types = shader->m_ShaderMeta.m_TypeInfos.Begin();
-        *count = shader->m_ShaderMeta.m_TypeInfos.Size();
+        Program* program = (Program*) prog;
+        *types = program->m_ShaderMeta.m_TypeInfos.Begin();
+        *count = program->m_ShaderMeta.m_TypeInfos.Size();
     }
 
     ///////////////////////////////////////////////////

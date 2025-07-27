@@ -651,8 +651,7 @@ namespace dmGameSystem
 
     static bool FillPbrMaterialInfo(
         const dmGraphics::Uniform& uniform,
-        const dmGraphics::ShaderResourceTypeInfo* vs_type_infos,
-        const dmGraphics::ShaderResourceTypeInfo* fs_type_infos,
+        const dmGraphics::ShaderResourceTypeInfo* type_infos,
         PBRMaterialInfo* info)
     {
         if (!uniform.m_RootType.m_UseTypeIndex)
@@ -661,21 +660,6 @@ namespace dmGameSystem
         }
 
         uint32_t type_index = uniform.m_RootType.m_TypeIndex;
-        const dmGraphics::ShaderResourceTypeInfo* type_infos;
-
-        if (uniform.m_StageFlags & dmGraphics::SHADER_STAGE_FLAG_VERTEX)
-        {
-            type_infos = vs_type_infos;
-        }
-        else if (uniform.m_StageFlags & dmGraphics::SHADER_STAGE_FLAG_FRAGMENT)
-        {
-            type_infos = fs_type_infos;
-        }
-        else
-        {
-            return false;
-        }
-
         if (type_infos[type_index].m_NameHash != PBR_MATERIAL_TYPE)
         {
             return false;
@@ -714,18 +698,11 @@ namespace dmGameSystem
     {
         memset(info, 0, sizeof(PBRMaterialInfo));
 
-        dmGraphics::HVertexProgram vs_program = dmRender::GetMaterialVertexProgram(material);
-        dmGraphics::HFragmentProgram fs_program = dmRender::GetMaterialFragmentProgram(material);
-
-        const dmGraphics::ShaderResourceTypeInfo* vs_type_infos;
-        uint32_t vs_type_infos_count;
-        dmGraphics::GetShaderResourceTypes((dmGraphics::HShaderModule) vs_program, &vs_type_infos, &vs_type_infos_count);
-
-        const dmGraphics::ShaderResourceTypeInfo* fs_type_infos;
-        uint32_t fs_type_infos_count;
-        dmGraphics::GetShaderResourceTypes((dmGraphics::HShaderModule) fs_program, &fs_type_infos, &fs_type_infos_count);
-
         dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
+
+        const dmGraphics::ShaderResourceTypeInfo* type_infos;
+        uint32_t type_infos_count;
+        dmGraphics::GetShaderResourceTypes(program, &type_infos, &type_infos_count);
 
         uint32_t uniform_count = dmGraphics::GetUniformCount(program);
 
@@ -735,7 +712,7 @@ namespace dmGameSystem
         {
             dmGraphics::Uniform uniform;
             dmGraphics::GetUniform(program, i, &uniform);
-            has_pbr_uniforms |= FillPbrMaterialInfo(uniform, vs_type_infos, fs_type_infos, info);
+            has_pbr_uniforms |= FillPbrMaterialInfo(uniform, type_infos, info);
         }
         return has_pbr_uniforms;
     }

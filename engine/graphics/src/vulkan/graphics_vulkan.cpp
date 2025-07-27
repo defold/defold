@@ -2424,7 +2424,7 @@ bail:
         vkCmdDispatch(vk_command_buffer, group_count_x, group_count_y, group_count_z);
     }
 
-    static bool ValidateShaderModule(VulkanContext* context, ShaderMeta* meta, ShaderModule* shader, ShaderStageFlag stage_flags, char* error_buffer, uint32_t error_buffer_size)
+    static bool ValidateShaderModule(VulkanContext* context, ShaderMeta* meta, VulkanShaderModule* shader, ShaderStageFlag stage_flags, char* error_buffer, uint32_t error_buffer_size)
     {
         uint32_t stage_uniform_buffers = 0;
         uint32_t stage_storage_buffers = 0;
@@ -2680,14 +2680,14 @@ bail:
         BuildUniforms(&program->m_BaseProgram);
     }
 
-    static void CreateComputeProgram(VulkanContext* context, VulkanProgram* program, ShaderModule* compute_module)
+    static void CreateComputeProgram(VulkanContext* context, VulkanProgram* program, VulkanShaderModule* compute_module)
     {
         program->m_ComputeModule  = compute_module;
         program->m_Hash           = compute_module->m_Hash;
         CreateProgramResourceBindings(context, program);
     }
 
-    static void CreateGraphicsProgram(VulkanContext* context, VulkanProgram* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
+    static void CreateGraphicsProgram(VulkanContext* context, VulkanProgram* program, VulkanShaderModule* vertex_module, VulkanShaderModule* fragment_module)
     {
         program->m_Hash           = 0;
         program->m_UniformData    = 0;
@@ -2729,7 +2729,7 @@ bail:
         delete program_ptr;
     }
 
-    static void DestroyShader(VulkanContext* context, ShaderModule* shader)
+    static void DestroyShader(VulkanContext* context, VulkanShaderModule* shader)
     {
         if (!shader)
         {
@@ -2739,9 +2739,9 @@ bail:
         DestroyShaderModule(context->m_LogicalDevice.m_Device, shader);
     }
 
-    static bool ReloadShader(VulkanContext* context, ShaderModule* shader, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage_flag)
+    static bool ReloadShader(VulkanContext* context, VulkanShaderModule* shader, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage_flag)
     {
-        ShaderModule tmp_shader;
+        VulkanShaderModule tmp_shader;
         VkResult res = CreateShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, stage_flag, &tmp_shader);
         if (res == VK_SUCCESS)
         {
@@ -2757,9 +2757,9 @@ bail:
         return false;
     }
 
-    static inline ShaderModule* NewShaderModule(VulkanContext* context, ShaderMeta* meta, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage, char* error_buffer, uint32_t error_buffer_size)
+    static inline VulkanShaderModule* NewShaderModule(VulkanContext* context, ShaderMeta* meta, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage, char* error_buffer, uint32_t error_buffer_size)
     {
-        ShaderModule* module = new ShaderModule;
+        VulkanShaderModule* module = new VulkanShaderModule;
         memset(module, 0, sizeof(*module));
 
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, stage, module);
@@ -2805,13 +2805,13 @@ bail:
 
         if (ddf_cp)
         {
-            ShaderModule* module_cp = NewShaderModule(context, &program->m_BaseProgram.m_ShaderMeta, ddf_cp, VK_SHADER_STAGE_COMPUTE_BIT, error_buffer, error_buffer_size);
+            VulkanShaderModule* module_cp = NewShaderModule(context, &program->m_BaseProgram.m_ShaderMeta, ddf_cp, VK_SHADER_STAGE_COMPUTE_BIT, error_buffer, error_buffer_size);
             CreateComputeProgram(context, program, module_cp);
         }
         else
         {
-            ShaderModule* vertex_module = NewShaderModule(context, &program->m_BaseProgram.m_ShaderMeta, ddf_vp, VK_SHADER_STAGE_VERTEX_BIT, error_buffer, error_buffer_size);
-            ShaderModule* fragment_module = NewShaderModule(context, &program->m_BaseProgram.m_ShaderMeta, ddf_fp, VK_SHADER_STAGE_FRAGMENT_BIT, error_buffer, error_buffer_size);
+            VulkanShaderModule* vertex_module = NewShaderModule(context, &program->m_BaseProgram.m_ShaderMeta, ddf_vp, VK_SHADER_STAGE_VERTEX_BIT, error_buffer, error_buffer_size);
+            VulkanShaderModule* fragment_module = NewShaderModule(context, &program->m_BaseProgram.m_ShaderMeta, ddf_fp, VK_SHADER_STAGE_FRAGMENT_BIT, error_buffer, error_buffer_size);
             CreateGraphicsProgram((VulkanContext*) context, program, vertex_module, fragment_module);
         }
 
