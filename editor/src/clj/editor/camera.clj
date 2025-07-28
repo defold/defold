@@ -441,6 +441,7 @@
    [:primary   false false true  false] :track
    [:primary   false true  true  false] :dolly
    [:secondary false false true  false] :dolly
+   [:secondary false false false false] :track
    [:middle    false false false false] :track})
 
 (defn camera-movement
@@ -631,7 +632,8 @@
         movements-enabled (g/node-value self :movements-enabled)
         ui-state (or (g/user-data self ::ui-state) {:movement :idle})
         {:keys [last-x last-y]} ui-state
-        {:keys [x y type delta-y alt]} action
+        {:keys [x y type delta-y alt button]} action
+        is-secondary (= button :secondary)
         movement (if (= type :mouse-pressed)
                    (get movements-enabled (camera-movement action) :idle)
                    (:movement ui-state))
@@ -665,14 +667,14 @@
       :scroll (if (contains? movements-enabled :dolly) nil action)
       :mouse-pressed (do
                        (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y :movement movement)
-                       (if (= movement :idle) action nil))
+                       (if (or (= movement :idle) is-secondary) action nil))
       :mouse-released (do
                         (g/user-data-swap! self ::ui-state assoc :last-x nil :last-y nil :movement :idle)
-                        (if (= movement :idle) action nil))
+                        (if (or (= movement :idle) is-secondary) action nil))
       :mouse-moved (if (not (= :idle movement))
                      (do
                        (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y)
-                       nil)
+                       (if is-secondary action nil))
                      action)
       action)))
 
