@@ -1321,10 +1321,37 @@ static void LogFrameBufferError(GLenum status)
         {
             GLint *pCompressedFormats = new GLint[iNumCompressedFormats];
             glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, pCompressedFormats);
+            bool isPagedASTCSupported = true;
+            #if defined (__EMSCRIPTEN__)
+            // Workaround for some old phones which don't work with ASTC in glCompressedTexImage3D
+            // see https://github.com/defold/defold/issues/8030
+            // and https://github.com/defold/defold/issues/11009
+            if (context->m_IsGles3Version && OpenGLIsTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4X4)) {
+                unsigned char fakeZeroBuffer[] = {
+                    0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                    
+                    0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+
+                };
+                GLuint texture;
+                glGenTextures(1, &texture);
+                glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
+                DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, 0, DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR, 4, 4, 2, 0, 32, &fakeZeroBuffer);
+                GLint err = glGetError();
+                if (err != 0)
+                {
+                    context->m_ASTCSupport = 0;
+                    isPagedASTCSupported = false;
+                }
+                glDeleteTextures(1, &texture);
+            }
+            #endif
             for (int i = 0; i < iNumCompressedFormats; i++)
             {
                 // If 4x4 is supported, all ASTC formats should be supported.
-                if (pCompressedFormats[i] == DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR)
+                if (isPagedASTCSupported && pCompressedFormats[i] == DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR)
                 {
                     context->m_ASTCSupport = 1;
                 }
@@ -1346,27 +1373,6 @@ static void LogFrameBufferError(GLenum status)
 
 
 #if defined (__EMSCRIPTEN__)
-        // Workaround for some old phones which don't work with ASTC in glCompressedTexImage3D
-        // see https://github.com/defold/defold/issues/8030
-        if (context->m_IsGles3Version && OpenGLIsTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4X4)) {
-            unsigned char fakeZeroBuffer[] = {
-                0x63, 0xae, 0x88, 0xc8, 0xa6, 0x0b, 0x45, 0x35, 0x8d, 0x27, 0x7c, 0xb5,0x63,
-                0x2a, 0xcc, 0x90, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01,
-                0x63, 0xae, 0x88, 0xc8, 0xa6, 0x0b, 0x45, 0x35, 0x8d, 0x27, 0x7c, 0xb5,0x63,
-                0x2a, 0xcc, 0x90, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01
-            };
-            GLuint texture;
-            glGenTextures(1, &texture);
-            glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
-            DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, 0, DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR, 4, 4, 2, 0, 32, &fakeZeroBuffer);
-            GLint err = glGetError();
-            if (err != 0)
-            {
-                context->m_TextureFormatSupport &= ~(1 << TEXTURE_FORMAT_RGBA_ASTC_4X4);
-            }
-            glDeleteTextures(1, &texture);
-        }
-
         // webgl GL_DEPTH_STENCIL_ATTACHMENT for stenciling and GL_DEPTH_COMPONENT16 for depth only by specifications, even though it reports 24-bit depth and no packed depth stencil extensions.
         context->m_PackedDepthStencilSupport = 1;
         context->m_DepthBufferBits = 16;
