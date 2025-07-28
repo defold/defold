@@ -33,7 +33,7 @@
            [javafx.scene Node]
            [javafx.scene.control ScrollBar SelectionMode TreeItem TreeView ToggleButton Label TextField]
            [javafx.scene.image ImageView]
-           [javafx.scene.input Clipboard DataFormat DragEvent KeyCode KeyCodeCombination KeyEvent MouseEvent TransferMode]
+           [javafx.scene.input Clipboard DataFormat DragEvent KeyCode KeyCodeCombination KeyEvent MouseButton MouseEvent TransferMode]
            [javafx.scene.layout AnchorPane HBox Priority]
            [javafx.util Callback]))
 
@@ -530,23 +530,24 @@
                                    (.getDesktopProperty "awt.multiClickInterval"))
                                500)]
     (ui/user-data! text-label ::last-click-time current-click-time)
-    (cond
-      (< time-diff db-click-threshold)
-      (do
-        (when-let [future (ui/user-data text-label ::rename-future)]
-          (ui/cancel future)
-          (ui/user-data! text-label ::future-rename nil))
-        (ui/run-command (.getSource event) :file.open-selected))
+    (when (= MouseButton/PRIMARY (.getButton event))
+      (cond
+        (< time-diff db-click-threshold)
+        (do
+          (when-let [future (ui/user-data text-label ::rename-future)]
+            (ui/cancel future)
+            (ui/user-data! text-label ::future-rename nil))
+          (ui/run-command (.getSource event) :file.open-selected))
 
-      (= (get-selected-node-id tree-view)
-         (ui/user-data text-label ::node-id))
-      (let [future-rename (ui/->future (/ db-click-threshold 1000)
-                                       (fn []
-                                         (ui/user-data! text-label ::future-rename nil)
-                                         (ui/run-command (.getSource event) :edit.rename)))]
-        (ui/user-data! text-label ::future-rename future-rename))
+        (= (get-selected-node-id tree-view)
+           (ui/user-data text-label ::node-id))
+        (let [future-rename (ui/->future (/ db-click-threshold 1000)
+                                         (fn []
+                                           (ui/user-data! text-label ::future-rename nil)
+                                           (ui/run-command (.getSource event) :edit.rename)))]
+          (ui/user-data! text-label ::future-rename future-rename))
 
-      :else nil)))
+        :else nil))))
 
 (defn- editable-id?
   [node-id]
