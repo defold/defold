@@ -529,8 +529,8 @@
         db-click-threshold (or (-> (Toolkit/getDefaultToolkit)
                                    (.getDesktopProperty "awt.multiClickInterval"))
                                500)]
-    (ui/user-data! text-label ::last-click-time current-click-time)
     (when (= MouseButton/PRIMARY (.getButton event))
+      (ui/user-data! text-label ::last-click-time current-click-time)
       (cond
         (< time-diff db-click-threshold)
         (do
