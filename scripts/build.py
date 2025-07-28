@@ -121,7 +121,8 @@ PACKAGES_ALL=[
     "box2d_defold-2.2.1",
     "opus-1.5.2",
     "harfbuzz-11.3.2",
-    "SheenBidi-2.9.0"]
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1"]
 
 PACKAGES_HOST=[
     "vpx-1.7.0",
@@ -186,7 +187,8 @@ PACKAGES_MACOS_ARM64=[
     "box2d_defold-2.2.1",
     "opus-1.5.2",
     "harfbuzz-11.3.2",
-    "SheenBidi-2.9.0"]
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1"]
 
 PACKAGES_WIN32=[
     "protobuf-3.20.1",

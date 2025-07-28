@@ -3,8 +3,8 @@
 srcdir = '.'
 blddir = 'build'
 
-APPNAME='SheenBidi'
-VERSION='2.9.0'
+APPNAME='libunibreak'
+VERSION='6.1'
 
 import os, shutil
 import waf_dynamo
@@ -28,8 +28,8 @@ def configure(conf):
 
 def build(bld):
     name = '%s-%s' % (APPNAME, VERSION)
-    packagedir = 'package/%s/Source' % name
-    includedir = 'package/%s/Headers' % name
+    packagedir = 'package/%s/src' % name
+    includedir = 'package/%s/src' % name
 
     build_util = create_build_utility(bld.env)
     target_os = build_util.get_target_os()
@@ -47,23 +47,25 @@ def build(bld):
 
     OPT = '/O2' if TargetOS.WINDOWS == target_os else '-O3'
 
-    sheenbidi = bld.stlib(features = 'c remove_flags',
+    unibreak = bld.stlib(features = 'c remove_flags',
                          remove_flags = remove_flags,
-                         source    = [f'{packagedir}/SheenBidi.c'],
-                         defines   = ['SB_CONFIG_UNITY'],
+                         source    = bld.path.ant_glob('%s/*.c' % packagedir),
+                         defines   = [],
                          includes  = ['.', '..', packagedir, includedir],
                          install_path = None,
-                         target    = 'sheenbidi')
+                         target    = 'unibreak')
 
-    sheenbidi.env.append_unique('CFLAGS', OPT)
-    sheenbidi.install_path = None
+    unibreak.env.append_unique('CFLAGS', OPT)
+    unibreak.install_path = None
+
+    unibreak.source = [x for x in unibreak.source if not x.name.endswith('tests.c')]
 
     if TargetOS.WINDOWS == target_os:
         bld.env.STLIB_ST         = 'lib%s.lib'
         bld.env.cstlib_PATTERN   = 'lib%s.lib'
         bld.env.cxxstlib_PATTERN = 'lib%s.lib'
 
-    bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'sheenbidi')
+    bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'unibreak')
     bld.install_files('${PREFIX}/%s/include' % name,
                         bld.path.ant_glob('%s/**/*.h' % includedir),
                         relative_base=bld.path.find_dir(includedir),
