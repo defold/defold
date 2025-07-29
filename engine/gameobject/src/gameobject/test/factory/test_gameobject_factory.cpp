@@ -174,22 +174,6 @@ TEST_F(FactoryTest, FactoryScale)
     ASSERT_EQ(2.0f, dmGameObject::GetUniformScale(instance));
 }
 
-TEST_F(FactoryTest, FactoryScaleAlongZ)
-{
-    uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
-    dmhash_t id = dmGameObject::CreateInstanceId();
-
-    m_Collection->m_Collection->m_ScaleAlongZ = 1;
-    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0, Point3(), Quat(), Vector3(2, 2, 2));
-    ASSERT_TRUE(dmGameObject::ScaleAlongZ(instance));
-
-    index = dmGameObject::AcquireInstanceIndex(m_Collection);
-    id = dmGameObject::CreateInstanceId();
-    m_Collection->m_Collection->m_ScaleAlongZ = 0;
-    instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0, Point3(), Quat(), Vector3(2, 2, 2));
-    ASSERT_FALSE(dmGameObject::ScaleAlongZ(instance));
-}
-
 TEST_F(FactoryTest, FactoryProperties)
 {
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);

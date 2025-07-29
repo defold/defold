@@ -56,23 +56,6 @@ TEST(dmTransform, Apply)
     ASSERT_V3_NEAR(Point3(1.0f, 2.0f, 0.0f), dmTransform::Apply(t, Point3(1.0f, 0.0f, 0.0f)));
 }
 
-TEST(dmTransform, ApplyNoScaleZ)
-{
-    TransformS1 ts1(Vector3(0.0f, 0.0f, 0.0f),
-            Quat::identity(),
-            2.0f);
-
-    ASSERT_V3_NEAR(Vector3(2.0f, 0.0f, 1.0f), dmTransform::ApplyNoScaleZ(ts1, Vector3(1.0f, 0.0f, 1.0f)));
-    ASSERT_V3_NEAR(Point3(2.0f, 0.0f, 1.0f), dmTransform::ApplyNoScaleZ(ts1, Point3(1.0f, 0.0f, 1.0f)));
-
-    Transform t(Vector3(0.0f, 0.0f, 0.0f),
-            Quat::identity(),
-            Vector3(2.0f, 2.0f, 2.0f));
-
-    ASSERT_V3_NEAR(Vector3(2.0f, 0.0f, 1.0f), dmTransform::ApplyNoScaleZ(t, Vector3(1.0f, 0.0f, 1.0f)));
-    ASSERT_V3_NEAR(Point3(2.0f, 0.0f, 1.0f), dmTransform::ApplyNoScaleZ(t, Point3(1.0f, 0.0f, 1.0f)));
-}
-
 TEST(dmTransform, Multiply)
 {
     TransformS1 ts10(Vector3(1.0f, 0.0f, 0.0f),
@@ -92,50 +75,6 @@ TEST(dmTransform, Multiply)
     ASSERT_V3_NEAR(Vector3(1.0f, 2.0f, 0.0f), res.GetTranslation());
     ASSERT_V4_NEAR(Quat::rotationZ((float) M_PI), res.GetRotation());
     ASSERT_V3_NEAR(Vector3(4.0f, 4.0f, 4.0f), res.GetScale());
-}
-
-TEST(dmTransform, MultiplyNoScaleZ)
-{
-    TransformS1 ts10(Vector3(0.0f, 0.0f, 1.0f),
-            Quat::identity(),
-            2.0f);
-
-    TransformS1 ress1 = Mul(ts10, ts10);
-    ASSERT_V3_NEAR(Vector3(0.0f, 0.0f, 3.0f), ress1.GetTranslation());
-    ress1 = MulNoScaleZ(ts10, ts10);
-    ASSERT_V3_NEAR(Vector3(0.0f, 0.0f, 2.0f), ress1.GetTranslation());
-
-    Transform t0(Vector3(0.0f, 0.0f, 1.0f),
-            Quat::identity(),
-            Vector3(2.0f, 2.0f, 2.0f));
-
-    Transform res = Mul(t0, t0);
-    ASSERT_V3_NEAR(Vector3(0.0f, 0.0f, 3.0f), res.GetTranslation());
-    res = MulNoScaleZ(t0, t0);
-    ASSERT_V3_NEAR(Vector3(0.0f, 0.0f, 2.0f), res.GetTranslation());
-}
-
-TEST(dmTransform, MultiplyNoScaleZMatrix)
-{
-    Transform ts10(Vector3(0.0f, 0.0f, 1.0f),
-            Quat::identity(),
-            Vector3(2.0f, 2.0f, 2.0f));
-
-    Matrix4 ts10mtx = ToMatrix4(ts10);
-    Matrix4 ress1 = ts10mtx * ts10mtx;
-    ASSERT_V3_NEAR(Vector3(0.0f, 0.0f, 3.0f), ress1.getCol(3));
-    ress1 = MulNoScaleZ(ts10mtx, ts10mtx);
-    ASSERT_V3_NEAR(Vector3(0.0f, 0.0f, 2.0f), ress1.getCol(3));
-
-    Transform t0(Vector3(0.0f, 0.0f, 1.0f),
-            Quat::identity(),
-            Vector3(2.0f, 2.0f, 2.0f));
-
-    Matrix4 t0mtx = ToMatrix4(t0);
-    Matrix4 res = t0mtx * t0mtx;
-    ASSERT_V3_NEAR(Vector3(0.0f, 0.0f, 3.0f), res.getCol(3));
-    res = MulNoScaleZ(t0mtx, t0mtx);
-    ASSERT_V3_NEAR(Vector3(0.0f, 0.0f, 2.0f), res.getCol(3));
 }
 
 TEST(dmTransform, Conversion)
