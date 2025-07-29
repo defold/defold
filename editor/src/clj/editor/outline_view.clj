@@ -33,7 +33,7 @@
            [javafx.scene Node]
            [javafx.scene.control ScrollBar SelectionMode TreeItem TreeView ToggleButton Label TextField]
            [javafx.scene.image ImageView]
-           [javafx.scene.input Clipboard DataFormat DragEvent KeyCode KeyCodeCombination KeyEvent MouseButton MouseEvent TransferMode]
+           [javafx.scene.input Clipboard ContextMenuEvent DataFormat DragEvent KeyCode KeyCodeCombination KeyEvent MouseButton MouseEvent TransferMode]
            [javafx.scene.layout AnchorPane HBox Priority]
            [javafx.util Callback]))
 
@@ -521,6 +521,12 @@
         ^TreeItem selected-item (first selected-items)]
     (item->node-id selected-item)))
 
+(defn- cancel-rename!
+  [^TreeView tree-view]
+  (when-let [future (ui/user-data tree-view ::future-rename)]
+    (ui/cancel future)
+    (ui/user-data! tree-view ::future-rename nil)))
+
 (defn- click-handler!
   [^TreeView tree-view ^Label text-label ^MouseEvent event]
   (let [current-click-time (System/currentTimeMillis)
@@ -534,18 +540,16 @@
       (cond
         (< time-diff db-click-threshold)
         (do
-          (when-let [future (ui/user-data text-label ::rename-future)]
-            (ui/cancel future)
-            (ui/user-data! text-label ::future-rename nil))
+          (cancel-rename! tree-view)
           (ui/run-command (.getSource event) :file.open-selected))
 
         (= (get-selected-node-id tree-view)
            (ui/user-data text-label ::node-id))
         (let [future-rename (ui/->future (/ db-click-threshold 1000)
                                          (fn []
-                                           (ui/user-data! text-label ::future-rename nil)
+                                           (ui/user-data! tree-view ::future-rename nil)
                                            (ui/run-command (.getSource event) :edit.rename)))]
-          (ui/user-data! text-label ::future-rename future-rename))
+          (ui/user-data! tree-view ::future-rename future-rename))
 
         :else nil))))
 
@@ -714,6 +718,7 @@
       (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
       (ui/observe-selection #(propagate-selection %2 app-view))
       (ui/register-context-menu ::outline-menu)
+      (.addEventHandler ContextMenuEvent/CONTEXT_MENU_REQUESTED (ui/event-handler event (cancel-rename! tree-view)))
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (key-pressed-handler! app-view tree-view event)))
       (ui/context! :outline {:outline-view outline-view} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
                                                                                                resource/Resource :link}))))
