@@ -415,12 +415,19 @@ static dmExtension::Result ProfilerRemotery_AppInitialize(dmExtension::AppParams
     g_ProfilerOptions_Port                      = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.remotery_port", 0);
     g_ProfilerOptions_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.remotery_sleep_between_server_updates", 0);
 
-    ProfileRegisterProfiler(g_ProfilerName, &g_Listener);
+    if (!IsInitialized())
+    {
+        ProfileRegisterProfiler(g_ProfilerName, &g_Listener);
+    }
     return dmExtension::RESULT_OK;
 }
 
 static dmExtension::Result ProfilerRemotery_AppFinalize(dmExtension::AppParams* params)
 {
+    if (dmExtension::AppParamsGetAppExitCode(params) == dmExtension::APP_EXIT_CODE_EXIT)
+    {
+        ProfileUnregisterProfiler(g_ProfilerName);
+    }
     return dmExtension::RESULT_OK;
 }
 
