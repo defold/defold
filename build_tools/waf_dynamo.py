@@ -243,7 +243,7 @@ def apidoc_extract_task(bld, src):
     def _parse_source(source_path):
         resource = bld.path.find_resource(source_path)
         if not resource:
-            sys.exit("Couldn't find resource: %s" % s)
+            sys.exit("Couldn't find resource: %s" % resource)
             return
 
         elements = {}
@@ -2072,6 +2072,8 @@ def detect(conf):
     conf.env['STLIB_PLATFORM_NULL']   = ['platform_null']
 
     conf.env['STLIB_FONT']            = ['font']
+    conf.env['STLIB_FONT_KB']         = ['font_kb']
+    conf.env['STLIB_FONT_HB']         = ['font_hb', 'harfbuzz', 'sheenbidi']
 
     if platform_glfw_version(platform) == 3:
         conf.env['STLIB_DMGLFW'] = 'glfw3'

@@ -21,6 +21,7 @@
 namespace dmGameSystem
 {
     struct FontResource;
+    struct TTFResource;
 
     dmExtension::Result FontGenInitialize(dmExtension::Params* params);
     dmExtension::Result FontGenFinalize(dmExtension::Params* params);
@@ -33,6 +34,9 @@ namespace dmGameSystem
     typedef void (*FGlyphCallback)(void* cbk_ctx, int result, const char* errmsg);
     bool FontGenAddGlyphs(FontResource* resource, const char* text, bool loading, FGlyphCallback cbk, void* cbk_ctx);
     bool FontGenRemoveGlyphs(FontResource* resource, const char* text);
+
+    // Resource api
+    bool FontGenAddGlyphByIndex(FontResource* fontresource, TTFResource* ttfresource, uint32_t glyph_index, bool loading, FGlyphCallback cbk, void* cbk_ctx);
 
     // If we're busy waiting for created glyphs
     void FontGenFlushFinishedJobs(uint64_t timeout);
