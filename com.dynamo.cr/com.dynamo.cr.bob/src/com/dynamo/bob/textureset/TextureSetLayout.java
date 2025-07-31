@@ -308,7 +308,7 @@ public class TextureSetLayout {
         if (layoutWidth > MAX_ATLAS_DIMENSION || layoutHeight > MAX_ATLAS_DIMENSION) {
             throw new CompileExceptionError(String.format(
                 "Atlas grid layout size (%dx%d) exceeds maximum allowed dimensions (%dx%d). " +
-                "Consider reducing image sizes, using multiple atlases, or using the multi-page atlas.",
+                "Consider reducing image sizes, using multiple atlases, or using a multi-page atlas.",
                 layoutWidth, layoutHeight, MAX_ATLAS_DIMENSION, MAX_ATLAS_DIMENSION, gridSize.columns, gridSize.rows));
         }
 
