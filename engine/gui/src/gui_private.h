@@ -296,6 +296,7 @@ namespace dmGui
         SetMaterialPropertyCallback           m_SetMaterialPropertyCallback;
         void*                                 m_SetMaterialPropertyCallbackContext;
         DestroyRenderConstantsCallback        m_DestroyRenderConstantsCallback;
+        CloneRenderConstantsCallback          m_CloneRenderConstantsCallback;
         NewTextureResourceCallback            m_NewTextureResourceCallback;
         DeleteTextureResourceCallback         m_DeleteTextureResourceCallback;
         SetTextureResourceCallback            m_SetTextureResourceCallback;
