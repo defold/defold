@@ -4279,7 +4279,6 @@ namespace dmGui
         }
         else
         {
-            // Ensure cloned nodes don't share the pointer if no callback available
             out_n->m_Node.m_RenderConstants = 0x0;
             out_n->m_Node.m_RenderConstantsHash = 0;
         }
