@@ -20,12 +20,20 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Arrays;
 
+import com.dynamo.bob.CompileExceptionError;
+
 /**
  * Atlas layout algorithm(s)
  * @author chmu
  *
  */
 public class TextureSetLayout {
+
+    /**
+     * Maximum allowed atlas dimension in pixels.
+     * This limit ensures compatibility with most graphics hardware and prevents memory issues.
+     */
+    public static final int MAX_ATLAS_DIMENSION = 16384;
 
     public static class Grid {
         public int columns;
@@ -267,7 +275,7 @@ public class TextureSetLayout {
         }
     }
 
-    public static List<Layout> packedLayout(int margin, List<Rect> rectangles, boolean rotate, float maxPageSizeW, float maxPageSizeH) {
+    public static List<Layout> packedLayout(int margin, List<Rect> rectangles, boolean rotate, float maxPageSizeW, float maxPageSizeH) throws CompileExceptionError {
         if (rectangles.size() == 0) {
             return Arrays.asList(new Layout(1, 1, new ArrayList<TextureSetLayout.Rect>()));
         }
@@ -283,7 +291,7 @@ public class TextureSetLayout {
         return exponent;
     }
 
-    public static Layout gridLayout(int margin, List<Rect> rectangles, Grid gridSize ) {
+    public static Layout gridLayout(int margin, List<Rect> rectangles, Grid gridSize ) throws CompileExceptionError {
 
         // We assume here that all images have the same size,
         // since they will be "packed" into a uniformly sized grid.
@@ -295,6 +303,14 @@ public class TextureSetLayout {
         int inputHeight = gridSize.rows * cellHeight + margin*2;
         int layoutWidth = 1 << getExponentNextOrMatchingPowerOfTwo(inputWidth);
         int layoutHeight = 1 << getExponentNextOrMatchingPowerOfTwo(inputHeight);
+        
+        // Validate atlas size limits
+        if (layoutWidth > MAX_ATLAS_DIMENSION || layoutHeight > MAX_ATLAS_DIMENSION) {
+            throw new CompileExceptionError(String.format(
+                "Atlas grid layout size (%dx%d) exceeds maximum allowed dimensions (%dx%d). " +
+                "Consider reducing image sizes, using multiple atlases, or using the multi-page atlas.",
+                layoutWidth, layoutHeight, MAX_ATLAS_DIMENSION, MAX_ATLAS_DIMENSION, gridSize.columns, gridSize.rows));
+        }
 
         int x = margin;
         int y = margin;
@@ -324,7 +340,7 @@ public class TextureSetLayout {
      * @param rotate
      * @return
      */
-    public static List<Layout> createMaxRectsLayout(int margin, List<Rect> rectangles, boolean rotate, float maxPageSizeW, float maxPageSizeH) {
+    public static List<Layout> createMaxRectsLayout(int margin, List<Rect> rectangles, boolean rotate, float maxPageSizeW, float maxPageSizeH) throws CompileExceptionError {
         // Sort by area first, then longest side
         Collections.sort(rectangles, new Comparator<Rect>() {
             @Override

@@ -17,6 +17,9 @@ package com.dynamo.bob.textureset;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.dynamo.bob.textureset.TextureSetLayout.MAX_ATLAS_DIMENSION;
+
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.textureset.TextureSetLayout.Layout;
 import com.dynamo.bob.textureset.TextureSetLayout.Rect;
 
@@ -48,7 +51,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
     }
 
     @Override
-    public List<Layout> createLayout(List<Rect> srcRects) {
+    public List<Layout> createLayout(List<Rect> srcRects) throws CompileExceptionError {
         ArrayList<RectNode> srcNodes = new ArrayList<RectNode>(srcRects.size());
         for(Rect r : srcRects) {
             RectNode n = new RectNode(r);
@@ -77,6 +80,15 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             }
             int layoutWidth = 1 << getExponentNextOrMatchingPowerOfTwo(page.width);
             int layoutHeight = 1 << getExponentNextOrMatchingPowerOfTwo(page.height);
+            
+            // Validate atlas size limits
+            if (layoutWidth > MAX_ATLAS_DIMENSION || layoutHeight > MAX_ATLAS_DIMENSION) {
+                throw new CompileExceptionError(String.format(
+                    "Atlas layout size (%dx%d) exceeds maximum allowed dimensions (%dx%d). " +
+                    "Consider reducing image sizes, using multiple atlases, or using the multi-page atlas.",
+                    layoutWidth, layoutHeight, MAX_ATLAS_DIMENSION, MAX_ATLAS_DIMENSION));
+            }
+            
             Layout layout = new Layout(layoutWidth, layoutHeight, rects);
             result.add(layout);
         }
