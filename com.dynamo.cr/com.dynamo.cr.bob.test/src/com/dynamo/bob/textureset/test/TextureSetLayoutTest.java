@@ -27,6 +27,7 @@ import java.util.List;
 
 import org.junit.Test;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.textureset.TextureSetLayout;
 import com.dynamo.bob.textureset.TextureSetLayout.Layout;
 import com.dynamo.bob.textureset.TextureSetLayout.Rect;
@@ -42,20 +43,20 @@ public class TextureSetLayoutTest {
         assertThat(r.getY(), is(y));
     }
 
-    private static List<Layout> packedLayout(int margin, List<Rect> rectangles) {
+    private static List<Layout> packedLayout(int margin, List<Rect> rectangles) throws CompileExceptionError {
         return TextureSetLayout.packedLayout(margin, rectangles, true, 0, 0);
     }
 
-    private static List<Layout> packedLayoutPaged(int margin, List<Rect> rectangles, float maxPageSizeW, float maxPageSizeH) {
+    private static List<Layout> packedLayoutPaged(int margin, List<Rect> rectangles, float maxPageSizeW, float maxPageSizeH) throws CompileExceptionError {
         return TextureSetLayout.packedLayout(margin, rectangles, true, maxPageSizeW, maxPageSizeH);
     }
 
-    private static Layout gridLayout(int margin, List<Rect> rectangles, Grid gridSize) {
+    private static Layout gridLayout(int margin, List<Rect> rectangles, Grid gridSize) throws CompileExceptionError {
         return TextureSetLayout.gridLayout(margin, rectangles, gridSize);
     }
 
     @Test
-    public void testEmpty() {
+    public void testEmpty() throws CompileExceptionError {
         List<TextureSetLayout.Rect> rectangles
             = Arrays.asList();
 
@@ -66,7 +67,7 @@ public class TextureSetLayoutTest {
     }
 
     @Test
-    public void testBasic1() {
+    public void testBasic1() throws CompileExceptionError {
         List<TextureSetLayout.Rect> rectangles
             = Arrays.asList(rect("0", 0, 16, 16),
                             rect("1", 1, 16, 16),
@@ -83,7 +84,7 @@ public class TextureSetLayoutTest {
     }
 
     @Test
-    public void testBasic2() {
+    public void testBasic2() throws CompileExceptionError {
         List<TextureSetLayout.Rect> rectangles
             = Arrays.asList(rect("0", 0, 16, 16),
                             rect("1", 1, 8, 8),
@@ -110,7 +111,7 @@ public class TextureSetLayoutTest {
     }
 
     @Test
-    public void testBasic3() {
+    public void testBasic3() throws CompileExceptionError {
         List<TextureSetLayout.Rect> rectangles
             = Arrays.asList(rect("0", 0, 512, 128));
 
@@ -121,7 +122,7 @@ public class TextureSetLayoutTest {
     }
 
     @Test
-    public void testBasic4() {
+    public void testBasic4() throws CompileExceptionError {
         List<TextureSetLayout.Rect> rectangles
             = Arrays.asList(rect("0", 0, 32, 12),
                             rect("1", 1, 16, 2),
@@ -136,7 +137,7 @@ public class TextureSetLayoutTest {
     }
 
     @Test
-    public void testBasicMargin1() {
+    public void testBasicMargin1() throws CompileExceptionError {
         int size = 16;
         List<TextureSetLayout.Rect> rectangles
             = Arrays.asList(rect("0", 0, size, size),
@@ -155,7 +156,7 @@ public class TextureSetLayoutTest {
     }
 
     @Test
-    public void testBasicMargin2() {
+    public void testBasicMargin2() throws CompileExceptionError {
         int size = 15;
         List<TextureSetLayout.Rect> rectangles
             = Arrays.asList(rect("0", 0, size, size),
@@ -173,7 +174,7 @@ public class TextureSetLayoutTest {
     }
 
     @Test
-    public void testThinStrip() {
+    public void testThinStrip() throws CompileExceptionError {
         List<TextureSetLayout.Rect> rectangles = Arrays.asList(rect("0", 0, 1, 16));
 
         Layout layout = packedLayout(0, rectangles).get(0);
@@ -183,7 +184,7 @@ public class TextureSetLayoutTest {
     }
 
     @Test
-    public void testBasicPaged() {
+    public void testBasicPaged() throws CompileExceptionError {
         List<TextureSetLayout.Rect> rectangles
             = Arrays.asList(rect("0", 0, 32, 32),
                             rect("1", 1, 16, 16));
@@ -231,7 +232,7 @@ public class TextureSetLayoutTest {
     }
 
     @Test
-    public void testAllIncluded() {
+    public void testAllIncluded() throws CompileExceptionError {
         List<Rect> rectangles = createSampleRectangles(1);
         Layout layout = packedLayout(0, rectangles).get(0);
 
@@ -262,7 +263,7 @@ public class TextureSetLayoutTest {
     }
 
     @Test
-    public void testNoOverlaps() {
+    public void testNoOverlaps() throws CompileExceptionError {
         List<Rect> rectangles = createSampleRectangles(1);
         Layout layout = packedLayout(0, rectangles).get(0);
         List<Rect> outputRectangles = layout.getRectangles();
@@ -276,7 +277,7 @@ public class TextureSetLayoutTest {
     }
 
     @Test
-    public void testGridLayout1() {
+    public void testGridLayout1() throws CompileExceptionError {
 
         List<Rect> rectangles
             = Arrays.asList(rect("0", 0, 16, 4),
@@ -291,7 +292,7 @@ public class TextureSetLayoutTest {
     }
 
     @Test
-    public void testGridLayout2() {
+    public void testGridLayout2() throws CompileExceptionError {
 
         List<Rect> rectangles
             = Arrays.asList(rect("0", 0, 32, 16));
@@ -303,7 +304,7 @@ public class TextureSetLayoutTest {
     }
 
     @Test
-    public void testGridNoOverlaps() {
+    public void testGridNoOverlaps() throws CompileExceptionError {
         List<Rect> rectangles
             = Arrays.asList(rect("0", 0, 16, 4),
                             rect("1", 1, 16, 4),
@@ -321,7 +322,7 @@ public class TextureSetLayoutTest {
     }
 
     @Test
-    public void testLargeLayout() {
+    public void testLargeLayout() throws CompileExceptionError {
         List<Rect> rectangles
             = Arrays.asList(rect("0", 0, 1000, 800),
                             rect("1", 1, 800, 1000),

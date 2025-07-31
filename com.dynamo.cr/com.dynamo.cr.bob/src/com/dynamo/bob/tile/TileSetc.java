@@ -30,6 +30,7 @@ import java.io.Reader;
 
 import javax.imageio.ImageIO;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.Tile.TileSet;
@@ -64,7 +65,7 @@ public class TileSetc {
         }
     }
 
-    public void compile(File inFile, File outFile) throws IOException {
+    public void compile(File inFile, File outFile) throws IOException, CompileExceptionError {
 
         try (Reader reader = new BufferedReader(new FileReader(inFile)); OutputStream output = new BufferedOutputStream(new FileOutputStream(outFile))) {
             TileSet.Builder builder = TileSet.newBuilder();
@@ -118,7 +119,7 @@ public class TileSetc {
         }
     }
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, CompileExceptionError {
         System.setProperty("java.awt.headless", "true");
 
         String inFileName = args[0];

@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.textureset;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.GraphicsUtil;
 import com.dynamo.bob.textureset.TextureSetLayout;
 import com.dynamo.bob.textureset.TextureSetLayout.Grid;
@@ -390,7 +391,7 @@ public class TextureSetGenerator {
      * 3. Shrink rects by previous extrusion
      */
     public static LayoutResult calculateLayoutResult(List<Rect> images, int margin, int innerPadding, int extrudeBorders,
-                                                    boolean rotate, boolean useTileGrid, Grid gridSize, float maxPageSizeW, float maxPageSizeH) {
+                                                    boolean rotate, boolean useTileGrid, Grid gridSize, float maxPageSizeW, float maxPageSizeH) throws CompileExceptionError {
         TimeProfiler.start("calculateLayoutResult");
 
         int totalSizeIncrease = 2 * (innerPadding + extrudeBorders);
@@ -484,7 +485,7 @@ public class TextureSetGenerator {
     // Deprecated
     public static TextureSetResult calculateLayout(List<Rect> images, List<SpriteGeometry> imageHulls, int useGeometries,
                                                     AnimIterator iterator, int margin, int innerPadding, int extrudeBorders,
-                                                    boolean rotate, boolean useTileGrid, Grid gridSize, float maxPageSizeW, float maxPageSizeH) {
+                                                    boolean rotate, boolean useTileGrid, Grid gridSize, float maxPageSizeW, float maxPageSizeH) throws CompileExceptionError {
 
         LayoutResult layout = calculateLayoutResult(images, margin, innerPadding, extrudeBorders, rotate,
                                                     useTileGrid, gridSize, maxPageSizeW, maxPageSizeH);
@@ -567,7 +568,7 @@ public class TextureSetGenerator {
      */
     public static TextureSetResult generate(List<BufferedImage> images, List<AtlasImage> atlasImages, List<String> paths, AnimIterator iterator,
             int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize,
-            float maxPageSizeW, float maxPageSizeH) {
+            float maxPageSizeW, float maxPageSizeH) throws CompileExceptionError {
 
         List<Rect> imageRects = rectanglesFromImages(images, paths);
 
