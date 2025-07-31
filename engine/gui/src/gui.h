@@ -157,6 +157,11 @@ namespace dmGui
     typedef void (*DestroyRenderConstantsCallback)(void* render_constants);
 
     /**
+     * Callback to clone render constants
+     */
+    typedef void* (*CloneRenderConstantsCallback)(void* render_constants);
+
+    /**
      * Callback to create a texture resource
      */
     typedef HTextureSource (*NewTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
@@ -203,6 +208,7 @@ namespace dmGui
         SetMaterialPropertyCallback    m_SetMaterialPropertyCallback;
         void*                          m_SetMaterialPropertyCallbackContext;
         DestroyRenderConstantsCallback m_DestroyRenderConstantsCallback;
+        CloneRenderConstantsCallback   m_CloneRenderConstantsCallback;
         FetchTextureSetAnimCallback    m_FetchTextureSetAnimCallback;
         OnWindowResizeCallback         m_OnWindowResizeCallback;
         NewTextureResourceCallback     m_NewTextureResourceCallback;
