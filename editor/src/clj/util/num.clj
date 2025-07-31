@@ -79,6 +79,15 @@
 (definline uint->long [num]
   `(bit-and ~num 0xffffffff))
 
+(definline ubyte->float [num]
+  `(float (ubyte->long ~num)))
+
+(definline ushort->float [num]
+  `(float (ushort->long ~num)))
+
+(definline uint->float [num]
+  `(float (uint->long ~num)))
+
 (definline ubyte->double [num]
   `(double (ubyte->long ~num)))
 

@@ -15,7 +15,7 @@
 (ns util.num-test
   (:require [clojure.test :refer :all]
             [util.num :as num])
-  (:import [java.nio ByteBuffer DoubleBuffer LongBuffer IntBuffer ShortBuffer]))
+  (:import [java.nio ByteBuffer DoubleBuffer FloatBuffer LongBuffer IntBuffer ShortBuffer]))
 
 (set! *warn-on-reflection* true)
 
@@ -156,6 +156,27 @@
   (is (= 4294967295 (num/uint->long (num/unchecked-uint 4294967295))))
   (is (= 4294967295 (-> (LongBuffer/allocate 1) (.put (num/uint->long (num/unchecked-uint 4294967295))) (.get 0))))
   (is (= [0 4294967295] (mapv num/uint->long (mapv num/unchecked-uint [0 4294967295])))))
+
+(set! *unchecked-math* false)
+(deftest ubyte->float-test
+  (is (= (float 0.0) (num/ubyte->float (num/unchecked-ubyte 0))))
+  (is (= (float 255.0) (num/ubyte->float (num/unchecked-ubyte 255))))
+  (is (= (float 255.0) (-> (FloatBuffer/allocate 1) (.put (num/ubyte->float (num/unchecked-ubyte 255))) (.get 0))))
+  (is (= [(float 0.0) (float 255.0)] (mapv num/ubyte->float (mapv num/unchecked-ubyte [0 255])))))
+
+(set! *unchecked-math* false)
+(deftest ushort->float-test
+  (is (= (float 0.0) (num/ushort->float (num/unchecked-ushort 0))))
+  (is (= (float 65535.0) (num/ushort->float (num/unchecked-ushort 65535))))
+  (is (= (float 65535.0) (-> (FloatBuffer/allocate 1) (.put (num/ushort->float (num/unchecked-ushort 65535))) (.get 0))))
+  (is (= [(float 0.0) (float 65535.0)] (mapv num/ushort->float (mapv num/unchecked-ushort [0 65535])))))
+
+(set! *unchecked-math* false)
+(deftest uint->float-test
+  (is (= (float 0.0) (num/uint->float (num/unchecked-uint 0))))
+  (is (= (float 4294967295.0) (num/uint->float (num/unchecked-uint 4294967295))))
+  (is (= (float 4294967295.0) (-> (FloatBuffer/allocate 1) (.put (num/uint->float (num/unchecked-uint 4294967295))) (.get 0))))
+  (is (= [(float 0.0) (float 4294967295.0)] (mapv num/uint->float (mapv num/unchecked-uint [0 4294967295])))))
 
 (set! *unchecked-math* false)
 (deftest ubyte->double-test

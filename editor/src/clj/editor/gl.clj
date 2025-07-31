@@ -17,15 +17,17 @@
   (:refer-clojure :exclude [repeat])
   (:require [clojure.string :as string]
             [editor.gl.protocols :as p]
-            [service.log :as log])
-  (:import [java.awt Font]
+            [service.log :as log]
+            [util.num :as num])
+  (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLCapabilities GLContext GLDrawableFactory GLException GLOffscreenAutoDrawable GLProfile]
+           [com.jogamp.opengl.util.awt TextRenderer]
+           [java.awt Font]
            [java.nio IntBuffer]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory GLProfile GLException GLAutoDrawable GLOffscreenAutoDrawable GLCapabilities]
-           [javax.vecmath Matrix4d]
-           [com.jogamp.opengl.awt GLCanvas]
-           [com.jogamp.opengl.util.awt TextRenderer]))
+           [java.util.concurrent.atomic AtomicLong]
+           [javax.vecmath Matrix4d]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defonce ^:private gl-info-atom (atom nil))
 (defonce ^:private required-functions ["glGenBuffers"])
@@ -55,12 +57,12 @@
     (.setContext drawable context true)
     drawable))
 
-(def ^:private last-make-current-failure (atom 0))
+(def ^:private ^AtomicLong last-make-current-failure (AtomicLong. 0))
 
 (defn- time-to-log? []
   (let [now (System/currentTimeMillis)]
-    (when (> (- now @last-make-current-failure) (* 1000 60))
-      (reset! last-make-current-failure now)
+    (when (> (- now (.get last-make-current-failure)) (* 1000 60))
+      (.set last-make-current-failure now)
       true)))
 
 (def ^:private ignored-message-ids
@@ -244,6 +246,228 @@
       (let [location (+ base-location attribute-index)]
         (gl-disable-vertex-attrib-array gl location)
         (recur (inc location))))))
+
+(defn set-attribute-1bv! [^GL2 gl ^long location ^bytes value-array ^long offset]
+  (let [x (float (aget value-array offset))]
+    (.glVertexAttrib1f gl location x)))
+
+(defn set-attribute-2bv! [^GL2 gl ^long location ^bytes value-array ^long offset]
+  (let [x (float (aget value-array offset))
+        y (float (aget value-array (inc offset)))]
+    (.glVertexAttrib2f gl location x y)))
+
+(defn set-attribute-3bv! [^GL2 gl ^long location ^bytes value-array ^long offset]
+  (let [x (float (aget value-array offset))
+        y (float (aget value-array (+ offset 1)))
+        z (float (aget value-array (+ offset 2)))]
+    (.glVertexAttrib3f gl location x y z)))
+
+(defn set-attribute-4bv! [^GL2 gl ^long location ^bytes value-array ^long offset]
+  (.glVertexAttrib4bv gl location value-array offset))
+
+(defn set-attribute-1nbv! [^GL2 gl ^long location ^bytes value-array ^long offset]
+  (let [x (num/byte-range->normalized (aget value-array offset))]
+    (.glVertexAttrib1f gl location x)))
+
+(defn set-attribute-2nbv! [^GL2 gl ^long location ^bytes value-array ^long offset]
+  (let [x (num/byte-range->normalized (aget value-array offset))
+        y (num/byte-range->normalized (aget value-array (inc offset)))]
+    (.glVertexAttrib2f gl location x y)))
+
+(defn set-attribute-3nbv! [^GL2 gl ^long location ^bytes value-array ^long offset]
+  (let [x (num/byte-range->normalized (aget value-array offset))
+        y (num/byte-range->normalized (aget value-array (+ offset 1)))
+        z (num/byte-range->normalized (aget value-array (+ offset 2)))]
+    (.glVertexAttrib3f gl location x y z)))
+
+(defn set-attribute-4nbv! [^GL2 gl ^long location ^bytes value-array ^long offset]
+  (.glVertexAttrib4Nbv gl location value-array offset))
+
+(defn set-attribute-1ubv! [^GL2 gl ^long location ^bytes value-array ^long offset]
+  (let [x (num/ubyte->float (aget value-array offset))]
+    (.glVertexAttrib1f gl location x)))
+
+(defn set-attribute-2ubv! [^GL2 gl ^long location ^bytes value-array ^long offset]
+  (let [x (num/ubyte->float (aget value-array offset))
+        y (num/ubyte->float (aget value-array (inc offset)))]
+    (.glVertexAttrib2f gl location x y)))
+
+(defn set-attribute-3ubv! [^GL2 gl ^long location ^bytes value-array ^long offset]
+  (let [x (num/ubyte->float (aget value-array offset))
+        y (num/ubyte->float (aget value-array (+ offset 1)))
+        z (num/ubyte->float (aget value-array (+ offset 2)))]
+    (.glVertexAttrib3f gl location x y z)))
+
+(defn set-attribute-4ubv! [^GL2 gl ^long location ^bytes value-array ^long offset]
+  (.glVertexAttrib4ubv gl location value-array offset))
+
+(defn set-attribute-1nubv! [^GL2 gl ^long location ^bytes value-array ^long offset]
+  (let [x (num/ubyte-range->normalized (aget value-array offset))]
+    (.glVertexAttrib1f gl location x)))
+
+(defn set-attribute-2nubv! [^GL2 gl ^long location ^bytes value-array ^long offset]
+  (let [x (num/ubyte-range->normalized (aget value-array offset))
+        y (num/ubyte-range->normalized (aget value-array (inc offset)))]
+    (.glVertexAttrib2f gl location x y)))
+
+(defn set-attribute-3nubv! [^GL2 gl ^long location ^bytes value-array ^long offset]
+  (let [x (num/ubyte-range->normalized (aget value-array offset))
+        y (num/ubyte-range->normalized (aget value-array (+ offset 1)))
+        z (num/ubyte-range->normalized (aget value-array (+ offset 2)))]
+    (.glVertexAttrib3f gl location x y z)))
+
+(defn set-attribute-4nubv! [^GL2 gl ^long location ^bytes value-array ^long offset]
+  (.glVertexAttrib4Nubv gl location value-array offset))
+
+(defn set-attribute-1sv! [^GL2 gl ^long location ^shorts value-array ^long offset]
+  (.glVertexAttrib1sv gl location value-array offset))
+
+(defn set-attribute-2sv! [^GL2 gl ^long location ^shorts value-array ^long offset]
+  (.glVertexAttrib2sv gl location value-array offset))
+
+(defn set-attribute-3sv! [^GL2 gl ^long location ^shorts value-array ^long offset]
+  (.glVertexAttrib3sv gl location value-array offset))
+
+(defn set-attribute-4sv! [^GL2 gl ^long location ^shorts value-array ^long offset]
+  (.glVertexAttrib4sv gl location value-array offset))
+
+(defn set-attribute-1nsv! [^GL2 gl ^long location ^shorts value-array ^long offset]
+  (let [x (num/short-range->normalized (aget value-array offset))]
+    (.glVertexAttrib1f gl location x)))
+
+(defn set-attribute-2nsv! [^GL2 gl ^long location ^shorts value-array ^long offset]
+  (let [x (num/short-range->normalized (aget value-array offset))
+        y (num/short-range->normalized (aget value-array (inc offset)))]
+    (.glVertexAttrib2f gl location x y)))
+
+(defn set-attribute-3nsv! [^GL2 gl ^long location ^shorts value-array ^long offset]
+  (let [x (num/short-range->normalized (aget value-array offset))
+        y (num/short-range->normalized (aget value-array (+ offset 1)))
+        z (num/short-range->normalized (aget value-array (+ offset 2)))]
+    (.glVertexAttrib3f gl location x y z)))
+
+(defn set-attribute-4nsv! [^GL2 gl ^long location ^shorts value-array ^long offset]
+  (.glVertexAttrib4Nsv gl location value-array offset))
+
+(defn set-attribute-1usv! [^GL2 gl ^long location ^shorts value-array ^long offset]
+  (let [x (num/ushort->float (aget value-array offset))]
+    (.glVertexAttrib1f gl location x)))
+
+(defn set-attribute-2usv! [^GL2 gl ^long location ^shorts value-array ^long offset]
+  (let [x (num/ushort->float (aget value-array offset))
+        y (num/ushort->float (aget value-array (inc offset)))]
+    (.glVertexAttrib2f gl location x y)))
+
+(defn set-attribute-3usv! [^GL2 gl ^long location ^shorts value-array ^long offset]
+  (let [x (num/ushort->float (aget value-array offset))
+        y (num/ushort->float (aget value-array (+ offset 1)))
+        z (num/ushort->float (aget value-array (+ offset 2)))]
+    (.glVertexAttrib3f gl location x y z)))
+
+(defn set-attribute-4usv! [^GL2 gl ^long location ^shorts value-array ^long offset]
+  (.glVertexAttrib4usv gl location value-array offset))
+
+(defn set-attribute-1nusv! [^GL2 gl ^long location ^shorts value-array ^long offset]
+  (let [x (num/ushort-range->normalized (aget value-array offset))]
+    (.glVertexAttrib1f gl location x)))
+
+(defn set-attribute-2nusv! [^GL2 gl ^long location ^shorts value-array ^long offset]
+  (let [x (num/ushort-range->normalized (aget value-array offset))
+        y (num/ushort-range->normalized (aget value-array (inc offset)))]
+    (.glVertexAttrib2f gl location x y)))
+
+(defn set-attribute-3nusv! [^GL2 gl ^long location ^shorts value-array ^long offset]
+  (let [x (num/ushort-range->normalized (aget value-array offset))
+        y (num/ushort-range->normalized (aget value-array (+ offset 1)))
+        z (num/ushort-range->normalized (aget value-array (+ offset 2)))]
+    (.glVertexAttrib3f gl location x y z)))
+
+(defn set-attribute-4nusv! [^GL2 gl ^long location ^shorts value-array ^long offset]
+  (.glVertexAttrib4Nusv gl location value-array offset))
+
+(defn set-attribute-1iv! [^GL2 gl ^long location ^ints value-array ^long offset]
+  (let [x (float (aget value-array offset))]
+    (.glVertexAttrib1f gl location x)))
+
+(defn set-attribute-2iv! [^GL2 gl ^long location ^ints value-array ^long offset]
+  (let [x (float (aget value-array offset))
+        y (float (aget value-array (inc offset)))]
+    (.glVertexAttrib2f gl location x y)))
+
+(defn set-attribute-3iv! [^GL2 gl ^long location ^ints value-array ^long offset]
+  (let [x (float (aget value-array offset))
+        y (float (aget value-array (+ offset 1)))
+        z (float (aget value-array (+ offset 2)))]
+    (.glVertexAttrib3f gl location x y z)))
+
+(defn set-attribute-4iv! [^GL2 gl ^long location ^ints value-array ^long offset]
+  (.glVertexAttrib4iv gl location value-array offset))
+
+(defn set-attribute-1niv! [^GL2 gl ^long location ^ints value-array ^long offset]
+  (let [x (num/int-range->normalized (aget value-array offset))]
+    (.glVertexAttrib1f gl location x)))
+
+(defn set-attribute-2niv! [^GL2 gl ^long location ^ints value-array ^long offset]
+  (let [x (num/int-range->normalized (aget value-array offset))
+        y (num/int-range->normalized (aget value-array (inc offset)))]
+    (.glVertexAttrib2f gl location x y)))
+
+(defn set-attribute-3niv! [^GL2 gl ^long location ^ints value-array ^long offset]
+  (let [x (num/int-range->normalized (aget value-array offset))
+        y (num/int-range->normalized (aget value-array (+ offset 1)))
+        z (num/int-range->normalized (aget value-array (+ offset 2)))]
+    (.glVertexAttrib3f gl location x y z)))
+
+(defn set-attribute-4niv! [^GL2 gl ^long location ^ints value-array ^long offset]
+  (.glVertexAttrib4Niv gl location value-array offset))
+
+(defn set-attribute-1uiv! [^GL2 gl ^long location ^ints value-array ^long offset]
+  (let [x (num/uint->float (aget value-array offset))]
+    (.glVertexAttrib1f gl location x)))
+
+(defn set-attribute-2uiv! [^GL2 gl ^long location ^ints value-array ^long offset]
+  (let [x (num/uint->float (aget value-array offset))
+        y (num/uint->float (aget value-array (inc offset)))]
+    (.glVertexAttrib2f gl location x y)))
+
+(defn set-attribute-3uiv! [^GL2 gl ^long location ^ints value-array ^long offset]
+  (let [x (num/uint->float (aget value-array offset))
+        y (num/uint->float (aget value-array (+ offset 1)))
+        z (num/uint->float (aget value-array (+ offset 2)))]
+    (.glVertexAttrib3f gl location x y z)))
+
+(defn set-attribute-4uiv! [^GL2 gl ^long location ^ints value-array ^long offset]
+  (.glVertexAttrib4uiv gl location value-array offset))
+
+(defn set-attribute-1nuiv! [^GL2 gl ^long location ^ints value-array ^long offset]
+  (let [x (num/uint-range->normalized (aget value-array offset))]
+    (.glVertexAttrib1f gl location x)))
+
+(defn set-attribute-2nuiv! [^GL2 gl ^long location ^ints value-array ^long offset]
+  (let [x (num/uint-range->normalized (aget value-array offset))
+        y (num/uint-range->normalized (aget value-array (inc offset)))]
+    (.glVertexAttrib2f gl location x y)))
+
+(defn set-attribute-3nuiv! [^GL2 gl ^long location ^ints value-array ^long offset]
+  (let [x (num/uint-range->normalized (aget value-array offset))
+        y (num/uint-range->normalized (aget value-array (+ offset 1)))
+        z (num/uint-range->normalized (aget value-array (+ offset 2)))]
+    (.glVertexAttrib3f gl location x y z)))
+
+(defn set-attribute-4nuiv! [^GL2 gl ^long location ^ints value-array ^long offset]
+  (.glVertexAttrib4Nuiv gl location value-array offset))
+
+(defmacro set-attribute-1fv! [gl location value-array offset]
+  `(.glVertexAttrib1fv ~gl ~location ~value-array ~offset))
+
+(defmacro set-attribute-2fv! [gl location value-array offset]
+  `(.glVertexAttrib2fv ~gl ~location ~value-array ~offset))
+
+(defmacro set-attribute-3fv! [gl location value-array offset]
+  `(.glVertexAttrib3fv ~gl ~location ~value-array ~offset))
+
+(defmacro set-attribute-4fv! [gl location value-array offset]
+  `(.glVertexAttrib4fv ~gl ~location ~value-array ~offset))
 
 (defmacro with-gl-bindings
   [glsymb render-args-symb gl-stuff & body]
