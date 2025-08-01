@@ -107,15 +107,14 @@
       (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/max-p .z)))))
 
 (defn render-grid-sizes
-  [^GL2 gl ^doubles dir grids options]
+  [^GL2 gl ^doubles dir grids options is-2d]
   (let [{:keys [^double opacity color auto-scale]} options]
     (doseq [grid-index (range (if auto-scale 2 1))
             :let [^double fixed-axis (:plane grids)
                   ^double ratio (nth (:ratios grids) grid-index)
-                  alpha (cond-> opacity
-                                auto-scale
-                                (->> (* ^double (aget dir fixed-axis) ratio)
-                                     (Math/abs)))
+                  ratio (Math/abs (* ^double (aget dir fixed-axis) ratio))
+                  ratio (cond-> ratio (not is-2d) (max 0.5))
+                  alpha (cond-> opacity auto-scale (* ratio))
                   size-map (nth (:sizes grids) grid-index)
                   ^double u-axis (mod (inc fixed-axis) 3)
                   ^double v-axis (mod (inc u-axis) 3)
@@ -127,16 +126,31 @@
         (gl/gl-color (colors/alpha color alpha))
         (render-grid fixed-axis u-size v-size (nth (:aabbs grids) grid-index))))))
 
+(defn- enable-fog
+  [^GL2 gl camera]
+  (let [min-fov (math/deg->rad (max ^double (:fov-x camera) ^double (:fov-y camera)))
+        fog-start (* min-fov ^double (:z-far camera))]
+    (doto gl
+      (.glEnable GL2/GL_FOG)
+      (.glFogi GL2/GL_FOG_MODE GL2/GL_LINEAR)
+      (.glFogfv GL2/GL_FOG_COLOR (float-array colors/scene-background) 0)
+      (.glFogf GL2/GL_FOG_START fog-start)
+      (.glFogf GL2/GL_FOG_END (* 2 fog-start)))))
+
 (defn render-scaled-grids
   [^GL2 gl _pass renderables _count]
   (let [renderable (first renderables)
         {:keys [camera grids options]} (:user-render-data renderable)
         view-matrix (c/camera-view-matrix camera)
         dir (double-array 4)
+        is-2d (c/mode-2d? camera)
         _ (.getRow view-matrix 2 dir)]
+    (when (= :perspective (:type camera)) 
+      (enable-fog gl camera))
     (gl/gl-lines gl
-      (render-grid-sizes dir grids options)
-      (render-primary-axes (apply geom/aabb-union (:aabbs grids)) options))))
+        (render-grid-sizes dir grids options is-2d)
+        (render-primary-axes (apply geom/aabb-union (:aabbs grids)) options))
+    (.glDisable gl GL2/GL_FOG)))
 
 (g/defnk produce-renderable
   [camera grids merged-options]
@@ -171,7 +185,7 @@
           (.transform m v)
           v))))
 
-(defn frustum-projection-aabb
+(defn orthographic-aabb
   [planes plane]
   (-> geom/null-aabb
       (geom/aabb-incorporate (frustum-plane-projection (nth planes 0) (nth planes 2) plane))
@@ -209,12 +223,32 @@
                           (grid-snap-up (-> aabb types/max-p .y) (:y size))
                           (grid-snap-up (-> aabb types/max-p .z) (:z size)))))
 
+(defn fov->grid-size
+  [^double fov]
+  (-> fov
+      (min 175.0)
+      (* 0.5)
+      (math/deg->rad)
+      (Math/tan)))
+
+(defn perspective-aabb
+  [camera]
+  (let [focus ^Vector4d (:focus-point camera)
+        focus-pos (Point3d. (.x focus) (.y focus) (.z focus))
+        focus-distance (.distance focus-pos (:position camera))
+        [^double width ^double height] (->> [(:fov-x camera) (:fov-y camera)]
+                                            (mapv #(-> ^double % fov->grid-size (* focus-distance 2))))
+        [^double x ^double y ^double z] (types/Point3d->Vec3 focus-pos)]
+    (types/->AABB (Point3d. (- x width) (- y height) (- z width))
+                  (Point3d. (+ x width) (+ y height) (+ z width)))))
+
 (g/defnk produce-grids
   [camera merged-options]
   (let [{:keys [size active-plane auto-scale]} merged-options
-        frustum-planes (c/viewproj-frustum-planes camera)
         plane (.indexOf axes active-plane)
-        aabb (frustum-projection-aabb frustum-planes plane)
+        aabb (if (= :perspective (:type camera))
+               (perspective-aabb camera)
+               (orthographic-aabb (c/viewproj-frustum-planes camera) plane))
         extent (geom/as-array (geom/aabb-extent aabb))
         _ (aset-double extent plane Double/POSITIVE_INFINITY)
         smallest-extent (reduce min extent)
