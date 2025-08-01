@@ -31,395 +31,62 @@
   (let [attribute-count (types/vector-type-attribute-count vector-type)]
     (gl/clear-attributes! gl base-location attribute-count)))
 
-(defn- assign-attribute-from-bytes!
-  [^bytes value-array vector-type ^GL2 gl ^long base-location]
-  (case vector-type
-    :vector-type-scalar
-    (gl/set-attribute-1bv! gl base-location value-array 0)
-
-    :vector-type-vec2
-    (gl/set-attribute-2bv! gl base-location value-array 0)
-
-    :vector-type-vec3
-    (gl/set-attribute-3bv! gl base-location value-array 0)
-
-    :vector-type-vec4
-    (gl/set-attribute-4bv! gl base-location value-array 0)
-
-    :vector-type-mat2
-    (do (gl/set-attribute-2bv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-2bv! gl (+ base-location 1) value-array 2))
-
-    :vector-type-mat3
-    (do (gl/set-attribute-3bv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-3bv! gl (+ base-location 1) value-array 3)
-        (gl/set-attribute-3bv! gl (+ base-location 2) value-array 6))
-
-    :vector-type-mat4
-    (do (gl/set-attribute-4bv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-4bv! gl (+ base-location 1) value-array 4)
-        (gl/set-attribute-4bv! gl (+ base-location 2) value-array 8)
-        (gl/set-attribute-4bv! gl (+ base-location 3) value-array 12))))
-
-(defn- assign-attribute-from-normalized-bytes!
-  [^bytes value-array vector-type ^GL2 gl ^long base-location]
-  (case vector-type
-    :vector-type-scalar
-    (gl/set-attribute-1nbv! gl base-location value-array 0)
-
-    :vector-type-vec2
-    (gl/set-attribute-2nbv! gl base-location value-array 0)
-
-    :vector-type-vec3
-    (gl/set-attribute-3nbv! gl base-location value-array 0)
-
-    :vector-type-vec4
-    (gl/set-attribute-4nbv! gl base-location value-array 0)
-
-    :vector-type-mat2
-    (do (gl/set-attribute-2nbv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-2nbv! gl (+ base-location 1) value-array 2))
-
-    :vector-type-mat3
-    (do (gl/set-attribute-3nbv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-3nbv! gl (+ base-location 1) value-array 3)
-        (gl/set-attribute-3nbv! gl (+ base-location 2) value-array 6))
-
-    :vector-type-mat4
-    (do (gl/set-attribute-4nbv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-4nbv! gl (+ base-location 1) value-array 4)
-        (gl/set-attribute-4nbv! gl (+ base-location 2) value-array 8)
-        (gl/set-attribute-4nbv! gl (+ base-location 3) value-array 12))))
-
-(defn- assign-attribute-from-unsigned-bytes!
-  [^bytes value-array vector-type ^GL2 gl ^long base-location]
-  (case vector-type
-    :vector-type-scalar
-    (gl/set-attribute-1ubv! gl base-location value-array 0)
-
-    :vector-type-vec2
-    (gl/set-attribute-2ubv! gl base-location value-array 0)
-
-    :vector-type-vec3
-    (gl/set-attribute-3ubv! gl base-location value-array 0)
-
-    :vector-type-vec4
-    (gl/set-attribute-4ubv! gl base-location value-array 0)
-
-    :vector-type-mat2
-    (do (gl/set-attribute-2ubv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-2ubv! gl (+ base-location 1) value-array 2))
-
-    :vector-type-mat3
-    (do (gl/set-attribute-3ubv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-3ubv! gl (+ base-location 1) value-array 3)
-        (gl/set-attribute-3ubv! gl (+ base-location 2) value-array 6))
-
-    :vector-type-mat4
-    (do (gl/set-attribute-4ubv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-4ubv! gl (+ base-location 1) value-array 4)
-        (gl/set-attribute-4ubv! gl (+ base-location 2) value-array 8)
-        (gl/set-attribute-4ubv! gl (+ base-location 3) value-array 12))))
-
-(defn- assign-attribute-from-normalized-unsigned-bytes!
-  [^bytes value-array vector-type ^GL2 gl ^long base-location]
-  (case vector-type
-    :vector-type-scalar
-    (gl/set-attribute-1nubv! gl base-location value-array 0)
-
-    :vector-type-vec2
-    (gl/set-attribute-2nubv! gl base-location value-array 0)
-
-    :vector-type-vec3
-    (gl/set-attribute-3nubv! gl base-location value-array 0)
-
-    :vector-type-vec4
-    (gl/set-attribute-4nubv! gl base-location value-array 0)
-
-    :vector-type-mat2
-    (do (gl/set-attribute-2nubv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-2nubv! gl (+ base-location 1) value-array 2))
-
-    :vector-type-mat3
-    (do (gl/set-attribute-3nubv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-3nubv! gl (+ base-location 1) value-array 3)
-        (gl/set-attribute-3nubv! gl (+ base-location 2) value-array 6))
-
-    :vector-type-mat4
-    (do (gl/set-attribute-4nubv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-4nubv! gl (+ base-location 1) value-array 4)
-        (gl/set-attribute-4nubv! gl (+ base-location 2) value-array 8)
-        (gl/set-attribute-4nubv! gl (+ base-location 3) value-array 12))))
-
-(defn- assign-attribute-from-shorts!
-  [^shorts value-array vector-type ^GL2 gl ^long base-location]
-  (case vector-type
-    :vector-type-scalar
-    (gl/set-attribute-1sv! gl base-location value-array 0)
-
-    :vector-type-vec2
-    (gl/set-attribute-2sv! gl base-location value-array 0)
-
-    :vector-type-vec3
-    (gl/set-attribute-3sv! gl base-location value-array 0)
-
-    :vector-type-vec4
-    (gl/set-attribute-4sv! gl base-location value-array 0)
-
-    :vector-type-mat2
-    (do (gl/set-attribute-2sv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-2sv! gl (+ base-location 1) value-array 2))
-
-    :vector-type-mat3
-    (do (gl/set-attribute-3sv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-3sv! gl (+ base-location 1) value-array 3)
-        (gl/set-attribute-3sv! gl (+ base-location 2) value-array 6))
-
-    :vector-type-mat4
-    (do (gl/set-attribute-4sv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-4sv! gl (+ base-location 1) value-array 4)
-        (gl/set-attribute-4sv! gl (+ base-location 2) value-array 8)
-        (gl/set-attribute-4sv! gl (+ base-location 3) value-array 12))))
-
-(defn- assign-attribute-from-normalized-shorts!
-  [^shorts value-array vector-type ^GL2 gl ^long base-location]
-  (case vector-type
-    :vector-type-scalar
-    (gl/set-attribute-1nsv! gl base-location value-array 0)
-
-    :vector-type-vec2
-    (gl/set-attribute-2nsv! gl base-location value-array 0)
-
-    :vector-type-vec3
-    (gl/set-attribute-3nsv! gl base-location value-array 0)
-
-    :vector-type-vec4
-    (gl/set-attribute-4nsv! gl base-location value-array 0)
-
-    :vector-type-mat2
-    (do (gl/set-attribute-2nsv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-2nsv! gl (+ base-location 1) value-array 2))
-
-    :vector-type-mat3
-    (do (gl/set-attribute-3nsv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-3nsv! gl (+ base-location 1) value-array 3)
-        (gl/set-attribute-3nsv! gl (+ base-location 2) value-array 6))
-
-    :vector-type-mat4
-    (do (gl/set-attribute-4nsv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-4nsv! gl (+ base-location 1) value-array 4)
-        (gl/set-attribute-4nsv! gl (+ base-location 2) value-array 8)
-        (gl/set-attribute-4nsv! gl (+ base-location 3) value-array 12))))
-
-(defn- assign-attribute-from-unsigned-shorts!
-  [^shorts value-array vector-type ^GL2 gl ^long base-location]
-  (case vector-type
-    :vector-type-scalar
-    (gl/set-attribute-1usv! gl base-location value-array 0)
-
-    :vector-type-vec2
-    (gl/set-attribute-2usv! gl base-location value-array 0)
-
-    :vector-type-vec3
-    (gl/set-attribute-3usv! gl base-location value-array 0)
-
-    :vector-type-vec4
-    (gl/set-attribute-4usv! gl base-location value-array 0)
-
-    :vector-type-mat2
-    (do (gl/set-attribute-2usv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-2usv! gl (+ base-location 1) value-array 2))
-
-    :vector-type-mat3
-    (do (gl/set-attribute-3usv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-3usv! gl (+ base-location 1) value-array 3)
-        (gl/set-attribute-3usv! gl (+ base-location 2) value-array 6))
-
-    :vector-type-mat4
-    (do (gl/set-attribute-4usv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-4usv! gl (+ base-location 1) value-array 4)
-        (gl/set-attribute-4usv! gl (+ base-location 2) value-array 8)
-        (gl/set-attribute-4usv! gl (+ base-location 3) value-array 12))))
-
-(defn- assign-attribute-from-normalized-unsigned-shorts!
-  [^shorts value-array vector-type ^GL2 gl ^long base-location]
-  (case vector-type
-    :vector-type-scalar
-    (gl/set-attribute-1nusv! gl base-location value-array 0)
-
-    :vector-type-vec2
-    (gl/set-attribute-2nusv! gl base-location value-array 0)
-
-    :vector-type-vec3
-    (gl/set-attribute-3nusv! gl base-location value-array 0)
-
-    :vector-type-vec4
-    (gl/set-attribute-4nusv! gl base-location value-array 0)
-
-    :vector-type-mat2
-    (do (gl/set-attribute-2nusv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-2nusv! gl (+ base-location 1) value-array 2))
-
-    :vector-type-mat3
-    (do (gl/set-attribute-3nusv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-3nusv! gl (+ base-location 1) value-array 3)
-        (gl/set-attribute-3nusv! gl (+ base-location 2) value-array 6))
-
-    :vector-type-mat4
-    (do (gl/set-attribute-4nusv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-4nusv! gl (+ base-location 1) value-array 4)
-        (gl/set-attribute-4nusv! gl (+ base-location 2) value-array 8)
-        (gl/set-attribute-4nusv! gl (+ base-location 3) value-array 12))))
-
-(defn- assign-attribute-from-ints!
-  [^ints value-array vector-type ^GL2 gl ^long base-location]
-  (case vector-type
-    :vector-type-scalar
-    (gl/set-attribute-1iv! gl base-location value-array 0)
-
-    :vector-type-vec2
-    (gl/set-attribute-2iv! gl base-location value-array 0)
-
-    :vector-type-vec3
-    (gl/set-attribute-3iv! gl base-location value-array 0)
-
-    :vector-type-vec4
-    (gl/set-attribute-4iv! gl base-location value-array 0)
-
-    :vector-type-mat2
-    (do (gl/set-attribute-2iv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-2iv! gl (+ base-location 1) value-array 2))
-
-    :vector-type-mat3
-    (do (gl/set-attribute-3iv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-3iv! gl (+ base-location 1) value-array 3)
-        (gl/set-attribute-3iv! gl (+ base-location 2) value-array 6))
-
-    :vector-type-mat4
-    (do (gl/set-attribute-4iv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-4iv! gl (+ base-location 1) value-array 4)
-        (gl/set-attribute-4iv! gl (+ base-location 2) value-array 8)
-        (gl/set-attribute-4iv! gl (+ base-location 3) value-array 12))))
-
-(defn- assign-attribute-from-normalized-ints!
-  [^ints value-array vector-type ^GL2 gl ^long base-location]
-  (case vector-type
-    :vector-type-scalar
-    (gl/set-attribute-1niv! gl base-location value-array 0)
-
-    :vector-type-vec2
-    (gl/set-attribute-2niv! gl base-location value-array 0)
-
-    :vector-type-vec3
-    (gl/set-attribute-3niv! gl base-location value-array 0)
-
-    :vector-type-vec4
-    (gl/set-attribute-4niv! gl base-location value-array 0)
-
-    :vector-type-mat2
-    (do (gl/set-attribute-2niv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-2niv! gl (+ base-location 1) value-array 2))
-
-    :vector-type-mat3
-    (do (gl/set-attribute-3niv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-3niv! gl (+ base-location 1) value-array 3)
-        (gl/set-attribute-3niv! gl (+ base-location 2) value-array 6))
-
-    :vector-type-mat4
-    (do (gl/set-attribute-4niv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-4niv! gl (+ base-location 1) value-array 4)
-        (gl/set-attribute-4niv! gl (+ base-location 2) value-array 8)
-        (gl/set-attribute-4niv! gl (+ base-location 3) value-array 12))))
-
-(defn- assign-attribute-from-unsigned-ints!
-  [^ints value-array vector-type ^GL2 gl ^long base-location]
-  (case vector-type
-    :vector-type-scalar
-    (gl/set-attribute-1uiv! gl base-location value-array 0)
-
-    :vector-type-vec2
-    (gl/set-attribute-2uiv! gl base-location value-array 0)
-
-    :vector-type-vec3
-    (gl/set-attribute-3uiv! gl base-location value-array 0)
-
-    :vector-type-vec4
-    (gl/set-attribute-4uiv! gl base-location value-array 0)
-
-    :vector-type-mat2
-    (do (gl/set-attribute-2uiv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-2uiv! gl (+ base-location 1) value-array 2))
-
-    :vector-type-mat3
-    (do (gl/set-attribute-3uiv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-3uiv! gl (+ base-location 1) value-array 3)
-        (gl/set-attribute-3uiv! gl (+ base-location 2) value-array 6))
-
-    :vector-type-mat4
-    (do (gl/set-attribute-4uiv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-4uiv! gl (+ base-location 1) value-array 4)
-        (gl/set-attribute-4uiv! gl (+ base-location 2) value-array 8)
-        (gl/set-attribute-4uiv! gl (+ base-location 3) value-array 12))))
-
-(defn- assign-attribute-from-normalized-unsigned-ints!
-  [^ints value-array vector-type ^GL2 gl ^long base-location]
-  (case vector-type
-    :vector-type-scalar
-    (gl/set-attribute-1nuiv! gl base-location value-array 0)
-
-    :vector-type-vec2
-    (gl/set-attribute-2nuiv! gl base-location value-array 0)
-
-    :vector-type-vec3
-    (gl/set-attribute-3nuiv! gl base-location value-array 0)
-
-    :vector-type-vec4
-    (gl/set-attribute-4nuiv! gl base-location value-array 0)
-
-    :vector-type-mat2
-    (do (gl/set-attribute-2nuiv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-2nuiv! gl (+ base-location 1) value-array 2))
-
-    :vector-type-mat3
-    (do (gl/set-attribute-3nuiv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-3nuiv! gl (+ base-location 1) value-array 3)
-        (gl/set-attribute-3nuiv! gl (+ base-location 2) value-array 6))
-
-    :vector-type-mat4
-    (do (gl/set-attribute-4nuiv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-4nuiv! gl (+ base-location 1) value-array 4)
-        (gl/set-attribute-4nuiv! gl (+ base-location 2) value-array 8)
-        (gl/set-attribute-4nuiv! gl (+ base-location 3) value-array 12))))
-
-(defn- assign-attribute-from-floats!
-  [^floats value-array vector-type ^GL2 gl ^long base-location]
-  (case vector-type
-    :vector-type-scalar
-    (gl/set-attribute-1fv! gl base-location value-array 0)
-
-    :vector-type-vec2
-    (gl/set-attribute-2fv! gl base-location value-array 0)
-
-    :vector-type-vec3
-    (gl/set-attribute-3fv! gl base-location value-array 0)
-
-    :vector-type-vec4
-    (gl/set-attribute-4fv! gl base-location value-array 0)
-
-    :vector-type-mat2
-    (do (gl/set-attribute-2fv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-2fv! gl (+ base-location 1) value-array 2))
-
-    :vector-type-mat3
-    (do (gl/set-attribute-3fv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-3fv! gl (+ base-location 1) value-array 3)
-        (gl/set-attribute-3fv! gl (+ base-location 2) value-array 6))
-
-    :vector-type-mat4
-    (do (gl/set-attribute-4fv! gl (+ base-location 0) value-array 0)
-        (gl/set-attribute-4fv! gl (+ base-location 1) value-array 4)
-        (gl/set-attribute-4fv! gl (+ base-location 2) value-array 8)
-        (gl/set-attribute-4fv! gl (+ base-location 3) value-array 12))))
+(defmacro ^:private def-assign-attribute-fn [name-sym suffix-sym]
+  (let [suffix (name suffix-sym)
+
+        set-attribute-fn-sym
+        (fn set-attribute-fn-sym [^long value-count]
+          (symbol (name 'editor.gl)
+          (format "set-attribute-%d%s!" value-count suffix)))
+
+        set-attribute-1-sym (set-attribute-fn-sym 1)
+        set-attribute-2-sym (set-attribute-fn-sym 2)
+        set-attribute-3-sym (set-attribute-fn-sym 3)
+        set-attribute-4-sym (set-attribute-fn-sym 4)]
+
+    `(defn ~name-sym
+       [~'value-array ~'vector-type ~(with-meta 'gl {:tag `GL2}) ~(with-meta 'base-location {:tag `long})]
+       (case ~'vector-type
+         :vector-type-scalar
+         (~set-attribute-1-sym ~'gl ~'base-location ~'value-array 0)
+
+         :vector-type-vec2
+         (~set-attribute-2-sym ~'gl ~'base-location ~'value-array 0)
+
+         :vector-type-vec3
+         (~set-attribute-3-sym ~'gl ~'base-location ~'value-array 0)
+
+         :vector-type-vec4
+         (~set-attribute-4-sym ~'gl ~'base-location ~'value-array 0)
+
+         :vector-type-mat2
+         (do (~set-attribute-2-sym ~'gl (+ ~'base-location 0) ~'value-array 0)
+             (~set-attribute-2-sym ~'gl (+ ~'base-location 1) ~'value-array 2))
+
+         :vector-type-mat3
+         (do (~set-attribute-3-sym ~'gl (+ ~'base-location 0) ~'value-array 0)
+             (~set-attribute-3-sym ~'gl (+ ~'base-location 1) ~'value-array 3)
+             (~set-attribute-3-sym ~'gl (+ ~'base-location 2) ~'value-array 6))
+
+         :vector-type-mat4
+         (do (~set-attribute-4-sym ~'gl (+ ~'base-location 0) ~'value-array 0)
+             (~set-attribute-4-sym ~'gl (+ ~'base-location 1) ~'value-array 4)
+             (~set-attribute-4-sym ~'gl (+ ~'base-location 2) ~'value-array 8)
+             (~set-attribute-4-sym ~'gl (+ ~'base-location 3) ~'value-array 12))))))
+
+(def-assign-attribute-fn assign-attribute-from-bytes! bv)
+(def-assign-attribute-fn assign-attribute-from-normalized-bytes! nbv)
+(def-assign-attribute-fn assign-attribute-from-unsigned-bytes! ubv)
+(def-assign-attribute-fn assign-attribute-from-normalized-unsigned-bytes! nubv)
+(def-assign-attribute-fn assign-attribute-from-shorts! sv)
+(def-assign-attribute-fn assign-attribute-from-normalized-shorts! nsv)
+(def-assign-attribute-fn assign-attribute-from-unsigned-shorts! usv)
+(def-assign-attribute-fn assign-attribute-from-normalized-unsigned-shorts! nusv)
+(def-assign-attribute-fn assign-attribute-from-ints! iv)
+(def-assign-attribute-fn assign-attribute-from-normalized-ints! niv)
+(def-assign-attribute-fn assign-attribute-from-unsigned-ints! uiv)
+(def-assign-attribute-fn assign-attribute-from-normalized-unsigned-ints! nuiv)
+(def-assign-attribute-fn assign-attribute-from-floats! fv)
 
 (defn- assign-attribute-from-array!
   [value-array ^ElementType element-type ^GL2 gl ^long base-location]
