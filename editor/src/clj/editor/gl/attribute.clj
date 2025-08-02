@@ -17,6 +17,7 @@
             [editor.gl.buffer :as gl.buffer]
             [editor.gl.protocols :refer [GlBind]]
             [editor.graphics.types :as types]
+            [util.array :as array]
             [util.defonce :as defonce]
             [util.ensure :as ensure])
   (:import [com.jogamp.opengl GL2]
@@ -25,6 +26,8 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(def base-location? nat-int?)
 
 (defn- clear-attribute!
   [vector-type ^GL2 gl ^long base-location]
@@ -191,16 +194,16 @@
     (assign-attribute-from-floats! value-array (.vector-type element-type) gl base-location)))
 
 (defn- assign-attribute-from-matrix4d!
-  [^Matrix4d matrix ^ElementType element-type ^GL2 gl ^long base-location]
-  (case (.-vector-type element-type)
+  [^Matrix4d matrix vector-type ^GL2 gl ^long base-location]
+  (case vector-type
     (:vector-type-mat2)
-    (do (.glVertexAttrib4f gl (+ base-location 0) (.m00 matrix) (.m10 matrix) 0.0 0.0)
-        (.glVertexAttrib4f gl (+ base-location 1) (.m01 matrix) (.m11 matrix) 0.0 0.0))
+    (do (.glVertexAttrib2f gl (+ base-location 0) (.m00 matrix) (.m10 matrix))
+        (.glVertexAttrib2f gl (+ base-location 1) (.m01 matrix) (.m11 matrix)))
 
     (:vector-type-mat3)
-    (do (.glVertexAttrib4f gl (+ base-location 0) (.m00 matrix) (.m10 matrix) (.m20 matrix) 0.0)
-        (.glVertexAttrib4f gl (+ base-location 1) (.m01 matrix) (.m11 matrix) (.m21 matrix) 0.0)
-        (.glVertexAttrib4f gl (+ base-location 2) (.m02 matrix) (.m12 matrix) (.m22 matrix) 0.0))
+    (do (.glVertexAttrib3f gl (+ base-location 0) (.m00 matrix) (.m10 matrix) (.m20 matrix))
+        (.glVertexAttrib3f gl (+ base-location 1) (.m01 matrix) (.m11 matrix) (.m21 matrix))
+        (.glVertexAttrib3f gl (+ base-location 2) (.m02 matrix) (.m12 matrix) (.m22 matrix)))
 
     (:vector-type-mat4)
     (do (.glVertexAttrib4f gl (+ base-location 0) (.m00 matrix) (.m10 matrix) (.m20 matrix) (.m30 matrix))
@@ -213,8 +216,7 @@
     (.glVertexAttrib4f gl base-location (.m00 matrix) (.m10 matrix) (.m20 matrix) (.m30 matrix))))
 
 (defn- assign-attribute-from-tuple4d!
-  [^Tuple4d tuple ^ElementType element-type ^GL2 gl ^long base-location]
-  (types/ensure-floating-point-target-element-type element-type)
+  [^Tuple4d tuple ^GL2 gl ^long base-location]
   (.glVertexAttrib4f gl base-location (.x tuple) (.y tuple) (.z tuple) (.w tuple)))
 
 (defn- assign-attribute-from-value!
@@ -222,8 +224,8 @@
   (if (nil? value)
     (clear-attribute! (.-vector-type element-type) gl base-location)
     (condp instance? value
-      Tuple4d (assign-attribute-from-tuple4d! value element-type gl base-location)
-      Matrix4d (assign-attribute-from-matrix4d! value element-type gl base-location)
+      Tuple4d (assign-attribute-from-tuple4d! value gl base-location)
+      Matrix4d (assign-attribute-from-matrix4d! value (.-vector-type element-type) gl base-location)
       (assign-attribute-from-array! value element-type gl base-location))))
 
 (defonce/record AttributeRenderArgBinding
@@ -244,6 +246,13 @@
   (unbind [_this gl _render-args]
     (clear-attribute! (.-vector-type element-type) gl base-location)))
 
+(defn make-render-arg-binding
+  ^AttributeRenderArgBinding [render-arg-key ^ElementType element-type ^long base-location]
+  (ensure/argument render-arg-key keyword? "%s must be a keyword")
+  (ensure/argument-type element-type ElementType)
+  (ensure/argument base-location base-location? "%s must be a non-negative integer")
+  (->AttributeRenderArgBinding render-arg-key element-type base-location))
+
 (defonce/record AttributeValueBinding
   [value-array
    ^ElementType element-type
@@ -255,6 +264,21 @@
 
   (unbind [_this gl _render-args]
     (clear-attribute! (.-vector-type element-type) gl base-location)))
+
+(defn value-array? [value]
+  (case (array/primitive-type value)
+    (:byte :short :int :long :float)
+    (case (count value)
+      (1 2 3 4 9 16) true
+      false)
+    false))
+
+(defn make-value-binding
+  ^AttributeValueBinding [value-array ^ElementType element-type ^long base-location]
+  (ensure/argument value-array value-array?)
+  (ensure/argument-type element-type ElementType)
+  (ensure/argument base-location base-location? "%s must be a non-negative integer")
+  (->AttributeValueBinding value-array element-type base-location))
 
 (defonce/record AttributeBufferBinding
   [attribute-buffer-lifecycle
@@ -272,5 +296,5 @@
 (defn make-buffer-binding
   ^AttributeBufferBinding [attribute-buffer-lifecycle ^long base-location]
   (ensure/argument attribute-buffer-lifecycle gl.buffer/attribute-buffer? "%s must be an attribute BufferLifecycle")
-  (ensure/argument base-location nat-int? "%s must be a non-negative integer")
+  (ensure/argument base-location base-location? "%s must be a non-negative integer")
   (->AttributeBufferBinding attribute-buffer-lifecycle base-location))

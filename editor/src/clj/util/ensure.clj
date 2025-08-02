@@ -31,3 +31,15 @@
                     (name argument-sym)
                     extra-message-fmt-args)]
         (throw (IllegalArgumentException. message#))))))
+
+(defmacro argument-type
+  [argument-sym expected-class-sym]
+  {:pre [(symbol? argument-sym)
+         (symbol? expected-class-sym)]}
+  (assert (class? (resolve expected-class-sym)))
+  `(argument
+     ~argument-sym
+     #(instance? ~expected-class-sym %)
+     "%s argument must be %s - got %s"
+     (.getName ~expected-class-sym)
+     (some-> ~argument-sym class .getName)))
