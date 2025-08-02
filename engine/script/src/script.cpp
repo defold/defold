@@ -1496,12 +1496,20 @@ namespace dmScript
             lua_getfield(L, -2, "traceback");
             // if handling error that happened during the error handling, print it and clean up and exit
             if (in_error_handler) {
-                dmLogError("In error handler: %s%s", lua_tostring(L, -2), lua_tostring(L, -1));
+                const char* error_msg = lua_tostring(L, -2);
+                const char* traceback_msg = lua_tostring(L, -1);
+                dmLogError("In error handler: %s%s", 
+                          error_msg ? error_msg : "(error value could not be converted to string)", 
+                          traceback_msg ? traceback_msg : "(traceback unavailable)");
                 lua_pop(L, 3);
                 return result;
             }
             // print before calling the error handler
-            dmLogError("%s\n%s", lua_tostring(L, -2), lua_tostring(L, -1));
+            const char* error_msg = lua_tostring(L, -2);
+            const char* traceback_msg = lua_tostring(L, -1);
+            dmLogError("%s\n%s", 
+                      error_msg ? error_msg : "(error value could not be converted to string)", 
+                      traceback_msg ? traceback_msg : "(traceback unavailable)");
             lua_getfield(L, LUA_GLOBALSINDEX, "debug");
             if (lua_istable(L, -1)) {
                 lua_pushliteral(L, SCRIPT_ERROR_HANDLER_VAR);
