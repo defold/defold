@@ -64,6 +64,7 @@
             [editor.fs :as fs]
             [editor.os :as os]
             [service.log :as log]
+            [util.array :as array]
             [util.coll :as coll]
             [util.crypto :as crypto]
             [util.eduction :as e]
@@ -381,9 +382,6 @@
           ::not-found)))
     ::not-found))
 
-(defn- array? [x]
-  (and (some? x) (.isArray (class x))))
-
 (defn- write-config! [path config]
   (fs/create-path-parent-directories! path)
   (with-open [w (io/writer path)]
@@ -407,7 +405,7 @@
                                    (write! (val x) indent))
                 (clojure.core/set? x) (write-contents-indented! "#{" "}" (sort x) indent)
                 (map? x) (write-contents-indented! "{" "}" (sort-by key x) indent)
-                (or (vector? x) (array? x)) (write-contents-indented! "[" "]" x indent)
+                (or (vector? x) (array/array? x)) (write-contents-indented! "[" "]" x indent)
                 :else (.write w (pr-str x))))]
       (write! config 0))))
 

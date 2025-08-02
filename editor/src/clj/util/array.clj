@@ -36,6 +36,25 @@
 (defonce ^"[F" empty-float-array (empty-of-type Float/TYPE))
 (defonce ^"[D" empty-double-array (empty-of-type Double/TYPE))
 
+(defn primitive-type [array]
+  (condp = (class array)
+    boolean/1 :boolean
+    char/1 :char
+    byte/1 :byte
+    short/1 :short
+    int/1 :int
+    long/1 :long
+    float/1 :float
+    double/1 :double
+    nil))
+
+(defn array? [value]
+  (and (some? value)
+       (.isArray (class value))))
+
+(defn primitive-array? [value]
+  (some? (primitive-type value)))
+
 (defmacro ^:private set-items-impl! [array items start-index]
   {:pre [(symbol? array)]}
   `(reduce
