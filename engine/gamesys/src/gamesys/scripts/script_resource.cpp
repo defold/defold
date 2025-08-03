@@ -2214,7 +2214,8 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
             // For unrotated quads, the order is: [(minU,maxV),(minU,minV),(maxU,minV),(maxU,maxV)]
             // For rotated quads, the order is: [(minU,minV),(maxU,minV),(maxU,maxV),(minU,maxV)]
             // Note that we need to invert the V coordinates here to account for the texture coordinate space
-            if (rotated) {
+            if (rotated)
+            {
                 // Rotated quad UV pattern
                 geometry_scratch_cursor[0] = min_uv_u;
                 geometry_scratch_cursor[1] = 1.0 - min_uv_v;
@@ -2227,7 +2228,9 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
 
                 geometry_scratch_cursor[6] = min_uv_u;
                 geometry_scratch_cursor[7] = 1.0 - max_uv_v;
-            } else {
+            }
+            else
+            {
                 // Unrotated quad UV pattern
                 geometry_scratch_cursor[0] = min_uv_u;
                 geometry_scratch_cursor[1] = 1.0 - max_uv_v;
