@@ -4,6 +4,7 @@ from waflib.Options import options
 
 def configure(conf):
     conf.env['STLIB_HARFBUZZ'] = ['harfbuzz', 'sheenbidi']
+    conf.env['STLIB_SKRIBIDI'] = ['skribidi', 'unibreak']
 
 def build(bld):
     if options.skip_build_tests:
@@ -19,14 +20,7 @@ def build(bld):
 
     bld(features = 'cxx cprogram test',
         source   = bld.path.ant_glob(['*.cpp']),
-        use      = 'TESTMAIN DLIB PROFILE_NULL HARFBUZZ font_hb',
-        defines  = ['FONT_USE_HARFBUZZ_TEXT_SHAPE'],
+        use      = 'TESTMAIN DLIB PROFILE_NULL HARFBUZZ SKRIBIDI font_skribidi',
+        defines  = ['FONT_USE_SKRIBIDI_TEXT_SHAPE'],
         includes = '. .. ../font',
-        target = 'test_font_hb')
-
-    bld(features = 'cxx cprogram test',
-        source   = bld.path.ant_glob(['*.cpp']),
-        use      = 'TESTMAIN DLIB PROFILE_NULL font_kb',
-        defines  = ['FONT_USE_KB_TEXT_SHAPE'],
-        includes = '. .. ../font',
-        target = 'test_font_kb')
+        target = 'test_font_skribidi')

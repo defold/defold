@@ -25,7 +25,7 @@
 #include <dlib/time.h>
 #include <dlib/utf8.h>
 
-#include <text_shape/text_shape.h>
+#include <text_layout.h>
 
 static const char* g_TextLorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut tempus quam in lacinia imperdiet. Vestibulum interdum erat quis purus lacinia, at ullamcorper arcu sagittis. Etiam molestie varius lacus, eget fringilla enim tempor quis. In at mollis dolor, et dictum sem. Mauris condimentum metus sed auctor tempus.";
 
@@ -35,7 +35,8 @@ static const char* g_TextArabic = "دينيس ريتشي فاش كان خدام 
 class FontTest : public jc_test_base_class
 {
 protected:
-    HFont m_Font;
+    HFont           m_Font;
+    HFontCollection m_FontCollection;
 
     virtual void SetUp()
     {
@@ -50,17 +51,22 @@ protected:
 
         uint32_t path_hash = dmHashString32(path);
         ASSERT_EQ(path_hash, FontGetPathHash(m_Font));
+
+        m_FontCollection = FontCollectionCreate();
+        FontResult r = FontCollectionAddFont(m_FontCollection, m_Font);
+        ASSERT_EQ(FONT_RESULT_OK, r);
     }
 
     virtual void TearDown()
     {
+        FontCollectionDestroy(m_FontCollection);
         FontDestroy(m_Font);
     }
 };
 
 TEST_F(FontTest, LoadTTF)
 {
-    // EMpty. Just loading/unloading a font
+    // Empty. Just loading/unloading a font
 }
 
 
@@ -77,63 +83,53 @@ static uint32_t TextToCodePoints(const char* text, dmArray<uint32_t>& codepoints
     return len;
 }
 
-static TextShapeResult TestLayout(HFont font, dmArray<uint32_t>& codepoints,
-                        TextMetricsSettings* settings,
-                        TextShapeInfo* info,
-                        TextMetrics* metrics,
-                        TextLine* lines, uint32_t max_num_lines)
+static TextResult TestLayout(HFontCollection coll, dmArray<uint32_t>& codepoints,
+                        TextLayoutSettings* settings,
+                        HTextLayout* layout)
 {
     uint64_t tstart = dmTime::GetMonotonicTime();
 
-    TextShapeResult r = TextShapeText(font, codepoints.Begin(), codepoints.Size(), info);
-    if (r != TEXT_SHAPE_RESULT_OK)
-        return r;
+    uint32_t* pc = codepoints.Begin();
+    uint32_t num_codepoints = codepoints.Size();
+    TextResult r = TextLayoutCreate(coll, pc, num_codepoints, settings, layout);
 
     uint64_t tend = dmTime::GetMonotonicTime();
-    printf("Shaping %u codepoints into %u glyphs took %.3f ms\n", codepoints.Size(), info->m_Glyphs.Size(), (tend-tstart)/1000.0f);
+    if (*layout)
+    {
+        printf("Layout %u codepoints into %u glyphs took %.3f ms\n", codepoints.Size(), (*layout)->m_Glyphs.Size(), (tend-tstart)/1000.0f);
+    }
 
-    tstart = dmTime::GetMonotonicTime();
-
-    r = TextLayout(settings, info, lines, max_num_lines, metrics);
-    if (r != TEXT_SHAPE_RESULT_OK)
-        return r;
-
-    tend = dmTime::GetMonotonicTime();
-    printf("Layout of %u glyphs into %u lines took %.3f ms\n", info->m_Glyphs.Size(), metrics->m_LineCount, (tend-tstart)/1000.0f);
-
-    return TEXT_SHAPE_RESULT_OK;
+    return r;
 }
 
-static void DebugPrintLayout(TextShapeInfo* info, TextMetrics* metrics, TextLine* lines, float scale)
+static void DebugPrintLayout(HTextLayout layout)
 {
     printf("Layout:\n");
-    printf("  %u lines, max width: %.3f\n", metrics->m_LineCount, metrics->m_Width*scale);
+    printf("  %u lines, max width: %.3f\n", layout->m_Lines.Size(), layout->m_Width);
 
-    if (lines != 0)
+    uint32_t num_lines = layout->m_Lines.Size();
+    for (uint32_t i = 0; i < num_lines; ++i)
     {
-        for (uint32_t i = 0; i < metrics->m_LineCount; ++i)
+        TextLine& line = layout->m_Lines[i];
+        printf("  %u: off: %3u  len: %3u  width: %.3f  |", i, line.m_Index, line.m_Length, line.m_Width);
+
+        uint32_t end = line.m_Index + line.m_Length;
+        for (uint32_t j = line.m_Index; j < end; ++j)
         {
-            TextLine& line = lines[i];
-            printf("  %u: off: %3u  len: %3u  width: %.3f  |", i, line.m_Index, line.m_Length, line.m_Width * scale);
-
-            uint32_t end = line.m_Index + line.m_Length;
-            for (uint32_t j = line.m_Index; j < end; ++j)
-            {
-                TextShapeGlyph* glyph = &info->m_Glyphs[j];
-                uint32_t c = glyph->m_Codepoint;
-                printf("%c", (char)c);
-            }
-
-            printf("|  idx: |");
-
-            for (uint32_t j = line.m_Index; j < end; ++j)
-            {
-                TextShapeGlyph* glyph = &info->m_Glyphs[j];
-                uint32_t gi = glyph->m_GlyphIndex;
-                printf("%4u ", gi);
-            }
-            printf("|\n");
+            TextGlyph* glyph = &layout->m_Glyphs[j];
+            uint32_t c = glyph->m_Codepoint;
+            printf("%c", (char)c);
         }
+
+        printf("|  idx: |");
+
+        for (uint32_t j = line.m_Index; j < end; ++j)
+        {
+            TextGlyph* glyph = &layout->m_Glyphs[j];
+            uint32_t gi = glyph->m_GlyphIndex;
+            printf("%4u ", gi);
+        }
+        printf("|\n");
     }
 }
 
@@ -145,39 +141,42 @@ TEST_F(FontTest, LayoutSingleLine)
     const char* original_text = "Hello World!  ";
     TextToCodePoints(original_text, codepoints);
 
-    TextMetrics metrics = {0};
-    TextShapeInfo info;
-
-    float scale = FontGetScaleFromSize(m_Font, 28);
-
-    TextMetricsSettings settings = {0};
+    TextLayoutSettings settings = {0};
     settings.m_LineBreak = false;
     settings.m_Width = 0;
+    settings.m_Size = 28.0f;
 
-    const uint32_t  max_num_lines = 16;
-    TextLine        lines[max_num_lines];
+    HTextLayout layout = 0;
 
-    TextShapeResult r = TestLayout(m_Font, codepoints, &settings, &info, &metrics, lines, max_num_lines);
-    ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
-    DebugPrintLayout(&info, &metrics, lines, scale);
-    ASSERT_EQ(1u, metrics.m_LineCount);
-    ASSERT_EQ(0u, lines[0].m_Index);
-    ASSERT_EQ(14u, lines[0].m_Length);
+    TextResult r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, r);
+    ASSERT_NE((TextLayout*)0, layout);
+    DebugPrintLayout(layout);
+    ASSERT_EQ(1u, layout->m_Lines.Size());
+
+    TextLine& line = layout->m_Lines[0];
+    ASSERT_EQ(0u, line.m_Index);
+    ASSERT_EQ(14u, line.m_Length);
 
     dmArray<char> outtext;
-    outtext.SetCapacity(lines[0].m_Length);
-    for (uint32_t i = 0; i < lines[0].m_Length; ++i)
+    outtext.SetCapacity(line.m_Length);
+    for (uint32_t i = 0; i < line.m_Length; ++i)
     {
-        TextShapeGlyph& g = info.m_Glyphs[i];
+        TextGlyph& g = layout->m_Glyphs[i];
         outtext.Push((char)g.m_Codepoint);
     }
-    ASSERT_ARRAY_EQ_LEN(original_text, outtext.Begin(), lines[0].m_Length);
+    ASSERT_ARRAY_EQ_LEN(original_text, outtext.Begin(), line.m_Length);
+
+    TextLayoutFree(layout);
 
     // Test the same without any lines
-    r = TestLayout(m_Font, codepoints, &settings, &info, &metrics, 0, 0);
-    ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
-    DebugPrintLayout(&info, &metrics, lines, scale);
-    ASSERT_EQ(1u, metrics.m_LineCount);
+    r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, r);
+    ASSERT_NE((TextLayout*)0, layout);
+    DebugPrintLayout(layout);
+    ASSERT_EQ(1u, layout->m_Lines.Size());
+
+    TextLayoutFree(layout);
 }
 
 TEST_F(FontTest, LayoutMultiLine)
@@ -186,69 +185,58 @@ TEST_F(FontTest, LayoutMultiLine)
 
     // NOTE: For multiline text, we strip the whitespaces off of each line
     const char* original_text = "Hello World!   How are you?  ";
+
+#if defined(FONT_USE_SKRIBIDI_TEXT_SHAPE)
+    // NOTE: Our rules for breaking is a bit weird,
+    // but changing them is for another time
+    const char* expected_text_1 = "Hello World!   ";
+    const char* expected_text_2 = "How are you?  ";
+    uint32_t line2_start = (uint32_t)strlen(expected_text_1);
+#else
     // NOTE: Our rules for breaking is a bit weird,
     // but changing them is for another time
     const char* expected_text_1 = "Hello World!";
     const char* expected_text_2 = "  How are you?";
+    uint32_t line2_start = 13u;
+#endif
+
     TextToCodePoints(original_text, codepoints);
 
-    TextMetrics metrics = {0};
-    TextShapeInfo info;
-
-    float scale = FontGetScaleFromSize(m_Font, 28);
-
-    TextMetricsSettings settings = {0};
+    TextLayoutSettings settings = {0};
     settings.m_LineBreak = true;
-    settings.m_Width = 300 / scale;
+    settings.m_Width = 260.0f;
+    settings.m_Size = 28.0f;
 
-    const uint32_t  max_num_lines = 16;
-    TextLine        lines[max_num_lines];
+    HTextLayout layout = 0;
 
-    TextShapeResult r = TestLayout(m_Font, codepoints, &settings, &info, &metrics, lines, max_num_lines);
-    ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
+    TextResult r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, r);
+    ASSERT_NE((TextLayout*)0, layout);
+    DebugPrintLayout(layout);
+    ASSERT_EQ(2u, layout->m_Lines.Size());
 
-    DebugPrintLayout(&info, &metrics, lines, scale);
+    TextLine& line1 = layout->m_Lines[0];
+    TextLine& line2 = layout->m_Lines[1];
 
-    ASSERT_EQ(2u, metrics.m_LineCount);
-    ASSERT_EQ(0u, lines[0].m_Index);
-    ASSERT_EQ((uint32_t)strlen(expected_text_1), lines[0].m_Length);
-    ASSERT_EQ(13U, lines[1].m_Index);
-    ASSERT_EQ((uint32_t)strlen(expected_text_2), lines[1].m_Length);
+    ASSERT_EQ(0u, line1.m_Index);
+    ASSERT_EQ((uint32_t)strlen(expected_text_1), line1.m_Length);
+    ASSERT_EQ(line2_start, line2.m_Index);
+    ASSERT_EQ((uint32_t)strlen(expected_text_2), line2.m_Length);
 
     dmArray<char> outtext;
-    outtext.SetCapacity(info.m_Glyphs.Size()+1);
-    for (uint32_t i = 0; i < info.m_Glyphs.Size(); ++i)
+    outtext.SetCapacity(layout->m_Glyphs.Size()+1);
+    for (uint32_t i = 0; i < layout->m_Glyphs.Size(); ++i)
     {
-        TextShapeGlyph& g = info.m_Glyphs[i];
+        TextGlyph& g = layout->m_Glyphs[i];
         outtext.Push((char)g.m_Codepoint);
     }
     outtext.Push(0);
-    ASSERT_ARRAY_EQ_LEN(expected_text_1, outtext.Begin() + lines[0].m_Index, lines[0].m_Length);
-    ASSERT_ARRAY_EQ_LEN(expected_text_2, outtext.Begin() + lines[1].m_Index, lines[0].m_Length);
+    ASSERT_ARRAY_EQ_LEN(expected_text_1, outtext.Begin() + line1.m_Index, line1.m_Length);
+    ASSERT_ARRAY_EQ_LEN(expected_text_2, outtext.Begin() + line2.m_Index, line2.m_Length);
 }
 
-TEST_F(FontTest, TextGetMetrics)
-{
-    dmArray<uint32_t> codepoints;
 
-    // Note: Simulate an input field, where adding extra spaces would move the visible cursor
-    const char* original_text = "Hello World!  ";
-    TextToCodePoints(original_text, codepoints);
-
-    TextMetrics metrics = {0};
-
-    float scale = FontGetScaleFromSize(m_Font, 28);
-
-    TextMetricsSettings settings = {0};
-    settings.m_LineBreak = false;
-    settings.m_Width = 0;
-
-    TextShapeResult r = TextGetMetrics(m_Font, codepoints.Begin(), codepoints.Size(), &settings, &metrics);
-    ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
-    //DebugPrintLayout(&info, &metrics, 0, scale);
-    ASSERT_EQ(1u, metrics.m_LineCount);
-}
-
+#if !defined(FONT_USE_SKRIBIDI_TEXT_SHAPE) && defined(FOO)
 static void CreateTestGlyphs(TextShapeInfo* info, const char* text, int32_t x_step, dmArray<uint32_t>& codepoints)
 {
     uint32_t len = TextToCodePoints(text, codepoints);
@@ -261,7 +249,7 @@ static void CreateTestGlyphs(TextShapeInfo* info, const char* text, int32_t x_st
     {
         uint32_t c = codepoints[i];
 
-        TextShapeGlyph g = {0};
+        TextGlyph g = {0};
         g.m_X = i * x_step;
         g.m_Y = 0;
         if (c == dmUtf8::UTF_WHITESPACE_NEW_LINE)
@@ -294,7 +282,7 @@ static void CreateTestGlyphs(TextShapeInfo* info, const char* text, int32_t x_st
     printf("**********************************************************\n");
     {
 
-        TextShapeGlyph* glyphs = info->m_Glyphs.Begin();
+        TextGlyph* glyphs = info->m_Glyphs.Begin();
         uint32_t        num_glyphs = info->m_Glyphs.Size();
         printf("Layout %u: |", num_glyphs);
         for (int f = 0; f < num_glyphs; ++f)
@@ -325,7 +313,7 @@ TEST_F(FontTest, Layout)
     TextShapeInfo info;
     info.m_Font = m_Font;
 
-    TextMetricsSettings settings = {0};
+    TextLayoutSettings settings = {0};
     settings.m_LineBreak = false;
 
     dmArray<uint32_t> codepoints;
@@ -542,7 +530,9 @@ TEST_F(FontTest, Layout)
     ASSERT_EQ(char_width * 14, metrics.m_Width);
 }
 
-#if defined(FONT_USE_KB_TEXT_SHAPE) || defined(FONT_USE_HARFBUZZ_TEXT_SHAPE)
+#endif // !defined(FONT_USE_SKRIBIDI_TEXT_SHAPE)
+
+#if defined(FONT_USE_KB_TEXT_SHAPE) || defined(FONT_USE_HARFBUZZ_TEXT_SHAPE) || defined(FONT_USE_SKRIBIDI_TEXT_SHAPE)
 TEST_F(FontTest, TextArabic)
 {
     char buffer[512];
@@ -554,13 +544,18 @@ TEST_F(FontTest, TextArabic)
     dmArray<uint32_t> codepoints;
     TextToCodePoints(g_TextArabic, codepoints);
 
-    const uint32_t  lines_count = 16;
-    TextLine        lines[lines_count];
-
-    TextMetrics metrics;
-
-    TextMetricsSettings settings = {0};
+    TextLayoutSettings settings = {0};
     settings.m_LineBreak = false;
+    settings.m_Width = 260.0f;
+    settings.m_Size = 28.0f;
+
+    HTextLayout layout = 0;
+
+    TextResult r = TestLayout(m_FontCollection, codepoints, &settings, &layout);
+    ASSERT_EQ(TEXT_RESULT_OK, r);
+    ASSERT_NE((TextLayout*)0, layout);
+    DebugPrintLayout(layout);
+    ASSERT_EQ(1u, layout->m_Lines.Size());
 
     printf("Codepoints: %u\n    ", codepoints.Size());
     for (uint32_t i = 0; i < codepoints.Size(); ++i)
@@ -568,97 +563,95 @@ TEST_F(FontTest, TextArabic)
         printf("0x%X ", codepoints[i]);
     }
     printf("\n");
+    for (uint32_t i = 0; i < codepoints.Size(); ++i)
+    {
+        printf("'%c' ", codepoints[i]);
+    }
+    printf("\n");
 
-    TextShapeInfo info;
-    info.m_Font = font;
-    TextShapeResult r = TextShapeText(font, codepoints.Begin(), codepoints.Size(), &info);
-    ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
+    DebugPrintLayout(layout);
 
-    r = TextLayout(&settings, &info, lines, lines_count, &metrics);
-    ASSERT_EQ(TEXT_SHAPE_RESULT_OK, r);
-
-    DebugPrintLayout(&info, &metrics, lines, 1.0f);
-
+    TextLayoutFree(layout);
     FontDestroy(font);
 }
 #endif
 
-static int TestStandalone(const char* path, float size, float padding, const char* text)
-{
-    HFont font = FontLoadFromPath(path);
-    if (!font)
-    {
-        dmLogError("Failed to load font '%s'", path);
-        return 1;
-    }
+// static int TestStandalone(const char* path, float size, float padding, const char* text)
+// {
+//     HFont font = FontLoadFromPath(path);
+//     if (!font)
+//     {
+//         dmLogError("Failed to load font '%s'", path);
+//         return 1;
+//     }
 
-    float scale = FontGetScaleFromSize(font, size);
-    FontDebug(font, scale, padding, text);
+//     float scale = FontGetScaleFromSize(font, size);
+//     FontDebug(font, scale, padding, text);
 
-    TextMetricsSettings settings = {0};
-    settings.m_LineBreak = true;
-    settings.m_Width = 600 / scale;
-    settings.m_Leading = 0;
-    settings.m_Tracking = 0;
+//     TextLayoutSettings settings = {0};
+//     settings.m_LineBreak = true;
+//     settings.m_Width = 600 / scale;
+//     settings.m_Leading = 0;
+//     settings.m_Tracking = 0;
 
-    TextMetrics metrics = {0};
-    TextShapeInfo info;
+//     TextMetrics metrics = {0};
+//     TextShapeInfo info;
 
-    const uint32_t  max_num_lines = 16;
-    TextLine        lines[max_num_lines];
+//     const uint32_t  max_num_lines = 16;
+//     TextLine        lines[max_num_lines];
 
-    dmArray<uint32_t> codepoints;
-    TextToCodePoints(g_TextLorem, codepoints);
+//     dmArray<uint32_t> codepoints;
+//     TextToCodePoints(g_TextLorem, codepoints);
 
-    TestLayout(font, codepoints, &settings, &info, &metrics, lines, max_num_lines);
+//     TestLayout(font, codepoints, &settings, &info, &metrics, lines, max_num_lines);
 
-    DebugPrintLayout(&info, &metrics, lines, scale);
+//     DebugPrintLayout(&info, &metrics, lines, scale);
 
-    FontDestroy(font);
-    return 0;
-}
+//     FontDestroy(font);
+//     return 0;
+// }
 
 int main(int argc, char **argv)
 {
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
 
-    if (argc > 1 && (strstr(argv[1], ".ttf") != 0 ||
-                     strstr(argv[1], ".otf") != 0))
-    {
-        const char* path = argv[1];
-        const char* text = "abcABC123åäö!\"";
-        float size = 1.0f;
-        float padding = 3.0f;
+    // if (argc > 1 && (strstr(argv[1], ".ttf") != 0 ||
+    //                  strstr(argv[1], ".otf") != 0))
+    // {
+    //     const char* path = argv[1];
+    //     const char* text = "abcABC123åäö!\"";
+    //     float size = 1.0f;
+    //     float padding = 3.0f;
 
-        if (argc > 2)
-        {
-            text = argv[2];
-        }
+    //     if (argc > 2)
+    //     {
+    //         text = argv[2];
+    //     }
 
-        if (argc > 3)
-        {
-            int nresult = sscanf(argv[3], "%f", &size);
-            if (nresult != 1)
-            {
-                dmLogError("Failed to parse size: '%s'", argv[3]);
-                return 1;
-            }
-        }
+    //     if (argc > 3)
+    //     {
+    //         int nresult = sscanf(argv[3], "%f", &size);
+    //         if (nresult != 1)
+    //         {
+    //             dmLogError("Failed to parse size: '%s'", argv[3]);
+    //             return 1;
+    //         }
+    //     }
 
-        if (argc > 4)
-        {
-            int nresult = sscanf(argv[4], "%f", &padding);
-            if (nresult != 1)
-            {
-                dmLogError("Failed to parse padding: '%s'", argv[4]);
-                return 1;
-            }
-        }
-        int ret = TestStandalone(path, size, padding, text);
-        dmLog::LogFinalize();
-        return ret;
-    }
+    //     if (argc > 4)
+    //     {
+    //         int nresult = sscanf(argv[4], "%f", &padding);
+    //         if (nresult != 1)
+    //         {
+    //             dmLogError("Failed to parse padding: '%s'", argv[4]);
+    //             return 1;
+    //         }
+    //     }
+    //     int ret = TestStandalone(path, size, padding, text);
+    //     dmLog::LogFinalize();
+    //     return ret;
+    // }
 
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();

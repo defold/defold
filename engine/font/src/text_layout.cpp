@@ -12,18 +12,30 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <font/text_shape/text_shape.h>
+#include "text_layout.h"
 
-
-TextShapeResult TextGetMetrics(HFont font,
-                                uint32_t* codepoints, uint32_t num_codepoints,
-                                TextMetricsSettings* settings, TextMetrics* metrics)
+uint32_t TextLayoutGetGlyphCount(HTextLayout layout)
 {
-    TextShapeInfo info;
+    return layout->m_Glyphs.Size();
+}
 
-    TextShapeResult r = TextShapeText(font, codepoints, num_codepoints, &info);
-    if (TEXT_SHAPE_RESULT_OK != r)
-        return r;
+TextGlyph* TextLayoutGetGlyphs(HTextLayout layout)
+{
+    return layout->m_Glyphs.Begin();
+}
 
-    return TextLayout(settings, &info, 0, 0, metrics);
+uint32_t TextLayoutGetLineCount(HTextLayout layout)
+{
+    return layout->m_Lines.Size();
+}
+
+TextLine* TextLayoutGetLines(HTextLayout layout)
+{
+    return layout->m_Lines.Begin();
+}
+
+void TextLayoutGetBounds(HTextLayout layout, float* width, float* height)
+{
+    *width = layout->m_Width;
+    *height = layout->m_Height;
 }

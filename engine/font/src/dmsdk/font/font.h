@@ -23,7 +23,6 @@
  *
  * @document
  * @name Font
- * @namespace dmFont
  * @path engine/font/src/dmsdk/font/font.h
  * @language C++
  */
@@ -297,4 +296,4 @@ FontResult FontGetGlyphByIndex(HFont font, uint32_t glyph_index, FontGlyphOption
  */
 FontResult FontFreeGlyph(HFont font, FontGlyph* glyph);
 
-#endif // DM_FONT_H
+#endif // DMSDK_FONT_H
