@@ -27,7 +27,6 @@ import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.Task;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
-import com.dynamo.render.proto.Material;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -35,7 +34,6 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 
 // For tests
-import com.dynamo.resource.proto.Resource;
 import com.google.protobuf.TextFormat;
 
 @ProtoParams(srcClass = MaterialDesc.class, messageClass = MaterialDesc.class)
@@ -192,8 +190,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         for (ShaderDesc.ResourceBinding resourceBinding : shaderBuilder.getReflection().getUniformBuffersList()) {
             ShaderDesc.ResourceType resourceType = resourceBinding.getType();
             ShaderDesc.ResourceTypeInfo resourceTypeInfo = shaderBuilder.getReflection().getTypes(resourceType.getTypeIndex());
-
-            System.out.println(resourceTypeInfo.getName());
 
             if (resourceTypeInfo.getName().equals(PBR_MATERIAL_NAME)) {
                 for (ShaderDesc.ResourceMember resourceMember : resourceTypeInfo.getMembersList()) {

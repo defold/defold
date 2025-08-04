@@ -98,7 +98,6 @@ namespace dmRender
         dmArray<RenderConstant>                 m_Constants;
         dmArray<Sampler>                        m_Samplers;
         dmRenderDDF::MaterialDesc::PbrParameters m_PbrParameters;
-        void*                                   m_UserData; // Used for hot-reloading and other purposes
         uint32_t                                m_TagListKey; // the key to use with GetMaterialTagList()
         dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;
         uint8_t                                 m_InstancingSupported : 1;
@@ -113,7 +112,6 @@ namespace dmRender
         dmArray<RenderConstant>                     m_Constants;
         dmArray<Sampler>                            m_Samplers;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
-        uint64_t                                    m_UserData;
     };
 
     // The order of this enum also defines the order in which the corresponding ROs should be rendered

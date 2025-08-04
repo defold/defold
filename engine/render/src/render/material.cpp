@@ -626,16 +626,6 @@ namespace dmRender
         return material->m_RenderContext;
     }
 
-    void* GetMaterialUserData(HMaterial material)
-    {
-        return material->m_UserData;
-    }
-
-    void SetMaterialUserData(HMaterial material, void* user_data)
-    {
-        material->m_UserData = user_data;
-    }
-
     void SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space)
     {
         material->m_VertexSpace = vertex_space;

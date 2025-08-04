@@ -180,9 +180,7 @@ namespace dmGameSystem
 
             HResourceDescriptor desc;
             dmResource::Result res = dmResource::GetDescriptor(params->m_Factory, ddf->m_ComputeProgram, &desc);
-
             assert(res == dmResource::RESULT_OK);
-            dmRender::SetProgramUserData(compute_program, ResourceDescriptorGetNameHash(desc));
 
             ComputeResource* resource = new ComputeResource();
             resource->m_Program       = compute_program;

@@ -181,6 +181,9 @@ namespace dmGameSystem
         // Set all vertex attributes
         dmRender::SetMaterialProgramAttributes(material, ddf->m_Attributes.m_Data, ddf->m_Attributes.m_Count);
 
+        // PBR parameters
+        dmRender::SetMaterialPBRParameters(material, &ddf->m_PbrParameters);
+
         dmRenderDDF::MaterialDesc::Sampler* sampler = ddf->m_Samplers.m_Data;
 
         uint32_t sampler_unit = 0;
@@ -212,9 +215,6 @@ namespace dmGameSystem
                 dmLogWarning("Material %s has specified a sampler named '%s', but it does not exist or isn't used in any of the shaders.", path, sampler[i].m_Name);
             }
         }
-
-        // Set PBR parameters
-        dmRender::SetMaterialPBRParameters(material, &ddf->m_PbrParameters);
 
         // Now we need to sort the textures based on sampler appearance
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)

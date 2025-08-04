@@ -300,8 +300,6 @@ namespace dmRender
     HSampler                        GetComputeProgramSampler(HComputeProgram program, uint32_t unit);
     HRenderContext                  GetProgramRenderContext(HComputeProgram program);
     dmGraphics::HProgram            GetComputeProgram(HComputeProgram program);
-    uint64_t                        GetProgramUserData(HComputeProgram program);
-    void                            SetProgramUserData(HComputeProgram program, uint64_t user_data);
     void                            SetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t count);
     void                            SetComputeProgramConstantType(HComputeProgram compute_program, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            SetComputeProgramSampler(HComputeProgram compute_program, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
@@ -326,9 +324,6 @@ namespace dmRender
     bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
-
-    void*                           GetMaterialUserData(HMaterial material);
-    void                            SetMaterialUserData(HMaterial material, void* user_data);
 
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer);
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HComputeProgram program, HNamedConstantBuffer buffer);
