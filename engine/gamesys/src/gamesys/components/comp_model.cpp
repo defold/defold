@@ -1116,28 +1116,150 @@ namespace dmGameSystem
     }
     #endif
 
+    static dmhash_t PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR                         = dmHashString64("pbrMetallicRoughness.baseColorFactor");
+    static dmhash_t PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR             = dmHashString64("pbrMetallicRoughness.metallicAndRoughnessFactor");
+    static dmhash_t PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR                           = dmHashString64("pbrSpecularGlossiness.diffuseFactor");
+    static dmhash_t PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR  = dmHashString64("pbrSpecularGlossiness.specularAndSpecularGlossinessFactor");
+    static dmhash_t PBR_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR        = dmHashString64("pbrClearCoat.clearCoatAndClearCoatRoughnessFactor");
+    static dmhash_t PBR_TRANSMISSION_TRANSMISSION_FACTOR                             = dmHashString64("pbrTransmission.transmissionFactor");
+    static dmhash_t PBR_IOR_IOR_FACTOR                                               = dmHashString64("pbrIor.ior");
+    static dmhash_t PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR                  = dmHashString64("pbrSpecular.specularColorAndSpecularFactor");
+    static dmhash_t PBR_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR                = dmHashString64("pbrVolume.thicknessFactorAndAttenuationColor");
+    static dmhash_t PBR_VOLUME_ATTENUATION_DISTANCE                                  = dmHashString64("pbrVolume.attenuationDistance");
+    static dmhash_t PBR_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR                 = dmHashString64("pbrSheen.sheenColorAndRoughnessFactor");
+    static dmhash_t PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH                          = dmHashString64("pbrEmissiveStrength.emissiveStrength");
+    static dmhash_t PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX = dmHashString64("pbrIridescence.iridescenceFactorAndIorAndThicknessMinMax");
+
     static void FillPBRConstants(ModelComponent* component, dmRender::HMaterial material, uint32_t material_index)
     {
-        MaterialResourceUserData* user_data = (MaterialResourceUserData*) dmRender::GetMaterialUserData(material);
+        dmRenderDDF::MaterialDesc::PbrParameters parameters;
+        dmRender::GetMaterialPBRParameters(material, &parameters);
 
-        if (user_data->m_PbrMaterialInfo)
+        if (parameters.m_HasParameters)
         {
+            const dmRigDDF::Material& ddf_material = component->m_Resource->m_RigScene->m_MeshSetRes->m_MeshSet->m_Materials[material_index];
+
             if (!component->m_RenderConstants)
             {
                 component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
             }
 
-            const dmRigDDF::Material& material = component->m_Resource->m_RigScene->m_MeshSetRes->m_MeshSet->m_Materials[material_index];
-
-            if (user_data->m_PbrMaterialInfo->m_PbrMetallicRoughness_BaseColorFactor)
+            if (parameters.m_HasMetallicRoughness)
             {
-                dmGameSystem::SetRenderConstant(component->m_RenderConstants, user_data->m_PbrMaterialInfo->m_PbrMetallicRoughness_BaseColorFactor, (dmVMath::Vector4*) &material.m_Pbrmetallicroughness.m_Basecolorfactor, 1);
+                /*
+                struct PbrMetallicRoughness
+                {
+                    vec4 baseColorFactor;
+                    vec4 metallicAndRoughnessFactor; // R: metallic (Default=1.0), G: roughness (Default=1.0)
+                };
+                */
+                dmVMath::Vector4 metallic_roughness = dmVMath::Vector4(ddf_material.m_Pbrmetallicroughness.m_Metallicfactor, ddf_material.m_Pbrmetallicroughness.m_Roughnessfactor, 0.0f, 0.0f);
+                dmGameSystem::SetRenderConstant(component->m_RenderConstants, PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, (dmVMath::Vector4*) &ddf_material.m_Pbrmetallicroughness.m_Basecolorfactor, 1);
+                dmGameSystem::SetRenderConstant(component->m_RenderConstants, PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR, &metallic_roughness, 1);
             }
-
-            if (user_data->m_PbrMaterialInfo->m_PbrMetallicRoughness_MetallicAndRoughnessFactor)
+            if (parameters.m_HasSpecularGlossiness)
             {
-                dmVMath::Vector4 metallic_roughness = dmVMath::Vector4(material.m_Pbrmetallicroughness.m_Metallicfactor, material.m_Pbrmetallicroughness.m_Roughnessfactor, 0.0f, 0.0f);
-                dmGameSystem::SetRenderConstant(component->m_RenderConstants, user_data->m_PbrMaterialInfo->m_PbrMetallicRoughness_MetallicAndRoughnessFactor, &metallic_roughness, 1);
+                /*
+                struct PbrSpecularGlossiness
+                {
+                    vec4 diffuseFactor;
+                    vec4 specularAndSpecularGlossinessFactor; // RGB: specular (Default=1.0), G: glossiness (Default=1.0)
+                };
+                */
+                dmVMath::Vector4 specular_glossiness = dmVMath::Vector4(ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getX(), ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getY(), ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getZ(), ddf_material.m_Pbrspecularglossiness.m_Glossinessfactor);
+                dmGameSystem::SetRenderConstant(component->m_RenderConstants, PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR, (dmVMath::Vector4*) &ddf_material.m_Pbrspecularglossiness.m_Diffusefactor, 1);
+                dmGameSystem::SetRenderConstant(component->m_RenderConstants, PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR, &specular_glossiness, 1);
+            }
+            if (parameters.m_HasClearcoat)
+            {
+                /*
+                struct ClearCoat
+                {
+                    vec4 clearCoatAndClearCoatRoughnessFactor; // R: clearCoat (Default=0.0), G: clearCoatRoughness (Default=0.0)
+                };
+                */
+                dmVMath::Vector4 clear_coat = dmVMath::Vector4(ddf_material.m_Clearcoat.m_Clearcoatfactor, ddf_material.m_Clearcoat.m_Clearcoatroughnessfactor, 0.0f, 0.0f);
+                dmGameSystem::SetRenderConstant(component->m_RenderConstants, PBR_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR, &clear_coat, 1);
+            }
+            if (parameters.m_HasTransmission)
+            {
+                /*
+                struct Transmission
+                {
+                    vec4 transmissionFactor; // R: transmission (Default=0.0)
+                };
+                */
+                dmVMath::Vector4 transmission = dmVMath::Vector4(ddf_material.m_Transmission.m_Transmissionfactor, 0.0f, 0.0f, 0.0f);
+                dmGameSystem::SetRenderConstant(component->m_RenderConstants, PBR_TRANSMISSION_TRANSMISSION_FACTOR, &transmission, 1);
+            }
+            if (parameters.m_HasIor)
+            {
+                /*
+                struct Ior
+                {
+                    vec4 ior; // R: ior (Default=0.0)
+                };
+                */
+                dmVMath::Vector4 ior = dmVMath::Vector4(ddf_material.m_Ior.m_Ior, 0.0f, 0.0f, 0.0f);
+                dmGameSystem::SetRenderConstant(component->m_RenderConstants, PBR_IOR_IOR_FACTOR, &ior, 1);
+            }
+            if (parameters.m_HasSpecular)
+            {
+                /*
+                struct Specular
+                {
+                    vec4 specularColorAndSpecularFactor; // RGB: specularColor, A: specularFactor (Default=1.0);
+                };
+                */
+                dmVMath::Vector4 specular = dmVMath::Vector4(ddf_material.m_Specular.m_Specularcolorfactor.getX(), ddf_material.m_Specular.m_Specularcolorfactor.getY(), ddf_material.m_Specular.m_Specularcolorfactor.getZ(), ddf_material.m_Specular.m_Specularfactor);
+                dmGameSystem::SetRenderConstant(component->m_RenderConstants, PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR, &specular, 1);
+            }
+            if (parameters.m_HasVolume)
+            {
+                /*
+                struct Volume
+                {
+                    vec4 thicknessFactorAndAttenuationColor; // R: thicknessFactor (Default=0.0), RGB: attenuationColor
+                    vec4 attenuationDistance;                // R: attentuationDistance (Default=-1.0)
+                };
+                */
+                dmVMath::Vector4 thicknessFactorAndAttenuationColor = dmVMath::Vector4(ddf_material.m_Volume.m_Thicknessfactor, ddf_material.m_Volume.m_Attenuationcolor.getX(), ddf_material.m_Volume.m_Attenuationcolor.getY(), ddf_material.m_Volume.m_Attenuationcolor.getZ());
+                dmVMath::Vector4 attenuationDistance = dmVMath::Vector4(ddf_material.m_Volume.m_Attenuationdistance, 0.0f, 0.0f, 0.0f);
+                dmGameSystem::SetRenderConstant(component->m_RenderConstants, PBR_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR, &thicknessFactorAndAttenuationColor, 1);
+                dmGameSystem::SetRenderConstant(component->m_RenderConstants, PBR_VOLUME_ATTENUATION_DISTANCE, &attenuationDistance, 1);
+            }
+            if (parameters.m_HasSheen)
+            {
+                /*
+                struct Sheen
+                {
+                    vec4 sheenColorAndRoughnessFactor; // RGB: sheenColor, A: sheenRoughnessFactor (Default=0.0)
+                };
+                */
+                dmVMath::Vector4 sheenColorAndRoughnessFactor = dmVMath::Vector4(ddf_material.m_Sheen.m_Sheencolorfactor.getX(), ddf_material.m_Sheen.m_Sheencolorfactor.getY(), ddf_material.m_Sheen.m_Sheencolorfactor.getZ(), ddf_material.m_Sheen.m_Sheenroughnessfactor);
+                dmGameSystem::SetRenderConstant(component->m_RenderConstants, PBR_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR, &sheenColorAndRoughnessFactor, 1);
+            }
+            if (parameters.m_HasEmissiveStrength)
+            {
+                /*
+                struct EmissiveStrength
+                {
+                    vec4 emissiveStrength; // R: emissiveStrength (Default=1.0)
+                };
+                */
+                dmVMath::Vector4 emissiveFactorAndStrength = dmVMath::Vector4(ddf_material.m_Emissivestrength.m_Emissivestrength, 0.0f, 0.0f, 0.0f);
+                dmGameSystem::SetRenderConstant(component->m_RenderConstants, PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH, &emissiveFactorAndStrength, 1);
+            }
+            if (parameters.m_HasIridescence)
+            {
+                /*
+                struct Iridescence
+                {
+                    vec4 iridescenceFactorAndIorAndThicknessMinMax; // R: iridescenceFactor (Default=0.0), G: iridescenceIor (Default=1.3), B: iridescenceThicknessMin (Default=100.0), A: iridescenceThicknessMax (Default=400.0)
+                };
+                */
+                dmVMath::Vector4 iridescenceFactorAndIorAndThicknessMinMax = dmVMath::Vector4(ddf_material.m_Iridescence.m_Iridescencefactor, ddf_material.m_Iridescence.m_Iridescenceior, ddf_material.m_Iridescence.m_Iridescencethicknessmin, ddf_material.m_Iridescence.m_Iridescencethicknessmax);
+                dmGameSystem::SetRenderConstant(component->m_RenderConstants, PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX, &iridescenceFactorAndIorAndThicknessMinMax, 1);
             }
         }
     }

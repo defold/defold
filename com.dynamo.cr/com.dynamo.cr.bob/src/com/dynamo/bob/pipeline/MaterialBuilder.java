@@ -17,6 +17,7 @@ package com.dynamo.bob.pipeline;
 import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.List;
 
 import com.dynamo.bob.fs.IResource;
@@ -26,6 +27,7 @@ import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.Task;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
+import com.dynamo.render.proto.Material;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -33,6 +35,7 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 
 // For tests
+import com.dynamo.resource.proto.Resource;
 import com.google.protobuf.TextFormat;
 
 @ProtoParams(srcClass = MaterialDesc.class, messageClass = MaterialDesc.class)
@@ -138,6 +141,77 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         }
     }
 
+    private static final String PBR_MATERIAL_NAME = "PbrMaterial";
+
+    enum PbrParameterType
+    {
+        PBR_PARAMETER_TYPE_METALLIC_ROUGHNESS,
+        PBR_PARAMETER_TYPE_SPECULAR_GLOSSINESS,
+        PBR_PARAMETER_TYPE_CLEARCOAT,
+        PBR_PARAMETER_TYPE_TRANSMISSION,
+        PBR_PARAMETER_TYPE_IOR,
+        PBR_PARAMETER_TYPE_SPECULAR,
+        PBR_PARAMETER_TYPE_VOLUME,
+        PBR_PARAMETER_TYPE_SHEEN,
+        PBR_PARAMETER_TYPE_EMISSIVE_STRENGTH,
+        PBR_PARAMETER_TYPE_IRIDESCENCE,
+    }
+
+    private static final HashMap<String, PbrParameterType> pbrStructNameToParameterType = new HashMap<>();
+    static {
+        pbrStructNameToParameterType.put("PbrMetallicRoughness", PbrParameterType.PBR_PARAMETER_TYPE_METALLIC_ROUGHNESS);
+        pbrStructNameToParameterType.put("PbrSpecularGlossiness", PbrParameterType.PBR_PARAMETER_TYPE_SPECULAR_GLOSSINESS);
+        pbrStructNameToParameterType.put("PbrClearCoat", PbrParameterType.PBR_PARAMETER_TYPE_CLEARCOAT);
+        pbrStructNameToParameterType.put("PbrTransmission", PbrParameterType.PBR_PARAMETER_TYPE_TRANSMISSION);
+        pbrStructNameToParameterType.put("PbrIor", PbrParameterType.PBR_PARAMETER_TYPE_IOR);
+        pbrStructNameToParameterType.put("PbrSpecular", PbrParameterType.PBR_PARAMETER_TYPE_SPECULAR);
+        pbrStructNameToParameterType.put("PbrVolume", PbrParameterType.PBR_PARAMETER_TYPE_VOLUME);
+        pbrStructNameToParameterType.put("PbrSheen", PbrParameterType.PBR_PARAMETER_TYPE_SHEEN);
+        pbrStructNameToParameterType.put("PbrEmissiveStrength", PbrParameterType.PBR_PARAMETER_TYPE_EMISSIVE_STRENGTH);
+        pbrStructNameToParameterType.put("PbrIridescence", PbrParameterType.PBR_PARAMETER_TYPE_IRIDESCENCE);
+    }
+
+    private void addPbrParameter(MaterialDesc.PbrParameters.Builder pbrParametersBuilder, PbrParameterType type) {
+        switch(type) {
+            case PBR_PARAMETER_TYPE_METALLIC_ROUGHNESS -> pbrParametersBuilder.setHasMetallicRoughness(true);
+            case PBR_PARAMETER_TYPE_SPECULAR_GLOSSINESS -> pbrParametersBuilder.setHasSpecularGlossiness(true);
+            case PBR_PARAMETER_TYPE_CLEARCOAT -> pbrParametersBuilder.setHasClearcoat(true);
+            case PBR_PARAMETER_TYPE_TRANSMISSION -> pbrParametersBuilder.setHasTransmission(true);
+            case PBR_PARAMETER_TYPE_IOR -> pbrParametersBuilder.setHasIor(true);
+            case PBR_PARAMETER_TYPE_SPECULAR -> pbrParametersBuilder.setHasSpecular(true);
+            case PBR_PARAMETER_TYPE_VOLUME -> pbrParametersBuilder.setHasVolume(true);
+            case PBR_PARAMETER_TYPE_SHEEN -> pbrParametersBuilder.setHasSheen(true);
+            case PBR_PARAMETER_TYPE_EMISSIVE_STRENGTH -> pbrParametersBuilder.setHasEmissiveStrength(true);
+            case PBR_PARAMETER_TYPE_IRIDESCENCE -> pbrParametersBuilder.setHasIridescence(true);
+        }
+    }
+
+    private void buildPbrParameters(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) {
+        MaterialDesc.PbrParameters.Builder pbrParametersBuilder = MaterialDesc.PbrParameters.newBuilder();
+
+        for (ShaderDesc.ResourceBinding resourceBinding : shaderBuilder.getReflection().getUniformBuffersList()) {
+            ShaderDesc.ResourceType resourceType = resourceBinding.getType();
+            ShaderDesc.ResourceTypeInfo resourceTypeInfo = shaderBuilder.getReflection().getTypes(resourceType.getTypeIndex());
+
+            System.out.println(resourceTypeInfo.getName());
+
+            if (resourceTypeInfo.getName().equals(PBR_MATERIAL_NAME)) {
+                for (ShaderDesc.ResourceMember resourceMember : resourceTypeInfo.getMembersList()) {
+                    ShaderDesc.ResourceTypeInfo resourceMemberTypeInfo = shaderBuilder.getReflection().getTypes(resourceMember.getType().getTypeIndex());
+                    String resourceMemberTypeName = resourceMemberTypeInfo.getName();
+                    if (pbrStructNameToParameterType.containsKey(resourceMemberTypeName)) {
+                        addPbrParameter(pbrParametersBuilder, pbrStructNameToParameterType.get(resourceMemberTypeName));
+                        pbrParametersBuilder.setHasParameters(true);
+                    }
+                }
+            }
+        }
+
+        if (pbrParametersBuilder.hasHasParameters()) {
+            materialBuilder.setPbrParameters(pbrParametersBuilder);
+        }
+    }
+
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         IResource res = task.firstInput();
@@ -163,6 +237,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         shaderBuilder.mergeFrom(resShader.getContent());
 
         applyVariantTextureArray(materialBuilder, shaderBuilder);
+        buildPbrParameters(materialBuilder, shaderBuilder);
 
         MaterialDesc materialDesc = materialBuilder.build();
         task.output(0).setContent(materialDesc.toByteArray());

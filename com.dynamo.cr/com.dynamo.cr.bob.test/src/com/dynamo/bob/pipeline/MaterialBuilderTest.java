@@ -269,4 +269,56 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(materialRed.getProgram(), materialGreen.getProgram());
         assertEquals(materialGreen.getProgram(), materialBlue.getProgram());
     }
+
+    @Test
+    public void testPbrParameters() throws Exception {
+        String vsShaderStr = """
+                #version 140
+                in highp vec4 position;
+                void main()
+                {
+                    gl_Position = position;
+                }
+                """;
+
+        String fsShaderStr = """
+                #version 140
+                struct PbrMetallicRoughness
+                {
+                	vec4 baseColorFactor;
+                	vec4 metallicAndRoughnessFactor;
+                };
+                struct PbrSpecularGlossiness
+                {
+                	vec4 diffuseFactor;
+                	vec4 specularAndSpecularGlossinessFactor;
+                };
+                uniform PbrMaterial
+                {
+                    PbrMetallicRoughness pbrMetallicRoughness;
+                    PbrSpecularGlossiness pbrSpecularGlossiness;
+                };
+                out vec4 color_out;
+                void main()
+                {
+                    color_out = pbrMetallicRoughness.baseColorFactor + pbrSpecularGlossiness.diffuseFactor;
+                }
+                """;
+
+        Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(
+                new String[]{"/test_pbr_parameters.vp", "/test_pbr_parameters.fp"},
+                new String[]{vsShaderStr, fsShaderStr},
+                "/test_pbr_parameters_bundle.shbundle");
+        assertEquals(2, shaderDesc.getShadersCount());
+
+        String src = """
+                name: "test_pbr_parameters"
+                vertex_program: "/test_pbr_parameters.vp"
+                fragment_program: "/test_pbr_parameters.fp"
+                """;
+
+        MaterialDesc material = getMessage(build("/test_pbr_parameters_material.material", src), MaterialDesc.class);
+        assertNotNull(material);
+        assertTrue(material.hasProgram());
+    }
 }

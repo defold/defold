@@ -215,6 +215,9 @@ namespace dmGameSystem
             }
         }
 
+        // Set PBR parameters
+        dmRender::SetMaterialPBRParameters(material, &ddf->m_PbrParameters);
+
         // Now we need to sort the textures based on sampler appearance
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
@@ -238,6 +241,7 @@ namespace dmGameSystem
             return 0;
         }
 
+        /*
         MaterialResourceUserData* user_data = new MaterialResourceUserData();
         user_data->m_PbrMaterialInfo = 0;
 
@@ -249,6 +253,7 @@ namespace dmGameSystem
         }
 
         dmRender::SetMaterialUserData(material, user_data);
+        */
 
         return material;
     }

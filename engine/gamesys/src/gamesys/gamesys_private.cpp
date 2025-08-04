@@ -637,18 +637,23 @@ namespace dmGameSystem
         return dmGameObject::PROPERTY_RESULT_OK;
     }
 
+    /*
     static const dmhash_t PBR_MATERIAL_TYPE                 = dmHashString64("PbrMaterial");
     static const dmhash_t PBR_MATERIAL_METALLIC_ROUGHNESS   = dmHashString64("PbrMetallicRoughness");
     static const dmhash_t PBR_MATERIAL_SPECULAR_GLOSSINESS  = dmHashString64("PbrSpecularGlossiness");
-    static const dmhash_t PBR_MATERIAL_CLEARCOAT            = dmHashString64("ClearCoat");
-    static const dmhash_t PBR_MATERIAL_TRANSMISSION         = dmHashString64("Transmission");
-    static const dmhash_t PBR_MATERIAL_IOR                  = dmHashString64("Ior");
-    static const dmhash_t PBR_MATERIAL_SPECULAR             = dmHashString64("Specular");
-    static const dmhash_t PBR_MATERIAL_VOLUME               = dmHashString64("Volume");
-    static const dmhash_t PBR_MATERIAL_SHEEN                = dmHashString64("Sheen");
-    static const dmhash_t PBR_MATERIAL_EMISSIVE_STRENGTH    = dmHashString64("EmissiveStrength");
-    static const dmhash_t PBR_MATERIAL_IRIDESCENE           = dmHashString64("Iridescence");
+    static const dmhash_t PBR_MATERIAL_CLEARCOAT            = dmHashString64("PbrClearCoat");
+    static const dmhash_t PBR_MATERIAL_TRANSMISSION         = dmHashString64("PbrTransmission");
+    static const dmhash_t PBR_MATERIAL_IOR                  = dmHashString64("PbrIor");
+    static const dmhash_t PBR_MATERIAL_SPECULAR             = dmHashString64("PbrSpecular");
+    static const dmhash_t PBR_MATERIAL_VOLUME               = dmHashString64("PbrVolume");
+    static const dmhash_t PBR_MATERIAL_SHEEN                = dmHashString64("PbrSheen");
+    static const dmhash_t PBR_MATERIAL_EMISSIVE_STRENGTH    = dmHashString64("PbrEmissiveStrength");
+    static const dmhash_t PBR_MATERIAL_IRIDESCENE           = dmHashString64("PbrIridescence");
+    */
 
+    
+
+    /*
     static bool FillPbrMaterialInfo(
         const dmGraphics::Uniform& uniform,
         const dmGraphics::ShaderResourceTypeInfo* type_infos,
@@ -716,4 +721,5 @@ namespace dmGameSystem
         }
         return has_pbr_uniforms;
     }
+    */
 }

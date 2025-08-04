@@ -97,6 +97,7 @@ namespace dmRender
         dmArray<uint8_t>                        m_MaterialAttributeValues;
         dmArray<RenderConstant>                 m_Constants;
         dmArray<Sampler>                        m_Samplers;
+        dmRenderDDF::MaterialDesc::PbrParameters m_PbrParameters;
         void*                                   m_UserData; // Used for hot-reloading and other purposes
         uint32_t                                m_TagListKey; // the key to use with GetMaterialTagList()
         dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;

@@ -342,6 +342,12 @@ namespace dmRender
 
     HConstant                       NewConstant(dmhash_t name_hash);
 
+    /** PBR properties
+     *
+     */
+    void SetMaterialPBRParameters(HMaterial material, const dmRenderDDF::MaterialDesc::PbrParameters* parameters);
+    void GetMaterialPBRParameters(HMaterial material, dmRenderDDF::MaterialDesc::PbrParameters* parameters);
+
     /** Buffered render buffers
      * A render buffer is a thin wrapper around vertex and index buffers that, depending on graphics context,
      * can allocate more backing storage if needed. E.g for Vulkan and vendor adapters, we cannot reuse the same

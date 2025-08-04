@@ -178,6 +178,7 @@ namespace dmGameSystem
     dmResource::Result SetTextureResource(dmResource::HFactory factory, const SetTextureResourceParams& params);
     dmResource::Result ReleaseDynamicResource(dmResource::HFactory factory, dmGameObject::HCollection collection, dmhash_t path_hash);
 
+    /*
     // PBR
     struct PBRMaterialInfo
     {
@@ -186,6 +187,7 @@ namespace dmGameSystem
     };
 
     bool GetPBRMaterialInfo(dmRender::HMaterial material, PBRMaterialInfo* info);
+    */
 }
 
 #endif // DM_GAMESYS_PRIVER_H

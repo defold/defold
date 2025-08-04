@@ -646,6 +646,16 @@ namespace dmRender
         return material->m_VertexSpace;
     }
 
+    void SetMaterialPBRParameters(HMaterial material, const dmRenderDDF::MaterialDesc::PbrParameters* parameters)
+    {
+        material->m_PbrParameters = *parameters;
+    }
+
+    void GetMaterialPBRParameters(HMaterial material, dmRenderDDF::MaterialDesc::PbrParameters* parameters)
+    {
+        *parameters = material->m_PbrParameters;
+    }
+
     uint32_t GetMaterialTagListKey(HMaterial material)
     {
         return material->m_TagListKey;
