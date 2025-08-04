@@ -33,7 +33,7 @@
 #include "font_renderer.h"       // for FontGlyphCompression
 #include "font_renderer_api.h"   // for the font renderer backend api
 
-#include "font/text_shape/text_shape.h"
+#include <dmsdk/font/text_layout.h>
 
 DM_PROPERTY_EXTERN(rmtp_Render);
 DM_PROPERTY_U32(rmtp_FontCharacterCount, 0, PROFILE_PROPERTY_FRAME_RESET, "# glyphs", &rmtp_Render);
@@ -134,7 +134,7 @@ namespace dmRender
     static dmhash_t g_TextureSizeRecipHash = dmHashString64("texture_size_recip");
 
     static dmVMath::Point3 CalcCenterPoint(HFontMap font_map, const TextEntry& te, const TextMetrics& metrics) {
-        float x_offset = OffsetX(te.m_Align, 1, te.m_Width);
+        float x_offset = OffsetX(te.m_Align, te.m_Width);
         float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, metrics.m_LineCount);
 
         // find X,Y local coordinate of text center
@@ -218,14 +218,15 @@ namespace dmRender
         te.m_SourceBlendFactor = params.m_SourceBlendFactor;
         te.m_DestinationBlendFactor = params.m_DestinationBlendFactor;
 
-        TextMetricsSettings settings;
+        TextLayoutSettings settings;
         settings.m_Width = params.m_Width;
         settings.m_LineBreak = params.m_LineBreak;
         settings.m_Leading = params.m_Leading;
         settings.m_Tracking = params.m_Tracking;
+        settings.m_Size = dmRender::GetFontMapSize(font_map);
         TextMetrics metrics;
 
-        // TODO: Allow for callers to have their prepared shaping/layout info
+        // TODO: Allow for callers to have their prepared HTextLayout
 
         GetTextMetrics(text_context->m_FontRenderBackend, font_map, params.m_Text, &settings, &metrics);
 

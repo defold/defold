@@ -27,7 +27,7 @@
 namespace dmRender
 {
     FontMapParams::FontMapParams()
-    : m_Font(0)
+    : m_FontCollection(0)
     , m_NameHash(0)
     , m_OnGlyphCacheMiss(0)
     , m_OnGlyphCacheMissContext(0)
@@ -173,7 +173,7 @@ namespace dmRender
      */
     static bool SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params)
     {
-        font_map->m_Font = params.m_Font;
+        font_map->m_FontCollection = params.m_FontCollection;
         font_map->m_NameHash = params.m_NameHash;
         font_map->m_Size = params.m_Size;
         font_map->m_ShadowX = params.m_ShadowX;
@@ -280,6 +280,7 @@ namespace dmRender
 
     void DeleteFontMap(HFontMap font_map)
     {
+        FontCollectionDestroy(font_map->m_FontCollection);
         dmMutex::Delete(font_map->m_Mutex);
         delete font_map;
     }
@@ -314,6 +315,12 @@ namespace dmRender
         return font_map->m_Material;
     }
 
+    float GetFontMapSize(dmRender::HFontMap font_map)
+    {
+        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
+        return font_map->m_Size;
+    }
+
     bool GetFontMapMonospaced(dmRender::HFontMap font_map)
     {
         return font_map->m_IsMonospaced;
@@ -324,7 +331,7 @@ namespace dmRender
         return font_map->m_Padding;
     }
 
-    void GetTextMetrics(HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics)
+    void GetTextMetrics(HFontMap font_map, const char* text, TextLayoutSettings* settings, TextMetrics* metrics)
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
         GetTextMetrics(font_map->m_FontRenderBackend, font_map, text, settings, metrics);
@@ -415,7 +422,7 @@ namespace dmRender
     // Used for test
     FontResult GetOrCreateGlyph(dmRender::HFontMap font_map, HFont font, uint32_t codepoint, FontGlyph** glyph)
     {
-        uint32_t glyph_index = FontGetGlyphIndex(font_map->m_Font, codepoint);
+        uint32_t glyph_index = FontGetGlyphIndex(font, codepoint);
         return GetOrCreateGlyphByIndex(font_map, font, glyph_index, glyph);
     }
 
@@ -770,9 +777,10 @@ namespace dmRender
         UpdateGlyphTexture(font_map, glyph, cache_glyph->m_X, cache_glyph->m_Y, g_offset_y);
     }
 
-    HFont GetDefaultFont(HFontMap font_map)
+
+    HFontCollection GetFontCollection(dmRender::HFontMap font_map)
     {
-        return font_map->m_Font;
+        return font_map->m_FontCollection;
     }
 
     uint32_t GetFontMapResourceSize(HFontMap font_map)

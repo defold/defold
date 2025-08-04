@@ -22,7 +22,8 @@
 #include <dlib/math.h>
 #include <script/script.h>
 #include <font/font.h>
-#include <font/text_shape/text_shape.h>
+#include <font/fontcollection.h>
+#include <font/text_layout.h>
 
 #include <algorithm> // std::stable_sort
 
@@ -91,7 +92,6 @@ protected:
     dmGraphics::HContext        m_GraphicsContext;
     dmScript::HContext          m_ScriptContext;
     dmRender::HFontMap          m_SystemFontMap;
-    //dmRender::FontGlyph m_Glyphs[128];
 
     HFont                   m_Font;
     dmRenderDDF::GlyphBank* m_GlyphBank;
@@ -129,6 +129,9 @@ protected:
         m_GlyphBank = CreateGlyphBank(2, 1, 128);
         m_Font = CreateGlyphBankFont("test.glyph_bankc", m_GlyphBank);
 
+        HFontCollection font_collection = FontCollectionCreate();
+        FontCollectionAddFont(font_collection, m_Font);
+
         dmRender::FontMapParams font_map_params;
         font_map_params.m_CacheWidth = 128;
         font_map_params.m_CacheHeight = 128;
@@ -136,7 +139,7 @@ protected:
         font_map_params.m_CacheCellHeight = 8;
         font_map_params.m_MaxAscent = 2;
         font_map_params.m_MaxDescent = 1;
-        font_map_params.m_Font = m_Font;
+        font_map_params.m_FontCollection = font_collection;
 
         m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
     }
@@ -1329,7 +1332,7 @@ static inline float ExpectedHeight(float line_height, float num_lines, float lea
 
 TEST_F(dmRenderTest, TextAlignment)
 {
-    TextMetrics metrics = {0};
+    dmRender::TextMetrics metrics = {0};
 
     const int charwidth     = 2;
     const int ascent        = 2;
@@ -1348,7 +1351,7 @@ TEST_F(dmRenderTest, TextAlignment)
         tracking = 0.0f;
         numlines = 3;
 
-        TextMetricsSettings settings;
+        TextLayoutSettings settings = {0};
         settings.m_Width        = 8*charwidth;
         settings.m_Leading      = leading;
         settings.m_Tracking     = tracking;
@@ -1388,7 +1391,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
 
     dmRender::HFontRenderBackend font_backend = dmRender::CreateFontRenderBackend();
 
-    TextMetrics metrics;
+    dmRender::TextMetrics metrics = {0};
 
     const int charwidth     = 2;
     const int ascent        = 2;
@@ -1396,7 +1399,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     const int lineheight    = ascent + descent;
 
 
-    TextMetricsSettings settings;
+    TextLayoutSettings settings = {0};
     settings.m_Width = 0;
     settings.m_Leading = 1.0f;
     settings.m_Tracking = 0.0f;

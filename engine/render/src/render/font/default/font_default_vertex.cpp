@@ -28,7 +28,7 @@
 #include "render/font/fontmap_private.h"
 #include "render/font/font_renderer_private.h"
 
-#include "font/text_shape/text_shape.h"
+#include <dmsdk/font/text_layout.h>
 
 namespace dmRender
 {
@@ -296,32 +296,28 @@ static uint32_t TextToCodePoints(const char* text, dmArray<uint32_t>& codepoints
 }
 
 
-void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics)
+void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* text,
+                    TextLayoutSettings* settings, TextMetrics* metrics)
 {
     DM_PROFILE(__FUNCTION__);
     (void)backend;
 
-    HFont font = font_map->m_Font;
-
     dmArray<uint32_t> codepoints;
     TextToCodePoints(text, codepoints);
 
-    TextShapeInfo info;
-    TextShapeResult text_result = TextShapeText(font, codepoints.Begin(), codepoints.Size(), &info);
-    if (TEXT_SHAPE_RESULT_OK != text_result)
+    settings->m_Size = GetFontMapSize(font_map);
+
+    TextLayout* layout = 0;
+    TextResult r = TextLayoutCreate(font_map->m_FontCollection, codepoints.Begin(), codepoints.Size(), settings, &layout);
+    if (TEXT_RESULT_OK == r)
     {
-        return;
+        TextLayoutGetBounds(layout, &metrics->m_Width, &metrics->m_Height);
+        metrics->m_LineCount   = TextLayoutGetLineCount(layout);
+        metrics->m_MaxAscent   = font_map->m_MaxAscent;
+        metrics->m_MaxDescent  = font_map->m_MaxDescent;
     }
 
-    const uint32_t max_lines = 128;
-    TextLine lines[max_lines];
-
-    text_result = TextLayout(settings, &info, lines, max_lines, metrics);
-    if (TEXT_SHAPE_RESULT_OK != text_result)
-    {
-        dmLogOnceError("Failed to layout text");
-        return;
-    }
+    TextLayoutFree(layout);
 }
 
 
@@ -335,9 +331,6 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
     float line_height = font_map->m_MaxAscent + font_map->m_MaxDescent;
     float leading = line_height * te.m_Leading;
     float tracking = te.m_Tracking;
-
-    const uint32_t max_lines = 128;
-    TextLine lines[max_lines];
 
     const Vector4 face_color    = dmGraphics::UnpackRGBA(te.m_FaceColor);
     const Vector4 outline_color = dmGraphics::UnpackRGBA(te.m_OutlineColor);
@@ -355,26 +348,44 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
     // For anti-aliasing, 0.25 represents the single-axis radius of half a pixel.
     float sdf_smoothing = 0.25f / (font_map->m_SdfSpread * sdf_world_scale);
 
-    HFont font = font_map->m_Font;
-    float pixel_scale = FontGetScaleFromSize(font, font_map->m_Size);
+    HFontCollection font_collection = font_map->m_FontCollection;
 
     // TODO: Create a backend scratch buffer
+
+    uint64_t tstart_seg = dmTime::GetMonotonicTime();
 
     dmArray<uint32_t> codepoints;
     TextToCodePoints(text, codepoints);
 
-    TextShapeInfo info;
+    uint64_t tend_seg_alloc = dmTime::GetMonotonicTime();
 
-    TextShapeResult text_result = TextShapeText(font, codepoints.Begin(), codepoints.Size(), &info);
-    if (TEXT_SHAPE_RESULT_OK != text_result)
+    TextLayoutSettings layoutsettings = {0};
+    layoutsettings.m_Size = dmRender::GetFontMapSize(font_map);
+    layoutsettings.m_LineBreak = te.m_LineBreak;
+    layoutsettings.m_Width = te.m_Width;
+    layoutsettings.m_Tracking = te.m_Tracking;
+    layoutsettings.m_Leading = te.m_Leading;
+
+    TextLayout* layout = 0;
+    TextResult r = TextLayoutCreate(font_collection, codepoints.Begin(), codepoints.Size(), &layoutsettings, &layout);
+    if (TEXT_RESULT_OK != r)
     {
-        return 0; // no added vertices
+        if (layout)
+            TextLayoutFree(layout);
+        return 0;
     }
 
+    uint64_t tend_seg = dmTime::GetMonotonicTime();
+
+    uint32_t    glyph_count         = TextLayoutGetGlyphCount(layout);
+    TextGlyph*  glyphs              = TextLayoutGetGlyphs(layout);
+    uint32_t    line_count          = TextLayoutGetLineCount(layout);
+    TextLine*   lines               = TextLayoutGetLines(layout);
+    uint32_t    valid_glyph_count   = glyph_count;
+
     uint32_t vertexindex        = 0;
-    uint32_t valid_glyph_count  = 0;
-    uint8_t  vertices_per_quad  = 6;
-    uint8_t  layer_count        = 1;
+    uint32_t vertices_per_quad  = 6;
+    uint32_t layer_count        = 1;
     uint8_t  layer_mask         = font_map->m_LayerMask;
     float shadow_x              = font_map->m_ShadowX;
     float shadow_y              = font_map->m_ShadowY;
@@ -385,7 +396,7 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
         return 0;
     }
 
-     // Vertex buffer consume strategy:
+    // Vertex buffer consume strategy:
     // * For single-layered approach, we do as per usual and consume vertices based on offset 0.
     // * For the layered approach, we need to place vertices in sorted order from
     //     back to front layer in the order of shadow -> outline -> face, where the offset of each
@@ -395,57 +406,40 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
     if (layer_count > 1)
     {
         // Calculate number of renderable glyphs.
-        // Wee need this as we're uploading constants to the GPU, with indices referring to faces
-        valid_glyph_count = info.m_NumValidGlyphs;
+        // We need this as we're uploading constants to the GPU, with indices referring to faces
+        for (uint32_t i = 0; i < glyph_count; ++i)
+        {
+            if (dmUtf8::IsWhiteSpace(glyphs[i].m_Codepoint))
+                valid_glyph_count--;
+        }
     }
 
-    // Trailing space characters should be ignored when measuring and
-    // rendering multiline text.
-    // For single line text we still want to include spaces when the text
-    // layout is calculated (https://github.com/defold/defold/issues/5911)
-    // Basically it makes typing space into an input field a lot better looking.
+    uint64_t tstart_layout = dmTime::GetMonotonicTime();
 
-    TextMetrics metrics = {0};
+    uint64_t tend_layout = dmTime::GetMonotonicTime();
 
-    TextMetricsSettings settings = {0};
-    settings.m_LineBreak    = te.m_LineBreak;
-    settings.m_Width        = INT_MAX;
-    if (settings.m_LineBreak) {
-        settings.m_Width = te.m_Width / pixel_scale;
-    }
-
-    text_result = TextLayout(&settings, &info, lines, max_lines, &metrics);
-    if (TEXT_SHAPE_RESULT_OK != text_result)
-    {
-        dmLogOnceError("Failed to layout text");
-        return 0;
-    }
-    uint32_t line_count = metrics.m_LineCount;
-    int32_t dir = info.m_Direction == TEXT_DIRECTION_RTL ? -1 : 1;
+    int32_t dir = 1;//layout->m_Direction == TEXT_DIRECTION_RTL ? -1 : 1;
     uint32_t align = te.m_Align;
-    float x_offset = OffsetX(align, 1, te.m_Width); // the box alignment is LTR direction (in pixels)
+    float x_offset = OffsetX(align, te.m_Width); // the box alignment is LTR direction (in pixels)
     if (font_map->m_IsMonospaced)
     {
         x_offset -= font_map->m_Padding * 0.5f;
     }
     float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
 
-    TextShapeGlyph* glyphs = info.m_Glyphs.Begin();
-
-    for (int line = 0; line < line_count; ++line) {
-        TextLine& l = lines[line];
+    for (int i = 0; i < line_count; ++i)
+    {
+        TextLine& line = lines[i];
 
         // all glyphs are positions on an infinite line, so we want the position of the first glyph on the line
-        int32_t first_x     = glyphs[l.m_Index].m_X;
-        int32_t first_y     = glyphs[l.m_Index].m_Y;
-        int32_t first_width = glyphs[l.m_Index].m_Width;
+        int32_t first_x = glyphs[line.m_Index].m_X;
+        int32_t first_y = glyphs[line.m_Index].m_Y;
 
-        const float glyph_offset_x = dir > 0 ? 0 : ((align == TEXT_ALIGN_LEFT) ? 0 : -first_width * pixel_scale);
-        const float line_start_x = x_offset - OffsetX(align, dir, l.m_Width * pixel_scale) + glyph_offset_x;
-        const float line_start_y = y_offset - line * leading;
+        const float line_start_x = x_offset - OffsetX(align, line.m_Width);
+        const float line_start_y = y_offset - i * leading;
 
-        int n = l.m_Length;
-        for (int j = 0; j < n; ++j)
+        int gi_end = line.m_Index + line.m_Length;
+        for (int gi = line.m_Index; gi < gi_end; ++gi)
         {
             // Look ahead and see if we can produce vertices for the next glyph or not
             if ((vertexindex + vertices_per_quad) * layer_count > num_vertices)
@@ -454,7 +448,7 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
                 return vertexindex * layer_count;
             }
 
-            TextShapeGlyph* g = &glyphs[l.m_Index + j];
+            TextGlyph* g = &glyphs[gi];
             uint32_t c = g->m_Codepoint;
             if (dmUtf8::IsWhiteSpace(c))
                 continue;
@@ -463,9 +457,9 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
             int32_t pos_y = g->m_Y;
 
             // We're dealing with absolute coordinates on an infinite line
-            float offx = (pos_x - first_x) * pixel_scale;
-            float offy = (pos_y - first_y) * pixel_scale;
-            float x = line_start_x + offx + tracking * j;
+            float offx = pos_x - first_x;
+            float offy = pos_y - first_y;
+            float x = line_start_x + offx;
             float y = line_start_y + offy;
 
             uint32_t cell_x = 0;
@@ -473,6 +467,7 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
 
             uint32_t glyph_index = g->m_GlyphIndex;
 
+            HFont font = g->m_Font;
             FontGlyph* glyph = 0;
             FontResult r = dmRender::GetOrCreateGlyphByIndex(font_map, font, glyph_index, &glyph);
             if (FONT_RESULT_OK != r)
@@ -527,6 +522,8 @@ uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uin
             vertexindex += vertices_per_quad;
         }
     }
+
+    TextLayoutFree(layout);
 
     #undef HAS_LAYER
 

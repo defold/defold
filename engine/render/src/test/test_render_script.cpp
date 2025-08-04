@@ -26,6 +26,7 @@
 #include "render/font/font_renderer.h"
 #include "render/font/font_glyphbank.h"
 #include "font/font.h"
+#include <dmsdk/font/fontcollection.h>
 
 #include "render/render_ddf.h"
 
@@ -128,12 +129,15 @@ protected:
         m_GlyphBank = CreateGlyphBank(1, 1, 128);
         m_Font = CreateGlyphBankFont("test.glyph_bankc", m_GlyphBank);
 
+        HFontCollection font_collection = FontCollectionCreate();
+        FontCollectionAddFont(font_collection, m_Font);
+
         dmRender::FontMapParams font_map_params;
         font_map_params.m_CacheWidth = 128;
         font_map_params.m_CacheHeight = 128;
         font_map_params.m_CacheCellWidth = 8;
         font_map_params.m_CacheCellHeight = 8;
-        font_map_params.m_Font = m_Font;
+        font_map_params.m_FontCollection = font_collection;
 
         m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
 

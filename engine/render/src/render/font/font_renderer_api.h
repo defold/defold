@@ -67,7 +67,7 @@ namespace dmRender
      * @param settings [type: TextMetricsSettings*] settings like leading/tracking/linebreaks etc
      * @param metrics [out] [type: TextMetrics*] the resultinf metrics
      */
-    void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics);
+    void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* text, TextLayoutSettings* settings, TextMetrics* metrics);
 
     /**
      * Outputs a triangle list.

@@ -42,7 +42,7 @@ namespace dmRender
         }
 
         dmMutex::HMutex         m_Mutex;
-        HFont                   m_Font;
+        HFontCollection         m_FontCollection;
         void*                   m_UserData; // The font map resources (see res_font.cpp)
         dmGraphics::HContext    m_GraphicsContext; // Used to recreate textures
         HFontRenderBackend      m_FontRenderBackend;

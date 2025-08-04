@@ -21,13 +21,11 @@
 #include <graphics/graphics.h>
 
 #include <dmsdk/font/font.h>
+#include <dmsdk/font/fontcollection.h>
+#include <dmsdk/font/text_layout.h>
 #include <render/font_ddf.h>
 
 #include "../render.h"
-
-// from "font/text_shape/text_shape.h"
-struct TextMetricsSettings;
-struct TextMetrics;
 
 namespace dmRender
 {
@@ -56,8 +54,8 @@ namespace dmRender
         /// Default constructor
         FontMapParams();
 
-        HFont       m_Font;     // The base font (i.e. .ttf)
-        dmhash_t    m_NameHash;
+        HFontCollection m_FontCollection;
+        dmhash_t        m_NameHash;
 
         FGlyphCacheMiss   m_OnGlyphCacheMiss;
         void*             m_OnGlyphCacheMissContext;
@@ -129,6 +127,14 @@ namespace dmRender
     HFontMap NewFontMap(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params);
 
     /**
+     * Get the font size
+     * @name GetFontMapSize
+     * @param font_map Font map handle
+     * @return size [type: float] Size in pixels
+     */
+    float GetFontMapSize(dmRender::HFontMap font_map);
+
+    /**
      * Check if the font is monospace (set by Fontc.java)
      * @name GetFontMapMonospaced
      * @note This is a legacy function
@@ -173,6 +179,15 @@ namespace dmRender
      */
     HMaterial GetFontMapMaterial(HFontMap font_map);
 
+    struct TextMetrics
+    {
+        float    m_Width;       /// Total string width
+        float    m_Height;      /// Total string height
+        float    m_MaxAscent;   /// Max ascent of font
+        float    m_MaxDescent;  /// Max descent of font, positive value.
+        uint32_t m_LineCount;   /// Number of lines of text
+    };
+
     /**
      * Get text metrics for string
      * @param font_map Font map handle
@@ -180,7 +195,7 @@ namespace dmRender
      * @param settings settings for getting the text metrics
      * @param metrics Metrics, out-value
      */
-    void GetTextMetrics(HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics);
+    void GetTextMetrics(HFontMap font_map, const char* text, TextLayoutSettings* settings, TextMetrics* metrics);
 
     /**
      * Get the resource size for fontmap
@@ -234,12 +249,12 @@ namespace dmRender
      */
     void UpdateCacheTexture(HFontMap font_map);
 
-    /** Get the default font
-     * @name GetDefaultFont
+    /** Get the font collection
+     * @name GetFontCollection
      * @param font_map [type: HFontMap] Font map handlet
-     * @return font [type: HFont] the font
+     * @return font_collection [type: HFontCollection] the font collection
      */
-    HFont GetDefaultFont(dmRender::HFontMap font_map);
+    HFontCollection GetFontCollection(dmRender::HFontMap font_map);
 
     /** Create a unique key fron the font and a glyph index
      * @name MakeGlyphIndexKey
