@@ -38,6 +38,8 @@
 #include <dlib/testutil.h>
 #include <testmain/testmain.h>
 
+#include <font/fontcollection.h>
+
 #include <ddf/ddf.h>
 #include <gameobject/gameobject_ddf.h>
 #include <gameobject/lua_ddf.h>
@@ -1680,8 +1682,10 @@ TEST_F(FontTest, GlyphBankTest)
     dmRender::HFontMap font_map_2 = dmGameSystem::ResFontGetHandle(font_2);
     ASSERT_NE((void*)0, font_map_2);
 
-    HFont hfont_1 = dmRender::GetDefaultFont(font_map_1);
-    HFont hfont_2 = dmRender::GetDefaultFont(font_map_2);
+    HFontCollection font_collection1 = dmRender::GetFontCollection(font_map_1);
+    HFontCollection font_collection2 = dmRender::GetFontCollection(font_map_2);
+    HFont hfont_1 = FontCollectionGetFont(font_collection1, 0);
+    HFont hfont_2 = FontCollectionGetFont(font_collection2, 0);
 
     FontResult r;
     FontGlyph* glyph_1 = 0;
@@ -1709,7 +1713,8 @@ TEST_F(FontTest, DynamicGlyph)
     ASSERT_NE((void*)0, font);
 
     dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
-    HFont hfont = dmRender::GetDefaultFont(font_map);
+    HFontCollection font_collection = dmRender::GetFontCollection(font_map);
+    HFont hfont = FontCollectionGetFont(font_collection, 0);
 
     uint32_t codepoint = 'A';
 

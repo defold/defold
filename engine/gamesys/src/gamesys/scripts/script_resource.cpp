@@ -18,7 +18,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
-#include <font/text_shape/text_shape.h>
+#include <font/text_layout.h>
 #include <gameobject/gameobject.h>
 #include <gamesys/mesh_ddf.h>
 #include <gamesys/texture_set_ddf.h>
@@ -3422,7 +3422,7 @@ static int SetBuffer(lua_State* L)
     return 0;
 }
 
-static void PushTextMetricsTable(lua_State* L, const TextMetrics* metrics)
+static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metrics)
 {
     lua_createtable(L, 0, 4);
     lua_pushliteral(L, "width");
@@ -3504,7 +3504,7 @@ static int GetTextMetrics(lua_State* L)
 
     dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
 
-    TextMetricsSettings settings;
+    TextLayoutSettings settings = {0};
     settings.m_Width = width;
     settings.m_LineBreak = line_break;
     settings.m_Leading = leading;
@@ -3513,7 +3513,7 @@ static int GetTextMetrics(lua_State* L)
     settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
     settings.m_Padding = dmRender::GetFontMapPadding(font_map);
 
-    TextMetrics metrics;
+    dmRender::TextMetrics metrics;
     dmRender::GetTextMetrics(font_map, text, &settings, &metrics);
     PushTextMetricsTable(L, &metrics);
     return 1;

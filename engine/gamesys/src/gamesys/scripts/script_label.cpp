@@ -16,8 +16,8 @@
 #include <dlib/log.h>
 #include "../gamesys.h"
 #include "../gamesys_private.h"
+#include <render/font/fontmap.h>
 #include <render/render.h>
-#include <font/text_shape/text_shape.h>
 #include <script/script.h>
 #include <dmsdk/gamesys/script.h>
 
@@ -328,7 +328,7 @@ static int GetTextMetrics(lua_State* L)
 
     assert(component != 0);
 
-    TextMetrics metrics;
+    dmRender::TextMetrics metrics;
     dmGameSystem::CompLabelGetTextMetrics(component, metrics);
 
     lua_createtable(L, 0, 4);

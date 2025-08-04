@@ -32,7 +32,7 @@
 #include <dmsdk/dlib/vmath.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
-#include <font/text_shape/text_shape.h>
+#include <font/text_layout.h>
 #include <render/font/font_renderer.h>
 #include <gameobject/gameobject_ddf.h>
 
@@ -573,11 +573,11 @@ namespace dmGameSystem
 
 
     // DEPRECATED
-    void CompLabelGetTextMetrics(const LabelComponent* component, TextMetrics& metrics)
+    void CompLabelGetTextMetrics(const LabelComponent* component, dmRender::TextMetrics& metrics)
     {
         dmRender::HFontMap font_map = GetFontMap(component, component->m_Resource);
 
-        TextMetricsSettings settings;
+        TextLayoutSettings settings = {0};
         settings.m_Width = component->m_Size.getX();
         settings.m_LineBreak = component->m_LineBreak;
         settings.m_Leading = component->m_Leading;

@@ -25,7 +25,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/trig_lookup.h>
 #include <dmsdk/dlib/vmath.h>
-#include <font/text_shape/text_shape.h>
+#include <font/text_layout.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
 #include <render/display_profiles.h>
@@ -2763,13 +2763,13 @@ namespace dmGameSystem
     {
         dmRender::HFontMap font = dmGameSystem::ResFontGetHandle(font_resource);
 
-        TextMetricsSettings settings;
+        TextLayoutSettings settings = {0};
         settings.m_Width = width;
         settings.m_LineBreak = line_break;
         settings.m_Leading = leading;
         settings.m_Tracking = tracking;
 
-        TextMetrics metrics;
+        dmRender::TextMetrics metrics;
         dmRender::GetTextMetrics(font, text, &settings, &metrics);
         out_metrics->m_Width = metrics.m_Width;
         out_metrics->m_Height = metrics.m_Height;

@@ -438,7 +438,10 @@ namespace dmGameSystem
             SetupParamsForGlyphBank(ddf, path, glyph_bank, &params);
         }
 
-        params.m_Font = hfont;
+        HFontCollection font_collection = FontCollectionCreate();
+        FontCollectionAddFont(font_collection, hfont);
+
+        params.m_FontCollection = font_collection;
         params.m_Size = ddf->m_Size;
 
         // If glyphs aren't already present in the .glyph_bankc font, we can't resolve it at runtime either
