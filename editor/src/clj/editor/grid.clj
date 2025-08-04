@@ -128,8 +128,8 @@
 
 (defn- enable-fog
   [^GL2 gl camera]
-  (let [min-fov (math/deg->rad (max ^double (:fov-x camera) ^double (:fov-y camera)))
-        fog-start (* min-fov ^double (:z-far camera))]
+  (let [max-fov (math/deg->rad (max ^double (:fov-x camera) ^double (:fov-y camera)))
+        fog-start (* max-fov ^double (:z-far camera))]
     (doto gl
       (.glEnable GL2/GL_FOG)
       (.glFogi GL2/GL_FOG_MODE GL2/GL_LINEAR)
@@ -144,13 +144,15 @@
         view-matrix (c/camera-view-matrix camera)
         dir (double-array 4)
         is-2d (c/mode-2d? camera)
+        is-perspective (= :perspective (:type camera))
         _ (.getRow view-matrix 2 dir)]
-    (when (= :perspective (:type camera)) 
+    (when is-perspective
       (enable-fog gl camera))
     (gl/gl-lines gl
-        (render-grid-sizes dir grids options is-2d)
-        (render-primary-axes (apply geom/aabb-union (:aabbs grids)) options))
-    (.glDisable gl GL2/GL_FOG)))
+      (render-grid-sizes dir grids options is-2d)
+      (render-primary-axes (apply geom/aabb-union (:aabbs grids)) options))
+    (when is-perspective
+      (.glDisable gl GL2/GL_FOG))))
 
 (g/defnk produce-renderable
   [camera grids merged-options]
