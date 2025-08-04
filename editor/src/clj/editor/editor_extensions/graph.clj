@@ -361,9 +361,7 @@
           {:keys [basis]} evaluation-context
           node-type (g/node-type* basis node-id)
           workspace (project/workspace project evaluation-context)]
-      (or ((ext-property-getter (:k node-type)) node-id property evaluation-context)
-          (when-let [alt-node-id (attachment/alternative workspace node-id evaluation-context)]
-            ((ext-property-getter (:k (g/node-type* basis alt-node-id))) alt-node-id property evaluation-context))
+      (or (attachment/find-alternative workspace node-id #((ext-property-getter (:k (g/node-type* basis %))) % property evaluation-context) evaluation-context)
           (case property
             "type" (when-let [type-name (node-types/->name node-type)]
                      (constantly type-name))
@@ -490,9 +488,11 @@
 
   Returns nil if there is no setter for the node-id+property pair"
   [node-id property rt project evaluation-context]
-  (or ((ext-property-setter (node-id->type-keyword node-id evaluation-context)) node-id property rt project evaluation-context)
-      (when-let [alt-node-id (attachment/alternative (project/workspace project evaluation-context) node-id evaluation-context)]
-        ((ext-property-setter (node-id->type-keyword alt-node-id evaluation-context)) alt-node-id property rt project evaluation-context))))
+  (attachment/find-alternative
+    (project/workspace project evaluation-context)
+    node-id
+    #((ext-property-setter (node-id->type-keyword % evaluation-context)) % property rt project evaluation-context)
+    evaluation-context))
 
 ;; endregion
 
