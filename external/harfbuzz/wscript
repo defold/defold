@@ -51,7 +51,7 @@ def build(bld):
     harfbuzz = bld.stlib(features = 'c cxx remove_flags',
                          remove_flags = remove_flags,
                          source    = [f'{packagedir}/harfbuzz.cc'],
-                         defines   = ['HAVE_CONFIG_OVERRIDE_H', 'HB_TINY'],
+                         defines   = ['HAVE_CONFIG_OVERRIDE_H', 'HB_TINY', 'HB_EXTERN='],
                          includes  = ['.', '..', packagedir],
                          target    = 'harfbuzz')
 
