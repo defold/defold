@@ -545,8 +545,8 @@
   (cond
     (neg? x) "'Max Page Width' cannot be negative"
     (neg? y) "'Max Page Height' cannot be negative"
-    (> x (.intValue TextureSetLayout/MAX_ATLAS_DIMENSION)) (format "'Max Page Width' cannot exceed %d" (.intValue TextureSetLayout/MAX_ATLAS_DIMENSION))
-    (> y (.intValue TextureSetLayout/MAX_ATLAS_DIMENSION)) (format "'Max Page Height' cannot exceed %d" (.intValue TextureSetLayout/MAX_ATLAS_DIMENSION))
+    (> x TextureSetLayout/MAX_ATLAS_DIMENSION) (format "'Max Page Width' cannot exceed %d" TextureSetLayout/MAX_ATLAS_DIMENSION)
+    (> y TextureSetLayout/MAX_ATLAS_DIMENSION) (format "'Max Page Height' cannot exceed %d" TextureSetLayout/MAX_ATLAS_DIMENSION)
     :else nil))
 
 (defn- validate-max-page-size [node-id page-size]

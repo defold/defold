@@ -226,7 +226,7 @@
                           (grid-snap-up (-> aabb types/max-p .z) (:z size)))))
 
 (defn fov->grid-size
-  [^double fov]
+  ^double [^double fov]
   (-> fov
       (min 175.0)
       (* 0.5)
