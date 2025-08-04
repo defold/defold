@@ -1553,8 +1553,8 @@
   (output options g/Any (g/fnk [grid-size]
                           {:active-plane :z
                            :auto-scale false
-                           :size {:x (first grid-size)
-                                  :y (second grid-size)
+                           :size {:x (or (first grid-size) 1)
+                                  :y (or (second grid-size) 1)
                                   :z 1}})))
 
 (defmethod scene/attach-grid ::TileMapGrid
