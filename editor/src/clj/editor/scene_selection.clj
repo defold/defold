@@ -184,7 +184,8 @@
                            (g/set-property self :prev-selection (g/node-value self :selection))))
                        nil)
       :mouse-released (do
-                        (when-not drag? (select self op-seq mode toggle?))
+                        (when (and start (not drag?)) 
+                          (select self op-seq mode toggle?))
                         (g/transact
                           (concat
                             (g/set-property self :start nil)
