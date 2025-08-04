@@ -2153,12 +2153,16 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
             float pivot_x = CheckFieldValue<float>(L, -1, "pivot_x", 0.5f);
             float pivot_y = CheckFieldValue<float>(L, -1, "pivot_y", 0.5f);
 
+            // rotation flag for atlas packing - affects UV coordinate generation
+            bool rotated = CheckFieldValue<bool>(L, -1, "rotated", false);
+
             lua_pop(L, 1);
             // End of lua table interaction
 
             // default SpriteGeometry pivot is (0,0) which is middle of image.
             geometry.m_PivotX =        pivot_x - 0.5f;
             geometry.m_PivotY = 1.0f - pivot_y - 0.5f;
+            geometry.m_Rotated = rotated;
 
             // Legacy, we should have required the user to specify width/height from the start
             if (geo_width == 0 || geo_height == 0)
@@ -2208,19 +2212,38 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
 
             // From texture_set_ddf.proto:
             // For unrotated quads, the order is: [(minU,maxV),(minU,minV),(maxU,minV),(maxU,maxV)]
+            // For rotated quads, the order is: [(minU,minV),(maxU,minV),(maxU,maxV),(minU,maxV)]
             // Note that we need to invert the V coordinates here to account for the texture coordinate space
-            // NOTE: We could perhaps do it in the loop above by swapping the V min and max coordinates
-            geometry_scratch_cursor[0] = min_uv_u;
-            geometry_scratch_cursor[1] = 1.0 - max_uv_v;
+            if (rotated)
+            {
+                // Rotated quad UV pattern
+                geometry_scratch_cursor[0] = min_uv_u;
+                geometry_scratch_cursor[1] = 1.0 - min_uv_v;
 
-            geometry_scratch_cursor[2] = min_uv_u;
-            geometry_scratch_cursor[3] = 1.0 - min_uv_v;
+                geometry_scratch_cursor[2] = max_uv_u;
+                geometry_scratch_cursor[3] = 1.0 - min_uv_v;
 
-            geometry_scratch_cursor[4] = max_uv_u;
-            geometry_scratch_cursor[5] = 1.0 - min_uv_v;
+                geometry_scratch_cursor[4] = max_uv_u;
+                geometry_scratch_cursor[5] = 1.0 - max_uv_v;
 
-            geometry_scratch_cursor[6] = max_uv_u;
-            geometry_scratch_cursor[7] = 1.0 - max_uv_v;
+                geometry_scratch_cursor[6] = min_uv_u;
+                geometry_scratch_cursor[7] = 1.0 - max_uv_v;
+            }
+            else
+            {
+                // Unrotated quad UV pattern
+                geometry_scratch_cursor[0] = min_uv_u;
+                geometry_scratch_cursor[1] = 1.0 - max_uv_v;
+
+                geometry_scratch_cursor[2] = min_uv_u;
+                geometry_scratch_cursor[3] = 1.0 - min_uv_v;
+
+                geometry_scratch_cursor[4] = max_uv_u;
+                geometry_scratch_cursor[5] = 1.0 - min_uv_v;
+
+                geometry_scratch_cursor[6] = max_uv_u;
+                geometry_scratch_cursor[7] = 1.0 - max_uv_v;
+            }
 
             geometry_scratch_cursor += 8;
             frame_index_count++;
@@ -2409,6 +2432,9 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  *
  * * `pivot_y`
  * : [type:number] The pivot y value of the image in unit coords. (0,0) is upper left corner, (1,1) is bottom right. Default is 0.5.
+ *
+ * * `rotated`
+ * : [type:boolean] Whether the image is rotated 90 degrees counter-clockwise in the atlas. This affects UV coordinate generation for proper rendering. Default is false.
  *
  * * `vertices`
  * : [type:table] a list of the vertices in image space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
@@ -2816,6 +2842,7 @@ static int GetAtlas(lua_State* L)
                 // Transform back to image space (0,0) is top left corner, (1,1) is bottom right
                 SET_LUA_TABLE_FIELD(lua_pushnumber, "pivot_x",          geom.m_PivotX + 0.5);
                 SET_LUA_TABLE_FIELD(lua_pushnumber, "pivot_y",  1.0f - (geom.m_PivotY + 0.5f));
+                SET_LUA_TABLE_FIELD(lua_pushboolean, "rotated",  geom.m_Rotated);
 
                 lua_pushliteral(L, "vertices");
                 lua_newtable(L);

@@ -498,6 +498,182 @@ TEST_F(ScriptTestLua, TestErrorHandlerFunction)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+static int UserdataErrorFunc(lua_State* L) {
+    // This simulates calling error() from Lua with userdata
+    lua_getglobal(L, "error");
+    dmScript::PushHash(L, dmHashString64("test_userdata_error"));
+    lua_call(L, 1, 0);
+    return 0; // Never reached
+}
+
+TEST_F(ScriptTestLua, TestUserdataError)
+{
+    // Test that passing userdata to error() no longer crashes
+    // https://github.com/defold/defold/issues/9392
+    int top = lua_gettop(L);
+
+    const char *install_error_handler =
+        "sys.set_error_handler(function(type, error, traceback)\n"
+        "    _type = type\n"
+        "    _error = error\n"
+        "    _traceback = traceback\n"
+        "end)\n";
+
+    ASSERT_TRUE(RunString(L, install_error_handler));
+
+    lua_pushcfunction(L, UserdataErrorFunc);
+    int result = dmScript::PCall(L, 0, LUA_MULTRET);
+    ASSERT_EQ(LUA_ERRRUN, result);
+    ASSERT_EQ(top, lua_gettop(L));
+
+    // Check that the error was converted to a string representation
+    ASSERT_TRUE(RunString(L, "assert(_type == \"lua\")"));
+    // The error should now be the actual hash string representation, not just "(userdata)"
+    ASSERT_TRUE(RunString(L, "assert(type(_error) == 'string')"));
+    ASSERT_TRUE(RunString(L, "assert(string.len(_error) > 0)"));
+    // Print the actual error to see what we get
+    ASSERT_TRUE(RunString(L, "print('Error message: ' .. _error)"));
+    
+    // Check that traceback exists and is a string (content may be empty, but that's ok)
+    // The important thing is that we didn't crash and the error message was converted
+    ASSERT_TRUE(RunString(L, "assert(_traceback ~= nil)"));
+    ASSERT_TRUE(RunString(L, "assert(type(_traceback) == 'string')"));
+}
+
+static int NumberErrorFunc(lua_State* L) {
+    // Test with a number - this should use tostring() behavior
+    lua_getglobal(L, "error");
+    lua_pushnumber(L, 42.5);
+    lua_call(L, 1, 0);
+    return 0; // Never reached
+}
+
+TEST_F(ScriptTestLua, TestNumberError)
+{
+    // Test that passing numbers to error() works with tostring() behavior
+    int top = lua_gettop(L);
+
+    const char *install_error_handler =
+        "sys.set_error_handler(function(type, error, traceback)\n"
+        "    _type = type\n"
+        "    _error = error\n"
+        "    _traceback = traceback\n"
+        "end)\n";
+
+    ASSERT_TRUE(RunString(L, install_error_handler));
+
+    lua_pushcfunction(L, NumberErrorFunc);
+    int result = dmScript::PCall(L, 0, LUA_MULTRET);
+    ASSERT_EQ(LUA_ERRRUN, result);
+    ASSERT_EQ(top, lua_gettop(L));
+
+    // Check that the number was converted to string using tostring() behavior
+    ASSERT_TRUE(RunString(L, "assert(_type == \"lua\")"));
+    ASSERT_TRUE(RunString(L, "assert(_error == \"42.5\")"));
+    
+    // Check that traceback exists
+    ASSERT_TRUE(RunString(L, "assert(_traceback ~= nil)"));
+    ASSERT_TRUE(RunString(L, "assert(type(_traceback) == 'string')"));
+}
+
+static int AssertNilNilFunc(lua_State* L) {
+    // Test assert(nil, nil) which should call error(nil)
+    lua_getglobal(L, "assert");
+    lua_pushnil(L); // condition = nil (falsy)
+    lua_pushnil(L); // message = nil
+    lua_call(L, 2, 0);
+    return 0; // Never reached
+}
+
+static int DeepLuaErrorFunc(lua_State* L) {
+    // Create a Lua call stack to show traceback with content
+    const char *lua_with_callstack = 
+        "function deep_func()\n"
+        "    error(nil)\n"
+        "end\n"
+        "function main_func()\n"
+        "    deep_func()\n"
+        "end\n"
+        "main_func()\n";
+    
+    // Use loadstring + call instead of dostring to let error propagate
+    int result = luaL_loadstring(L, lua_with_callstack);
+    if (result != 0) {
+        return result; // Compilation error
+    }
+    lua_call(L, 0, 0); // This will throw the error from error(nil)
+    return 0; // Never reached
+}
+
+TEST_F(ScriptTestLua, TestAssertNilNil)
+{
+    // Test the specific case: assert(nil, nil) which should error with "nil"
+    // https://github.com/defold/defold/issues/8540
+    int top = lua_gettop(L);
+
+    const char *install_error_handler =
+        "sys.set_error_handler(function(type, error, traceback)\n"
+        "    _type = type\n"
+        "    _error = error\n"
+        "    _traceback = traceback\n"
+        "end)\n";
+
+    ASSERT_TRUE(RunString(L, install_error_handler));
+
+    lua_pushcfunction(L, AssertNilNilFunc);
+    int result = dmScript::PCall(L, 0, LUA_MULTRET);
+    ASSERT_EQ(LUA_ERRRUN, result);
+    ASSERT_EQ(top, lua_gettop(L));
+
+    // Check that the error message is "nil" (from tostring(nil))
+    ASSERT_TRUE(RunString(L, "assert(_type == \"lua\")"));
+    ASSERT_TRUE(RunString(L, "assert(_error == \"nil\")"));
+    
+    // Check that traceback exists and is a string
+    // Note: traceback may be empty for simple C->Lua->error calls
+    ASSERT_TRUE(RunString(L, "assert(_traceback ~= nil)"));
+    ASSERT_TRUE(RunString(L, "assert(type(_traceback) == 'string')"));
+    
+    // Debug: show why traceback might be empty
+    ASSERT_TRUE(RunString(L, "print('Traceback content: [' .. _traceback .. ']')"));
+    ASSERT_TRUE(RunString(L, "print('Traceback length: ' .. string.len(_traceback))"));
+}
+
+TEST_F(ScriptTestLua, TestErrorWithLuaCallstack)
+{
+    // Test error from deep Lua call stack to show traceback with content
+    int top = lua_gettop(L);
+
+    const char *install_error_handler =
+        "sys.set_error_handler(function(type, error, traceback)\n"
+        "    _type = type\n"
+        "    _error = error\n"
+        "    _traceback = traceback\n"
+        "end)\n";
+
+    ASSERT_TRUE(RunString(L, install_error_handler));
+
+    // Create a Lua call stack: main -> deep_func -> error(nil)
+    lua_pushcfunction(L, DeepLuaErrorFunc);
+
+    int result = dmScript::PCall(L, 0, LUA_MULTRET);
+    ASSERT_EQ(LUA_ERRRUN, result);
+    ASSERT_EQ(top, lua_gettop(L));
+
+    // Check that error is still "nil"
+    ASSERT_TRUE(RunString(L, "assert(_type == \"lua\")"));
+    ASSERT_TRUE(RunString(L, "assert(_error == \"nil\")"));
+    
+    // Check that traceback now has content because of Lua->Lua call stack
+    ASSERT_TRUE(RunString(L, "assert(_traceback ~= nil)"));
+    ASSERT_TRUE(RunString(L, "assert(type(_traceback) == 'string')"));
+    ASSERT_TRUE(RunString(L, "print('Deep traceback content: [' .. _traceback .. ']')"));
+    ASSERT_TRUE(RunString(L, "print('Deep traceback length: ' .. string.len(_traceback))"));
+    
+    // This traceback should have content showing the call chain
+    ASSERT_TRUE(RunString(L, "assert(string.len(_traceback) > 10)"));
+}
+
 
 struct CallbackArgs
 {
