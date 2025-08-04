@@ -332,6 +332,14 @@
         (map gt/source-id)
         (filter #(= child-node-type (g/node-type* basis %)))))))
 
+(defn alternative
+  "Return alternative node id for a given node id"
+  [workspace node-id {:keys [basis] :as evaluation-context}]
+  (let [current-state (workspace/node-attachments basis workspace)
+        node-type (g/node-type* basis node-id)]
+    (when-let [alternative-fn (:alternative (clojure.core/get current-state node-type))]
+      (alternative-fn node-id evaluation-context))))
+
 ;; SDK api
 (defn nodes-getter
   "Node list getter that returns its :nodes output

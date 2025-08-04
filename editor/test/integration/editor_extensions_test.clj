@@ -1379,9 +1379,11 @@ After transaction (clear):
   emitters: 0
   modifiers: 0
 Collision object initial state:
+  collision_type: collision-object-type-dynamic
   shapes: 0
 Transaction: add 3 shapes
 After transaction (add 3 shapes):
+  collision_type: collision-object-type-static
   shapes: 3
   - id: box
     type: shape-type-box
@@ -1395,6 +1397,7 @@ After transaction (add 3 shapes):
     height: 40
 Transaction: clear
 After transaction (clear):
+  collision_type: collision-object-type-dynamic
   shapes: 0
 Expected errors:
   missing type => type is required
@@ -1594,6 +1597,7 @@ After transaction (add go components):
     id: collectionproxy1
   - type: collisionobject
     id: collisionobject-embedded
+    collision_type: collision-object-type-static
     shapes: 1
     - id: box
       type: shape-type-box
@@ -1694,6 +1698,7 @@ After transaction (add gos and collections):
           scale: {1, 1, 1}
         - type: collisionobject
           id: collisionobject
+          collision_type: collision-object-type-dynamic
           shapes: 1
           - id: box
             type: shape-type-box
@@ -1829,6 +1834,7 @@ After transaction (edit already existing collection elements):
           scale: {1, 1, 1}
         - type: collisionobject
           id: collisionobject
+          collision_type: collision-object-type-dynamic
           shapes: 1
           - id: box
             type: shape-type-box
