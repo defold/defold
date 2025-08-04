@@ -177,17 +177,6 @@ namespace dmGameSystem
     dmResource::Result CreateTextureResource(dmResource::HFactory factory, const CreateTextureResourceParams& create_params, void** resource_out);
     dmResource::Result SetTextureResource(dmResource::HFactory factory, const SetTextureResourceParams& params);
     dmResource::Result ReleaseDynamicResource(dmResource::HFactory factory, dmGameObject::HCollection collection, dmhash_t path_hash);
-
-    /*
-    // PBR
-    struct PBRMaterialInfo
-    {
-        dmhash_t m_PbrMetallicRoughness_BaseColorFactor;
-        dmhash_t m_PbrMetallicRoughness_MetallicAndRoughnessFactor;
-    };
-
-    bool GetPBRMaterialInfo(dmRender::HMaterial material, PBRMaterialInfo* info);
-    */
 }
 
 #endif // DM_GAMESYS_PRIVER_H

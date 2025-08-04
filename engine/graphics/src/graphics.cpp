@@ -1117,7 +1117,6 @@ namespace dmGraphics
             uniform.m_Type         = ShaderDataTypeToGraphicsType(params.m_Member->m_Type.m_ShaderType);
             uniform.m_Count        = dmMath::Max((uint32_t) 1, params.m_Member->m_ElementCount);
             uniform.m_Location     = params.m_Resource->m_Res->m_Set | params.m_Resource->m_Res->m_Binding << 16 | buffer_offset << 32;
-            uniform.m_RootType     = *params.m_RootMemberType;
         }
         else
         {
@@ -1126,7 +1125,6 @@ namespace dmGraphics
             uniform.m_Type     = ShaderDataTypeToGraphicsType(params.m_Resource->m_Res->m_Type.m_ShaderType);
             uniform.m_Count    = 1;
             uniform.m_Location = params.m_Resource->m_Res->m_Set | params.m_Resource->m_Res->m_Binding << 16;
-            uniform.m_RootType = *params.m_RootMemberType;
         }
 
         uniforms->Push(uniform);
@@ -1144,8 +1142,7 @@ namespace dmGraphics
         char*                                   instance_name,
         dmArray<char>*                          canonical_name_buffer,
         uint32_t                                canonical_name_buffer_offset,
-        uint32_t                                base_offset = 0,
-        const ShaderResourceType*               root_member_type = 0)
+        uint32_t                                base_offset = 0)
     {
         const ShaderResourceTypeInfo& type_info = type_infos[type.m_TypeIndex];
         const uint32_t num_members = type_info.m_Members.Size();
@@ -1179,24 +1176,20 @@ namespace dmGraphics
             memcpy(name_write_start, member.m_Name, name_length);
             name_write_start[name_length] = 0;
 
-            if (!root_member_type)
-                root_member_type = &member.m_Type;
-
             if (member.m_Type.m_UseTypeIndex)
             {
                 uint32_t sub_name_offset = canonical_name_buffer_offset + name_length + (int) add_prefixed_dot;
-                VisitUniformLeafNodes(callback, user_data, resource, type_infos, member.m_Type, namespace_name, instance_name, canonical_name_buffer, sub_name_offset, member.m_Offset + base_offset, root_member_type);
+                VisitUniformLeafNodes(callback, user_data, resource, type_infos, member.m_Type, namespace_name, instance_name, canonical_name_buffer, sub_name_offset, member.m_Offset + base_offset);
             }
             else
             {
                 CreateUniformLeafMembersCallbackParams params = {};
-                params.m_CanonicalName  = canonical_name_buffer->Begin();
-                params.m_Namespace      = namespace_name;
-                params.m_InstanceName   = instance_name;
-                params.m_Member         = &member;
-                params.m_BaseOffset     = base_offset;
-                params.m_Resource       = resource;
-                params.m_RootMemberType = root_member_type;
+                params.m_CanonicalName = canonical_name_buffer->Begin();
+                params.m_Namespace     = namespace_name;
+                params.m_InstanceName  = instance_name;
+                params.m_Member        = &member;
+                params.m_BaseOffset    = base_offset;
+                params.m_Resource      = resource;
                 callback(params, user_data);
             }
         }
@@ -1215,9 +1208,8 @@ namespace dmGraphics
                 next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
             {
                 CreateUniformLeafMembersCallbackParams params = {};
-                params.m_CanonicalName  = next->m_Res->m_Name;
-                params.m_Resource       = next;
-                params.m_RootMemberType = &next->m_Res->m_Type;
+                params.m_CanonicalName = next->m_Res->m_Name;
+                params.m_Resource      = next;
 
                 callback(params, user_data);
             }
@@ -1343,7 +1335,7 @@ namespace dmGraphics
                 info.m_MaxSet     = dmMath::Max(info.m_MaxSet, (uint32_t) (res.m_Set + 1));
                 info.m_MaxBinding = dmMath::Max(info.m_MaxBinding, (uint32_t) (res.m_Binding + 1));
 
-            #if 1
+            #if 0
                 dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d, texture_unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset, program_resource_binding.m_TextureUnit);
             #endif
             }
@@ -1509,12 +1501,6 @@ namespace dmGraphics
     {
         Program* p = (Program*) prog;
         *uniform_desc = p->m_Uniforms[index];
-    }
-    void GetShaderResourceTypes(HProgram prog, const ShaderResourceTypeInfo** types, uint32_t* count)
-    {
-        Program* program = (Program*) prog;
-        *types = program->m_ShaderMeta.m_TypeInfos.Begin();
-        *count = program->m_ShaderMeta.m_TypeInfos.Size();
     }
 
     ///////////////////////////////////////////////////

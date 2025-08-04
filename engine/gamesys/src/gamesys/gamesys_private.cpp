@@ -19,8 +19,6 @@
 #include "components/comp_private.h"
 #include <dmsdk/gamesys/render_constants.h>
 
-#include <graphics/graphics_reflection.h>
-
 namespace dmGameSystem
 {
     using namespace dmVMath;
@@ -636,90 +634,4 @@ namespace dmGameSystem
 
         return dmGameObject::PROPERTY_RESULT_OK;
     }
-
-    /*
-    static const dmhash_t PBR_MATERIAL_TYPE                 = dmHashString64("PbrMaterial");
-    static const dmhash_t PBR_MATERIAL_METALLIC_ROUGHNESS   = dmHashString64("PbrMetallicRoughness");
-    static const dmhash_t PBR_MATERIAL_SPECULAR_GLOSSINESS  = dmHashString64("PbrSpecularGlossiness");
-    static const dmhash_t PBR_MATERIAL_CLEARCOAT            = dmHashString64("PbrClearCoat");
-    static const dmhash_t PBR_MATERIAL_TRANSMISSION         = dmHashString64("PbrTransmission");
-    static const dmhash_t PBR_MATERIAL_IOR                  = dmHashString64("PbrIor");
-    static const dmhash_t PBR_MATERIAL_SPECULAR             = dmHashString64("PbrSpecular");
-    static const dmhash_t PBR_MATERIAL_VOLUME               = dmHashString64("PbrVolume");
-    static const dmhash_t PBR_MATERIAL_SHEEN                = dmHashString64("PbrSheen");
-    static const dmhash_t PBR_MATERIAL_EMISSIVE_STRENGTH    = dmHashString64("PbrEmissiveStrength");
-    static const dmhash_t PBR_MATERIAL_IRIDESCENE           = dmHashString64("PbrIridescence");
-    */
-
-    
-
-    /*
-    static bool FillPbrMaterialInfo(
-        const dmGraphics::Uniform& uniform,
-        const dmGraphics::ShaderResourceTypeInfo* type_infos,
-        PBRMaterialInfo* info)
-    {
-        if (!uniform.m_RootType.m_UseTypeIndex)
-        {
-            return false;
-        }
-
-        uint32_t type_index = uniform.m_RootType.m_TypeIndex;
-        if (type_infos[type_index].m_NameHash != PBR_MATERIAL_TYPE)
-        {
-            return false;
-        }
-
-        for (int i = 0; i < type_infos[type_index].m_Members.Size(); ++i)
-        {
-            // dmLogInfo("%s", type_infos[type_index].m_Members[i].m_Name);
-            const dmGraphics::ShaderResourceTypeInfo* member_type_info = &type_infos[type_infos[type_index].m_Members[i].m_Type.m_TypeIndex];
-
-            if (member_type_info->m_NameHash == PBR_MATERIAL_METALLIC_ROUGHNESS)
-            {
-                const char* member_name = strrchr(uniform.m_Name, '.');
-                if (!member_name)
-                {
-                    continue;
-                }
-
-                member_name++; // Skip over '.'
-
-                if (strcmp(member_name, "baseColorFactor") == 0)
-                {
-                    info->m_PbrMetallicRoughness_BaseColorFactor = uniform.m_NameHash;
-                }
-                else if (strcmp(member_name, "metallicAndRoughnessFactor") == 0)
-                {
-                    info->m_PbrMetallicRoughness_MetallicAndRoughnessFactor = uniform.m_NameHash;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    bool GetPBRMaterialInfo(dmRender::HMaterial material, PBRMaterialInfo* info)
-    {
-        memset(info, 0, sizeof(PBRMaterialInfo));
-
-        dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
-
-        const dmGraphics::ShaderResourceTypeInfo* type_infos;
-        uint32_t type_infos_count;
-        dmGraphics::GetShaderResourceTypes(program, &type_infos, &type_infos_count);
-
-        uint32_t uniform_count = dmGraphics::GetUniformCount(program);
-
-        bool has_pbr_uniforms = false;
-
-        for (int i = 0; i < uniform_count; ++i)
-        {
-            dmGraphics::Uniform uniform;
-            dmGraphics::GetUniform(program, i, &uniform);
-            has_pbr_uniforms |= FillPbrMaterialInfo(uniform, type_infos, info);
-        }
-        return has_pbr_uniforms;
-    }
-    */
 }

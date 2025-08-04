@@ -20,14 +20,6 @@
 
 namespace dmGameSystem
 {
-    struct PBRMaterialInfo;
-    struct MaterialResourceUserData
-    {
-        uint64_t         m_VertexShaderNameHash;
-        uint64_t         m_FragmentShaderNameHash;
-        PBRMaterialInfo* m_PbrMaterialInfo;
-    };
-
     dmResource::Result ResMaterialCreate(const dmResource::ResourceCreateParams* params);
 
     dmResource::Result ResMaterialDestroy(const dmResource::ResourceDestroyParams* params);

@@ -264,9 +264,8 @@ namespace dmGraphics
         VkCommandPool m_CommandPoolWorker;
     };
 
-    struct VulkanShaderModule
+    struct ShaderModule
     {
-        ShaderModule                    m_BaseShaderModule;
         uint64_t                        m_Hash;
         VkShaderModule                  m_Module;
         VkPipelineShaderStageCreateInfo m_PipelineStageInfo;
@@ -292,9 +291,9 @@ namespace dmGraphics
         uint8_t*       m_UniformData;
         VulkanHandle   m_Handle;
 
-        VulkanShaderModule* m_VertexModule;
-        VulkanShaderModule* m_FragmentModule;
-        VulkanShaderModule* m_ComputeModule;
+        ShaderModule*  m_VertexModule;
+        ShaderModule*  m_FragmentModule;
+        ShaderModule*  m_ComputeModule;
 
         uint32_t       m_UniformDataSizeAligned;
         uint16_t       m_UniformBufferCount;
@@ -468,7 +467,7 @@ namespace dmGraphics
     VkResult CreateTextureSampler(VkDevice vk_device, VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode, VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out);
     VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, RenderPassAttachment* resolveAttachment, VkRenderPass* renderPassOut);
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
-    VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, VulkanShaderModule* shaderModuleOut);
+    VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, ShaderModule* shaderModuleOut);
     VkResult CreateGraphicsPipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count, const PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount, RenderTarget* render_target, Pipeline* pipelineOut);
     VkResult CreateComputePipeline(VkDevice vk_device, VulkanProgram* program, Pipeline* pipelineOut);
 
@@ -482,7 +481,7 @@ namespace dmGraphics
     void DestroyProgram(VkDevice vk_device, VulkanProgram::VulkanHandle* handle);
     void DestroyRenderPass(VkDevice vk_device, VkRenderPass render_pass);
     void DestroyScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
-    void DestroyShaderModule(VkDevice vk_device, VulkanShaderModule* shaderModule);
+    void DestroyShaderModule(VkDevice vk_device, ShaderModule* shaderModule);
     void DestroyTextureSampler(VkDevice vk_device, TextureSampler* sampler);
     void DestroyTexture(VkDevice vk_device, VulkanTexture::VulkanHandle* handle);
     void DestroyRenderTarget(VkDevice vk_device, RenderTarget::VulkanHandle* handle);

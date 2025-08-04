@@ -25,8 +25,6 @@
 #include <render/render.h>
 #include <render/material_ddf.h>
 
-#include "gamesys_private.h"
-
 #include <dmsdk/dlib/hashtable.h>
 
 namespace dmGameSystem
@@ -240,21 +238,6 @@ namespace dmGameSystem
             dmResource::Release(factory, (void*)resources.m_Program);
             return 0;
         }
-
-        /*
-        MaterialResourceUserData* user_data = new MaterialResourceUserData();
-        user_data->m_PbrMaterialInfo = 0;
-
-        PBRMaterialInfo pbr_material_info;
-        if (GetPBRMaterialInfo(material, &pbr_material_info))
-        {
-            user_data->m_PbrMaterialInfo = new PBRMaterialInfo();
-            *user_data->m_PbrMaterialInfo = pbr_material_info;
-        }
-
-        dmRender::SetMaterialUserData(material, user_data);
-        */
-
         return material;
     }
 
