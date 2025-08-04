@@ -12,6 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#if defined(FONT_USE_SKRIBIDI)
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -24,10 +26,9 @@
 #include <dlib/time.h>
 #include <dlib/utf8.h>
 
-#include <dmsdk/font/font.h>
-
-#include "../text_layout.h"
-#include "font_private.h"
+#include "font.h"
+#include "fontcollection.h"
+#include "text_layout.h"
 
 #include <skribidi/skb_font_collection.h>
 #include <skribidi/skb_layout.h>
@@ -37,9 +38,6 @@ struct LayoutContext
     skb_temp_alloc_t*   m_Alloc;
     skb_layout_t*       m_Layout;
 };
-
-
-extern skb_font_collection_t* FontCollectionGetSkribidiPtr(HFontCollection);
 
 static void AllocLayout(LayoutContext* ctx, HFontCollection collection)
 {
@@ -227,11 +225,17 @@ static bool LayoutText(LayoutContext* ctx,
     return true;
 }
 
-TextResult TextLayoutCreate(HFontCollection collection,
+void TextLayoutFreeSkribidi(TextLayout* layout)
+{
+    delete layout;
+}
+
+TextResult TextLayoutCreateSkribidi(HFontCollection collection,
                             uint32_t* codepoints, uint32_t num_codepoints,
                             TextLayoutSettings* settings, TextLayout** outlayout)
 {
     TextLayout* layout = new TextLayout;
+    layout->m_Free = TextLayoutFreeSkribidi;
 
     layout->m_Glyphs.SetCapacity(num_codepoints);
     layout->m_Glyphs.SetSize(0);
@@ -252,7 +256,7 @@ TextResult TextLayoutCreate(HFontCollection collection,
 
     if (!result)
     {
-        TextLayoutFree(layout);
+        TextLayoutFreeSkribidi(layout);
         layout = 0;
     }
 
@@ -260,7 +264,5 @@ TextResult TextLayoutCreate(HFontCollection collection,
     return result ? TEXT_RESULT_OK : TEXT_RESULT_ERROR;
 }
 
-void TextLayoutFree(TextLayout* layout)
-{
-    delete layout;
-}
+#endif // FONT_USE_SKRIBIDI
+

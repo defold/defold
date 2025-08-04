@@ -21,6 +21,6 @@ def build(bld):
     bld(features = 'cxx cprogram test',
         source   = bld.path.ant_glob(['*.cpp']),
         use      = 'TESTMAIN DLIB PROFILE_NULL HARFBUZZ SKRIBIDI font_skribidi',
-        defines  = ['FONT_USE_SKRIBIDI_TEXT_SHAPE'],
+        defines  = ['FONT_USE_HARFBUZZ', 'FONT_USE_SKRIBIDI'],
         includes = '. .. ../font',
         target = 'test_font_skribidi')

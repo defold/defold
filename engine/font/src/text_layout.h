@@ -15,14 +15,15 @@
 #ifndef DM_TEXT_LAYOUT_H
 #define DM_TEXT_LAYOUT_H
 
-
 #include <dmsdk/dlib/array.h>
-#include <dmsdk/dlib/math.h>
 #include <dmsdk/font/text_layout.h>
-#include <dlib/utf8.h>
+
+typedef void (*FTextLayoutFree)(HTextLayout layout);
 
 struct TextLayout
 {
+    FTextLayoutFree    m_Free;
+
     // TODO: Make these C arrays?
     dmArray<TextGlyph> m_Glyphs;
     dmArray<TextLine>  m_Lines;
@@ -40,5 +41,13 @@ struct TextLayout
     float              m_Width;
     float              m_Height;
 };
+
+TextResult TextLayoutCreateLegacy(HFontCollection collection,
+                                uint32_t* codepoints, uint32_t num_codepoints,
+                                TextLayoutSettings* settings, HTextLayout* outlayout);
+
+TextResult TextLayoutCreateSkribidi(HFontCollection collection,
+                                uint32_t* codepoints, uint32_t num_codepoints,
+                                TextLayoutSettings* settings, HTextLayout* outlayout);
 
 #endif // DM_TEXT_LAYOUT_H

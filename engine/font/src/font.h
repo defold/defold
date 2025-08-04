@@ -16,6 +16,7 @@
 #define DM_FONT_H
 
 #include <dmsdk/font/font.h>
+#include "text_layout.h"
 
 typedef HFont       (*FontLoadFromMemoryFn)(const char* name, const void* data, uint32_t data_size, bool allocate);
 typedef void        (*FontDestroyFn)(HFont font);
@@ -47,5 +48,16 @@ struct Font
 };
 
 HFont FontCreate(Font* font);
+
+TextLayoutType FontGetLayoutType(HFont hfont);
+
+#if defined(FONT_USE_HARFBUZZ)
+
+typedef struct hb_font_t hb_font_t;
+
+hb_font_t* FontGetHarfbuzzFontFromTTF(HFont hfont);
+
+#endif
+
 
 #endif // DM_FONT_H

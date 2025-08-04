@@ -170,6 +170,15 @@ uint32_t FontGetPathHash(HFont font)
     return font->m_PathHash;
 }
 
+TextLayoutType FontGetLayoutType(HFont font)
+{
+#if defined(FONT_USE_HARFBUZZ) && defined(FONT_USE_SKRIBIDI)
+    if (font->m_Type == FONT_TYPE_STBTTF || font->m_Type == FONT_TYPE_STBOTF)
+        return TEXT_LAYOUT_TYPE_FULL;
+#endif
+    return TEXT_LAYOUT_TYPE_LEGACY;
+}
+
 static void Indent(int indent)
 {
     for (int i = 0; i < indent; ++i)

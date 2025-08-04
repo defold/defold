@@ -16,16 +16,14 @@ def build(bld):
                 includes        = ['.', '..'],
                 target          = 'font',
                 defines         = [],
-                source          = bld.path.ant_glob(['*.cpp']) +
-                                  bld.path.ant_glob(['legacy/*.cpp']))
+                source          = bld.path.ant_glob(['*.cpp']))
 
     bld.stlib(features          = 'cxx',
                 includes        = ['.', '..'],
                 target          = 'font_skribidi',
                 defines         = ['FONT_USE_HARFBUZZ',
-                                   'FONT_USE_SKRIBIDI_TEXT_SHAPE'],
-                source          = bld.path.ant_glob(['*.cpp']) +
-                                  bld.path.ant_glob(['skribidi/*.cpp']))
+                                   'FONT_USE_SKRIBIDI'],
+                source          = bld.path.ant_glob(['*.cpp']))
 
     bld.install_files('${PREFIX}/include/font', 'font.h')
     bld.install_files('${PREFIX}/include/font', 'fontcollection.h')

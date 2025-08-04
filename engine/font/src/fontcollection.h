@@ -15,6 +15,17 @@
 #ifndef DM_COLLECTION_H
 #define DM_COLLECTION_H
 
-#include <dmsdk/font/font.h> // for the enums
+#include <dmsdk/font/fontcollection.h>
+#include <dmsdk/font/text_layout.h>
+
+TextLayoutType FontCollectionGetLayoutType(HFontCollection coll);
+
+#if defined(FONT_USE_SKRIBIDI)
+#include <skribidi/skb_font_collection.h>
+
+skb_font_collection_t* FontCollectionGetSkribidiPtr(HFontCollection coll);
+
+HFont FontCollectionGetFontFromHandle(HFontCollection coll, skb_font_handle_t handle);
+#endif
 
 #endif // DM_COLLECTION_H

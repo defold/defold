@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "text_layout.h"
+#include "fontcollection.h"
 
 uint32_t TextLayoutGetGlyphCount(HTextLayout layout)
 {
@@ -39,3 +40,21 @@ void TextLayoutGetBounds(HTextLayout layout, float* width, float* height)
     *width = layout->m_Width;
     *height = layout->m_Height;
 }
+
+void TextLayoutFree(HTextLayout layout)
+{
+    layout->m_Free(layout);
+}
+
+TextResult TextLayoutCreate(HFontCollection collection,
+                            uint32_t* codepoints, uint32_t num_codepoints,
+                            TextLayoutSettings* settings, HTextLayout* outlayout)
+{
+#if defined(FONT_USE_SKRIBIDI)
+    TextLayoutType layout_type = FontCollectionGetLayoutType(collection);
+    if (layout_type == TEXT_LAYOUT_TYPE_FULL)
+        return TextLayoutCreateSkribidi(collection, codepoints, num_codepoints, settings, outlayout);
+#endif
+    return TextLayoutCreateLegacy(collection, codepoints, num_codepoints, settings, outlayout);
+}
+

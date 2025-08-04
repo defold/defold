@@ -25,11 +25,15 @@
 #include <dlib/time.h>
 #include <dlib/utf8.h>
 
-#include <text_layout.h>
+#include "font.h"
+#include "fontcollection.h"
+#include "text_layout.h"
 
 static const char* g_TextLorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut tempus quam in lacinia imperdiet. Vestibulum interdum erat quis purus lacinia, at ullamcorper arcu sagittis. Etiam molestie varius lacus, eget fringilla enim tempor quis. In at mollis dolor, et dictum sem. Mauris condimentum metus sed auctor tempus.";
 
 static const char* g_TextArabic = "دينيس ريتشي فاش كان خدام ف مختبرات بيل، مابين 1972 و 1973";
+//static const char* g_TextArabic = "دينيس";
+//static const char* g_TextArabic = "الفقرات";
 
 
 class FontTest : public jc_test_base_class
@@ -186,15 +190,13 @@ TEST_F(FontTest, LayoutMultiLine)
     // NOTE: For multiline text, we strip the whitespaces off of each line
     const char* original_text = "Hello World!   How are you?  ";
 
-#if defined(FONT_USE_SKRIBIDI_TEXT_SHAPE)
     // NOTE: Our rules for breaking is a bit weird,
     // but changing them is for another time
+#if defined(FONT_USE_SKRIBIDI)
     const char* expected_text_1 = "Hello World!   ";
     const char* expected_text_2 = "How are you?  ";
     uint32_t line2_start = (uint32_t)strlen(expected_text_1);
 #else
-    // NOTE: Our rules for breaking is a bit weird,
-    // but changing them is for another time
     const char* expected_text_1 = "Hello World!";
     const char* expected_text_2 = "  How are you?";
     uint32_t line2_start = 13u;
@@ -236,7 +238,7 @@ TEST_F(FontTest, LayoutMultiLine)
 }
 
 
-#if !defined(FONT_USE_SKRIBIDI_TEXT_SHAPE) && defined(FOO)
+#if !defined(FONT_USE_SKRIBIDI) && defined(FOO)
 static void CreateTestGlyphs(TextShapeInfo* info, const char* text, int32_t x_step, dmArray<uint32_t>& codepoints)
 {
     uint32_t len = TextToCodePoints(text, codepoints);
@@ -530,9 +532,9 @@ TEST_F(FontTest, Layout)
     ASSERT_EQ(char_width * 14, metrics.m_Width);
 }
 
-#endif // !defined(FONT_USE_SKRIBIDI_TEXT_SHAPE)
+#endif // !defined(FONT_USE_SKRIBIDI)
 
-#if defined(FONT_USE_KB_TEXT_SHAPE) || defined(FONT_USE_HARFBUZZ_TEXT_SHAPE) || defined(FONT_USE_SKRIBIDI_TEXT_SHAPE)
+#if defined(FONT_USE_SKRIBIDI)
 TEST_F(FontTest, TextArabic)
 {
     char buffer[512];

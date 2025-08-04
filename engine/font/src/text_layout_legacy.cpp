@@ -25,9 +25,8 @@
 
 #include <dmsdk/font/font.h>
 #include <dmsdk/font/fontcollection.h>
-//#include "../font_ttf.h"
 
-#include "../text_layout.h"
+#include "text_layout.h"
 
 static inline uint32_t NextBreak(TextGlyph* glyphs, uint32_t num_glyphs, uint32_t* cursor, uint32_t* n)
 {
@@ -184,12 +183,17 @@ struct LayoutMetrics
     }
 };
 
+void TextLayoutFreeLegacy(TextLayout* layout)
+{
+    delete layout;
+}
 
-TextResult TextLayoutCreate(HFontCollection collection,
+TextResult TextLayoutCreateLegacy(HFontCollection collection,
                             uint32_t* codepoints, uint32_t num_codepoints,
                             TextLayoutSettings* settings, HTextLayout* outlayout)
 {
     TextLayout* layout = new TextLayout;
+    layout->m_Free = TextLayoutFreeLegacy;
 
     layout->m_Glyphs.OffsetCapacity(layout->m_Glyphs.Capacity() - num_codepoints);
     layout->m_Glyphs.SetSize(num_codepoints);
@@ -266,7 +270,3 @@ TextResult TextLayoutCreate(HFontCollection collection,
     return TEXT_RESULT_OK;
 }
 
-void TextLayoutFree(TextLayout* layout)
-{
-    delete layout;
-}
