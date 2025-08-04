@@ -1553,9 +1553,9 @@
   (output options g/Any (g/fnk [grid-size]
                           {:active-plane :z
                            :auto-scale false
-                           :size {:x (first grid-size)
-                                  :y (second grid-size)
-                                  :z 1}})))
+                           :size {:x (or (first grid-size) 1.0)
+                                  :y (or (second grid-size) 1.0)
+                                  :z 1.0}})))
 
 (defmethod scene/attach-grid ::TileMapGrid
   [_ grid-node-id view-id resource-node camera]
