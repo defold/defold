@@ -50,10 +50,12 @@ namespace dmCrash
     {
         unwind_data * unwindData = (unwind_data *) data;
         const uintptr_t pc = _Unwind_GetIP(context);
+
+        AppState* state = GetAppState();
         if (pc)
         {
-            g_AppState.m_Ptr[g_AppState.m_PtrCount] = (void*)(uintptr_t)pc;
-            g_AppState.m_PtrCount++;
+            state->m_Ptr[state->m_PtrCount] = (void*)(uintptr_t)pc;
+            state->m_PtrCount++;
             Dl_info dl_info;
             int result = dladdr((void *) pc, &dl_info);
             if (result) {
@@ -79,8 +81,8 @@ namespace dmCrash
                 int extra_len = strlen(extra);
                 if ((unwindData->offset_extra + extra_len) < (dmCrash::AppState::EXTRA_MAX - 1))
                 {
-                    memcpy(g_AppState.m_Extra + unwindData->offset_extra, extra, extra_len);
-                    g_AppState.m_Extra[unwindData->offset_extra + extra_len] = '\n';
+                    memcpy(state->m_Extra + unwindData->offset_extra, extra, extra_len);
+                    state->m_Extra[unwindData->offset_extra + extra_len] = '\n';
                     unwindData->offset_extra += extra_len + 1;
                 }
                 else
@@ -89,7 +91,7 @@ namespace dmCrash
                 }
             }
         }
-        return g_AppState.m_PtrCount >= AppState::PTRS_MAX ? _URC_END_OF_STACK : _URC_NO_REASON;
+        return state->m_PtrCount >= AppState::PTRS_MAX ? _URC_END_OF_STACK : _URC_NO_REASON;
     }
 
     static void ResetToDefaultHandler(const int signum)
@@ -107,8 +109,10 @@ namespace dmCrash
         if (!g_CrashDumpEnabled)
             return;
 
-        g_AppState.m_Signum = signo;
-        g_AppState.m_PtrCount = 0;
+        AppState* state = GetAppState();
+
+        state->m_Signum = signo;
+        state->m_PtrCount = 0;
 
         // The default behavior is restored for the signal.
         // Unless this is done first thing in the signal handler we'll
@@ -122,15 +126,15 @@ namespace dmCrash
 
         if (g_CrashExtraInfoCallback)
         {
-            int extra_len = strlen(g_AppState.m_Extra);
-            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, g_AppState.m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
+            int extra_len = strlen(state->m_Extra);
+            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, state->m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
         }
 
-        WriteCrash(g_FilePath, &g_AppState);
+        WriteCrash(GetFilePath(), state);
 
         bool is_debug_mode = dLib::IsDebugMode();
         dLib::SetDebugMode(true);
-        dmLogError("CALL STACK:\n\n%s\n", g_AppState.m_Extra);
+        dmLogError("CALL STACK:\n\n%s\n", state->m_Extra);
         dLib::SetDebugMode(is_debug_mode);
     }
 

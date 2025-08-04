@@ -884,7 +884,7 @@ nesting:
   (let [actual (normalize-pprint-output (str actual))]
     (let [output-matches-expectation (= expected actual)]
       (when-not output-matches-expectation
-        (is output-matches-expectation (string/join "\n" (diff/make-diff-output-lines actual expected 3)))))))
+        (is output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3)))))))
 
 (deftest pprint-test
   (test-util/with-loaded-project "test/resources/editor_extensions/pprint-test"
@@ -934,6 +934,64 @@ POST http://localhost:23456/echo hello world! as string => 200
         (expect-script-output expected-http-test-output out)
         (finally
           (http-server/stop! server 0))))))
+
+(def ^:private resource-io-test-output
+  "editor.create_resources({{\"/test/config.json\", \"{\\\"test\\\": true}\"}}) => ok!
+/test
+  /config.json
+/test/config.json:
+{ --[[0x0]]
+  text = \"{\\\"test\\\": true}\"
+}
+editor.create_resources({\"/test/npc.go\", \"/test/npc.collection\"}) => ok!
+/test
+  /config.json
+  /npc.collection
+  /npc.go
+/test/npc.go:
+{ --[[0x1]]
+  components = {} --[[0x2]]
+}
+/test/npc.collection:
+{ --[[0x3]]
+  name = \"npc\"
+}
+editor.create_resources({\"/test/UPPER.COLLECTION\"}) => ok!
+/test
+  /config.json
+  /npc.collection
+  /npc.go
+  /UPPER.COLLECTION
+/test/UPPER.COLLECTION:
+{ --[[0x4]]
+  name = \"UPPER\"
+}
+editor.create_resources({\"/test/../../../outside.txt\"}) => Can't create /test/../../../outside.txt: outside of project directory
+/test
+  /config.json
+  /npc.collection
+  /npc.go
+  /UPPER.COLLECTION
+editor.create_resources({\"/test/npc.go\"}) => Resource already exists: /test/npc.go
+/test
+  /config.json
+  /npc.collection
+  /npc.go
+  /UPPER.COLLECTION
+editor.create_resources({\"/test/repeated.go\", \"/test/repeated.go\"}) => Resource repeated more than once: /test/repeated.go
+/test
+  /config.json
+  /npc.collection
+  /npc.go
+  /UPPER.COLLECTION
+")
+
+(deftest resources-io-test
+  (test-util/with-scratch-project "test/resources/editor_extensions/resources_io_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output resource-io-test-output out))))
 
 (deftest zip-test
   (test-util/with-scratch-project "test/resources/editor_extensions/zip_project"
@@ -1234,10 +1292,10 @@ After transaction (remove animation):
   images: 0
   animations: 0
 Expected errors:
-  Wrong list name to add => AtlasNode does not define \"layers\"
-  Wrong list name to remove => AtlasNode does not define \"layers\"
+  Wrong list name to add => \"layers\" is undefined
+  Wrong list name to remove => \"layers\" is undefined
   Wrong list item to remove => /test.atlas is not in the \"images\" list of /test.atlas
-  Wrong list name to clear => AtlasNode does not define \"layers\"
+  Wrong list name to clear => \"layers\" is undefined
   Wrong child property name => Can't set property \"no_such_prop\" of AtlasAnimation
   Added value is not a table => \"/foo.png\" is not a table
   Added nested value is not a table => \"/foo.png\" is not a table
@@ -1497,13 +1555,13 @@ After transaction (reorder):
         id: box1
         nodes: 0
 Expected reorder errors:
-  undefined property => GuiSceneNode does not define \"not-a-property\"
-  reorder not defined => CollisionObjectNode does not support \"shapes\" reordering
+  undefined property => \"not-a-property\" is undefined
+  reorder not defined => \"shapes\" is not reorderable
   duplicates => Reordered child nodes are not the same as current child nodes
   missing children => Reordered child nodes are not the same as current child nodes
   wrong child nodes => Reordered child nodes are not the same as current child nodes
-  add to template node => \"nodes\" is not editable
-  reorder template node => \"nodes\" is not editable
+  add to template node => \"nodes\" is read-only
+  reorder template node => \"nodes\" is read-only
   add to overridden text node => \"nodes\" is read-only
   reorder overridden text node => \"nodes\" is read-only
   reset unresettable => Can't reset property \"text\" of TextNode
@@ -1521,6 +1579,358 @@ After transaction (clear):
   spine scenes: 0
   fonts: 0
   nodes: 0
+Go initial state:
+  components: 0
+Transaction: add go components
+After transaction (add go components):
+  components: 15
+  - type: camera
+    id: camera
+  - type: collectionfactory
+    id: collectionfactory
+  - type: collectionproxy
+    id: collectionproxy
+  - type: collectionproxy
+    id: collectionproxy1
+  - type: collisionobject
+    id: collisionobject-embedded
+    shapes: 1
+    - id: box
+      type: shape-type-box
+      dimensions: 2.5 2.5 2.5
+  - type: factory
+    id: factory
+  - type: label
+    id: label
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {0.05, 0.05, 0.05}
+  - type: mesh
+    id: mesh
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+  - type: model
+    id: model
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+  - type: sound
+    id: boom
+  - type: spinemodel
+    id: spinemodel
+    position: {3.14, 3.14, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+  - type: sprite
+    id: blob
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+  - type: component-reference
+    id: test
+  - type: component-reference
+    id: collisionobject-referenced
+  - type: component-reference
+    id: referenced-tilemap
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+Collision object components found:
+  referenced: true
+  embedded: true
+Collision object components have shapes property:
+  referenced: false
+  embedded: true
+Transaction: clear go components
+After transaction (clear go components):
+  components: 0
+Collection initial state
+  children: 0 (editable)
+Transaction: add gos and collections
+After transaction (add gos and collections):
+  children: 5 (editable)
+  - id: go
+    url: /go
+    type: go
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {0.5, 0.5, 0.5}
+    components: 0
+    children: 4 (editable)
+    - id: go1
+      url: /go1
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+    - id: ref
+      url: /ref
+      type: go-reference
+      path: /ref.go
+      position: {3.14, 3.14, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+    - id: go2
+      url: /go2
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 1 (editable)
+      - id: char
+        url: /char
+        type: go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 3
+        - type: sprite
+          id: sprite
+          position: {0.5, 0.5, 0.5}
+          rotation: {0, 0, 0}
+          scale: {1, 1, 1}
+        - type: collisionobject
+          id: collisionobject
+          shapes: 1
+          - id: box
+            type: shape-type-box
+            dimensions: 2.5 2.5 2.5
+        - type: component-reference
+          id: test
+        children: 0 (editable)
+    - id: empty-ref
+      url: /empty-ref
+      type: go-reference
+      path: -
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      children: 0 (editable)
+  - id: empty-collection
+    url: /empty-collection
+    type: collection-reference
+    path: -
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+  - id: ref1
+    url: /ref1
+    type: collection-reference
+    path: /ref.collection
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    children: 1 (readonly)
+    - id: go
+      url: /ref1/go
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 1
+      - type: sprite
+        id: sprite
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+      children: 1 (readonly)
+      - id: ref
+        url: /ref1/ref
+        type: go-reference
+        path: /ref.go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 0
+        children: 0 (readonly)
+  - id: readonly
+    url: /readonly
+    type: collection-reference
+    path: /readonly/readonly.collection
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    children: 0 (readonly)
+  - id: readonly1
+    url: /readonly1
+    type: go-reference
+    path: /readonly/readonly.go
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    components: 0
+    children: 1 (editable)
+    - id: allowed-child-of-readonly-go
+      url: /allowed-child-of-readonly-go
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+Transaction: edit already existing collection elements
+After transaction (edit already existing collection elements):
+  children: 5 (editable)
+  - id: go
+    url: /go
+    type: go
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {0.5, 0.5, 0.5}
+    components: 0
+    children: 5 (editable)
+    - id: go1
+      url: /go1
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+    - id: ref
+      url: /ref
+      type: go-reference
+      path: /ref.go
+      position: {3.14, 3.14, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 1 (editable)
+      - id: new-referenced-go-child
+        url: /new-referenced-go-child
+        type: go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 0
+        children: 0 (editable)
+    - id: go2
+      url: /go2
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 1 (editable)
+      - id: char
+        url: /char
+        type: go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 3
+        - type: sprite
+          id: sprite
+          position: {0.5, 0.5, 0.5}
+          rotation: {0, 0, 0}
+          scale: {1, 1, 1}
+        - type: collisionobject
+          id: collisionobject
+          shapes: 1
+          - id: box
+            type: shape-type-box
+            dimensions: 2.5 2.5 2.5
+        - type: component-reference
+          id: test
+        children: 0 (editable)
+    - id: empty-ref
+      url: /empty-ref
+      type: go-reference
+      path: -
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      children: 0 (editable)
+    - id: new-embedded-go-child
+      url: /new-embedded-go-child
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+  - id: empty-collection
+    url: /empty-collection
+    type: collection-reference
+    path: -
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+  - id: ref1
+    url: /ref1
+    type: collection-reference
+    path: /ref.collection
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    children: 1 (readonly)
+    - id: go
+      url: /ref1/go
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 1
+      - type: sprite
+        id: sprite
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+      children: 1 (readonly)
+      - id: ref
+        url: /ref1/ref
+        type: go-reference
+        path: /ref.go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 0
+        children: 0 (readonly)
+  - id: readonly
+    url: /readonly
+    type: collection-reference
+    path: /readonly/readonly.collection
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    children: 0 (readonly)
+  - id: readonly1
+    url: /readonly1
+    type: go-reference
+    path: /readonly/readonly.go
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    components: 0
+    children: 2 (editable)
+    - id: allowed-child-of-readonly-go
+      url: /allowed-child-of-readonly-go
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+    - id: new-readonly-referenced-go-child
+      url: /new-readonly-referenced-go-child
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+Expected collection errors:
+  add child to referenced collection => \"children\" is read-only
+  remove child of referenced collection => \"children\" is read-only
+  add child to go in referenced collection => \"children\" is read-only
+  clear children of a go in referenced collection => \"children\" is read-only
+  add child to readonly referenced collection => \"children\" is read-only
+Transaction: clear collection
+After transaction (clear collection)
+  children: 0 (editable)
 ")
 
 (deftest attachment-properties-test

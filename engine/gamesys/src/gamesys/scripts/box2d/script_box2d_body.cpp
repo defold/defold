@@ -406,7 +406,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        b2Vec2 p = CheckVec2(L, 2, GetPhysicsScale());
         dmScript::PushVector3(L, FromB2(b2Body_GetWorldPoint(*body, p), GetInvPhysicsScale()));
         return 1;
     }
@@ -415,7 +415,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        b2Vec2 p = CheckVec2(L, 2, GetPhysicsScale());
         dmScript::PushVector3(L, FromB2(b2Body_GetWorldVector(*body, p), GetInvPhysicsScale()));
         return 1;
     }
@@ -424,7 +424,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        b2Vec2 p = CheckVec2(L, 2, GetPhysicsScale());
         dmScript::PushVector3(L, FromB2(b2Body_GetLocalPoint(*body, p), GetInvPhysicsScale()));
         return 1;
     }
@@ -433,7 +433,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        b2Vec2 p = CheckVec2(L, 2, GetPhysicsScale());
         dmScript::PushVector3(L, FromB2(b2Body_GetLocalVector(*body, p), GetInvPhysicsScale()));
         return 1;
     }
@@ -442,7 +442,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        b2Vec2 p = CheckVec2(L, 2, GetPhysicsScale());
         dmScript::PushVector3(L, FromB2(b2Body_GetWorldPointVelocity(*body, p), GetInvPhysicsScale()));
         return 1;
     }
@@ -451,7 +451,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        b2Vec2 p = CheckVec2(L, 2, GetPhysicsScale());
         dmScript::PushVector3(L, FromB2(b2Body_GetLocalPointVelocity(*body, p), GetInvPhysicsScale()));
         return 1;
     }

@@ -1,6 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
-// Copyright 2014-2020 King
-// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Copyright 2021 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 //
@@ -12,9 +10,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_REMOTERY_H
-#define DM_REMOTERY_H
+#ifndef DM_FONT_RES_FONT_H
+#define DM_FONT_RES_FONT_H
 
-#include <dmsdk/external/remotery/Remotery.h>
+#include <dmsdk/gamesys/resources/res_ttf.h>
 
-#endif // DM_REMOTERY_H
+#endif // DM_FONT_RES_FONT_H

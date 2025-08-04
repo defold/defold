@@ -220,7 +220,7 @@ namespace dmGui
 
     typedef void (*GetURLCallback)(HScene scene, dmMessage::URL* url);
     typedef uintptr_t (*GetUserDataCallback)(HScene scene);
-    typedef dmhash_t (*ResolvePathCallback)(HScene scene, const char* path, uint32_t path_size);
+    typedef dmhash_t (*ResolvePathCallback)(HScene scene, const char* path);
 
     /**
      * Font metrics of a text string

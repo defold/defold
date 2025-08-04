@@ -477,9 +477,9 @@ TEST(dmMessage, MessagePostDispatch)
 
 int main(int argc, char **argv)
 {
-    dmProfile::Initialize(0);
+    ProfileInitialize();
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
-    dmProfile::Finalize();
+    ProfileFinalize();
     return ret;
 }

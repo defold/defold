@@ -258,7 +258,7 @@ namespace dmGui
     {
         Scene* scene = (Scene*)lua_touserdata(L, 1);
         const char* path = luaL_checkstring(L, 2);
-        dmScript::PushHash(L, scene->m_Context->m_ResolvePathCallback(scene, path, strlen(path)));
+        dmScript::PushHash(L, scene->m_Context->m_ResolvePathCallback(scene, path));
         return 1;
     }
 

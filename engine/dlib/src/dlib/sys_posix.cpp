@@ -329,7 +329,7 @@ namespace dmSys
     Result OpenURL(const char* url, const char* target)
     {
         intptr_t ret = (intptr_t) ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
-        if (ret == 32)
+        if (ret > 32)
         {
             return RESULT_OK;
         }

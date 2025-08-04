@@ -144,6 +144,11 @@
    :help "output gpu info to console at startup",
    :default false,
    :path ["display" "display_device_info"]}
+  {:type :boolean,
+   :help "Use runtime font generation",
+   :label "Runtime Generation"
+   :default false,
+   :path ["font" "runtime_generation"]}
   {:type :number,
    :help "Render clear color - red channel",
    :label "Clear Color Red"
@@ -797,7 +802,7 @@
    :path ["android" "proguard"]}
   {:type :boolean,
    :help "This attribute indicates whether the package installer extracts native libraries from the APK to the file system",
-   :default true,
+   :default false,
    :path ["android" "extract_native_libs"]}
   {:type :resource,
    :filter "icns",
@@ -1027,6 +1032,7 @@
   "mesh" {:group "Components"}
   "model" {:group "Components"}
   "render" {:group "Runtime"}
+  "font" {:group "Runtime"}
   "particle_fx" {:help "Particle FX related settings"
                  :title "Particle FX"
                  :group "Components"},

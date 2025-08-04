@@ -59,6 +59,7 @@
            [javafx.util Callback Duration]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (def ^:private ^:dynamic *programmatic-selection* nil)
 
@@ -77,7 +78,7 @@
 
 ;; If no application-owned windows have had focus within this
 ;; threshold, we consider the application to have lost focus.
-(defonce ^:private application-unfocused-threshold-ms 500)
+(defonce ^:private ^:const application-unfocused-threshold-ms 500)
 (defonce ^:private focus-state (atom nil))
 
 (defn node? [value]
@@ -121,7 +122,9 @@
                (when (and old
                           (not (:focused old))
                           (:focused new))
-                 (let [unfocused-ms (- (:t new) (:t old))]
+                 (let [^long new-t (:t new)
+                       ^long old-t (:t old)
+                       unfocused-ms (- new-t old-t)]
                    (when (< application-unfocused-threshold-ms unfocused-ms)
                      (apply application-focused! args))))))
   nil)
@@ -1013,7 +1016,8 @@
   (selection [this] (->> this
                          .getSelectionModel
                          .getSelectedItems
-                         (mapv #(.getValue ^TreeItem %))))
+                         (keep #(when % (.getValue ^TreeItem %)))
+                         (into [])))
   (select! [this item] (let [tree-items (tree-item-seq (.getRoot this))]
                          (when-let [tree-item (some (fn [^TreeItem tree-item] (and (= item (.getValue tree-item)) tree-item)) tree-items)]
                            (doto (.getSelectionModel this)
@@ -1435,7 +1439,8 @@
         menu))
 
 (defn- make-context-menu ^ContextMenu [menu-items]
-  (let [context-menu (ContextMenu.)]
+  (let [context-menu (doto (ContextMenu.)
+                       (.setConsumeAutoHidingEvents true))]
     (.addAll (.getItems context-menu) (to-array menu-items))
     context-menu))
 
@@ -2022,16 +2027,24 @@
       (refresh-toolbars! scene evaluation-context))))
 
 (defn render-progress-bar! [progress ^ProgressBar bar]
-  (let [frac (progress/fraction progress)]
-    (.setProgress bar (if (nil? frac) -1.0 (double frac)))))
+  (.setProgress
+    bar
+    (if-let [fraction (when-not (progress/cancelled? progress)
+                        (progress/fraction progress))]
+      (double fraction)
+      -1.0)))
 
 (defn render-progress-message! [progress ^Label label]
   (text! label (progress/message progress)))
 
 (defn render-progress-percentage! [progress ^Label label]
-  (if-some [percentage (progress/percentage progress)]
-    (text! label (str percentage "%"))
-    (text! label "")))
+  (text!
+    label
+    (if (progress/cancelled? progress)
+      "Aborting..."
+      (if-some [percentage (progress/percentage progress)]
+        (str percentage "%")
+        ""))))
 
 (defn render-progress-controls! [progress ^ProgressBar bar ^Label label]
   (when bar (render-progress-bar! progress bar))
@@ -2108,26 +2121,27 @@
   ([name tick-fn]
    (->timer nil name tick-fn))
   ([fps name tick-fn]
-   (let [start      (System/nanoTime)
-         last       (atom start)
-         interval   (when fps
-                      (long (* 1e9 (/ 1 (double fps)))))]
-     {:last  last
+   (let [start (System/nanoTime)
+         last (atom start)
+         interval (if fps
+                    (long (* 1e9 (/ 1 (double fps))))
+                    0)]
+     {:last last
       :timer (proxy [AnimationTimer] []
-               (handle [now]
+               (handle [^long now]
                  (profiler/profile "timer" name
-                                   (let [elapsed (- now start)
-                                         delta (- now @last)]
-                                     (when (or (nil? interval) (> delta interval))
-                                       (run-later
-                                         (try
-                                           (tick-fn this (* elapsed 1e-9) (/ delta 1e9))
-                                           (reset! last (- now (if interval
-                                                                 (- delta interval)
-                                                                 0)))
-                                           (catch Throwable t
-                                             (.stop ^AnimationTimer this)
-                                             (error-reporting/report-exception! t)))))))))})))
+                   (let [elapsed (- now start)
+                         delta (- now (long @last))]
+                     (when (or (zero? interval) (> delta interval))
+                       (run-later
+                         (try
+                           (tick-fn this (* elapsed 1e-9) (/ delta 1e9))
+                           (reset! last (if (zero? interval)
+                                          now
+                                          (- now (- delta interval))))
+                           (catch Throwable t
+                             (.stop ^AnimationTimer this)
+                             (error-reporting/report-exception! t)))))))))})))
 
 (defn timer-start! [timer]
   (.start ^AnimationTimer (:timer timer)))
@@ -2135,12 +2149,12 @@
 (defn timer-stop! [timer]
   (.stop ^AnimationTimer (:timer timer)))
 
-(defn anim! [duration anim-fn end-fn]
-  (let [duration   (long (* 1e9 duration))
-        start      (System/nanoTime)
-        end        (+ start (long duration))]
+(defn anim! [^double duration anim-fn end-fn]
+  (let [duration (long (* 1e9 duration))
+        start (System/nanoTime)
+        end (+ start (long duration))]
     (doto (proxy [AnimationTimer] []
-            (handle [now]
+            (handle [^long now]
               (run-later
                 (if (< now end)
                   (let [t (/ (double (- now start)) duration)]
@@ -2227,10 +2241,10 @@
     (throw (IllegalArgumentException. "stage cannot be nil")))
   (let [prev-exception-handler (Thread/getDefaultUncaughtExceptionHandler)
         thrown-exception (volatile! nil)]
-    (Thread/setDefaultUncaughtExceptionHandler (reify Thread$UncaughtExceptionHandler
-                                                 (uncaughtException [_ _ exception]
-                                                   (vreset! thrown-exception exception)
-                                                   (close! stage))))
+    (Thread/setDefaultUncaughtExceptionHandler
+      (fn close-and-store-exception-handler [_ exception]
+        (vreset! thrown-exception exception)
+        (close! stage)))
     (let [result (try
                    (show-and-wait! stage)
                    (finally
@@ -2321,7 +2335,7 @@
   (string/join " "
                (map (fn [outline]
                       (str "M" (string/join " L"
-                                            (map (fn [x y]
+                                            (map (fn [^double x ^double y]
                                                    (str (math/round-with-precision (* x col) 0.1)
                                                         ","
                                                         (math/round-with-precision (* y row) 0.1)))

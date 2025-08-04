@@ -1426,19 +1426,55 @@ namespace dmScript
     }
 
     static int BacktraceErrorHandler(lua_State *m_state) {
-        if (!lua_isstring(m_state, 1))
-            return 1;
-
         lua_createtable(m_state, 0, 2);
-        lua_pushvalue(m_state, 1);
-        lua_setfield(m_state, -2, "error");
-
+        
+        // First, generate traceback BEFORE we modify the stack
+        // We need to do this first because GetLuaTraceback expects string errors
         char traceback[1024];
+        traceback[0] = '\0'; // Initialize the buffer
         LuaCallstackCtx ctx;
         ctx.m_First = true;
         ctx.m_Buffer = traceback;
         ctx.m_BufferSize = sizeof(traceback);
+        
+        // If error is not a string, temporarily convert it for traceback generation
+        if (!lua_isstring(m_state, 1))
+        {
+            // Replace stack position 1 with string version for GetLuaTraceback
+            lua_getglobal(m_state, "tostring");
+            if (lua_isfunction(m_state, -1))
+            {
+                lua_pushvalue(m_state, 1); // Push the original error value
+                int result = lua_pcall(m_state, 1, 1, 0);
+                if (result == 0 && lua_isstring(m_state, -1))
+                {
+                    lua_replace(m_state, 1); // Replace original error with string version
+                }
+                else
+                {
+                    lua_pop(m_state, 1); // Remove failed result
+                    const char* type_name = lua_typename(m_state, lua_type(m_state, 1));
+                    lua_pushfstring(m_state, "(%s)", type_name);
+                    lua_replace(m_state, 1); // Replace with type name
+                }
+            }
+            else
+            {
+                lua_pop(m_state, 1); // Remove non-function value
+                const char* type_name = lua_typename(m_state, lua_type(m_state, 1));
+                lua_pushfstring(m_state, "(%s)", type_name);
+                lua_replace(m_state, 1); // Replace with type name
+            }
+        }
+        
+        // Now generate traceback with string error message
         dmScript::GetLuaTraceback(m_state, "Sln", GetLuaStackTraceCbk, &ctx);
+        
+        // Store the converted error message
+        lua_pushvalue(m_state, 1);
+        lua_setfield(m_state, -2, "error");
+
+        // Store the traceback
         lua_pushstring(m_state, traceback);
         lua_setfield(m_state, -2, "traceback");
 
@@ -1460,12 +1496,20 @@ namespace dmScript
             lua_getfield(L, -2, "traceback");
             // if handling error that happened during the error handling, print it and clean up and exit
             if (in_error_handler) {
-                dmLogError("In error handler: %s%s", lua_tostring(L, -2), lua_tostring(L, -1));
+                const char* error_msg = lua_tostring(L, -2);
+                const char* traceback_msg = lua_tostring(L, -1);
+                dmLogError("In error handler: %s%s", 
+                          error_msg ? error_msg : "(error value could not be converted to string)", 
+                          traceback_msg ? traceback_msg : "(traceback unavailable)");
                 lua_pop(L, 3);
                 return result;
             }
             // print before calling the error handler
-            dmLogError("%s\n%s", lua_tostring(L, -2), lua_tostring(L, -1));
+            const char* error_msg = lua_tostring(L, -2);
+            const char* traceback_msg = lua_tostring(L, -1);
+            dmLogError("%s\n%s", 
+                      error_msg ? error_msg : "(error value could not be converted to string)", 
+                      traceback_msg ? traceback_msg : "(traceback unavailable)");
             lua_getfield(L, LUA_GLOBALSINDEX, "debug");
             if (lua_istable(L, -1)) {
                 lua_pushliteral(L, SCRIPT_ERROR_HANDLER_VAR);
@@ -2030,7 +2074,7 @@ namespace dmScript
     */
     const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, char* buffer, uint32_t buffer_size)
     {
-        if (!dmProfile::IsInitialized())
+        if (!ProfileIsInitialized())
             return 0;
 
         char* w_ptr = buffer;

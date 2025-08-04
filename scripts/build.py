@@ -279,6 +279,7 @@ PACKAGES_EMSCRIPTEN=[
     "protobuf-3.20.1",
     "bullet-2.77",
     "glfw-2.7.1",
+    "wagyu-24",
     "box2d-3.0.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
@@ -321,7 +322,7 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
+ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform font graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
 EXTERNAL_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()

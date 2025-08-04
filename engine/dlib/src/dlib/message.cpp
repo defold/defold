@@ -528,10 +528,10 @@ namespace dmMessage
         return w_ptr;
     }
 
-    // Low level string concatenation to void the overhead of dmSnPrintf and having to call strlen
+    // Low level string concatenation to avoid the overhead of dmSnPrintf and having to call strlen
     static const char* GetProfilerString(const char* socket_name, char* buffer, uint32_t buffer_size)
     {
-        if (!dmProfile::IsInitialized())
+        if (!ProfileIsInitialized())
             return 0;
 
         char* w_ptr = buffer;
