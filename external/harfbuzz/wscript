@@ -63,6 +63,11 @@ def build(bld):
         bld.env.cstlib_PATTERN   = 'lib%s.lib'
         bld.env.cxxstlib_PATTERN = 'lib%s.lib'
 
+    output_dir = '%s/%s' % (bld.env.PREFIX, name)
+    if isinstance(bld, Build.InstallContext):
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir)
+
     bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % APPNAME)
     bld.install_files('${PREFIX}/%s/include/harfbuzz' % name,
                         bld.path.ant_glob('%s/*.hh' % packagedir) + bld.path.ant_glob('%s/*.h' % packagedir),
@@ -71,18 +76,15 @@ def build(bld):
 
     if isinstance(bld, Build.InstallContext):
         bld.add_group() # make sure the previous install step is done before we create the archive
-
-        output_dir = '%s/%s' % (bld.env.PREFIX, name)
         pkg = bld(rule=create_package,
                   cwd=output_dir,
                   target='%s-%s.tar.gz' % (name, bld.env.PLATFORM),
                   always=True)
 
-        target_tar = '%s-common.tar.gz' % name
-
+        bld.add_group()
         pkg = bld(rule=create_package,
                   cwd=output_dir,
-                  target=target_tar,
+                  target='%s-common.tar.gz' % name,
                   always=True)
 
 ## NOTE!
