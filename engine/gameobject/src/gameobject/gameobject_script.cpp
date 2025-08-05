@@ -1022,7 +1022,7 @@ namespace dmGameObject
     /*# sets the scale factor of the game object instance
      * The scale factor is relative to the parent (if any). The global world scale factor cannot be manually set.
      *
-     * [icon:attention] Physics are currently not affected when setting scale from this function.
+     * [icon:attention] See <a href="/manuals/project-settings/#allow-dynamic-transforms">manual</a> to know how physics affected when setting scale from this function.
      *
      * @name go.set_scale
      * @param scale [type:number|vector3] vector or uniform scale factor, must be greater than 0
@@ -1036,14 +1036,14 @@ namespace dmGameObject
      * go.set_scale(s)
      * ```
      *
-     * Set the scale of another game object instance with id "x":
+     * Set the scale of another game object instance with id "obj_id":
      *
      * ```lua
      * local s = 1.2
-     * go.set_scale(s, "x")
+     * go.set_scale(s, "obj_id")
      * ```
      */
-    int Script_SetScale(lua_State* L)
+    static int Script_SetScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 2);
 
@@ -1066,6 +1066,57 @@ namespace dmGameObject
             return luaL_error(L, "The scale supplied to go.set_scale must be greater than 0.");
         }
         dmGameObject::SetScale(instance, (float)n);
+        return 0;
+    }
+
+    /*# sets the scale factor only for width and height (x and y) of the game object instance
+     * The scale factor is relative to the parent (if any). The global world scale factor cannot be manually set.
+     *
+     * [icon:attention] See <a href="/manuals/project-settings/#allow-dynamic-transforms">manual</a> to know how physics affected when setting scale from this function.
+     *
+     * @name go.set_scale_xy
+     * @param scale [type:number|vector3] vector or uniform scale factor, must be greater than 0
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the scale for, by default the instance of the calling script
+     * @examples
+     *
+     * Set the scale of the game object instance the script is attached to:
+     *
+     * ```lua
+     * local s = vmath.vector3(2.0, 1.0, 5.0)
+     * go.set_scale_xy(s) -- z will not be set here, only x and y
+     * ```
+     *
+     * Set the scale of another game object instance with id "obj_id":
+     *
+     * ```lua
+     * local s = 1.2
+     * go.set_scale_xy(s, "obj_id") -- z will not be set here, only x and y
+     * ```
+     */
+    static int Script_SetScaleXY(lua_State* L)
+    {
+        Instance* instance = ResolveInstance(L, 2);
+
+        // Supports both vector and number
+        Vector3* v = dmScript::ToVector3(L, 1);
+        if (v != 0)
+        {
+            Vector3 scale = *v;
+            if (scale.getX() <= 0.0f || scale.getY() <= 0.0f)
+            {
+                return luaL_error(L, "Vector passed to go.set_scale_xy contains components that are below or equal to zero");
+            }
+            dmGameObject::SetScaleXY(instance, scale.getX(), scale.getY());
+            return 0;
+        }
+
+        lua_Number n = luaL_checknumber(L, 1);
+        if (n <= 0.0)
+        {
+            return luaL_error(L, "The scale supplied to go.set_scale_xy must be greater than 0.");
+        }
+        float value = (float)n;
+        dmGameObject::SetScaleXY(instance, value, value);
         return 0;
     }
 
@@ -2112,6 +2163,7 @@ namespace dmGameObject
         {"set_position",            Script_SetPosition},
         {"set_rotation",            Script_SetRotation},
         {"set_scale",               Script_SetScale},
+        {"set_scale_xy",            Script_SetScaleXY},
         {"set_parent",              Script_SetParent},
         {"get_world_position",      Script_GetWorldPosition},
         {"get_world_rotation",      Script_GetWorldRotation},
