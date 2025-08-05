@@ -359,13 +359,13 @@
       nil)
     (let [node-id node-id-or-resource
           {:keys [basis]} evaluation-context
-          node-type (g/node-type* basis node-id)]
-      (or ((ext-property-getter (:k node-type)) node-id property evaluation-context)
+          node-type (g/node-type* basis node-id)
+          workspace (project/workspace project evaluation-context)]
+      (or (attachment/find-alternative workspace node-id #((ext-property-getter (:k (g/node-type* basis %))) % property evaluation-context) evaluation-context)
           (case property
             "type" (when-let [type-name (node-types/->name node-type)]
                      (constantly type-name))
-            (let [workspace (project/workspace project evaluation-context)
-                  list-kw (property->prop-kw property)]
+            (let [list-kw (property->prop-kw property)]
               (when (attachment/defined? workspace node-id list-kw evaluation-context)
                 #(mapv rt/wrap-userdata (attachment/get workspace node-id list-kw evaluation-context)))))))))
 
@@ -488,7 +488,11 @@
 
   Returns nil if there is no setter for the node-id+property pair"
   [node-id property rt project evaluation-context]
-  ((ext-property-setter (node-id->type-keyword node-id evaluation-context)) node-id property rt project evaluation-context))
+  (attachment/find-alternative
+    (project/workspace project evaluation-context)
+    node-id
+    #((ext-property-setter (node-id->type-keyword % evaluation-context)) % property rt project evaluation-context)
+    evaluation-context))
 
 ;; endregion
 

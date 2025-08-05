@@ -153,18 +153,30 @@
   [workspace node-type alternative-fn]
   (g/update-property workspace :node-attachments #(update % node-type assoc :alternative alternative-fn)))
 
+(defn find-alternative
+  "Returns first truthy value given an alternative chain
+
+  Args:
+    workspace             the workspace that defines node alternatives
+    node-id               initial node id
+    pred                  predicate fn, will receive 1 arg: node id
+    evaluation-context    the evaluation context"
+  [workspace node-id pred {:keys [basis] :as evaluation-context}]
+  (let [current-state (workspace/node-attachments basis workspace)]
+    (loop [node-id node-id]
+      (or (pred node-id)
+          (when-let [alternative-fn (:alternative (clojure.core/get current-state (g/node-type* basis node-id)))]
+            (some-> (alternative-fn node-id evaluation-context) recur))))))
+
 (defn- get-list-definition
   "Internal. Returns either a tuple of node-id + list definition map or nil if
   it does not exist"
   [workspace node-id list-kw {:keys [basis] :as evaluation-context}]
   (let [current-state (workspace/node-attachments basis workspace)]
-    (loop [node-id node-id]
-      (let [node-type (g/node-type* basis node-id)]
-        (when-let [{:keys [lists alternative]} (clojure.core/get current-state node-type)]
-          (or (when-let [list-definition (list-kw lists)]
-                (coll/pair node-id list-definition))
-              (when alternative
-                (some-> (alternative node-id evaluation-context) recur))))))))
+    (find-alternative
+      workspace node-id
+      #(some->> (list-kw (:lists (clojure.core/get current-state (g/node-type* basis %)))) (coll/pair %))
+      evaluation-context)))
 
 (defn- require-list-definition
   [workspace node-id list-kw evaluation-context]
