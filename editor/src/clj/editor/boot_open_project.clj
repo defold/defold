@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.boot-open-project
-  (:require [dynamo.graph :as g]
+  (:require [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
             [editor.build-errors-view :as build-errors-view]
@@ -36,6 +37,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.html-view :as html-view]
             [editor.icons :as icons]
+            [editor.notifications :as notifications]
             [editor.notifications-view :as notifications-view]
             [editor.os :as os]
             [editor.outline-view :as outline-view]
@@ -147,7 +149,7 @@
     MouseEvent/MOUSE_PRESSED
     MouseEvent/MOUSE_RELEASED})
 
-(defn- load-stage! [workspace project prefs updater newly-created?]
+(defn- load-stage! [workspace project prefs project-path cli-options updater newly-created?]
   (let [^StackPane root (ui/load-fxml "editor.fxml")
         stage (ui/make-stage)
         scene (Scene. root)]
@@ -200,15 +202,39 @@
                                                       root
                                                       open-resource
                                                       (partial app-view/debugger-state-changed! scene tool-tabs))
-          web-server (http-server/start!
-                       (web-server/make-dynamic-handler
-                         (into []
-                               cat
-                               [(engine-profiler/routes)
-                                (console/routes console-view)
-                                (hot-reload/routes workspace)
-                                (bob/routes project)
-                                (command-requests/router root (app-view/make-render-task-progress :resource-sync))])))]
+          server-handler (web-server/make-dynamic-handler
+                           (into []
+                                 cat
+                                 [(engine-profiler/routes)
+                                  (console/routes console-view)
+                                  (hot-reload/routes workspace)
+                                  (bob/routes project)
+                                  (command-requests/router root (app-view/make-render-task-progress :resource-sync))]))
+          server-port (:port cli-options)
+          web-server (try
+                       (http-server/start! server-handler :port server-port)
+                       (catch Exception e
+                         (let [server (http-server/start! server-handler)]
+                           (notifications/show!
+                             (workspace/notifications workspace)
+                             {:type :warning
+                              :text (format "Failed to start a server on port %s (%s). Using port %s instead."
+                                            server-port
+                                            (.getMessage e)
+                                            (http-server/port server))})
+                           server)))
+          port-file-content (str (http-server/port web-server))
+          port-file (doto (io/file project-path ".internal" "editor.port")
+                      (io/make-parents)
+                      (spit port-file-content))]
+      (.addShutdownHook
+        (Runtime/getRuntime)
+        (Thread.
+          (fn []
+            ;; Content might change if another editor is open in the same project
+            ;; In that case, we let the other instance to clean up the file
+            (when (and (.exists port-file) (= port-file-content (slurp port-file)))
+              (.delete port-file)))))
       (.addEventFilter ^StackPane (.lookup root "#overlay") MouseEvent/ANY ui/ignore-event-filter)
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
       (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs web-server)
@@ -357,7 +383,7 @@
     root))
 
 (defn open-project!
-  [^File game-project-file prefs render-progress! updater newly-created?]
+  [^File game-project-file prefs cli-options render-progress! updater newly-created?]
   (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
         build-settings (workspace/make-build-settings prefs)
         workspace-config (shared-editor-settings/load-project-workspace-config project-path)
@@ -367,6 +393,6 @@
         project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
     (ui/run-now
       (icons/initialize! workspace)
-      (load-stage! workspace project prefs updater newly-created?))
+      (load-stage! workspace project prefs project-path cli-options updater newly-created?))
     (g/reset-undo! *project-graph*)
     (log/info :message "project loaded")))
