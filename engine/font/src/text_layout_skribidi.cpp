@@ -81,21 +81,10 @@ static bool LayoutText(LayoutContext* ctx,
         skb_attribute_make_spacing(settings->m_Tracking, 0.0f)
     };
 
+    // TODO: Support rich text
+
     skb_text_run_utf32_t runs[] = {
         { codepoints, (int32_t)num_codepoints, attributes, DM_ARRAY_SIZE(attributes) },
-        // { "moikkelis!\n", -1, attributes_italic, SKB_COUNTOF(attributes_italic) },
-
-        // { "این یک 😬👀🚨 تست است\n", -1, attributes_deco2, SKB_COUNTOF(attributes_deco2) },
-
-        // { "Donec sodales ", -1, attributes_deco1, SKB_COUNTOF(attributes_deco1) },
-        // { "vitae odio ", -1, attributes_deco2, SKB_COUNTOF(attributes_deco2) },
-        // { "dapibus pulvinar\n", -1, attributes_deco3, SKB_COUNTOF(attributes_deco3) },
-
-        // { "ہے۔ kofi یہ ایک\n", -1, attributes_small, SKB_COUNTOF(attributes_small) },
-        // { "POKS! 🧁\n", -1, attributes_big, SKB_COUNTOF(attributes_big) },
-        // { "11/17\n", -1, attributes_fracts, SKB_COUNTOF(attributes_fracts) },
-        // { "शकति शक्ति ", -1, attributes_italic, SKB_COUNTOF(attributes_italic) },
-        // { "今天天气晴朗。 ", -1, attributes_small, SKB_COUNTOF(attributes_small) },
     };
 
     skb_layout_t* skblayout = skb_layout_create_from_runs_utf32(ctx->m_Alloc, &params, runs, DM_ARRAY_SIZE(runs));
@@ -103,6 +92,7 @@ static bool LayoutText(LayoutContext* ctx,
 
     const int32_t glyphs_count = skb_layout_get_glyphs_count(skblayout);
     const skb_glyph_t* glyphs = skb_layout_get_glyphs(skblayout);
+    const skb_glyph_run_t* glyph_runs = skb_layout_get_glyph_runs(skblayout);
     const skb_layout_params_t* layout_params = skb_layout_get_params(skblayout);
     const skb_text_attributes_span_t* attrib_spans = skb_layout_get_attribute_spans(skblayout);
     const skb_layout_line_t* layout_lines = skb_layout_get_lines(skblayout);
@@ -140,24 +130,19 @@ static bool LayoutText(LayoutContext* ctx,
         max_ascender = dmMath::Max(max_ascender, -line->ascender); // make it positive
         max_descender = dmMath::Max(max_descender, line->descender);
 
-        //float pen_x = ox + line->bounds.x;
-
         uint32_t prev_glyph_index = layout->m_Glyphs.Size();
 
-        skb_glyph_run_iterator_t glyph_iter = skb_glyph_run_iterator_make(glyphs, glyphs_count, line->glyph_range.start, line->glyph_range.end);
-        skb_range_t glyph_range;
         skb_font_handle_t font_handle = 0;
-        uint16_t span_idx = 0;
 
         float max_glyph_bounds_width = 0;
         float max_glyph_bounds_height = 0;
 
-        while (skb_glyph_run_iterator_next(&glyph_iter, &glyph_range, &font_handle, &span_idx))
+        for (int32_t ri = line->glyph_run_range.start; ri < line->glyph_run_range.end; ri++)
         {
-            const skb_text_attributes_span_t* span = &attrib_spans[span_idx];
-            // const skb_attribute_fill_t attr_fill = skb_attributes_get_fill(span->attributes, span->attributes_count);
+            const skb_glyph_run_t* glyph_run = &glyph_runs[ri];
+            const skb_text_attributes_span_t* span = &attrib_spans[glyph_run->span_idx];
             const skb_attribute_font_t attr_font = skb_attributes_get_font(span->attributes, span->attributes_count);
-            for (int32_t gi = glyph_range.start; gi < glyph_range.end; ++gi)
+            for (int32_t gi = glyph_run->glyph_range.start; gi < glyph_run->glyph_range.end; gi++)
             {
                 const skb_glyph_t* skbglyph = &glyphs[gi];
 
@@ -168,12 +153,6 @@ static bool LayoutText(LayoutContext* ctx,
 
                 max_glyph_bounds_width = dmMath::Max(max_glyph_bounds_width, bounds.width);
                 max_glyph_bounds_height = dmMath::Max(max_glyph_bounds_height, -bounds.height);
-
-            //     bounds.x += gx;
-            //     bounds.y += gy;
-            //     bounds = view_transform_rect(&ctx->view, bounds);
-            //     draw_rect(bounds.x, bounds.y, bounds.width, bounds.height, skb_rgba(255,128,64,128));
-            // }
 
                 uint32_t codepoint_index = skbglyph->text_range.start;
 

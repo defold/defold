@@ -123,7 +123,7 @@ PACKAGES_ALL=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-70024d4"]
+    "SkriBidi-1e8038"]
 
 PACKAGES_HOST=[
     "vpx-1.7.0",
@@ -190,7 +190,7 @@ PACKAGES_MACOS_ARM64=[
     "harfbuzz-11.3.2",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
-    "SkriBidi-70024d4"]
+    "SkriBidi-1e8038"]
 
 PACKAGES_WIN32=[
     "protobuf-3.20.1",

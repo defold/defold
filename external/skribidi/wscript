@@ -55,19 +55,19 @@ def build(bld):
     OPT = '/O2' if TargetOS.WINDOWS == target_os else '-O3'
 
     lib = bld.stlib(features = 'c remove_flags',
-                         remove_flags = remove_flags,
-                         source    = bld.path.ant_glob('%s/*.c' % packagedir) +
-                                     bld.path.ant_glob('%s/*.c' % budouxc_packagedir),
-                         defines   = [],
-                         includes  = ['.', '..',
-                                        packagedir,
-                                        includedir,
-                                        budouxc_includedir,
-                                        harfbuzz_includedir,
-                                        sheenbidi_includedir,
-                                        libunibreak_includedir],
-                         install_path = None,
-                         target    = 'skribidi')
+                     remove_flags = remove_flags,
+                     source    = bld.path.ant_glob('%s/*.c' % packagedir) +
+                                 bld.path.ant_glob('%s/*.c' % budouxc_packagedir),
+                     defines   = ['SKB_NO_OPEN'],
+                     includes  = ['.', '..',
+                                    packagedir,
+                                    includedir,
+                                    budouxc_includedir,
+                                    harfbuzz_includedir,
+                                    sheenbidi_includedir,
+                                    libunibreak_includedir],
+                     install_path = None,
+                     target    = 'skribidi')
 
     lib.env.append_unique('CFLAGS', OPT)
 
@@ -86,6 +86,11 @@ def build(bld):
         bld.env.cstlib_PATTERN   = 'lib%s.lib'
         bld.env.cxxstlib_PATTERN = 'lib%s.lib'
 
+    output_dir = '%s/%s' % (bld.env.PREFIX, name)
+    if isinstance(bld, Build.InstallContext):
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir)
+
     bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'skribidi')
     bld.install_files('${PREFIX}/%s/include/skribidi' % name,
                         bld.path.ant_glob('%s/**/*.h' % includedir),
@@ -95,17 +100,14 @@ def build(bld):
     if isinstance(bld, Build.InstallContext):
         bld.add_group() # make sure the previous install step is done before we create the archive
 
-        output_dir = '%s/%s' % (bld.env.PREFIX, name)
         pkg = bld(rule=create_package,
                   cwd=output_dir,
                   target='%s-%s.tar.gz' % (name, bld.env.PLATFORM),
                   always=True)
 
-        target_tar = '%s-common.tar.gz' % name
-
         pkg = bld(rule=create_package,
                   cwd=output_dir,
-                  target=target_tar,
+                  target='%s-common.tar.gz' % name,
                   always=True)
 
 
