@@ -141,7 +141,7 @@
         _ (ui/request-focus! gesture-target)
         env (-> gesture-target (ui/node-contexts false) first :env)
         {:keys [selection workspace]} env
-        resource-strings (-> string string/split-lines sort)
+        resource-strings (some-> string string/split-lines sort)
         resources (e/keep (partial workspace/resolve-workspace-resource workspace) resource-strings)
         z-plane-pos (math/line-plane-intersection world-pos world-dir (Point3d. 0.0 0.0 0.0) (Vector3d. 0.0 0.0 1.0))
         drop-fn (partial drop-fn root-id selection workspace z-plane-pos)
