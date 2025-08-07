@@ -1,0 +1,23 @@
+name: macOS
+
+on: [push, pull_request]
+
+jobs:
+  MacOS:
+    runs-on: macos-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ github.ref }}
+        fetch-depth: 2
+    - name: Build
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        cmake --build . -j$(sysctl -n hw.ncpu)
+    - name: Unit Tests
+      run: |
+        cd build/bin/
+        ./skribidi_test

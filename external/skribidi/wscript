@@ -4,7 +4,7 @@ srcdir = '.'
 blddir = 'build'
 
 APPNAME='SkriBidi'
-VERSION='70024d4'
+VERSION='1e8038'
 
 import os, shutil
 import waf_dynamo
@@ -28,14 +28,15 @@ def configure(conf):
 
 def build(bld):
     name = '%s-%s' % (APPNAME, VERSION)
-    packagedir = 'package/Skribidi-main/src'
-    includedir = 'package/Skribidi-main/include'
+    packagedir = 'package/Skribidi/src'
+    includedir = 'package/Skribidi/include'
 
     budouxc_packagedir = 'package/budouxc-main/src'
     budouxc_includedir = 'package/budouxc-main/include'
 
     harfbuzz_includedir  = '../harfbuzz/package/harfbuzz-11.3.2/src'
     sheenbidi_includedir = '../sheenbidi/package/SheenBidi-2.9.0/Headers'
+    libunibreak_includedir = '../libunibreak/package/libunibreak-6.1/src'
 
     build_util = create_build_utility(bld.env)
     target_os = build_util.get_target_os()
@@ -63,13 +64,22 @@ def build(bld):
                                         includedir,
                                         budouxc_includedir,
                                         harfbuzz_includedir,
-                                        sheenbidi_includedir],
+                                        sheenbidi_includedir,
+                                        libunibreak_includedir],
                          install_path = None,
                          target    = 'skribidi')
 
     lib.env.append_unique('CFLAGS', OPT)
 
-    lib.source = [x for x in lib.source if not x.name.endswith('emoji_presentation_scanner.c')]
+    def _excludes(path):
+        return path.endswith('emoji_presentation_scanner.c') or \
+               path.endswith('skb_image_atlas.c') or \
+               path.endswith('skb_canvas.c') or \
+               path.endswith('skb_rasterizer.c') or \
+               path.endswith('skb_icon_collection.c') or \
+               path.endswith('skb_editor.c')
+
+    lib.source = [x for x in lib.source if not _excludes(x.name)]
 
     if TargetOS.WINDOWS == target_os:
         bld.env.STLIB_ST         = 'lib%s.lib'
