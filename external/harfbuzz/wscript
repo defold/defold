@@ -15,6 +15,9 @@ from waflib import Build
 from BuildUtility import create_build_utility
 from build_constants import TargetOS
 
+def copy_file(src, tgt):
+    print(f"Copying {src} -> {tgt}")
+    shutil.copy2(src, tgt)
 
 def options(opt):
     opt.load('waf_dynamo')
@@ -27,6 +30,11 @@ def configure(conf):
 
     conf.load('waf_dynamo')
     conf.env.append_unique('DEFINES', 'NDEBUG')
+
+    name = '%s-%s' % (APPNAME, VERSION)
+    packagedir = 'package/%s/src' % name
+
+    copy_file('./config-override.h', f'{packagedir}/config-override.h')
 
 def build(bld):
     name = '%s-%s' % (APPNAME, VERSION)
