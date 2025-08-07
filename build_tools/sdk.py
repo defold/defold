@@ -280,6 +280,25 @@ def get_android_local_jar_path(verbose=False):
         raise SDKException(f"Path {path} not found")
     return path
 
+def get_android_bintools_path(ndk, platform):
+    ndk_os = 'linux'
+    if sys.platform == 'darwin':
+        ndk_os = 'darwin'
+    elif sys.platform == 'win32':
+        ndk_os = 'windows'
+    return f'{ndk}/toolchains/llvm/prebuilt/{ndk_os}-x86_64/bin'
+
+def get_android_api_version(platform):
+    if platform == 'arm64-android':
+        return ANDROID_64_NDK_API_VERSION
+    else:
+        return ANDROID_NDK_API_VERSION
+
+def get_android_clang_name(platform, api_version):
+    if platform == 'arm64-android':
+        return f'aarch64-linux-android{api_version}-clang'
+    else:
+        return f'armv7a-linux-androideabi{api_version}-clang'
 
 
 ## **********************************************************************************************
@@ -646,15 +665,14 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
         return _setup_info_from_windowsinfo(windowsinfo, platform)
 
     elif platform in ('armv7-android', 'arm64-android'):
-        info['version'] = ANDROID_BUILD_TOOLS_VERSION
-        info['sdk'] = get_android_sdk_path(sdkfolder)
-        info['ndk'] = get_android_ndk_path(sdkfolder)
+        info['version']     = ANDROID_BUILD_TOOLS_VERSION
+        info['sdk']         = get_android_sdk_path(sdkfolder)
+        info['ndk']         = get_android_ndk_path(sdkfolder)
         info['build_tools'] = get_android_build_tools_path(sdkfolder)
-        info['jar'] = get_android_jar_path(sdkfolder)
-        if platform == 'arm64-android':
-            info['api'] = ANDROID_64_NDK_API_VERSION
-        else:
-            info['api'] = ANDROID_NDK_API_VERSION
+        info['jar']         = get_android_jar_path(sdkfolder)
+        info['bintools']    = get_android_bintools_path(info['ndk'], platform)
+        info['api']         = get_android_api_version(platform)
+        info['clangname']   = get_android_clang_name(platform, info['api'])
 
     elif platform in ('js-web', 'wasm-web', 'wasm_pthread-web'):
         info['emsdk'] = {}
@@ -691,15 +709,20 @@ def _get_local_sdk_info(platform, verbose=False):
         return _setup_info_from_windowsinfo(windowsinfo, platform)
 
     elif platform in ('armv7-android', 'arm64-android'):
-        info['version'] = get_android_local_sdk_version(platform)
-        info['sdk'] = get_android_local_sdk_path(verbose)
-        info['ndk'] = get_android_local_ndk_path(platform, verbose)
-        info['jar'] = get_android_local_jar_path(verbose)
+        ndk_os = 'linux'
+        if sys.platform == 'darwin':
+            ndk_os = 'darwin'
+        elif sys.platform == 'win32':
+            ndk_os = 'windows'
+
+        info['version']     = get_android_local_sdk_version(platform)
+        info['sdk']         = get_android_local_sdk_path(verbose)
+        info['ndk']         = get_android_local_ndk_path(platform, verbose)
+        info['jar']         = get_android_local_jar_path(verbose)
         info['build_tools'] = get_android_local_build_tools_path(platform)
-        if platform == 'arm64-android':
-            info['api'] = ANDROID_64_NDK_API_VERSION
-        else:
-            info['api'] = ANDROID_NDK_API_VERSION
+        info['bintools']    = get_android_bintools_path(info['ndk'], platform)
+        info['api']         = get_android_api_version(platform)
+        info['clangname']   = get_android_clang_name(platform, info['api'])
 
     elif platform in ('js-web', 'wasm-web', 'wasm_pthread-web'):
         info['emsdk'] = {}
@@ -788,6 +811,107 @@ def get_sdk_info(sdkfolder, platform, verbose=False):
         log_verbose(verbose, e)
 
     return None
+
+def _create_hello_world(path):
+    parent = os.path.dirname(path)
+    if not os.path.exists(parent):
+        os.makedirs(parent)
+    with open(path, 'w', encoding='utf-8') as f:
+        s  = "#include <stdio.h>\n"
+        s += "int main(int argc, char** argv)\n"
+        s += "{\n"
+        s += "    printf(\"hello world!\\n\");\n"
+        s += "    return 0;\n"
+        s += "}\n"
+        s += ""
+        f.write(s)
+
+def _get_clang_arch_from_platform(platform):
+    if platform == 'x86_64-linux':  return 'x86_64-unknown-linux-gnu'
+    if platform == 'arm64-linux':   return 'aarch64-unknown-linux-gnu'
+    if platform == 'x86_64-macos':  return 'x86_64-apple-darwin19'
+    if platform == 'arm64-macos':   return 'arm64-apple-darwin19'
+    return None
+
+class TestSdkException(Exception):
+    pass
+
+def _compile_file_clang(platform, info, srcfile, exefile, verbose):
+    # if we can rely on the PATH variable
+    use_local_path = False
+    if platform in ['arm64-linux', 'x86_64-linux', 'arm64-macos', 'x86_64-macos', 'arm64-ios', 'x86_64-ios']:
+        use_local_path = True
+
+        clang = run.shell_command(f'which clang++')
+        if verbose:
+            log.log(clang)
+
+        if not clang:
+            raise TestSdkException("Path not found for clang!")
+
+    clang = 'clang++'
+    sysroot = ''
+
+    if platform in ['arm64-android', 'armv7-android']:
+        clang = os.path.join(info['bintools'], info['clangname'])
+
+    elif platform in ['arm64-ios', 'x86_64-ios']:
+        sysroot = '-isysroot' + info[platform]['path']
+        arch = '-arch ' + platform.split('-')[0]
+
+    if not use_local_path:
+        if not os.path.exists(clang):
+            raise TestSdkException(f"Path not found for clang: '{clang}'")
+
+    target = _get_clang_arch_from_platform(platform)
+    if target is not None:
+        target = f'--target={target}'
+    else:
+        target = ''
+
+    cmd = f'{clang} {sysroot} {target} {arch} {srcfile} -o {exefile}'
+    return run.shell_command(cmd)
+
+def _test_compiler_clang(platform, info, can_run, verbose):
+    testdir = os.path.join(os.environ['DYNAMO_HOME'], 'sdktest')
+    testfile = os.path.join(testdir, 'hello.cpp')
+    exefile = os.path.join(testdir, 'a.out')
+    _create_hello_world(testfile)
+    output = _compile_file_clang(platform, info, testfile, exefile, verbose)
+
+    if verbose:
+        output = run.shell_command(f'file {exefile}')
+        log.log(output)
+
+    if can_run:
+        output = run.shell_command(f'{exefile}')
+        if verbose:
+            log.log(output)
+
+
+def test_sdk(platform, info, verbose=False):
+    host = get_host_platform()
+    use_clang = False
+
+    can_run = host == platform
+    if not can_run:
+        can_run = host == 'arm64-macos' and platform == 'x86_64-macos'
+
+    if platform in ['arm64-linux', 'x86_64-linux',
+                    'arm64-macos', 'x86_64-macos',
+                    'arm64-ios', 'x86_64-ios',
+                    'arm64-android', 'armv7-android']:
+        use_clang = True
+
+    try:
+        if use_clang:
+            _test_compiler_clang(platform, info, can_run, verbose)
+
+    except TestSdkException as e:
+        log.log(e)
+        return False
+
+    return True
 
 def get_toolchain_root(sdkinfo, platform):
     if platform in ('x86_64-macos','arm64-macos','x86_64-ios','arm64-ios'):
