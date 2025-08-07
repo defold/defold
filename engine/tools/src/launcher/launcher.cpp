@@ -297,12 +297,7 @@ int Launch(int argc, char **argv) {
     si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
     si.dwFlags |= STARTF_USESTDHANDLES;
 
-    DWORD dwCreationFlags = 0;
-    if (GetConsoleWindow() == NULL) {
-        dwCreationFlags = CREATE_NO_WINDOW;
-    }
-
-    BOOL ret = CreateProcessA(0, buffer, 0, 0, TRUE, dwCreationFlags, 0, 0, (LPSTARTUPINFOA)&si, &pi);
+    BOOL ret = CreateProcessA(0, buffer, 0, 0, TRUE, 0, 0, 0, (LPSTARTUPINFOA)&si, &pi);
     if (!ret) {
         char* msg;
         DWORD err = GetLastError();
@@ -313,9 +308,12 @@ int Launch(int argc, char **argv) {
     }
 
     WaitForSingleObject( pi.hProcess, INFINITE);
+    
 
     DWORD exit_code = 0;
     GetExitCodeProcess(pi.hProcess, &exit_code);
+
+    dmLogDebug("exit code = %d", exit_code);
 
     CloseHandle( pi.hProcess  );
     CloseHandle( pi.hThread  );
