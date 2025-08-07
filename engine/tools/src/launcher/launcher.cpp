@@ -297,7 +297,12 @@ int Launch(int argc, char **argv) {
     si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
     si.dwFlags |= STARTF_USESTDHANDLES;
 
-    BOOL ret = CreateProcessA(0, buffer, 0, 0, TRUE, CREATE_NO_WINDOW, 0, 0, (LPSTARTUPINFOA)&si, &pi);
+    DWORD dwCreationFlags = 0;
+    if (GetConsoleWindow() == NULL) {
+        dwCreationFlags = CREATE_NO_WINDOW;
+    }
+
+    BOOL ret = CreateProcessA(0, buffer, 0, 0, TRUE, dwCreationFlags, 0, 0, (LPSTARTUPINFOA)&si, &pi);
     if (!ret) {
         char* msg;
         DWORD err = GetLastError();
