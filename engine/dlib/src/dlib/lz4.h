@@ -18,7 +18,7 @@
 #include <stdint.h>
 #include "shared_library.h"
 
-#define DMLZ4_MAX_OUTPUT_SIZE (1LL << 31)  // 2GB limit instead of 1GB
+#define DMLZ4_MAX_OUTPUT_SIZE (1LL << 31)  // 2GB limit, build pipeline doesn't support bigger files
 
 namespace dmLZ4
 {
