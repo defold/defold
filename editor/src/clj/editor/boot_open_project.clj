@@ -223,10 +223,19 @@
                                             server-port
                                             (.getMessage e)
                                             (http-server/port server))})
-                           server)))]
-      (doto (io/file project-path ".internal" "editor-port")
-        (io/make-parents)
-        (spit (str (http-server/port web-server))))
+                           server)))
+          port-file-content (str (http-server/port web-server))
+          port-file (doto (io/file project-path ".internal" "editor.port")
+                      (io/make-parents)
+                      (spit port-file-content))]
+      (.addShutdownHook
+        (Runtime/getRuntime)
+        (Thread.
+          (fn []
+            ;; Content might change if another editor is open in the same project
+            ;; In that case, we let the other instance to clean up the file
+            (when (and (.exists port-file) (= port-file-content (slurp port-file)))
+              (.delete port-file)))))
       (.addEventFilter ^StackPane (.lookup root "#overlay") MouseEvent/ANY ui/ignore-event-filter)
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
       (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs web-server)
