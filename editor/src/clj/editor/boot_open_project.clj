@@ -59,7 +59,6 @@
             [service.smoke-log :as slog]
             [util.http-server :as http-server])
   (:import [java.io File]
-           [java.net BindException]
            [javafx.scene Node Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
            [javafx.scene.input DragEvent InputEvent KeyCombination KeyEvent MouseEvent]
@@ -214,12 +213,12 @@
           server-port (:port cli-options)
           web-server (try
                        (http-server/start! server-handler :port server-port)
-                       (catch BindException e
+                       (catch Exception e
                          (let [server (http-server/start! server-handler)]
                            (notifications/show!
                              (workspace/notifications workspace)
                              {:type :warning
-                              :text (format "Failed to start a server on port %s: %s. Using port %s instead."
+                              :text (format "Failed to start a server on port %s (%s). Using port %s instead."
                                             server-port
                                             (.getMessage e)
                                             (http-server/port server))})
