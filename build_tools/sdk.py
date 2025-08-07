@@ -851,6 +851,7 @@ def _compile_file_clang(platform, info, srcfile, exefile, verbose):
 
     clang = 'clang++'
     sysroot = ''
+    arch = ''
 
     if platform in ['arm64-android', 'armv7-android']:
         clang = os.path.join(info['bintools'], info['clangname'])
