@@ -766,6 +766,11 @@ class Configuration(object):
             print("SDK info:")
             pprint.pprint(self.sdk_info)
 
+
+        result = sdk.test_sdk(target_platform, self.sdk_info, verbose = self.verbose)
+        if not result:
+            self.fatal("Failed sdk check")
+
     def verify_sdk(self):
         was_verbose = self.verbose
         self.verbose = True
