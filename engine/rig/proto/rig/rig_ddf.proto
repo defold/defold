@@ -38,9 +38,9 @@ message Sampler
 
 message Texture
 {
-    optional string name    = 1;
-    optional uint32 index   = 2; // Index into the scene textures
-    optional string path    = 3; // Technically an Image struct
+    optional string name     = 1;
+    optional int32  index    = 2 [default = -1]; // Index into the scene textures
+    optional string path     = 3;                // Technically an Image struct
     optional Sampler sampler = 4;
 }
 

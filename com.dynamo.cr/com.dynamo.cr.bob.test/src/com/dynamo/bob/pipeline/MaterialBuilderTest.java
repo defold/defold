@@ -262,11 +262,117 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         addFile("/blue.material", "");
 
         MaterialDesc materialRed = getMessage(build("/red.material", materialRedStr), MaterialDesc.class);
-        MaterialDesc materialGreen = getMessage(build("/green.material", materialRedStr), MaterialDesc.class);
-        MaterialDesc materialBlue = getMessage(build("/blue.material", materialRedStr), MaterialDesc.class);
+        MaterialDesc materialGreen = getMessage(build("/green.material", materialGreenStr), MaterialDesc.class);
+        MaterialDesc materialBlue = getMessage(build("/blue.material", materialBlueStr), MaterialDesc.class);
 
         assertTrue(materialRed.hasProgram());
         assertEquals(materialRed.getProgram(), materialGreen.getProgram());
         assertEquals(materialGreen.getProgram(), materialBlue.getProgram());
+    }
+
+    @Test
+    public void testPbrParameters() throws Exception {
+        String vsShaderStr = """
+                #version 140
+                in highp vec4 position;
+                void main()
+                {
+                    gl_Position = position;
+                }
+                """;
+
+        String fsShaderStr = """
+                #version 140
+                struct PbrMetallicRoughness
+                {
+                	vec4 baseColorFactor;
+                	vec4 metallicAndRoughnessFactor;
+                };
+                struct PbrSpecularGlossiness
+                {
+                	vec4 diffuseFactor;
+                	vec4 specularAndSpecularGlossinessFactor;
+                };
+                struct PbrClearCoat
+                {
+                	vec4 clearCoatAndClearCoatRoughnessFactor;
+                };
+                struct PbrTransmission
+                {
+                	vec4 transmissionFactor; // R: transmission (Default=0.0)
+                };
+                struct PbrIor
+                {
+                	vec4 ior; // R: ior (Default=0.0)
+                };
+                struct PbrSpecular
+                {
+                	vec4 specularColorAndSpecularFactor; // RGB: specularColor, A: specularFactor (Default=1.0);
+                };
+                struct PbrVolume
+                {
+                	vec4 thicknessFactorAndAttenuationColor; // R: thicknessFactor (Default=0.0), RGB: attenuationColor
+                	vec4 attenuationDistance;                // R: attentuationDistance (Default=-1.0)
+                };
+                struct PbrSheen
+                {
+                	vec4 sheenColorAndRoughnessFactor; // RGB: sheenColor, A: sheenRoughnessFactor (Default=0.0)
+                };
+                struct PbrEmissiveStrength
+                {
+                	vec4 emissiveStrength; // R: emissiveStrength (Default=1.0)
+                };
+                struct PbrIridescence
+                {
+                	vec4 iridescenceFactorAndIorAndThicknessMinMax; // R: iridescenceFactor (Default=0.0), G: iridescenceIor (Default=1.3), B: iridescenceThicknessMin (Default=100.0), A: iridescenceThicknessMax (Default=400.0)
+                };
+                uniform PbrMaterial
+                {
+                    PbrMetallicRoughness pbrMetallicRoughness;
+                    PbrSpecularGlossiness pbrSpecularGlossiness;
+                    PbrClearCoat pbrClearCoat;
+                    PbrTransmission pbrTransmission;
+                    PbrIor pbrIor;
+                    PbrSpecular pbrSpecular;
+                    PbrVolume pbrVolume;
+                    PbrSheen pbrSheen;
+                    PbrEmissiveStrength pbrEmissiveStrength;
+                    PbrIridescence pbrIridescence;
+                };
+                out vec4 color_out;
+                void main()
+                {
+                    color_out = pbrMetallicRoughness.baseColorFactor + pbrSpecularGlossiness.diffuseFactor;
+                }
+                """;
+
+        Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(
+                new String[]{"/test_pbr_parameters.vp", "/test_pbr_parameters.fp"},
+                new String[]{vsShaderStr, fsShaderStr},
+                "/test_pbr_parameters_bundle.shbundle");
+        assertEquals(2, shaderDesc.getShadersCount());
+
+        String src = """
+                name: "test_pbr_parameters"
+                vertex_program: "/test_pbr_parameters.vp"
+                fragment_program: "/test_pbr_parameters.fp"
+                """;
+
+        MaterialDesc material = getMessage(build("/test_pbr_parameters_material.material", src), MaterialDesc.class);
+        assertNotNull(material);
+        assertTrue(material.hasProgram());
+
+        MaterialDesc.PbrParameters pbrParameters = material.getPbrParameters();
+        assertTrue(pbrParameters.getHasParameters());
+        assertTrue(pbrParameters.getHasMetallicRoughness());
+        assertTrue(pbrParameters.getHasSpecularGlossiness());
+        assertTrue(pbrParameters.getHasClearcoat());
+        assertTrue(pbrParameters.getHasTransmission());
+        assertTrue(pbrParameters.getHasIor());
+        assertTrue(pbrParameters.getHasSpecular());
+        assertTrue(pbrParameters.getHasVolume());
+        assertTrue(pbrParameters.getHasSheen());
+        assertTrue(pbrParameters.getHasEmissiveStrength());
+        assertTrue(pbrParameters.getHasIridescence());
     }
 }

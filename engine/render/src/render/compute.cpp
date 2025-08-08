@@ -122,14 +122,4 @@ namespace dmRender
     {
         return program->m_RenderContext;
     }
-
-    uint64_t GetProgramUserData(HComputeProgram program)
-    {
-        return program->m_UserData;
-    }
-
-    void SetProgramUserData(HComputeProgram program, uint64_t user_data)
-    {
-        program->m_UserData = user_data;
-    }
 }
