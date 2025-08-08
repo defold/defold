@@ -354,7 +354,29 @@ int Launch(int argc, char **argv) {
 #endif
 }
 
+#ifdef _WIN32
+void SetupConsole() {
+    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+        // Successfully attached to parent console
+        // Redirect stdout, stdin, stderr to console
+        freopen_s((FILE**)stdin, "CONIN$", "r", stdin);
+        freopen_s((FILE**)stdout, "CONOUT$", "w", stdout);
+        freopen_s((FILE**)stderr, "CONOUT$", "w", stderr);
+        
+        // Make cout, wcout, cin, wcin, wcerr, cerr, wclog and clog
+        // point to console as well
+        std::ios::sync_with_stdio(true);
+        
+        // Optional: Print a newline so output doesn't appear on same line as command
+        printf("\n");
+    }
+}
+#endif
+
 int main(int argc, char **argv) {
+#ifdef _WIN32
+    SetupConsole();
+#endif
     dmLogInfo("Launcher version %s", DEFOLD_SHA1);
     int ret = Launch(argc, argv);
     while (ret == 17) {
