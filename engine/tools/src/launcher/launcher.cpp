@@ -295,9 +295,10 @@ int Launch(int argc, char **argv) {
     si.cb = sizeof(STARTUPINFO);
     si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
     si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
     si.dwFlags |= STARTF_USESTDHANDLES;
 
-    BOOL ret = CreateProcessA(0, buffer, 0, 0, TRUE, 0, 0, 0, (LPSTARTUPINFOA)&si, &pi);
+    BOOL ret = CreateProcessA(0, buffer, 0, 0, TRUE, CREATE_NO_WINDOW, 0, 0, (LPSTARTUPINFOA)&si, &pi);
     if (!ret) {
         char* msg;
         DWORD err = GetLastError();
