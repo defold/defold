@@ -363,10 +363,6 @@ void SetupConsole() {
         freopen_s((FILE**)stdout, "CONOUT$", "w", stdout);
         freopen_s((FILE**)stderr, "CONOUT$", "w", stderr);
         
-        // Make cout, wcout, cin, wcin, wcerr, cerr, wclog and clog
-        // point to console as well
-        std::ios::sync_with_stdio(true);
-        
         // Optional: Print a newline so output doesn't appear on same line as command
         printf("\n");
     }
