@@ -1824,11 +1824,8 @@ def detect(conf):
             exe_suffix = '.exe'
         target_arch = build_util.get_target_architecture()
         api_version = sdkinfo['api']
-        clang_name  = getAndroidCompilerName(target_arch, api_version)
-        # NDK doesn't support arm64 yet
-        if bp_arch == 'arm64':
-            bp_arch = 'x86_64';
-        bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (sdkinfo['ndk'], bp_os, bp_arch)
+        clang_name  = sdkinfo['clangname']
+        bintools    = sdkinfo['bintools']
         bintools    = os.path.normpath(bintools)
         sep         = os.path.sep
 
