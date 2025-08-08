@@ -605,6 +605,10 @@ namespace dmResourceArchive
             dmLZ4::Result r = dmLZ4::DecompressBuffer(source_data, source_data_size, buffer, size, &decompressed_size);
             if (dmLZ4::RESULT_OK != r)
             {
+                dmLogError("LZ4 decompression failed: result=%d, expected size=%u, actual size=%d", r, size, decompressed_size);
+                if (r == dmLZ4::RESULT_OUTPUT_SIZE_TOO_LARGE) {
+                    dmLogError("Resource too large for LZ4 decompression: %u bytes exceeds maximum limit", size);
+                }
                 delete[] temp_data;
                 return dmResourceArchive::RESULT_OUTBUFFER_TOO_SMALL;
             }
