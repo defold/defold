@@ -621,7 +621,7 @@ def default_flags(self):
 
         if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
             if 'wagyu' in Options.options.enable_features:
-                wagyu_port = '%s/ext/wagyu-port/new/wagyu-port.py:stubs=true:extensions=true' % (os.environ['DYNAMO_HOME'])
+                wagyu_port = '%s/ext/wagyu-port/new/webgpu-port.py:wagyu=true' % (os.environ['DYNAMO_HOME'])
                 flags += ['--use-port=%s' % wagyu_port]
                 linkflags += ['--use-port=%s' % wagyu_port]
                 self.env.append_value('DEFINES', ['DM_GRAPHICS_WEBGPU_WAGYU'])
