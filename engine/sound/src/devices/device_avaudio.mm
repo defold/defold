@@ -25,9 +25,9 @@
 #import <TargetConditionals.h>
 #import <AVFoundation/AVFoundation.h>
 
-namespace dmDeviceAVFAudio
+namespace dmDeviceAVAudio
 {
-    struct AVFAudioDevice
+    struct AVAudioDevice
     {
         AVAudioEngine*              m_Engine;
         AVAudioPlayerNode*          m_Player;
@@ -44,20 +44,20 @@ namespace dmDeviceAVFAudio
 #endif
         bool                        m_PendingReconfigure;
 
-        AVFAudioDevice()
+        AVAudioDevice()
         : m_Engine(nil)
         , m_Player(nil)
         , m_Format(nil)
         , m_MixRate(0)
         , m_FramesPerBuffer(0)
         , m_Started(false)
+        , m_Mutex(0)
+        , m_EngineConfigObserver(nil)
+        , m_PendingReconfigure(false)
         {
-            m_Mutex = 0;
-            m_EngineConfigObserver = nil;
 #if TARGET_OS_IPHONE
             m_SessionRouteObserver = nil;
 #endif
-            m_PendingReconfigure = false;
         }
     };
 
@@ -83,7 +83,7 @@ namespace dmDeviceAVFAudio
         return (uint32_t)sr;
     }
 
-    static void DeviceAVFAudioReconfigureIfNeeded(AVFAudioDevice* device)
+    static void DeviceAVAudioReconfigureIfNeeded(AVAudioDevice* device)
     {
         if (!device->m_PendingReconfigure)
             return;
@@ -122,7 +122,7 @@ namespace dmDeviceAVFAudio
         device->m_Started = true;
     }
 
-    static void ReturnBufferToPool(AVFAudioDevice* device, AVAudioPCMBuffer* buffer)
+    static void ReturnBufferToPool(AVAudioDevice* device, AVAudioPCMBuffer* buffer)
     {
         dmMutex::ScopedLock lock(device->m_Mutex);
         // Avoid overfilling in case of late completion callbacks during resets/route changes
@@ -132,12 +132,12 @@ namespace dmDeviceAVFAudio
         }
     }
 
-    static dmSound::Result DeviceAVFAudioOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* out_device)
+    static dmSound::Result DeviceAVAudioOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* out_device)
     {
         assert(params);
         assert(out_device);
 
-        AVFAudioDevice* device = new AVFAudioDevice();
+        AVAudioDevice* device = new AVAudioDevice();
 
         device->m_Engine = [[AVAudioEngine alloc] init];
         device->m_Player = [[AVAudioPlayerNode alloc] init];
@@ -166,7 +166,7 @@ namespace dmDeviceAVFAudio
         device->m_Player.renderingAlgorithm = AVAudio3DMixingRenderingAlgorithmEqualPowerPanning;
 
         // Observe engine configuration changes
-        __block AVFAudioDevice* bdev_cfg = device;
+        __block AVAudioDevice* bdev_cfg = device;
         device->m_EngineConfigObserver = [[NSNotificationCenter defaultCenter]
             addObserverForName:AVAudioEngineConfigurationChangeNotification
             object:device->m_Engine
@@ -177,7 +177,7 @@ namespace dmDeviceAVFAudio
 
 #if TARGET_OS_IPHONE
         // Observe route changes on iOS in case engine isn't emitting config change
-        __block AVFAudioDevice* bdev_route = device;
+        __block AVAudioDevice* bdev_route = device;
         device->m_SessionRouteObserver = [[NSNotificationCenter defaultCenter]
             addObserverForName:AVAudioSessionRouteChangeNotification
             object:[AVAudioSession sharedInstance]
@@ -204,9 +204,9 @@ namespace dmDeviceAVFAudio
         return dmSound::RESULT_OK;
     }
 
-    static void DeviceAVFAudioClose(dmSound::HDevice _device)
+    static void DeviceAVAudioClose(dmSound::HDevice _device)
     {
-        AVFAudioDevice* device = (AVFAudioDevice*)_device;
+        AVAudioDevice* device = (AVAudioDevice*)_device;
 
         if (device->m_Started)
         {
@@ -248,13 +248,13 @@ namespace dmDeviceAVFAudio
         delete device;
     }
 
-    static dmSound::Result DeviceAVFAudioQueue(dmSound::HDevice _device, const void* samples, uint32_t frame_count)
+    static dmSound::Result DeviceAVAudioQueue(dmSound::HDevice _device, const void* samples, uint32_t frame_count)
     {
         assert(_device);
-        AVFAudioDevice* device = (AVFAudioDevice*)_device;
+        AVAudioDevice* device = (AVAudioDevice*)_device;
 
         // If a route/config change happened, reconfigure immediately and drop any leftover audio
-        DeviceAVFAudioReconfigureIfNeeded(device);
+        DeviceAVAudioReconfigureIfNeeded(device);
 
         if (frame_count > device->m_FramesPerBuffer)
         {
@@ -288,7 +288,7 @@ namespace dmDeviceAVFAudio
         }
 
         // Schedule and recycle buffer on completion
-        __block AVFAudioDevice* bdev = device;
+        __block AVAudioDevice* bdev = device;
         AVAudioNodeCompletionHandler handler = ^{
             ReturnBufferToPool(bdev, buffer);
         };
@@ -298,22 +298,22 @@ namespace dmDeviceAVFAudio
         return dmSound::RESULT_OK;
     }
 
-    static uint32_t DeviceAVFAudioFreeBufferSlots(dmSound::HDevice _device)
+    static uint32_t DeviceAVAudioFreeBufferSlots(dmSound::HDevice _device)
     {
         assert(_device);
-        AVFAudioDevice* device = (AVFAudioDevice*)_device;
+        AVAudioDevice* device = (AVAudioDevice*)_device;
         // Apply pending reconfigure here as well, so the engine can resume pushing buffers
-        DeviceAVFAudioReconfigureIfNeeded(device);
+        DeviceAVAudioReconfigureIfNeeded(device);
         dmMutex::ScopedLock lock(device->m_Mutex);
         return device->m_FreeBuffers.Size();
     }
 
 
-    static void DeviceAVFAudioDeviceInfo(dmSound::HDevice _device, dmSound::DeviceInfo* info)
+    static void DeviceAVAudioDeviceInfo(dmSound::HDevice _device, dmSound::DeviceInfo* info)
     {
         assert(_device);
         assert(info);
-        AVFAudioDevice* device = (AVFAudioDevice*)_device;
+        AVAudioDevice* device = (AVAudioDevice*)_device;
         info->m_MixRate = device->m_MixRate;
         info->m_FrameCount = device->m_FramesPerBuffer;
         info->m_DSPImplementation = dmSound::DSPIMPL_TYPE_CPU;
@@ -322,12 +322,12 @@ namespace dmDeviceAVFAudio
         info->m_UseNormalized = 0;
     }
 
-    static void DeviceAVFAudioStart(dmSound::HDevice _device)
+    static void DeviceAVAudioStart(dmSound::HDevice _device)
     {
         assert(_device);
-        AVFAudioDevice* device = (AVFAudioDevice*)_device;
+        AVAudioDevice* device = (AVAudioDevice*)_device;
         // Handle any pending route/config change before starting playback
-        DeviceAVFAudioReconfigureIfNeeded(device);
+        DeviceAVAudioReconfigureIfNeeded(device);
         if (!device->m_Started)
         {
             NSError* error = nil;
@@ -341,10 +341,10 @@ namespace dmDeviceAVFAudio
         }
     }
 
-    static void DeviceAVFAudioStop(dmSound::HDevice _device)
+    static void DeviceAVAudioStop(dmSound::HDevice _device)
     {
         assert(_device);
-        AVFAudioDevice* device = (AVFAudioDevice*)_device;
+        AVAudioDevice* device = (AVAudioDevice*)_device;
         if (device->m_Started)
         {
             // Allow queued audio to finish similar to OpenAL stop behavior
@@ -371,14 +371,13 @@ namespace dmDeviceAVFAudio
     }
 
     DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default",
-                            DeviceAVFAudioOpen,
-                            DeviceAVFAudioClose,
-                            DeviceAVFAudioQueue,
-                            DeviceAVFAudioFreeBufferSlots,
+                            DeviceAVAudioOpen,
+                            DeviceAVAudioClose,
+                            DeviceAVAudioQueue,
+                            DeviceAVAudioFreeBufferSlots,
                             0,
-                            DeviceAVFAudioDeviceInfo,
-                            DeviceAVFAudioStart,
-                            DeviceAVFAudioStop);
+                            DeviceAVAudioDeviceInfo,
+                            DeviceAVAudioStart,
+                            DeviceAVAudioStop);
 }
-
 
