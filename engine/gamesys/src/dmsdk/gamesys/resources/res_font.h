@@ -142,38 +142,23 @@ namespace dmGameSystem
      */
     dmResource::Result ResFontAddGlyph(FontResource* font, HFont hfont, FontGlyph* glyph);
 
-    /*#
-     * @name ResFontRemoveGlyph
-     * @param font [type: FontResource*] The font resource
-     * @param hfont [type: HFont] The font the glyh was created from
-     * @param glyph_index [type: uint32_t] The glyph index
-     * @return result [type: dmResource::Result] RESULT_OK if successful
-     */
-    dmResource::Result ResFontRemoveGlyph(FontResource* font, HFont hfont, uint32_t glyph_index);
-
-    /*# add a new glyph range
-     * Add a new glyph range
-     * @name ResFontAddGlyphSource
+    /*# add a ttf font to a font collection
+     * @name ResFontAddFont
      * @param factory [type: dmResource::HFactory] The factory
-     * @param fontc_hash [type: dmhash_t] The font path hash (.fontc)
-     * @param ttf_hash [type: dmhash_t] The ttf  path hash (.ttf)
-     * @param codepoint_min [type: uint32_t] The glyph minimum codepoint (inclusive)
-     * @param codepoint_max [type: uint32_t] The glyph maximum codepoint (inclusive)
-     * @return result [type: dmResource::Result] RESULT_OK if successful
-     */
-    dmResource::Result ResFontAddGlyphSource(dmResource::HFactory factory, dmhash_t fontc_hash, dmhash_t ttf_hash, uint32_t codepoint_min, uint32_t codepoint_max);
-
-
-    /*# removes all glyph ranges associated with a ttfresource
-     * Removes all glyph ranges associated with a ttfresource
-     *
-     * @name ResFontRemoveGlyphSource
-     * @param factory [type: dmResource::HFactory] The factory
-     * @param fontc_hash [type: dmhash_t] The font path hash (.fontc)
+     * @param font [type: FontResource*] The font collection (.fontc)
      * @param ttf_hash [type: dmhash_t] The ttf  path hash (.ttf)
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
-    dmResource::Result ResFontRemoveGlyphSource(dmResource::HFactory factory, dmhash_t fontc_hash, dmhash_t ttf_hash);
+    dmResource::Result ResFontAddFont(dmResource::HFactory factory, FontResource* font, dmhash_t ttf_hash);
+
+    /*# remove a ttf font from a font collection
+     * @name ResFontRemoveFont
+     * @param factory [type: dmResource::HFactory] The factory
+     * @param font [type: FontResource*] The font collection (.fontc)
+     * @param ttf_hash [type: dmhash_t] The ttf  path hash (.ttf)
+     * @return result [type: dmResource::Result] RESULT_OK if successful
+     */
+    dmResource::Result ResFontRemoveFont(dmResource::HFactory factory, FontResource* font, dmhash_t ttf_hash);
 }
 
 #endif // DMSDK_GAMESYS_RES_FONT_H

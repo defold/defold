@@ -47,7 +47,8 @@ namespace dmGameSystem
         uint8_t                 m_Prewarming:1;         // If true, it is currently waiting for glyphs to be prewamed (dynamic fonts only)
         uint8_t                 m_PrewarmDone:1;
 
-        dmHashTable32<TTFResource*> m_TTFResources;  // Maps HFont path hash to a resource
+        dmHashTable64<TTFResource*> m_TTFResources;  // Maps path hash to a resource
+        dmHashTable32<uint64_t>     m_FontHashes;    // Maps HFont path hash to a resource
 
         FontResource();
 

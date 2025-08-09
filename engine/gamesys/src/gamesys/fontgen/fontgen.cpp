@@ -143,7 +143,7 @@ static int JobGenerateGlyph(void* context, void* data)
     memset(item->m_Glyph, 0, sizeof(FontGlyph));
 
     dmGameSystem::TTFResource* ttfresource = item->m_TTFResource;
-    HFont font = dmGameSystem::GetFont(ttfresource);
+    HFont font = item->m_Font;
 
     FontGlyphOptions options;
     options.m_Scale = item->m_Scale;

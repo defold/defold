@@ -60,6 +60,14 @@ void FontCollectionDestroy(HFontCollection coll);
  */
 FontResult FontCollectionAddFont(HFontCollection coll, HFont font);
 
+/*# remove a font from the font collection
+ * @name FontCollectionRemoveFont
+ * @param coll [type: HFontCollection] the font collection
+ * @param font [type: HFont] the font
+ * @return result [type: FontResult] the result. FONT_RESULT_OK if successful
+ */
+FontResult FontCollectionRemoveFont(HFontCollection coll, HFont font);
+
 /*# return number of fonts in the collection
  * @function
  * @name FontCollectionGetFontCount

@@ -28,7 +28,7 @@ struct FontCollection
     TextLayoutType m_LayoutType;
 
 #if defined(FONT_USE_SKRIBIDI)
-    skb_font_collection_t*  m_Collection;
+    skb_font_collection_t* m_Collection;
     dmHashTable<skb_font_handle_t, HFont> m_FontLookup;
 #endif
 };
@@ -89,6 +89,31 @@ FontResult FontCollectionAddFont(HFontCollection coll, HFont hfont)
 #else
     return FONT_RESULT_OK;
 #endif
+}
+
+FontResult FontCollectionRemoveFont(HFontCollection coll, HFont hfont)
+{
+    for (uint32_t i = 0; i < coll->m_Fonts.Size(); ++i)
+    {
+        if (coll->m_Fonts[i] == hfont)
+        {
+            coll->m_Fonts.EraseSwap(i);
+            break;
+        }
+    }
+
+#if defined(FONT_USE_SKRIBIDI)
+     dmHashTable<skb_font_handle_t, HFont>::Iterator iter = coll->m_FontLookup.GetIterator();
+     while(iter.Next())
+     {
+        if (iter.GetValue() == hfont)
+        {
+            skb_font_collection_remove_font(coll->m_Collection, iter.GetKey());
+            break;
+        }
+     }
+#endif
+    return FONT_RESULT_OK;
 }
 
 TextLayoutType FontCollectionGetLayoutType(HFontCollection coll)

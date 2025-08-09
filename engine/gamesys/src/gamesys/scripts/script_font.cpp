@@ -37,66 +37,92 @@ struct CallbackContext
     int                        m_Request;
 };
 
-// TODO: Determine more about our actual use case!
-// /*#
-//  * Adds a ttf resource to a .fontc file
-//  *
-//  * @name font.add_source
-//  * @param fontc [type:string|hash] The path to the .fontc resource
-//  * @param ttf [type:string|hash] The path to the .ttf resource
-//  * @param codepoint_min [type:number] The minimum codepoint range (inclusive)
-//  * @param codepoint_max [type:number] The maximum codepoint range (inclusive)
-//  *
-//  * @examples
-//  *
-//  * ```lua
-//  * local font_hash = hash("/assets/fonts/roboto.fontc")
-//  * local ttf_hash = hash("/assets/fonts/Roboto/Roboto-Bold.ttf")
-//  * local codepoint_min = 0x00000041 -- A
-//  * local codepoint_max = 0x0000005A -- Z
-//  * font.add_source(font_hash, ttf_hash, codepoint_min, codepoint_max)
-//  * ```
-//  */
-// static int AddSource(lua_State* L)
-// {
-//     DM_LUA_STACK_CHECK(L, 0);
 
-//     dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
-//     dmhash_t ttf_path_hash = dmScript::CheckHashOrString(L, 2);
-//     int codepoint_min = luaL_checkinteger(L, 3);
-//     int codepoint_max = luaL_checkinteger(L, 4);
+/*#
+ * associates a ttf resource to a .fontc file.
+ * @note The reference count will increase for the .ttf font
+ *
+ * @name font.add_font
+ * @param fontc [type:string|hash] The path to the .fontc resource
+ * @param ttf [type:string|hash] The path to the .ttf resource
+ * @param codepoint_min [type:number] The minimum codepoint range (inclusive)
+ * @param codepoint_max [type:number] The maximum codepoint range (inclusive)
+ *
+ * @examples
+ *
+ * ```lua
+ * local font_hash = hash("/assets/fonts/roboto.fontc")
+ * local ttf_hash = hash("/assets/fonts/Roboto/Roboto-Bold.ttf")
+ * font.add_font(font_hash, ttf_hash)
+ * ```
+ */
+static int AddFont(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
 
-//     dmResource::Result r = dmGameSystem::ResFontAddGlyphSource(g_ResourceFactory, fontc_path_hash, ttf_path_hash, codepoint_min, codepoint_max);
-//     if (dmResource::RESULT_OK != r)
-//     {
-//         return DM_LUA_ERROR("Failed to add glyph source '%s' for font '%s'", dmHashReverseSafe64(ttf_path_hash), dmHashReverseSafe64(fontc_path_hash));
-//     }
+    dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
+    dmhash_t ttf_path_hash = dmScript::CheckHashOrString(L, 2);
 
-//     return 0;
-// }
+    dmGameSystem::FontResource* resource;
+    dmResource::Result r = dmResource::Get(g_ResourceFactory, fontc_path_hash, (void**)&resource);
+    if (dmResource::RESULT_OK != r)
+    {
+        return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
+    }
 
-// /*#
-//  * Removes the .ttf resource from a .fontc file
-//  * Removes all ranges associated with the .ttf resource
-//  *
-//  * @name font.add_source
-//  * @param fontc [type:string|hash] The path to the .fontc resource
-//  * @param ttf [type:string|hash] The path to the .ttf resource
-//  */
-// static int RemoveSource(lua_State* L)
-// {
-//     DM_LUA_STACK_CHECK(L, 0);
+    r = dmGameSystem::ResFontAddFont(g_ResourceFactory, resource, ttf_path_hash);
+    dmResource::Release(g_ResourceFactory, resource);
 
-//     dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
-//     dmhash_t ttf_path_hash = dmScript::CheckHashOrString(L, 2);
+    if (dmResource::RESULT_OK != r)
+    {
+        return DM_LUA_ERROR("Failed to add font '%s' to font collection '%s'", dmHashReverseSafe64(ttf_path_hash), dmHashReverseSafe64(fontc_path_hash));
+    }
 
-//     dmResource::Result r = dmGameSystem::ResFontRemoveGlyphSource(g_ResourceFactory, fontc_path_hash, ttf_path_hash);
-//     if (dmResource::RESULT_OK != r)
-//     {
-//         return DM_LUA_ERROR("Failed to remove glyph source '%s' from font '%s'", dmHashReverseSafe64(ttf_path_hash), dmHashReverseSafe64(fontc_path_hash));
-//     }
-//     return 0;
-// }
+    return 0;
+}
+
+/*#
+ * associates a ttf resource to a .fontc file
+ * @note The reference count will decrease for the .ttf font
+ *
+ * @name font.remove_font
+ * @param fontc [type:string|hash] The path to the .fontc resource
+ * @param ttf [type:string|hash] The path to the .ttf resource
+ * @param codepoint_min [type:number] The minimum codepoint range (inclusive)
+ * @param codepoint_max [type:number] The maximum codepoint range (inclusive)
+ *
+ * @examples
+ *
+ * ```lua
+ * local font_hash = hash("/assets/fonts/roboto.fontc")
+ * local ttf_hash = hash("/assets/fonts/Roboto/Roboto-Bold.ttf")
+ * font.add_font(font_hash, ttf_hash)
+ * ```
+ */
+static int RemoveFont(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
+    dmhash_t ttf_path_hash = dmScript::CheckHashOrString(L, 2);
+
+    dmGameSystem::FontResource* resource;
+    dmResource::Result r = dmResource::Get(g_ResourceFactory, fontc_path_hash, (void**)&resource);
+    if (dmResource::RESULT_OK != r)
+    {
+        return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
+    }
+
+    r = dmGameSystem::ResFontRemoveFont(g_ResourceFactory, resource, ttf_path_hash);
+    dmResource::Release(g_ResourceFactory, resource);
+
+    if (dmResource::RESULT_OK != r)
+    {
+        return DM_LUA_ERROR("Failed to add font '%s' to font collection '%s'", dmHashReverseSafe64(ttf_path_hash), dmHashReverseSafe64(fontc_path_hash));
+    }
+
+    return 0;
+}
 
 static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
 {
@@ -124,52 +150,21 @@ static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
     delete ctx;
 }
 
-/*# adds more glyphs to a .fontc resource
- * Asynchronoously adds more glyphs to a .fontc resource
+
+/*#
+ * prepopulates the font glyph cache with rasterised glyphs
  *
- * @note The generated glyph bitmaps are stored in memory, for easy transition into the glyph cache texture.
- * You can call `font.remove_glyphs()` to remove them from memory.
- *
- * @note A glyph residing in the glyph cache will stay there until it's evicted.
- * It will not be removed from the glyph cache by removing the loaded glyphs from the .fontc resource.
- *
- * @name font.add_glyphs
- *
- * @param path [type:string|hash] The path to the .fontc resource
- * @param text [type:string] A string with unique unicode characters to be loaded
- * @param [callback] [type:function(self, request_id, result, errstring)] (optional) A callback function that is called after the request is finished
- *
- * `self`
- * : [type:object] The current object.
- *
- * `request_id`
- * : [type:number] The request id
- *
- * `result`
- * : [type:boolean] True if request was succesful
- *
- * `errstring`
- * : [type:string] `nil` if the request was successful
- *
- * @return request_id [type:number] Returns the asynchronous request id
+ * @name font.prewarm_text
+ * @param fontc [type:string|hash] The path to the .fontc resource
+ * @param text [type:string] The text to layout
  *
  * @examples
  *
  * ```lua
- * -- Add glyphs
- * local requestid = font.add_glyphs("/path/to/my.fontc", "abcABC123", function (self, request, result, errstring)
- *         -- make a note that all the glyphs are loaded
- *         -- and we're ready to present the text
- *         self.dialog_text_ready = true
- *     end)
- * ```
- *
- * ```lua
- * -- Remove glyphs
- * local requestid = font.remove_glyphs("/path/to/my.fontc", "abcABC123")
+ * local font_hash = hash("/assets/fonts/roboto.fontc")
+ * font.prewarm_text(font_hash, "Some text")
  * ```
  */
-
 static int PrewarmText(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
@@ -216,48 +211,12 @@ static int PrewarmText(lua_State* L)
     return 1;
 }
 
-// /*# removes glyphs from the font
-//  * Removes glyphs from the font
-//  *
-//  * @name font.remove_glyphs
-//  * @param path [type:string|hash] The path to the .fontc resource
-//  * @param text [type:string] A string with unique unicode characters to be removed
-//  */
-// static int RemoveGlyphs(lua_State* L)
-// {
-//     DM_LUA_STACK_CHECK(L, 0);
-
-//     dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
-//     const char* text = luaL_checkstring(L, 2);
-
-//     dmGameSystem::FontResource* resource;
-//     dmResource::Result r = dmResource::Get(g_ResourceFactory, fontc_path_hash, (void**)&resource);
-//     if (dmResource::RESULT_OK != r)
-//     {
-//         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
-//     }
-
-//     if (!dmGameSystem::FontGenRemoveGlyphs(resource, text))
-//     {
-//         dmResource::Release(g_ResourceFactory, resource);
-//         return DM_LUA_ERROR("Failed to remove glyphs from font %s", dmHashReverseSafe64(fontc_path_hash));
-//     }
-
-//     dmResource::Release(g_ResourceFactory, resource);
-//     return 0;
-// }
-
 // Functions exposed to Lua
 static const luaL_reg Module_methods[] =
 {
+    {"add_font", AddFont},
+    {"remove_font", RemoveFont},
     {"prewarm_text", PrewarmText},
-    // {"add_font", AddFont},
-    // {"remove_font", RemoveFont},
-
-    // {"add_source", AddSource},
-    // {"remove_source", RemoveSource},
-    // {"add_glyphs", AddGlyphs},
-    // {"remove_glyphs", RemoveGlyphs},
     {0, 0}
 };
 
