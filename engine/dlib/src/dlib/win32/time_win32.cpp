@@ -46,6 +46,7 @@ namespace dmTime
     }
 
     static uint64_t frequency = 0;
+    static double microseconds_per_tick = 0.0;
 
     uint64_t GetMonotonicTime()
     {
@@ -53,9 +54,11 @@ namespace dmTime
             LARGE_INTEGER freq;
             QueryPerformanceFrequency(&freq);
             frequency = freq.QuadPart;
+            microseconds_per_tick = 1000000.0 / (double)frequency;
         }
         LARGE_INTEGER counter;
         QueryPerformanceCounter(&counter);
-        return (uint64_t)counter.QuadPart * 1000000ULL / frequency;
+        
+        return (uint64_t)((double)counter.QuadPart * microseconds_per_tick + 0.5);
     }
 }
