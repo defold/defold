@@ -541,7 +541,7 @@
         (< time-diff db-click-threshold)
         (do
           (cancel-rename! tree-view)
-          (ui/run-command (.getSource event) :file.open-selected))
+          (ui/run-command (.getSource event) :file.open-selected {} false (fn [] (.consume event))))
 
         (= (get-selected-node-id tree-view)
            (ui/user-data text-label ::node-id))
