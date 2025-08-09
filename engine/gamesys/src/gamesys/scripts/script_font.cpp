@@ -98,7 +98,7 @@ struct CallbackContext
 //     return 0;
 // }
 
-static void AddGlyphsCallback(void* _ctx, int result, const char* errmsg)
+static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
 {
     CallbackContext* ctx = (CallbackContext*)_ctx;
     dmScript::LuaCallbackInfo* cbk = ctx->m_Callback;
@@ -170,7 +170,7 @@ static void AddGlyphsCallback(void* _ctx, int result, const char* errmsg)
  * ```
  */
 
-static int AddGlyphs(lua_State* L)
+static int PrewarmText(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
     int top = lua_gettop(L);
@@ -191,7 +191,7 @@ static int AddGlyphs(lua_State* L)
     CallbackContext* cbk_ctx = 0;
     if (luacbk)
     {
-        callback = AddGlyphsCallback;
+        callback = PrewarmTextCallback;
         cbk_ctx = new CallbackContext;
         cbk_ctx->m_Callback  = luacbk;
         cbk_ctx->m_Request = request_id;
@@ -204,7 +204,8 @@ static int AddGlyphs(lua_State* L)
         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
     }
 
-    if (!dmGameSystem::FontGenAddGlyphs(resource, text, false, callback, cbk_ctx))
+    r = dmGameSystem::ResFontPrewarmText(resource, text, false, callback, cbk_ctx);
+    if (dmResource::RESULT_OK != r)
     {
         dmResource::Release(g_ResourceFactory, resource);
         return DM_LUA_ERROR("Failed to add glyphs to font %s", dmHashReverseSafe64(fontc_path_hash));
@@ -215,45 +216,48 @@ static int AddGlyphs(lua_State* L)
     return 1;
 }
 
-/*# removes glyphs from the font
- * Removes glyphs from the font
- *
- * @name font.remove_glyphs
- * @param path [type:string|hash] The path to the .fontc resource
- * @param text [type:string] A string with unique unicode characters to be removed
- */
-static int RemoveGlyphs(lua_State* L)
-{
-    DM_LUA_STACK_CHECK(L, 0);
+// /*# removes glyphs from the font
+//  * Removes glyphs from the font
+//  *
+//  * @name font.remove_glyphs
+//  * @param path [type:string|hash] The path to the .fontc resource
+//  * @param text [type:string] A string with unique unicode characters to be removed
+//  */
+// static int RemoveGlyphs(lua_State* L)
+// {
+//     DM_LUA_STACK_CHECK(L, 0);
 
-    dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
-    const char* text = luaL_checkstring(L, 2);
+//     dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
+//     const char* text = luaL_checkstring(L, 2);
 
-    dmGameSystem::FontResource* resource;
-    dmResource::Result r = dmResource::Get(g_ResourceFactory, fontc_path_hash, (void**)&resource);
-    if (dmResource::RESULT_OK != r)
-    {
-        return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
-    }
+//     dmGameSystem::FontResource* resource;
+//     dmResource::Result r = dmResource::Get(g_ResourceFactory, fontc_path_hash, (void**)&resource);
+//     if (dmResource::RESULT_OK != r)
+//     {
+//         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
+//     }
 
-    if (!dmGameSystem::FontGenRemoveGlyphs(resource, text))
-    {
-        dmResource::Release(g_ResourceFactory, resource);
-        return DM_LUA_ERROR("Failed to remove glyphs from font %s", dmHashReverseSafe64(fontc_path_hash));
-    }
+//     if (!dmGameSystem::FontGenRemoveGlyphs(resource, text))
+//     {
+//         dmResource::Release(g_ResourceFactory, resource);
+//         return DM_LUA_ERROR("Failed to remove glyphs from font %s", dmHashReverseSafe64(fontc_path_hash));
+//     }
 
-    dmResource::Release(g_ResourceFactory, resource);
-    return 0;
-}
+//     dmResource::Release(g_ResourceFactory, resource);
+//     return 0;
+// }
 
 // Functions exposed to Lua
 static const luaL_reg Module_methods[] =
 {
+    {"prewarm_text", PrewarmText},
+    // {"add_font", AddFont},
+    // {"remove_font", RemoveFont},
+
     // {"add_source", AddSource},
     // {"remove_source", RemoveSource},
-
-    {"add_glyphs", AddGlyphs},
-    {"remove_glyphs", RemoveGlyphs},
+    // {"add_glyphs", AddGlyphs},
+    // {"remove_glyphs", RemoveGlyphs},
     {0, 0}
 };
 

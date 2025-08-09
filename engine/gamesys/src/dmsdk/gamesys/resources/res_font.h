@@ -19,6 +19,7 @@
 #include <render/font_ddf.h>
 #include <dmsdk/font/font.h>
 #include <dmsdk/render/render.h>
+#include <gamesys/fontgen/fontgen.h> // FGlyphCallback
 
 namespace dmGameSystem
 {
@@ -86,28 +87,32 @@ namespace dmGameSystem
     dmRender::HFontMap ResFontGetHandle(FontResource* font);
 
     /*#
-     * @name ResFontGetTTFResourceFromCodepoint
-     * @param font [type: FontResource*] The font resource
-     * @param codepoint [type: uint32_t] The codepoint to query
-     * @return ttfresource [type: TTFResource*] The ttfresource if successful. 0 otherwise.
+     * @name FPrewarmTextCallback
+     * @typedef
+     * @param ctx [type: void*] The callback context
+     * @param result [type: int] The result of the prewarming. Non zero if successful
+     * @param errmsg [type: const char*] An error message if not successful.
      */
-    TTFResource* ResFontGetTTFResourceFromCodepoint(FontResource* resource, uint32_t codepoint);
+    typedef FGlyphCallback FPrewarmTextCallback; // from fontgen.h
+
+    /*# Make sure each glyph in the text gets rasterized and put into the glyph cache
+     * @name PrewarmText
+     * @param font [type: FontResource*] The font resource
+     * @param text [type: const char*] The text (utf8)
+     * @param loading [type: bool] Are we currently in the resource loading phase?
+     * @param cbk [type: FPrewarmTextCallback] The callback is called when the last item is done
+     * @param cbk_ctx [type: void*] The callback context
+     * @return result [type: dmResource::Result] RESULT_OK if successful
+     */
+    dmResource::Result ResFontPrewarmText(FontResource* font, const char* text, bool loading, FPrewarmTextCallback cbk, void* cbk_ctx);
 
     /*#
-     * @name ResFontGetTTFResourceFromCodepoint
-     * @param font [type: FontResource*] The font resource
-     * @param codepoint [type: uint32_t] The codepoint to query
+     * @name ResFontGetTTFResourceFromFont
+     * @param resource [type: FontResource*] The font resource
+     * @param font [type: HFont] The font
      * @return ttfresource [type: TTFResource*] The ttfresource if successful. 0 otherwise.
      */
-    TTFResource* ResFontGetTTFResourceFromGlyphIndex(FontResource* resource, uint32_t glyph_index);
-
-    /*#
-     * @name ResFontGetTTFResourceFromCodepoint
-     * @param font [type: FontResource*] The font resource
-     * @param codepoint [type: uint32_t] The codepoint to query
-     * @return ttfresource [type: TTFResource*] The ttfresource if successful. 0 otherwise.
-     */
-    TTFResource* ResFontGetTTFResourceFromCodepoint(FontResource* resource, uint32_t codepoint);
+    TTFResource* ResFontGetTTFResourceFromFont(FontResource* resource, HFont font);
 
     /*#
      * @name ResFontGetInfo
@@ -118,6 +123,15 @@ namespace dmGameSystem
     dmResource::Result ResFontGetInfo(FontResource* font, FontInfo* info);
 
     // FontGen API
+
+    /*#
+     * @name ResFontAddGlyph
+     * @param font [type: FontResource*] The font resource
+     * @param hfont [type: HFont] The font the glyh was created from
+     * @param glyph_index [type: uint32_t] The glyph iundex
+     * @return result [type: bool] true if the glyph already has rasterized bitmap data
+     */
+    bool ResFontIsGlyphIndexCached(FontResource* font, HFont hfont, uint32_t glyph_index);
 
     /*#
      * @name ResFontAddGlyph

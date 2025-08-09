@@ -31,13 +31,6 @@ namespace dmGameSystem
     struct MaterialResource;
     struct GlyphBankResource;
 
-    struct GlyphRange
-    {
-        TTFResource*           m_TTFResource;
-        uint32_t               m_RangeStart;    // The code point range start (inclusive)
-        uint32_t               m_RangeEnd;      // The code point range end (inclusive)
-    };
-
     struct FontResource
     {
         dmRenderDDF::FontMap*   m_DDF;
@@ -55,8 +48,6 @@ namespace dmGameSystem
         uint8_t                 m_PrewarmDone:1;
 
         dmHashTable32<TTFResource*> m_TTFResources;  // Maps HFont path hash to a resource
-
-        dmArray<GlyphRange>                             m_Ranges;
 
         FontResource();
 
