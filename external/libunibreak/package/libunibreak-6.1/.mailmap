@@ -1,0 +1,10 @@
+# This cleans up all kind of different spellings, typos and different email
+# addresses for commit authors. It makes git shortlog statistics more meaningful
+#
+# More people can be added following this format:
+# Proper Name <proper@email.xx> Commit Name <commit@email.xx>
+
+Tom Hacohen <tom@stosb.com> Tom 'TAsn' Hacohen <tom@stosb.com>
+Tom Hacohen <tom@stosb.com> tasn <tom@stosb.com>
+Wu Yongwei <wuyongwei@gmail.com> adah <adah>
+Wu Yongwei <wuyongwei@gmail.com> Yongwei Wu <wuyongwei@gmail.com>

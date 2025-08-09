@@ -18,9 +18,12 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/extension/extension.h>
 
+struct TextGlyph; // font/text_layout.h
+
 namespace dmGameSystem
 {
     struct FontResource;
+    struct TTFResource;
 
     dmExtension::Result FontGenInitialize(dmExtension::Params* params);
     dmExtension::Result FontGenFinalize(dmExtension::Params* params);
@@ -29,10 +32,10 @@ namespace dmGameSystem
     float FontGenGetBasePadding(); // E.g. 3
     float FontGenGetEdgeValue(); // [0 .. 255]
 
-    // Scripting
+    // Resource api
     typedef void (*FGlyphCallback)(void* cbk_ctx, int result, const char* errmsg);
-    bool FontGenAddGlyphs(FontResource* resource, const char* text, bool loading, FGlyphCallback cbk, void* cbk_ctx);
-    bool FontGenRemoveGlyphs(FontResource* resource, const char* text);
+    bool FontGenAddGlyphByIndex(FontResource* fontresource, TTFResource* ttfresource, uint32_t glyph_index, bool loading, FGlyphCallback cbk, void* cbk_ctx);
+    bool FontGenAddGlyphs(FontResource* fontresource, TextGlyph* glyphs, uint32_t num_glyphs, bool loading, FGlyphCallback cbk, void* cbk_ctx);
 
     // If we're busy waiting for created glyphs
     void FontGenFlushFinishedJobs(uint64_t timeout);
