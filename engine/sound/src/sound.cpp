@@ -746,7 +746,13 @@ namespace dmSound
 
             dmSoundCodec::Result r = dmSoundCodec::NewDecoder(ss->m_CodecContext, codec_format, sound_data, &decoder);
             if (r != dmSoundCodec::RESULT_OK) {
-                dmLogError("Failed to decode sound %s: (%d)", dmHashReverseSafe64(sound_data->m_NameHash), r);
+                if (r == dmSoundCodec::RESULT_UNSUPPORTED) {
+                    const char* name = dmHashReverseSafe64(sound_data->m_NameHash);
+                    const char* format_str = dmSoundCodec::FormatToString(codec_format);
+                    dmLogWarning("Sound '%s' uses %s, but no decoder was found. Ensure the codec is included in your App Manifest.", name, format_str);
+                } else {
+                    dmLogError("Failed to decode sound %s: (%d)", dmHashReverseSafe64(sound_data->m_NameHash), r);
+                }
                 return RESULT_INVALID_STREAM_DATA;
             }
 
