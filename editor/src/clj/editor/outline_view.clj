@@ -517,9 +517,9 @@
 (defn- get-selected-node-id
   [^TreeView tree-view]
   (let [selection-model (.getSelectionModel tree-view)
-        selected-items (.getSelectedItems selection-model)
-        ^TreeItem selected-item (first selected-items)]
-    (item->node-id selected-item)))
+        selected-items (.getSelectedItems selection-model)]
+    (when-let [^TreeItem selected-item (first selected-items)]
+      (item->node-id selected-item))))
 
 (defn- cancel-rename!
   [^TreeView tree-view]
