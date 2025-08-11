@@ -20,6 +20,7 @@
             [editor.types :as types]
             [schema.core :as s])
   (:import [editor.types AABB Camera Frustum Rect Region]
+           [javafx.scene Cursor]
            [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point2d Point3d Quat4d Tuple2d Tuple3d Tuple4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -667,13 +668,18 @@
       :scroll (if (contains? movements-enabled :dolly) nil action)
       :mouse-pressed (do
                        (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y :movement movement)
-                       (if (or (= movement :idle) is-secondary) action nil))
+                       (if (or (= movement :idle) is-secondary)
+                         action
+                         (do (g/set-property! self :cursor-type Cursor/MOVE)
+                             nil)))
       :mouse-released (do
                         (g/user-data-swap! self ::ui-state assoc :last-x nil :last-y nil :movement :idle)
+                        (g/set-property! self :cursor-type Cursor/DEFAULT)
                         (if (or (= movement :idle) is-secondary) action nil))
       :mouse-moved (if (not (= :idle movement))
                      (do
                        (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y)
+                       (g/set-property! self :cursor-type Cursor/MOVE)
                        (if is-secondary action nil))
                      action)
       action)))
@@ -684,12 +690,14 @@
   (property cached-3d-camera Camera)
   (property animating g/Bool)
   (property movements-enabled g/Any (default #{:dolly :track :tumble}))
+  (property cursor-type Cursor (default Cursor/DEFAULT))
 
   (input scene-aabb AABB)
   (input viewport Region)
 
   (output viewport Region (gu/passthrough viewport))
   (output camera Camera :cached produce-camera)
+  (output cursor-type Cursor (gu/passthrough cursor-type))
 
   (output input-handler Runnable :cached (g/constantly handle-input)))
 

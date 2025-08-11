@@ -65,7 +65,7 @@
            [java.nio IntBuffer]
            [javafx.embed.swing SwingFXUtils]
            [javafx.geometry HPos VPos]
-           [javafx.scene Node Parent]
+           [javafx.scene Cursor Node Parent]
            [javafx.scene.image ImageView WritableImage]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
@@ -908,6 +908,7 @@
   (input updatables g/Any)
   (input selected-updatables g/Any)
   (input grid g/Any)
+  (input cursor-type Cursor)
   (output inactive? g/Bool (g/fnk [_node-id active-view] (not= _node-id active-view)))
   (output info-text g/Str (g/fnk [scene tool-info-text]
                             (or tool-info-text (:info-text scene))))
@@ -941,12 +942,15 @@
 
 (defn refresh-scene-view! [node-id dt]
   (g/with-auto-evaluation-context evaluation-context
-    (let [image-view (g/node-value node-id :image-view evaluation-context)]
+    (let [image-view ^ImageView (g/node-value node-id :image-view evaluation-context)]
       (when-not (ui/inside-hidden-tab? image-view)
         (let [drawable (g/node-value node-id :drawable evaluation-context)
               async-copy-state-atom (g/node-value node-id :async-copy-state evaluation-context)]
           (when (and (some? drawable) (some? async-copy-state-atom))
-            (update-image-view! image-view drawable async-copy-state-atom evaluation-context dt)))
+            (update-image-view! image-view drawable async-copy-state-atom evaluation-context dt)
+            (when-let [cursor-type ^Cursor (g/node-value node-id :cursor-type evaluation-context)]
+              (when (not= cursor-type (.getCursor image-view))
+                (.setCursor image-view cursor-type)))))
         (when-let [overlay-anchor-pane (g/node-value node-id :overlay-anchor-pane evaluation-context)]
           (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props evaluation-context)]
             (advance-user-data-component!
@@ -1658,6 +1662,7 @@
 
                   (g/connect camera          :camera                        view-id         :camera)
                   (g/connect camera          :input-handler                 view-id         :input-handlers)
+                  (g/connect camera          :cursor-type                   view-id         :cursor-type)
                   (g/connect view-id         :scene-aabb                    camera          :scene-aabb)
                   (g/connect view-id         :viewport                      camera          :viewport)
 
