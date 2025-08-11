@@ -44,7 +44,15 @@ cp build/default/model/empty.rigscenec ../model/empty.prebuilt_rigscenec
 cp build/default/model/empty_generated_0.animationsetc ../model/empty_generated_0.prebuilt_animationsetc
 cp build/default/model/empty.meshsetc ../model/empty.prebuilt_meshsetc
 cp build/default/model/empty.skeletonc ../model/empty.prebuilt_skeletonc
+
+# PBR untextured
 cp build/default/model/pbr_properties.modelc ../model/pbr_properties.prebuilt_modelc
 cp build/default/model/pbr_properties.rigscenec ../model/pbr_properties.prebuilt_rigscenec
 cp build/default/model/pbr_properties.meshsetc ../model/pbr_properties.prebuilt_meshsetc
 cp build/default/model/pbr_properties.skeletonc ../model/pbr_properties.prebuilt_skeletonc
+
+# PBR Textured
+cp build/default/model/pbr_properties_textured.modelc ../model/pbr_properties_textured.prebuilt_modelc
+cp build/default/model/pbr_properties_textured.rigscenec ../model/pbr_properties_textured.prebuilt_rigscenec
+cp build/default/model/pbr_properties_textured.meshsetc ../model/pbr_properties_textured.prebuilt_meshsetc
+cp build/default/model/pbr_properties_textured.skeletonc ../model/pbr_properties_textured.prebuilt_skeletonc

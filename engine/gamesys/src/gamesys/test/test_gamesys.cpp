@@ -5823,10 +5823,14 @@ TEST_F(ModelTest, PbrProperties)
     uint32_t component_type;
     dmGameObject::HComponent component;
     dmGameObject::HComponentWorld world;
+    dmGameSystem::HComponentRenderConstants render_constants;
+
+    ///////////////////////////////
+    // Test 1: Test data properties
+    ///////////////////////////////
     dmGameObject::Result res = dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &component, &world);
     ASSERT_EQ(dmGameObject::RESULT_OK, res);
 
-    dmGameSystem::HComponentRenderConstants render_constants;
     GetModelComponentRenderConstants(component, &render_constants);
     ASSERT_NE((dmGameSystem::HComponentRenderConstants)0, render_constants);
 
@@ -5918,6 +5922,60 @@ TEST_F(ModelTest, PbrProperties)
     ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SHEEN_TEXTURES, &constant));
     ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_IRIDESCENCE_TEXTURES, &constant));
     ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_COMMON_TEXTURES, &constant));
+
+    ///////////////////////////////////
+    // Test 2: Test texture properties
+    ///////////////////////////////////
+    res = dmGameObject::GetComponent(go, dmHashString64("model_textured"), &component_type, &component, &world);
+    ASSERT_EQ(dmGameObject::RESULT_OK, res);
+
+    GetModelComponentRenderConstants(component, &render_constants);
+    ASSERT_NE((dmGameSystem::HComponentRenderConstants) 0, render_constants);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_GLOSSINESS_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_CLEAR_COAT_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_TRANSMISSION_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 0.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_VOLUME_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 0.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SHEEN_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_IRIDESCENCE_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_COMMON_TEXTURES, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
