@@ -600,6 +600,9 @@ void GamesysTest<T>::SetUp()
         m_PhysicsContextBox2D.m_BaseContext.m_MaxContactPointCount = 128;
         m_PhysicsContextBox2D.m_BaseContext.m_MaxCollisionObjectCount = 512;
         m_PhysicsContextBox2D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BOX2D;
+        m_PhysicsContextBox2D.m_BaseContext.m_Box2DVelocityIterations = 10;
+        m_PhysicsContextBox2D.m_BaseContext.m_Box2DPositionIterations = 10;
+        m_PhysicsContextBox2D.m_BaseContext.m_Box2DSubStepCount = 4;
 
         dmPhysics::NewContextParams context2DParams = dmPhysics::NewContextParams();
         context2DParams.m_Scale = this->m_projectOptions.m_Scale;
