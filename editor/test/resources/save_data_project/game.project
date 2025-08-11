@@ -239,6 +239,11 @@ trigger_overlap_capacity = 8
 velocity_threshold = 0.9
 max_fixed_timesteps = 3
 
+[box2d]
+velocity_iterations = 1
+position_iterations = 2
+sub_step_count = 3
+
 [profiler]
 track_cpu = 1
 sleep_between_server_updates = 10
