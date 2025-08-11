@@ -564,6 +564,8 @@ public class ShaderProgramBuilder extends Builder {
             modules.add(GetShaderDesc(project, args[1], contentRoot));
         }
 
+        System.out.println("Building shader " + outputPath);
+
         assert platform != null;
         Platform outputPlatform = Platform.get(platform);
         IShaderCompiler shaderCompiler = project.getShaderCompiler(outputPlatform);

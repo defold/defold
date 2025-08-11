@@ -5828,10 +5828,11 @@ TEST_F(ModelTest, PbrProperties)
 
     dmGameSystem::HComponentRenderConstants render_constants;
     GetModelComponentRenderConstants(component, &render_constants);
+    ASSERT_NE((dmGameSystem::HComponentRenderConstants)0, render_constants);
 
-    dmRender::HConstant constant;
-    dmVMath::Vector4* values;
-    uint32_t num_values;
+    dmRender::HConstant constant = 0;
+    dmVMath::Vector4* values     = 0;
+    uint32_t num_values          = 0;
     dmVMath::Vector4 exp;
 
     ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, &constant));
@@ -5873,7 +5874,7 @@ TEST_F(ModelTest, PbrProperties)
     ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR, &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
 
-    // JG: I don't know where these values are coming from in blender?
+    // JG: I don't know where these values are coming from in blender, so I'm ignoring them for now. It's something like this:
     // exp = dmVMath::Vector4(0.25f, 0.166f, 0.166f, 1.0f);
     // ASSERT_VEC4(exp, values[0]);
 

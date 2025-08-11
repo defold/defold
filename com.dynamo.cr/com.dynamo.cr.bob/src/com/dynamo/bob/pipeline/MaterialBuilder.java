@@ -262,24 +262,25 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
     }
 
     // Running standalone:
-    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.MaterialBuilder <path-in.material> <path-out.materialc> <content-root>
+    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.MaterialBuilder <path-in.material> <path-in.spc> <path-out.materialc> <shader-name> <content-root>
     public static void main(String[] args) throws IOException, CompileExceptionError {
 
         System.setProperty("java.awt.headless", "true");
 
         String basedir = ".";
         String pathIn = args[0];
-        String pathOut = args[1];
+        // String pathSpc = args[1]; // Currently not used
+        String pathOut = args[2];
         String shaderName = null;
         File fileIn = new File(pathIn);
         File fileOut = new File(pathOut);
 
-        if (args.length >= 3) {
-            shaderName = args[2];
+        if (args.length >= 4) {
+            shaderName = args[3];
         }
 
-        if (args.length >= 4) {
-            basedir = args[3];
+        if (args.length >= 5) {
+            basedir = args[4];
         }
 
         try (Reader reader = new BufferedReader(new FileReader(pathIn));
