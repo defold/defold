@@ -13,7 +13,6 @@
                                  [path {:refs (into #{} (map resource/proj-path) (resource-dialog/refs-filter-fn project path nil))
                                         :deps (into #{} (map resource/proj-path) (resource-dialog/deps-filter-fn project path nil))}])))
                         (g/node-value workspace :resource-list))]
-      (tap> (into (sorted-map) dep-map))
       (doseq [[path {:keys [refs deps]}] dep-map]
         (testing path
           (doseq [dep deps]
