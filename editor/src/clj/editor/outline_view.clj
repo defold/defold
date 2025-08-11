@@ -517,9 +517,9 @@
 (defn- get-selected-node-id
   [^TreeView tree-view]
   (let [selection-model (.getSelectionModel tree-view)
-        selected-items (.getSelectedItems selection-model)
-        ^TreeItem selected-item (first selected-items)]
-    (item->node-id selected-item)))
+        selected-items (.getSelectedItems selection-model)]
+    (when-let [^TreeItem selected-item (first selected-items)]
+      (item->node-id selected-item))))
 
 (defn- cancel-rename!
   [^TreeView tree-view]
@@ -541,7 +541,7 @@
         (< time-diff db-click-threshold)
         (do
           (cancel-rename! tree-view)
-          (ui/run-command (.getSource event) :file.open-selected))
+          (ui/run-command (.getSource event) :file.open-selected {} false (fn [] (.consume event))))
 
         (= (get-selected-node-id tree-view)
            (ui/user-data text-label ::node-id))
