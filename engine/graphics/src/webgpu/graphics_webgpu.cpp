@@ -32,6 +32,10 @@
 
 #include "../dmsdk/graphics/graphics_webgpu.h"
 
+#ifdef DM_GRAPHICS_WEBGPU_WAGYU
+#include <webgpu/webgpu_wagyu.h>
+#endif
+
 #if defined(__EMSCRIPTEN__)
 #include <emscripten/html5.h>
 #endif
@@ -87,6 +91,12 @@ static const WGPUBlendFactor g_webgpu_blend_factors[] = {
     WGPUBlendFactor_OneMinusDstAlpha,
     WGPUBlendFactor_SrcAlphaSaturated
 };
+
+#if defined(DM_GRAPHICS_WEBGPU_WAGYU)
+static WGPUTextureUsage g_rendertarget_usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_WagyuInputAttachment;
+#else
+static WGPUTextureUsage g_rendertarget_usage = WGPUTextureUsage_RenderAttachment;
+#endif
 
 static GraphicsAdapterFunctionTable WebGPURegisterFunctionTable();
 static bool WebGPUIsSupported();
@@ -184,6 +194,12 @@ static WebGPUTexture* WebGPUNewTextureInternal(const TextureCreationParams& para
     texture->m_Height      = params.m_Height;
     texture->m_Depth       = params.m_Depth;
     texture->m_MipMapCount = params.m_MipMapCount;
+#if defined(DM_GRAPHICS_WEBGPU_WAGYU)
+    if (params.m_UsageHintBits & TEXTURE_USAGE_FLAG_INPUT)
+        texture->m_UsageFlags |= WGPUTextureUsage_WagyuInputAttachment;
+    if (params.m_UsageHintBits & TEXTURE_USAGE_FLAG_MEMORYLESS)
+        texture->m_UsageFlags |= WGPUTextureUsage_WagyuTransientAttachment;
+#endif
     if (params.m_UsageHintBits & TEXTURE_USAGE_FLAG_SAMPLE)
         texture->m_UsageFlags |= WGPUTextureUsage_TextureBinding;
     if (params.m_UsageHintBits & TEXTURE_USAGE_FLAG_STORAGE)
@@ -937,7 +953,7 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
         WGPUSurfaceConfiguration surface_conf = {};
 #endif
         surface_conf.device                   = context->m_Device;
-        surface_conf.usage                    = WGPUTextureUsage_RenderAttachment;
+        surface_conf.usage                    = g_rendertarget_usage;
         surface_conf.format                   = context->m_Format;
         surface_conf.width                    = width;
         surface_conf.height                   = height;
@@ -1705,7 +1721,7 @@ static void WebGPUBeginFrame(HContext _context)
                 }
                 textureColor->m_Width  = currentWidth;
                 textureColor->m_Height = currentHeight;
-                WebGPURealizeTexture(textureColor, context->m_Format, 1, context->m_MainRenderTarget->m_Multisample, WGPUTextureUsage_RenderAttachment);
+                WebGPURealizeTexture(textureColor, context->m_Format, 1, context->m_MainRenderTarget->m_Multisample, g_rendertarget_usage);
             }
 
             WebGPUTexture* textureResolve = GetAssetFromContainer<WebGPUTexture>(context->m_AssetHandleContainer, context->m_MainRenderTarget->m_TextureResolve[0]);
@@ -3060,7 +3076,7 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
             {
                 WebGPUTexture* texture    = WebGPUNewTextureInternal(params.m_ColorBufferCreationParams[i]);
                 texture->m_GraphicsFormat = params.m_ColorBufferParams[i].m_Format;
-                WebGPURealizeTexture(texture, WebGPUFormatFromTextureFormat(params.m_ColorBufferParams[i].m_Format), 1, 1, WGPUTextureUsage_RenderAttachment);
+                WebGPURealizeTexture(texture, WebGPUFormatFromTextureFormat(params.m_ColorBufferParams[i].m_Format), 1, 1, g_rendertarget_usage);
                 rt->m_TextureColor[rt->m_ColorBufferCount] = StoreAssetInContainer(context->m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
                 if (!rt->m_Width)
                 {
