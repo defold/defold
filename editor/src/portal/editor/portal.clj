@@ -19,12 +19,16 @@
             [editor.code.data]
             [editor.resource :as resource]
             [internal.graph.types :as gt]
+            [internal.node]
             [portal.api :as portal.api]
             [portal.viewer :as portal.viewer]
             [util.coll :as coll :refer [pair]]
-            [util.defonce :as defonce])
-  (:import [editor.code.data Cursor CursorRange]
-           [editor.resource Resource]))
+            [util.defonce :as defonce]
+            [util.fn :as fn])
+  (:import [clojure.lang Fn]
+           [editor.code.data Cursor CursorRange]
+           [editor.resource Resource]
+           [internal.node NodeTypeRef]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -32,7 +36,7 @@
 (defonce/protocol Viewable
   (portal-view [value] "Returns a customized Portal viewer for the value."))
 
-(declare default-viewer)
+(declare default-viewer map-viewer viewer)
 
 (extend-protocol Viewable
   Cursor
@@ -43,6 +47,14 @@
   (portal-view [cursor-range]
     (portal.viewer/pprint
       (default-viewer cursor-range)))
+
+  Fn
+  (portal-view [fn]
+    (fn/demunged-symbol (.getName (class fn))))
+
+  NodeTypeRef
+  (portal-view [node-type]
+    (symbol (:k node-type)))
 
   Resource
   (portal-view [resource]
@@ -58,14 +70,16 @@
 (defn- arc-source-key [basis arc]
   (let [source-node-id (gt/source-id arc)
         source-label (gt/source-label arc)
-        source-node-type-kw (g/node-type-kw basis source-node-id)]
-    (pair source-node-type-kw source-label)))
+        source-node-type-symbol (some-> (g/node-type-kw basis source-node-id) symbol)]
+    (portal.viewer/pr-str
+      (pair source-node-type-symbol source-label))))
 
 (defn- arc-target-key [basis arc]
   (let [target-node-id (gt/target-id arc)
         target-label (gt/target-label arc)
-        target-node-type-kw (g/node-type-kw basis target-node-id)]
-    (pair target-node-type-kw target-label)))
+        target-node-type-symbol (some-> (g/node-type-kw basis target-node-id) symbol)]
+    (portal.viewer/pr-str
+      (pair target-node-type-symbol target-label))))
 
 (declare ^:private try-nav-node-id)
 
@@ -82,10 +96,12 @@
   (when-some [node (g/node-by-id-at basis node-id)]
     (let [node-type (g/node-type node)]
       {:node-id node-id
-       :node-type (:k node-type)
+       :node-type (viewer node-type)
        :originals (vec (butlast (g/override-originals basis node-id)))
-       :properties (into (sorted-map)
-                         (g/own-property-values node))
+       :properties (->> node
+                        (g/own-property-values)
+                        (into (sorted-map))
+                        (map-viewer))
        :inputs (reduce
                  (fn [target-label->source-key->source-node-id arc]
                    (let [target-label (gt/target-label arc)
@@ -124,38 +140,53 @@
     (or (try-nav-node-id basis value)
         value)))
 
-(declare viewer)
+(defn map-viewer [coll]
+  (as-> coll coll
+
+        ;; Apply the viewer to the keys and values.
+        ;; This also works with records, maintaining their type.
+        (reduce-kv
+          (fn [coll old-key old-value]
+            (let [new-key (viewer old-key)
+                  new-value (viewer old-value)]
+              (cond-> (assoc coll new-key new-value)
+                      (not= old-key new-key) (dissoc old-key))))
+          coll
+          coll)
+
+        ;; Support navigation in case the coll contains navigable values.
+        (cond-> coll
+                (and (not (contains? (meta coll) `protocols/nav))
+                     (coll/any? (comp (partial default-navigable-value? (g/now)) val) coll))
+                (vary-meta assoc `protocols/nav default-nav-fn))))
+
+(defn coll-viewer [coll]
+  (as-> coll coll
+
+        ;; Apply the viewer to the values.
+        (coll/transfer coll (coll/empty-with-meta coll)
+          (map viewer))
+
+        ;; Support navigation in case the coll contains navigable values.
+        (cond-> coll
+                (and (not (contains? (meta coll) `protocols/nav))
+                     (coll/any? (partial default-navigable-value? (g/now)) coll))
+                (vary-meta assoc `protocols/nav default-nav-fn))
+
+        ;; Use a viewer that allows us to select individual items in case the
+        ;; coll is navigable. Portal will use the pprint view for collections
+        ;; of scalars by default, which does not allow element selection.
+        (cond-> coll
+                (contains? (meta coll) `protocols/nav)
+                (portal.viewer/inspector))))
 
 (defn default-viewer [value]
   (cond
     (map? value)
-    (reduce-kv ; This also works with records, maintaining their type.
-      (fn [coll old-key old-value]
-        (let [new-key (viewer old-key)
-              new-value (viewer old-value)]
-          (cond-> (assoc coll new-key new-value)
-                  (not= old-key new-key) (dissoc old-key))))
-      value
-      value)
+    (map-viewer value)
 
     (coll? value)
-    (as-> value coll
-
-          ;; Apply the viewer to the values.
-          (coll/transfer coll (coll/empty-with-meta value)
-            (map viewer))
-
-          ;; Support navigation in case the coll contains navigable values.
-          (cond-> coll
-                  (and (not (contains? (meta coll) `protocols/nav))
-                       (coll/any? (partial default-navigable-value? (g/now)) coll))
-                  (vary-meta assoc `protocols/nav default-nav-fn))
-
-          ;; Use a viewer that allows us to select individual items in case the
-          ;; coll is navigable.
-          (cond-> coll
-                  (contains? (meta coll) `protocols/nav)
-                  (portal.viewer/inspector)))
+    (coll-viewer value)
 
     :else
     value))

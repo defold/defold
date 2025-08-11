@@ -180,6 +180,19 @@
         nil)
       (throw (IllegalArgumentException. "The function was not memoized by us.")))))
 
+(defn demunged-symbol
+  "Given a munged name, such as the full name of a Clojure function class,
+  return a demunged symbol."
+  [^String munged-name]
+  (let [namespaced-name (Compiler/demunge munged-name)
+        separator-index (.indexOf namespaced-name (int \/))
+        namespace (when (pos? separator-index)
+                    (.intern (subs namespaced-name 0 separator-index)))
+        name (if (neg? separator-index)
+               namespaced-name
+               (.intern (subs namespaced-name (inc separator-index))))]
+    (symbol namespace name)))
+
 (defn declared-symbol
   "Given a declared function, returns the symbol that resolves to the function."
   [declared-fn]
@@ -190,14 +203,7 @@
         (throw (IllegalArgumentException.
                  (format "Unable to get declared symbol from anonymous function `%s`."
                          class-name)))
-        (let [namespaced-name (Compiler/demunge class-name)
-              separator-index (.indexOf namespaced-name (int \/))
-              namespace (when (pos? separator-index)
-                          (.intern (subs namespaced-name 0 separator-index)))
-              name (if (neg? separator-index)
-                     namespaced-name
-                     (.intern (subs namespaced-name (inc separator-index))))]
-          (symbol namespace name))))))
+        (demunged-symbol class-name)))))
 
 (defn make-case-fn
   "Given a collection of key-value pairs, return a function that returns the
