@@ -948,7 +948,7 @@
               async-copy-state-atom (g/node-value node-id :async-copy-state evaluation-context)]
           (when (and (some? drawable) (some? async-copy-state-atom))
             (update-image-view! image-view drawable async-copy-state-atom evaluation-context dt)
-            (when-let [cursor-type ^Cursor (g/node-value node-id :cursor-type evaluation-context)]
+            (when-let [cursor-type ^Cursor (g/maybe-node-value node-id :cursor-type evaluation-context)]
               (when (not= cursor-type (.getCursor image-view))
                 (.setCursor image-view cursor-type)))))
         (when-let [overlay-anchor-pane (g/node-value node-id :overlay-anchor-pane evaluation-context)]
