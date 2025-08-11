@@ -1420,6 +1420,29 @@
               [[:stop
                 (repeatedly #(throw (Exception. "Should not be reduced!")))]]])))))
 
+(deftest tree-xf-test
+  (testing "tree behavior"
+    (are [ids root] (and (= (tree-seq :children :children root)
+                            (into [] (coll/tree-xf :children :children) [root]))
+                         (= ids (mapv :id (tree-seq :children :children root))))
+      (range 1) {:id 0}
+      (range 1) {:id 0 :children []}
+      (range 3) {:id 0 :children [{:id 1 :children nil}
+                                  {:id 2 :children []}]}
+      (range 4) {:id 0 :children [{:id 1 :children nil}
+                                  {:id 2 :children [{:id 3}]}]}))
+  (testing "reduced support"
+    (is (= :stop
+           (transduce
+             (comp
+               (coll/tree-xf :children :children)
+               (halt-when #(= :stop %)))
+             conj
+             []
+             [{:children [{:children []}
+                          :stop
+                          {:children (repeatedly #(throw (Exception. "Should not be reduced!")))}]}])))))
+
 (deftest some-test
   (testing "some behavior"
     (are [pred coll ret] (= ret (some pred coll) (coll/some pred coll))
