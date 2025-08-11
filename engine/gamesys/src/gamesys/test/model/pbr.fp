@@ -26,9 +26,9 @@ uniform sampler2D PbrMetallicRoughness_metallicRoughnessTexture;
 
 struct PbrMetallicRoughness
 {
-	vec4 baseColorFactor;
-	vec4 metallicAndRoughnessFactor; // R: metallic (Default=1.0), G: roughness (Default=1.0)
-	vec4 metallicRoughnessTextures;  // R: use baseColorTexture, G: use metallicRoughnessTexture
+    vec4 baseColorFactor;
+    vec4 metallicAndRoughnessFactor; // R: metallic (Default=1.0), G: roughness (Default=1.0)
+    vec4 metallicRoughnessTextures;  // R: use baseColorTexture, G: use metallicRoughnessTexture
 };
 
 ////////////////////////
@@ -39,9 +39,9 @@ uniform sampler2D PbrSpecularGlossiness_specularGlossinessTexture;
 
 struct PbrSpecularGlossiness
 {
-	vec4 diffuseFactor;
-	vec4 specularAndSpecularGlossinessFactor; // RGB: specular (Default=1.0), A: glossiness (Default=1.0)
-	vec4 specularGlossinessTextures;          // R: use diffuseTexture, G: use specularGlossinessTexture
+    vec4 diffuseFactor;
+    vec4 specularAndSpecularGlossinessFactor; // RGB: specular (Default=1.0), A: glossiness (Default=1.0)
+    vec4 specularGlossinessTextures;          // R: use diffuseTexture, G: use specularGlossinessTexture
 };
 
 ////////////////////////
@@ -53,8 +53,8 @@ uniform sampler2D PbrClearcoat_clearcoatNormalTexture;
 
 struct PbrClearCoat
 {
-	vec4 clearCoatAndClearCoatRoughnessFactor; // R: clearCoat (Default=0.0), G: clearCoatRoughness (Default=0.0)
-	vec4 clearCoatTextures;                    // R: use clearCoatTexture, G: use clearCoatRoughnessTexture, B: use clearCoatNormalTexture
+    vec4 clearCoatAndClearCoatRoughnessFactor; // R: clearCoat (Default=0.0), G: clearCoatRoughness (Default=0.0)
+    vec4 clearCoatTextures;                    // R: use clearCoatTexture, G: use clearCoatRoughnessTexture, B: use clearCoatNormalTexture
 };
 
 ////////////////////////
@@ -64,8 +64,8 @@ uniform sampler2D PbrTransmission_transmissionTexture;
 
 struct PbrTransmission
 {
-	vec4 transmissionFactor;   // R: transmission (Default=0.0)
-	vec4 transmissionTextures; // R: use transmissionTexture
+    vec4 transmissionFactor;   // R: transmission (Default=0.0)
+    vec4 transmissionTextures; // R: use transmissionTexture
 };
 
 ////////////////////////
@@ -73,7 +73,7 @@ struct PbrTransmission
 ////////////////////////
 struct PbrIor
 {
-	vec4 ior; // R: ior (Default=0.0)
+    vec4 ior; // R: ior (Default=0.0)
 };
 
 ////////////////////////
@@ -84,8 +84,8 @@ uniform sampler2D PbrSpecular_specularColorTexture;
 
 struct PbrSpecular
 {
-	vec4 specularColorAndSpecularFactor; // RGB: specularColor, A: specularFactor (Default=1.0);
-	vec4 specularTextures;               // R: use specularTexture, G: use specularColorTexture
+    vec4 specularColorAndSpecularFactor; // RGB: specularColor, A: specularFactor (Default=1.0);
+    vec4 specularTextures;               // R: use specularTexture, G: use specularColorTexture
 };
 
 ////////////////////////
@@ -95,9 +95,9 @@ uniform sampler2D PbrVolume_thicknessTexture;
 
 struct PbrVolume
 {
-	vec4 thicknessFactorAndAttenuationColor; // R: thicknessFactor (Default=0.0), RGB: attenuationColor
-	vec4 attenuationDistance;                // R: attentuationDistance (Default=-1.0)
-	vec4 volumeTextures;                     // R: use thicknessTexture
+    vec4 thicknessFactorAndAttenuationColor; // R: thicknessFactor (Default=0.0), RGB: attenuationColor
+    vec4 attenuationDistance;                // R: attentuationDistance (Default=-1.0)
+    vec4 volumeTextures;                     // R: use thicknessTexture
 };
 
 ////////////////////////
@@ -108,8 +108,8 @@ uniform sampler2D PbrSheen_sheenRoughnessTexture;
 
 struct PbrSheen
 {
-	vec4 sheenColorAndRoughnessFactor; // RGB: sheenColor, A: sheenRoughnessFactor (Default=0.0)
-	vec4 sheenTextures;                // R: use sheenColorTexture, G: use sheenRoughnessTexture
+    vec4 sheenColorAndRoughnessFactor; // RGB: sheenColor, A: sheenRoughnessFactor (Default=0.0)
+    vec4 sheenTextures;                // R: use sheenColorTexture, G: use sheenRoughnessTexture
 };
 
 ////////////////////////
@@ -117,7 +117,7 @@ struct PbrSheen
 ////////////////////////
 struct PbrEmissiveStrength
 {
-	vec4 emissiveStrength; // R: emissiveStrength (Default=1.0)
+    vec4 emissiveStrength; // R: emissiveStrength (Default=1.0)
 };
 
 ////////////////////////
@@ -128,44 +128,44 @@ uniform sampler2D PbrEmissive_iridescenceThicknessTexture;
 
 struct PbrIridescence
 {
-	vec4 iridescenceFactorAndIorAndThicknessMinMax; // R: iridescenceFactor (Default=0.0), G: iridescenceIor (Default=1.3), B: iridescenceThicknessMin (Default=100.0), A: iridescenceThicknessMax (Default=400.0)
-	vec4 iridescenceTextures;                       // R: use iridescenceTexture, G: use iridescenceThicknessTexture
+    vec4 iridescenceFactorAndIorAndThicknessMinMax; // R: iridescenceFactor (Default=0.0), G: iridescenceIor (Default=1.3), B: iridescenceThicknessMin (Default=100.0), A: iridescenceThicknessMax (Default=400.0)
+    vec4 iridescenceTextures;                       // R: use iridescenceTexture, G: use iridescenceThicknessTexture
 };
 
 uniform PbrMaterial
 {
-	// Common properties
-	vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit; // R: alphaCutoff (Default=0.5), G: doubleSided (Default=false), B: unlit (Default=false)
-	vec4 pbrCommonTextures;                      // R: use normalTexture, G: use occlusionTexture, B: use emissiveTexture
+    // Common properties
+    vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit; // R: alphaCutoff (Default=0.5), G: doubleSided (Default=false), B: unlit (Default=false)
+    vec4 pbrCommonTextures;                      // R: use normalTexture, G: use occlusionTexture, B: use emissiveTexture
 #ifdef PBR_METALLIC_ROUGHNESS
-	PbrMetallicRoughness  pbrMetallicRoughness;
+    PbrMetallicRoughness  pbrMetallicRoughness;
 #endif
 #ifdef PBR_SPECULAR_GLOSSINESS
-	PbrSpecularGlossiness pbrSpecularGlossiness;
+    PbrSpecularGlossiness pbrSpecularGlossiness;
 #endif
 #ifdef PBR_CLEARCOAT
-	PbrClearCoat pbrClearCoat;
+    PbrClearCoat pbrClearCoat;
 #endif
 #ifdef PBR_TRANSMISSION
-	PbrTransmission pbrTransmission;
+    PbrTransmission pbrTransmission;
 #endif
 #ifdef PBR_IOR
-	PbrIor pbrIor;
+    PbrIor pbrIor;
 #endif
 #ifdef PBR_SPECULAR
-	PbrSpecular pbrSpecular;
+    PbrSpecular pbrSpecular;
 #endif
 #ifdef PBR_VOLUME
-	PbrVolume pbrVolume;
+    PbrVolume pbrVolume;
 #endif
 #ifdef PBR_SHEEN
-	PbrSheen pbrSheen;
+    PbrSheen pbrSheen;
 #endif
 #ifdef PBR_EMISSIVE_STRENGTH
-	PbrEmissiveStrength pbrEmissiveStrength;
+    PbrEmissiveStrength pbrEmissiveStrength;
 #endif
 #ifdef PBR_IRIDESCENCE
-	PbrIridescence pbrIridescence;
+    PbrIridescence pbrIridescence;
 #endif
 };
 

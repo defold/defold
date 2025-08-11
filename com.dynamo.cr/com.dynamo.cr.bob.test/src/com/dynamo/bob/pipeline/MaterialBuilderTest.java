@@ -287,47 +287,57 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
                 {
                 	vec4 baseColorFactor;
                 	vec4 metallicAndRoughnessFactor;
+                	vec4 metallicRoughnessTextures;
                 };
                 struct PbrSpecularGlossiness
                 {
-                	vec4 diffuseFactor;
-                	vec4 specularAndSpecularGlossinessFactor;
+                    vec4 diffuseFactor;
+                    vec4 specularAndSpecularGlossinessFactor;
+                    vec4 specularGlossinessTextures;
                 };
                 struct PbrClearCoat
                 {
-                	vec4 clearCoatAndClearCoatRoughnessFactor;
+                    vec4 clearCoatAndClearCoatRoughnessFactor;
+                    vec4 clearCoatTextures;
                 };
                 struct PbrTransmission
                 {
-                	vec4 transmissionFactor; // R: transmission (Default=0.0)
+                	vec4 transmissionFactor;
+                	vec4 transmissionTextures;
                 };
                 struct PbrIor
                 {
-                	vec4 ior; // R: ior (Default=0.0)
+                	vec4 ior;
                 };
                 struct PbrSpecular
                 {
-                	vec4 specularColorAndSpecularFactor; // RGB: specularColor, A: specularFactor (Default=1.0);
+                	vec4 specularColorAndSpecularFactor;
+                	vec4 specularTextures;
                 };
                 struct PbrVolume
                 {
-                	vec4 thicknessFactorAndAttenuationColor; // R: thicknessFactor (Default=0.0), RGB: attenuationColor
-                	vec4 attenuationDistance;                // R: attentuationDistance (Default=-1.0)
+                	vec4 thicknessFactorAndAttenuationColor;
+                	vec4 attenuationDistance;
+                	vec4 volumeTextures;
                 };
                 struct PbrSheen
                 {
-                	vec4 sheenColorAndRoughnessFactor; // RGB: sheenColor, A: sheenRoughnessFactor (Default=0.0)
+                	vec4 sheenColorAndRoughnessFactor;
+                	vec4 sheenTextures;
                 };
                 struct PbrEmissiveStrength
                 {
-                	vec4 emissiveStrength; // R: emissiveStrength (Default=1.0)
+                	vec4 emissiveStrength;
                 };
                 struct PbrIridescence
                 {
-                	vec4 iridescenceFactorAndIorAndThicknessMinMax; // R: iridescenceFactor (Default=0.0), G: iridescenceIor (Default=1.3), B: iridescenceThicknessMin (Default=100.0), A: iridescenceThicknessMax (Default=400.0)
+                	vec4 iridescenceFactorAndIorAndThicknessMinMax;
+                	vec4 iridescenceTextures;
                 };
                 uniform PbrMaterial
                 {
+                    vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit;
+                    vec4 pbrCommonTextures;
                     PbrMetallicRoughness pbrMetallicRoughness;
                     PbrSpecularGlossiness pbrSpecularGlossiness;
                     PbrClearCoat pbrClearCoat;

@@ -256,7 +256,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
             shaderBuilder.mergeFrom(data);
             return shaderBuilder;
         } catch (Exception e) {
-            System.out.println("Something went wrong with getShaderBuilderFromResource: " + e.getMessage());
             return null;
         }
     }
@@ -312,7 +311,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
             ShaderDesc.Builder shaderBuilder = getShaderBuilderFromResource(shaderProgramBuildPath.toString());
 
-            // Resource might not have been built yet
+            // Resource might not have been built yet, which is fine in most cases.
             if (shaderBuilder != null) {
                 buildPbrParameters(materialBuilder, shaderBuilder);
             }

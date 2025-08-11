@@ -2855,6 +2855,7 @@ namespace dmGameSystem
         *vx_buffers_count = VERTEX_BUFFER_MAX_BATCHES;
     }
 
+    // For tests
     void GetModelComponentRenderConstants(void* model_component, dmGameSystem::HComponentRenderConstants* render_constants)
     {
         ModelComponent* component = (ModelComponent*) model_component;
