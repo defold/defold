@@ -971,7 +971,19 @@
   {:type :integer,
    :help "max number of concurrent (visible) tiles in a collection",
    :default 2048,
-   :path ["tilemap" "max_tile_count"]}]
+   :path ["tilemap" "max_tile_count"]},
+  {:type :integer,
+   :help "number of velocity iterations for Box2D 2.2 physics solver, 10 by default",
+   :default 10,
+   :path ["box2d" "velocity_iterations"]},
+  {:type :integer,
+   :help "number of position iterations for Box2D 2.2 physics solver, 10 by default",
+   :default 10,
+   :path ["box2d" "position_iterations"]},
+  {:type :integer,
+   :help "number of sub-steps for Box2D 3.x physics solver, 10 by default",
+   :default 10,
+   :path ["box2d" "sub_step_count"]}]
  :group-order ["Main" "Platforms" "Components" "Runtime" "Distribution"]
  :default-category "project"
  :categories
@@ -1002,6 +1014,8 @@
                       :group "Components"}
   "physics" {:help "Physics settings"
              :group "Runtime"},
+  "box2d" {:help "Box2D physics settings. Availability of options depends on the Box2D version."
+           :group "Runtime"},
   "osx" {:help "Mac OSX related settings"
          :title "OSX"
          :group "Platforms"},
