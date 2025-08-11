@@ -13,17 +13,18 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.portal
-  (:require [clojure.java.io :as io]
+  (:require [clojure.core.protocols :as protocols]
+            [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.code.data]
             [editor.resource :as resource]
-            [internal.graph.types]
+            [internal.graph.types :as gt]
             [portal.api :as portal.api]
             [portal.viewer :as portal.viewer]
-            [util.coll :as coll]
+            [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce])
   (:import [editor.code.data Cursor CursorRange]
-           [editor.resource Resource]
-           [internal.graph.types Endpoint]))
+           [editor.resource Resource]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -43,10 +44,6 @@
     (portal.viewer/pprint
       (default-viewer cursor-range)))
 
-  Endpoint
-  (portal-view [endpoint]
-    (portal.viewer/pr-str endpoint))
-
   Resource
   (portal-view [resource]
     (let [class-name (.getSimpleName (class resource))
@@ -57,6 +54,75 @@
   byte/1
   (portal-view [bytes]
     (portal.viewer/bin bytes)))
+
+(defn- arc-source-key [basis arc]
+  (let [source-node-id (gt/source-id arc)
+        source-label (gt/source-label arc)
+        source-node-type-kw (g/node-type-kw basis source-node-id)]
+    (pair source-node-type-kw source-label)))
+
+(defn- arc-target-key [basis arc]
+  (let [target-node-id (gt/target-id arc)
+        target-label (gt/target-label arc)
+        target-node-type-kw (g/node-type-kw basis target-node-id)]
+    (pair target-node-type-kw target-label)))
+
+(declare ^:private try-nav-node-id)
+
+(defn- nav-node-id [_coll _index value]
+  (or (try-nav-node-id (g/now) value)
+      value))
+
+(def ^:private empty-navigable-node-id-vector
+  (-> []
+      (with-meta {`protocols/nav nav-node-id})
+      (portal.viewer/inspector)))
+
+(defn- try-nav-node-id [basis node-id]
+  (when-some [node (g/node-by-id-at basis node-id)]
+    (let [node-type (g/node-type node)]
+      {:node-id node-id
+       :node-type (:k node-type)
+       :originals (vec (butlast (g/override-originals basis node-id)))
+       :properties (into (sorted-map)
+                         (g/own-property-values node))
+       :inputs (reduce
+                 (fn [target-label->source-key->source-node-id arc]
+                   (let [target-label (gt/target-label arc)
+                         source-node-id (gt/source-id arc)
+                         source-key (arc-source-key basis arc)]
+                     (update-in
+                       target-label->source-key->source-node-id
+                       [target-label source-key]
+                       (fn [source-node-ids]
+                         (conj (or source-node-ids empty-navigable-node-id-vector)
+                               source-node-id)))))
+                 (sorted-map)
+                 (sort-by gt/source-id
+                          (gt/arcs-by-target basis node-id)))
+       :outputs (reduce
+                  (fn [source-label->target-key->target-node-id arc]
+                    (let [source-label (gt/source-label arc)
+                          target-node-id (gt/target-id arc)
+                          target-key (arc-target-key basis arc)]
+                      (update-in
+                        source-label->target-key->target-node-id
+                        [source-label target-key]
+                        (fn [target-node-ids]
+                          (conj (or target-node-ids empty-navigable-node-id-vector)
+                                target-node-id)))))
+                  (sorted-map)
+                  (sort-by gt/target-id
+                           (gt/arcs-by-source basis node-id)))})))
+
+(defn- default-navigable-value? [basis value]
+  (and (g/node-id? value)
+       (g/node-exists? basis value)))
+
+(defn- default-nav-fn [_coll _key value]
+  (let [basis (g/now)]
+    (or (try-nav-node-id basis value)
+        value)))
 
 (declare viewer)
 
@@ -73,9 +139,23 @@
       value)
 
     (coll? value)
-    (coll/transfer
-      value (coll/empty-with-meta value)
-      (map viewer))
+    (as-> value coll
+
+          ;; Apply the viewer to the values.
+          (coll/transfer coll (coll/empty-with-meta value)
+            (map viewer))
+
+          ;; Support navigation in case the coll contains navigable values.
+          (cond-> coll
+                  (and (not (contains? (meta coll) `protocols/nav))
+                       (coll/any? (partial default-navigable-value? (g/now)) coll))
+                  (vary-meta assoc `protocols/nav default-nav-fn))
+
+          ;; Use a viewer that allows us to select individual items in case the
+          ;; coll is navigable.
+          (cond-> coll
+                  (contains? (meta coll) `protocols/nav)
+                  (portal.viewer/inspector)))
 
     :else
     value))
