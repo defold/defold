@@ -981,8 +981,8 @@
    :default 10,
    :path ["box2d" "position_iterations"]},
   {:type :integer,
-   :help "number of sub-steps for Box2D 3.x physics solver, 10 by default",
-   :default 10,
+   :help "number of sub-steps for Box2D 3.x physics solver, 4 by default",
+   :default 4,
    :path ["box2d" "sub_step_count"]}]
  :group-order ["Main" "Platforms" "Components" "Runtime" "Distribution"]
  :default-category "project"

@@ -714,7 +714,7 @@ namespace dmEngine
         physics->m_MaxFixedTimesteps = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_MAX_FIXED_TIMESTEPS, 2);
         physics->m_Box2DVelocityIterations = dmConfigFile::GetInt(config, dmGameSystem::BOX2D_VELOCITY_ITERATIONS, 10);
         physics->m_Box2DPositionIterations = dmConfigFile::GetInt(config, dmGameSystem::BOX2D_POSITION_ITERATIONS, 10);
-        physics->m_Box2DSubStepCount = dmConfigFile::GetInt(config, dmGameSystem::BOX2D_SUB_STEP_COUNT, 10);
+        physics->m_Box2DSubStepCount = dmConfigFile::GetInt(config, dmGameSystem::BOX2D_SUB_STEP_COUNT, 4);
         // TODO: Should move inside the ifdef release? Is this usable without the debug callbacks?
         physics->m_Debug = (bool) dmConfigFile::GetInt(config, "physics.debug", 0);
     }
