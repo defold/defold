@@ -15,6 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.*;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
@@ -169,7 +170,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         pbrStructNameToParameterType.put("PbrIridescence", PbrParameterType.PBR_PARAMETER_TYPE_IRIDESCENCE);
     }
 
-    private void addPbrParameter(MaterialDesc.PbrParameters.Builder pbrParametersBuilder, PbrParameterType type) {
+    private static void addPbrParameter(MaterialDesc.PbrParameters.Builder pbrParametersBuilder, PbrParameterType type) {
         switch(type) {
             case PBR_PARAMETER_TYPE_METALLIC_ROUGHNESS -> pbrParametersBuilder.setHasMetallicRoughness(true);
             case PBR_PARAMETER_TYPE_SPECULAR_GLOSSINESS -> pbrParametersBuilder.setHasSpecularGlossiness(true);
@@ -184,7 +185,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         }
     }
 
-    private void buildPbrParameters(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) {
+    private static void buildPbrParameters(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) {
         MaterialDesc.PbrParameters.Builder pbrParametersBuilder = MaterialDesc.PbrParameters.newBuilder();
 
         for (ShaderDesc.ResourceBinding resourceBinding : shaderBuilder.getReflection().getUniformBuffersList()) {
@@ -248,6 +249,18 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         return null;
     }
 
+    private static ShaderDesc.Builder getShaderBuilderFromResource(String path) {
+        try {
+            byte[] data = Files.readAllBytes(Paths.get(path));
+            ShaderDesc.Builder shaderBuilder = ShaderDesc.newBuilder();
+            shaderBuilder.mergeFrom(data);
+            return shaderBuilder;
+        } catch (Exception e) {
+            System.out.println("Something went wrong with getShaderBuilderFromResource: " + e.getMessage());
+            return null;
+        }
+    }
+
     // Running standalone:
     // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.MaterialBuilder <path-in.material> <path-out.materialc> <content-root>
     public static void main(String[] args) throws IOException, CompileExceptionError {
@@ -259,6 +272,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         String pathOut = args[1];
         String shaderName = null;
         File fileIn = new File(pathIn);
+        File fileOut = new File(pathOut);
 
         if (args.length >= 3) {
             shaderName = args[2];
@@ -267,7 +281,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         if (args.length >= 4) {
             basedir = args[3];
         }
-
 
         try (Reader reader = new BufferedReader(new FileReader(pathIn));
              OutputStream output = new BufferedOutputStream(new FileOutputStream(pathOut))) {
@@ -286,6 +299,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
             Path basedirAbsolutePath = Paths.get(basedir).toAbsolutePath();
             Path shaderProgramProjectPath = Paths.get(fileIn.getAbsolutePath().replace(fileIn.getName(), shaderName));
             Path shaderProgramRelativePath = basedirAbsolutePath.relativize(shaderProgramProjectPath);
+            Path shaderProgramBuildPath = Paths.get(fileOut.getAbsolutePath()).getParent().resolve(shaderName);
             String shaderProgramProjectStr = "/" + shaderProgramRelativePath.toString().replace("\\", "/");
 
             materialBuilder.setProgram(shaderProgramProjectStr);
@@ -294,6 +308,13 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
             buildVertexAttributes(materialBuilder);
             buildSamplers(materialBuilder);
+
+            ShaderDesc.Builder shaderBuilder = getShaderBuilderFromResource(shaderProgramBuildPath.toString());
+
+            // Resource might not have been built yet
+            if (shaderBuilder != null) {
+                buildPbrParameters(materialBuilder, shaderBuilder);
+            }
 
             MaterialDesc materialDesc = materialBuilder.build();
             materialDesc.writeTo(output);

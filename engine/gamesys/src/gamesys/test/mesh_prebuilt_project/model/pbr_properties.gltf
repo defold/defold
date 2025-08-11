@@ -1,0 +1,174 @@
+{
+    "asset" : {
+        "generator" : "Khronos glTF Blender I/O v3.3.32",
+        "version" : "2.0"
+    },
+    "extensionsUsed" : [
+        "KHR_materials_clearcoat",
+        "KHR_materials_transmission",
+        "KHR_materials_specular",
+        "KHR_materials_ior",
+        "KHR_materials_volume",
+        "KHR_materials_sheen",
+        "KHR_materials_emissive_strength",
+        "KHR_materials_iridescence",
+        "KHR_materials_unlit"
+    ],
+    "scene" : 0,
+    "scenes" : [
+        {
+            "name" : "Scene",
+            "nodes" : [
+                0
+            ]
+        }
+    ],
+    "nodes" : [
+        {
+            "mesh" : 0,
+            "name" : "Sphere"
+        }
+    ],
+    "materials" : [
+        {
+            "doubleSided" : true,
+            "alphaCutoff": 0.25,
+            "emissiveFactor" : [
+                0.03422500088214875,
+                0,
+                0
+            ],
+            "extensions" : {
+                "KHR_materials_clearcoat" : {
+                    "clearcoatFactor" : 0.1599999964237213,
+                    "clearcoatRoughnessFactor" : 0.16500000655651093
+                },
+                "KHR_materials_transmission" : {
+                    "transmissionFactor" : 0.17499999701976776
+                },
+                "KHR_materials_specular" : {
+                    "specularColorFactor" : [
+                        0.24944941443179994,
+                        0.1665122713026463,
+                        0.1665122713026463
+                    ]
+                },
+                "KHR_materials_ior" : {
+                    "ior" : 0.17000000178813934
+                },
+                "KHR_materials_volume": {
+                    "thicknessFactor": 0.2,
+                    "attenuationColor": [
+                        0.205,
+                        0.21,
+                        0.215
+                    ],
+                    "attenuationDistance": 0.22
+                },
+                "KHR_materials_sheen": {
+                  "sheenColorFactor": [0.225, 0.230, 0.235],
+                  "sheenRoughnessFactor": 0.240
+                },
+                "KHR_materials_emissive_strength": {
+                  "emissiveStrength": 0.245
+                },
+                "KHR_materials_iridescence": {
+                  "iridescenceFactor": 0.250,
+                  "iridescenceIor": 0.255,
+                  "iridescenceThicknessMinimum": 0.260,
+                  "iridescenceThicknessMaximum": 0.265
+                },
+                "KHR_materials_unlit": {}
+            },
+            "name" : "red",
+            "pbrMetallicRoughness" : {
+                "baseColorFactor" : [
+                    0.10000000149011612,
+                    0,
+                    0,
+                    0.1899999976158142
+                ],
+                "metallicFactor" : 0.11999999731779099,
+                "roughnessFactor" : 0.13500000536441803
+            }
+        }
+    ],
+    "meshes" : [
+        {
+            "name" : "Sphere",
+            "primitives" : [
+                {
+                    "attributes" : {
+                        "POSITION" : 0,
+                        "NORMAL" : 1,
+                        "TEXCOORD_0" : 2
+                    },
+                    "indices" : 3,
+                    "material" : 0
+                }
+            ]
+        }
+    ],
+    "accessors" : [
+        {
+            "bufferView" : 0,
+            "componentType" : 5126,
+            "count" : 2848,
+            "max" : [
+                0.9999997019767761,
+                1,
+                0.9999993443489075
+            ],
+            "min" : [
+                -0.9999990463256836,
+                -1,
+                -1
+            ],
+            "type" : "VEC3"
+        },
+        {
+            "bufferView" : 1,
+            "componentType" : 5126,
+            "count" : 2848,
+            "type" : "VEC3"
+        },
+        {
+            "bufferView" : 2,
+            "componentType" : 5126,
+            "count" : 2848,
+            "type" : "VEC2"
+        },
+        {
+            "bufferView" : 3,
+            "componentType" : 5123,
+            "count" : 2880,
+            "type" : "SCALAR"
+        }
+    ],
+    "bufferViews" : [
+        {
+            "buffer" : 0,
+            "byteLength" : 34176,
+            "byteOffset" : 0,
+            "target" : 34962
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 34176,
+            "byteOffset" : 34176,
+            "target" : 34962
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 22784,
+            "byteOffset" : 68352,
+            "target" : 34962
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 5760,
+            "byteOffset" : 91136,
+            "target" : 34963
+        }
+    ],
+}
