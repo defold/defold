@@ -546,7 +546,7 @@ namespace dmPhysics
         {
             DM_PROFILE("StepSimulation");
 
-            b2World_Step(world->m_WorldId, dt, 10);
+            b2World_Step(world->m_WorldId, dt, step_context.m_Box2DSubStepCount);
 
             // Post-solve must happen after stepping
             if (step_context.m_CollisionCallback || step_context.m_ContactPointCallback)
