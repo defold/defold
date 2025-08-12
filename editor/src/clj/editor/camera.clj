@@ -690,14 +690,14 @@
   (property cached-3d-camera Camera)
   (property animating g/Bool)
   (property movements-enabled g/Any (default #{:dolly :track :tumble}))
-  (property cursor-type Cursor (default Cursor/DEFAULT))
+  (property cursor-type g/Keyword)
 
   (input scene-aabb AABB)
   (input viewport Region)
 
   (output viewport Region (gu/passthrough viewport))
   (output camera Camera :cached produce-camera)
-  (output cursor-type Cursor (gu/passthrough cursor-type))
+  (output cursor-type g/Keyword (gu/passthrough cursor-type))
 
   (output input-handler Runnable :cached (g/constantly handle-input)))
 

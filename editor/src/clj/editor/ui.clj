@@ -2426,6 +2426,6 @@
   [^Node node ^Cursor cursor-type]
   ;; The cursor refresh appears buggy at the moment.
   ;; Calling setCursor with DISAPPEAR before setting the cursor forces it to refresh.
-  (when (not= cursor (.getCursor node))
+  (when (not= cursor-type (.getCursor node))
     (.setCursor node Cursor/DISAPPEAR)
     (.setCursor node cursor-type)))

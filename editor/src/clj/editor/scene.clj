@@ -941,10 +941,12 @@
       component (do (fx/delete-component component) (g/user-data! view-node key nil))
       desc (g/user-data! view-node key (fx/create-component desc)))))
 
-;; Cursor types are not consistent across platforms.
-(def cursor-types
-  {:pan (if (os/is-linux?) Cursor/MOVE Cursor/CLOSED_HAND)
-   :default Cursor/DEFAULT})
+(defn cursor
+  "Maps inconsistent cursor types across platforms."
+  [cursor-type]
+  (case cursor-type
+    :pan (if (os/is-linux?) Cursor/MOVE Cursor/CLOSED_HAND)
+    Cursor/DEFAULT))
 
 (defn refresh-scene-view! [node-id dt]
   (g/with-auto-evaluation-context evaluation-context
@@ -955,7 +957,7 @@
           (when (and (some? drawable) (some? async-copy-state-atom))
             (update-image-view! image-view drawable async-copy-state-atom evaluation-context dt)
             (when-let [cursor-type (g/maybe-node-value node-id :cursor-type evaluation-context)]
-              (ui/set-cursor image-view (get cursor-type cursor-types)))))
+              (ui/set-cursor image-view (cursor cursor-type)))))
         (when-let [overlay-anchor-pane (g/node-value node-id :overlay-anchor-pane evaluation-context)]
           (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props evaluation-context)]
             (advance-user-data-component!
