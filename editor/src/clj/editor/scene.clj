@@ -625,6 +625,7 @@
   (input aux-renderables pass/RenderData :array :substitute gu/array-subst-remove-errors)
   (input hidden-renderable-tags types/RenderableTags)
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
+  (input cursor-type g/Keyword)
 
   (output viewport Region :abstract)
   (output all-renderables g/Any :abstract)
@@ -909,7 +910,6 @@
   (input updatables g/Any)
   (input selected-updatables g/Any)
   (input grid g/Any)
-  (input cursor-type g/Keyword)
   (output inactive? g/Bool (g/fnk [_node-id active-view] (not= _node-id active-view)))
   (output info-text g/Str (g/fnk [scene tool-info-text]
                             (or tool-info-text (:info-text scene))))
