@@ -2046,18 +2046,24 @@ namespace dmGameObject
 
 
     /*# check if the specified game object exists
-     * A lua-error will be raised if the game object belongs to another
-     * collection than the collection from which the function was called.
+     * This function can check for game objects in any collection by specifying
+     * the collection name in the URL.
      * 
      * @name go.exists
      * @param url [type:string|hash|url] url of the game object to check
      * @return exists [type:boolean] true if the game object exists
      *
      * @examples
-     * Check if game object "my_game_object" exists
+     * Check if game object "my_game_object" exists in the current collection
      *
      * ```lua
      * go.exists("/my_game_object")
+     * ```
+     *
+     * Check if game object exists in another collection
+     *
+     * ```lua
+     * go.exists("other_collection:/my_game_object")
      * ```
      */
     int Script_Exists(lua_State* L)
@@ -2072,20 +2078,38 @@ namespace dmGameObject
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
 
-        // resolve instance provided as argument and make sure it is the same as "this"
+        // resolve target URL
         dmMessage::URL receiver;
         dmScript::ResolveURL(L, 1, &receiver, 0x0);
-        if (receiver.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
-        {
-            luaL_error(L, "function called can only access instances within the same collection.");
-        }
 
         dmMessage::URL sender;
         dmScript::GetURL(L, &sender);
         dmMessage::URL target;
         dmScript::ResolveURL(L, 1, &target, &sender);
 
-        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
+        dmGameObject::HInstance target_instance = 0;
+        
+        // Check if target is in the same collection
+        if (receiver.m_Socket == dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
+        {
+            // Same collection - use current collection
+            target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
+        }
+        else
+        {
+            // Different collection - find target collection by socket
+            dmhash_t target_socket_hash = dmMessage::GetSocketNameHash(receiver.m_Socket);
+            if (target_socket_hash != 0)
+            {
+                dmGameObject::HRegister regist = dmGameObject::GetRegister(instance->m_Collection->m_HCollection);
+                dmGameObject::HCollection target_collection = dmGameObject::GetCollectionByHash(regist, target_socket_hash);
+                if (target_collection != 0)
+                {
+                    target_instance = dmGameObject::GetInstanceFromIdentifier(target_collection, target.m_Path);
+                }
+            }
+        }
+
         lua_pushboolean(L, target_instance != 0);
         return 1;
     }
