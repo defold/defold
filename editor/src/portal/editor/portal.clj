@@ -81,59 +81,102 @@
     (portal.viewer/pr-str
       (pair target-node-type-symbol target-label))))
 
-(declare ^:private try-nav-node-id)
+(declare ^:private default-nav-fn ^:private try-nav-node-id)
 
 (defn- nav-node-id [_coll _index value]
   (or (try-nav-node-id (g/now) value)
       value))
+
+(defn- nav-node-value [coll key value]
+  (if (nil? key)
+    (let [node-id (get (meta coll) :node-id)]
+      (assert (g/node-id? node-id))
+      (viewer (g/node-value node-id value)))
+    (default-nav-fn coll key value)))
 
 (def ^:private empty-navigable-node-id-vector
   (-> []
       (with-meta {`protocols/nav nav-node-id})
       (portal.viewer/inspector)))
 
+(defn- sectioned-map [first-section & more-sections]
+  (let [first-section-key (ffirst first-section)
+        make-key (cond
+                   (keyword? first-section-key) keyword
+                   (symbol? first-section-key) symbol
+                   :else (throw (IllegalArgumentException. "first-section must be a map with Named keys")))]
+    (coll/transfer more-sections first-section
+      (coll/mapcat-indexed
+        (fn [^long section-index section]
+          (let [prefix-length (inc section-index)
+                prefix (-> (StringBuilder. prefix-length)
+                           (.repeat (int \u200B) prefix-length)
+                           (.toString))]
+            (map (fn [[key value]]
+                   (let [prefixed-name (str prefix (name key))
+                         prefixed-key (make-key (namespace key) prefixed-name)]
+                     (pair prefixed-key value)))
+                 section)))))))
+
 (defn- try-nav-node-id [basis node-id]
   (when-some [node (g/node-by-id-at basis node-id)]
-    (let [node-type (g/node-type node)]
-      {:node-id node-id
-       :node-type (viewer node-type)
-       :originals (vec (butlast (g/override-originals basis node-id)))
-       :properties (->> node
-                        (g/own-property-values)
-                        (into (sorted-map))
-                        (map-viewer))
-       :inputs (reduce
-                 (fn [target-label->source-key->source-node-id arc]
-                   (let [target-label (gt/target-label arc)
-                         source-node-id (gt/source-id arc)
-                         source-key (arc-source-key basis arc)]
-                     (update-in
-                       target-label->source-key->source-node-id
-                       [target-label source-key]
-                       (fn [source-node-ids]
-                         (conj (or source-node-ids empty-navigable-node-id-vector)
-                               source-node-id)))))
-                 (sorted-map)
-                 (sort-by gt/source-id
-                          (gt/arcs-by-target basis node-id)))
-       :outputs (reduce
-                  (fn [source-label->target-key->target-node-id arc]
-                    (let [source-label (gt/source-label arc)
-                          target-node-id (gt/target-id arc)
-                          target-key (arc-target-key basis arc)]
-                      (update-in
-                        source-label->target-key->target-node-id
-                        [source-label target-key]
-                        (fn [target-node-ids]
-                          (conj (or target-node-ids empty-navigable-node-id-vector)
-                                target-node-id)))))
-                  (sorted-map)
-                  (sort-by gt/target-id
-                           (gt/arcs-by-source basis node-id)))})))
+    (let [node-type (g/node-type node)
+          node-type-view (viewer node-type)
+          originals (into empty-navigable-node-id-vector
+                          (butlast (g/override-originals basis node-id)))]
+      (with-meta
+        (sectioned-map
+          {'node-id node-id
+           'node-type node-type-view}
+          (when-not (coll/empty? originals)
+            {'originals originals})
+          {'properties (->> node
+                            (g/own-property-values)
+                            (into (with-meta (sorted-map)
+                                             {`protocols/nav nav-node-value
+                                              :node-id node-id}))
+                            (map-viewer))}
+          {'inputs (reduce
+                     (fn [target-label->source-key->source-node-id arc]
+                       (let [target-label (gt/target-label arc)
+                             source-node-id (gt/source-id arc)
+                             source-key (arc-source-key basis arc)]
+                         (update-in
+                           target-label->source-key->source-node-id
+                           [target-label source-key]
+                           (fn [source-node-ids]
+                             (conj (or source-node-ids empty-navigable-node-id-vector)
+                                   source-node-id)))))
+                     (with-meta (sorted-map)
+                                {`protocols/nav nav-node-value
+                                 :node-id node-id})
+                     (sort-by gt/source-id
+                              (gt/arcs-by-target basis node-id)))
+           'outputs (reduce
+                      (fn [source-label->target-key->target-node-id arc]
+                        (let [source-label (gt/source-label arc)
+                              target-node-id (gt/target-id arc)
+                              target-key (arc-target-key basis arc)]
+                          (update-in
+                            source-label->target-key->target-node-id
+                            [source-label target-key]
+                            (fn [target-node-ids]
+                              (conj (or target-node-ids empty-navigable-node-id-vector)
+                                    target-node-id)))))
+                      (with-meta (sorted-map)
+                                 {`protocols/nav nav-node-value
+                                  :node-id node-id})
+                      (sort-by gt/target-id
+                               (gt/arcs-by-source basis node-id)))})
+        {:portal.runtime/type node-type-view}))))
 
 (defn- default-navigable-value? [basis value]
   (and (g/node-id? value)
        (g/node-exists? basis value)))
+
+(defn- default-navigable-map-entry? [basis map-entry]
+  (or (default-navigable-value? basis (key map-entry))
+      (default-navigable-value? basis (val map-entry))))
 
 (defn- default-nav-fn [_coll _key value]
   (let [basis (g/now)]
@@ -157,7 +200,7 @@
         ;; Support navigation in case the coll contains navigable values.
         (cond-> coll
                 (and (not (contains? (meta coll) `protocols/nav))
-                     (coll/any? (comp (partial default-navigable-value? (g/now)) val) coll))
+                     (coll/any? (partial default-navigable-map-entry? (g/now)) coll))
                 (vary-meta assoc `protocols/nav default-nav-fn))))
 
 (defn coll-viewer [coll]
