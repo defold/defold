@@ -670,16 +670,16 @@
                        (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y :movement movement)
                        (if (or (= movement :idle) is-secondary)
                          action
-                         (do (g/set-property! self :cursor-type Cursor/MOVE)
+                         (do (g/set-property! self :cursor-type :pan)
                              nil)))
       :mouse-released (do
                         (g/user-data-swap! self ::ui-state assoc :last-x nil :last-y nil :movement :idle)
-                        (g/set-property! self :cursor-type Cursor/DEFAULT)
+                        (g/set-property! self :cursor-type :default)
                         (if (or (= movement :idle) is-secondary) action nil))
       :mouse-moved (if (not (= :idle movement))
                      (do
                        (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y)
-                       (g/set-property! self :cursor-type Cursor/MOVE)
+                       (g/set-property! self :cursor-type :pan)
                        (if is-secondary action nil))
                      action)
       action)))

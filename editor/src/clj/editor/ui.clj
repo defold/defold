@@ -49,7 +49,7 @@
            [javafx.event ActionEvent Event EventDispatcher EventHandler EventTarget]
            [javafx.fxml FXMLLoader]
            [javafx.geometry Orientation Point2D]
-           [javafx.scene Group Node Parent Scene]
+           [javafx.scene Cursor Group Node Parent Scene]
            [javafx.scene.control Button ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
@@ -2421,3 +2421,11 @@
     (on-cancel! cancel-fn)
     (auto-commit! update-fn)
     (select-all-on-click!)))
+
+(defn set-cursor
+  [^Node node ^Cursor cursor-type]
+  ;; The cursor refresh appears buggy at the moment.
+  ;; Calling setCursor with DISAPPEAR before setting the cursor forces it to refresh.
+  (when (not= cursor (.getCursor node))
+    (.setCursor node Cursor/DISAPPEAR)
+    (.setCursor node cursor-type)))

@@ -31,6 +31,7 @@
             [editor.handler :as handler]
             [editor.input :as i]
             [editor.math :as math]
+            [editor.os :as os]
             [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -908,7 +909,7 @@
   (input updatables g/Any)
   (input selected-updatables g/Any)
   (input grid g/Any)
-  (input cursor-type Cursor)
+  (input cursor-type g/Keyword)
   (output inactive? g/Bool (g/fnk [_node-id active-view] (not= _node-id active-view)))
   (output info-text g/Str (g/fnk [scene tool-info-text]
                             (or tool-info-text (:info-text scene))))
@@ -940,17 +941,21 @@
       component (do (fx/delete-component component) (g/user-data! view-node key nil))
       desc (g/user-data! view-node key (fx/create-component desc)))))
 
+;; Cursor types are not consistent across platforms.
+(def cursor-types
+  {:pan (if (os/is-linux?) Cursor/MOVE Cursor/CLOSED_HAND)
+   :default Cursor/DEFAULT})
+
 (defn refresh-scene-view! [node-id dt]
   (g/with-auto-evaluation-context evaluation-context
-    (let [image-view ^ImageView (g/node-value node-id :image-view evaluation-context)]
+    (let [image-view (g/node-value node-id :image-view evaluation-context)]
       (when-not (ui/inside-hidden-tab? image-view)
         (let [drawable (g/node-value node-id :drawable evaluation-context)
               async-copy-state-atom (g/node-value node-id :async-copy-state evaluation-context)]
           (when (and (some? drawable) (some? async-copy-state-atom))
             (update-image-view! image-view drawable async-copy-state-atom evaluation-context dt)
-            (when-let [cursor-type ^Cursor (g/maybe-node-value node-id :cursor-type evaluation-context)]
-              (when (not= cursor-type (.getCursor image-view))
-                (.setCursor image-view cursor-type)))))
+            (when-let [cursor-type (g/maybe-node-value node-id :cursor-type evaluation-context)]
+              (ui/set-cursor image-view (get cursor-type cursor-types)))))
         (when-let [overlay-anchor-pane (g/node-value node-id :overlay-anchor-pane evaluation-context)]
           (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props evaluation-context)]
             (advance-user-data-component!
