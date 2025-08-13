@@ -942,9 +942,12 @@
       desc (g/user-data! view-node key (fx/create-component desc)))))
 
 (defn cursor
-  "Maps inconsistent cursor types across platforms."
+  "Maps inconsistent cursor types across platforms.
+  See https://bugs.openjdk.org/browse/JDK-8101062"
   [cursor-type]
   (case cursor-type
+    ;; `CLOSED_HAND ``OPEN_HAND_HAND ``HAND `all render a pointer cursor on Linux and Windows.
+    ;; `MOVE `renders the default cursor on macOS.
     :pan (if (os/is-mac-os?) Cursor/CLOSED_HAND Cursor/MOVE)
     Cursor/DEFAULT))
 
