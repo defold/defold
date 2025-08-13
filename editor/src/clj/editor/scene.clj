@@ -945,7 +945,7 @@
   "Maps inconsistent cursor types across platforms."
   [cursor-type]
   (case cursor-type
-    :pan (if (os/is-linux?) Cursor/MOVE Cursor/CLOSED_HAND)
+    :pan (if (os/is-mac-os?) Cursor/CLOSED_HAND Cursor/MOVE)
     Cursor/DEFAULT))
 
 (defn refresh-scene-view! [node-id dt]
