@@ -15,6 +15,7 @@
 (ns editor.portal
   (:require [clojure.core.protocols :as protocols]
             [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data]
             [editor.defold-project :as project]
@@ -69,6 +70,11 @@
         (:FileResource :ZipResource) (proj-path-node-id proj-path evaluation-context)
         nil))))
 
+(def no-viewer
+  ;; HACK: Height specified to achieve consistent row height with other rows.
+  (portal.viewer/hiccup
+    [:div {:style {:height 17.5}}]))
+
 (declare ^:private default-viewer ^:private map-viewer viewer)
 
 (extend-protocol Viewable
@@ -97,17 +103,28 @@
   (portal-view [bytes _evaluation-context]
     (portal.viewer/bin bytes)))
 
+(defn- simple-namespace
+  ^String [^String namespace]
+  (string/replace namespace #"^.*\." ""))
+
+(defn- simple-node-type-symbol [node-type-kw]
+  (when node-type-kw
+    (symbol (simple-namespace (namespace node-type-kw))
+            (name node-type-kw))))
+
 (defn- arc-source-key [basis arc]
-  (let [source-node-id (gt/source-id arc)
-        source-label (gt/source-label arc)
-        source-node-type-symbol (some-> (g/node-type-kw basis source-node-id) symbol)]
+  (let [source-label (gt/source-label arc)
+        source-node-id (gt/source-id arc)
+        source-node-type-kw (g/node-type-kw basis source-node-id)
+        source-node-type-symbol (simple-node-type-symbol source-node-type-kw)]
     (portal.viewer/pr-str
       (pair source-node-type-symbol source-label))))
 
 (defn- arc-target-key [basis arc]
-  (let [target-node-id (gt/target-id arc)
-        target-label (gt/target-label arc)
-        target-node-type-symbol (some-> (g/node-type-kw basis target-node-id) symbol)]
+  (let [target-label (gt/target-label arc)
+        target-node-id (gt/target-id arc)
+        target-node-type-kw (g/node-type-kw basis target-node-id)
+        target-node-type-symbol (simple-node-type-symbol target-node-type-kw)]
     (portal.viewer/pr-str
       (pair target-node-type-symbol target-label))))
 
@@ -172,9 +189,8 @@
                     (butlast (g/override-originals basis node-id)))
 
               empty-navigable-node-label-map
-              (with-meta (sorted-map)
-                         {`protocols/nav navigable-node-label-map-nav-fn
-                          :node-id node-id})]
+              (with-meta {} {`protocols/nav navigable-node-label-map-nav-fn
+                             :node-id node-id})]
           (-> (sectioned-map
                 {'node-id node-id
                  'node-type node-type-view}
@@ -191,34 +207,50 @@
                                  (g/own-property-values)
                                  (coll/transfer empty-navigable-node-label-map)
                                  (map-viewer evaluation-context))}
-                {'inputs (reduce
-                           (fn [target-label->source-key->source-node-id arc]
-                             (let [target-label (gt/target-label arc)
-                                   source-node-id (gt/source-id arc)
-                                   source-key (arc-source-key basis arc)]
-                               (update-in
+                {'inputs (as-> empty-navigable-node-label-map target-label->source-key->source-node-id
+                               (reduce
+                                 (fn [target-label->source-key->source-node-id arc]
+                                   (let [target-label (gt/target-label arc)
+                                         source-node-id (gt/source-id arc)
+                                         source-key (arc-source-key basis arc)]
+                                     (update-in
+                                       target-label->source-key->source-node-id
+                                       [target-label source-key]
+                                       (fn [source-node-ids]
+                                         (conj (or source-node-ids empty-navigable-node-id-vector)
+                                               source-node-id)))))
                                  target-label->source-key->source-node-id
-                                 [target-label source-key]
-                                 (fn [source-node-ids]
-                                   (conj (or source-node-ids empty-navigable-node-id-vector)
-                                         source-node-id)))))
-                           empty-navigable-node-label-map
-                           (sort-by gt/source-id
-                                    (gt/arcs-by-target basis node-id)))
-                 'outputs (reduce
-                            (fn [source-label->target-key->target-node-id arc]
-                              (let [source-label (gt/source-label arc)
-                                    target-node-id (gt/target-id arc)
-                                    target-key (arc-target-key basis arc)]
-                                (update-in
+                                 (sort-by gt/source-id
+                                          (gt/arcs-by-target basis node-id)))
+                               (reduce
+                                 (fn [target-label->source-key->source-node-id [input-label]]
+                                   (update
+                                     target-label->source-key->source-node-id input-label
+                                     #(or % no-viewer)))
+                                 target-label->source-key->source-node-id
+                                 (g/declared-inputs node-type)))
+                 'outputs (as-> empty-navigable-node-label-map source-label->target-key->target-node-id
+                                (reduce
+                                  (fn [source-label->target-key->target-node-id arc]
+                                    (let [source-label (gt/source-label arc)
+                                          target-node-id (gt/target-id arc)
+                                          target-key (arc-target-key basis arc)]
+                                      (update-in
+                                        source-label->target-key->target-node-id
+                                        [source-label target-key]
+                                        (fn [target-node-ids]
+                                          (conj (or target-node-ids empty-navigable-node-id-vector)
+                                                target-node-id)))))
                                   source-label->target-key->target-node-id
-                                  [source-label target-key]
-                                  (fn [target-node-ids]
-                                    (conj (or target-node-ids empty-navigable-node-id-vector)
-                                          target-node-id)))))
-                            empty-navigable-node-label-map
-                            (sort-by gt/target-id
-                                     (gt/arcs-by-source basis node-id)))})
+                                  (sort-by gt/target-id
+                                           (gt/arcs-by-source basis node-id)))
+                                (reduce
+                                  (fn [source-label->target-key->target-node-id [output-label]]
+                                    (update
+                                      source-label->target-key->target-node-id output-label
+                                      #(or % no-viewer)))
+                                  source-label->target-key->target-node-id
+                                  (g/declared-outputs node-type)))})
               (with-meta {`protocols/nav default-nav-fn
                           :portal.runtime/type node-type-view})
               (portal.viewer/inspector)))))))
