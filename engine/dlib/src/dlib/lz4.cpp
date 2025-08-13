@@ -21,7 +21,6 @@ namespace dmLZ4
     Result DecompressBuffer(const void* buffer, uint32_t buffer_size, void* decompressed_buffer, uint32_t max_output, int* decompressed_size)
     {
         Result r;
-        // When we set an output size larger than 1G (or closer to 2G) lz4 fails for some reason...
         if(max_output <= DMLZ4_MAX_OUTPUT_SIZE)
         {
             *decompressed_size = LZ4_decompress_safe((const char*)buffer, (char *)decompressed_buffer, buffer_size, max_output);
