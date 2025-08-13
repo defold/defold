@@ -18,6 +18,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
@@ -26,6 +27,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderUtil.VariantTextureArrayFallback;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.Task;
+import com.dynamo.graphics.proto.Graphics;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.render.proto.Material.MaterialDesc;
@@ -142,7 +144,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
     private static final String PBR_MATERIAL_NAME = "PbrMaterial";
 
-    enum PbrParameterType
+    public static enum PbrParameterType
     {
         PBR_PARAMETER_TYPE_METALLIC_ROUGHNESS,
         PBR_PARAMETER_TYPE_SPECULAR_GLOSSINESS,
@@ -185,26 +187,38 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         }
     }
 
-    private static void buildPbrParameters(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) {
-        MaterialDesc.PbrParameters.Builder pbrParametersBuilder = MaterialDesc.PbrParameters.newBuilder();
+    public static PbrParameterType[] getPbrParameters(Graphics.ShaderDesc.ShaderReflection shaderReflection) {
+        ArrayList<PbrParameterType> params = new ArrayList<>();
+        if (shaderReflection != null) {
+            for (ShaderDesc.ResourceBinding resourceBinding : shaderReflection.getUniformBuffersList()) {
+                ShaderDesc.ResourceType resourceType = resourceBinding.getType();
+                ShaderDesc.ResourceTypeInfo resourceTypeInfo = shaderReflection.getTypes(resourceType.getTypeIndex());
 
-        for (ShaderDesc.ResourceBinding resourceBinding : shaderBuilder.getReflection().getUniformBuffersList()) {
-            ShaderDesc.ResourceType resourceType = resourceBinding.getType();
-            ShaderDesc.ResourceTypeInfo resourceTypeInfo = shaderBuilder.getReflection().getTypes(resourceType.getTypeIndex());
-
-            if (resourceTypeInfo.getName().equals(PBR_MATERIAL_NAME)) {
-                for (ShaderDesc.ResourceMember resourceMember : resourceTypeInfo.getMembersList()) {
-                    ShaderDesc.ResourceTypeInfo resourceMemberTypeInfo = shaderBuilder.getReflection().getTypes(resourceMember.getType().getTypeIndex());
-                    String resourceMemberTypeName = resourceMemberTypeInfo.getName();
-                    if (pbrStructNameToParameterType.containsKey(resourceMemberTypeName)) {
-                        addPbrParameter(pbrParametersBuilder, pbrStructNameToParameterType.get(resourceMemberTypeName));
-                        pbrParametersBuilder.setHasParameters(true);
+                if (resourceTypeInfo.getName().equals(PBR_MATERIAL_NAME)) {
+                    for (ShaderDesc.ResourceMember resourceMember : resourceTypeInfo.getMembersList()) {
+                        ShaderDesc.ResourceTypeInfo resourceMemberTypeInfo = shaderReflection.getTypes(resourceMember.getType().getTypeIndex());
+                        String resourceMemberTypeName = resourceMemberTypeInfo.getName();
+                        if (pbrStructNameToParameterType.containsKey(resourceMemberTypeName)) {
+                            params.add(pbrStructNameToParameterType.get(resourceMemberTypeName));
+                        }
                     }
                 }
             }
+
+        }
+        return params.toArray(new PbrParameterType[0]);
+    }
+
+    private static void buildPbrParameters(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) {
+        MaterialDesc.PbrParameters.Builder pbrParametersBuilder = MaterialDesc.PbrParameters.newBuilder();
+
+        PbrParameterType[] parameters = getPbrParameters(shaderBuilder.getReflection());
+        for (PbrParameterType parameter : parameters) {
+            addPbrParameter(pbrParametersBuilder, parameter);
         }
 
-        if (pbrParametersBuilder.hasHasParameters()) {
+        if (parameters.length > 0) {
+            pbrParametersBuilder.setHasParameters(true);
             materialBuilder.setPbrParameters(pbrParametersBuilder);
         }
     }
