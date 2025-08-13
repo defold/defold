@@ -96,11 +96,13 @@ function init(self)
     physics.create_joint(physics.JOINT_TYPE_HINGE, self.a_coll, self.joint_id, zp, self.b_coll, zp, { lower_angle = 0, upper_angle = 10, enable_limit = true })
     properties = physics.get_joint_properties(self.a_coll, self.joint_id)
 
+    if PHYSICS=="box2dv3" then
+        assert_near(properties.upper_angle, 3.1415927410126)
+    else
+        assert(properties.upper_angle == 10)
+    end
     assert(properties.lower_angle == 0)
-    -- box2d v2
-    assert(properties.upper_angle == 10)
-    -- box2d v3: upper_angle is clamped to PI
-    -- assert_near(properties.upper_angle, 3.1415927410126)
+
     assert(properties.enable_limit)
     physics.destroy_joint(self.a_coll, self.joint_id)
 
@@ -442,12 +444,14 @@ local joint_tests = {
         local p_c = go.get_position(self.c)
         local p_b = go.get_position(self.b)
         local length = vmath.length(p_c - p_b)
-        -- Box2d v2
-        assert_near(70.472, length, 0.01)
-        assert_near(54.736, p_b.x)
-        -- Box2d v3
-        --assert_near(71.472, length, 0.01)
-        --assert_near(55.335, p_b.x)
+
+        if PHYSICS=="box2dv3" then
+            assert_near(71.472, length, 0.01)
+            assert_near(55.335, p_b.x)
+        else
+            assert_near(70.472, length, 0.01)
+            assert_near(54.736, p_b.x)
+        end
 
         -- Cleanup, for next test
         physics.destroy_joint(self.b_coll, self.joint_id)

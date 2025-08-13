@@ -91,13 +91,19 @@ def build(bld):
                                embed_source = embed_source,
                                target = 'test_gamesys')
 
-    if not 'web' in bld.env['PLATFORM']:
-        test_gamesys_http = bld.program(features = 'cxx cprogram test',
-                                        includes = '../../../src ../../../proto',
-                                        use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT TEST_SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig_null gamesys_model_null',
-                                        exported_symbols = exported_symbols,
-                                        source = bld.path.ant_glob('test_gamesys_http.cpp') + bld.path.ant_glob('http/*'),
-                                        target = 'test_gamesys_http')
+    test_gamesys_physics = bld.program(features='cxx cprogram test',
+                                includes='../../../src ../../../proto',
+                                use='TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT TEST_SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig_null gamesys_model_null',
+                                exported_symbols=exported_symbols,
+                                source=bld.path.ant_glob('test_gamesys_physics.cpp') + bld.path.ant_glob('collision_object/*'),
+                                target='test_gamesys_physics')
+
+    test_gamesys_http = bld.program(features = 'cxx cprogram test',
+                                includes = '../../../src ../../../proto',
+                                use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT TEST_SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig_null gamesys_model_null',
+                                exported_symbols = exported_symbols,
+                                source = bld.path.ant_glob('test_gamesys_http.cpp') + bld.path.ant_glob('http/*'),
+                                target = 'test_gamesys_http')
 
     if not 'web' in bld.env['PLATFORM']:
         if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):

@@ -528,6 +528,17 @@ void GamesysTest<T>::SetUp()
     m_ScriptContext = dmScript::NewContext(script_context_params);
     dmScript::Initialize(m_ScriptContext);
 
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    #ifdef DM_PHYSICS_BOX2D_V3
+        lua_pushstring(L, "box2dv3");
+    #elif defined(DM_PHYSICS_BOX2D_V2)
+       lua_pushstring(L, "box2dv2");
+    #else
+        lua_pushstring(L, "box2dv2");
+    #endif
+    lua_setglobal(L, "PHYSICS");
+
     dmGui::NewContextParams gui_params;
     gui_params.m_ScriptContext = m_ScriptContext;
     gui_params.m_HidContext = m_HidContext;
@@ -668,6 +679,8 @@ void GamesysTest<T>::SetUp()
 
     // TODO: Investigate why the ConsumeInputInCollectionProxy test fails if the components are actually sorted (the way they're supposed to)
     //dmGameObject::SortComponentTypes(m_Register);
+
+
 
     m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0x0);
 }
