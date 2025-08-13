@@ -17,7 +17,10 @@
             [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.code.data]
+            [editor.defold-project :as project]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node]
             [portal.api :as portal.api]
@@ -34,37 +37,64 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (defonce/protocol Viewable
-  (portal-view [value] "Returns a customized Portal viewer for the value."))
+  (portal-view [value evaluation-context] "Returns a customized Portal viewer for the value."))
 
-(declare default-viewer map-viewer viewer)
+(defn- workspace []
+  0)
+
+(defn- project [basis]
+  (some-> (ig/explicit-arcs-by-source basis (workspace) :resource-map)
+          (first)
+          (gt/target-id)))
+
+(defn- proj-path-node-id [^String proj-path evaluation-context]
+  (when (and (string? proj-path)
+             (< 1 (.length proj-path))
+             (= \/ (.charAt proj-path 0)))
+    (let [basis (:basis evaluation-context)
+          project (project basis)]
+      (project/get-resource-node project proj-path evaluation-context))))
+
+(defn- make-resource-view [resource]
+  (let [class-name (.getSimpleName (class resource))
+        class-keyword (keyword class-name)
+        proj-path (resource/proj-path resource)]
+    (portal.viewer/pr-str {class-keyword proj-path})))
+
+(defn- resource-view-node-id [resource-view evaluation-context]
+  (when (and (map? resource-view)
+             (= 1 (count resource-view)))
+    (let [[class-keyword proj-path] (first resource-view)]
+      (case class-keyword
+        (:FileResource :ZipResource) (proj-path-node-id proj-path evaluation-context)
+        nil))))
+
+(declare ^:private default-viewer ^:private map-viewer viewer)
 
 (extend-protocol Viewable
   Cursor
-  (portal-view [cursor]
+  (portal-view [cursor _evaluation-context]
     (portal.viewer/pprint cursor))
 
   CursorRange
-  (portal-view [cursor-range]
+  (portal-view [cursor-range evaluation-context]
     (portal.viewer/pprint
-      (default-viewer cursor-range)))
+      (default-viewer cursor-range evaluation-context)))
 
   Fn
-  (portal-view [fn]
+  (portal-view [fn _evaluation-context]
     (fn/demunged-symbol (.getName (class fn))))
 
   NodeTypeRef
-  (portal-view [node-type]
+  (portal-view [node-type _evaluation-context]
     (symbol (:k node-type)))
 
   Resource
-  (portal-view [resource]
-    (let [class-name (.getSimpleName (class resource))
-          class-keyword (keyword class-name)
-          proj-path (resource/proj-path resource)]
-      (portal.viewer/pr-str {class-keyword proj-path})))
+  (portal-view [resource _evaluation-context]
+    (make-resource-view resource))
 
   byte/1
-  (portal-view [bytes]
+  (portal-view [bytes _evaluation-context]
     (portal.viewer/bin bytes)))
 
 (defn- arc-source-key [basis arc]
@@ -83,20 +113,23 @@
 
 (declare ^:private default-nav-fn ^:private try-nav-node-id)
 
-(defn- nav-node-id [_coll _index value]
-  (or (try-nav-node-id (g/now) value)
-      value))
-
-(defn- nav-node-value [coll key value]
+(defn- navigable-node-label-map-nav-fn [coll key value]
   (if (nil? key)
     (let [node-id (get (meta coll) :node-id)]
       (assert (g/node-id? node-id))
-      (viewer (g/node-value node-id value)))
+      (g/with-auto-or-fake-evaluation-context evaluation-context
+        (let [node-value (g/node-value node-id value evaluation-context)]
+          (viewer node-value evaluation-context))))
     (default-nav-fn coll key value)))
+
+(defn- navigable-node-id-vector-nav-fn [_coll _index value]
+  (g/with-auto-or-fake-evaluation-context evaluation-context
+    (or (try-nav-node-id value evaluation-context)
+        value)))
 
 (def ^:private empty-navigable-node-id-vector
   (-> []
-      (with-meta {`protocols/nav nav-node-id})
+      (with-meta {`protocols/nav navigable-node-id-vector-nav-fn})
       (portal.viewer/inspector)))
 
 (defn- sectioned-map [first-section & more-sections]
@@ -105,12 +138,14 @@
                    (keyword? first-section-key) keyword
                    (symbol? first-section-key) symbol
                    :else (throw (IllegalArgumentException. "first-section must be a map with Named keys")))]
+    ;; Prefix the keys in each section with an increasing number of zero-width
+    ;; spaces so that the keys from later sections are ordered after prior ones.
     (coll/transfer more-sections first-section
       (coll/mapcat-indexed
         (fn [^long section-index section]
           (let [prefix-length (inc section-index)
                 prefix (-> (StringBuilder. prefix-length)
-                           (.repeat (int \u200B) prefix-length)
+                           (.repeat (int \u200B) prefix-length) ; "" (ZERO WIDTH SPACE)
                            (.toString))]
             (map (fn [[key value]]
                    (let [prefixed-name (str prefix (name key))
@@ -118,80 +153,108 @@
                      (pair prefixed-key value)))
                  section)))))))
 
-(defn- try-nav-node-id [basis node-id]
-  (when-some [node (g/node-by-id-at basis node-id)]
-    (let [node-type (g/node-type node)
-          node-type-view (viewer node-type)
-          originals (into empty-navigable-node-id-vector
-                          (butlast (g/override-originals basis node-id)))]
-      (with-meta
-        (sectioned-map
-          {'node-id node-id
-           'node-type node-type-view}
-          (when-not (coll/empty? originals)
-            {'originals originals})
-          {'properties (->> node
-                            (g/own-property-values)
-                            (into (with-meta (sorted-map)
-                                             {`protocols/nav nav-node-value
-                                              :node-id node-id}))
-                            (map-viewer))}
-          {'inputs (reduce
-                     (fn [target-label->source-key->source-node-id arc]
-                       (let [target-label (gt/target-label arc)
-                             source-node-id (gt/source-id arc)
-                             source-key (arc-source-key basis arc)]
-                         (update-in
-                           target-label->source-key->source-node-id
-                           [target-label source-key]
-                           (fn [source-node-ids]
-                             (conj (or source-node-ids empty-navigable-node-id-vector)
-                                   source-node-id)))))
-                     (with-meta (sorted-map)
-                                {`protocols/nav nav-node-value
-                                 :node-id node-id})
-                     (sort-by gt/source-id
-                              (gt/arcs-by-target basis node-id)))
-           'outputs (reduce
-                      (fn [source-label->target-key->target-node-id arc]
-                        (let [source-label (gt/source-label arc)
-                              target-node-id (gt/target-id arc)
-                              target-key (arc-target-key basis arc)]
-                          (update-in
-                            source-label->target-key->target-node-id
-                            [source-label target-key]
-                            (fn [target-node-ids]
-                              (conj (or target-node-ids empty-navigable-node-id-vector)
-                                    target-node-id)))))
-                      (with-meta (sorted-map)
-                                 {`protocols/nav nav-node-value
-                                  :node-id node-id})
-                      (sort-by gt/target-id
-                               (gt/arcs-by-source basis node-id)))})
-        {:portal.runtime/type node-type-view}))))
-
-(defn- default-navigable-value? [basis value]
+(defn- can-nav-node-id? [value evaluation-context]
   (and (g/node-id? value)
-       (g/node-exists? basis value)))
+       (g/node-exists? (:basis evaluation-context) value)))
 
-(defn- default-navigable-map-entry? [basis map-entry]
-  (or (default-navigable-value? basis (key map-entry))
-      (default-navigable-value? basis (val map-entry))))
+(defn- try-nav-node-id [node-id evaluation-context]
+  (when (g/node-id? node-id)
+    (let [basis (:basis evaluation-context)
+          node (g/node-by-id-at basis node-id)]
+      (when node
+        (let [node-type (g/node-type node)
+              node-type-view (viewer node-type evaluation-context)
+              resource (resource-node/as-resource basis node-id)
+              owner-resource (resource-node/owner-resource basis node-id)
+
+              originals
+              (into empty-navigable-node-id-vector
+                    (butlast (g/override-originals basis node-id)))
+
+              empty-navigable-node-label-map
+              (with-meta (sorted-map)
+                         {`protocols/nav navigable-node-label-map-nav-fn
+                          :node-id node-id})]
+          (-> (sectioned-map
+                {'node-id node-id
+                 'node-type node-type-view}
+                (when-not (coll/empty? originals)
+                  {'originals originals})
+                (cond
+                  (and owner-resource
+                       (not= resource owner-resource))
+                  {'owner (viewer owner-resource evaluation-context)}
+
+                  resource
+                  {'resource (viewer resource evaluation-context)})
+                {'properties (-> node
+                                 (g/own-property-values)
+                                 (coll/transfer empty-navigable-node-label-map)
+                                 (map-viewer evaluation-context))}
+                {'inputs (reduce
+                           (fn [target-label->source-key->source-node-id arc]
+                             (let [target-label (gt/target-label arc)
+                                   source-node-id (gt/source-id arc)
+                                   source-key (arc-source-key basis arc)]
+                               (update-in
+                                 target-label->source-key->source-node-id
+                                 [target-label source-key]
+                                 (fn [source-node-ids]
+                                   (conj (or source-node-ids empty-navigable-node-id-vector)
+                                         source-node-id)))))
+                           empty-navigable-node-label-map
+                           (sort-by gt/source-id
+                                    (gt/arcs-by-target basis node-id)))
+                 'outputs (reduce
+                            (fn [source-label->target-key->target-node-id arc]
+                              (let [source-label (gt/source-label arc)
+                                    target-node-id (gt/target-id arc)
+                                    target-key (arc-target-key basis arc)]
+                                (update-in
+                                  source-label->target-key->target-node-id
+                                  [source-label target-key]
+                                  (fn [target-node-ids]
+                                    (conj (or target-node-ids empty-navigable-node-id-vector)
+                                          target-node-id)))))
+                            empty-navigable-node-label-map
+                            (sort-by gt/target-id
+                                     (gt/arcs-by-source basis node-id)))})
+              (with-meta {`protocols/nav default-nav-fn
+                          :portal.runtime/type node-type-view})
+              (portal.viewer/inspector)))))))
+
+(defn- can-nav-resource? [value evaluation-context]
+  (some? (or (resource-view-node-id value evaluation-context)
+             (proj-path-node-id value evaluation-context))))
+
+(defn- try-nav-resource [value evaluation-context]
+  (some-> (or (resource-view-node-id value evaluation-context)
+              (proj-path-node-id value evaluation-context))
+          (try-nav-node-id evaluation-context)))
+
+(defn- can-nav-value? [value evaluation-context]
+  (or (can-nav-node-id? value evaluation-context)
+      (can-nav-resource? value evaluation-context)))
+
+(defn- can-nav-map-entry? [map-entry evaluation-context]
+  (or (can-nav-value? (val map-entry) evaluation-context)
+      (can-nav-value? (key map-entry) evaluation-context)))
 
 (defn- default-nav-fn [_coll _key value]
-  (let [basis (g/now)]
-    (or (try-nav-node-id basis value)
+  (g/with-auto-or-fake-evaluation-context evaluation-context
+    (or (try-nav-node-id value evaluation-context)
+        (try-nav-resource value evaluation-context)
         value)))
 
-(defn map-viewer [coll]
+(defn- map-viewer [coll evaluation-context]
   (as-> coll coll
 
         ;; Apply the viewer to the keys and values.
         ;; This also works with records, maintaining their type.
         (reduce-kv
           (fn [coll old-key old-value]
-            (let [new-key (viewer old-key)
-                  new-value (viewer old-value)]
+            (let [new-key (viewer old-key evaluation-context)
+                  new-value (viewer old-value evaluation-context)]
               (cond-> (assoc coll new-key new-value)
                       (not= old-key new-key) (dissoc old-key))))
           coll
@@ -200,20 +263,20 @@
         ;; Support navigation in case the coll contains navigable values.
         (cond-> coll
                 (and (not (contains? (meta coll) `protocols/nav))
-                     (coll/any? (partial default-navigable-map-entry? (g/now)) coll))
+                     (coll/any? #(can-nav-map-entry? % evaluation-context) coll))
                 (vary-meta assoc `protocols/nav default-nav-fn))))
 
-(defn coll-viewer [coll]
+(defn- coll-viewer [coll evaluation-context]
   (as-> coll coll
 
         ;; Apply the viewer to the values.
         (coll/transfer coll (coll/empty-with-meta coll)
-          (map viewer))
+          (map #(viewer % evaluation-context)))
 
         ;; Support navigation in case the coll contains navigable values.
         (cond-> coll
                 (and (not (contains? (meta coll) `protocols/nav))
-                     (coll/any? (partial default-navigable-value? (g/now)) coll))
+                     (coll/any? #(can-nav-value? % evaluation-context) coll))
                 (vary-meta assoc `protocols/nav default-nav-fn))
 
         ;; Use a viewer that allows us to select individual items in case the
@@ -223,24 +286,25 @@
                 (contains? (meta coll) `protocols/nav)
                 (portal.viewer/inspector))))
 
-(defn default-viewer [value]
+(defn- default-viewer [value evaluation-context]
   (cond
     (map? value)
-    (map-viewer value)
+    (map-viewer value evaluation-context)
 
     (coll? value)
-    (coll-viewer value)
+    (coll-viewer value evaluation-context)
 
     :else
     value))
 
-(defn viewer [value]
+(defn viewer [value evaluation-context]
   (if (satisfies? Viewable value)
-    (portal-view value)
-    (default-viewer value)))
+    (portal-view value evaluation-context)
+    (default-viewer value evaluation-context)))
 
 (defn submit! [value]
-  (portal.api/submit (viewer value)))
+  (g/with-auto-or-fake-evaluation-context evaluation-context
+    (portal.api/submit (viewer value evaluation-context))))
 
 ;; Add the #'submit! var to the tap set rather than the function to ensure the
 ;; set won't grow if the function is redefined.
