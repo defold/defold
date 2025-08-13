@@ -21,7 +21,7 @@
            [java.nio.channels OverlappingFileLockException]
            [java.nio.charset Charset StandardCharsets]
            [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException FileVisitResult FileVisitor Files LinkOption NoSuchFileException NotDirectoryException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
-           [java.nio.file.attribute BasicFileAttributes FileAttribute FileTime]
+           [java.nio.file.attribute BasicFileAttributes FileAttribute]
            [java.util UUID]))
 
 (set! *warn-on-reflection* true)

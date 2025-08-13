@@ -56,13 +56,16 @@
   (when-not (fs/path-exists? p)
     (throw (LuaError. (str "Source path does not exist: " p)))))
 
+(defn- absolute-path? [^Path p]
+  ;; on Windows, a path starting with "/" is not absolute, but we don't want
+  ;; to support such paths since we use unix-style paths in the archive.
+  ;; Additionally, a path that does not start with "/" might still be
+  ;; absolute, e.g. "C:\Users"
+  (or (.startsWith p "/")
+      (.isAbsolute p)))
+
 (defn- validate-entry-target-path! [^Path p]
-  (when (or (.startsWith p "/")
-            (.isAbsolute p))
-    ;; on Windows, a path starting with "/" is not absolute, but we don't want
-    ;; to support such paths since we use unix-style paths in the archive.
-    ;; Additionally, a path that does not start with "/" might still be
-    ;; absolute, e.g. "C:\Users"
+  (when (absolute-path? p)
     (throw (LuaError. (str "Target path must be relative: " p))))
   (when (.startsWith p "..")
     (throw (LuaError. (str "Target path is above archive root: " p)))))
@@ -151,7 +154,7 @@
                             (-> coerce/string
                                 (coerce/wrap-transform #(.normalize (fs/path %)))
                                 (coerce/wrap-with-pred #(not (.startsWith ^Path % "..")) "is above root")
-                                (coerce/wrap-with-pred #(not (.isAbsolute ^Path %)) "is absolute")
+                                (coerce/wrap-with-pred #(not (absolute-path? %)) "is absolute")
                                 (coerce/wrap-transform #(FilenameUtils/separatorsToUnix (str %)))
                                 (coerce/wrap-with-pred #(not (coll/empty? %)) "is empty"))
                             :min-count 1)))
