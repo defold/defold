@@ -226,7 +226,8 @@
                                  (fn [target-label->source-key->source-node-id [input-label]]
                                    (update
                                      target-label->source-key->source-node-id input-label
-                                     #(or % no-viewer)))
+                                     fn/or
+                                     no-viewer))
                                  target-label->source-key->source-node-id
                                  (g/declared-inputs node-type)))
                  'outputs (as-> empty-navigable-node-label-map source-label->target-key->target-node-id
@@ -248,7 +249,8 @@
                                   (fn [source-label->target-key->target-node-id [output-label]]
                                     (update
                                       source-label->target-key->target-node-id output-label
-                                      #(or % no-viewer)))
+                                      fn/or
+                                      no-viewer))
                                   source-label->target-key->target-node-id
                                   (g/declared-outputs node-type)))})
               (with-meta {`protocols/nav default-nav-fn
