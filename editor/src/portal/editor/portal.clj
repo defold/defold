@@ -37,8 +37,24 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+;; How to use Portal during editor development
+;;
+;; Install the relevant Portal plugin for your IDE of choice.
+;;   * Cursive: https://plugins.jetbrains.com/plugin/18467-portal-inspector/
+;;   * Visual Studio Code: https://marketplace.visualstudio.com/items?itemName=djblue.portal
+;;
+;; Once installed,
+;;   * Use `lein with-profile +portal ...` when starting up to include Portal
+;;     on the class path.
+;;   * Evaluate the following expression through the REPL connection:
+;;     ```
+;;     (do (require '[editor.portal :as portal])
+;;         (portal/open!))
+;;     ```
+;;     You might want to set up a REPL Command for this in your IDE.
+
 (defonce/protocol Viewable
-  (portal-view [value evaluation-context] "Returns a customized Portal viewer for the value."))
+  (portal-view [value evaluation-context] "Returns a customized Portal view of the value."))
 
 (defn- workspace []
   0)
@@ -170,6 +186,19 @@
                      (pair prefixed-key value)))
                  section)))))))
 
+(def ^:private node-view-instructions-hiccup
+  [:<>
+   [:h3 [:p "Node View"]]
+   [:p "This view shows details related to a node in the graph."]
+   [:ul
+    [:li [:p "Nodes that belong to a resource node will display their owner resource."]]
+    [:li [:p "Override nodes will show the chain of original node-ids."]]
+    [:li [:p "The properties map shows raw field values, and includes defaults when viewing a base node. When viewing an override node, only overridden values are shown."]]
+    [:li [:p "For the inputs and outputs, we show incoming and outgoing connections instead of values."]]
+    [:li [:p "Double-click the keyword for a property, input, or output to evaluate it."]]
+    [:li [:p "Double-click a node-id anywhere to inspect the corresponding node."]]
+    [:li [:p "Double-click a resource or proj-path anywhere to inspect its resource node."]]]])
+
 (defn- can-nav-node-id? [value evaluation-context]
   (and (g/node-id? value)
        (g/node-exists? (:basis evaluation-context) value)))
@@ -190,12 +219,19 @@
 
               empty-navigable-node-label-map
               (with-meta {} {`protocols/nav navigable-node-label-map-nav-fn
-                             :node-id node-id})]
-          (-> (sectioned-map
-                {'node-id node-id
-                 'node-type node-type-view}
+                             :node-id node-id})
+
+              node-view
+              (sectioned-map
+                (with-meta
+                  {'node-id node-id
+                   'node-type node-type-view}
+                  {`protocols/nav default-nav-fn
+                   :portal.runtime/type node-type-view})
+
                 (when-not (coll/empty? originals)
                   {'originals originals})
+
                 (cond
                   (and owner-resource
                        (not= resource owner-resource))
@@ -203,59 +239,66 @@
 
                   resource
                   {'resource (viewer resource evaluation-context)})
-                {'properties (-> node
-                                 (g/own-property-values)
-                                 (coll/transfer empty-navigable-node-label-map)
-                                 (map-viewer evaluation-context))}
-                {'inputs (as-> empty-navigable-node-label-map target-label->source-key->source-node-id
-                               (reduce
-                                 (fn [target-label->source-key->source-node-id arc]
-                                   (let [target-label (gt/target-label arc)
-                                         source-node-id (gt/source-id arc)
-                                         source-key (arc-source-key basis arc)]
-                                     (update-in
-                                       target-label->source-key->source-node-id
-                                       [target-label source-key]
-                                       (fn [source-node-ids]
-                                         (conj (or source-node-ids empty-navigable-node-id-vector)
-                                               source-node-id)))))
-                                 target-label->source-key->source-node-id
-                                 (sort-by gt/source-id
-                                          (gt/arcs-by-target basis node-id)))
-                               (reduce
-                                 (fn [target-label->source-key->source-node-id [input-label]]
-                                   (update
-                                     target-label->source-key->source-node-id input-label
-                                     fn/or
-                                     no-viewer))
-                                 target-label->source-key->source-node-id
-                                 (g/declared-inputs node-type)))
-                 'outputs (as-> empty-navigable-node-label-map source-label->target-key->target-node-id
-                                (reduce
-                                  (fn [source-label->target-key->target-node-id arc]
-                                    (let [source-label (gt/source-label arc)
-                                          target-node-id (gt/target-id arc)
-                                          target-key (arc-target-key basis arc)]
-                                      (update-in
-                                        source-label->target-key->target-node-id
-                                        [source-label target-key]
-                                        (fn [target-node-ids]
-                                          (conj (or target-node-ids empty-navigable-node-id-vector)
-                                                target-node-id)))))
-                                  source-label->target-key->target-node-id
-                                  (sort-by gt/target-id
-                                           (gt/arcs-by-source basis node-id)))
-                                (reduce
-                                  (fn [source-label->target-key->target-node-id [output-label]]
-                                    (update
-                                      source-label->target-key->target-node-id output-label
-                                      fn/or
-                                      no-viewer))
-                                  source-label->target-key->target-node-id
-                                  (g/declared-outputs node-type)))})
-              (with-meta {`protocols/nav default-nav-fn
-                          :portal.runtime/type node-type-view})
-              (portal.viewer/inspector)))))))
+
+                {'properties
+                 (-> node
+                     (g/own-property-values)
+                     (coll/transfer empty-navigable-node-label-map)
+                     (map-viewer evaluation-context))}
+
+                {'inputs
+                 (as-> empty-navigable-node-label-map target-label->source-key->source-node-id
+                       (reduce
+                         (fn [target-label->source-key->source-node-id arc]
+                           (let [target-label (gt/target-label arc)
+                                 source-node-id (gt/source-id arc)
+                                 source-key (arc-source-key basis arc)]
+                             (update-in
+                               target-label->source-key->source-node-id
+                               [target-label source-key]
+                               (fn [source-node-ids]
+                                 (conj (or source-node-ids empty-navigable-node-id-vector)
+                                       source-node-id)))))
+                         target-label->source-key->source-node-id
+                         (sort-by gt/source-id
+                                  (gt/arcs-by-target basis node-id)))
+                       (reduce
+                         (fn [target-label->source-key->source-node-id [input-label]]
+                           (update
+                             target-label->source-key->source-node-id input-label
+                             fn/or
+                             no-viewer))
+                         target-label->source-key->source-node-id
+                         (g/declared-inputs node-type)))
+
+                 'outputs
+                 (as-> empty-navigable-node-label-map source-label->target-key->target-node-id
+                       (reduce
+                         (fn [source-label->target-key->target-node-id arc]
+                           (let [source-label (gt/source-label arc)
+                                 target-node-id (gt/target-id arc)
+                                 target-key (arc-target-key basis arc)]
+                             (update-in
+                               source-label->target-key->target-node-id
+                               [source-label target-key]
+                               (fn [target-node-ids]
+                                 (conj (or target-node-ids empty-navigable-node-id-vector)
+                                       target-node-id)))))
+                         source-label->target-key->target-node-id
+                         (sort-by gt/target-id
+                                  (gt/arcs-by-source basis node-id)))
+                       (reduce
+                         (fn [source-label->target-key->target-node-id [output-label]]
+                           (update
+                             source-label->target-key->target-node-id output-label
+                             fn/or
+                             no-viewer))
+                         source-label->target-key->target-node-id
+                         (g/declared-outputs node-type)))})]
+          (portal.viewer/hiccup
+            [:<>
+             [::portal.viewer/inspector node-view]
+             node-view-instructions-hiccup]))))))
 
 (defn- can-nav-resource? [value evaluation-context]
   (some? (or (resource-view-node-id value evaluation-context)
