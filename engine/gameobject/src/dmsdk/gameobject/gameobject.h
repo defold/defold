@@ -873,6 +873,14 @@ namespace dmGameObject
      */
     void* GetContext(HCollection collection, uint32_t component_type_index);
 
+    /**
+     * Adds a reference to a dynamically created resource into the collection.
+     * If the resource is not released before the collection is being destroyed,
+     * the collection will automatically free the resource.
+     * @param collection [type:HCollection] Collection handle
+     * @param resource_hash [type:dmhash_t] resource hash
+     */
+    void AddDynamicResourceHash(HCollection collection, dmhash_t resource_hash);
 
     // These functions are used for profiling functionality
 
