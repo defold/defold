@@ -51,6 +51,7 @@
             [editor.workspace :as workspace]
             [util.coll :as coll]
             [util.eduction :as e]
+            [util.fn :as fn]
             [util.http-client :as http]
             [util.http-server :as http-server])
   (:import [com.dynamo.bob Platform]
@@ -59,6 +60,7 @@
            [java.net URI]
            [java.nio.file FileAlreadyExistsException Files NotDirectoryException Path]
            [java.util HashSet]
+           [org.apache.commons.io FilenameUtils]
            [org.luaj.vm2 LuaError LuaFunction LuaString LuaTable LuaValue Prototype]))
 
 (set! *warn-on-reflection* true)
@@ -153,6 +155,59 @@
           node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)]
       (and (not (resource/resource? node-id-or-resource))
            (some? (graph/ext-lua-value-setter node-id-or-resource property rt project evaluation-context))))))
+
+(def ^:private created-resources-coercer
+  (coerce/vector-of
+    (coerce/one-of
+      graph/resource-path-coercer
+      (coerce/hash-map :req {1 graph/resource-path-coercer}
+                       :opt {2 coerce/string}
+                       :extra-keys false))
+    :min-count 1))
+
+(defn- make-ext-create-resources-fn [project reload-resources!]
+  (rt/suspendable-lua-fn ext-create-resources [{:keys [rt evaluation-context]} lua-created-resources]
+    (let [created-resource-infos (mapv (fn [proj-path-or-opts-map]
+                                         (if (string? proj-path-or-opts-map)
+                                           {1 proj-path-or-opts-map}
+                                           proj-path-or-opts-map))
+                                       (rt/->clj rt created-resources-coercer lua-created-resources))
+          basis (:basis evaluation-context)
+          workspace (project/workspace project evaluation-context)
+          project-dir (workspace/project-directory basis workspace)
+          resource-types (resource/resource-types-by-type-ext basis workspace :editable)
+          type-ext->template (fn/memoize
+                               (fn type-ext->template [ext]
+                                 (or (workspace/template workspace (get resource-types ext) evaluation-context) "")))]
+      (-> (future/io
+            (let [root-path (fs/real-path project-dir)
+                  path+contents (mapv (fn [{proj-path 1 content 2}]
+                                        (let [file-path (.normalize (fs/path (str root-path proj-path)))]
+                                          (when-not (.startsWith file-path root-path)
+                                            (throw (LuaError. (str "Can't create " proj-path ": outside of project directory"))))
+                                          (when (fs/path-exists? file-path)
+                                            (if (fs/path-is-directory? file-path)
+                                              (throw (LuaError. (str "Directory already exists in place of file: " proj-path)))
+                                              (throw (LuaError. (str "Resource already exists: " proj-path)))))
+                                          (let [content (or content
+                                                            (let [file-name (str (.getFileName file-path))
+                                                                  base-name (FilenameUtils/removeExtension file-name)
+                                                                  type-ext (string/lower-case (FilenameUtils/getExtension file-name))]
+                                                              (workspace/replace-template-name (type-ext->template type-ext) base-name)))]
+                                            (coll/pair file-path content))))
+                                  created-resource-infos)]
+              (->> path+contents
+                   (e/map key)
+                   (frequencies)
+                   (run! (fn [[path frequency]]
+                           (when (< 1 frequency)
+                             (throw (LuaError. (str "Resource repeated more than once: /" (string/replace (str (.relativize root-path path)) \\ \/))))))))
+              (run! (fn [[file-path content]]
+                      (fs/create-path-parent-directories! file-path)
+                      (spit file-path content))
+                    path+contents)))
+          (future/then (fn [_] (reload-resources!)))
+          (future/then rt/and-refresh-context)))))
 
 (defn- make-ext-create-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-create-directory [{:keys [rt evaluation-context]} lua-proj-path]
@@ -844,9 +899,11 @@
                                "can_add" (graph/make-ext-can-add-fn project)
                                "can_get" (make-ext-can-get-fn project)
                                "can_reorder" (graph/make-ext-can-reorder-fn project)
+                               "can_reset" (graph/make-ext-can-reset-fn project)
                                "can_set" (make-ext-can-set-fn project)
                                "command" commands/ext-command-fn
                                "create_directory" (make-ext-create-directory-fn project reload-resources!)
+                               "create_resources" (make-ext-create-resources-fn project reload-resources!)
                                "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
                                "resource_attributes" (make-ext-resource-attributes-fn project)
                                "external_file_attributes" (make-ext-external-file-attributes-fn project-path)
@@ -862,7 +919,8 @@
                                      "add" (graph/make-ext-add-fn project)
                                      "clear" (graph/make-ext-clear-fn project)
                                      "remove" (graph/make-ext-remove-fn project)
-                                     "reorder" (graph/make-ext-reorder-fn project)}
+                                     "reorder" (graph/make-ext-reorder-fn project)
+                                     "reset" (graph/make-ext-reset-fn project)}
                                "ui" (assoc
                                       (ui-components/env workspace project project-path)
                                       "open_resource" (make-open-resource-fn workspace open-resource!))

@@ -255,7 +255,7 @@ public class ShaderUtil {
     public static class VariantTextureArrayFallback {
         private static void generateTextureArrayFn(ArrayList<String> buffer, String samplerName, int maxPages) {
             buffer.add(String.format("vec4 texture2DArray_%s(vec3 dm_texture_array_args) {", samplerName));
-            buffer.add("    int page_index = int(dm_texture_array_args.z);");
+            buffer.add("    int page_index = int(dm_texture_array_args.z + 0.5);");
             String lineFmt = "    %s if (page_index == %d) return texture2D(%s_%d, dm_texture_array_args.st);";
 
             for (int i = 0; i < maxPages; i++) {

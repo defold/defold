@@ -14,12 +14,16 @@
 
 (ns editor.game-object
   (:require [clojure.set :as set]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.attachment :as attachment]
             [editor.build-target :as bt]
             [editor.collection-string-data :as collection-string-data]
-            [editor.core :as core]
             [editor.defold-project :as project]
+            [editor.editor-extensions.coerce :as coerce]
+            [editor.editor-extensions.graph :as ext-graph]
+            [editor.editor-extensions.runtime :as rt]
             [editor.game-object-common :as game-object-common]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
@@ -34,13 +38,16 @@
             [editor.scene-tools :as scene-tools]
             [editor.sound :as sound]
             [editor.types :as types]
+            [editor.util :as eutil]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.util :as util]
             [util.eduction :as e])
   (:import [com.dynamo.gameobject.proto GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
-           [javax.vecmath Vector3d]))
+           [javax.vecmath Vector3d]
+           [org.apache.commons.io FilenameUtils]
+           [org.luaj.vm2 LuaError]))
 
 (set! *warn-on-reflection* true)
 
@@ -292,10 +299,9 @@
                      (let [new-resource (:resource new-value)
                            resource-type (some-> new-resource resource/resource-type)
                            project (project/get-project self)
-                           override? (contains? (:tags resource-type) :overridable-properties)
 
                            [comp-node tx-data]
-                           (if override?
+                           (if (resource/overridable-resource-type? resource-type)
                              (let [workspace (project/workspace project)]
                                (when-some [{connect-tx-data :tx-data
                                             comp-node :node-id
@@ -389,14 +395,10 @@
 (g/defnk produce-scene [_node-id child-scenes]
   (game-object-common/game-object-scene _node-id child-scenes))
 
-(defn- attach-component [self-id comp-id ddf-input resolve-id?]
+(defn- attach-component [self-id comp-id ddf-input]
   ;; self-id: GameObjectNode
   ;; comp-id: EmbeddedComponent, ReferencedComponent
   (concat
-    (when resolve-id?
-      (->> (g/node-value self-id :component-ids)
-           keys
-           (g/update-property comp-id :id id/resolve)))
     (for [[from to] [[:node-outline :child-outlines]
                      [:_node-id :nodes]
                      [:build-targets :dep-build-targets]
@@ -409,25 +411,32 @@
                      [:id-counts :id-counts]]]
       (g/connect self-id from comp-id to))))
 
-(defn- attach-ref-component [self-id comp-id]
+(defn- attach-referenced-component [self-id comp-id]
   ;; self-id: GameObjectNode
   ;; comp-id: ReferencedComponent
-  (attach-component self-id comp-id :ref-ddf false))
+  (attach-component self-id comp-id :ref-ddf))
 
 (defn- attach-embedded-component [self-id comp-id]
   ;; self-id: GameObjectNode
   ;; comp-id: EmbeddedComponent
-  (attach-component self-id comp-id :embed-ddf false))
+  (attach-component self-id comp-id :embed-ddf))
+
+(defn- resolve-id [self-id comp-id]
+  (g/update-property comp-id :id id/resolve (g/node-value self-id :component-ids)))
 
 (defn- outline-attach-ref-component [self-id comp-id]
   ;; self-id: GameObjectNode
   ;; comp-id: ReferencedComponent
-  (attach-component self-id comp-id :ref-ddf true))
+  (concat
+    (resolve-id self-id comp-id)
+    (attach-component self-id comp-id :ref-ddf)))
 
 (defn- outline-attach-embedded-component [self-id comp-id]
   ;; self-id: GameObjectNode
   ;; comp-id: EmbeddedComponent
-  (attach-component self-id comp-id :embed-ddf true))
+  (concat
+    (resolve-id self-id comp-id)
+    (attach-component self-id comp-id :embed-ddf)))
 
 (g/defnk produce-go-outline [_node-id child-outlines]
   {:node-id _node-id
@@ -485,7 +494,7 @@
         rotation :rotation
         scale :scale)
       (g/set-property comp-node :path path) ; Set last so the :alter-referenced-component-fn can alter component properties.
-      (attach-ref-component self comp-node)
+      (attach-referenced-component self comp-node)
       (when select-fn
         (select-fn [comp-node])))))
 
@@ -510,6 +519,16 @@
   (run [workspace project selection app-view]
        (add-component-handler workspace project (selection->game-object selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 
+(defn- connect-embedded-resource [node-type resource-node comp-node]
+  (gu/connect-existing-outputs node-type resource-node comp-node
+    [[:_node-id :embedded-resource-id]
+     [:resource :source-resource]
+     [:_properties :source-properties]
+     [:node-outline :source-outline]
+     [:save-value :source-save-value]
+     [:scene :scene]
+     [:build-targets :source-build-targets]]))
+
 (defn- add-embedded-component [self project type pb-map id transform-properties select-fn]
   {:pre [(map? pb-map)]}
   (let [graph (g/node-id->graph-id self)
@@ -522,14 +541,7 @@
         rotation :rotation
         scale :scale)
       (project/load-embedded-resource-node project resource-node resource pb-map)
-      (gu/connect-existing-outputs node-type resource-node comp-node
-        [[:_node-id :embedded-resource-id]
-         [:resource :source-resource]
-         [:_properties :source-properties]
-         [:node-outline :source-outline]
-         [:save-value :source-save-value]
-         [:scene :scene]
-         [:build-targets :source-build-targets]])
+      (connect-embedded-resource node-type resource-node comp-node)
       (attach-embedded-component self comp-node)
       (when select-fn
         (select-fn [comp-node])))))
@@ -555,13 +567,21 @@
     (let [rt (:resource-type user-data)]
       (or (:label rt) (:ext rt)))))
 
-(defn embeddable-component-resource-types [workspace]
-  (keep (fn [[_ext {:keys [tags] :as resource-type}]]
-          (when (and (contains? tags :component)
-                     (not (contains? tags :non-embeddable))
-                     (workspace/has-template? workspace resource-type))
-            resource-type))
-        (workspace/get-resource-type-map workspace)))
+(defn- embeddable-component-resource-type? [resource-type workspace evaluation-context]
+  (let [{:keys [tags] :as resource-type} resource-type]
+    (and (contains? tags :component)
+         (not (contains? tags :non-embeddable))
+         (workspace/has-template? workspace resource-type evaluation-context))))
+
+(defn embeddable-component-resource-types
+  ([workspace]
+   (g/with-auto-evaluation-context evaluation-context
+     (embeddable-component-resource-types workspace evaluation-context)))
+  ([workspace evaluation-context]
+   (keep (fn [[_ext resource-type]]
+           (when (embeddable-component-resource-type? resource-type workspace evaluation-context)
+             resource-type))
+         (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable))))
 
 (defn add-embedded-component-options [self workspace user-data]
   (when (not user-data)
@@ -621,19 +641,108 @@
          (mapv (fn [[id resource]]
                  (add-component root-id resource id transform-props nil nil))))))
 
+(def ^:private ext-referenced-component-type "component-reference")
+(def ^:private constantly-ext-referenced-component-type (constantly ext-referenced-component-type))
+
+(ext-graph/register-property-getter!
+  ::ReferencedComponent
+  (fn ReferencedComponent-getter [_node-id property _evaluation-context]
+    (case property
+      "type" constantly-ext-referenced-component-type
+      nil)))
+
+(ext-graph/register-property-getter!
+  ::EmbeddedComponent
+  (fn EmbeddedComponent-getter [node-id property evaluation-context]
+    (case property
+      "type" #(resource/ext (g/node-value node-id :source-resource evaluation-context))
+      nil)))
+
+(defmethod ext-graph/extract-node-type [::GameObjectNode :components]
+  [rt attachment workspace _node-id _list-kw evaluation-context]
+  (if-let [lua-type (attachment "type")]
+    (let [type-name (rt/->clj rt coerce/string lua-type)]
+      (if (= ext-referenced-component-type type-name)
+        [(dissoc attachment "type") ReferencedComponent]
+        (let [resource-types (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable)
+              resource-type (resource-types type-name)]
+          (if (and resource-type (embeddable-component-resource-type? resource-type workspace evaluation-context))
+            [attachment EmbeddedComponent]
+            (throw (LuaError. (str "type is not "
+                                   (->> (embeddable-component-resource-types workspace evaluation-context)
+                                        (map :ext)
+                                        (cons ext-referenced-component-type)
+                                        (eutil/join-words ", " " or ")))))))))
+    (throw (LuaError. "type is required"))))
+
+(defmethod ext-graph/create-extra-nodes ::EmbeddedComponent [evaluation-context rt project workspace attachment node-id]
+  (let [component-ext (rt/->clj rt coerce/string (attachment "type"))
+        resource-types (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable)
+        resource-type (resource-types component-ext)]
+    (assert resource-type)
+    (assert (embeddable-component-resource-type? resource-type workspace evaluation-context))
+    (let [graph (g/node-id->graph-id node-id)
+          pb-map (game-object-common/template-pb-map workspace resource-type evaluation-context)
+          resource (resource/make-memory-resource workspace resource-type pb-map)
+          node-type (:node-type resource-type)]
+      (g/make-nodes graph [resource-node [node-type :resource resource]]
+        (project/load-embedded-resource-node project resource-node resource pb-map)
+        (connect-embedded-resource node-type resource-node node-id)))))
+
+(defmethod ext-graph/init-attachment ::EmbeddedComponent
+  [evaluation-context rt project parent-node-id _child-node-type child-node-id attachment]
+  (let [component-ext (rt/->clj rt coerce/string (attachment "type"))]
+    (-> attachment
+        (dissoc "type")
+        (eutil/provide-defaults
+          "id" (rt/->lua (id/gen component-ext (g/node-value parent-node-id :component-ids evaluation-context))))
+        (ext-graph/attachment->set-tx-steps child-node-id rt project evaluation-context))))
+
+(defn- set-referenced-attachment-properties [evaluation-context rt project parent-node-id child-node-id attachment]
+  (-> attachment
+      ;; Ignore the path since it's applied first in init-attachment
+      (dissoc "path")
+      (eutil/provide-defaults
+        "id" (rt/->lua
+               (id/gen
+                 (if-let [lua-path (attachment "path")]
+                   (FilenameUtils/getBaseName (rt/->clj rt coerce/string lua-path))
+                   "component")
+                 (g/node-value parent-node-id :component-ids evaluation-context))))
+      (ext-graph/attachment->set-tx-steps child-node-id rt project evaluation-context)))
+
+(defmethod ext-graph/init-attachment ::ReferencedComponent
+  [evaluation-context rt project parent-node-id _child-node-type child-node-id attachment]
+  (if-let [lua-resource-path (attachment "path")]
+    (concat
+      (ext-graph/attachment->set-tx-steps {"path" lua-resource-path} child-node-id rt project evaluation-context)
+      (g/expand-ec set-referenced-attachment-properties rt project parent-node-id child-node-id attachment))
+    (set-referenced-attachment-properties evaluation-context rt project parent-node-id child-node-id attachment)))
+
+(defn- embedded-component-attachment-alternative [comp-id evaluation-context]
+  (g/node-value comp-id :embedded-resource-id evaluation-context))
+
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext "go"
-    :label "Game Object"
-    :node-type GameObjectNode
-    :ddf-type GameObject$PrototypeDesc
-    :load-fn load-game-object
-    :allow-unloaded-use true
-    :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace))
-    :sanitize-fn (partial sanitize-game-object workspace)
-    :string-encode-fn (partial string-encode-game-object workspace)
-    :icon game-object-common/game-object-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:grid true
-                        :drop-fn handle-drop}}))
+  (concat
+    (attachment/register
+      workspace GameObjectNode :components
+      :add {EmbeddedComponent attach-embedded-component
+            ReferencedComponent attach-referenced-component}
+      :get attachment/nodes-getter
+      :read-only? #(g/override? (:basis %2) %1))
+    (attachment/define-alternative workspace EmbeddedComponent embedded-component-attachment-alternative)
+    (resource-node/register-ddf-resource-type workspace
+      :ext "go"
+      :label "Game Object"
+      :node-type GameObjectNode
+      :ddf-type GameObject$PrototypeDesc
+      :load-fn load-game-object
+      :allow-unloaded-use true
+      :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace))
+      :sanitize-fn (partial sanitize-game-object workspace)
+      :string-encode-fn (partial string-encode-game-object workspace)
+      :icon game-object-common/game-object-icon
+      :icon-class :design
+      :view-types [:scene :text]
+      :view-opts {:scene {:grid true
+                          :drop-fn handle-drop}})))

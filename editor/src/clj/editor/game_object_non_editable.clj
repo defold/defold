@@ -14,6 +14,7 @@
 
 (ns editor.game-object-non-editable
   (:require [dynamo.graph :as g]
+            [editor.attachment :as attachment]
             [editor.build-target :as bt]
             [editor.collection-string-data :as collection-string-data]
             [editor.defold-project :as project]
@@ -374,18 +375,20 @@
   (g/set-property self :prototype-desc prototype-desc))
 
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :editable false
-    :ext "go"
-    :label "Non-Editable Game Object"
-    :node-type NonEditableGameObjectNode
-    :ddf-type GameObject$PrototypeDesc
-    :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace :non-editable))
-    :sanitize-fn (partial sanitize-non-editable-game-object workspace)
-    :string-encode-fn (partial string-encode-non-editable-game-object workspace)
-    :load-fn load-non-editable-game-object
-    :allow-unloaded-use true
-    :icon game-object-common/game-object-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:grid true}}))
+  (concat
+    (attachment/register workspace NonEditableGameObjectNode :components :get (constantly []))
+    (resource-node/register-ddf-resource-type workspace
+      :editable false
+      :ext "go"
+      :label "Non-Editable Game Object"
+      :node-type NonEditableGameObjectNode
+      :ddf-type GameObject$PrototypeDesc
+      :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace :non-editable))
+      :sanitize-fn (partial sanitize-non-editable-game-object workspace)
+      :string-encode-fn (partial string-encode-non-editable-game-object workspace)
+      :load-fn load-non-editable-game-object
+      :allow-unloaded-use true
+      :icon game-object-common/game-object-icon
+      :icon-class :design
+      :view-types [:scene :text]
+      :view-opts {:scene {:grid true}})))

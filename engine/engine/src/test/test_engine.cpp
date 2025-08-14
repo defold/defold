@@ -122,7 +122,7 @@ TEST_F(EngineTest, ProjectFail)
     const char* argv[] = {"test_engine", MAKE_PATH(project_path, "/notexist.projectc")};
     ASSERT_NE(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 
-    dmProfile::Finalize(); // Making sure it is cleaned up
+    ProfileFinalize(); // Making sure it is cleaned up
 }
 
 static void PostRunFrameCount(dmEngine::HEngine engine, void* ctx)
@@ -519,13 +519,13 @@ int main(int argc, char **argv)
     dmExportedSymbols();
     TestMainPlatformInit();
 
-    dmProfile::Initialize(0);
+    ProfileInitialize();
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     dmHashEnableReverseHash(true);
     dmGraphics::InstallAdapter();
 
     int ret = jc_test_run_all();
-    dmProfile::Finalize();
+    ProfileFinalize();
     return ret;
 }

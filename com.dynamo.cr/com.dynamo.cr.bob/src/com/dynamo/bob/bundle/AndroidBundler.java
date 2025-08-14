@@ -701,6 +701,7 @@ public class AndroidBundler implements IBundler {
     /**
     * Build the app bundle using bundletool
     * https://developer.android.com/studio/build/building-cmdline#build_your_app_bundle_using_bundletool
+    * https://github.com/google/bundletool/blob/master/src/main/proto/config.proto
     */
     private static File createBundle(Project project, File outDir, File baseZip, ICanceled canceled) throws CompileExceptionError {
         logger.info("Creating Android Application Bundle");

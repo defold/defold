@@ -81,6 +81,23 @@ namespace dmRender
         }
     }
 
+    float GetRenderCameraEffectiveAspectRatio(HRenderContext render_context, HRenderCamera camera)
+    {
+        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+
+        if (c->m_Data.m_AutoAspectRatio)
+        {
+            dmGraphics::HContext graphics_context = GetGraphicsContext(render_context);
+            float width = (float) dmGraphics::GetWindowWidth(graphics_context);
+            float height = (float) dmGraphics::GetWindowHeight(graphics_context);
+            return width / height;
+        }
+        else
+        {
+            return c->m_Data.m_AspectRatio;
+        }
+    }
+
     void UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation)
     {
         RenderCamera* c = render_context->m_RenderCameras.Get(camera);

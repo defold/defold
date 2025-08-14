@@ -26,6 +26,7 @@ import java.util.List;
 
 import org.junit.Test;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.AtlasUtil.MappedAnimDesc;
 import com.dynamo.bob.pipeline.AtlasUtil.MappedAnimIterator;
 import com.dynamo.bob.textureset.TextureSetGenerator;
@@ -59,7 +60,7 @@ public class TextureSetGeneratorTest {
     }
 
     @Test
-    public void test1() {
+    public void test1() throws CompileExceptionError {
         List<BufferedImage> images =
                 Arrays.asList(newImage(16, 16),
                               newImage(16, 16),
@@ -189,7 +190,7 @@ public class TextureSetGeneratorTest {
     }
 
     @Test
-    public void testRotatedAnimations() {
+    public void testRotatedAnimations() throws CompileExceptionError {
         List<BufferedImage> images = Arrays.asList(newImage(64,32), newImage(64,32), newImage(32,64), newImage(32,64));
 
         List<String> ids = Arrays.asList("1", "2", "3", "4");

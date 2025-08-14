@@ -69,8 +69,7 @@
            ["F1" :help.open-documentation]
            ["F10" :debugger.step-over]
            ["F11" :debugger.step-into]
-           ["F2" :file.rename]
-           ["F2" :code.rename]
+           ["F2" :edit.rename]
            ["F5" :debugger.start]
            ["F5" :debugger.continue]
            ["F6" :window.toggle-left-pane]
@@ -95,6 +94,7 @@
            ["Meta+E" :scene.visibility.toggle-selection]
            ["Meta+F" :edit.find]
            ["Meta+G" :code.find-next]
+           ["Meta+G" :scene.visibility.toggle-grid]
            ["Meta+L" :code.goto-line]
            ["Meta+Left" :code.goto-line-text-start]
            ["Meta+N" :file.new]
@@ -191,6 +191,7 @@
            ["Ctrl+End" :code.goto-file-end]
            ["Ctrl+F" :edit.find]
            ["Ctrl+G" :code.find-next]
+           ["Ctrl+G" :scene.visibility.toggle-grid]
            ["Ctrl+H" :code.replace-text]
            ["Ctrl+H" :scene.visibility.toggle-component-guides]
            ["Ctrl+Home" :code.goto-file-start]
@@ -223,8 +224,7 @@
            ["F1" :help.open-documentation]
            ["F10" :debugger.step-over]
            ["F11" :debugger.step-into]
-           ["F2" :file.rename]
-           ["F2" :code.rename]
+           ["F2" :edit.rename]
            ["F5" :debugger.start]
            ["F5" :debugger.continue]
            ["F6" :window.toggle-left-pane]
@@ -306,6 +306,7 @@
            ["Ctrl+End" :code.goto-file-end]
            ["Ctrl+F" :edit.find]
            ["Ctrl+G" :code.find-next]
+           ["Ctrl+G" :scene.visibility.toggle-grid]
            ["Ctrl+H" :code.replace-text]
            ["Ctrl+H" :scene.visibility.toggle-component-guides]
            ["Ctrl+Home" :code.goto-file-start]
@@ -338,8 +339,7 @@
            ["F1" :help.open-documentation]
            ["F10" :debugger.step-over]
            ["F11" :debugger.step-into]
-           ["F2" :file.rename]
-           ["F2" :code.rename]
+           ["F2" :edit.rename]
            ["F5" :debugger.start]
            ["F5" :debugger.continue]
            ["F6" :window.toggle-left-pane]
@@ -908,7 +908,7 @@
                              :toggle-perspective-camera :scene.toggle-camera-type
                              :toggle-move-whole-pixels :scene.toggle-move-whole-pixels
                              :toggle-2d-mode :scene.toggle-interaction-mode
-                             :rename :file.rename
+                             :rename :edit.rename
                              :reopen-recent-file :file.reopen-recent
                              :save-all :file.save-all
                              :save-and-upgrade-all :file.save-and-upgrade-all

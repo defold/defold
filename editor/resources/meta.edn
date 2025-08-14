@@ -144,6 +144,11 @@
    :help "output gpu info to console at startup",
    :default false,
    :path ["display" "display_device_info"]}
+  {:type :boolean,
+   :help "Use runtime font generation",
+   :label "Runtime Generation"
+   :default false,
+   :path ["font" "runtime_generation"]}
   {:type :number,
    :help "Render clear color - red channel",
    :label "Clear Color Red"
@@ -339,6 +344,11 @@
    :deprecated true,
    :label "Output SPIR-V"
    :path ["shader" "output_spirv"]}
+  {:type :boolean
+   :help "Don't compile shaders for devices running OpenGLES 2.0 / WebGL 1.0"
+   :default false
+   :label "Exclude GLES 2.0"
+   :path ["shader" "exclude_gles_sm100"]}
   {:type :number,
    :help
    "seconds to wait before treating a held down keyboard-key to start repeating itself",
@@ -792,7 +802,7 @@
    :path ["android" "proguard"]}
   {:type :boolean,
    :help "This attribute indicates whether the package installer extracts native libraries from the APK to the file system",
-   :default true,
+   :default false,
    :path ["android" "extract_native_libs"]}
   {:type :resource,
    :filter "icns",
@@ -949,7 +959,7 @@
    :help "liveupdate settings"
    :preserve-extension true,
    :path ["liveupdate" "settings"]}
-   {:type :boolean
+  {:type :boolean
    :filter "settings"
    :default true
    :help "enables auto-mount of previously mounted resources when the application starts"
@@ -961,7 +971,19 @@
   {:type :integer,
    :help "max number of concurrent (visible) tiles in a collection",
    :default 2048,
-   :path ["tilemap" "max_tile_count"]}]
+   :path ["tilemap" "max_tile_count"]},
+  {:type :integer,
+   :help "number of velocity iterations for Box2D 2.2 physics solver, 10 by default",
+   :default 10,
+   :path ["box2d" "velocity_iterations"]},
+  {:type :integer,
+   :help "number of position iterations for Box2D 2.2 physics solver, 10 by default",
+   :default 10,
+   :path ["box2d" "position_iterations"]},
+  {:type :integer,
+   :help "number of sub-steps for Box2D 3.x physics solver, 4 by default",
+   :default 4,
+   :path ["box2d" "sub_step_count"]}]
  :group-order ["Main" "Platforms" "Components" "Runtime" "Distribution"]
  :default-category "project"
  :categories
@@ -992,6 +1014,8 @@
                       :group "Components"}
   "physics" {:help "Physics settings"
              :group "Runtime"},
+  "box2d" {:help "Box2D physics settings. Availability of options depends on the Box2D version."
+           :group "Runtime"},
   "osx" {:help "Mac OSX related settings"
          :title "OSX"
          :group "Platforms"},
@@ -1022,6 +1046,7 @@
   "mesh" {:group "Components"}
   "model" {:group "Components"}
   "render" {:group "Runtime"}
+  "font" {:group "Runtime"}
   "particle_fx" {:help "Particle FX related settings"
                  :title "Particle FX"
                  :group "Components"},

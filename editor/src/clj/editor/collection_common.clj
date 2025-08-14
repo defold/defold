@@ -284,7 +284,7 @@
   ;; equivalent. We must update any references to these BuildResources
   ;; to instead point to the resulting fused BuildResource. The same goes for
   ;; resource property overrides inside the InstanceDescs.
-  (let [{:keys [name game-object-instance-datas scale-along-z]} user-data
+  (let [{:keys [name game-object-instance-datas]} user-data
         build-go-props (partial properties/build-go-props dep-resources)
         go-instance-msgs (map :instance-msg game-object-instance-datas)
         go-instance-transform-properties (map (comp pose->transform-properties :pose) game-object-instance-datas)
@@ -315,16 +315,14 @@
                                       go-instance-component-go-props)
         collection-desc {:name name
                          :instances (sort-instance-descs-for-build-output instance-descs)
-                         :scale-along-z (protobuf/boolean->int scale-along-z)
                          :property-resources property-resource-paths}]
     {:resource build-resource
      :content (protobuf/map->bytes GameObject$CollectionDesc collection-desc)}))
 
-(defn collection-build-target [build-resource node-id name scale-along-z game-object-instance-build-targets collection-instance-build-targets]
+(defn collection-build-target [build-resource node-id name game-object-instance-build-targets collection-instance-build-targets]
   {:pre [(workspace/build-resource? build-resource)
          (g/node-id? node-id)
          (or (nil? name) (string? name))
-         (boolean? scale-along-z)
          (seqable? game-object-instance-build-targets)
          (seqable? collection-instance-build-targets)]}
   ;; Extract the :game-object-instance-datas from the game object instance build
@@ -345,7 +343,6 @@
        :resource build-resource
        :build-fn build-collection
        :user-data {:name (or name "")
-                   :scale-along-z scale-along-z
                    :game-object-instance-datas (mapv #(dissoc % :property-deps)
                                                      game-object-instance-datas)}
        :deps (into (vec (concat game-object-instance-build-targets property-deps))

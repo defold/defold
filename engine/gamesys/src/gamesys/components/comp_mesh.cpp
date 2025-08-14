@@ -375,14 +375,7 @@ namespace dmGameSystem
         component->m_BufferVersion = 0;
 
         const Matrix4& go_world = dmGameObject::GetWorldMatrix(component->m_Instance);
-        if (dmGameObject::ScaleAlongZ(component->m_Instance))
-        {
-            component->m_World = go_world * component->m_Local;
-        }
-        else
-        {
-            component->m_World = dmTransform::MulNoScaleZ(go_world, component->m_Local);
-        }
+        component->m_World = go_world * component->m_Local;
 
         // Local space uses separate vertex buffers
         if (dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
@@ -456,14 +449,7 @@ namespace dmGameSystem
                 continue;
 
             const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
-            if (dmGameObject::ScaleAlongZ(c->m_Instance))
-            {
-                c->m_World = go_world * c->m_Local;
-            }
-            else
-            {
-                c->m_World = dmTransform::MulNoScaleZ(go_world, c->m_Local);
-            }
+            c->m_World = go_world * c->m_Local;
         }
     }
 
@@ -490,7 +476,9 @@ namespace dmGameSystem
             MeshComponent& component = *components[i];
 
             if (!component.m_Enabled || !component.m_AddedToUpdate)
+            {
                 continue;
+            }
 
             dmRender::HMaterial material = GetMaterial(&component, component.m_Resource);
             if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
@@ -900,8 +888,10 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < count; ++i)
         {
             MeshComponent& component = *components[i];
-            if (!component.m_Enabled)
+            if (!component.m_Enabled || !component.m_AddedToUpdate)
+            {
                 continue;
+            }
 
             DM_PROPERTY_ADD_U32(rmtp_Mesh, 1);
             const Vector4 trans = component.m_World.getCol(3);

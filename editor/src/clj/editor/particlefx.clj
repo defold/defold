@@ -916,8 +916,7 @@
                                                       :icon emitter-icon
                                                       :children (outline/natural-sort child-outlines)
                                                       :child-reqs [{:node-type ModifierNode
-                                                                    :tx-attach-fn (fn [self-id child-id]
-                                                                                    (attach-modifier self-id child-id true))}]}))
+                                                                    :tx-attach-fn attach-modifier}]}))
   (output aabb AABB produce-emitter-aabb)
   (output visibility-aabb AABB produce-emitter-visibility-aabb)
   (output emitter-sim-data g/Any :cached
@@ -1077,8 +1076,7 @@
                              :tx-attach-fn (fn [self-id child-id]
                                              (attach-emitter self-id child-id true))}
                             {:node-type ModifierNode
-                             :tx-attach-fn (fn [self-id child-id]
-                                             (attach-modifier self-id child-id true))}]})))
+                             :tx-attach-fn attach-modifier}]})))
   (output fetch-anim-fn Runnable :cached (g/fnk [emitter-sim-data] (fn [index] (get emitter-sim-data index)))))
 
 (defn- make-modifier
@@ -1244,7 +1242,7 @@
         new-x (update-curve-spread-start-value old-x #(props/scale-by-absolute-value-and-round % (.getX delta)))
         new-y (update-curve-spread-start-value old-y #(props/scale-by-absolute-value-and-round % (.getY delta)))
         new-z (update-curve-spread-start-value old-z #(props/scale-by-absolute-value-and-round % (.getZ delta)))]
-    (g/set-property node-id
+    (g/set-properties node-id
       :emitter-key-size-x new-x
       :emitter-key-size-y new-y
       :emitter-key-size-z new-z)))

@@ -48,25 +48,25 @@ namespace dmGameSystem
     /*# RGB image type
      *
      * @name image.TYPE_RGB
-     * @variable
+     * @constant
      */
 
     /*# RGBA image type
      *
      * @name image.TYPE_RGBA
-     * @variable
+     * @constant
      */
 
     /*# luminance image type
      *
      * @name image.TYPE_LUMINANCE
-     * @variable
+     * @constant
      */
 
     /*# luminance image type
      *
      * @name image.TYPE_LUMINANCE_ALPHA
-     * @variable
+     * @constant
      */
 
     static void PushImageParameters(lua_State* L, dmImage::Image image)

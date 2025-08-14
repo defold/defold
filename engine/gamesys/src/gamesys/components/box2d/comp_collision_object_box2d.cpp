@@ -544,7 +544,7 @@ namespace dmGameSystem
         DM_PROFILE("StepWorld2D");
         dmPhysics::StepWorld2D(world->m_World2D, *step_ctx);
 
-        if (collision_user_data->m_Count >= physics_context->m_BaseContext.m_MaxCollisionCount)
+        if (collision_user_data->m_Count >= physics_context->m_BaseContext.m_MaxCollisionCount && physics_context->m_BaseContext.m_MaxCollisionCount > 0)
         {
             if (!g_CollisionOverflowWarning)
             {
@@ -556,7 +556,7 @@ namespace dmGameSystem
         {
             g_CollisionOverflowWarning = false;
         }
-        if (contact_user_data->m_Count >= physics_context->m_BaseContext.m_MaxContactPointCount)
+        if (contact_user_data->m_Count >= physics_context->m_BaseContext.m_MaxContactPointCount && physics_context->m_BaseContext.m_MaxContactPointCount > 0)
         {
             if (!g_ContactOverflowWarning)
             {
@@ -636,6 +636,9 @@ namespace dmGameSystem
         step_world_context.m_RayCastUserData = world;
         step_world_context.m_FixedTimeStep = physics_context->m_BaseContext.m_UseFixedTimestep;
         step_world_context.m_MaxFixedTimeSteps = physics_context->m_BaseContext.m_MaxFixedTimesteps;
+        step_world_context.m_Box2DVelocityIterations = physics_context->m_BaseContext.m_Box2DVelocityIterations;
+        step_world_context.m_Box2DPositionIterations = physics_context->m_BaseContext.m_Box2DPositionIterations;
+        step_world_context.m_Box2DSubStepCount = physics_context->m_BaseContext.m_Box2DSubStepCount;
 
         step_world_context.m_DT = params.m_UpdateContext->m_DT;
 

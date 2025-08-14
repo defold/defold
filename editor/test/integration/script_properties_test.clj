@@ -287,7 +287,7 @@
         fragment-program-resource (tu/make-resource! workspace (string/replace proj-path #".material" ".fp"))
         material (tu/make-resource-node! project proj-path)]
     (doto material
-      (g/set-property!
+      (g/set-properties!
         :vertex-program vertex-program-resource
         :fragment-program fragment-program-resource))))
 

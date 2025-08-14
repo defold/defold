@@ -382,7 +382,7 @@
     (setup-variables-view! debugger-variables))
 
   ;; expose to view node
-  (g/set-property! debug-view :console-grid-pane console-grid-pane :right-pane right-pane)
+  (g/set-properties! debug-view :console-grid-pane console-grid-pane :right-pane right-pane)
   nil)
 
 (defn- file-or-module->resource
@@ -502,9 +502,9 @@
                            (state-changed! debug-view true)))
                        (fn [_debug-session]
                          (ui/run-now
-                           (g/set-property! debug-view
-                                            :debug-session nil
-                                            :suspension-state nil)
+                           (g/set-properties! debug-view
+                             :debug-session nil
+                             :suspension-state nil)
                            (state-changed! debug-view false)))
                        (fn [exception]
                          (show-connect-failed-info! target-address debugger-port exception (project/workspace project))))))

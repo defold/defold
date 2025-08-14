@@ -214,7 +214,7 @@
                       :reveal {:source-paths ["src/reveal"]
                                :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading"]
                                :injections [(require 'editor.reveal)]
-                               :dependencies [[vlaaad/reveal "1.3.284"]]}
+                               :dependencies [[vlaaad/reveal "1.3.287"]]}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :jamm {:dependencies [[com.github.jbellis/jamm "0.4.0"]]
                              :jvm-opts [~(str "-javaagent:"
@@ -227,6 +227,7 @@
                                         "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"
                                         "--add-opens=java.net.http/jdk.internal.net.http=ALL-UNNAMED"
                                         "--add-opens=java.net.http/jdk.internal.net.http.common=ALL-UNNAMED"]}
+                      :strict-pb-map-keys {:jvm-opts ["-Ddefold.protobuf.strict.enable=true"]}
                       :no-asserts {:global-vars {*assert* false}}
                       :no-decorated-exceptions {:jvm-opts ["-Ddefold.exception.decorate.disable=true"]}
                       :no-schemas {:jvm-opts ["-Ddefold.schema.check.disable=true"]}
@@ -287,7 +288,7 @@
                                 :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.1.3.zip"
                                                     "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/3.9.0.zip"
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.1.0.zip"
-                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/3.8.4.zip"
+                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/3.9.2.zip"
                                                     "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.2.zip"
                                                     "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.2.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"

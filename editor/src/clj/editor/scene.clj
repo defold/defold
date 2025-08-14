@@ -907,6 +907,7 @@
   (input manip-space g/Keyword)
   (input updatables g/Any)
   (input selected-updatables g/Any)
+  (input grid g/Any)
   (output inactive? g/Bool (g/fnk [_node-id active-view] (not= _node-id active-view)))
   (output info-text g/Str (g/fnk [scene tool-info-text]
                             (or tool-info-text (:info-text scene))))
@@ -1524,7 +1525,7 @@
                              (ui/on-closed! (:tab opts) (fn [_]
                                                           (ui/kill-event-dispatch! this)
                                                           (dispose-scene-view! view-id)))
-                             (g/set-property! view-id :drawable drawable :picking-drawable picking-drawable :async-copy-state (atom (scene-async/make-async-copy-state width height)))
+                             (g/set-properties! view-id :drawable drawable :picking-drawable picking-drawable :async-copy-state (atom (scene-async/make-async-copy-state width height)))
                              (frame-selection view-id false)))))
                      (catch Throwable error
                        (error-reporting/report-exception! error)))
@@ -1616,8 +1617,9 @@
 (defmethod attach-grid :editor.grid/Grid
   [_ grid-node-id view-id resource-node camera]
   (concat
-    (g/connect grid-node-id :renderable view-id      :aux-renderables)
-    (g/connect camera       :camera     grid-node-id :camera)))
+    (g/connect grid-node-id :_node-id view-id :grid)
+    (g/connect grid-node-id :renderable view-id :aux-renderables)
+    (g/connect camera :camera grid-node-id :camera)))
 
 (defmulti attach-tool-controller
   (fn [tool-node-type tool-node-id view-id resource-node]
@@ -1646,7 +1648,7 @@
                                                                                    (g/operation-label "Select")
                                                                                    (select-fn selection))))]
                    camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
-                   grid            grid-type
+                   grid            (grid-type :prefs prefs)
                    tool-controller [tool-controller-type :prefs prefs]
                    rulers          [rulers/Rulers]]
 

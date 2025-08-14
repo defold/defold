@@ -31,7 +31,7 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
-@BuilderParams(name = "Opus", inExts = ".opus", outExt = ".opusc")
+@BuilderParams(name = "Opus", inExts = ".opus", outExt = ".opusc", paramsForSignature = {"sound-stream-enabled"})
 public class OpusBuilder extends CopyBuilder{
     private static String oggzValidateExePath;
 
@@ -63,7 +63,7 @@ public class OpusBuilder extends CopyBuilder{
     }
 
     @Override
-    public void build(Task task) throws IOException {
+    public void build(Task task) throws IOException, CompileExceptionError {
         super.build(task);
 
         boolean soundStreaming = project.getProjectProperties().getBooleanValue("sound", "stream_enabled", false); // if no value set use old hardcoded path (backward compatability)

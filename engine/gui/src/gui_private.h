@@ -252,6 +252,7 @@ namespace dmGui
         int                                   m_InstanceReference;
         int                                   m_DataReference;
         int                                   m_ContextTableReference;
+        uint32_t                              m_UniqueScriptId;
         Context*                              m_Context;
         Script*                               m_Script;
         dmIndexPool16                         m_NodePool;
@@ -295,6 +296,7 @@ namespace dmGui
         SetMaterialPropertyCallback           m_SetMaterialPropertyCallback;
         void*                                 m_SetMaterialPropertyCallbackContext;
         DestroyRenderConstantsCallback        m_DestroyRenderConstantsCallback;
+        CloneRenderConstantsCallback          m_CloneRenderConstantsCallback;
         NewTextureResourceCallback            m_NewTextureResourceCallback;
         DeleteTextureResourceCallback         m_DeleteTextureResourceCallback;
         SetTextureResourceCallback            m_SetTextureResourceCallback;

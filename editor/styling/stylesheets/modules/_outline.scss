@@ -134,5 +134,12 @@
         visibility: visible;
       }
     }
+
+    .text-field {
+      -fx-background-color: transparent;
+      -fx-padding: 0;
+      -fx-border-width: 0;
+      -fx-min-height: 14px;
+    }
   }
 }

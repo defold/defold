@@ -19,6 +19,9 @@ import re
 import logging
 import sys
 import io
+import codecs
+import html
+
 from optparse import OptionParser
 from markdown import Markdown
 from markdown import Extension
@@ -28,9 +31,57 @@ from pprint import pprint
 from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.message import Message
 
+import pystache
 import json
 import yaml
 import script_doc_ddf_pb2
+
+
+LUA_MTL = """
+--[[
+Generated using Defold build pipeline
+
+./scripts/build.py build_docs
+
+{{ info.description }}
+--]]
+
+---@meta
+---@diagnostic disable: lowercase-global
+---@diagnostic disable: missing-return
+---@diagnostic disable: duplicate-doc-param
+---@diagnostic disable: duplicate-set-field
+---@diagnostic disable: args-after-dots
+
+---@class defold_api.{{ info.namespace }}
+{{ info.namespace }} = {}
+
+{{#elements}}
+{{#is_variable}}
+---{{ description }}
+{{ info.namespace }}.{{ name }} = nil
+{{/is_variable}}
+{{#is_constant}}
+---{{ description }}
+{{ name }} = nil
+{{/is_constant}}
+
+{{#is_function}}
+---{{ description }}
+{{#parameters}}
+---@param {{name}}{{#is_optional}}?{{/is_optional}} {{ types_string }} {{doc}}
+{{/parameters}}
+{{#returnvalues}}
+---@return {{ types_string }} {{ name }} {{doc}}
+{{/returnvalues}}
+function {{ name }}({{ params_string }}) end
+
+{{/is_function}}
+{{/elements}}
+
+return {{ info.namespace }}
+"""
+
 
 
 # JG: reference pattern is 15 in blockprocessors.py, so I'm guessing it's supposed to be lower?
@@ -279,7 +330,7 @@ def _create_doc_element(tags):
             tmp = [tmp[0], '']
         tparam = element.tparams.add()
         tparam.name = tmp[0]
-        tparam.type, tparam.doc = extract_type_from_docstr(tmp[1])
+        tparam.doc = tmp[1]
 
     for value in tags["member"]:
         tmp = value.split(' ', 1)
@@ -367,6 +418,93 @@ def is_optional(str):
     return False, str
 
 
+LUA_TYPES = [
+    "string", "number", "boolean", "table", "userdata", "nil", "function", "thread",
+    "vector", "vector3", "vector4", "matrix4", "quaternion", "hash", "url", "node",
+    "constant", "resource", "buffer", "any", "file",
+    "b2Body", "b2BodyType", "bufferstream" ]
+CPP_TYPES = [
+    "string", "float", "double", "long", "int", "bool", "char", "void",
+    "int8_t", "uint8_t", "int16_t", "uint16_t", "int32_atomic_t", "int32_t", "uint32_t", "int64_t", "uint64_t",
+    "size_t",
+    "jobject", "JNIEnv",
+    "lua_State",
+    "dmhash_t", "dmArray", "dmAllocator" ]
+
+def validate_lua_type(t, doc):
+    # function(self, node) -> function
+    if t.startswith("function("):
+        v = t.split("(")
+        t = v[0]
+
+    # only validate types in the same namespace
+    if "." in t:
+        v = t.split(".")
+        namespace = v[0]
+        if namespace != doc.info.namespace:
+            print("Ignoring type '%s' in '%s' (%s) since namespaces do not match" % (t, doc.info.name, doc.info.path))
+            return True
+
+    # standard Lua types
+    if t in LUA_TYPES:
+        return True
+
+    # is type defined in the same document?
+    for element in doc.elements:
+        if element.name == t:
+            return True
+
+    return False
+
+def validate_cpp_type(t, doc):
+    t = t.replace("*", "").replace("&", "").replace("const ", "").replace("unsigned ", "")
+
+    # ignore types with a namespace
+    if "::" in t:
+        return True
+
+    # uint32_t:2 -> uint32_t
+    if ":" in t:
+        v = t.split(":")
+        t = v[0]
+
+    # dmArray<uint8_t> -> dmArray
+    if "<" in t:
+        v = t.split("<")
+        t = v[0]
+
+    # H = opaque handle
+    if t.startswith("H"):
+        return True
+    # F = function typedef
+    if t.startswith("F"):
+        return True
+    # function definition, see configfile.h as an example
+    if t.startswith("function"):
+        return True
+    # varargs
+    if t == "..." or t == "va_list":
+        return True
+    # extension macros and similar
+    if t == "symbol":
+        return True
+    # standard C++ types
+    if t in CPP_TYPES:
+        return True
+    # is type defined in the same document?
+    for element in doc.elements:
+        if element.name == t:
+            return True
+
+    # is type defined as a template parameter in the same document?
+    for element in doc.elements:
+        for tparam in element.tparams:
+            if tparam.name == t:
+                return True
+
+    # print(doc)
+    return False
+
 def parse_document(doc_str):
     doc = script_doc_ddf_pb2.Document()
     lst = re.findall('/\*#(.*?)\*/', doc_str, re.DOTALL)
@@ -391,6 +529,37 @@ def parse_document(doc_str):
         else:
             doc.info.language = "Lua"
 
+    if doc.info.name != "Editor":
+        print("Validating %s types in %s (%s)" % (doc.info.language, doc.info.name, doc.info.path))
+        errors = []
+        warnings = []
+        if doc.info.language == "Lua":
+            for element in doc.elements:
+                for param in element.parameters:
+                    for t in param.types:
+                        if param.name == "...":
+                            continue
+                        if not validate_lua_type(t, doc):
+                            errors.append("'%s' has unknown type '%s' for parameter '%s'" % (element.name, t, param.name))
+                for returnvalue in element.returnvalues:
+                    for t in returnvalue.types:
+                        if not validate_lua_type(t, doc):
+                            errors.append("'%s' has unknown type '%s' for return value '%s'" % (element.name, t, returnvalue.name))
+        elif doc.info.language == "C++":
+            for element in doc.elements:
+                for param in element.parameters:
+                    for t in param.types:
+                        if t == "":
+                            warnings.append("'%s' has no type for parameter '%s'" % (element.name, param.name))
+                        elif not validate_cpp_type(t, doc):
+                            errors.append("'%s' has unknown type '%s' for parameter '%s'" % (element.name, t, param.name))
+
+        for warning in warnings:
+            print("  WARNING", warning)
+        for err in errors:
+            print("  ERROR", err)
+        if len(errors) > 0: raise Exception("Errors occurred when generating documentation")
+        # if len(warnings) > 0: sys.exit(1)
     return doc
 
 def message_to_dict(message):
@@ -511,11 +680,71 @@ def message_to_yaml_dict(message):
 
     return api
 
+
+def to_protobuf(s, output_file):
+    msg = parse_document(s)
+    with open(output_file, "w") as f:
+        f.write(str(msg))
+
+def to_json(s, output_file):
+    msg = parse_document(s)
+    dct = message_to_json_dict(msg)
+    with open(output_file, "w") as f:
+        json.dump(dct, f, indent = 2)
+
+def to_script_api(s, output_file):
+    msg = parse_document(s)
+    dct = message_to_yaml_dict(msg)
+    with open(output_file, "w") as f:
+        yaml.dump(dct, f, default_flow_style = False)
+
+
+def to_lua_annotation(s, output_file):
+    def fixdoc(s):
+        lines = s.splitlines(keepends = True)
+        for i,line in enumerate(lines):
+            line = re.sub(r'\[icon:.*?\]', r'', line)
+            line = re.sub(r'\[type:(.*)\]', r'\1', line)
+            line = re.sub(r'^- (.*)', r'\1', line)
+            line = re.sub(r'^: (.*)', r'\1', line)
+            line = re.sub(r'`(.*?)`', r'\1', line)
+            lines[i] = line
+        return "---".join(lines)
+
+    msg = parse_document(s)
+    if msg.info.language == "Lua":
+        dct = message_to_dict(msg)
+        dct["info"]["name"] = dct["info"]["name"].replace("-", "_").lower()
+        dct["info"]["description"] = re.sub(r'\[icon:.*?\]', r'', dct["info"]["description"])
+        for element in dct["elements"]:
+            element["is_" + element["type"].lower()] = True
+            element["description"] = fixdoc(element["description"])
+            element["params_string"] = ", ".join([parameter["name"] for parameter in element["parameters"]])
+            element["members_string"] = ", ".join([member["name"] for member in element["members"]])
+            for member in element["members"]:
+                member["doc"] = fixdoc(member["doc"])
+            for parameter in element["parameters"]:
+                parameter["types_string"] = "|".join([t for t in parameter["types"]])
+                parameter["doc"] = fixdoc(parameter["doc"])
+                if parameter["is_optional"] != True:
+                    parameter["is_optional"] = None
+            for rv in element["returnvalues"]:
+                rv["types_string"] = "|".join([t for t in rv["types"]])
+                rv["doc"] = fixdoc(rv["doc"])
+
+        result = pystache.render(LUA_MTL, dct)
+        result = html.unescape(result)
+        with codecs.open(output_file, "wb", encoding="utf-8") as f:
+            f.write(result)
+    else:
+        f = open(output_file, "w")
+        f.close()
+
 if __name__ == '__main__':
     usage = "usage: %prog [options] INFILE(s) OUTFILE"
     parser = OptionParser(usage = usage)
     parser.add_option("-t", "--type", dest="type",
-                      help="Supported formats: protobuf, json and script_api. default is protobuf", metavar="TYPE", default='protobuf')
+                      help="Supported formats: protobuf, json, script_api and lua. default is protobuf", metavar="TYPE", default='protobuf')
     (options, args) = parser.parse_args()
 
     if len(args) < 2:
@@ -527,21 +756,16 @@ if __name__ == '__main__':
             doc_str += f.read()
 
     output_file = args[-1]
-    f = open(output_file, "w")
     if options.type == 'protobuf':
-        doc_msg = parse_document(doc_str)
-        f.write(str(doc_msg))
+        to_protobuf(doc_str, output_file)
     elif options.type == 'json':
-        doc_msg = parse_document(doc_str)
-        doc_dict = message_to_json_dict(doc_msg)
-        json.dump(doc_dict, f, indent = 2)
+        to_json(doc_str, output_file)
     elif options.type == 'script_api':
-        doc_msg = parse_document(doc_str)
-        doc_dict = message_to_yaml_dict(doc_msg)
-        yaml.dump(doc_dict, f, default_flow_style = False)
+        to_script_api(doc_str, output_file)
+    elif options.type == 'lua':
+        to_lua_annotation(doc_str, output_file)
     else:
         print ('Unknown type: %s' % options.type)
         sys.exit(5)
-    f.close()
 
 

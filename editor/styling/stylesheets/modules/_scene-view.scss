@@ -13,7 +13,19 @@
         -fx-spacing: 10px;
         -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 16, 0, 0, 0);
 
-        >.toggle-button {
+        .plane-toggle {
+            -fx-text-fill: -df-text;
+            -fx-background-radius: 0;
+            -fx-border-radius: 0;
+            -fx-pref-width: 58px;
+
+            &:selected {
+                -fx-background-color: -df-background-light;
+            }
+        }
+
+        > .toggle-button,
+        > .button-group > .toggle-button {
             -fx-background-color: transparent;
             -fx-background-insets: 0;
             -fx-background-radius: 15px;
@@ -47,6 +59,34 @@
             }
         }
 
+        > .button-group {
+            > .toggle-button {
+                -fx-background-radius: 15px 0 0 15px;
+                -fx-border-radius: 15px 0 0 15px;
+            }
+
+            > .more-button {
+                -fx-max-width: 22px;
+                -fx-min-width: 22px;
+                -fx-pref-height: 30px;
+                -fx-background-radius: 0 15px 15px 0;
+                -fx-border-radius: 0 15px 15px 0;
+                -fx-background-color: transparent;
+                -fx-border-width: 0;
+                -fx-padding: 0 6px 0 0;
+
+                &:hover {
+                    & > .image-view {
+                        -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
+                    }
+                }
+            }
+
+            &.active .more-button {
+                -fx-background-color: -df-background-light;
+            }
+        }
+
         #visibility-settings-graphic {
             & > #eye-icon {
                 -fx-translate-y: 1px;
@@ -61,6 +101,7 @@
                 -fx-translate-y: -5px;
             }
         }
+
         .toggle-button {
             &:selected > #visibility-settings-graphic > #active-indicator {
                 -fx-stroke: -df-background-light;
@@ -92,7 +133,90 @@
             }
         }
 
-        .visibility-toggles-shadow {
+        .grid-settings {
+            -fx-pref-width: 200px;
+            -fx-background-color: -df-component-dark;
+            -fx-background-radius: 4px;
+            -fx-padding: 12px;
+
+            HBox {
+                -fx-pref-height: 28px;
+            }
+
+            .label {
+                -fx-pref-width: 80px;
+            }
+
+            .text-input {
+                -fx-background-color: -df-background-light;
+                -fx-border-color: -df-component-light;
+
+                &:hover {
+                    -fx-border-color: -df-component-lighter;
+                }
+
+                &:focused {
+                    -fx-border-width: 1px 1px 2px 1px;
+                    -fx-background-color: -df-component-darker;
+                    -fx-border-color: -df-component-lighter -df-component-lighter -df-defold-orange -df-component-lighter;
+                }
+
+            }
+
+            .button {
+                -fx-border-color: -df-component-lighter;
+
+                &:hover, 
+                &:focused {
+                    -fx-background-color: -df-component-light;
+                    -fx-text-fill: -df-text-selected;
+                }
+            }
+
+            .toggle-button {
+                -fx-border-color: -df-component-lighter;
+
+                &:hover,
+                &:focused {
+                    -fx-background-color: -df-component-light;
+                    -fx-text-fill: -df-text-selected;
+                }
+
+                &:selected {
+                    -fx-background-color: -df-background-light;
+                    -fx-text-fill: -df-text-selected;
+                }
+
+                &:focused {
+                   -fx-border-color: -df-text;
+                }
+            }
+
+            .slider {
+                .track {
+                    -fx-background-color: -df-background-light;
+                    -fx-border-color: -df-component-light;
+                }
+
+                .thumb {
+                    -fx-background-color: -df-component-light;
+
+                    &:hover,
+                    &:pressed {
+                        -fx-background-color: -df-component-lighter;
+                    }
+                }
+
+                &:focused {
+                    .thumb {
+                        -fx-background-color: -df-component-lighter;
+                    }
+                   
+                } 
+            }
+        }
+
+        .popup-shadow {
             -fx-background-color: rgba(0, 0, 0, 0.2);
             -fx-background-radius: 4px;
             -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 1.0), 16, 0, 0, 0);

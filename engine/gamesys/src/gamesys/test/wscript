@@ -68,32 +68,40 @@ def build(bld):
                         'ResourceTypeAnimationSet',
                         'ResourceTypeCollection',
                         'ResourceTypeGameObject',
-                        'ResourceTypeLua',
-                        'ResourceTypeScript',
                         'ResourceTypeGui',
                         'ResourceTypeGuiScript',
+                        'ResourceTypeLua',
                         'ResourceTypeOgg',
                         'ResourceTypeOpus',
+                        'ResourceTypeScript',
+                        'ResourceTypeTTF',
+                        'ResourceTypeFont',
                         'ResourceTypeWav',
                         'GraphicsAdapterNull',
                         'ScriptImageExt',
+                        'ScriptFont',
                         'ScriptHttp']
 
     embed_source = ['resource/booster_on_sfx.wav', 'resource/layer_guitar_a.ogg']
 
+    dynamic_fonts = [
+        'dyn_glyph_bank_test_1.font'
+    ]
+
     test_gamesys = bld.program(features = 'cxx cprogram embed test',
                                includes = '../../../src ../../../proto .',
-                               use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig gamesys_model',
+                               use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER FONT GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig gamesys_model',
                                exported_symbols = exported_symbols + ['ScriptModelExt'],
                                web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
                                content_root='../test',
+                               dynamic_fonts = dynamic_fonts,
                                source = bld.path.ant_glob('test_gamesys.cpp') + bld.path.ant_glob(dirs, excl=excl_pattern),
                                embed_source = embed_source,
                                target = 'test_gamesys')
 
     test_gamesys_physics = bld.program(features='cxx cprogram embed test',
                                 includes='../../../src ../../../proto',
-                                use='TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT TEST_SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig gamesys_model',
+                                use='TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER FONT GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT TEST_SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig gamesys_model',
                                 exported_symbols = exported_symbols + ['ScriptModelExt'],
                                 web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
                                 content_root='../test',

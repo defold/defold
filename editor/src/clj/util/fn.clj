@@ -25,6 +25,7 @@
 (defonce constantly-false (constantly false))
 (defonce constantly-true (constantly true))
 (defonce constantly-nil (constantly nil))
+(defonce constantly-constantly-nil (constantly constantly-nil))
 
 (defmacro constantly-fail
   ([message-expr]

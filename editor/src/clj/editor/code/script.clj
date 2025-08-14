@@ -121,17 +121,16 @@
                                    "string.quoted.other.multiline.lua"
                                    "string.quoted.double.lua"
                                    "string.quoted.single.lua"
-                                   "constant.character.escape.lua"}
+                                   "constant.character.escape.lua"
+                                   "punctuation.definition.comment.lua"
+                                   "comment.block.lua"
+                                   "comment.line.double-dash.lua"}
                  :open-scopes {\' "punctuation.definition.string.quoted.begin.lua"
                                \" "punctuation.definition.string.quoted.begin.lua"
                                \[ "punctuation.definition.string.begin.lua"}
                  :close-scopes {\' "punctuation.definition.string.quoted.end.lua"
                                 \" "punctuation.definition.string.quoted.end.lua"
                                 \] "punctuation.definition.string.end.lua"}}
-   :commit-characters {:method #{"("}
-                       :function #{"("}
-                       :field #{"."}
-                       :module #{"."}}
    :completion-trigger-characters #{"."}
    :ignored-completion-trigger-characters #{"{" ","}
    :patterns [{:captures {1 {:name "keyword.control.lua"}
@@ -342,7 +341,7 @@
 (def ^:private xform-to-name-info-pairs (map (juxt :name #(dissoc % :name))))
 
 (defn- edit-script-property [node-id type resource-kind value]
-  (g/set-property node-id :type type :resource-kind resource-kind :value value))
+  (g/set-properties node-id :type type :resource-kind resource-kind :value value))
 
 (defn- create-script-property [script-node-id name type resource-kind value]
   (g/make-nodes (g/node-id->graph-id script-node-id) [node-id [ScriptPropertyNode :name name]]
