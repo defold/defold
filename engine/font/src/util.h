@@ -12,16 +12,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if !defined(DM_FONT_UTIL_H)
+#ifndef DM_FONT_UTIL_H
 #define DM_FONT_UTIL_H
 
 #include <stdint.h>
 
-namespace dmFont
-{
-    void DebugPrintBitmap(uint8_t* bitmap, int w, int h);
+void FontDebugPrintBitmap(uint8_t* bitmap, int w, int h);
 
-    void* ReadFile(const char* path, uint32_t* file_size);
-}
+void* FontReadFile(const char* path, uint32_t* file_size);
 
 #endif // DM_FONT_UTIL_H

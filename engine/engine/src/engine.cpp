@@ -82,6 +82,8 @@ extern uint32_t      DEBUG_SPC_SIZE;
 
     extern unsigned char GAME_PROJECT[];
     extern uint32_t GAME_PROJECT_SIZE;
+
+    #include <dmsdk/gamesys/resources/res_font.h>
 #endif
 
 #if defined(__ANDROID__)
