@@ -626,26 +626,6 @@ namespace dmRender
         return material->m_RenderContext;
     }
 
-    uint64_t GetMaterialUserData1(HMaterial material)
-    {
-        return material->m_UserData1;
-    }
-
-    void SetMaterialUserData1(HMaterial material, uint64_t user_data)
-    {
-        material->m_UserData1 = user_data;
-    }
-
-    uint64_t GetMaterialUserData2(HMaterial material)
-    {
-        return material->m_UserData2;
-    }
-
-    void SetMaterialUserData2(HMaterial material, uint64_t user_data)
-    {
-        material->m_UserData2 = user_data;
-    }
-
     void SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space)
     {
         material->m_VertexSpace = vertex_space;
@@ -654,6 +634,16 @@ namespace dmRender
     dmRenderDDF::MaterialDesc::VertexSpace GetMaterialVertexSpace(HMaterial material)
     {
         return material->m_VertexSpace;
+    }
+
+    void SetMaterialPBRParameters(HMaterial material, const dmRenderDDF::MaterialDesc::PbrParameters* parameters)
+    {
+        material->m_PbrParameters = *parameters;
+    }
+
+    void GetMaterialPBRParameters(HMaterial material, dmRenderDDF::MaterialDesc::PbrParameters* parameters)
+    {
+        *parameters = material->m_PbrParameters;
     }
 
     uint32_t GetMaterialTagListKey(HMaterial material)

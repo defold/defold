@@ -35,7 +35,8 @@
             [util.coll :as coll :refer [pair]]
             [util.murmur :as murmur]
             [util.num :as num])
-  (:import [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
+  (:import [com.dynamo.bob.pipeline MaterialBuilder MaterialBuilder$PbrParameterType]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -123,6 +124,25 @@
                          (format "'%s' attribute uses normalize with float data type"
                                  name)))]))
 
+(defn pb-parameter-type->pbr-parameter-type-pb-keyword [pbr-parameter-type]
+  (condp = pbr-parameter-type
+    MaterialBuilder$PbrParameterType/PBR_PARAMETER_TYPE_METALLIC_ROUGHNESS :has-metallic-roughness
+    MaterialBuilder$PbrParameterType/PBR_PARAMETER_TYPE_SPECULAR_GLOSSINESS :has-specular-glossiness
+    MaterialBuilder$PbrParameterType/PBR_PARAMETER_TYPE_CLEARCOAT :has-clearcoat
+    MaterialBuilder$PbrParameterType/PBR_PARAMETER_TYPE_TRANSMISSION :has-transmission
+    MaterialBuilder$PbrParameterType/PBR_PARAMETER_TYPE_IOR :has-ior
+    MaterialBuilder$PbrParameterType/PBR_PARAMETER_TYPE_SPECULAR :has-specular
+    MaterialBuilder$PbrParameterType/PBR_PARAMETER_TYPE_VOLUME :has-volume
+    MaterialBuilder$PbrParameterType/PBR_PARAMETER_TYPE_SHEEN :has-sheen
+    MaterialBuilder$PbrParameterType/PBR_PARAMETER_TYPE_EMISSIVE_STRENGTH :has-emissive-strength
+    MaterialBuilder$PbrParameterType/PBR_PARAMETER_TYPE_IRIDESCENCE :has-iridescene))
+
+(defn- build-target-pbr-params [shader-reflection]
+  (when-some [pbr-parameters (MaterialBuilder/getPbrParameters shader-reflection)]
+    (into {:has-parameters true}
+          (map #(vector (pb-parameter-type->pbr-parameter-type-pb-keyword %) true))
+          pbr-parameters)))
+
 (g/defnk produce-build-targets [_node-id attribute-infos base-pb-msg fragment-program fragment-shader-source-info max-page-count exclude-gles-sm100 resource vertex-program vertex-shader-source-info]
   (or (g/flatten-errors
         (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
@@ -131,11 +151,13 @@
       (let [shader-desc-build-target (shader-compilation/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count exclude-gles-sm100)
             build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count)
             build-target-attributes (build-target-attributes attribute-infos)
+            build-target-pbr-params (build-target-pbr-params (:shader-reflection shader-desc-build-target))
             dep-build-targets [shader-desc-build-target]
             material-desc-with-build-resources (assoc base-pb-msg
                                                  :program (:resource shader-desc-build-target)
                                                  :samplers build-target-samplers
-                                                 :attributes build-target-attributes)]
+                                                 :attributes build-target-attributes
+                                                 :pbr-parameters build-target-pbr-params)]
         [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)

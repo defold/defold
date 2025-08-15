@@ -1,0 +1,3 @@
+name: "pbr_properties"
+mesh: "/model/pbr_properties.gltf"
+material: "/model/pbr.material"

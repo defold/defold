@@ -22,6 +22,7 @@
   (:import [clojure.lang Named]
            [com.defold.util IDigestable]
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
+           [com.dynamo.bob.pipeline ShaderProgramBuilder$ShaderDescBuildResult]
            [java.io BufferedWriter OutputStreamWriter Writer]))
 
 (set! *warn-on-reflection* true)
@@ -217,6 +218,10 @@
   TextureSetGenerator$LayoutResult
   (digest! [value writer opts]
     (digest-tagged! 'LayoutResult (str value) writer opts))
+
+  ShaderProgramBuilder$ShaderDescBuildResult
+  (digest! [value writer opts]
+    (digest-tagged! 'ShaderDescBuildResult (str value) writer opts))
 
   Class
   (digest! [value writer opts]

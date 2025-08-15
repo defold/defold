@@ -453,10 +453,10 @@ public:
     virtual ~MaterialTest() {}
 };
 
-class ModelScriptTest : public ScriptBaseTest
+class ModelTest : public ScriptBaseTest
 {
 public:
-    virtual ~ModelScriptTest() {}
+    virtual ~ModelTest() {}
 };
 
 class ShaderTest : public GamesysTest<const char*>
