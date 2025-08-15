@@ -276,6 +276,10 @@
           (c/mode-2d? camera)
           (assoc :active-plane :z)))
 
+(g/defnk produce-snapping-points
+  [grids]
+  {})
+
 (g/defnode Grid
   (property prefs g/Any)
 
@@ -284,6 +288,7 @@
   (output options g/Any (g/constantly nil))
   (output merged-options g/Any produce-merged-options)
   (output grids g/Any :cached produce-grids)
+  (output snapping-points g/Any :cached produce-snapping-points)
   (output renderable pass/RenderData :cached produce-renderable))
 
 (defn- invalidate-grids! [app-view]
