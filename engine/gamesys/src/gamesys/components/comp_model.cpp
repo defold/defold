@@ -1861,6 +1861,9 @@ namespace dmGameSystem
             if (!item.m_Enabled)
                 continue;
             dmRigDDF::Model* model = item.m_Model;
+            // Hierarchy handling: See ModelUtil.java:loadModel() for how model->m_Local is set
+            // For skinned models: m_Local contains node.local, hierarchy applied via bone_pose.m_World
+            // For non-skinned models: m_Local contains node.world, hierarchy already flattened
             if (item.m_BoneIndex != dmRig::INVALID_BONE_INDEX)
             {
                 dmRig::BonePose bone_pose = (*pose)[item.m_BoneIndex];
