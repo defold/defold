@@ -4645,6 +4645,56 @@ bail:
         return context->m_CurrentSwapchainTexture;
     }
 
+    VkDevice VulkanGetDevice(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_LogicalDevice.m_Device;
+    }
+
+    VkPhysicalDevice VulkanGetPhysicalDevice(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_PhysicalDevice.m_Device;
+    }
+
+    VkInstance VulkanGetInstance(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_Instance;
+    }
+
+    uint16_t VulkanGetGraphicsQueueFamily(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_SwapChain->m_QueueFamily.m_GraphicsQueueIx;
+    }
+
+    VkQueue VulkanGetGraphicsQueue(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_LogicalDevice.m_GraphicsQueue;
+
+    }
+
+    VkRenderPass VulkanGetRenderPass(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_MainRenderPass;
+    }
+
+    VkCommandBuffer VulkanGetCurrentFrameCommandBuffer(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex];
+    }
+
+    bool VulkanCreateDescriptorPool(VkDevice vk_device, uint16_t max_descriptors, VkDescriptorPool* vk_descriptor_pool_out)
+    {
+        VkResult res = CreateDescriptorPool(vk_device, max_descriptors, vk_descriptor_pool_out);
+        return res == VK_SUCCESS;
+    }
+
+
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
     {
         GraphicsAdapterFunctionTable fn_table = {};
