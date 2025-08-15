@@ -20,6 +20,7 @@
             [editor.types :as types]
             [schema.core :as s])
   (:import [editor.types AABB Camera Frustum Rect Region]
+           [javafx.scene Cursor]
            [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point2d Point3d Quat4d Tuple2d Tuple3d Tuple4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -441,6 +442,7 @@
    [:primary   false false true  false] :track
    [:primary   false true  true  false] :dolly
    [:secondary false false true  false] :dolly
+   [:secondary false false false false] :track
    [:middle    false false false false] :track})
 
 (defn camera-movement
@@ -631,7 +633,8 @@
         movements-enabled (g/node-value self :movements-enabled)
         ui-state (or (g/user-data self ::ui-state) {:movement :idle})
         {:keys [last-x last-y]} ui-state
-        {:keys [x y type delta-y alt]} action
+        {:keys [x y type delta-y alt button]} action
+        is-secondary (= button :secondary)
         movement (if (= type :mouse-pressed)
                    (get movements-enabled (camera-movement action) :idle)
                    (:movement ui-state))
@@ -665,14 +668,19 @@
       :scroll (if (contains? movements-enabled :dolly) nil action)
       :mouse-pressed (do
                        (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y :movement movement)
-                       (if (= movement :idle) action nil))
+                       (if (or (= movement :idle) is-secondary)
+                         action
+                         (do (g/set-property! self :cursor-type :pan)
+                             nil)))
       :mouse-released (do
                         (g/user-data-swap! self ::ui-state assoc :last-x nil :last-y nil :movement :idle)
-                        (if (= movement :idle) action nil))
+                        (g/set-property! self :cursor-type :default)
+                        (if (or (= movement :idle) is-secondary) action nil))
       :mouse-moved (if (not (= :idle movement))
                      (do
                        (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y)
-                       nil)
+                       (g/set-property! self :cursor-type :pan)
+                       (if is-secondary action nil))
                      action)
       action)))
 
@@ -682,12 +690,14 @@
   (property cached-3d-camera Camera)
   (property animating g/Bool)
   (property movements-enabled g/Any (default #{:dolly :track :tumble}))
+  (property cursor-type g/Keyword)
 
   (input scene-aabb AABB)
   (input viewport Region)
 
   (output viewport Region (gu/passthrough viewport))
   (output camera Camera :cached produce-camera)
+  (output cursor-type g/Keyword (gu/passthrough cursor-type))
 
   (output input-handler Runnable :cached (g/constantly handle-input)))
 

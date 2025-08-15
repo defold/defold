@@ -2497,11 +2497,7 @@
 
                  :else
                  javafx.scene.Cursor/DEFAULT)]
-    ;; The cursor refresh appears buggy at the moment.
-    ;; Calling setCursor with DISAPPEAR before setting the cursor forces it to refresh.
-    (when (not= cursor (.getCursor node))
-      (.setCursor node javafx.scene.Cursor/DISAPPEAR)
-      (.setCursor node cursor))))
+    (ui/set-cursor node cursor)))
 
 (handler/register-menu! ::code-context-menu
   [{:command :edit.cut :label "Cut"}
