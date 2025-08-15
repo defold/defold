@@ -482,7 +482,7 @@ def default_flags(self):
         if TargetOS.IOS == target_os:
             self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'SystemConfiguration', '-framework', 'AVFoundation'])
         else:
-            self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
+            self.env.append_value('LINKFLAGS', ['-framework', 'AppKit', '-framework', 'AVFoundation'])
 
     if TargetOS.LINUX == target_os:
         clang_arch = 'x86_64-unknown-linux-gnu'
