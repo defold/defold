@@ -48,8 +48,7 @@
 ;;     on the class path.
 ;;   * Evaluate the following expression through the REPL connection:
 ;;     ```
-;;     (do (require '[editor.portal :as portal])
-;;         (portal/open!))
+;;     ((requiring-resolve 'editor.portal/open!))
 ;;     ```
 ;;     You might want to set up a REPL Command for this in your IDE.
 
