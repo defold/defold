@@ -30,6 +30,7 @@ import java.util.List;
 
 import org.junit.Test;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.tile.TileSetGenerator;
@@ -46,7 +47,7 @@ import com.dynamo.gamesys.proto.Tile.TileSet;
 public class TileSetGeneratorTest {
 
     // @Test
-    public void testTileSet() throws Exception {
+    public void testTileSet() throws Exception, CompileExceptionError {
         BufferedImage image = newImage(64, 32);
         int tileWidth = 32;
         int tileHeight = 32;
@@ -88,7 +89,7 @@ public class TileSetGeneratorTest {
     }
 
     @Test
-    public void testSplit() {
+    public void testSplit() throws CompileExceptionError {
         BufferedImage image = newImage(384, 384);
         int tileWidth = 128;
         int tileHeight = 128;
@@ -127,7 +128,7 @@ public class TileSetGeneratorTest {
     }
 
     @Test
-    public void testSplitStrip() {
+    public void testSplitStrip() throws CompileExceptionError {
         BufferedImage image = newImage(1, 16);
         int tileWidth = 1;
         int tileHeight = 16;
@@ -147,7 +148,7 @@ public class TileSetGeneratorTest {
     }
 
     @Test
-    public void testSplitStripExtrude() throws IOException {
+    public void testSplitStripExtrude() throws IOException, CompileExceptionError {
         BufferedImage image = newImage(1, 16);
 
         int tileWidth = 1;
@@ -169,7 +170,7 @@ public class TileSetGeneratorTest {
     }
 
     @Test
-    public void textIndexedAnimIterator() throws Exception {
+    public void textIndexedAnimIterator() throws Exception, CompileExceptionError {
         List<IndexedAnimDesc> anims = new ArrayList<IndexedAnimDesc>(1);
         anims.add(new IndexedAnimDesc(newAnim("test", 3, 1).build()));
         TileSetGenerator.IndexedAnimIterator iterator = new IndexedAnimIterator(anims, 4);

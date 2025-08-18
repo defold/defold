@@ -31,7 +31,7 @@ namespace dmGameSystem
     // Used by the engine to setup the dmGui::HContext
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
     uintptr_t GuiGetUserDataCallback(dmGui::HScene scene);
-    dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);
+    dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path);
     void GuiGetTextMetricsCallback(dmGameSystem::FontResource* font_resource, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 
     // Used only in engine_service.cpp for resource profiling

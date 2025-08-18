@@ -460,7 +460,7 @@ void UpdateFactory(HFactory factory)
 {
     DM_PROFILE(__FUNCTION__);
     dmMessage::Dispatch(factory->m_Socket, &Dispatch, factory);
-    dmJobThread::Update(factory->m_JobThreadContext);
+    dmJobThread::Update(factory->m_JobThreadContext, 0);
     DM_PROPERTY_ADD_U32(rmtp_Resource, factory->m_Resources->Size());
 }
 
@@ -811,6 +811,7 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
         params.m_Context     = resource_type->m_Context;
         params.m_PreloadData = preload_data;
         params.m_Resource    = &tmp_resource;
+        params.m_Filename    = name;
         for(;;)
         {
             create_error = (Result)resource_type->m_PostCreateFunction(&params);

@@ -13,7 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.fn
-  (:refer-clojure :exclude [memoize partial])
+  (:refer-clojure :exclude [memoize partial]
+                  :rename {and and*
+                           or or*})
   (:require [internal.java :as java]
             [util.coll :as coll :refer [pair]])
   (:import [clojure.lang ArityException Compiler Fn IFn IHashEq MultiFn]
@@ -111,9 +113,9 @@
               (var-get ifn-or-var)
               ifn-or-var)
         ^long max-arity (ifn-class-max-arity (class ifn))]
-    (if (and (pos? max-arity)
-             (var? ifn-or-var)
-             (-> ifn-or-var meta :macro))
+    (if (and* (pos? max-arity)
+              (var? ifn-or-var)
+              (-> ifn-or-var meta :macro))
       (- max-arity 2) ; Subtract implicit arguments from macro.
       max-arity)))
 
@@ -126,9 +128,9 @@
               (var-get ifn-or-var)
               ifn-or-var)
         arities (ifn-class-arities (class ifn))
-        adjusted-arity (if (and (not (neg? arity))
-                                (var? ifn-or-var)
-                                (-> ifn-or-var meta :macro))
+        adjusted-arity (if (and* (not (neg? arity))
+                                 (var? ifn-or-var)
+                                 (-> ifn-or-var meta :macro))
                          (+ arity 2) ; Adjust for implicit arguments to macro.
                          arity)]
     (contains? arities adjusted-arity)))
@@ -163,20 +165,33 @@
   (let [metadata (meta memoized-fn)
         memoize-cache (::memoize-cache metadata)
         memoize-arity (::memoize-arity metadata)]
-    (if (and memoize-cache memoize-arity)
+    (if (and* memoize-cache memoize-arity)
       (let [arity (long memoize-arity)
             evicted-key (case arity
                           1 (first args)
                           2 (pair (first args) (second args))
                           args)]
-        (if (and (not= -1 arity) ; Variadic.
-                 (not= arity (coll/bounded-count (inc arity) args)))
+        (if (and* (not= -1 arity) ; Variadic.
+                  (not= arity (coll/bounded-count (inc arity) args)))
           (let [original-fn (::memoize-original metadata)
                 original-class-name (-> original-fn class .getName)]
             (throw (ArityException. arity original-class-name))))
         (swap! memoize-cache dissoc evicted-key)
         nil)
       (throw (IllegalArgumentException. "The function was not memoized by us.")))))
+
+(defn demunged-symbol
+  "Given a munged name, such as the full name of a Clojure function class,
+  return a demunged symbol."
+  [^String munged-name]
+  (let [namespaced-name (Compiler/demunge munged-name)
+        separator-index (.indexOf namespaced-name (int \/))
+        namespace (when (pos? separator-index)
+                    (.intern (subs namespaced-name 0 separator-index)))
+        name (if (neg? separator-index)
+               namespaced-name
+               (.intern (subs namespaced-name (inc separator-index))))]
+    (symbol namespace name)))
 
 (defn declared-symbol
   "Given a declared function, returns the symbol that resolves to the function."
@@ -188,14 +203,7 @@
         (throw (IllegalArgumentException.
                  (format "Unable to get declared symbol from anonymous function `%s`."
                          class-name)))
-        (let [namespaced-name (Compiler/demunge class-name)
-              separator-index (.indexOf namespaced-name (int \/))
-              namespace (when (pos? separator-index)
-                          (.intern (subs namespaced-name 0 separator-index)))
-              name (if (neg? separator-index)
-                     namespaced-name
-                     (.intern (subs namespaced-name (inc separator-index))))]
-          (symbol namespace name))))))
+        (demunged-symbol class-name)))))
 
 (defn make-case-fn
   "Given a collection of key-value pairs, return a function that returns the
@@ -273,8 +281,8 @@
   (equals [_ obj]
     (if (instance? PartialFn obj)
       (let [^PartialFn that obj]
-        (and (= fn (.-fn that))
-             (= args (.-args that))))
+        (and* (= fn (.-fn that))
+              (= args (.-args that))))
       false)))
 
 (defn partial
@@ -349,3 +357,19 @@
   [name valid-values]
   `(defn ~name [~'value]
      (among-values-case-expr ~valid-values ~'value)))
+
+;; Keep at the bottom to avoid internal use. Code in this file should use and*.
+(defn and
+  "Like clojure.core/and, but is eager and can be used as a function."
+  ([] true)
+  ([a] a)
+  ([a b] (if a b a))
+  ([a b & more] (if a (reduce and b more) a)))
+
+;; Keep at the bottom to avoid internal use. Code in this file should use or*.
+(defn or
+  "Like clojure.core/or, but is eager and can be used as a function."
+  ([] nil)
+  ([a] a)
+  ([a b] (if a a b))
+  ([a b & more] (reduce or (if a a b) more)))

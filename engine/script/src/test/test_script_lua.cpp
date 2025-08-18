@@ -219,6 +219,7 @@ struct TestDummy {
     dmMessage::URL  m_URL;
     int             m_InstanceReference;
     int             m_ContextTableReference;
+    uint32_t        m_UniqueScriptId;
 };
 
 static int TestGetURL(lua_State* L) {
@@ -259,6 +260,13 @@ static int TestGetContextTableRef(lua_State* L)
     return 1;
 }
 
+static int TestScriptGetUniqueScriptId(lua_State* L)
+{
+    TestDummy* inst = (TestDummy*)lua_touserdata(L, 1);
+    lua_pushinteger(L, (lua_Integer)inst->m_UniqueScriptId);
+    return 1;
+}
+
 static int TestToString(lua_State* L)
 {
     lua_pushstring(L, "TestDummy");
@@ -277,6 +285,7 @@ static const luaL_reg Test_meta[] =
     {dmScript::META_TABLE_RESOLVE_PATH,             TestResolvePath},
     {dmScript::META_TABLE_IS_VALID,                 TestIsValid},
     {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, TestGetContextTableRef},
+    {dmScript::META_GET_UNIQUE_SCRIPT_ID,           TestScriptGetUniqueScriptId},
     {"__tostring",                                  TestToString},
     {0, 0}
 };
@@ -305,7 +314,7 @@ TEST_F(ScriptTestLua, TestUserType) {
     dummy->m_InstanceReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
     lua_newtable(L);
     dummy->m_ContextTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
-
+    dummy->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
     // Invalid
     ASSERT_FALSE(dmScript::IsInstanceValid(L));
 
@@ -489,6 +498,182 @@ TEST_F(ScriptTestLua, TestErrorHandlerFunction)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+static int UserdataErrorFunc(lua_State* L) {
+    // This simulates calling error() from Lua with userdata
+    lua_getglobal(L, "error");
+    dmScript::PushHash(L, dmHashString64("test_userdata_error"));
+    lua_call(L, 1, 0);
+    return 0; // Never reached
+}
+
+TEST_F(ScriptTestLua, TestUserdataError)
+{
+    // Test that passing userdata to error() no longer crashes
+    // https://github.com/defold/defold/issues/9392
+    int top = lua_gettop(L);
+
+    const char *install_error_handler =
+        "sys.set_error_handler(function(type, error, traceback)\n"
+        "    _type = type\n"
+        "    _error = error\n"
+        "    _traceback = traceback\n"
+        "end)\n";
+
+    ASSERT_TRUE(RunString(L, install_error_handler));
+
+    lua_pushcfunction(L, UserdataErrorFunc);
+    int result = dmScript::PCall(L, 0, LUA_MULTRET);
+    ASSERT_EQ(LUA_ERRRUN, result);
+    ASSERT_EQ(top, lua_gettop(L));
+
+    // Check that the error was converted to a string representation
+    ASSERT_TRUE(RunString(L, "assert(_type == \"lua\")"));
+    // The error should now be the actual hash string representation, not just "(userdata)"
+    ASSERT_TRUE(RunString(L, "assert(type(_error) == 'string')"));
+    ASSERT_TRUE(RunString(L, "assert(string.len(_error) > 0)"));
+    // Print the actual error to see what we get
+    ASSERT_TRUE(RunString(L, "print('Error message: ' .. _error)"));
+    
+    // Check that traceback exists and is a string (content may be empty, but that's ok)
+    // The important thing is that we didn't crash and the error message was converted
+    ASSERT_TRUE(RunString(L, "assert(_traceback ~= nil)"));
+    ASSERT_TRUE(RunString(L, "assert(type(_traceback) == 'string')"));
+}
+
+static int NumberErrorFunc(lua_State* L) {
+    // Test with a number - this should use tostring() behavior
+    lua_getglobal(L, "error");
+    lua_pushnumber(L, 42.5);
+    lua_call(L, 1, 0);
+    return 0; // Never reached
+}
+
+TEST_F(ScriptTestLua, TestNumberError)
+{
+    // Test that passing numbers to error() works with tostring() behavior
+    int top = lua_gettop(L);
+
+    const char *install_error_handler =
+        "sys.set_error_handler(function(type, error, traceback)\n"
+        "    _type = type\n"
+        "    _error = error\n"
+        "    _traceback = traceback\n"
+        "end)\n";
+
+    ASSERT_TRUE(RunString(L, install_error_handler));
+
+    lua_pushcfunction(L, NumberErrorFunc);
+    int result = dmScript::PCall(L, 0, LUA_MULTRET);
+    ASSERT_EQ(LUA_ERRRUN, result);
+    ASSERT_EQ(top, lua_gettop(L));
+
+    // Check that the number was converted to string using tostring() behavior
+    ASSERT_TRUE(RunString(L, "assert(_type == \"lua\")"));
+    ASSERT_TRUE(RunString(L, "assert(_error == \"42.5\")"));
+    
+    // Check that traceback exists
+    ASSERT_TRUE(RunString(L, "assert(_traceback ~= nil)"));
+    ASSERT_TRUE(RunString(L, "assert(type(_traceback) == 'string')"));
+}
+
+static int AssertNilNilFunc(lua_State* L) {
+    // Test assert(nil, nil) which should call error(nil)
+    lua_getglobal(L, "assert");
+    lua_pushnil(L); // condition = nil (falsy)
+    lua_pushnil(L); // message = nil
+    lua_call(L, 2, 0);
+    return 0; // Never reached
+}
+
+static int DeepLuaErrorFunc(lua_State* L) {
+    // Create a Lua call stack to show traceback with content
+    const char *lua_with_callstack = 
+        "function deep_func()\n"
+        "    error(nil)\n"
+        "end\n"
+        "function main_func()\n"
+        "    deep_func()\n"
+        "end\n"
+        "main_func()\n";
+    
+    // Use loadstring + call instead of dostring to let error propagate
+    int result = luaL_loadstring(L, lua_with_callstack);
+    if (result != 0) {
+        return result; // Compilation error
+    }
+    lua_call(L, 0, 0); // This will throw the error from error(nil)
+    return 0; // Never reached
+}
+
+TEST_F(ScriptTestLua, TestAssertNilNil)
+{
+    // Test the specific case: assert(nil, nil) which should error with "nil"
+    // https://github.com/defold/defold/issues/8540
+    int top = lua_gettop(L);
+
+    const char *install_error_handler =
+        "sys.set_error_handler(function(type, error, traceback)\n"
+        "    _type = type\n"
+        "    _error = error\n"
+        "    _traceback = traceback\n"
+        "end)\n";
+
+    ASSERT_TRUE(RunString(L, install_error_handler));
+
+    lua_pushcfunction(L, AssertNilNilFunc);
+    int result = dmScript::PCall(L, 0, LUA_MULTRET);
+    ASSERT_EQ(LUA_ERRRUN, result);
+    ASSERT_EQ(top, lua_gettop(L));
+
+    // Check that the error message is "nil" (from tostring(nil))
+    ASSERT_TRUE(RunString(L, "assert(_type == \"lua\")"));
+    ASSERT_TRUE(RunString(L, "assert(_error == \"nil\")"));
+    
+    // Check that traceback exists and is a string
+    // Note: traceback may be empty for simple C->Lua->error calls
+    ASSERT_TRUE(RunString(L, "assert(_traceback ~= nil)"));
+    ASSERT_TRUE(RunString(L, "assert(type(_traceback) == 'string')"));
+    
+    // Debug: show why traceback might be empty
+    ASSERT_TRUE(RunString(L, "print('Traceback content: [' .. _traceback .. ']')"));
+    ASSERT_TRUE(RunString(L, "print('Traceback length: ' .. string.len(_traceback))"));
+}
+
+TEST_F(ScriptTestLua, TestErrorWithLuaCallstack)
+{
+    // Test error from deep Lua call stack to show traceback with content
+    int top = lua_gettop(L);
+
+    const char *install_error_handler =
+        "sys.set_error_handler(function(type, error, traceback)\n"
+        "    _type = type\n"
+        "    _error = error\n"
+        "    _traceback = traceback\n"
+        "end)\n";
+
+    ASSERT_TRUE(RunString(L, install_error_handler));
+
+    // Create a Lua call stack: main -> deep_func -> error(nil)
+    lua_pushcfunction(L, DeepLuaErrorFunc);
+
+    int result = dmScript::PCall(L, 0, LUA_MULTRET);
+    ASSERT_EQ(LUA_ERRRUN, result);
+    ASSERT_EQ(top, lua_gettop(L));
+
+    // Check that error is still "nil"
+    ASSERT_TRUE(RunString(L, "assert(_type == \"lua\")"));
+    ASSERT_TRUE(RunString(L, "assert(_error == \"nil\")"));
+    
+    // Check that traceback now has content because of Lua->Lua call stack
+    ASSERT_TRUE(RunString(L, "assert(_traceback ~= nil)"));
+    ASSERT_TRUE(RunString(L, "assert(type(_traceback) == 'string')"));
+    ASSERT_TRUE(RunString(L, "print('Deep traceback content: [' .. _traceback .. ']')"));
+    ASSERT_TRUE(RunString(L, "print('Deep traceback length: ' .. string.len(_traceback))"));
+    
+    // This traceback should have content showing the call chain
+    ASSERT_TRUE(RunString(L, "assert(string.len(_traceback) > 10)"));
+}
+
 
 struct CallbackArgs
 {
@@ -519,6 +704,7 @@ static int CreateAndPushInstance(lua_State* L)
     int instanceref = dmScript::Ref(L, LUA_REGISTRYINDEX);
     lua_newtable(L);
     dummy->m_ContextTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    dummy->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref);
     dmScript::SetInstance(L);
@@ -1064,6 +1250,64 @@ TEST_F(ScriptTestLua, LuaBooleanFunctions)
     dmScript::PushBoolean(L, true);
     ASSERT_TRUE(lua_toboolean(L, -1));
     lua_pop(L, 1);
+}
+
+// Test that callback registry reference collision (reuse) does not allow invoking the old callback after the instance is destroyed or reused.
+TEST_F(ScriptTestLua, TestCallbackCollisionByInstanceReuse)
+{
+    // Define Lua function
+    ASSERT_TRUE(RunString(L, "function test_cb(self) _G.cb_call_count = (_G.cb_call_count or 0) + 1 end"));
+    // Create and destroy instance with callback
+    int instanceref1 = CreateAndPushInstance(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref1);
+    TestDummy* dummy = (TestDummy*)lua_touserdata(L, -1);
+    dmScript::SetInstance(L);
+    lua_getglobal(L, "test_cb");
+    dmScript::LuaCallbackInfo* cbk1 = dmScript::CreateCallback(L, -1);
+    dmScript::InvokeCallback(cbk1, 0, 0);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref1);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTableReference);
+
+    // Create and destroy instance with callback
+    int instanceref2 = CreateAndPushInstance(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref2);
+    TestDummy* dummy2 = (TestDummy*)lua_touserdata(L, -1);
+    dmScript::SetInstance(L);
+    lua_getglobal(L, "test_cb");
+    dmScript::LuaCallbackInfo* cbk2 = dmScript::CreateCallback(L, -1);
+    dmScript::InvokeCallback(cbk2, 0, 0);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref2);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy2->m_ContextTableReference);
+
+
+    ASSERT_TRUE(RunString(L, "function test_cb1(self) _G.cb2_call_count = (_G.cb2_call_count or 0) + 1 end"));
+    // Create and destroy instance with callback
+    int instanceref3 = CreateAndPushInstance(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref3);
+    TestDummy* dummy3 = (TestDummy*)lua_touserdata(L, -1);
+    dmScript::SetInstance(L);
+    lua_getglobal(L, "test_cb1");
+    dmScript::LuaCallbackInfo* cbk3 = dmScript::CreateCallback(L, -1);
+
+    // We expect that dummy3 reuses the same context table address
+    ASSERT_EQ(dummy->m_ContextTableReference, dummy3->m_ContextTableReference);
+
+    // Destroy callback to free the registry reference
+    // But dummy3 uses the same registry address as cbk1 used to use
+    // DestroyCallback shouldn't remove elements it doesn't own
+    // https://github.com/defold/defold/issues/10868
+    dmScript::DestroyCallback(cbk1);
+    dmScript::DestroyCallback(cbk2);
+
+    dmScript::InvokeCallback(cbk3, 0, 0);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref3);
+    dmScript::DestroyCallback(cbk3);
+
+    // At the end, assert that _G.cb_call_count == 2
+    ASSERT_TRUE(RunString(L, "assert(_G.cb_call_count == 2)"));
+    // If DestroyCallback(cbk1) works fine and doesn't remove what it doesn't own,
+    // this assert should pass
+    ASSERT_TRUE(RunString(L, "assert(_G.cb2_call_count == 1)"));
 }
 
 #undef USE_PANIC_FN

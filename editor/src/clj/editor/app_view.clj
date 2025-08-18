@@ -83,6 +83,7 @@
             [service.smoke-log :as slog]
             [util.coll :as coll :refer [pair]]
             [util.eduction :as e]
+            [util.fn :as fn]
             [util.http-server :as http-server]
             [util.profiler :as profiler]
             [util.thread-util :as thread-util])
@@ -582,10 +583,12 @@
 (defn restore-split-positions! [^Scene scene prefs]
   (let [split-positions (stored-split-positions prefs)
         split-panes (existing-split-panes scene)]
-    (doseq [[id positions] split-positions]
-      (when-some [^SplitPane split-pane (get split-panes id)]
-        (.setDividerPositions split-pane (double-array positions))
-        (.layout split-pane)))))
+    ;; The nested run-later fixes restore on Linux, by forcing an initial rendering pass. 
+    (ui/run-later
+      (doseq [[id positions] split-positions]
+        (when-some [^SplitPane split-pane (get split-panes id)]
+          (.setDividerPositions split-pane (double-array positions))
+          (.layout split-pane))))))
 
 (defn stored-hidden-panes [prefs]
   (prefs/get prefs prefs-hidden-panes))
@@ -635,11 +638,13 @@
    :fetch-libraries (ref progress/done)
    :download-update (ref progress/done)})
 
+(declare ^:private render-task-progress!)
+
 (defn- cancel-task!
   [task-key]
   (dosync
     (let [progress-ref (task-key app-task-progress)]
-      (ref-set progress-ref (progress/cancel! @progress-ref)))))
+      (render-task-progress! task-key (progress/cancel @progress-ref)))))
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
@@ -703,8 +708,27 @@
   (progress/throttle-render-progress
     (fn [progress] (render-task-progress! key progress))))
 
-(defn make-task-cancelled-query [keyword]
-  (fn [] (progress/cancelled? @(keyword app-task-progress))))
+(defn begin-task-progress! [key]
+  (let [progress-ref (get app-task-progress key)
+        prev-progress-atom (atom nil)]
+    (assert (some? progress-ref))
+    (pair
+      (fn render-progress! [progress]
+        ;; Combined throttling and inheritance of cancel state.
+        ;; The first call to render-progress! overwrites the cancel state of the
+        ;; progress-ref, and then subsequent calls will inherit the cancel state
+        ;; from the progress-ref. This is to ensure we see changes to the
+        ;; progress-refs cancel state from the cancel-task! function.
+        (let [prev-progress @prev-progress-atom
+              progress (cond-> progress
+                               prev-progress
+                               (progress/with-inherited-cancel-state @progress-ref))]
+          (when (progress/relevant-change? prev-progress progress)
+            (reset! prev-progress-atom progress)
+            (render-task-progress! key progress))))
+
+      (fn task-cancelled? []
+        (progress/cancelled? @progress-ref)))))
 
 (defn render-main-task-progress! [progress]
   (render-task-progress! :main progress))
@@ -898,19 +922,25 @@
     exception))
 
 (defn- build-project!
-  [project evaluation-context extra-build-targets old-artifact-map render-progress!]
+  [project old-artifact-map opts evaluation-context]
   (let [game-project (project/get-resource-node project "/game.project" evaluation-context)
-        render-progress! (progress/throttle-render-progress render-progress!)]
+        render-progress! (or (:render-progress! opts)
+                             progress/null-render-progress!)]
     (try
       (ui/with-progress [render-progress! render-progress!]
-        (build/build-project! project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
+        (build/build-project! project game-project old-artifact-map opts evaluation-context))
       (catch Throwable error
         (let [error (if (instance? ExecutionException error)
                       (ex-cause error)
                       error)
-              cause-ex-data (-> error ex-root-cause ex-data)
-              is-cyclic-resource-dependency-error (= :cycle-detected (:ex-type cause-ex-data))]
-          (if is-cyclic-resource-dependency-error
+              cause (ex-root-cause error)
+              cause-ex-data (ex-data cause)
+              ex-type (:ex-type cause-ex-data)]
+          (case ex-type
+            :task-cancelled
+            nil ; We'll just produce an error signaling that the build was cancelled below.
+
+            :cycle-detected
             (ui/run-later
               (dialogs/make-info-dialog
                 {:title "Build Error"
@@ -919,9 +949,15 @@
                  :content {:fx/type fxui/legacy-label
                            :style-class "dialog-content-padding"
                            :text (get-cycle-detected-help-message (-> cause-ex-data :endpoint gt/endpoint-node-id))}}))
+
+            ;; Default case.
             (error-reporting/report-exception! error))
           {:error (cond
-                    is-cyclic-resource-dependency-error
+                    (= :task-cancelled ex-type)
+                    {:severity :fatal
+                     :message (ex-message cause)}
+
+                    (= :cycle-detected ex-type)
                     {:severity :fatal
                      :message (str "Cyclic resource dependency detected. " (get-cycle-detected-help-message (-> cause-ex-data :endpoint gt/endpoint-node-id)))}
 
@@ -967,17 +1003,20 @@
     :run-build-hooks     optional flag that indicates whether to run pre- and
                          post-build hooks
     :render-progress!    optional progress reporter fn
+    :task-cancelled?     optional fn that will be called periodically to check
+                         if the user has cancelled the build process.
     :old-artifact-map    optional old artifact map with previous build results
                          to speed up the build process"
   [project & {:keys [;; required
                      result-fn
                      prefs
                      ;; optional
-                     debug build-engine run-build-hooks render-progress! old-artifact-map lint]
+                     debug build-engine run-build-hooks render-progress! task-cancelled? old-artifact-map lint]
               :or {debug false
                    build-engine true
                    run-build-hooks true
                    render-progress! progress/null-render-progress!
+                   task-cancelled? fn/constantly-false
                    old-artifact-map {}}}]
   {:pre [(ifn? result-fn)
          (or (not build-engine) (some? prefs))]}
@@ -1143,8 +1182,13 @@
               (fn run-project-build-on-background-thread! []
                 (let [extra-build-targets
                       (when debug
-                        (debug-view/build-targets project evaluation-context))]
-                  (build-project! project evaluation-context extra-build-targets old-artifact-map render-progress!)))
+                        (debug-view/build-targets project evaluation-context))
+
+                      opts
+                      {:extra-build-targets extra-build-targets
+                       :render-progress! render-progress!
+                       :task-cancelled? task-cancelled?}]
+                  (build-project! project old-artifact-map opts evaluation-context)))
               (fn process-project-build-results-on-ui-thread! [project-build-results]
                 (project/update-system-cache-build-targets! evaluation-context)
                 (project/log-cache-info! (g/cache) "Cached compiled build targets in system cache.")
@@ -1220,13 +1264,15 @@
   (let [project-directory (workspace/project-directory workspace)
         main-scene (.getScene ^Stage main-stage)
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-        skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
+        skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))
+        [render-progress! task-cancelled?] (begin-task-progress! :build)]
     (build-errors-view/clear-build-errors build-errors-view)
     (async-build! project
                   :debug true
                   :build-engine (not skip-engine)
                   :prefs prefs
-                  :render-progress! (make-render-task-progress :build)
+                  :render-progress! render-progress!
+                  :task-cancelled? task-cancelled?
                   :old-artifact-map (workspace/artifact-map workspace)
                   :result-fn (fn [{:keys [engine] :as build-results}]
                                (when (handle-build-results! workspace render-build-error! build-results)
@@ -1275,12 +1321,14 @@ If you do not specifically require different script states, consider changing th
 
 (defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
   (let [project-directory (workspace/project-directory workspace)
-        skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
+        skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))
+        [render-progress! task-cancelled?] (begin-task-progress! :build)]
     (async-build! project
                   :debug true
                   :build-engine (not skip-engine)
                   :prefs prefs
-                  :render-progress! (make-render-task-progress :build)
+                  :render-progress! render-progress!
+                  :task-cancelled? task-cancelled?
                   :old-artifact-map (workspace/artifact-map workspace)
                   :result-fn (fn [{:keys [engine] :as build-results}]
                                (when (handle-build-results! workspace render-build-error! build-results)
@@ -1290,19 +1338,21 @@ If you do not specifically require different script states, consider changing th
                                        (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0))))))))))
 
 (defn- attach-debugger! [workspace project prefs debug-view render-build-error!]
-  (async-build! project
-                :debug true
-                :build-engine false
-                :run-build-hooks false
-                :lint false
-                :render-progress! (make-render-task-progress :build)
-                :old-artifact-map (workspace/artifact-map workspace)
-                :prefs prefs
-                :result-fn (fn [build-results]
-                             (when (handle-build-results! workspace render-build-error! build-results)
-                               (let [target (targets/selected-target prefs)]
-                                 (when (targets/controllable-target? target)
-                                   (debug-view/attach! debug-view project target (:artifacts build-results))))))))
+  (let [[render-progress! task-cancelled?] (begin-task-progress! :build)]
+    (async-build! project
+                  :debug true
+                  :build-engine false
+                  :run-build-hooks false
+                  :lint false
+                  :render-progress! render-progress!
+                  :task-cancelled? task-cancelled?
+                  :old-artifact-map (workspace/artifact-map workspace)
+                  :prefs prefs
+                  :result-fn (fn [build-results]
+                               (when (handle-build-results! workspace render-build-error! build-results)
+                                 (let [target (targets/selected-target prefs)]
+                                   (when (targets/controllable-target? target)
+                                     (debug-view/attach! debug-view project target (:artifacts build-results)))))))))
 
 (handler/defhandler :debugger.start :global
   ;; NOTE: Shares a shortcut with :debug-view/continue.
@@ -1350,12 +1400,11 @@ If you do not specifically require different script states, consider changing th
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
         render-reload-progress! (make-render-task-progress :resource-sync)
         render-save-progress! (make-render-task-progress :save-all)
-        render-build-progress! (make-render-task-progress :build)
-        task-cancelled? (make-task-cancelled-query :build)
+        [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
         bob-args (bob/build-html5-bob-options project prefs)
         out (start-new-log-pipe!)]
     (build-errors-view/clear-build-errors build-errors-view)
-    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! out task-cancelled?
+    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! out build-task-cancelled?
                            render-build-error! bob-commands bob-args project changes-view
                            (fn [successful?]
                              (when successful?
@@ -1410,7 +1459,8 @@ If you do not specifically require different script states, consider changing th
         target (targets/selected-target prefs)
         workspace (project/workspace project)
         old-etags (workspace/etags workspace)
-        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
+        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+        [render-progress! task-cancelled?] (begin-task-progress! :build)]
     ;; NOTE: We must build the entire project even if we only want to reload a
     ;; subset of resources in order to maintain a functioning build cache.
     ;; If we decide to support hot reload of a subset of resources, we must
@@ -1422,7 +1472,8 @@ If you do not specifically require different script states, consider changing th
                   :build-engine false
                   :run-build-hooks false
                   :lint false
-                  :render-progress! (make-render-task-progress :build)
+                  :render-progress! render-progress!
+                  :task-cancelled? task-cancelled?
                   :old-artifact-map (workspace/artifact-map workspace)
                   :prefs prefs
                   :result-fn (fn [{:keys [error artifact-map etags]}]
@@ -2761,15 +2812,14 @@ If you do not specifically require different script states, consider changing th
                              render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
                              render-reload-progress! (make-render-task-progress :resource-sync)
                              render-save-progress! (make-render-task-progress :save-all)
-                             render-build-progress! (make-render-task-progress :build)
-                             task-cancelled? (make-task-cancelled-query :build)
+                             [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
                              out (start-new-log-pipe!)]
                          (build-errors-view/clear-build-errors build-errors-view)
                          (disk/async-bob-build! render-reload-progress!
                                                 render-save-progress!
                                                 render-build-progress!
                                                 out
-                                                task-cancelled?
+                                                build-task-cancelled?
                                                 render-build-error!
                                                 commands
                                                 options

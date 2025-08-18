@@ -827,8 +827,8 @@
 (deftest delete-test
   (let [grammar nil
         syntax-info []
-        backspace (fn [lines cursor-ranges] (data/delete lines grammar syntax-info cursor-ranges nil (layout-info lines) data/delete-character-before-cursor))
-        delete (fn [lines cursor-ranges] (data/delete lines grammar syntax-info cursor-ranges nil (layout-info lines) data/delete-character-after-cursor))]
+        backspace (fn [lines cursor-ranges] (data/delete lines grammar true syntax-info cursor-ranges nil (layout-info lines) data/delete-character-before-cursor))
+        delete (fn [lines cursor-ranges] (data/delete lines grammar true syntax-info cursor-ranges nil (layout-info lines) data/delete-character-after-cursor))]
     (testing "Single cursor"
       (is (= {:cursor-ranges [(c 0 0)]
               :invalidated-row 0
@@ -1560,6 +1560,7 @@
                         (data/indent-level-pattern 4)
                         (data/indent-type->indent-string :four-spaces)
                         script/lua-grammar
+                        true
                         lines
                         cursor-ranges
                         []
@@ -1572,6 +1573,7 @@
                             (data/delete
                               lines
                               script/lua-grammar
+                              true
                               []
                               [cursor-range]
                               []

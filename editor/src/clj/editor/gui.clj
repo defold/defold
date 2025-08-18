@@ -2091,11 +2091,12 @@
 (def ^:private override-gui-node-init-props {:layout->prop->override {}})
 
 (defn- contains-resource?
-  [project gui-scene resource]
-  (let [acc-fn (fn [target-node resource]
-                 (->> (g/node-value target-node :node-msgs)
+  [project gui-scene resource evaluation-context]
+  (let [workspace (project/workspace project evaluation-context)
+        acc-fn (fn [target-node]
+                 (->> (g/node-value target-node :node-msgs evaluation-context)
                       (filter #(= :type-template (:type %)))
-                      (keep #(workspace/resolve-resource resource (:template %)))))]
+                      (keep #(workspace/resolve-workspace-resource workspace (:template %) evaluation-context))))]
     (project/node-refers-to-resource? project gui-scene resource acc-fn)))
 
 (g/defnode TemplateNode
@@ -2106,9 +2107,11 @@
             (dynamic edit-type (g/fnk [_node-id] {:type resource/Resource
                                                   :ext "gui"
                                                   :dialog-accept-fn (fn [r]
-                                                                      (let [gui-scene (node->gui-scene _node-id)
-                                                                            project (project/get-project (g/now) gui-scene)]
-                                                                        (not (contains-resource? project gui-scene r))))
+                                                                      (g/with-auto-evaluation-context evaluation-context
+                                                                        (let [basis (:basis evaluation-context)
+                                                                              gui-scene (node->gui-scene basis _node-id)
+                                                                              project (project/get-project basis gui-scene)]
+                                                                          (not (contains-resource? project gui-scene r evaluation-context)))))
                                                   :to-type (fn [v] (:resource v))
                                                   :from-type (fn [r] {:resource r :overrides {}})}))
             (dynamic error (g/fnk [_node-id template-resource]
@@ -3657,8 +3660,12 @@
   (add-gui-node! project scene parent node-type custom-type select-fn))
 
 (defn add-template-gui-node-handler [project {:keys [scene parent node-type custom-type]} select-fn]
-  (when-let [template-resources (resource-dialog/make (project/workspace project) project {:ext "gui"
-                                                                                           :accept-fn (fn [r] (not (contains-resource? project scene r)))})]
+  (when-let [template-resources (g/with-auto-evaluation-context evaluation-context
+                                  (resource-dialog/make
+                                    (project/workspace project evaluation-context)
+                                    project
+                                    {:ext "gui"
+                                     :accept-fn (fn [r] (not (contains-resource? project scene r evaluation-context)))}))]
     (let [template-resource (first template-resources)
           template-id (resource->id template-resource)
           node-type-info (get-registered-node-type-info node-type custom-type)
@@ -4084,7 +4091,7 @@
         (protobuf/sanitize-repeated :nodes sanitize-scene-node)
         (protobuf/sanitize-repeated :layouts sanitize-layout)
         (protobuf/assign-repeated :resources merged-resource-descs)
-        (update :material #(or % default-material-proj-path)))))
+        (update :material fn/or default-material-proj-path))))
 
 (defn- add-dropped-resource
   [scene workspace resource]

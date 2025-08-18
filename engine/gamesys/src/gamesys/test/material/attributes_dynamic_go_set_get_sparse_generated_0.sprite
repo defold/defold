@@ -1,4 +1,0 @@
-tile_set: "/tile/flipbook.tilesource"
-default_animation: "anim"
-material: "/material/attributes_dynamic_go_set_get_sparse.material"
-blend_mode: BLEND_MODE_ALPHA

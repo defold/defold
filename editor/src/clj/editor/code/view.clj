@@ -44,6 +44,7 @@
             [editor.keymap :as keymap]
             [editor.lsp :as lsp]
             [editor.markdown :as markdown]
+            [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
             [editor.os :as os]
             [editor.prefs :as prefs]
@@ -2272,7 +2273,7 @@
                                    (get-property view-node :layout)
                                    move-type)))
 
-(defn delete! [view-node delete-type]
+(defn delete! [view-node prefs delete-type]
   (let [cursor-ranges (get-property view-node :cursor-ranges)
         cursor-ranges-empty (every? data/cursor-range-empty? cursor-ranges)
         single-character-backspace (and cursor-ranges-empty (= :delete-before delete-type))
@@ -2287,6 +2288,7 @@
       (g/with-auto-evaluation-context evaluation-context
         (data/delete (get-property view-node :lines evaluation-context)
                      (get-property view-node :grammar evaluation-context)
+                     (prefs/get prefs [:code :auto-closing-parens])
                      (get-current-syntax-info (get-property view-node :resource-node evaluation-context))
                      cursor-ranges
                      (get-property view-node :regions evaluation-context)
@@ -2377,7 +2379,7 @@
 
 ;; -----------------------------------------------------------------------------
 
-(defn- insert-text! [view-node typed]
+(defn- insert-text! [view-node prefs typed]
   (let [undo-grouping (if (= "\r" typed) :newline :typing)
         selected-suggestion (selected-suggestion view-node)
         grammar (get-property view-node :grammar)
@@ -2423,6 +2425,7 @@
                 (data/key-typed (get-property view-node :indent-level-pattern evaluation-context)
                                 (get-property view-node :indent-string evaluation-context)
                                 grammar
+                                (prefs/get prefs [:code :auto-closing-parens])
                                 ;; NOTE: don't move :lines and :cursor-ranges
                                 ;; to the let above the
                                 ;; [insert-typed show-suggestion] binding:
@@ -2438,7 +2441,7 @@
           (show-suggestions! view-node :typed typed)
           (hide-suggestions! view-node))))))
 
-(defn handle-key-pressed! [view-node ^KeyEvent event editable]
+(defn handle-key-pressed! [view-node prefs ^KeyEvent event editable]
   ;; Only handle bare key events that cannot be bound to handlers here.
   (when-not (or (.isAltDown event)
                 (.isMetaDown event)
@@ -2453,11 +2456,11 @@
                   KeyCode/UP    (move! view-node :navigation :up)
                   KeyCode/DOWN  (move! view-node :navigation :down)
                   KeyCode/ENTER (when editable
-                                  (insert-text! view-node "\r"))
+                                  (insert-text! view-node prefs "\r"))
                   ::unhandled))
       (.consume event))))
 
-(defn handle-key-typed! [view-node ^KeyEvent event]
+(defn handle-key-typed! [view-node prefs ^KeyEvent event]
   (.consume event)
   (let [character (.getCharacter event)]
     (when (and (keymap/typable? event)
@@ -2469,7 +2472,7 @@
                (pos? (.length character))
                (> (int (.charAt character 0)) 0x1f)
                (not= (int (.charAt character 0)) 0x7f))
-      (insert-text! view-node character))))
+      (insert-text! view-node prefs character))))
 
 (defn- refresh-mouse-cursor! [view-node ^MouseEvent event]
   (let [hovered-element (get-property view-node :hovered-element)
@@ -2505,7 +2508,7 @@
    {:command :edit.copy :label "Copy"}
    {:command :edit.paste :label "Paste"}
    {:command :code.select-all :label "Select All"}
-   {:label :separator :id :editor.app-view/edit-end}])
+   (menu-items/separator-with-id :editor.app-view/edit-end)])
 
 (defn handle-mouse-pressed! [view-node ^MouseEvent event]
   (let [^Node target (.getTarget event)
@@ -2731,7 +2734,7 @@
 
 (handler/defhandler :code.delete-next-char :code-view
   (active? [editable] editable)
-  (run [view-node] (delete! view-node :delete-after)))
+  (run [view-node prefs] (delete! view-node prefs :delete-after)))
 
 (handler/defhandler :code.toggle-comment :code-view
   (active? [editable view-node evaluation-context]
@@ -2741,15 +2744,15 @@
 
 (handler/defhandler :code.delete-previous-char :code-view
   (active? [editable] editable)
-  (run [view-node] (delete! view-node :delete-before)))
+  (run [view-node prefs] (delete! view-node prefs :delete-before)))
 
 (handler/defhandler :code.delete-previous-word :code-view
   (active? [editable] editable)
-  (run [view-node] (delete! view-node :delete-word-before)))
+  (run [view-node prefs] (delete! view-node prefs :delete-word-before)))
 
 (handler/defhandler :code.delete-next-word :code-view
   (active? [editable] editable)
-  (run [view-node] (delete! view-node :delete-word-after)))
+  (run [view-node prefs] (delete! view-node prefs :delete-word-after)))
 
 (handler/defhandler :debugger.toggle-breakpoint :code-view
   (run [view-node]
@@ -2762,7 +2765,7 @@
                                                   regions
                                                   breakpoint-rows)))))
 
-(handler/defhandler :code.rename :code-view
+(handler/defhandler :edit.rename :code-view
   (active? [editable] editable)
   (run [view-node]
     (g/with-auto-evaluation-context evaluation-context
@@ -3343,7 +3346,7 @@
    {:command :code.select-next-occurrence :label "Select Next Occurrence"}
    {:command :code.split-selection-into-lines :label "Split Selection Into Lines"}
    {:label :separator}
-   {:command :code.rename :label "Rename"}
+   {:command :edit.rename :label "Rename"}
    {:command :code.goto-definition :label "Go to Definition"}
    {:command :code.show-references :label "Find References"}
    {:label :separator}
@@ -3784,12 +3787,12 @@
                        (= "¨" (.getCharacter new-event)))
           (.handle handler event))))))
 
-(defn handle-input-method-changed! [view-node ^InputMethodEvent e]
+(defn handle-input-method-changed! [view-node prefs ^InputMethodEvent e]
   (let [x (.getCommitted e)]
     (when-not (.isEmpty x)
-      (insert-text! view-node ({"≃" "~="} x x)))))
+      (insert-text! view-node prefs ({"≃" "~="} x x)))))
 
-(defn- setup-input-method-requests! [^Canvas canvas view-node]
+(defn- setup-input-method-requests! [^Canvas canvas view-node prefs]
   (when (os/is-linux?)
     (doto canvas
       (.setInputMethodRequests
@@ -3800,7 +3803,7 @@
           (getSelectedText [_this] "")))
       (.setOnInputMethodTextChanged
         (ui/event-handler e
-          (handle-input-method-changed! view-node e))))))
+          (handle-input-method-changed! view-node prefs e))))))
 
 (defn- consume-breakpoint-popup-events [^Event e]
   (when-not (and (instance? KeyEvent e)
@@ -3974,6 +3977,7 @@
                      :find-bar find-bar
                      :replace-bar replace-bar
                      :view-node view-node
+                     :prefs prefs
                      :open-resource-fn open-resource-fn}]
 
     ;; Canvas stretches to fit view, and updates properties in view node.
@@ -3986,7 +3990,7 @@
     (doto canvas
       (.setFocusTraversable true)
       (.setCursor javafx.scene.Cursor/TEXT)
-      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (handle-key-pressed! view-node event editable)))
+      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (handle-key-pressed! view-node prefs event editable)))
       (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (handle-mouse-moved! view-node prefs event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-mouse-pressed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node prefs event)))
@@ -3996,9 +4000,9 @@
 
     (when editable
       (doto canvas
-        (setup-input-method-requests! view-node)
+        (setup-input-method-requests! view-node prefs)
         (.addEventHandler KeyEvent/KEY_TYPED (wrap-disallow-diaeresis-after-tilde
-                                               (ui/event-handler event (handle-key-typed! view-node event))))))
+                                               (ui/event-handler event (handle-key-typed! view-node prefs event))))))
 
     (ui/context! grid :code-view-tools context-env nil)
 

@@ -626,6 +626,19 @@ namespace dmGameObject
     Result SetIdentifier(HCollection collection, HInstance instance, dmhash_t identifier);
 
     /*#
+     * Get absolute identifier relative to instance. The returned identifier is the
+     * representation of the qualified name, i.e. the path from root-collection to
+     * the sub-collection which the instance belongs to.
+     * Example: if the instance is part of a sub-collection in the root-collection
+     * named "sub" and id == "a" the returned identifier represents the path "sub.a"
+     * @name GetAbsoluteIdentifier
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance to get absolute identifier to
+     * @param identifier [type:const char*] Identifier relative to instance
+     * @return [type:dmhash_t] Absolute identifier.
+     */
+    dmhash_t GetAbsoluteIdentifier(HInstance instance, const char* identifier);
+
+    /*#
      * Get instance from identifier
      * @name GetInstanceFromIdentifier
      * @param collection [type: dmGameObject::HCollection] Collection
@@ -703,6 +716,15 @@ namespace dmGameObject
      * @param scale [type:dmVmath::Vector3] New non-uniform scale
      */
     void SetScale(HInstance instance, dmVMath::Vector3 scale);
+
+    /*# set scale only for X and Y
+     * Set gameobject instance x and y scale
+     * @name SetScaleXY
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @param scale_x New x scale
+     * @param scale_y New y scale
+     */
+    void SetScaleXY(HInstance instance, float scale_x, float scale_y);
 
     /*# get uniform scale
      * Get gameobject instance uniform scale
@@ -851,6 +873,15 @@ namespace dmGameObject
      */
     void* GetContext(HCollection collection, uint32_t component_type_index);
 
+    /*#
+     * Adds a reference to a dynamically created resource into the collection.
+     * If the resource is not released before the collection is being destroyed,
+     * the collection will automatically free the resource.
+     * @name AddDynamicResourceHash
+     * @param collection [type:HCollection] Collection handle
+     * @param path_hash [type:dmhash_t] resource path hash
+     */
+    void AddDynamicResourceHash(HCollection collection, dmhash_t path_hash);
 
     // These functions are used for profiling functionality
 

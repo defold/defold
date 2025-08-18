@@ -258,7 +258,7 @@ namespace dmGui
     {
         Scene* scene = (Scene*)lua_touserdata(L, 1);
         const char* path = luaL_checkstring(L, 2);
-        dmScript::PushHash(L, scene->m_Context->m_ResolvePathCallback(scene, path, strlen(path)));
+        dmScript::PushHash(L, scene->m_Context->m_ResolvePathCallback(scene, path));
         return 1;
     }
 
@@ -291,6 +291,13 @@ namespace dmGui
         return 1;
     }
 
+    static int GuiScriptGetUniqueScriptId(lua_State* L)
+    {
+        Scene* inst = (Scene*)lua_touserdata(L, 1);
+        lua_pushinteger(L, (lua_Integer)inst->m_UniqueScriptId);
+        return 1;
+    }
+
     static const luaL_reg GuiScriptInstance_methods[] =
     {
         {0,0}
@@ -306,6 +313,7 @@ namespace dmGui
         {dmScript::META_TABLE_IS_VALID,                 GuiScriptInstanceIsValid},
         {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, GuiScriptGetInstanceContextTableRef},
         {dmScript::META_GET_INSTANCE_DATA_TABLE_REF,    GuiScriptGetInstanceDataTableRef},
+        {dmScript::META_GET_UNIQUE_SCRIPT_ID,           GuiScriptGetUniqueScriptId},
         {0, 0}
     };
 

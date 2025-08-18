@@ -507,19 +507,19 @@
   ;; File objects, so any .zip file we load must exist on disk. We unpack the
   ;; builtins.zip file from the bundled resources in the ResourceUnpacker at
   ;; startup to work around this.
-  (when-let [stream (some-> zip-file io/input-stream)]
-    (with-open [zip (ZipInputStream. stream)]
-      (loop [entries (transient [])]
-        (if-some [zip-entry (.getNextEntry zip)]
-          (recur (if (or (.isDirectory zip-entry)
-                         (outside-base-path? base-path zip-entry))
-                   entries
-                   (let [zip-entry-name (.getName zip-entry)]
-                     (conj! entries {:name (FilenameUtils/getName zip-entry-name)
-                                     :path (path-relative-base base-path zip-entry-name)
-                                     :zip-entry zip-entry-name
-                                     :crc (.getCrc zip-entry)}))))
-          (persistent! entries))))))
+  (when (.exists zip-file)
+    (with-open [zip (ZipFile. zip-file)]
+      (stream-into!
+        []
+        (keep (fn [^ZipEntry zip-entry]
+                (when-not (or (.isDirectory zip-entry)
+                              (outside-base-path? base-path zip-entry))
+                  (let [zip-entry-name (.getName zip-entry)]
+                    {:name (FilenameUtils/getName zip-entry-name)
+                     :path (path-relative-base base-path zip-entry-name)
+                     :zip-entry zip-entry-name
+                     :crc (.getCrc zip-entry)}))))
+        (.stream zip)))))
 
 (defn- ->zip-resources [workspace zip-uri path [key val]]
   (let [path' (if (string/blank? path) key (str path "/" key))]

@@ -151,10 +151,6 @@ public class ArchiveBuilder {
         return ResourceEncryption.encrypt(buffer);
     }
 
-    public void writeResourcePack(ArchiveEntry entry, byte[] buffer) throws IOException, CompileExceptionError {
-        publisher.publish(entry, buffer);
-    }
-
     public List<ArchiveEntry> getExcludedEntries() {
         return excludedEntries;
     }
@@ -212,7 +208,7 @@ public class ArchiveBuilder {
                     .put(archiveEntryPadding) // 11 bytes
                     .array();
                 entry.setHeader(header);
-                this.writeResourcePack(entry, buffer);
+                this.publisher.publish(entry, buffer);
             }
             resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
         } else {
@@ -319,9 +315,7 @@ public class ArchiveBuilder {
         // create the executor service to write entries in parallel
         int nThreads = project.getMaxCpuThreads();
         logger.info("Creating archive entries with a fixed thread pool executor using %d threads", nThreads);
-        ExecutorService multiThreadedExecutorService = Executors.newFixedThreadPool(nThreads);
-        // temp workaround for a bug in the ZipPublisher
-        ExecutorService singleThreadedExecutorService = Executors.newFixedThreadPool(1);
+        ExecutorService executorService = Executors.newFixedThreadPool(nThreads);
 
         Collections.sort(entries); // Since it has no hash, it sorts on path
 
@@ -331,7 +325,6 @@ public class ArchiveBuilder {
 
         // create archive entry write tasks
         List<Future<ArchiveEntry>> futures = new ArrayList<>(entries.size());
-        ExecutorService executorService = multiThreadedExecutorService;
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
             String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
@@ -340,11 +333,9 @@ public class ArchiveBuilder {
                 entry.setFlag(ArchiveEntry.FLAG_LIVEUPDATE);
                 entries.remove(i);
                 excludedEntries.add(entry);
-                executorService = singleThreadedExecutorService;
             }
             else {
                 includedEntries.add(entry);
-                executorService = multiThreadedExecutorService;
             }
             Future<ArchiveEntry> future = executorService.submit(() -> {
                 writeArchiveEntry(archiveData, entry, excludedResources, writtenIntoArcd);
@@ -363,8 +354,7 @@ public class ArchiveBuilder {
             throw new CompileExceptionError("Error while writing archive", e);
         }
         finally {
-            multiThreadedExecutorService.shutdownNow();
-            singleThreadedExecutorService.shutdownNow();
+            executorService.shutdownNow();
             archiveData.close();
         }
 

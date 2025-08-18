@@ -258,7 +258,7 @@
   (are [name]
     (= name
        (->> name
-            (asset-browser/replace-template-name "string_value: \"{{NAME}}\"")
+            (workspace/replace-template-name "string_value: \"{{NAME}}\"")
             (protobuf/str->pb com.defold.editor.test.TestDdf$DefaultValue)
             (.getStringValue)))
 

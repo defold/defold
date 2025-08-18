@@ -66,6 +66,18 @@ function update(self, dt)
         assert_near(sv.x, 2*i, epsilon)
         assert_near(sv.y, 3*i, epsilon)
         assert_near(sv.z, 4*i, epsilon)
+
+        go.set_scale_xy(vmath.vector3(5*i,6*i,7*i), v)
+        sv = go.get_scale(v)
+        assert_near(sv.x, 5*i, epsilon)
+        assert_near(sv.y, 6*i, epsilon)
+        assert_near(sv.z, 4*i, epsilon)
+
+        go.set_scale_xy(i, v)
+        local sv = go.get_scale(v)
+        assert_near(i, sv.x, epsilon)
+        assert_near(i, sv.y, epsilon)
+        assert_near(4*i, sv.z, epsilon)
     end
 
     msg.post("@system:", "factory", {prototype = "test", pos = vmath.vector3(1, 2, 3)})

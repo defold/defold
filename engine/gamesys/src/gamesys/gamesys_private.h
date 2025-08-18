@@ -30,42 +30,36 @@ namespace dmScript
 
 namespace dmGameSystem
 {
-#define EXT_CONSTANTS(prefix, ext)\
-    static const char* prefix##_EXT = ext;\
-    static const dmhash_t prefix##_EXT_HASH = dmHashString64(ext);\
 
-    EXT_CONSTANTS(COLLECTION_FACTORY, "collectionfactoryc")
-    EXT_CONSTANTS(COLLISION_OBJECT, "collisionobjectc")
-    EXT_CONSTANTS(FACTORY, "factoryc")
-    EXT_CONSTANTS(FONT, "fontc")
-    EXT_CONSTANTS(MATERIAL, "materialc")
-    EXT_CONSTANTS(BUFFER, "bufferc")
-    EXT_CONSTANTS(MODEL, "modelc")
-    EXT_CONSTANTS(TEXTURE, "texturec")
-    EXT_CONSTANTS(TEXTURE_SET, "texturesetc")
-    EXT_CONSTANTS(TILE_MAP, "tilemapc")
-    EXT_CONSTANTS(RENDER_TARGET, "render_targetc")
-    EXT_CONSTANTS(COLLECTION_PROXY, "collectionproxyc")
+// keep only declarations to deduplicate symbols in binary
+#define DECLARE_EXT_CONSTANTS(prefix)                   \
+    extern const char* prefix##_EXT;                    \
+    extern const dmhash_t prefix##_EXT_HASH;
 
-#undef EXT_CONSTANTS
+    // Declarations (see definitions in gamesys.cpp)
+    DECLARE_EXT_CONSTANTS(COLLECTION_FACTORY)
+    DECLARE_EXT_CONSTANTS(COLLISION_OBJECT)
+    DECLARE_EXT_CONSTANTS(FACTORY)
+    DECLARE_EXT_CONSTANTS(FONT)
+    DECLARE_EXT_CONSTANTS(MATERIAL)
+    DECLARE_EXT_CONSTANTS(BUFFER)
+    DECLARE_EXT_CONSTANTS(MODEL)
+    DECLARE_EXT_CONSTANTS(TEXTURE)
+    DECLARE_EXT_CONSTANTS(TEXTURE_SET)
+    DECLARE_EXT_CONSTANTS(TILE_MAP)
+    DECLARE_EXT_CONSTANTS(RENDER_TARGET)
+    DECLARE_EXT_CONSTANTS(COLLECTION_PROXY)
 
-    static const dmhash_t PROP_FONT = dmHashString64("font");
-    static const dmhash_t PROP_FONTS = dmHashString64("fonts");
-    static const dmhash_t PROP_IMAGE = dmHashString64("image");
-    static const dmhash_t PROP_MATERIAL = dmHashString64("material");
-    static const dmhash_t PROP_MATERIALS = dmHashString64("materials");
-    static const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {
-        dmHashString64("texture0"),
-        dmHashString64("texture1"),
-        dmHashString64("texture2"),
-        dmHashString64("texture3"),
-        dmHashString64("texture4"),
-        dmHashString64("texture5"),
-        dmHashString64("texture6"),
-        dmHashString64("texture7")
-    };
-    static const dmhash_t PROP_TEXTURES = dmHashString64("textures");
-    static const dmhash_t PROP_TILE_SOURCE = dmHashString64("tile_source");
+#undef DECLARE_EXT_CONSTANTS
+
+    extern const dmhash_t PROP_FONT;
+    extern const dmhash_t PROP_FONTS;
+    extern const dmhash_t PROP_IMAGE;
+    extern const dmhash_t PROP_MATERIAL;
+    extern const dmhash_t PROP_MATERIALS;
+    extern const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+    extern const dmhash_t PROP_TEXTURES;
+    extern const dmhash_t PROP_TILE_SOURCE;
 
     static const dmGraphics::TextureFormat BIND_POSE_CACHE_TEXTURE_FORMAT = dmGraphics::TEXTURE_FORMAT_RGBA32F;
 

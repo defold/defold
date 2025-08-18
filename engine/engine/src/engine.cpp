@@ -168,6 +168,9 @@ namespace dmEngine
             ExtensionParamsSetContext(&m_Params, "render", engine->m_RenderContext);
             if (engine->m_HttpCache)
                 ExtensionParamsSetContext(&m_Params, "http_cache", engine->m_HttpCache);
+
+            if (engine->m_JobThreadContext)
+                ExtensionParamsSetContext(&m_Params, "job_thread", engine->m_JobThreadContext);
         }
         ~ScopedExtensionParams()
         {
@@ -709,6 +712,9 @@ namespace dmEngine
         physics->m_MaxContactPointCount = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
         physics->m_UseFixedTimestep = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_USE_FIXED_TIMESTEP, 1) ? 1 : 0;
         physics->m_MaxFixedTimesteps = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_MAX_FIXED_TIMESTEPS, 2);
+        physics->m_Box2DVelocityIterations = dmConfigFile::GetInt(config, dmGameSystem::BOX2D_VELOCITY_ITERATIONS, 10);
+        physics->m_Box2DPositionIterations = dmConfigFile::GetInt(config, dmGameSystem::BOX2D_POSITION_ITERATIONS, 10);
+        physics->m_Box2DSubStepCount = dmConfigFile::GetInt(config, dmGameSystem::BOX2D_SUB_STEP_COUNT, 4);
         // TODO: Should move inside the ifdef release? Is this usable without the debug callbacks?
         physics->m_Debug = (bool) dmConfigFile::GetInt(config, "physics.debug", 0);
     }
@@ -1417,6 +1423,7 @@ namespace dmEngine
             engine->m_ResourceTypeContexts.Put(dmHashString64("gui_scriptc"), engine->m_GuiScriptContext);
             engine->m_ResourceTypeContexts.Put(dmHashString64("guic"), engine->m_GuiContext);
         }
+        engine->m_ResourceTypeContexts.Put(dmHashString64("fontc"), engine->m_RenderContext);
 
         fact_result = dmResource::RegisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         if (fact_result != dmResource::RESULT_OK)
@@ -1786,7 +1793,7 @@ bail:
             }
         }
 
-        dmProfile::HProfile profile = dmProfile::BeginFrame();
+        HProfile profile = ProfileFrameBegin();
         {
             DM_PROFILE("Frame");
 
@@ -1808,12 +1815,18 @@ bail:
                         // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
                         // might have entered background at this point and OpenGL calls are not permitted and will
                         // crash the application
-                        dmProfile::EndFrame(profile);
+                        ProfileFrameEnd(profile);
                         return;
                     }
                 }
-
-                dmJobThread::Update(engine->m_JobThreadContext);
+#if defined(DM_HAS_THREADS)
+                uint64_t jobthread_max_time_us = 0;
+#else
+                // Dictates max time the job thread may take.
+                // Note that it will always process at least one item if available
+                uint64_t jobthread_max_time_us = 3 * 1000;
+#endif
+                dmJobThread::Update(engine->m_JobThreadContext, jobthread_max_time_us);
 
                 {
                     DM_PROFILE("Extension");
@@ -2035,7 +2048,7 @@ bail:
                 }
             }
         }
-        dmProfile::EndFrame(profile);
+        ProfileFrameEnd(profile);
 
         ++engine->m_Stats.m_FrameCount;
         engine->m_Stats.m_TotalTime += dt;
@@ -2355,13 +2368,16 @@ bail:
 
 void dmEngineInitialize()
 {
+#if DM_RELEASE
+    dLib::SetDebugMode(false);
+#endif
+
+    if (dLib::IsDebugMode())
+        ProfileInitialize();
     dmEngine::PlatformInitialize();
 
     dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
 
-#if DM_RELEASE
-    dLib::SetDebugMode(false);
-#endif
     dmHashEnableReverseHash(dLib::IsDebugMode());
 
     dmCrash::Init(dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
@@ -2392,6 +2408,9 @@ void dmEngineFinalize()
     dmSocket::Finalize();
 
     dmEngine::PlatformFinalize();
+
+    if (dLib::IsDebugMode())
+        ProfileFinalize();
 }
 
 const char* ParseArgOneOperand(const char* arg_str, int argc, char *argv[])

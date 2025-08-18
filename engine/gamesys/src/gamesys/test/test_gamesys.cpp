@@ -300,7 +300,7 @@ static bool UpdateAndWaitUntilDone(
             break;
         }
 
-        dmJobThread::Update(scriptlibcontext.m_JobThread);
+        dmJobThread::Update(scriptlibcontext.m_JobThread, 0);
         dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
         if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
         {
@@ -746,28 +746,37 @@ TEST_F(ComponentTest, CameraTest)
 TEST_F(ComponentTest, ReloadInvalidMaterial)
 {
     const char path_material[] = "/material/valid.materialc";
-    const char path_shader[] = "/material/shader_16853236849430612714.spc";
     void* resource;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_material, &resource));
+
+    char path[1024];
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test%s", path_material);
+
+    dmRenderDDF::MaterialDesc* ddf = 0;
+    dmDDF::Result res = dmDDF::LoadMessageFromFile(path, dmRenderDDF::MaterialDesc::m_DDFDescriptor, (void**) &ddf);
+    ASSERT_EQ(dmDDF::RESULT_OK, res);
+
+    const char* program = ddf->m_Program;
 
     // Modify resource with simulated syntax error
     dmGraphics::SetForceVertexReloadFail(true);
 
     // Reload, validate fail
-    ASSERT_NE(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_shader, 0));
+    ASSERT_NE(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, program, 0));
 
     // Modify resource with correction
     dmGraphics::SetForceVertexReloadFail(false);
 
     // Reload, validate success
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_shader, 0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, program, 0));
 
     // Same as above but for fragment shader
     dmGraphics::SetForceFragmentReloadFail(true);
-    ASSERT_NE(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_shader, 0));
+    ASSERT_NE(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, program, 0));
     dmGraphics::SetForceFragmentReloadFail(false);
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_shader, 0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, program, 0));
 
+    dmDDF::FreeMessage(ddf);
     dmResource::Release(m_Factory, resource);
 }
 
@@ -1683,7 +1692,7 @@ TEST_F(FontTest, GlyphBankTest)
 
 TEST_F(FontTest, DynamicGlyph)
 {
-    const char path_font[] = "/font/glyph_bank_test_1.fontc";
+    const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
     dmGameSystem::FontResource* font;
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font, (void**) &font));
@@ -1695,14 +1704,7 @@ TEST_F(FontTest, DynamicGlyph)
 
     {
         dmRender::FontGlyph* glyph = dmRender::GetGlyph(font_map, codepoint);
-        ASSERT_NE((void*)0, glyph);
-
-        ASSERT_EQ(codepoint, glyph->m_Character);
-        ASSERT_EQ(14U, glyph->m_Width);
-        ASSERT_EQ(13U, glyph->m_Ascent);
-        ASSERT_EQ(2U, glyph->m_Descent);
-        ASSERT_EQ(0.0f, glyph->m_LeftBearing);
-        ASSERT_EQ(8.0f, glyph->m_Advance);
+        ASSERT_EQ((void*)0, glyph);
     }
 
     // Add a new glyph
@@ -1730,7 +1732,7 @@ TEST_F(FontTest, DynamicGlyph)
     }
 
     {
-        uint32_t glyph_data_compression; // E.g. FONT_MAP_GLYPH_COMPRESSION_NONE;
+        uint32_t glyph_data_compression; // E.g. FONT_GLYPH_COMPRESSION_NONE;
         uint32_t glyph_data_size = 0;
         uint32_t glyph_image_width = 0;
         uint32_t glyph_image_height = 0;
@@ -1741,14 +1743,14 @@ TEST_F(FontTest, DynamicGlyph)
         dmRender::FontGlyph* glyph = dmRender::GetGlyph(font_map, codepoint);
         ASSERT_NE((void*)0, glyph);
 
-        ASSERT_EQ(0U, glyph_data_compression);
+        ASSERT_EQ((uint32_t)dmRender::FONT_GLYPH_COMPRESSION_NONE, glyph_data_compression);
         ASSERT_EQ(data_size-1, glyph_data_size);
         ASSERT_EQ(8U, glyph_image_width);
         ASSERT_EQ(9U, glyph_image_height);
         ASSERT_EQ(3U, glyph_image_channels);
 
         ASSERT_EQ(codepoint, glyph->m_Character);
-        ASSERT_EQ(1U + glyph_padding * 2, glyph->m_Width);
+        ASSERT_EQ(1U, glyph->m_Width);
         ASSERT_EQ(8U, glyph->m_ImageWidth);
         ASSERT_EQ(4.0f, glyph->m_Advance);
         ASSERT_EQ(5.0f, glyph->m_LeftBearing);
@@ -2008,7 +2010,7 @@ TEST_P(FactoryTest, Test)
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
 
         // --- step 5 ---
-        // recreate resources without factoy.load having been called (sync load on demand)
+        // recreate resources without factory.load having been called (sync load on demand)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         dmGameObject::PostUpdate(m_Register);
@@ -2093,6 +2095,35 @@ TEST_P(FactoryTest, IdHashTest)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/factory/factory_hash_test.goc", go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
     go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_P(FactoryTest, Create)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+    
+    lua_pushnumber(L, m_projectOptions.m_MaxInstances);
+    lua_setglobal(L, "max_instances");
+
+    // Spawn the game object with the script we want to call
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmhash_t go_hash = dmHashString64("/go");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/factory/factory_create_test.goc", go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -3531,7 +3562,8 @@ INSTANTIATE_TEST_CASE_P(Mesh, ResourceTest, jc_test_values_in(valid_mesh_resourc
 
 /* MeshSet */
 
-const char* valid_meshset_resources[] = {"/meshset/valid.meshsetc", "/meshset/valid.skeletonc", "/meshset/valid.animationsetc"};
+const char* valid_meshset_resources[] = {"/meshset/valid.meshsetc", "/meshset/valid.skeletonc", "/meshset/valid.animationsetc",
+                                         "/meshset/valid_gltf.meshsetc", "/meshset/valid_gltf.skeletonc", "/meshset/valid_gltf.animationsetc"};
 INSTANTIATE_TEST_CASE_P(MeshSet, ResourceTest, jc_test_values_in(valid_meshset_resources));
 
 ResourceFailParams invalid_mesh_resources[] =

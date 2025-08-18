@@ -19,6 +19,7 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
@@ -106,7 +107,7 @@ public class TileSetGenerator {
         }
     }
 
-    public static TextureSetResult generate(TileSet tileSet, BufferedImage image, BufferedImage collisionImage) {
+    public static TextureSetResult generate(TileSet tileSet, BufferedImage image, BufferedImage collisionImage) throws CompileExceptionError {
         Rect imageRect = image != null ? new Rect(null, -1, image.getWidth(), image.getHeight()) : null;
         Rect collisionRect = collisionImage != null ? new Rect(null, -1, collisionImage.getWidth(), collisionImage.getHeight()) : null;
         TileSetUtil.Metrics metrics = TileSetUtil.calculateMetrics(imageRect, tileSet.getTileWidth(),
