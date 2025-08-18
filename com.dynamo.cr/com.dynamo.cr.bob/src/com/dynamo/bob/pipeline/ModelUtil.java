@@ -910,15 +910,6 @@ public class ModelUtil {
         }
     }
 
-    private static void findModelNodes(Node node, List<Node> modelNodes) {
-        if (node.model != null) {
-            modelNodes.add(node);
-        }
-        for (Node child : node.children) {
-            findModelNodes(child, modelNodes);
-        }
-    }
-
     private static void calcCenterNode(Node node, Aabb aabb) {
         if (node.model != null) {
             // As a default, we only count nodes with models, as the user
@@ -982,12 +973,7 @@ public class ModelUtil {
 
         ArrayList<Rig.Model> models = new ArrayList<>();
         for (Node root : scene.rootNodes) {
-            ArrayList<Node> modelNodes = new ArrayList<>();
-            findModelNodes(root, modelNodes);
-
-            for (Node modelNode : modelNodes) {
-                loadModelInstances(modelNode, skeleton, models);
-            }
+            loadModelInstances(root, skeleton, models);
         }
         meshSetBuilder.addAllModels(models);
         meshSetBuilder.setMaxBoneCount(skeleton.size());
