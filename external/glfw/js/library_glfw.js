@@ -205,6 +205,10 @@ var LibraryGLFW = {
       return res;
     },
 
+    onWindowClose: function(event) {
+        GLFW.params[0x00020001] = false; // GLFW_OPENED
+    },
+
     onKeyPress: function(event) {
       if (!GLFW.isCanvasActive(event)) { return; }
 
@@ -618,6 +622,7 @@ var LibraryGLFW = {
   glfwInitJS: function() {
     GLFW.initTime = Date.now() / 1000;
 
+    GLFW.addEventListener("unload", GLFW.onWindowClose, true);
     GLFW.addEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
     GLFW.addEventListener("gamepaddisconnected", GLFW.onJoystickDisconnected, true);
     GLFW.addEventListener("keydown", GLFW.onKeydown, true);

@@ -28,7 +28,8 @@
             [editor.ui :as ui]
             [internal.util :as util]
             [service.log :as log]
-            [util.coll :refer [pair]])
+            [util.coll :refer [pair]]
+            [util.fn :as fn])
   (:import [editor.code.data CursorRange]
            [java.util.regex Pattern]
            [sun.nio.fs Globs]))
@@ -812,9 +813,6 @@
                     (contains? (:languages server) language))))
        boolean))
 
-(defn- and-fn [a b]
-  (and a b))
-
 (defn request-completions!
   "Request completions for a specific cursor position in the text resource
 
@@ -849,7 +847,7 @@
              (a/go (result-callback (<! (a/reduce
                                           (fn [acc {:keys [complete items]}]
                                             (-> acc
-                                                (update :complete and-fn complete)
+                                                (update :complete fn/and complete)
                                                 (update :items into items)))
                                           {:complete true
                                            :items []}

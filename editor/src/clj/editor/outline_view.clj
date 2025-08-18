@@ -24,14 +24,15 @@
             [editor.resource :as resource]
             [editor.scene-visibility :as scene-visibility]
             [editor.types :as types]
-            [editor.ui :as ui])
+            [editor.ui :as ui]
+            [util.fn :as fn])
   (:import [com.defold.control TreeCell]
            [java.awt Toolkit]
            [javafx.collections FXCollections ObservableList]
            [javafx.event Event]
            [javafx.geometry Orientation]
            [javafx.scene Node]
-           [javafx.scene.control ScrollBar SelectionMode TreeItem TreeView ToggleButton Label TextField]
+           [javafx.scene.control Label ScrollBar SelectionMode TextField ToggleButton TreeItem TreeView]
            [javafx.scene.image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DataFormat DragEvent KeyCode KeyCodeCombination KeyEvent MouseButton MouseEvent TransferMode]
            [javafx.scene.layout AnchorPane HBox Priority]
@@ -96,11 +97,16 @@
   new-root)
 
 (defn- auto-expand [items selected-ids]
-  (reduce #(or %1 %2) false (map (fn [^TreeItem item] (let [id (item->node-id item)
-                                                            selected (boolean (selected-ids id))
-                                                            expanded (auto-expand (.getChildren item) selected-ids)]
-                                                        (when expanded (.setExpanded item expanded))
-                                                        (or selected expanded))) items)))
+  (transduce
+    (map (fn [^TreeItem item]
+           (let [id (item->node-id item)
+                 selected (boolean (selected-ids id))
+                 expanded (auto-expand (.getChildren item) selected-ids)]
+             (when expanded (.setExpanded item expanded))
+             (or selected expanded))))
+    fn/or
+    false
+    items))
 
 (defn- sync-selection [^TreeView tree-view selection old-selected-ids]
   (let [root (.getRoot tree-view)
