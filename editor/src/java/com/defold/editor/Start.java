@@ -168,8 +168,6 @@ public class Start extends Application {
                 "javafx.scene.input.ZoomEvent",
                 "javafx.scene.media.MediaErrorEvent",
                 "javafx.scene.transform.TransformChangedEvent",
-                "javafx.scene.web.WebErrorEvent",
-                "javafx.scene.web.WebEvent",
                 "javafx.stage.WindowEvent",
         };
         for (var className : nonThreadSafeJavaFXClasses) {

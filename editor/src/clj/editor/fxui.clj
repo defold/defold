@@ -37,6 +37,7 @@
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
+            [dynamo.graph :as g]
             [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.error-reporting :as error-reporting]
             [editor.future :as future]
@@ -1168,3 +1169,10 @@
       resolve-alignment
       resolve-label-color
       resolve-tooltip))
+
+(defn advance-user-data-component! [view-node key desc]
+  (let [component (g/user-data view-node key)]
+    (cond
+      (and component desc) (g/user-data! view-node key (fx/advance-component component desc))
+      component (do (fx/delete-component component) (g/user-data! view-node key nil))
+      desc (g/user-data! view-node key (fx/create-component desc)))))

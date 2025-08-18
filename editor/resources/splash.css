@@ -8,6 +8,9 @@
   src: url("SourceSansPro-Semibold.ttf");
 }
 @font-face {
+  src: url("SourceSansPro-SemiBoldItalic.ttf");
+}
+@font-face {
   src: url("SourceSansPro-Italic.ttf");
 }
 @font-face {
