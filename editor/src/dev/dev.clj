@@ -82,7 +82,7 @@
            [java.nio ByteBuffer]
            [javafx.scene Node]
            [javafx.stage Window]
-           [javax.vecmath Matrix3d Matrix4d Point2d Point3d Point4d Quat4d Vector2d Vector3d Vector4d]))
+           [javax.vecmath Matrix3d Matrix3f Matrix4d Matrix4f Point2d Point3d Point4d Quat4d Vector2d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -1105,19 +1105,71 @@
                        (conj (subvec verts 0 (min 3 (count verts)))
                              '...)))))
 
-(defmulti matrix-row (fn [matrix ^long _row-index] (class matrix)))
+(defn- vecmath-matrix-dim
+  ^long [matrix]
+  (condp instance? matrix
+    Matrix3d 3
+    Matrix3f 3
+    Matrix4d 4
+    Matrix4f 4))
 
-(defmethod matrix-row Matrix3d
-  [^Matrix3d matrix ^long row-index]
+(defmulti ^:private vecmath-matrix-row (fn [matrix ^long _row-index] (class matrix)))
+
+(defmethod vecmath-matrix-row Matrix3d [^Matrix3d matrix ^long row-index]
   (let [row (double-array 3)]
     (.getRow matrix row-index row)
     row))
 
-(defmethod matrix-row Matrix4d
-  [^Matrix4d matrix ^long row-index]
+(defmethod vecmath-matrix-row Matrix3f [^Matrix3f matrix ^long row-index]
+  (let [row (float-array 3)]
+    (.getRow matrix row-index row)
+    row))
+
+(defmethod vecmath-matrix-row Matrix4d [^Matrix4d matrix ^long row-index]
   (let [row (double-array 4)]
     (.getRow matrix row-index row)
     row))
+
+(defmethod vecmath-matrix-row Matrix4f [^Matrix4f matrix ^long row-index]
+  (let [row (float-array 4)]
+    (.getRow matrix row-index row)
+    row))
+
+(defn vecmath-matrix-pprint-strings [matrix]
+  (let [dim (vecmath-matrix-dim matrix)
+        fmt-num #(eutil/format* "%.3f" %)
+        num-strs (coll/transfer (range dim) []
+                   (mapcat (fn [^long row-index]
+                             (let [row (vecmath-matrix-row matrix row-index)]
+                               (map fmt-num row)))))
+        first-col-width (transduce (comp (take-nth dim)
+                                         (map count))
+                                   max
+                                   0
+                                   num-strs)
+        rest-col-width (transduce (map count)
+                                  max
+                                  0
+                                  num-strs)
+        first-col-width-fmt (str \% first-col-width \s)
+        rest-col-width-fmt (str \% rest-col-width \s)
+        fmt-col (fn [^long index num-str]
+                  (let [fmt (if (zero? (rem index dim))
+                              first-col-width-fmt
+                              rest-col-width-fmt)]
+                    (eutil/format* fmt num-str)))]
+    (coll/transfer num-strs []
+      (partition-all dim)
+      (map (partial into [] (map-indexed fmt-col))))))
+
+(defn zero-vecmath-matrix-col-str? [^String col-str]
+  (let [last-index (.lastIndexOf col-str "0.000")]
+    (case last-index
+      -1 false
+      0 true
+      (case (.charAt col-str (dec last-index))
+        (\space \-) true
+        false))))
 
 (def pretty-printer
   (let [fmt-doc puget.printer/format-doc
@@ -1191,41 +1243,21 @@
                project-resource-pprint-handler})
 
             vecmath-pprint-handlers
-            (letfn [(vecmath-tuple-pprint-handler [printer vecmath-value]
-                      (object-data-pprint-handler nil math/vecmath->clj printer vecmath-value))
+            (letfn [(vecmath-tuple-pprint-handler [printer tuple]
+                      (object-data-pprint-handler nil math/vecmath->clj printer tuple))
 
-                    (vecmath-matrix-pprint-handler [^long dim printer matrix]
-                      (let [fmt-num #(eutil/format* "%.3f" %)
-                            num-strs (into []
-                                           (mapcat (fn [^long row-index]
-                                                     (let [row (matrix-row matrix row-index)]
-                                                       (map fmt-num row))))
-                                           (range dim))
-                            first-col-width (transduce (comp (take-nth 4)
-                                                             (map count))
-                                                       max
-                                                       0
-                                                       num-strs)
-                            rest-col-width (transduce (map count)
-                                                      max
-                                                      0
-                                                      num-strs)
-                            first-col-width-fmt (str \% first-col-width \s)
-                            rest-col-width-fmt (str \% rest-col-width \s)
-                            fmt-col (fn [^long index num-str]
-                                      (let [element (case num-str
-                                                      ("-0.000" "0.000") :number
-                                                      :string)
-                                            fmt (if (zero? (rem index 4))
-                                                  first-col-width-fmt
-                                                  rest-col-width-fmt)]
-                                        (col-txt printer element (format fmt num-str))))
-                            data (into [:align]
-                                       (comp (partition-all dim)
-                                             (map (fn [row-num-strs]
-                                                    (interpose " " (map-indexed fmt-col row-num-strs))))
-                                             (interpose :break))
-                                       num-strs)]
+                    (vecmath-matrix-pprint-handler [printer matrix]
+                      (let [row-col-strs (vecmath-matrix-pprint-strings matrix)
+                            fmt-col (fn [^String num-str]
+                                      ;; Colorize zero values differently.
+                                      (let [element (if (zero-vecmath-matrix-col-str? num-str)
+                                                      :number
+                                                      :string)]
+                                        (col-txt printer element num-str)))
+                            data (coll/transfer row-col-strs [:align]
+                                   (map (fn [col-strs]
+                                          (interpose " " (map fmt-col col-strs))))
+                                   (interpose :break))]
                         [:group
                          (cls-tag printer (class matrix))
                          (col-doc printer :delimiter "[")
@@ -1233,10 +1265,16 @@
                          (col-doc printer :delimiter "]")]))]
 
               {(namespaced-class-symbol Matrix3d)
-               (partial vecmath-matrix-pprint-handler 3)
+               vecmath-matrix-pprint-handler
+
+               (namespaced-class-symbol Matrix3f)
+               vecmath-matrix-pprint-handler
 
                (namespaced-class-symbol Matrix4d)
-               (partial vecmath-matrix-pprint-handler 4)
+               vecmath-matrix-pprint-handler
+
+               (namespaced-class-symbol Matrix4f)
+               vecmath-matrix-pprint-handler
 
                (namespaced-class-symbol Point2d)
                vecmath-tuple-pprint-handler
