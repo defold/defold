@@ -63,10 +63,8 @@
 
 (defn- build-shader [build-resource _dep-resources user-data]
   {:pre [(workspace/build-resource? build-resource)]}
-  (let [{:keys [^ShaderProgramBuilder$ShaderDescBuildResult shader-desc-build-result]} user-data
-        compile-warning-messages (.buildWarnings shader-desc-build-result)
-        compile-error-values (mapv error-string->error-value compile-warning-messages)
-        shader-desc (.-shaderDesc shader-desc-build-result)]
+  (let [{:keys [^Graphics$ShaderDesc shader-desc compile-warning-messages]} user-data
+        compile-error-values (mapv error-string->error-value compile-warning-messages)]
     (g/precluding-errors compile-error-values
       {:resource build-resource
        :content (protobuf/pb->bytes shader-desc)})))
@@ -105,4 +103,5 @@
        :resource build-resource
        :shader-reflection (when shader-desc (.getReflection shader-desc))
        :build-fn build-shader
-       :user-data {:shader-desc-build-result shader-desc-build-result}})))
+       :user-data {:shader-desc shader-desc
+                   :compile-warning-messages (.buildWarnings shader-desc-build-result)}})))
