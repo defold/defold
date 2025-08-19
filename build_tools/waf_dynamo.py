@@ -429,6 +429,8 @@ def default_flags(self):
 
     if Options.options.ndebug:
         flags += [self.env.DEFINES_ST % 'NDEBUG']
+    # Use Box2D v3.x
+    flags += [self.env.DEFINES_ST % 'DM_PHYSICS_BOX2D_V3']
 
     for f in ['CFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
         self.env.append_value(f, [FLAG_ST % ('O%s' % opt_level)])
@@ -609,7 +611,9 @@ def default_flags(self):
             emflags_link += [
                 'MIN_FIREFOX_VERSION=79',
                 'MIN_SAFARI_VERSION=150000',
-                'MIN_CHROME_VERSION=75']
+                'MIN_CHROME_VERSION=75',
+                'ASYNCIFY'
+            ]
         else:
             emflags_link += [
                 'MIN_FIREFOX_VERSION=40',

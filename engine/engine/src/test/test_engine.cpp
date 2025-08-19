@@ -424,6 +424,7 @@ TEST_P(DrawCountTest, DrawCount)
 
 DrawCountParams draw_count_params[] =
 {
+
 #ifdef DM_PHYSICS_BOX2D_V3
     {"/game.projectc", 3, 2},    // 1 draw call for sprite, 1 for debug physics
 #else
