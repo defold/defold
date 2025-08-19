@@ -3485,13 +3485,6 @@
           :max-width 350.0
           :max-height max-popup-height}]}]}}))
 
-(defn- advance-user-data-component! [view-node key desc]
-  (let [component (g/user-data view-node key)]
-    (cond
-      (and component desc) (g/user-data! view-node key (fx/advance-component component desc))
-      component (do (fx/delete-component component) (g/user-data! view-node key nil))
-      desc (g/user-data! view-node key (fx/create-component desc)))))
-
 (defn repaint-view! [view-node elapsed-time {:keys [cursor-visible editable] :as _opts}]
   (assert (boolean? cursor-visible))
 
@@ -3534,7 +3527,7 @@
     (when editable
       (g/with-auto-evaluation-context evaluation-context
         ;; Show rename popup if appropriate
-        (advance-user-data-component!
+        (fxui/advance-user-data-component!
           view-node :rename-popup
           (when (g/node-value view-node :rename-cursor-range evaluation-context)
             (g/node-value view-node :rename-view evaluation-context)))
