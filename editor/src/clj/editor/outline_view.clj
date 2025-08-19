@@ -718,7 +718,9 @@
     (doto tree-view
       (ui/customize-tree-view! {:double-click-expand? true})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
-      (.setOnDragDetected (ui/event-handler e (drag-detected project outline-view e)))
+      (.setOnDragDetected (ui/event-handler e 
+                            (drag-detected project outline-view e)
+                            (cancel-rename! tree-view)))
       (.setOnDragOver (ui/event-handler e (drag-over project outline-view e)))
       (.setOnDragDropped (ui/event-handler e (error-reporting/catch-all! (drag-dropped project app-view outline-view e))))
       (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
