@@ -1,7 +1,6 @@
 .md {
   &-paragraph {
     -fx-font-family: "Source Sans Pro";
-    -fx-font-size: 13.5px;
     & > Text {-fx-fill: -md-text-fill;}
     & > .md {
       &-h1 { -fx-font-size: 26px; -fx-font-family: "Source Sans Pro Light"; }
@@ -110,9 +109,11 @@
   }
   &-root {
     -fx-padding: 6px 8px;
+    -fx-font-size: 13.5px;
     -md-text-fill: -df-text;
     &.md-page-root {
-        -fx-padding: 24px 24px;
+        -fx-padding: 30px 30px;
+        -fx-font-size: 15px;
         -md-text-fill: #DDDDDD;
     }
   }
@@ -125,7 +126,7 @@
       & > .arrow {
         -fx-background-color: -df-text;
         -fx-background-insets: 1 0 -1 0, 0;
-        -fx-padding: 0.25em 0.3125em 0.25em 0.3125em; /* 3 3.75 3 3.75 */
+        -fx-padding: 0.25em 0.3125em 0.25em 0.3125em;
         -fx-shape: "M 0 0 h 7 l -3.5 4 z";
       }
     }

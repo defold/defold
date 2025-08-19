@@ -59,6 +59,7 @@
            [org.jsoup.nodes Element Node TextNode]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn- child-nodes [node]
   (when (instance? Element node)
@@ -138,8 +139,8 @@
                           scroll-pane
                           (-> (/ (.getMinY (.sceneToLocal content (.localToScene node (.getBoundsInLocal node))))
                                  scrollable-height)
-                              (max 0)
-                              (min 1)))))))))))))
+                              (max 0.0)
+                              (min 1.0)))))))))))))
 
     MouseButton/SECONDARY
     (doto (ContextMenu.)
@@ -244,12 +245,12 @@
 (defn- add-separator
   "Add separator after text-flow-children vector; if there is already a
   separator, keep the highest separator"
-  [{:keys [content] :as acc} n]
-  (let [separator (when-let [end (or (peek content) ##Inf)]
+  [{:keys [content] :as acc} ^long n]
+  (let [separator (when-let [end (or (peek content) Long/MAX_VALUE)]
                     (when (number? end) end))]
     (cond
       (not separator) (assoc acc :content (conj content n) :whitespace-prefix nil)
-      (< separator n) (assoc acc :content (assoc content (dec (count content)) n) :whitespace-prefix nil)
+      (< (long separator) n) (assoc acc :content (assoc content (dec (count content)) n) :whitespace-prefix nil)
       :else acc)))
 
 (defn- with-separators
@@ -293,11 +294,11 @@
        :children lis})))
 
 (defn- ordered-list-view [^Element node ctx]
-  (let [start (or (parse-long (.attr node "start")) 1)
+  (let [start (long (or (parse-long (.attr node "start")) 1))
         lis (into []
                   (comp
                     (filter #(= "li" (tag-name %)))
-                    (keep-indexed #(indent-with-text-view (str "\u00A0\u00A0" (+ %1 start) ".\u00A0") ctx
+                    (keep-indexed #(indent-with-text-view (str "\u00A0\u00A0" (+ (long %1) start) ".\u00A0") ctx
                                                           (children-section-view %2 ctx))))
                   (child-nodes node))]
     (when (pos? (count lis))
@@ -374,7 +375,7 @@
                                      (when (pos? (count row-views))
                                        row-views))))
                            (map-indexed
-                             (fn [row views]
+                             (fn [^long row views]
                                (mapv #(assoc % :grid-pane/row (+ content-row-offset row)) views))))
                          (.select node "table>tbody>tr"))]
     (when (pos? (count rows-views))
@@ -478,7 +479,7 @@
                   (cond-> (pos? (count href))
                           (assoc :on-mouse-clicked (fn/partial #'open-link! (:base-url ctx) (:base-resource ctx) (:project ctx) href))))))
       "kbd" (add-view acc (kbd-view node ctx))
-      "img" (with-separators acc 1 1 add-view (image-view node ctx))
+      "img" (with-separators acc 3 1 add-view (image-view node ctx))
       "span" (let [class (attr node "class")]
                (case class
                  ("icon-alert" "icon-attention" "icon-android" "icon-html5"
@@ -498,8 +499,8 @@
 
                  (layout-children acc node ctx)))
       "pre" (with-separators acc 1 1 add-view (code-block-view node ctx))
-      "ul" (with-separators acc 0 0 add-view (unordered-list-view node ctx))
-      "ol" (with-separators acc 0 0 add-view (ordered-list-view node ctx))
+      "ul" (with-separators acc 3 0 add-view (unordered-list-view node ctx))
+      "ol" (with-separators acc 3 0 add-view (ordered-list-view node ctx))
       "hr" (with-separators acc 3 3 add-view {:fx/type fx.region/lifecycle :style-class "md-hr"})
       "details" (with-separators acc 0 0 add-view (details-view node ctx))
       ("#comment" "head" "summary") acc
@@ -516,7 +517,7 @@
                        (keep (fn [text-flow-children-or-separator]
                                (cond
                                  (number? text-flow-children-or-separator)
-                                 (when (pos? text-flow-children-or-separator)
+                                 (when (pos? (long text-flow-children-or-separator))
                                    {:fx/type fx.region/lifecycle
                                     :style-class (str "md-separator-" text-flow-children-or-separator)})
 
