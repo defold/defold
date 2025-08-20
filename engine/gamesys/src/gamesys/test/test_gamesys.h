@@ -531,11 +531,8 @@ void GamesysTest<T>::SetUp()
     dmScript::Initialize(m_ScriptContext);
 
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-
     #ifdef DM_PHYSICS_BOX2D_V3
         lua_pushstring(L, "box2dv3");
-    #elif defined(DM_PHYSICS_BOX2D_V2)
-       lua_pushstring(L, "box2dv2");
     #else
         lua_pushstring(L, "box2dv2");
     #endif
