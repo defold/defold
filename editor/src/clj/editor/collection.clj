@@ -160,27 +160,29 @@
   ([self-id child-id]
    (tx-attach-go-referenced-go self-id child-id true))
   ([self-id child-id resolve-id]
-   (g/expand-ec
-     (fn tx-attach [evaluation-context]
-       (let [coll-id (core/scope-of-type (:basis evaluation-context) self-id CollectionNode)]
-         (concat
-           (when resolve-id
-             (g/update-property child-id :id id/resolve (g/node-value coll-id :ids evaluation-context)))
-           (attach-coll-ref-go coll-id child-id)
-           (child-go-go self-id child-id)))))))
+   (concat
+     (g/expand-ec
+       (fn tx-resolve-id [evaluation-context]
+         (let [coll-id (core/scope-of-type (:basis evaluation-context) self-id CollectionNode)]
+           (concat
+             (when resolve-id
+               (g/update-property child-id :id id/resolve (g/node-value coll-id :ids evaluation-context)))
+             (attach-coll-ref-go coll-id child-id)))))
+     (child-go-go self-id child-id))))
 
 (defn- tx-attach-go-embedded-go
   ([self-id child-id]
    (tx-attach-go-embedded-go self-id child-id true))
   ([self-id child-id resolve-id]
-   (g/expand-ec
-     (fn tx-attach [evaluation-context]
-       (let [coll-id (core/scope-of-type (:basis evaluation-context) self-id CollectionNode)]
-         (concat
-           (when resolve-id
-             (g/update-property child-id :id id/resolve (g/node-value coll-id :ids evaluation-context)))
-           (attach-coll-embedded-go coll-id child-id)
-           (child-go-go self-id child-id)))))))
+   (concat
+     (g/expand-ec
+       (fn tx-attach [evaluation-context]
+         (let [coll-id (core/scope-of-type (:basis evaluation-context) self-id CollectionNode)]
+           (concat
+             (when resolve-id
+               (g/update-property child-id :id id/resolve (g/node-value coll-id :ids evaluation-context)))
+             (attach-coll-embedded-go coll-id child-id)))))
+     (child-go-go self-id child-id))))
 
 (g/defnk produce-go-outline [_node-id id source-outline source-resource child-outlines node-outline-extras]
   (-> {:node-id _node-id

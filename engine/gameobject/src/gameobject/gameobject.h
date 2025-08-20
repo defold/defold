@@ -353,13 +353,6 @@ namespace dmGameObject
     void UpdateTransforms(HCollection hcollection);
 
     /**
-     * Adds a reference to a dynamically created resource into the collection.
-     * If the resource is not released before the collection is being destroyed,
-     * the collection will automatically free the resource.
-     */
-    void AddDynamicResourceHash(HCollection collection, dmhash_t resource_hash);
-
-    /**
      * Remove the reference to a dynamically created resource. This implies
      * that the resource has been externally removed and should no longer be
      * tracked by the collection, e.g resource.release(id) has been called

@@ -4091,7 +4091,7 @@
         (protobuf/sanitize-repeated :nodes sanitize-scene-node)
         (protobuf/sanitize-repeated :layouts sanitize-layout)
         (protobuf/assign-repeated :resources merged-resource-descs)
-        (update :material #(or % default-material-proj-path)))))
+        (update :material fn/or default-material-proj-path))))
 
 (defn- add-dropped-resource
   [scene workspace resource]
