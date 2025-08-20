@@ -137,7 +137,7 @@ def _get_latest_version_from_folders(path, replace_patterns=[]):
     def _replace_pattern(s, patterns):
         for pattern, replace in patterns:
             s = s.replace(pattern, replace)
-            # handle -ext to fix Android versions like android-34-ext12
+        # handle -ext to fix Android versions like android-34-ext12
         if '-ext' in s:
             s = re.sub(r'-ext\d+$', '', s)
         return s
