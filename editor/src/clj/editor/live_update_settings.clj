@@ -94,10 +94,9 @@
   (output save-value g/Any (gu/passthrough save-value))
   (output build-targets g/Any :cached (g/constantly [])))
 
-(def ^:private basic-meta-info (with-open [r (-> "live-update-meta.edn"
-                                                 settings-core/resource-reader
-                                                 settings-core/pushback-reader)]
-                                 (settings-core/load-meta-info r)))
+(def ^:private basic-meta-info
+  (with-open [rdr (io/reader (io/resource "liveupdate-meta.properties"))]
+    (settings-core/load-meta-properties rdr)))
 
 (defn- load-live-update-settings [project self resource source-value]
   (let [graph-id (g/node-id->graph-id self)]
