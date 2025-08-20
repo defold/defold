@@ -53,7 +53,7 @@ static std::mutex                           s_QueueMutex;
 static std::condition_variable              s_QueueCV;
 static std::queue<std::function<void(int)>> s_JobQueue;
 static std::atomic<bool>                    s_Running { false };
-static const int                            WORKER_COUNT = 0; // multithreaded needs Asyncify on Emscripten
+static const int                            WORKER_COUNT = 2; // multithreaded needs Asyncify on Emscripten
 
 struct TaskHandle {
     std::atomic<int> pendingCount {0};
