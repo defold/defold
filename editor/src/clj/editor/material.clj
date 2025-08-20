@@ -476,7 +476,7 @@
 (g/defnk produce-attribute-infos [_node-id attributes]
   (mapv (fn [attribute]
           (let [name (:name attribute)
-                name-key (graphics/attribute-name->key name)
+                name-key (graphics.types/attribute-name-key name)
                 [bytes error-message] (graphics/attribute->bytes+error-message attribute)]
             (cond-> (assoc attribute
                       :bytes bytes

@@ -24,6 +24,7 @@
             [editor.gl.shader :as shader]
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
+            [editor.graphics.types :as graphics.types]
             [editor.image :as image]
             [editor.material :as material]
             [editor.math :as math]
@@ -291,7 +292,7 @@
 
 (defn- stream->attribute [stream position-stream-name normal-stream-name]
   (let [attribute-name (:name stream)
-        attribute-key (vtx/attribute-name->key attribute-name)]
+        attribute-key (graphics.types/attribute-name-key attribute-name)]
     {:name attribute-name
      :name-key attribute-key
      :type (vtx/stream-type->type (:type stream))
@@ -301,7 +302,7 @@
                                                    position-stream-name :position
                                                    normal-stream-name :normal
                                                    attribute-key)]
-                      (vtx/attribute-key->semantic-type semantic-attribute-key))}))
+                      (graphics.types/attribute-key-semantic-type semantic-attribute-key))}))
 
 (defn- max-stream-length [streams]
   (transduce (map (fn [stream]

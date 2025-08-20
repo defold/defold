@@ -245,3 +245,24 @@
   (->ElementType vector-type data-type normalize))
 
 (def ^{:arglists '(^ElementType [vector-type data-type normalize])} make-element-type (fn/memoize make-element-type-raw))
+
+(defn attribute-name-key [^String attribute-name]
+  (protobuf/field-name->key attribute-name))
+
+(defn attribute-key-semantic-type [attribute-key]
+  ;; Attempt to map an attribute-key to a semantic-type. The engine runtime
+  ;; uses the same heuristics for shader attributes that are not declared in the
+  ;; material.
+  (case attribute-key
+    :position :semantic-type-position
+    :normal :semantic-type-normal
+    :tangent :semantic-type-tangent
+    :binormal :semantic-type-binormal
+    :color :semantic-type-color
+    (:texcoord :texcoord0) :semantic-type-texcoord
+    :page-index :semantic-type-page-index
+    :blend-indices :semantic-type-blend-indices
+    :blend-weights :semantic-type-blend-weights
+    :mtx-world :semantic-type-world-matrix
+    :mtx-normal :semantic-type-normal-matrix
+    :semantic-type-none))

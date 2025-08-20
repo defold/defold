@@ -14,7 +14,7 @@
 
 (ns editor.particle-lib
   (:require [editor.buffers :as buffers]
-            [editor.graphics.types :as types]
+            [editor.graphics.types :as graphics.types]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [util.murmur :as murmur])
@@ -164,15 +164,15 @@
 (defn- coordinate-space->int
   ^long [coordinate-space]
   (case coordinate-space
-    (:coordinate-space-world :coordinate-space-local) (types/coordinate-space-pb-int coordinate-space)
+    (:coordinate-space-world :coordinate-space-local) (graphics.types/coordinate-space-pb-int coordinate-space)
     Graphics$CoordinateSpace/COORDINATE_SPACE_LOCAL_VALUE))
 
 (defn- attribute-info->particle-attribute-info [^Pointer context attribute-info vertex-attribute-bytes]
   (let [attribute-name-hash (murmur/hash64 (:name attribute-info))
-        attribute-semantic-type (types/semantic-type-pb-int (:semantic-type attribute-info))
+        attribute-semantic-type (graphics.types/semantic-type-pb-int (:semantic-type attribute-info))
         attribute-coordinate-space (coordinate-space->int (:coordinate-space attribute-info))
-        attribute-data-type (types/data-type-pb-int (:data-type attribute-info))
-        attribute-vector-type (types/vector-type-pb-int (:vector-type attribute-info))
+        attribute-data-type (graphics.types/data-type-pb-int (:data-type attribute-info))
+        attribute-vector-type (graphics.types/vector-type-pb-int (:vector-type attribute-info))
         attribute-bytes (attribute-name-key->byte-buffer (:name-key attribute-info) vertex-attribute-bytes)
         attribute-bytes-count (if (nil? attribute-bytes)
                                 0
@@ -183,7 +183,7 @@
     (set! (. particle-attribute-info semanticType) attribute-semantic-type)
     (set! (. particle-attribute-info dataType) attribute-data-type)
     (set! (. particle-attribute-info vectorType) attribute-vector-type)
-    (set! (. particle-attribute-info stepFunction) (types/vertex-step-function-pb-int (:step-function attribute-info)))
+    (set! (. particle-attribute-info stepFunction) (graphics.types/vertex-step-function-pb-int (:step-function attribute-info)))
     (set! (. particle-attribute-info coordinateSpace) attribute-coordinate-space)
     (set! (. particle-attribute-info valuePtr) context-attribute-scratch-ptr)
     (set! (. particle-attribute-info valueVectorType) attribute-vector-type)

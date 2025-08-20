@@ -24,7 +24,6 @@
             [editor.util :as eutil]
             [editor.validation :as validation]
             [internal.util :as iutil]
-            [potemkin.namespaces :as namespaces]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
             [util.murmur :as murmur]
@@ -37,8 +36,6 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-(namespaces/import-vars [editor.gl.vertex2 attribute-name->key])
 
 (def ^:private scalar-zero (vector-of :double 0.0))
 (def ^:private scalar-one (vector-of :double 1.0))
@@ -184,7 +181,7 @@
   (into {}
         (map (fn [vertex-attribute]
                (let [attribute-name (:name vertex-attribute)
-                     attribute-key (attribute-name->key attribute-name)
+                     attribute-key (types/attribute-name-key attribute-name)
                      values (attribute->any-doubles vertex-attribute)
                      value-keyword (attribute->value-keyword vertex-attribute)
 
@@ -597,7 +594,7 @@
   (fn/make-case-fn
     (into {}
           (map (fn [{:keys [data-type name normalize semantic-type vector-type] :as attribute}]
-                 (let [attribute-key (attribute-name->key name)
+                 (let [attribute-key (types/attribute-name-key name)
                        values (default-attribute-doubles semantic-type vector-type)
                        bytes (default-attribute-bytes semantic-type data-type vector-type normalize)
                        attribute-info (assoc attribute

@@ -19,7 +19,6 @@
             [editor.gl.protocols :refer [GlBind]]
             [editor.gl.shader :as shader]
             [editor.graphics.types :as types]
-            [editor.protobuf :as protobuf]
             [editor.scene-cache :as scene-cache]
             [util.coll :as coll]
             [util.defonce :as defonce]
@@ -67,24 +66,6 @@
     :value-type-int8 :byte
     :value-type-int16 :short
     :value-type-int32 :int))
-
-(defn attribute-name->key [^String name]
-  (protobuf/field-name->key name))
-
-(defn attribute-key->semantic-type [attribute-key]
-  (case attribute-key
-    :position :semantic-type-position
-    :normal :semantic-type-normal
-    :tangent :semantic-type-tangent
-    :binormal :semantic-type-binormal
-    :color :semantic-type-color
-    (:texcoord :texcoord0) :semantic-type-texcoord
-    :page-index :semantic-type-page-index
-    :blend-indices :semantic-type-blend-indices
-    :blend-weights :semantic-type-blend-weights
-    :mtx-world :semantic-type-world-matrix
-    :mtx-normal :semantic-type-normal-matrix
-    :semantic-type-none))
 
 ;; VertexBuffer object
 
@@ -231,8 +212,8 @@
                            :vec3 3
                            :vec4 4)
         attribute-name   (name nm)
-        attribute-key    (attribute-name->key attribute-name)
-        semantic-type    (attribute-key->semantic-type attribute-key)
+        attribute-key    (types/attribute-name-key attribute-name)
+        semantic-type    (types/attribute-key-semantic-type attribute-key)
         vector-type      (case num-components
                            1 :vector-type-scalar
                            2 :vector-type-vec2
