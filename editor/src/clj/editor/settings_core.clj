@@ -260,23 +260,21 @@
   (letfn [(parse-map [s]
             (into {}
                   (map (fn [s]
-                         (let [i (string/index-of s \=)]
-                           [(keyword (subs s 0 i)) (subs s (inc i))])))
-                  (string/split s #"&")))
+                         (let [[k v] (string/split s #"\s*=\s*")]
+                           [(keyword k) v])))
+                  (string/split s #"\s*&\s*")))
           (parse-options [setting s]
             (into []
                   (map (fn [s]
-                         (let [i (string/index-of s \:)
-                               value (cond-> s i (subs 0 i))
-                               label (cond-> s i (subs (inc i)))]
+                         (let [kv (string/split s #"\s*:\s*")
+                               value (kv 0)
+                               label (if (= 1 (count kv)) (kv 0) (kv 1))]
                            [(sanitize-value setting (parse-setting-value setting value)) label])))
-                  (string/split s #",\s*")))
+                  (string/split s #"\s*,\s*")))
           (parse-filter [setting s]
             (case (:type setting)
-              :file (mapv (fn [s]
-                            (string/split s #":\s*"))
-                          (string/split s #",\s*"))
-              (let [filters (string/split s #",\s*")]
+              :file (mapv #(string/split % #"\s*:\s*") (string/split s #"\s*,\s*"))
+              (let [filters (string/split s #"\s*,\s*")]
                 (if (= 1 (count filters))
                   (filters 0)
                   filters))))
