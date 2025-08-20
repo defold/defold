@@ -465,7 +465,7 @@
      :on-value-changed on-value-changed
      :converter (DefoldStringConverter.
                   #(get value->label % (to-string %))
-                  #(get label->value % (and from-string (from-string %))))
+                  #(or (label->value %) (and from-string (from-string %))))
      :editable (some? from-string)
      :button-cell (fn [x]
                     {:text (value->label x)})
@@ -1413,7 +1413,7 @@
                          (text-util/includes-ignore-case? help filter-term)))
         fields (into []
                      (comp
-                       (remove :hidden?)
+                       (remove :hidden)
                        (map #(set-field-visibility % values filter-term visible)))
                      fields)]
     (assoc section :visible (boolean (some :visible fields))

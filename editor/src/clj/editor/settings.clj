@@ -85,9 +85,9 @@
 
 (defn- make-form-field [setting]
   (cond-> (assoc setting
-                 :label (or (:label setting) (settings-core/label (second (:path setting))))
-                 :optional true
-                 :hidden? (:hidden? setting false))
+            :label (or (:label setting) (settings-core/label (second (:path setting))))
+            :optional true
+            :hidden (:hidden setting false))
 
     (contains? setting :options)
     (assoc :type :choicebox)
