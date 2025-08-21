@@ -18,6 +18,7 @@
   (:require [clojure.string :as string]
             [editor.gl.protocols :as p]
             [service.log :as log]
+            [util.coll :refer [pair]]
             [util.num :as num])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLCapabilities GLContext GLDrawableFactory GLException GLOffscreenAutoDrawable GLProfile]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -469,20 +470,27 @@
 (defmacro set-attribute-4fv! [gl location value-array offset]
   `(.glVertexAttrib4fv ~gl ~location ~value-array ~offset))
 
-(defmacro with-gl-bindings
-  [glsymb render-args-symb gl-stuff & body]
-  (assert (vector? gl-stuff) (str "GL objects must be a vector of values that satisfy GlBind" gl-stuff))
-  `(let [gl# ~glsymb
-         render-args# ~render-args-symb
-         items# ~gl-stuff]
-     (doseq [b# items#]
-       (when (satisfies? p/GlBind b#)
-         (p/bind b# gl# render-args#)))
-     (let [res# (do ~@body)]
-       (doseq [b# (rseq items#)]
-         (when (satisfies? p/GlBind b#)
-           (p/unbind b# gl# render-args#)))
-       res#)))
+(defmacro with-gl-bindings [gl-expr render-args-expr bindables-expr & body]
+  `(let [gl# ~gl-expr
+         render-args# ~render-args-expr
+         bindable-items# ~bindables-expr
+
+         [bound-items# exception#]
+         (reduce (fn [~'bound-items ~'bindable-item]
+                   (try
+                     (p/bind ~'bindable-item gl# render-args#)
+                     (pair (cons ~'bindable-item ~'bound-items) nil)
+                     (catch Throwable ~'exception
+                       (reduced (pair ~'bound-items ~'exception)))))
+                 (pair '() nil) ; The bound-items will be in reverse bind order.
+                 bindable-items#)]
+
+     (if exception#
+       (do (reduce #(p/unbind %2 gl# render-args#) nil bound-items#)
+           (throw exception#))
+       (let [res# (do ~@body)]
+         (reduce #(p/unbind %2 gl# render-args#) nil bound-items#)
+         res#))))
 
 (defn bind [^GL2 gl bindable render-args]
   (p/bind bindable gl render-args))
