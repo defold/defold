@@ -218,7 +218,6 @@ namespace dmPhysics
         m_DebugDraw.drawShapes           = force_flag;
         m_DebugDraw.drawJoints           = force_flag;
         m_DebugDraw.drawJointExtras      = force_flag;
-        //m_DebugDraw.drawAABBs            = force_flag;
         m_DebugDraw.drawMass             = force_flag;
         m_DebugDraw.drawContacts         = force_flag;
         m_DebugDraw.drawGraphColors      = force_flag;
