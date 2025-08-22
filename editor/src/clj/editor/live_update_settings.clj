@@ -106,7 +106,7 @@
                     (g/connect settings-node :settings-map self :settings-map)
                     (g/connect settings-node :save-value self :save-value)
                     (g/connect settings-node :form-data self :form-data)
-                    (settings/load-settings-node settings-node resource source-value basic-meta-info nil)))))
+                    (settings/load-settings-node project self settings-node resource source-value basic-meta-info nil)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-settings-resource-type workspace

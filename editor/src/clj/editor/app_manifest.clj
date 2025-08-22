@@ -338,8 +338,7 @@
       (generic-contains-toggles android :excludeSymbols ["ProfilerRemotery"])
       (generic-contains-toggles ios :excludeSymbols ["ProfilerRemotery"])
       (generic-contains-toggles web :excludeSymbols ["ProfilerJS"])
-      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic", "ProfilerRemotery"])
-      )))
+      (generic-contains-toggles all-platforms :excludeSymbols ["ProfilerBasic", "ProfilerRemotery"]))))
 
 (def sound-setting
   (make-check-box-setting
