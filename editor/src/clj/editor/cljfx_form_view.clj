@@ -175,7 +175,7 @@
   - `:resource-string-converter` - a resource string converter"
   :type)
 
-(defmethod form-input-view :default [{:keys [value type] :as field}]
+(defmethod form-input-view :default [{:keys [value]}]
   {:fx/type fx.label/lifecycle
    :wrap-text true
    :text (str value)})

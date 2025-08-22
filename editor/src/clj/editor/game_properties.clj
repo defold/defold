@@ -16,7 +16,7 @@
   (:require [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.ini :as ini]
+            [editor.code.lang.ini :as ini]
             [editor.resource :as resource]
             [editor.settings-core :as settings-core]
             [util.coll :as coll])
@@ -33,7 +33,7 @@
                 (g/->error _node-id :meta-info :fatal resource (.getMessage e) (ex-data e)))))))
 
 (defn- additional-load-fn [project self _resource]
-  (g/connect self :proj-path+meta-info project :proj-path->meta-info))
+  (g/connect self :proj-path+meta-info project :proj-path+meta-info-pairs))
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type

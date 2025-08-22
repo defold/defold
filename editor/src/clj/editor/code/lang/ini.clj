@@ -12,7 +12,10 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns editor.ini)
+(ns editor.code.lang.ini)
+
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (def grammar
   "Defold-style ini grammar"

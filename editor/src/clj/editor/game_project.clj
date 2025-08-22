@@ -20,7 +20,7 @@
             [editor.fs :as fs]
             [editor.game-project-core :as gpcore]
             [editor.graph-util :as gu]
-            [editor.ini :as ini]
+            [editor.code.lang.ini :as ini]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.settings :as settings]
