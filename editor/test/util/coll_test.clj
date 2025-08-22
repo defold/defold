@@ -1497,3 +1497,15 @@
   (is (= "12" (coll/join-to-string [1 nil 2])))
   (is (= "1,,2" (coll/join-to-string "," [1 nil 2])))
   (is (= "0, 1, 2, 3, 4" (coll/join-to-string ", " (range 5)))))
+
+(deftest consensus-test
+  (is (nil? (coll/consensus nil)))
+  (is (= ::no-consensus (coll/consensus nil ::no-consensus)))
+  (is (nil? (coll/consensus [])))
+  (is (= ::no-consensus (coll/consensus [] ::no-consensus)))
+  (is (= ::one-value (coll/consensus [::one-value])))
+  (is (= ::one-value (coll/consensus [::one-value] ::no-consensus)))
+  (is (= ::equal-value (coll/consensus [::equal-value ::equal-value])))
+  (is (= ::equal-value (coll/consensus [::equal-value ::equal-value] ::no-consensus)))
+  (is (nil? (coll/consensus [::one-value ::conflicting-value])))
+  (is (= ::no-consensus (coll/consensus [::one-value ::conflicting-value] ::no-consensus))))

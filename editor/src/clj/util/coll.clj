@@ -741,3 +741,22 @@
    (transduce identity str-rf coll))
   ([sep coll]
    (transduce (interpose (str sep)) str-rf coll)))
+
+(defn consensus
+  "Iterates over all elements in the collection. If they are all equal, return
+  the last element, otherwise return not-found. Returns not-found if the
+  collection is empty. If no value is provided for not-found, use nil."
+  ([coll]
+   (consensus coll nil))
+  ([coll not-found]
+   (let [consensus (reduce
+                     (fn [prev-value value]
+                       (if (or (= prev-value value)
+                               (= ::undefined prev-value))
+                         value
+                         (reduced not-found)))
+                     ::undefined
+                     coll)]
+     (if (= ::undefined consensus)
+       not-found
+       consensus))))
