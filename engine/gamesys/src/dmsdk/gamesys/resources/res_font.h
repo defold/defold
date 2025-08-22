@@ -99,12 +99,11 @@ namespace dmGameSystem
      * @name PrewarmText
      * @param font [type: FontResource*] The font resource
      * @param text [type: const char*] The text (utf8)
-     * @param loading [type: bool] Are we currently in the resource loading phase?
      * @param cbk [type: FPrewarmTextCallback] The callback is called when the last item is done
      * @param cbk_ctx [type: void*] The callback context
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
-    dmResource::Result ResFontPrewarmText(FontResource* font, const char* text, bool loading, FPrewarmTextCallback cbk, void* cbk_ctx);
+    dmResource::Result ResFontPrewarmText(FontResource* font, const char* text, FPrewarmTextCallback cbk, void* cbk_ctx);
 
     /*#
      * @name ResFontGetTTFResourceFromFont

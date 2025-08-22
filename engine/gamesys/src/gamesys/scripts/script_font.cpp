@@ -124,7 +124,7 @@ static int RemoveFont(lua_State* L)
     return 0;
 }
 
-static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
+static void PrewarmTextCallback(dmJobThread::HJob hjob, uint64_t tag, void* _ctx, int result, const char* errmsg)
 {
     CallbackContext* ctx = (CallbackContext*)_ctx;
     dmScript::LuaCallbackInfo* cbk = ctx->m_Callback;
@@ -199,7 +199,7 @@ static int PrewarmText(lua_State* L)
         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
     }
 
-    r = dmGameSystem::ResFontPrewarmText(resource, text, false, callback, cbk_ctx);
+    r = dmGameSystem::ResFontPrewarmText(resource, text, callback, cbk_ctx);
     if (dmResource::RESULT_OK != r)
     {
         dmResource::Release(g_ResourceFactory, resource);

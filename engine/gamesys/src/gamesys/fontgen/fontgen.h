@@ -16,14 +16,16 @@
 #define DM_GAMESYS_FONTGEN_H
 
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/font/font.h>
 #include <dmsdk/extension/extension.h>
+
+#include <dlib/job_thread.h>
 
 struct TextGlyph; // font/text_layout.h
 
 namespace dmGameSystem
 {
     struct FontResource;
-    struct TTFResource;
 
     dmExtension::Result FontGenInitialize(dmExtension::Params* params);
     dmExtension::Result FontGenFinalize(dmExtension::Params* params);
@@ -33,9 +35,9 @@ namespace dmGameSystem
     float FontGenGetEdgeValue(); // [0 .. 255]
 
     // Resource api
-    typedef void (*FGlyphCallback)(void* cbk_ctx, int result, const char* errmsg);
-    bool FontGenAddGlyphByIndex(FontResource* fontresource, TTFResource* ttfresource, uint32_t glyph_index, bool loading, FGlyphCallback cbk, void* cbk_ctx);
-    bool FontGenAddGlyphs(FontResource* fontresource, TextGlyph* glyphs, uint32_t num_glyphs, bool loading, FGlyphCallback cbk, void* cbk_ctx);
+    typedef void (*FGlyphCallback)(dmJobThread::HJob hjob, uint64_t tag, void* cbk_ctx, int result, const char* errmsg);
+    dmJobThread::HJob FontGenAddGlyphByIndex(FontResource* fontresource, HFont font, uint32_t glyph_index, FGlyphCallback cbk, void* cbk_ctx);
+    dmJobThread::HJob FontGenAddGlyphs(FontResource* fontresource, TextGlyph* glyphs, uint32_t num_glyphs, FGlyphCallback cbk, void* cbk_ctx);
 
     // If we're busy waiting for created glyphs
     void FontGenFlushFinishedJobs(uint64_t timeout);

@@ -4099,7 +4099,7 @@ bail:
         return cmd_buffer;
     }
 
-    static int AsyncProcessCallback(void* _context, void* data)
+    static int AsyncProcessCallback(dmJobThread::HJob job, uint64_t tag, void* _context, void* data)
     {
         VulkanContext* context     = (VulkanContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -4207,7 +4207,7 @@ bail:
     }
 
     // Called on thread where we update (which should be the main thread)
-    static void AsyncCompleteCallback(void* _context, void* data, int result)
+    static void AsyncCompleteCallback(dmJobThread::HJob job, uint64_t tag, void* _context, void* data, int result)
     {
         VulkanContext* context     = (VulkanContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
@@ -4318,11 +4318,14 @@ bail:
             tex->m_DataState          |= 1<<params.m_MipMap;
             uint16_t param_array_index = PushSetTextureAsyncState(g_VulkanContext->m_SetTextureAsyncState, texture, params, callback, user_data);
 
-            dmJobThread::PushJob(g_VulkanContext->m_JobThread,
-                AsyncProcessCallback,
-                AsyncCompleteCallback,
-                (void*) g_VulkanContext,
-                (void*) (uintptr_t) param_array_index);
+            dmJobThread::Job job = {0};
+            job.m_Process = AsyncProcessCallback;
+            job.m_Callback = AsyncCompleteCallback;
+            job.m_Context = (void*) g_VulkanContext;
+            job.m_Data = (void*) (uintptr_t) param_array_index;
+
+            dmJobThread::HJob hjob = dmJobThread::CreateJob(g_VulkanContext->m_JobThread, &job);
+            dmJobThread::PushJob(g_VulkanContext->m_JobThread, hjob);
         } 
         else
         {

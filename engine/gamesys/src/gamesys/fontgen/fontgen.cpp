@@ -48,8 +48,7 @@ struct JobItem
     dmMutex::HMutex m_Mutex;
 
     // input
-    FontResource*   m_FontResource; // Incref'd for each job item
-    TTFResource*    m_TTFResource;  // Incref'd for each job item
+    FontResource*   m_FontResource;
     HFont           m_Font;         // The actual font to use
 
     uint32_t        m_GlyphIndex;
@@ -63,8 +62,7 @@ struct JobItem
     float           m_ShadowBlur;
     uint8_t         m_IsSdf:1;
     uint8_t         m_Deleted:1;
-    uint8_t         m_IsLoading:1;  // If set, we're in the prewarming sequence, and can't IncRef the font resource, as it's being loaded!
-    uint8_t         :5;
+    uint8_t         :6;
 
     // "global"
     JobStatus*      m_Status;       // same for all items in the same job batch
@@ -92,18 +90,12 @@ static void ReleaseResources(Context* ctx, JobItem* item)
     // If it's still set, it wasn't successfully transferred to the .fontc resource
     if (item->m_Glyph)
     {
-        HFont font = dmGameSystem::GetFont(item->m_TTFResource);
+        HFont font = item->m_Font;
         FontFreeGlyph(font, item->m_Glyph);
         item->m_Glyph = 0;
     }
 
-    if (item->m_FontResource && !item->m_IsLoading)
-        dmResource::Release(ctx->m_ResourceFactory, item->m_FontResource);
     item->m_FontResource = 0;
-
-    if (item->m_TTFResource)
-        dmResource::Release(ctx->m_ResourceFactory, item->m_TTFResource);
-    item->m_TTFResource = 0;
 }
 
 static float CalcSdfValueU8(float padding, float width)
@@ -124,7 +116,7 @@ static float Remap(float value, float outline_edge)
 }
 
 // Called on the worker thread
-static int JobGenerateGlyph(void* context, void* data)
+static int JobGenerateGlyph(dmJobThread::HJob job, uint64_t tag, void* context, void* data)
 {
     (void)context;
     JobItem* item = (JobItem*)data;
@@ -132,7 +124,7 @@ static int JobGenerateGlyph(void* context, void* data)
     // As we've incref'd these resources, they should not have gone out of scope
     if (!item->m_FontResource)
         return 0;
-    if (!item->m_TTFResource)
+    if (!item->m_Font)
         return 0;
 
     uint32_t glyph_index = item->m_GlyphIndex;
@@ -142,7 +134,6 @@ static int JobGenerateGlyph(void* context, void* data)
     item->m_Glyph = new FontGlyph;
     memset(item->m_Glyph, 0, sizeof(FontGlyph));
 
-    dmGameSystem::TTFResource* ttfresource = item->m_TTFResource;
     HFont font = item->m_Font;
 
     FontGlyphOptions options;
@@ -220,12 +211,12 @@ static void SetFailedStatus(JobItem* item, const char* msg)
     dmLogError("%s", msg); // log for each error in a batch
 }
 
-static void InvokeCallback(JobItem* item)
+static void InvokeCallback(dmJobThread::HJob hjob, uint64_t tag, JobItem* item)
 {
     JobStatus* status = item->m_Status;
     if (item->m_Callback) // only the last item has this callback
     {
-        item->m_Callback(item->m_CallbackCtx, status->m_Failures == 0, status->m_Error);
+        item->m_Callback(hjob, tag, item->m_CallbackCtx, status->m_Failures == 0, status->m_Error);
 
 // // TODO: Hide this behind a verbosity flag
 // // TODO: Protect this using a spinlock
@@ -245,29 +236,31 @@ static void DeleteItem(Context* ctx, JobItem* item)
     delete item;
 }
 
-static int JobProcessSentinelGlyph(void* context, void* data)
+static int JobProcessSentinelGlyph(dmJobThread::HJob hjob, uint64_t tag, void* context, void* data)
 {
+    (void)hjob;
+    (void)tag;
     (void)context;
     (void)data;
     return 1;
 }
 
-static void JobPostProcessSentinelGlyph(void* context, void* data, int result)
+static void JobPostProcessSentinelGlyph(dmJobThread::HJob hjob, uint64_t tag, void* context, void* data, int result)
 {
     Context* ctx = (Context*)context;
     JobItem* item = (JobItem*)data;
-    InvokeCallback(item);
+    InvokeCallback(hjob, tag, item);
     DeleteItem(ctx, item);
 }
 
 // Called on the main thread
-static void JobPostProcessGlyph(void* context, void* data, int result)
+static void JobPostProcessGlyph(dmJobThread::HJob job, uint64_t tag, void* context, void* data, int result)
 {
     Context* ctx = (Context*)context;
     JobItem* item = (JobItem*)data;
 
     DM_MUTEX_OPTIONAL_SCOPED_LOCK(item->m_Mutex);
-    if (!item->m_FontResource || !item->m_TTFResource)
+    if (!item->m_FontResource || !item->m_Font)
     {
         DeleteItem(ctx, item);
         return;
@@ -285,7 +278,7 @@ static void JobPostProcessGlyph(void* context, void* data, int result)
     }
 
     // The font system takes ownership of the image data
-    HFont font = dmGameSystem::GetFont(item->m_TTFResource);
+    HFont font = item->m_Font;
     dmResource::Result r = dmGameSystem::ResFontAddGlyph(item->m_FontResource, font, item->m_Glyph);
     if (dmResource::RESULT_OK != r)
     {
@@ -303,49 +296,64 @@ static void JobPostProcessGlyph(void* context, void* data, int result)
 
 // ****************************************************************************************************
 
-static void PushSentinelJob(Context* ctx,
-                            JobStatus* status, FGlyphCallback cbk, void* cbk_ctx)
+static dmJobThread::HJob CreateSentinelJob(Context* ctx,
+                                            JobStatus* status, FGlyphCallback cbk, void* cbk_ctx)
 {
     JobItem* item = new JobItem;
     memset(item, 0, sizeof(*item));
     item->m_Callback = cbk;
     item->m_CallbackCtx = cbk_ctx;
     item->m_Status = status;
-    dmJobThread::PushJob(ctx->m_Jobs, JobProcessSentinelGlyph, JobPostProcessSentinelGlyph, ctx, item);
+
+    dmJobThread::Job job = {0};
+    job.m_Process = JobProcessSentinelGlyph;
+    job.m_Callback = JobPostProcessSentinelGlyph;
+    job.m_Context = ctx;
+    job.m_Data = (void*)item;
+
+    dmJobThread::HJob hjob = dmJobThread::CreateJob(ctx->m_Jobs, &job);
+    return hjob;
 }
 
 static void GenerateGlyphJobByIndex(Context* ctx,
                                     FontResource* fontresource,
-                                    TTFResource* ttfresource,
                                     HFont font,
                                     uint32_t glyph_index,
                                     float scale, float stbtt_padding, int stbtt_edge,
                                     bool is_sdf, float outline_width, float shadow_blur,
-                                    bool is_loading,
-                                    JobStatus* status)
+                                    JobStatus* status,
+                                    dmJobThread::HJob job_sentinel)
 {
     JobItem* item = new JobItem;
     memset(item, 0, sizeof(*item));
     item->m_GlyphIndex = glyph_index;
     item->m_FontResource = fontresource;
-    item->m_TTFResource = ttfresource;
     item->m_Font = font;
     item->m_Status = status;
     item->m_Scale = scale;
     item->m_IsSdf = is_sdf;
-    item->m_IsLoading = is_loading;
     item->m_OutlineWidth = outline_width;
     item->m_ShadowBlur = shadow_blur;
     item->m_StbttSdfPadding = stbtt_padding;
     item->m_StbttEdgeValue = stbtt_edge;
-    item->m_Mutex = is_loading ? 0 : ctx->m_Mutex;
-    dmJobThread::PushJob(ctx->m_Jobs, JobGenerateGlyph, JobPostProcessGlyph, ctx, item);
+    item->m_Mutex = ctx->m_Mutex;
+
+    dmJobThread::Job job = {0};
+    job.m_Process = JobGenerateGlyph;
+    job.m_Callback = JobPostProcessGlyph;
+    job.m_Context = ctx;
+    job.m_Data = (void*)item;
+
+    dmJobThread::HJob hjob = dmJobThread::CreateJob(ctx->m_Jobs, &job);
+    SetParent(ctx->m_Jobs, hjob, job_sentinel);
+
+    dmJobThread::PushJob(ctx->m_Jobs, hjob);
 }
 
 
-static bool GenerateGlyphByIndex(Context* ctx, FontResource* fontresource, TTFResource* ttfresource, HFont font,
+static bool GenerateGlyphByIndex(Context* ctx, FontResource* fontresource, HFont font,
                                 dmGameSystem::FontInfo* font_info, uint32_t glyph_index, float scale,
-                                bool loading, JobStatus* status)
+                                JobStatus* status, dmJobThread::HJob job_sentinel)
 {
     bool is_sdf = dmRenderDDF::TYPE_DISTANCE_FIELD == font_info->m_OutputFormat;
     if (!is_sdf)
@@ -365,22 +373,16 @@ static bool GenerateGlyphByIndex(Context* ctx, FontResource* fontresource, TTFRe
         stbtt_padding += has_shadow ? font_info->m_ShadowBlur : 0.0f;
     }
 
-    // Incref the resources so that they're not accidentally removed during this threaded work
-    if (!loading) // If we're in the process of creating this resource, then we cannot incref it!
-        dmResource::IncRef(ctx->m_ResourceFactory, fontresource);
-    dmResource::IncRef(ctx->m_ResourceFactory, ttfresource);
-
-    GenerateGlyphJobByIndex(ctx, fontresource, ttfresource, font, glyph_index, scale, stbtt_padding, stbtt_edge, is_sdf,
+    GenerateGlyphJobByIndex(ctx, fontresource, font, glyph_index, scale, stbtt_padding, stbtt_edge, is_sdf,
                     font_info->m_OutlineWidth, has_shadow ? font_info->m_ShadowBlur : 0.0f,
-                    loading,
-                    status);
+                    status, job_sentinel);
     return true;
 }
 
 
-static bool GenerateGlyphs(Context* ctx, FontResource* fontresource,
-                            TextGlyph* glyphs, uint32_t num_glyphs,
-                            bool loading, FGlyphCallback cbk, void* cbk_ctx)
+static dmJobThread::HJob GenerateGlyphs(Context* ctx, FontResource* fontresource,
+                                    TextGlyph* glyphs, uint32_t num_glyphs,
+                                    FGlyphCallback cbk, void* cbk_ctx)
 {
     dmGameSystem::FontInfo font_info;
     dmGameSystem::ResFontGetInfo(fontresource, &font_info);
@@ -390,7 +392,7 @@ static bool GenerateGlyphs(Context* ctx, FontResource* fontresource,
     if (!is_sdf)
     {
         dmLogError("Only SDF fonts are supported");
-        return false;
+        return 0;
     }
 
     JobStatus* status      = new JobStatus;
@@ -401,6 +403,8 @@ static bool GenerateGlyphs(Context* ctx, FontResource* fontresource,
 
     HFont prev_font = 0;
     float prev_scale = 1;
+
+    dmJobThread::HJob job_sentinel = CreateSentinelJob(ctx, status, cbk, cbk_ctx);
 
     for (uint32_t i = 0; i < num_glyphs; ++i)
     {
@@ -420,26 +424,13 @@ static bool GenerateGlyphs(Context* ctx, FontResource* fontresource,
             prev_font = font;
         }
 
-        TTFResource* ttfresource = dmGameSystem::ResFontGetTTFResourceFromFont(fontresource, font);
-        if (!ttfresource)
-            continue;
-
-        // Incref the resources so that they're not accidentally removed during this threaded work
-        if (!loading) // If we're in the process of creating this resource, then we cannot incref it!
-            dmResource::IncRef(ctx->m_ResourceFactory, fontresource);
-        dmResource::IncRef(ctx->m_ResourceFactory, ttfresource);
-
-        GenerateGlyphByIndex(ctx, fontresource, ttfresource, font, &font_info, glyph_index, scale,
-                            loading, status);
+        GenerateGlyphByIndex(ctx, fontresource, font, &font_info, glyph_index, scale,
+                                status, job_sentinel);
 
         status->m_Count++;
     }
 
-    PushSentinelJob(ctx, status, cbk, cbk_ctx);
-
-    dmLogWarning("MAWE: Pushed %u jobs (from %u glyphs) '%s'", status->m_Count, num_glyphs, FontGetPath(prev_font));
-
-    return true;
+    return job_sentinel;
 }
 
 dmExtension::Result FontGenInitialize(dmExtension::Params* params)
@@ -487,14 +478,13 @@ float FontGenGetEdgeValue()
 // Resource api
 
 // Called on cache misses by res_font.cpp
-bool FontGenAddGlyphByIndex(FontResource* fontresource, TTFResource* ttfresource, uint32_t glyph_index, bool loading, FGlyphCallback cbk, void* cbk_ctx)
+dmJobThread::HJob FontGenAddGlyphByIndex(FontResource* fontresource, HFont font, uint32_t glyph_index, FGlyphCallback cbk, void* cbk_ctx)
 {
     Context* ctx = g_FontExtContext;
 
     dmGameSystem::FontInfo font_info;
     dmGameSystem::ResFontGetInfo(fontresource, &font_info);
 
-    HFont font = dmGameSystem::GetFont(ttfresource);
     float scale = FontGetScaleFromSize(font, font_info.m_Size);
 
     JobStatus* status      = new JobStatus;
@@ -503,18 +493,16 @@ bool FontGenAddGlyphByIndex(FontResource* fontresource, TTFResource* ttfresource
     status->m_Failures     = 0;
     status->m_Error        = 0;
 
-    bool result = GenerateGlyphByIndex(ctx, fontresource, ttfresource, font, &font_info, glyph_index, scale, loading, status);
-
-    PushSentinelJob(ctx, status, cbk, cbk_ctx);
-
-    return result;
+    dmJobThread::HJob job_sentinel = CreateSentinelJob(ctx, status, cbk, cbk_ctx);
+    GenerateGlyphByIndex(ctx, fontresource, font, &font_info, glyph_index, scale, status, job_sentinel);
+    return job_sentinel;
 }
 
 // Called to prewarm text by res_font.cpp
-bool FontGenAddGlyphs(FontResource* fontresource, TextGlyph* glyphs, uint32_t num_glyphs, bool loading, FGlyphCallback cbk, void* cbk_ctx)
+dmJobThread::HJob FontGenAddGlyphs(FontResource* fontresource, TextGlyph* glyphs, uint32_t num_glyphs, FGlyphCallback cbk, void* cbk_ctx)
 {
     Context* ctx = g_FontExtContext;
-    return GenerateGlyphs(ctx, fontresource, glyphs, num_glyphs, loading, cbk, cbk_ctx);
+    return GenerateGlyphs(ctx, fontresource, glyphs, num_glyphs, cbk, cbk_ctx);
 }
 
 } // namespace

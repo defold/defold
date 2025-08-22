@@ -1773,8 +1773,6 @@ TEST_F(FontTest, DynamicGlyph)
         ASSERT_EQ(12U, glyph->m_Bitmap.m_Channels);
         ASSERT_EQ(0U, (uint32_t)glyph->m_Bitmap.m_Flags);
         ASSERT_STREQ(data, (const char*)glyph->m_Bitmap.m_Data);
-
-        dmGameSystem::ResFontRemoveGlyph(font, 0, glyph->m_GlyphIndex);
     }
 
     dmResource::Release(m_Factory, font);

@@ -50,6 +50,8 @@ namespace dmGameSystem
         dmHashTable64<TTFResource*> m_TTFResources;  // Maps path hash to a resource
         dmHashTable32<uint64_t>     m_FontHashes;    // Maps HFont path hash to a resource
 
+        dmArray<dmJobThread::HJob>  m_PendingJobs;
+
         FontResource();
 
         // Used when recreating a font
