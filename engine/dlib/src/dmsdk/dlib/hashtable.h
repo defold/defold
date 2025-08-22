@@ -480,7 +480,6 @@ public:
      */
     Iterator GetIterator()
     {
-        Iterator iter(*this);
         return Iterator(*this);
     }
 
