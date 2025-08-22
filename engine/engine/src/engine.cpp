@@ -1124,6 +1124,7 @@ namespace dmEngine
         params.m_MaxResources = max_resources;
         params.m_Flags = 0;
         params.m_HttpCache = engine->m_HttpCache;
+        params.m_JobThreadContext = engine->m_JobThreadContext;
 
         if (dLib::IsDebugMode())
         {
