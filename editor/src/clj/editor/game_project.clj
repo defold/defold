@@ -13,19 +13,20 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.game-project
-  (:require [clojure.string :as string]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
-            [util.murmur :as murmur]
             [editor.build-target :as bt]
+            [editor.fs :as fs]
+            [editor.game-project-core :as gpcore]
+            [editor.graph-util :as gu]
+            [editor.ini :as ini]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
-            [editor.fs :as fs]
-            [editor.graph-util :as gu]
-            [editor.game-project-core :as gpcore]
             [editor.workspace :as workspace]
-            [editor.resource :as resource]
-            [editor.resource-node :as resource-node])
+            [util.murmur :as murmur])
   (:import [org.apache.commons.io IOUtils]))
 
 (set! *warn-on-reflection* true)
@@ -231,7 +232,7 @@
                     (g/connect settings-node :meta-info self :meta-info)
                     (g/connect settings-node :resource-settings self :resource-settings)
                     (g/connect settings-node :setting-errors self :build-errors)
-                    (settings/load-settings-node settings-node resource source-value gpcore/basic-meta-info resource-setting-connections))
+                    (settings/load-settings-node project self settings-node resource source-value gpcore/basic-meta-info resource-setting-connections))
       (g/connect project :resource-map self :resource-map))))
 
 ;; Test support
@@ -259,4 +260,6 @@
     :meta-settings (:settings gpcore/basic-meta-info)
     :icon game-project-icon
     :icon-class :property
-    :view-types [:cljfx-form-view :text]))
+    :view-types [:cljfx-form-view :text]
+    :language "ini"
+    :view-opts {:text {:grammar ini/grammar}}))

@@ -178,7 +178,7 @@
 (defmethod form-input-view :default [{:keys [value type] :as field}]
   {:fx/type fx.label/lifecycle
    :wrap-text true
-   :text (str type " " (if (nil? value) "***NIL***" value) " " field)})
+   :text (str value)})
 
 (defmulti cell-input-view
   "Analogous to form input, but displayed in a cell (in list-view or table-view)
