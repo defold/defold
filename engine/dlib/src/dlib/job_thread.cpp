@@ -164,6 +164,8 @@ JobResult SetParent(HContext context, HJob hchild, HJob hparent)
     parent->m_FirstChild = hchild;
     dmAtomicIncrement32(&parent->m_NumChildren);
 
+    // TODO: Make sure all the children inherit the priority of the parent
+
     return JOB_RESULT_OK;
 }
 
@@ -317,6 +319,13 @@ static void PutWork(JobThreadContext* ctx, HJob job)
     assert(item.m_Status == JOB_STATUS_CREATED);
 
     item.m_Status = JOB_STATUS_QUEUED;
+
+    if (item.m_Parent)
+    {
+        JobItem* parent = GetJobItem(ctx, item.m_Parent);
+        // Current limitation, the caller must push the parent jobs last
+        assert(parent->m_Status == JOB_STATUS_CREATED);
+    }
 
     if (ctx->m_Work.Full())
         ctx->m_Work.OffsetCapacity(16);

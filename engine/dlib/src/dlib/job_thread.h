@@ -88,6 +88,7 @@ namespace dmJobThread
 
     /** push a job onto the work queue
      * @name PushJob
+     * @note A parent job needs to be pushed after its children
      * @param context [type: HContext] the job thread context
      * @param hjob [type: HJob] the job to cancel
      * @return result [type: JobResult] return JOB_RESULT_OK if job was pushed
