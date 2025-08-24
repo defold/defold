@@ -1077,7 +1077,13 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
 #endif
         WebGPUConfigure(context, context->m_OriginalWidth, context->m_OriginalHeight);
 
-        dmLogInfo("WebGPU: Created device");
+#if defined (DM_GRAPHICS_WEBGPU2)
+        const uint32_t webgpu_version = 2;
+#else
+        const uint32_t webgpu_version = 1;
+#endif
+
+        dmLogInfo("WebGPU: Created device (webgpu%d)", webgpu_version);
     }
     else
     {

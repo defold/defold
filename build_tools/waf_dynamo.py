@@ -624,7 +624,6 @@ def default_flags(self):
                 wagyu_port = '%s/ext/wagyu-port/new/wagyu-port.py:extensions=true' % (os.environ['DYNAMO_HOME'])
                 flags += ['--use-port=%s' % wagyu_port]
                 linkflags += ['--use-port=%s' % wagyu_port]
-                self.env.append_value('DEFINES', ['DM_GRAPHICS_WEBGPU_WAGYU'])
             else:
                 emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
             emflags_link += ['ASYNCIFY']
@@ -2061,7 +2060,10 @@ def detect(conf):
     conf.env['STLIB_GRAPHICS_OPENGLES'] = ['graphics_opengles', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_DX12']     = ['graphics_dx12', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'graphics_transcoder_basisu', 'basis_transcoder']
+    if 'wagyu' in Options.options.enable_features:
+        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu_wagyu', 'graphics_transcoder_basisu', 'basis_transcoder']
+    else:
+        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
     conf.env['STLIB_PLATFORM']        = ['platform']
