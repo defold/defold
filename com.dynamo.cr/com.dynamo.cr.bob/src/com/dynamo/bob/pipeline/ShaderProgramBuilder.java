@@ -505,11 +505,22 @@ public class ShaderProgramBuilder extends Builder {
         }
     }
 
-    static public ShaderDesc.Shader.Builder makeShaderBuilder(byte[] source, ShaderDesc.Language language, ShaderDesc.ShaderType type) {
+    static public ShaderDesc.Shader.Builder makeShaderBuilder(Shaderc.ShaderCompileResult result, ShaderDesc.Language language, ShaderDesc.ShaderType type) {
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(language);
         builder.setShaderType(type);
-        builder.setSource(ByteString.copyFrom(source));
+        builder.setSource(ByteString.copyFrom(result.data));
+
+        if (result.hLSLResourceMappings != null) {
+            for (Shaderc.HLSLResourceMapping mapping : result.hLSLResourceMappings) {
+                ShaderDesc.HLSLResourceMapping.Builder hlslResourceMappingBuilder = ShaderDesc.HLSLResourceMapping.newBuilder();
+                hlslResourceMappingBuilder.setNameHash(mapping.nameHash);
+                hlslResourceMappingBuilder.setBinding(mapping.shaderResourceBinding);
+                hlslResourceMappingBuilder.setSet(mapping.shaderResourceSet);
+                builder.addHlslResourceMapping(hlslResourceMappingBuilder);
+            }
+        }
+
         return builder;
     }
 
