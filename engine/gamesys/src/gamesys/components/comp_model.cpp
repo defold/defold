@@ -2891,9 +2891,15 @@ namespace dmGameSystem
     }
 
     // For tests
-    void GetModelComponentRenderConstants(void* model_component, dmGameSystem::HComponentRenderConstants* render_constants)
+    void GetModelComponentRenderConstants(void* model_component, int render_item_ix, dmGameSystem::HComponentRenderConstants* render_constants)
     {
         ModelComponent* component = (ModelComponent*) model_component;
-        *render_constants = component->m_RenderConstants;
+        if (render_item_ix < 0 || render_item_ix >= component->m_RenderItems.Size())
+        {
+            *render_constants = 0x0;
+            return;
+        }
+
+        *render_constants = component->m_RenderItems[render_item_ix].m_RenderConstants;
     }
 }

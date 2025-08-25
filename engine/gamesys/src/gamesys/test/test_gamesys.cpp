@@ -75,7 +75,7 @@ namespace dmGameSystem
     extern void GetSpriteWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer);
     extern void GetSpriteWorldDynamicAttributePool(void* sprite_world, DynamicAttributePool** pool_out);
     extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
-    extern void GetModelComponentRenderConstants(void* model_component, dmGameSystem::HComponentRenderConstants* render_constants);
+    extern void GetModelComponentRenderConstants(void* model_component, int render_item_ix, dmGameSystem::HComponentRenderConstants* render_constants);
     extern void GetParticleFXWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
     extern void GetTileGridWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
 }
@@ -5831,7 +5831,7 @@ TEST_F(ModelTest, PbrProperties)
     dmGameObject::Result res = dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &component, &world);
     ASSERT_EQ(dmGameObject::RESULT_OK, res);
 
-    GetModelComponentRenderConstants(component, &render_constants);
+    GetModelComponentRenderConstants(component, 0, &render_constants);
     ASSERT_NE((dmGameSystem::HComponentRenderConstants)0, render_constants);
 
     dmRender::HConstant constant = 0;
@@ -5929,7 +5929,7 @@ TEST_F(ModelTest, PbrProperties)
     res = dmGameObject::GetComponent(go, dmHashString64("model_textured"), &component_type, &component, &world);
     ASSERT_EQ(dmGameObject::RESULT_OK, res);
 
-    GetModelComponentRenderConstants(component, &render_constants);
+    GetModelComponentRenderConstants(component, 0, &render_constants);
     ASSERT_NE((dmGameSystem::HComponentRenderConstants) 0, render_constants);
 
     ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_TEXTURES, &constant));
