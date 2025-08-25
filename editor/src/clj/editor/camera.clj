@@ -628,17 +628,28 @@
   (and (= 1.0 (some-> camera camera-view-matrix (.getElement 2 2)))
        (= :orthographic (:type camera))))
 
+(defn significant-drag?
+  [current-position previous-position]
+  (let [threshold 3]
+    (->> (map (comp abs -) current-position previous-position)
+         (apply max)
+         (< threshold))))
+
 (defn handle-input [self action _user-data]
   (let [viewport (g/node-value self :viewport)
         movements-enabled (g/node-value self :movements-enabled)
         ui-state (or (g/user-data self ::ui-state) {:movement :idle})
-        {:keys [last-x last-y]} ui-state
+        {:keys [last-x last-y initial-x initial-y]} ui-state
         {:keys [x y type delta-y alt button]} action
         is-secondary (= button :secondary)
         movement (if (= type :mouse-pressed)
                    (get movements-enabled (camera-movement action) :idle)
                    (:movement ui-state))
         camera (g/node-value self :camera)
+        is-significant-drag (or (not= (:button action) :secondary)
+                                (and initial-x
+                                     initial-y
+                                     (significant-drag? [x y] [initial-x initial-y])))
         is-mode-2d (mode-2d? camera)
         filter-fn (:filter-fn camera)
         camera (cond-> camera
@@ -656,7 +667,8 @@
                  (cond->
                    (= :dolly movement)
                    (dolly (* -0.002 (- y last-y)))
-                   (= :track movement)
+                   (and (= :track movement)
+                        is-significant-drag)
                    (track viewport last-x last-y x y)
                    (= :tumble movement)
                    (tumble (- last-x x) (- last-y y)))
@@ -667,19 +679,29 @@
     (case type
       :scroll (if (contains? movements-enabled :dolly) nil action)
       :mouse-pressed (do
-                       (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y :movement movement)
+                       (g/user-data-swap! self ::ui-state assoc
+                                          :last-x x
+                                          :last-y y
+                                          :initial-x x
+                                          :initial-y y
+                                          :movement movement)
                        (if (or (= movement :idle) is-secondary)
                          action
-                         (do (g/set-property! self :cursor-type :pan)
+                         (do (when is-significant-drag (g/set-property! self :cursor-type :pan))
                              nil)))
       :mouse-released (do
-                        (g/user-data-swap! self ::ui-state assoc :last-x nil :last-y nil :movement :idle)
+                        (g/user-data-swap! self ::ui-state assoc
+                                           :last-x nil
+                                           :last-y nil
+                                           :initial-x nil
+                                           :initial-y nil
+                                           :movement :idle)
                         (g/set-property! self :cursor-type :default)
                         (if (or (= movement :idle) is-secondary) action nil))
       :mouse-moved (if (not (= :idle movement))
                      (do
                        (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y)
-                       (g/set-property! self :cursor-type :pan)
+                       (when is-significant-drag (g/set-property! self :cursor-type :pan))
                        (if is-secondary action nil))
                      action)
       action)))
