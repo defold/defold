@@ -67,7 +67,8 @@
                 [:code :open-file-at-line]
                 [:code :font :name]
                 [:code :zoom-on-scroll]
-                [:code :hover]]}
+                [:code :hover]
+                [:code :auto-closing-parens]]}
        {:name "Extensions"
         :paths [[:extensions :build-server]
                 [:extensions :build-server-username]

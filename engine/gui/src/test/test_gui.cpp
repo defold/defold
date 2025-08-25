@@ -77,7 +77,7 @@ void GetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
 
 uintptr_t GetUserDataCallback(dmGui::HScene scene);
 
-dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);
+dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path);
 
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 
@@ -237,9 +237,9 @@ uintptr_t GetUserDataCallback(dmGui::HScene scene)
     return (uintptr_t)dmGui::GetSceneUserData(scene);
 }
 
-dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size)
+dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path)
 {
-    return dmHashBuffer64(path, path_size);
+    return dmHashBuffer64(path, strlen(path));
 }
 
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)

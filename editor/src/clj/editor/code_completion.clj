@@ -17,7 +17,8 @@
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
             [editor.code.data]
-            [internal.util :as util])
+            [internal.util :as util]
+            [util.fn :as fn])
   (:import [editor.code.data CursorRange]
            [java.net URI]))
 
@@ -33,7 +34,7 @@
           :opt-un [:editor.code-completion.insert/cursor-range]))
 (s/def ::type
   #{;; defold-specific
-    :message
+    :message :typedef
     ;; shared with vscode
     :text :method :function :constructor :field :variable :class :interface
     :module :property :unit :value :enum :keyword :snippet :color :file
@@ -224,8 +225,8 @@
                 :snippet (reduce prepare-tab-triggers tab-triggers children)
                 :rule (prepare-tab-triggers tab-triggers (first children))
                 :tab_stop (reduce prepare-tab-triggers tab-triggers children)
-                :naked_tab_stop (update tab-triggers (nth children 1) #(or % {}))
-                :curly_tab_stop (update tab-triggers (nth children 2) #(or % {}))
+                :naked_tab_stop (update tab-triggers (nth children 1) fn/or {})
+                :curly_tab_stop (update tab-triggers (nth children 2) fn/or {})
                 :placeholder (update tab-triggers (nth children 2) assoc
                                      :placeholder (content-string (nth children 4)))
                 :choice (update tab-triggers (nth children 2) assoc

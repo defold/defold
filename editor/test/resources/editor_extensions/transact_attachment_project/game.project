@@ -17,4 +17,5 @@ scale_mode = stretch
 
 [project]
 title = transact_attachment_project
+dependencies#0 = {{defold.extension.spine.url}}
 

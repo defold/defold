@@ -88,7 +88,7 @@ namespace dmScript
      * @param json [type:string] json data
      * @param [options] [type:table] table with decode options
      *
-     * - [type:bool] `decode_null_as_userdata`: wether to decode a JSON null value as json.null or nil (default is nil)
+     * - [type:boolean] `decode_null_as_userdata`: wether to decode a JSON null value as json.null or nil (default is nil)
      *
      * @return data [type:table] decoded json
      *

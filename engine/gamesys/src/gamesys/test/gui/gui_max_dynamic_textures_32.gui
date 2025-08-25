@@ -1,0 +1,11 @@
+script: "/gui/gui_max_dynamic_textures.gui_script"
+background_color {
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  w: 0.0
+}
+material: "/gui/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT
+max_nodes: 512
+max_dynamic_textures: 32

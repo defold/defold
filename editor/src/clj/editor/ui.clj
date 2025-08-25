@@ -50,15 +50,16 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Orientation Point2D]
            [javafx.scene Group Node Parent Scene]
-           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.control Button ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
-           [javafx.scene.layout AnchorPane HBox Pane]
+           [javafx.scene.layout AnchorPane GridPane HBox Pane Priority]
            [javafx.scene.shape SVGPath]
            [javafx.stage Modality PopupWindow Stage StageStyle Window]
            [javafx.util Callback Duration]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (def ^:private ^:dynamic *programmatic-selection* nil)
 
@@ -77,7 +78,7 @@
 
 ;; If no application-owned windows have had focus within this
 ;; threshold, we consider the application to have lost focus.
-(defonce ^:private application-unfocused-threshold-ms 500)
+(defonce ^:private ^:const application-unfocused-threshold-ms 500)
 (defonce ^:private focus-state (atom nil))
 
 (defn node? [value]
@@ -121,7 +122,9 @@
                (when (and old
                           (not (:focused old))
                           (:focused new))
-                 (let [unfocused-ms (- (:t new) (:t old))]
+                 (let [^long new-t (:t new)
+                       ^long old-t (:t old)
+                       unfocused-ms (- new-t old-t)]
                    (when (< application-unfocused-threshold-ms unfocused-ms)
                      (apply application-focused! args))))))
   nil)
@@ -375,7 +378,8 @@
      (invalidated [~'this ~observable]
        ~@body)))
 
-(defn scene [^Node node]
+(defn scene
+  ^Scene [^Node node]
   (.getScene node))
 
 (defn add-styles! [^Styleable node classes]
@@ -1012,7 +1016,8 @@
   (selection [this] (->> this
                          .getSelectionModel
                          .getSelectedItems
-                         (mapv #(.getValue ^TreeItem %))))
+                         (keep #(when % (.getValue ^TreeItem %)))
+                         (into [])))
   (select! [this item] (let [tree-items (tree-item-seq (.getRoot this))]
                          (when-let [tree-item (some (fn [^TreeItem tree-item] (and (= item (.getValue tree-item)) tree-item)) tree-items)]
                            (doto (.getSelectionModel this)
@@ -1434,7 +1439,8 @@
         menu))
 
 (defn- make-context-menu ^ContextMenu [menu-items]
-  (let [context-menu (ContextMenu.)]
+  (let [context-menu (doto (ContextMenu.)
+                       (.setConsumeAutoHidingEvents true))]
     (.addAll (.getItems context-menu) (to-array menu-items))
     context-menu))
 
@@ -1489,6 +1495,26 @@
      (event-handler event
        (when focus (.requestFocus control))
        (show-context-menu! menu-location event)))))
+
+(defn register-button-menu
+  [^MenuButton menu-button menu-location]
+  (.setOnShowing
+    menu-button
+    (event-handler event
+      (.consume event)
+      (let [scene (scene menu-button)
+            menu (handler/realize-menu menu-location)
+            command-contexts (contexts scene false)
+            keymap (or (user-data scene :keymap) keymap/empty)
+
+            menu-items
+            (g/with-auto-or-fake-evaluation-context evaluation-context
+              (make-menu-items scene menu command-contexts keymap evaluation-context))]
+
+        (refresh-separator-visibility menu-items)
+        (refresh-menu-item-styles menu-items)
+        (.setAll (.getItems menu-button) (to-array menu-items))
+        nil))))
 
 (defn- event-targets-tab? [^Event event]
   (some? (closest-node-with-style "tab" (.getTarget event))))
@@ -1803,6 +1829,69 @@
 
 (declare refresh)
 
+(defn- toolbar-control
+  [scene menu-item handler-ctx]
+  (let [separator? (= :separator (:label menu-item))
+        opts (handler/options handler-ctx)]
+    (cond
+      separator?
+      (doto (Separator. Orientation/VERTICAL)
+        (add-style! "separator"))
+
+      opts
+      (let [hbox (doto (HBox.)
+                   (add-style! "cell"))
+            cb (doto (ChoiceBox.)
+                 (.setConverter (DefoldStringConverter. :label #(some #{%} (map :label opts)))))]
+        (.setAll (.getItems cb) ^Collection opts)
+        (observe (.valueProperty cb) (fn [_this _old new]
+                                       (when (and new (not *programmatic-selection*))
+                                         (let [command-contexts (contexts scene)]
+                                           (execute-command command-contexts (:command new) (:user-data new))))))
+        (.add (.getChildren hbox) (icons/get-image-view (:icon menu-item) 16))
+        (.add (.getChildren hbox) cb)
+        hbox)
+
+      :else
+      (let [{:keys [graphic-fn label icon tooltip more]} menu-item
+            button (doto (ToggleButton. (or (handler/label handler-ctx) label))
+                     (tooltip! tooltip))]
+        (cond
+          graphic-fn
+          ;; TODO: Ideally, we'd create the graphic once and simply assign it here.
+          ;; Trouble is, the toolbar takes ownership of the Node tree, so the graphic
+          ;; disappears from the toolbars of subsequent tabs. For now, we generate
+          ;; instances for each tab.
+          (.setGraphic button (graphic-fn))
+
+          icon
+          (.setGraphic button (icons/get-image-view icon 16)))
+
+        (when-let [command (:command menu-item)]
+          (on-action! button (fn [_event]
+                               (execute-command (contexts scene) command (:user-data menu-item)))))
+
+        (if more
+          (let [{:keys [id command]} more
+                group (doto (HBox.)
+                        (add-style! "button-group"))
+                icon (icons/get-image-view "icons/32/Icons_S_05_arrowdown.png" 18)
+                more-button (doto (Button.)
+                              (.setGraphic icon)
+                              (add-style! "more-button")
+                              (on-action! (fn [_event]
+                                            (execute-command (contexts scene) command (:user-data menu-item)))))]
+            (.add (.getChildren group) button)
+            (.add (.getChildren group) more-button)
+            (when id (.setId more-button (name id)))
+            (observe (.selectedProperty button)
+                     (fn [_observable _old-val new-val]
+                       (if new-val
+                         (add-style! group "active")
+                         (remove-style! group "active"))))
+            group)
+          button)))))
+
 (defn- refresh-toolbar [td command-contexts evaluation-context]
  (let [menu (handler/realize-menu (:menu-id td))
        ^Pane control (:control td)
@@ -1820,40 +1909,7 @@
                                   separator? (= :separator (:label menu-item))
                                   handler-ctx (handler/active command command-contexts user-data evaluation-context)]
                             :when (or separator? handler-ctx)]
-                        (let [^Control child (if separator?
-                                               (doto (Separator. Orientation/VERTICAL)
-                                                 (add-style! "separator"))
-                                               (if-let [opts (handler/options handler-ctx)]
-                                                 (let [hbox (doto (HBox.)
-                                                              (add-style! "cell"))
-                                                       cb (doto (ChoiceBox.)
-                                                            (.setConverter (DefoldStringConverter. :label #(some #{%} (map :label opts)))))]
-                                                   (.setAll (.getItems cb) ^Collection opts)
-                                                   (observe (.valueProperty cb) (fn [this old new]
-                                                                                  (when (and new (not *programmatic-selection*))
-                                                                                    (let [command-contexts (contexts scene)]
-                                                                                      (execute-command command-contexts (:command new) (:user-data new))))))
-                                                   (.add (.getChildren hbox) (icons/get-image-view (:icon menu-item) 16))
-                                                   (.add (.getChildren hbox) cb)
-                                                   hbox)
-                                                 (let [button (doto (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
-                                                                (tooltip! (:tooltip menu-item)))
-                                                       graphic-fn (:graphic-fn menu-item)
-                                                       icon (:icon menu-item)]
-                                                   (cond
-                                                     graphic-fn
-                                                     ;; TODO: Ideally, we'd create the graphic once and simply assign it here.
-                                                     ;; Trouble is, the toolbar takes ownership of the Node tree, so the graphic
-                                                     ;; disappears from the toolbars of subsequent tabs. For now, we generate
-                                                     ;; instances for each tab.
-                                                     (.setGraphic button (graphic-fn))
-
-                                                     icon
-                                                     (.setGraphic button (icons/get-image-view icon 16)))
-                                                   (when command
-                                                     (on-action! button (fn [event]
-                                                                          (execute-command (contexts scene) command user-data))))
-                                                   button)))]
+                        (let [^Control child (toolbar-control scene menu-item handler-ctx)]
                           (when command
                             (user-data! child ::command command))
                           (user-data! child ::menu-user-data user-data)
@@ -1878,18 +1934,27 @@
       (when (instance? HBox n)
         (let [^HBox box n
               state (handler/state handler-ctx)
-              ^ChoiceBox cb (.get (.getChildren box) 1)]
-          (when (not (.isShowing cb))
-            (let [items (.getItems cb)
-                  opts (vec items)
-                  new-opts (vec (handler/options handler-ctx))]
-              (when (not= opts new-opts)
-                (.setAll items ^Collection new-opts)))
-            (let [selection-model (.getSelectionModel cb)
-                  item (.getSelectedItem selection-model)]
-              (when (not= item state)
-                (binding [*programmatic-selection* true]
-                  (.select selection-model state))))))))))
+              second-child (.get (.getChildren box) 1)]
+          (cond
+            (instance? ChoiceBox second-child)
+            (let [^ChoiceBox cb second-child]
+              (when (not (.isShowing cb))
+                (let [items (.getItems cb)
+                      opts (vec items)
+                      new-opts (vec (handler/options handler-ctx))]
+                  (when (not= opts new-opts)
+                    (.setAll items ^Collection new-opts)))
+                (let [selection-model (.getSelectionModel cb)
+                      item (.getSelectedItem selection-model)]
+                  (when (not= item state)
+                    (binding [*programmatic-selection* true]
+                      (.select selection-model state))))))
+
+            :else
+            (let [toggle-button (.get (.getChildren box) 0)]
+              (if (handler/state handler-ctx)
+                (.setSelected ^Toggle toggle-button true)
+                (.setSelected ^Toggle toggle-button false)))))))))
 
 (defn- window-parents [^Window window]
   (when-let [parent (condp instance? window
@@ -1962,16 +2027,24 @@
       (refresh-toolbars! scene evaluation-context))))
 
 (defn render-progress-bar! [progress ^ProgressBar bar]
-  (let [frac (progress/fraction progress)]
-    (.setProgress bar (if (nil? frac) -1.0 (double frac)))))
+  (.setProgress
+    bar
+    (if-let [fraction (when-not (progress/cancelled? progress)
+                        (progress/fraction progress))]
+      (double fraction)
+      -1.0)))
 
 (defn render-progress-message! [progress ^Label label]
   (text! label (progress/message progress)))
 
 (defn render-progress-percentage! [progress ^Label label]
-  (if-some [percentage (progress/percentage progress)]
-    (text! label (str percentage "%"))
-    (text! label "")))
+  (text!
+    label
+    (if (progress/cancelled? progress)
+      "Aborting..."
+      (if-some [percentage (progress/percentage progress)]
+        (str percentage "%")
+        ""))))
 
 (defn render-progress-controls! [progress ^ProgressBar bar ^Label label]
   (when bar (render-progress-bar! progress bar))
@@ -2048,26 +2121,27 @@
   ([name tick-fn]
    (->timer nil name tick-fn))
   ([fps name tick-fn]
-   (let [start      (System/nanoTime)
-         last       (atom start)
-         interval   (when fps
-                      (long (* 1e9 (/ 1 (double fps)))))]
-     {:last  last
+   (let [start (System/nanoTime)
+         last (atom start)
+         interval (if fps
+                    (long (* 1e9 (/ 1 (double fps))))
+                    0)]
+     {:last last
       :timer (proxy [AnimationTimer] []
-               (handle [now]
+               (handle [^long now]
                  (profiler/profile "timer" name
-                                   (let [elapsed (- now start)
-                                         delta (- now @last)]
-                                     (when (or (nil? interval) (> delta interval))
-                                       (run-later
-                                         (try
-                                           (tick-fn this (* elapsed 1e-9) (/ delta 1e9))
-                                           (reset! last (- now (if interval
-                                                                 (- delta interval)
-                                                                 0)))
-                                           (catch Throwable t
-                                             (.stop ^AnimationTimer this)
-                                             (error-reporting/report-exception! t)))))))))})))
+                   (let [elapsed (- now start)
+                         delta (- now (long @last))]
+                     (when (or (zero? interval) (> delta interval))
+                       (run-later
+                         (try
+                           (tick-fn this (* elapsed 1e-9) (/ delta 1e9))
+                           (reset! last (if (zero? interval)
+                                          now
+                                          (- now (- delta interval))))
+                           (catch Throwable t
+                             (.stop ^AnimationTimer this)
+                             (error-reporting/report-exception! t)))))))))})))
 
 (defn timer-start! [timer]
   (.start ^AnimationTimer (:timer timer)))
@@ -2075,12 +2149,12 @@
 (defn timer-stop! [timer]
   (.stop ^AnimationTimer (:timer timer)))
 
-(defn anim! [duration anim-fn end-fn]
-  (let [duration   (long (* 1e9 duration))
-        start      (System/nanoTime)
-        end        (+ start (long duration))]
+(defn anim! [^double duration anim-fn end-fn]
+  (let [duration (long (* 1e9 duration))
+        start (System/nanoTime)
+        end (+ start (long duration))]
     (doto (proxy [AnimationTimer] []
-            (handle [now]
+            (handle [^long now]
               (run-later
                 (if (< now end)
                   (let [t (/ (double (- now start)) duration)]
@@ -2167,10 +2241,10 @@
     (throw (IllegalArgumentException. "stage cannot be nil")))
   (let [prev-exception-handler (Thread/getDefaultUncaughtExceptionHandler)
         thrown-exception (volatile! nil)]
-    (Thread/setDefaultUncaughtExceptionHandler (reify Thread$UncaughtExceptionHandler
-                                                 (uncaughtException [_ _ exception]
-                                                   (vreset! thrown-exception exception)
-                                                   (close! stage))))
+    (Thread/setDefaultUncaughtExceptionHandler
+      (fn close-and-store-exception-handler [_ exception]
+        (vreset! thrown-exception exception)
+        (close! stage)))
     (let [result (try
                    (show-and-wait! stage)
                    (finally
@@ -2261,7 +2335,7 @@
   (string/join " "
                (map (fn [outline]
                       (str "M" (string/join " L"
-                                            (map (fn [x y]
+                                            (map (fn [^double x ^double y]
                                                    (str (math/round-with-precision (* x col) 0.1)
                                                         ","
                                                         (math/round-with-precision (* y row) 0.1)))
@@ -2313,3 +2387,37 @@
   (let [anchor-node (.getTarget mouse-event)
         offset (Point2D. (.getScreenX mouse-event) (.getScreenY mouse-event))]
     (show-simple-context-menu! menu-item-fn item-action-fn items anchor-node offset)))
+
+(defn select-all-on-click! [^TextInputControl t]
+  (doto t
+    ;; Filter is necessary because the listener will be called after the text field has received focus, i.e. too late
+    (.addEventFilter MouseEvent/MOUSE_PRESSED (event-handler e
+                                                (when (not (focus? t))
+                                                  (.deselect t)
+                                                  (user-data! t ::selection-at-focus true))))
+    ;; Filter is necessary because the TextArea captures the event
+    (.addEventFilter MouseEvent/MOUSE_RELEASED (event-handler e
+                                                 (when (user-data t ::selection-at-focus)
+                                                   (when (string/blank? (.getSelectedText t))
+                                                     (.consume e)
+                                                     (run-later (.selectAll t))))
+                                                 (user-data! t ::selection-at-focus nil)))))
+
+
+(defmulti customize! (fn [control _ _] (class control)))
+
+(defmethod customize! TextField [^TextField t update-fn cancel-fn]
+  (doto t
+    (GridPane/setHgrow Priority/ALWAYS)
+    (on-action! update-fn)
+    (on-cancel! cancel-fn)
+    (auto-commit! update-fn)
+    (select-all-on-click!)))
+
+(defmethod customize! TextArea [^TextArea t update-fn cancel-fn]
+  (doto t
+    (GridPane/setHgrow Priority/ALWAYS)
+    (on-action! update-fn)
+    (on-cancel! cancel-fn)
+    (auto-commit! update-fn)
+    (select-all-on-click!)))

@@ -35,6 +35,15 @@
 (defn scene-node->textures-node [basis scene-node]
   (scene-input-node basis scene-node :textures-node))
 
+(defn scene-node->layouts-node [basis scene-node]
+  (scene-input-node basis scene-node :layouts-node))
+
+(defn scene-node->fonts-node [basis scene-node]
+  (scene-input-node basis scene-node :fonts-node))
+
+(defn scene-node->node-tree [basis scene-node]
+  (scene-input-node basis scene-node :node-tree))
+
 (defn next-child-index [parent-node evaluation-context]
   (->> (g/node-value parent-node :child-indices evaluation-context)
        (e/map second)

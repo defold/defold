@@ -33,7 +33,7 @@ public class PublisherSettings {
     private IResource resource;
 
     public enum PublishMode {
-        Amazon, Zip
+        Amazon, Zip, Folder
     };
 
     private Map<String, Map<String, String>> properties = new LinkedHashMap<String, Map<String, String>>();
@@ -165,6 +165,31 @@ public class PublisherSettings {
             return Integer.parseInt(this.getValue("liveupdate", "zip-compression-level"));
         }
         return 1;
+    }
+
+    public void setOutputDirectory(String value) {
+        this.setValue("liveupdate", "output-directory", value);
+    }
+
+    public String getOutputDirectory() {
+        return this.getValue("liveupdate", "output-directory");
+    }
+
+    public void setOutputFolderName(String value) {
+        this.setValue("liveupdate", "output-folder-name", value);
+    }
+
+    public String getOutputFolderName() {
+        return this.getValue("liveupdate", "output-folder-name");
+    }
+
+    public void setSaveFolderInBundleFolder(String value) {
+        this.setValue("liveupdate", "save-folder-in-bundle-folder", value);
+    }
+
+    public Boolean getSaveFolderInBundleFolder() {
+        String value = this.getValue("liveupdate", "save-folder-in-bundle-folder");
+        return value != null && value.equals("1");
     }
 
     private static PublisherSettings doLoad(InputStream in) throws IOException, ParseException {

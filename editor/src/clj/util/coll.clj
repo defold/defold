@@ -13,8 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
-  (:refer-clojure :exclude [bounded-count empty? mapcat merge merge-with not-empty some])
-  (:import [clojure.lang Cons IEditableCollection MapEntry]
+  (:refer-clojure :exclude [any? bounded-count empty? every? mapcat merge merge-with not-any? not-empty not-every? some])
+  (:import [clojure.core Eduction]
+           [clojure.lang Cons Cycle IEditableCollection LazySeq MapEntry Repeat]
            [java.util ArrayList]))
 
 (set! *warn-on-reflection* true)
@@ -27,6 +28,11 @@
   collection specified as the second argument, using a transducer composed of
   the remaining arguments. Returns the resulting collection. Supplying :eduction
   as the destination returns an eduction instead."
+  ([from to]
+   (case to
+     :eduction `(->Eduction identity ~from)
+     `(into ~to
+            ~from)))
   ([from to xform]
    (case to
      :eduction `(->Eduction ~xform ~from)
@@ -188,6 +194,28 @@
   (if (empty? coll)
     nil
     coll))
+
+(definline lazy?
+  "Returns true if the supplied value is a lazily evaluated collection. Lazy
+  sequences might be infinite or may retain references to large objects that
+  prevent them from being garbage-collected. Does not check if elements in the
+  collection are themselves lazily-evaluated."
+  [value]
+  `(condp identical? (class ~value)
+     LazySeq true
+     Eduction true
+     Repeat true
+     Cycle true
+     false))
+
+(defn eager-seqable?
+  "Returns true if the supplied value is seqable and eagerly evaluated. Useful
+  in places where you want a keep around a reference to a seqable object without
+  realizing it into a concrete collection. Note that this function will return
+  true for nil, since it is a valid seqable value."
+  [value]
+  (and (not (lazy? value))
+       (seqable? value)))
 
 (defonce conj-set (fnil conj #{}))
 
@@ -607,14 +635,54 @@
        (sequential? input) (reduce (preserving-reduced xf) result input)
        :else (rf result input)))))
 
+(defn tree-xf
+  "Like clojure.core/tree-seq, but transducer"
+  [branch? children]
+  (fn [rf]
+    (fn xf
+      ([] (rf))
+      ([result] (rf result))
+      ([result input]
+       (let [result (rf result input)]
+         (if (or (reduced? result) (not (branch? input)))
+           result
+           (reduce (preserving-reduced xf) result (children input))))))))
+
 (defn some
-  "Like clojure.core/some, but uses reduce instead of lazy sequences"
+  "Like clojure.core/some, but uses reduce instead of lazy sequences."
   [pred coll]
   (reduce (fn [_ v]
             (when-let [ret (pred v)]
               (reduced ret)))
           nil
           coll))
+
+(defn any?
+  "Returns whether any item in the supplied collection matches the predicate. Do
+  not confuse with clojure.core/any?, which takes a single argument and always
+  returns true."
+  [pred coll]
+  (boolean (some pred coll)))
+
+(defn not-any?
+  "Like clojure.core/not-any?, but uses reduce instead of lazy sequences."
+  [pred coll]
+  (not (some pred coll)))
+
+(defn every?
+  "Like clojure.core/every?, but uses reduce instead of lazy sequences."
+  [pred coll]
+  (reduce (fn [result item]
+            (if (pred item)
+              result
+              (reduced false)))
+          true
+          coll))
+
+(defn not-every?
+  "Like clojure.core/not-every?, but uses reduce instead of lazy sequences."
+  [pred coll]
+  (not (every? pred coll)))
 
 (defn str-rf
   "Reducing function for string concatenation, useful for transduce context"

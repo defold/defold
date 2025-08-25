@@ -746,7 +746,13 @@ namespace dmSound
 
             dmSoundCodec::Result r = dmSoundCodec::NewDecoder(ss->m_CodecContext, codec_format, sound_data, &decoder);
             if (r != dmSoundCodec::RESULT_OK) {
-                dmLogError("Failed to decode sound %s: (%d)", dmHashReverseSafe64(sound_data->m_NameHash), r);
+                if (r == dmSoundCodec::RESULT_UNSUPPORTED) {
+                    const char* name = dmHashReverseSafe64(sound_data->m_NameHash);
+                    const char* format_str = dmSoundCodec::FormatToString(codec_format);
+                    dmLogError("Sound '%s' uses %s, but no decoder was found. Ensure the codec is included in your App Manifest.", name, format_str);
+                } else {
+                    dmLogError("Failed to decode sound %s: (%d)", dmHashReverseSafe64(sound_data->m_NameHash), r);
+                }
                 return RESULT_INVALID_STREAM_DATA;
             }
 
@@ -1047,7 +1053,7 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    static inline void GetPanScale(float pan, float* left_scale, float* right_scale)
+    void GetPanScale(float pan, float* left_scale, float* right_scale)
     {
         // Constant power panning: https://www.cs.cmu.edu/~music/icm-online/readings/panlaws/index.html
         const float theta = pan * M_PI_2;
@@ -1199,11 +1205,10 @@ namespace dmSound
                 assert(info->m_Channels == 2);
 
                 float rs, ls;
-                GetPanScale(dmMath::Max(0.0f, instance->m_Pan.m_Current - 0.5f), &ls, &rs);
+                GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
                 instance->m_ScaleL[0].Set(ls * gain, reset);
-                instance->m_ScaleR[0].Set(rs * gain, reset);
-                GetPanScale(dmMath::Min(instance->m_Pan.m_Current + 0.5f, 1.0f), &ls, &rs);
-                instance->m_ScaleL[1].Set(ls * gain, reset);
+                instance->m_ScaleR[0].Set(0.0f, reset);
+                instance->m_ScaleL[1].Set(0.0f, reset);
                 instance->m_ScaleR[1].Set(rs * gain, reset);
             }
         }

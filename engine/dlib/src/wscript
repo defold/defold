@@ -222,7 +222,7 @@ def build(bld):
     libprofile_null = bld.stlib(features     = libprofile_features,
                                 includes     = libprofile_includes,
                                 defines      = libprofile_defines,
-                                source       = 'dlib/profile/profile.cpp dlib/profile/profile_null.cpp',
+                                source       = 'dlib/profile/profile_null.cpp',
                                 target       = 'profile_null')
 
     libprofile_null_noasan = bld.stlib(features     = libprofile_null.features + ['skip_asan'],
@@ -231,71 +231,19 @@ def build(bld):
                                        target       = 'profile_null_noasan')
     libprofile_null_noasan.source = libprofile_null.source
 
-    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'wasm_pthread-web'):
-        libprofile_js = bld.stlib(features   = libprofile_features,
-                                  includes     = libprofile_includes,
-                                  defines      = libprofile_defines,
-                                  source       = 'dlib/profile/profile.cpp dlib/profile/profile_js.cpp',
-                                  target       = 'profile_js')
-    elif bld.env['PLATFORM'] not in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
-        libprofile_includes = '. ./dlib/profile ./remotery'
-        libprofile = bld.stlib(features     = libprofile_features,
-                               includes     = libprofile_includes,
-                               defines      = libprofile_defines,
-                               source       = ['dlib/profile/profile.cpp', 'dlib/profile/profile_remotery.cpp'],
-                               target       = 'profile')
+    #if bld.env['PLATFORM'] not in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'js-web', 'wasm-web', 'wasm_pthread-web'):
+    libprofile_includes = '. ./dlib/profile'
+    libprofile = bld.stlib(features     = libprofile_features,
+                           includes     = libprofile_includes,
+                           defines      = libprofile_defines,
+                           source       = ['dlib/profile/profile.cpp'],
+                           target       = 'profile')
 
-        libprofile_noasan = bld.stlib(features     = libprofile.features + ['skip_asan'],
-                                      includes     = libprofile.includes,
-                                      defines      = libprofile.defines,
-                                      target       = 'profile_noasan')
-        libprofile_noasan.source = libprofile.source
-    else:
-        # defold version
-        libprofile_basic = bld.stlib(features   = libprofile_features,
-                                    includes     = libprofile_includes,
-                                    defines      = libprofile_defines,
-                                    source       = 'dlib/profile/profile.cpp dlib/profile/profile_basic.cpp',
-                                    target       = 'profile_basic')
-
-
-    # ******************************************************************
-
-    remotery_defines = []
-
-    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
-        libremotery = bld.stlib(features     = 'c cxx',
-                                includes     = '. ./remotery/lib',
-                                target       = 'remotery',
-                                source       = bld.path.ant_glob('remotery/lib/*.c'),
-                                defines      = ['VALGRIND'] + extra_defines + remotery_defines)
-
-        if build_util.get_target_os() not in ['macos', 'ios']:
-            libremotery.source = [x for x in libremotery.source if not x.abspath().endswith('.mm')]
-
-        libremotery_noasan = bld.stlib(features  = 'c cxx skip_asan',
-                                       includes  = '. ./remotery/lib',
-                                       source       = bld.path.ant_glob('remotery/lib/*.c'),
-                                       defines   = ['VALGRIND'] + extra_defines + remotery_defines,
-                                       target    = 'remotery_noasan')
-
-        if build_util.get_target_os() not in ['macos', 'ios']:
-            libremotery_noasan.source = [x for x in libremotery_noasan.source if not x.abspath().endswith('.mm')]
-
-    libremotery_null = bld.stlib(features    = 'c cxx',
-                                 includes    = '. ./remotery/lib',
-                                 target      = 'remotery_null',
-                                 source       = bld.path.ant_glob('remotery/*.c'),
-                                 defines     = ['VALGRIND'] + extra_defines + remotery_defines)
-
-    libremotery_null_noasan = bld.stlib(features  = 'c cxx skip_asan',
-                                        includes  = '. ./remotery/lib',
-                                        source    = bld.path.ant_glob('remotery/*.c'),
-                                        defines   = ['VALGRIND'] + extra_defines + remotery_defines,
-                                        target    = 'remotery_null_noasan')
-
-    if build_util.get_target_os() not in ['macos', 'ios']:
-        libremotery_null_noasan.source = [x for x in libremotery_null_noasan.source if not x.abspath().endswith('.mm')]
+    libprofile_noasan = bld.stlib(features     = libprofile.features + ['skip_asan'],
+                                  includes     = libprofile.includes,
+                                  defines      = libprofile.defines,
+                                  target       = 'profile_noasan')
+    libprofile_noasan.source = libprofile.source
 
     # ******************************************************************
 
@@ -304,7 +252,7 @@ def build(bld):
                                 includes = '. ./mbedtls/include ./mbedtls/crypto/include',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
-                                use = ['SOCKET', 'PROFILE_NULL_NOASAN', 'mbedtls_noasan', 'zip_noasan'])
+                                use = ['SOCKET', 'profile_null_noasan', 'mbedtls_noasan', 'zip_noasan'])
 
         dlib_shared.source = [x for x in dlib.source]
 
@@ -467,7 +415,6 @@ def build(bld):
 
     if 'web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'dlib/js/library_sys.js')
-        bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'dlib/js/library_profile.js')
 
     # For the private platforms, check if the file exist and, if so, install them
     def check_install(bld, tgtpath, srcpath):

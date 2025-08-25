@@ -337,7 +337,7 @@ namespace dmGameSystem
         DM_PROFILE("StepWorld3D");
         dmPhysics::StepWorld3D(world->m_World3D, *step_ctx);
 
-        if (collision_user_data->m_Count >= physics_context->m_BaseContext.m_MaxCollisionCount)
+        if (collision_user_data->m_Count >= physics_context->m_BaseContext.m_MaxCollisionCount && physics_context->m_BaseContext.m_MaxCollisionCount > 0)
         {
             if (!g_CollisionOverflowWarning)
             {
@@ -349,7 +349,7 @@ namespace dmGameSystem
         {
             g_CollisionOverflowWarning = false;
         }
-        if (contact_user_data->m_Count >= physics_context->m_BaseContext.m_MaxContactPointCount)
+        if (contact_user_data->m_Count >= physics_context->m_BaseContext.m_MaxContactPointCount && physics_context->m_BaseContext.m_MaxContactPointCount > 0)
         {
             if (!g_ContactOverflowWarning)
             {

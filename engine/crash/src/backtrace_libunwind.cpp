@@ -56,8 +56,10 @@ namespace dmCrash
         fflush(stdout);
         fflush(stderr);
 
-        g_AppState.m_Signum = signo;
-        g_AppState.m_PtrCount = 0;
+        AppState* state = GetAppState();
+
+        state->m_Signum = signo;
+        state->m_PtrCount = 0;
 
 #ifdef ANDROID
         int umw_map_ret = unw_map_local_create();
@@ -70,7 +72,7 @@ namespace dmCrash
 
         uint32_t stack_index = 0;
         uint32_t offset_extra = 0; // How much we've written to the extra field
-        while (unw_step(&cursor) > 0 && g_AppState.m_PtrCount < AppState::PTRS_MAX)
+        while (unw_step(&cursor) > 0 && state->m_PtrCount < AppState::PTRS_MAX)
         {
             unw_word_t offset, pc = 0;
             unw_get_reg(&cursor, UNW_REG_IP, &pc);
@@ -82,8 +84,8 @@ namespace dmCrash
             // Store stack pointers as absolute values.
             // They can be turned into offsets using `crash.get_modules`, but we also store
             // them as offsets (if available) inside the extras field for convenience.
-            g_AppState.m_Ptr[g_AppState.m_PtrCount] = (void*)(uintptr_t)pc;
-            g_AppState.m_PtrCount++;
+            state->m_Ptr[state->m_PtrCount] = (void*)(uintptr_t)pc;
+            state->m_PtrCount++;
 
             // Figure out the relative pc within the dylib
             // Currently only available on Android due to unw_map_* functions being
@@ -109,14 +111,14 @@ namespace dmCrash
             const char* best_match_name = 0x0;
             for (uint32_t i=0; i < AppState::MODULES_MAX; i++)
             {
-                void* addr = g_AppState.m_ModuleAddr[i];
+                void* addr = state->m_ModuleAddr[i];
                 if (!addr)
                 {
                     break;
                 }
                 if ((void*)pc >= addr) {
                     best_match_addr = addr;
-                    best_match_name = g_AppState.m_ModuleName[i];
+                    best_match_name = state->m_ModuleName[i];
                 }
             }
             if (best_match_addr && best_match_name) {
@@ -160,8 +162,8 @@ namespace dmCrash
             int extra_len = strlen(extra);
             if ((offset_extra + extra_len) < (dmCrash::AppState::EXTRA_MAX - 1))
             {
-                memcpy(g_AppState.m_Extra + offset_extra, extra, extra_len);
-                g_AppState.m_Extra[offset_extra + extra_len] = '\n';
+                memcpy(state->m_Extra + offset_extra, extra, extra_len);
+                state->m_Extra[offset_extra + extra_len] = '\n';
                 offset_extra += extra_len + 1;
             }
             else
@@ -177,15 +179,15 @@ namespace dmCrash
 
         if (g_CrashExtraInfoCallback)
         {
-            int extra_len = strlen(g_AppState.m_Extra);
-            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, g_AppState.m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
+            int extra_len = strlen(state->m_Extra);
+            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, state->m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
         }
 
-        WriteCrash(g_FilePath, &g_AppState);
+        WriteCrash(GetFilePath(), GetAppState());
 
         bool is_debug_mode = dLib::IsDebugMode();
         dLib::SetDebugMode(true);
-        dmLogError("CALL STACK:\n\n%s\n", g_AppState.m_Extra);
+        dmLogError("CALL STACK:\n\n%s\n", state->m_Extra);
         dLib::SetDebugMode(is_debug_mode);
     }
 

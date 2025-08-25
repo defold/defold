@@ -15,28 +15,68 @@
 (ns editor.progress-test
   (:refer-clojure :exclude [mapv])
   (:require [clojure.test :refer :all]
-            [editor.progress :refer :all]))
+            [editor.progress :refer :all])
+  (:import [editor.progress Progress]))
+
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
+
+(defn- to-map [^Progress progress]
+  (into {} progress))
 
 (deftest make-test
-  (is (= {:message "mess" :size 10 :pos 0 :cancellable false :cancelled false}
-         (make "mess" 10)))
-  (is (= {:message "mess" :size 10 :pos 5 :cancellable false :cancelled false}
-         (make "mess" 10 5))))
+  (are [expected-fields progress]
+    (let [actual-fields (to-map progress)]
+      (is (instance? Progress progress))
+      (is (= expected-fields actual-fields)))
+
+    {:message "a" :size 1 :pos 0 :cancel-state :not-cancellable}
+    (make "a")
+
+    {:message "b" :size 10 :pos 0 :cancel-state :not-cancellable}
+    (make "b" 10)
+
+    {:message "c" :size 15 :pos 5 :cancel-state :not-cancellable}
+    (make "c" 15 5)
+
+    {:message "d" :size 20 :pos 10 :cancel-state :not-cancellable}
+    (make "d" 20 10 false)
+
+    {:message "e" :size 25 :pos 15 :cancel-state :cancellable}
+    (make "e" 25 15 true)))
 
 (deftest with-message-test
-  (is (= {:message "mess2" :size 1 :pos 0 :cancellable false :cancelled false}
-         (with-message (make "mess") "mess2"))))
+  (are [expected-fields progress]
+    (let [actual-fields (to-map progress)]
+      (is (instance? Progress progress))
+      (is (= expected-fields actual-fields)))
+
+    {:message "new message" :size 20 :pos 10 :cancel-state :not-cancellable}
+    (with-message (make "d" 20 10 false) "new message")
+
+    {:message "other message" :size 25 :pos 15 :cancel-state :cancellable}
+    (with-message (make "e" 25 15 true) "other message")))
 
 (deftest advance-test
-  (is (= {:message "mess" :size 1 :pos 1 :cancellable false :cancelled false}
-         (advance (make "mess"))))
+  (are [expected-fields progress]
+    (let [actual-fields (to-map progress)]
+      (is (instance? Progress progress))
+      (is (= expected-fields actual-fields)))
 
-  (is (= {:message "mess2" :size 2 :pos 2 :cancellable false :cancelled false}
-         (advance (make "mess" 2) 2 "mess2")))
+    {:message "single step" :size 20 :pos 11 :cancel-state :not-cancellable}
+    (advance (make "single step" 20 10 false))
 
-  (testing "advancing beyond size"
-    (is (= {:message "mess2" :size 2 :pos 2 :cancellable false :cancelled false}
-           (advance (make "mess" 2) 3 "mess2")))))
+    {:message "delta supplied" :size 25 :pos 20 :cancel-state :cancellable}
+    (advance (make "delta supplied" 25 15 true) 5)
+
+    {:message "message replaced" :size 25 :pos 20 :cancel-state :cancellable}
+    (advance (make "message" 25 15 true) 5 "message replaced")
+
+    {:message "past end" :size 2 :pos 2 :cancel-state :not-cancellable}
+    (advance (make "past end" 2 0 false) 5)
+
+    {:message "at end" :size 2 :pos 2 :cancel-state :not-cancellable}
+    (advance (make "at end" 2 2 false) 5)))
 
 (deftest jump-test
   (testing "jump beyond size"
@@ -56,6 +96,58 @@
 
 (deftest message-test
   (is (= "mess" (message (make "mess")))))
+
+(deftest cancelable?-test
+  (is (false? (cancellable? (make "mess" 0 0 false))))
+  (is (true? (cancellable? (make "mess" 0 0 true))))
+  (is (false? (cancellable? (cancel (make "mess" 0 0 true))))))
+
+(deftest cancel-test
+  (is (false? (cancelled? (make "mess" 0 0 false))))
+  (is (false? (cancelled? (make "mess" 0 0 true))))
+  (is (true? (cancelled? (cancel (make "mess" 0 0 true)))))
+  (is (thrown? AssertionError (cancel (make "mess" 0 0 false)))))
+
+(deftest with-inherited-cancel-state-test
+  (testing ":cancellable wins over :not-cancellable."
+    (is (cancellable?
+          (with-inherited-cancel-state
+            (->progress "new" 1 0 :cancellable)
+            (->progress "old" 1 0 :not-cancellable))))
+    (is (cancellable?
+          (with-inherited-cancel-state
+            (->progress "new" 1 0 :not-cancellable)
+            (->progress "old" 1 0 :cancellable)))))
+
+  (testing ":cancelled wins over any state."
+    (is (cancelled?
+          (with-inherited-cancel-state
+            (->progress "new" 1 0 :cancelled)
+            (->progress "old" 1 0 :not-cancellable))))
+    (is (cancelled?
+          (with-inherited-cancel-state
+            (->progress "new" 1 0 :cancelled)
+            (->progress "old" 1 0 :cancellable))))
+    (is (cancelled?
+          (with-inherited-cancel-state
+            (->progress "new" 1 0 :not-cancellable)
+            (->progress "old" 1 0 :cancelled))))
+    (is (cancelled?
+          (with-inherited-cancel-state
+            (->progress "new" 1 0 :cancellable)
+            (->progress "old" 1 0 :cancelled)))))
+
+  (testing "remaining field values are taken from the first Progress."
+    (is (= {:message "new message" :size 20 :pos 10 :cancel-state :not-cancellable}
+           (to-map
+             (with-inherited-cancel-state
+               (->progress "new message" 20 10 :not-cancellable)
+               (->progress "old message" 1 0 :not-cancellable)))))
+    (is (= {:message "other message" :size 25 :pos 15 :cancel-state :not-cancellable}
+           (to-map
+             (with-inherited-cancel-state
+               (->progress "other message" 25 15 :not-cancellable)
+               (->progress "old message" 1 0 :not-cancellable)))))))
 
 (deftest nest-render-progress-test
   (let [last-progress (atom nil)
@@ -80,7 +172,7 @@
         (nested-render-progress! (make "child" 2 1))
         (is (= 3/4 (fraction @last-progress)))))
     (testing "precond failure"
-      (is (thrown? java.lang.AssertionError
+      (is (thrown? AssertionError
                    (nest-render-progress render-progress!
                                          (make "parent" 4 2)
                                          ;; span too large, 2 + 3 > 4
@@ -92,7 +184,11 @@
         message-f  #(str "m" %)]
 
     (is (= (map inc (range 3))
-           (progress-mapv (fn [d _ ] (inc d)) (range 3) render-f message-f)))
+           (progress-mapv (fn [^long d _]
+                            (inc d))
+                          (range 3)
+                          render-f
+                          message-f)))
     (is (= [(make "m0" 3 0)
             (make "m1" 3 1)
             (make "m2" 3 2)]

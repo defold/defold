@@ -113,8 +113,8 @@ namespace dmRender
     /*# get enabled
     *
     * @name camera.get_enabled
-    * @param camera [type:url|handle|nil] camera id
-    * @return flag [type:bool] true if the camera is enabled
+    * @param camera [type:url|number|nil] camera id
+    * @return flag [type:boolean] true if the camera is enabled
     */
     static int RenderScriptCamera_GetEnabled(lua_State* L)
     {
@@ -127,7 +127,7 @@ namespace dmRender
     /*# get projection matrix
     *
     * @name camera.get_projection
-    * @param camera [type:url|handle|nil] camera id
+    * @param camera [type:url|number|nil] camera id
     * @return projection [type:matrix4] the projection matrix.
     */
     static int RenderScriptCamera_GetProjection(lua_State* L)
@@ -141,7 +141,7 @@ namespace dmRender
     /*# get view matrix
     *
     * @name camera.get_view
-    * @param camera [type:url|handle|nil] camera id
+    * @param camera [type:url|number|nil] camera id
     * @return view [type:matrix4] the view matrix.
     */
     static int RenderScriptCamera_GetView(lua_State* L)
@@ -172,17 +172,27 @@ namespace dmRender
     }
 
     /*# get aspect ratio
+    * Gets the effective aspect ratio of the camera. If auto aspect ratio is enabled,
+    * returns the aspect ratio calculated from the current render target dimensions.
+    * Otherwise returns the manually set aspect ratio.
     *
     * @name camera.get_aspect_ratio
-    * @param camera [type:url|handle|nil] camera id
-    * @return aspect_ratio [type:number] the aspect ratio.
+    * @param camera [type:url|number|nil] camera id
+    * @return aspect_ratio [type:number] the effective aspect ratio.
     */
-    GET_CAMERA_DATA_PROPERTY_FN(AspectRatio, lua_pushnumber);
+    static int RenderScriptCamera_GetAspectRatio(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        float effective_aspect_ratio = GetRenderCameraEffectiveAspectRatio(g_RenderScriptCameraModule.m_RenderContext, camera->m_Handle);
+        lua_pushnumber(L, effective_aspect_ratio);
+        return 1;
+    }
 
     /*# get far z
     *
     * @name camera.get_far_z
-    * @param camera [type:url|handle|nil] camera id
+    * @param camera [type:url|number|nil] camera id
     * @return far_z [type:number] the far z.
     */
     GET_CAMERA_DATA_PROPERTY_FN(FarZ, lua_pushnumber);
@@ -190,7 +200,7 @@ namespace dmRender
     /*# get field of view
     *
     * @name camera.get_fov
-    * @param camera [type:url|handle|nil] camera id
+    * @param camera [type:url|number|nil] camera id
     * @return fov [type:number] the field of view.
     */
     GET_CAMERA_DATA_PROPERTY_FN(Fov, lua_pushnumber);
@@ -198,7 +208,7 @@ namespace dmRender
     /*# get near z
     *
     * @name camera.get_near_z
-    * @param camera [type:url|handle|nil] camera id
+    * @param camera [type:url|number|nil] camera id
     * @return near_z [type:number] the near z.
     */
     GET_CAMERA_DATA_PROPERTY_FN(NearZ, lua_pushnumber);
@@ -206,23 +216,26 @@ namespace dmRender
     /*# get orthographic zoom
     *
     * @name camera.get_orthographic_zoom
-    * @param camera [type:url|handle|nil] camera id
+    * @param camera [type:url|number|nil] camera id
     * @return orthographic_zoom [type:number] the zoom level when the camera uses orthographic projection.
     */
     GET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_pushnumber);
 
     /*# set aspect ratio
+    * Sets the manual aspect ratio for the camera. This value is only used when
+    * auto aspect ratio is disabled. To disable auto aspect ratio and use this
+    * manual value, call camera.set_auto_aspect_ratio(camera, false).
     *
     * @name camera.set_aspect_ratio
-    * @param camera [type:url|handle|nil] camera id
-    * @param aspect_ratio [type:number] the aspect ratio.
+    * @param camera [type:url|number|nil] camera id
+    * @param aspect_ratio [type:number] the manual aspect ratio value.
     */
     SET_CAMERA_DATA_PROPERTY_FN(AspectRatio, lua_tonumber);
 
     /*# set far z
     *
     * @name camera.set_far_z
-    * @param camera [type:url|handle|nil] camera id
+    * @param camera [type:url|number|nil] camera id
     * @param far_z [type:number] the far z.
     */
     SET_CAMERA_DATA_PROPERTY_FN(FarZ, lua_tonumber);
@@ -230,7 +243,7 @@ namespace dmRender
     /*# set field of view
     *
     * @name camera.set_fov
-    * @param camera [type:url|handle|nil] camera id
+    * @param camera [type:url|number|nil] camera id
     * @param fov [type:number] the field of view.
     */
     SET_CAMERA_DATA_PROPERTY_FN(Fov, lua_tonumber);
@@ -238,7 +251,7 @@ namespace dmRender
     /*# set near z
     *
     * @name camera.set_near_z
-    * @param camera [type:url|handle|nil] camera id
+    * @param camera [type:url|number|nil] camera id
     * @param near_z [type:number] the near z.
     */
     SET_CAMERA_DATA_PROPERTY_FN(NearZ, lua_tonumber);
@@ -246,10 +259,45 @@ namespace dmRender
     /*# set orthographic zoom
     *
     * @name camera.set_orthographic_zoom
-    * @param camera [type:url|handle|nil] camera id
+    * @param camera [type:url|number|nil] camera id
     * @param orthographic_zoom [type:number] the zoom level when the camera uses orthographic projection.
     */
     SET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_tonumber);
+
+    /*# get auto aspect ratio
+    * Returns whether auto aspect ratio is enabled. When enabled, the camera automatically
+    * calculates aspect ratio from render target dimensions. When disabled, uses the
+    * manually set aspect ratio value.
+    *
+    * @name camera.get_auto_aspect_ratio
+    * @param camera [type:url|number|nil] camera id
+    * @return auto_aspect_ratio [type:boolean] true if auto aspect ratio is enabled
+    */
+    static int RenderScriptCamera_GetAutoAspectRatio(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        lua_pushboolean(L, camera->m_Data.m_AutoAspectRatio);
+        return 1;
+    }
+
+    /*# set auto aspect ratio
+    * Enables or disables automatic aspect ratio calculation. When enabled (true),
+    * the camera automatically calculates aspect ratio from render target dimensions.
+    * When disabled (false), uses the manually set aspect ratio value.
+    *
+    * @name camera.set_auto_aspect_ratio
+    * @param camera [type:url|number|nil] camera id
+    * @param auto_aspect_ratio [type:boolean] true to enable auto aspect ratio
+    */
+    static int RenderScriptCamera_SetAutoAspectRatio(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        camera->m_Data.m_AutoAspectRatio = lua_toboolean(L, 2) ? 1 : 0;
+        camera->m_Dirty = 1;
+        return 0;
+    }
 
 #undef GET_CAMERA_DATA_PROPERTY_FN
 #undef SET_CAMERA_DATA_PROPERTY_FN
@@ -274,6 +322,8 @@ namespace dmRender
         {"set_far_z",               RenderScriptCamera_SetFarZ},
         {"get_orthographic_zoom",   RenderScriptCamera_GetOrthographicZoom},
         {"set_orthographic_zoom",   RenderScriptCamera_SetOrthographicZoom},
+        {"get_auto_aspect_ratio",   RenderScriptCamera_GetAutoAspectRatio},
+        {"set_auto_aspect_ratio",   RenderScriptCamera_SetAutoAspectRatio},
         {0, 0}
     };
 

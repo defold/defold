@@ -97,11 +97,13 @@ public class ShaderProgramBuilderEditor {
                     shaderTypeKeys.put(shaderModule.type, true);
                 }
 
-                Shaderc.ShaderCompileResult result = pipeline.crossCompile(shaderModule.type, shaderLanguage);
-                byte[] source = result.data;
-                if (source == null) {
-                    String[] shaderWarnings = new String[] { "Unable to cross-compile " + shaderModule.type + " to " + shaderLanguage};
-                    shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(shaderWarnings));
+                Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
+                byte[] source;
+                try {
+                    result = pipeline.crossCompile(shaderModule.type, shaderLanguage);
+                    source = result.data;
+                } catch (CompileExceptionError e) {
+                    shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(new String[]{e.getMessage()}));
                     continue;
                 }
 

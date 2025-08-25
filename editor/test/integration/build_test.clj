@@ -23,7 +23,6 @@
             [editor.fs :as fs]
             [editor.game-project :as game-project]
             [editor.math :as math]
-            [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -34,15 +33,9 @@
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.util TextureUtil]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc]
-           [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
-           [com.dynamo.gamesys.proto Gui$SceneDesc]
+           [com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
            [com.dynamo.lua.proto Lua$LuaModule]
-           [com.dynamo.gamesys.proto Sound$SoundDesc]
            [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.dynamo.gamesys.proto ModelProto$Model]
-           [com.dynamo.gamesys.proto Physics$CollisionObjectDesc]
-           [com.dynamo.gamesys.proto Label$LabelDesc]
            [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
            [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$RigScene Rig$Skeleton]
            [java.io ByteArrayOutputStream File]
@@ -241,7 +234,7 @@
            ~'resource-node     (test-util/resource-node ~'project ~path)
            evaluation-context# (g/make-evaluation-context)
            old-artifact-map#   (workspace/artifact-map ~'workspace)
-           ~'build-results     (build/build-project! ~'project ~'resource-node evaluation-context# nil old-artifact-map# progress/null-render-progress!)
+           ~'build-results     (build/build-project! ~'project ~'resource-node old-artifact-map# nil evaluation-context#)
            ~'build-artifacts   (:artifacts ~'build-results)
            ~'_                 (when-not (contains? ~'build-results :error)
                                  (workspace/artifact-map! ~'workspace (:artifact-map ~'build-results))
@@ -289,7 +282,7 @@
 (defn- project-build [project resource-node evaluation-context]
   (let [workspace (project/workspace project)
         old-artifact-map (workspace/artifact-map workspace)
-        build-results (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!)]
+        build-results (build/build-project! project resource-node old-artifact-map nil evaluation-context)]
     (when-not (contains? build-results :error)
       (workspace/artifact-map! workspace (:artifact-map build-results))
       (workspace/etags! workspace (:etags build-results)))
@@ -865,10 +858,9 @@
       (is (= "Dependency cycle detected: '/main/1.lua' -> '/main/2.lua' -> '/main/1.lua'."
              (->> (build/build-project! project
                                         (test-util/resource-node project "/game.project")
-                                        evaluation-context
-                                        nil
                                         (workspace/artifact-map workspace)
-                                        progress/null-render-progress!)
+                                        nil
+                                        evaluation-context)
                   :error
                   (tree-seq :causes :causes)
                   (keep :message)

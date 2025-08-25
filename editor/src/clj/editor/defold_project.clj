@@ -55,7 +55,8 @@
             [util.fn :as fn]
             [util.thread-util :as thread-util])
   (:import [java.io File]
-           [java.util.concurrent.atomic AtomicLong]))
+           [java.util.concurrent.atomic AtomicLong]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -1509,6 +1510,7 @@
   (input collision-group-nodes g/Any :array :substitute gu/array-subst-remove-errors)
   (input build-settings g/Any)
   (input breakpoints Breakpoints :array :substitute gu/array-subst-remove-errors)
+  (input proj-path+meta-info-pairs g/Any :array :substitute gu/array-subst-remove-errors)
 
   (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
                                                              (let [selected-node-id-set (set all-selected-node-ids)]
@@ -1538,6 +1540,7 @@
                                                                  (not (resource/read-only? resource))))))
                                                    save-data)))
   (output settings g/Any (g/fnk [settings] (or settings gpc/default-settings)))
+  (output exclude-gles-sm100 g/Any (g/fnk [settings] (get settings ["shader" "exclude_gles_sm100"])))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
   (output texture-profiles g/Any :cached (gu/passthrough texture-profiles))
   (output nil-resource resource/Resource (g/constantly nil))
@@ -1545,7 +1548,20 @@
   (output default-tex-params g/Any :cached produce-default-tex-params)
   (output default-sampler-filter-modes g/Any :cached produce-default-sampler-filter-modes)
   (output build-settings g/Any (gu/passthrough build-settings))
-  (output breakpoints Breakpoints :cached (g/fnk [breakpoints] (into [] cat breakpoints))))
+  (output breakpoints Breakpoints :cached (g/fnk [breakpoints] (into [] cat breakpoints)))
+  (output meta-infos g/Any :cached
+          (g/fnk [proj-path+meta-info-pairs]
+            {:ext-meta-info
+             (when-not (coll/empty? proj-path+meta-info-pairs)
+               (transduce
+                 (keep (fn [e]
+                         (when (= "ext" (FilenameUtils/getBaseName (key e)))
+                           (val e))))
+                 settings-core/merge-meta-infos
+                 proj-path+meta-info-pairs))
+
+             :game-project-proj-path->additional-meta-info
+             (coll/pair-map-by #(str (FilenameUtils/removeExtension (key %)) ".project") val proj-path+meta-info-pairs)})))
 
 (defn get-project
   ([node]
@@ -1821,5 +1837,5 @@
                          (let [target-node (get-resource-node project resource)]
                            (cond-> resources
                              target-node
-                             (concat (acc-fn target-node resource)))))
+                             (concat (acc-fn target-node)))))
                        (conj checked-paths current-path)))))))))
