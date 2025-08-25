@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+
 #include <stdlib.h> // qsort
 
 #include "../physics.h"
@@ -31,42 +32,41 @@ namespace dmPhysics
     using namespace dmVMath;
 
     Context2D::Context2D()
-        : m_Worlds()
-        , m_DebugCallbacks()
-        , m_Socket(0)
-        , m_Scale(1.0f)
-        , m_InvScale(1.0f)
-        , m_ContactImpulseLimit(0.0f)
-        , m_TriggerEnterLimit(0.0f)
-        , m_RayCastLimit(0)
-        , m_TriggerOverlapCapacity(0)
-        , m_AllowDynamicTransforms(0)
+    : m_Worlds()
+    , m_DebugCallbacks()
+    , m_Socket(0)
+    , m_Scale(1.0f)
+    , m_InvScale(1.0f)
+    , m_ContactImpulseLimit(0.0f)
+    , m_TriggerEnterLimit(0.0f)
+    , m_RayCastLimit(0)
+    , m_TriggerOverlapCapacity(0)
+    , m_AllowDynamicTransforms(0)
     {
         m_Gravity.x = 0.0f;
         m_Gravity.y = -10.0f;
     }
 
     World2D::World2D(HContext2D context, const NewWorldParams& params)
-        : m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
-        , m_Context(context)
-        , m_RayCastRequests()
-        , m_DebugDraw(&context->m_DebugCallbacks)
-        , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
-        , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
-        , m_AllowDynamicTransforms(context->m_AllowDynamicTransforms)
+    : m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
+    , m_Context(context)
+    , m_RayCastRequests()
+    , m_DebugDraw(&context->m_DebugCallbacks)
+    , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
+    , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
+    , m_AllowDynamicTransforms(context->m_AllowDynamicTransforms)
     {
         m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
 
         OverlapCacheInit(&m_TriggerOverlaps);
 
-        b2WorldDef worldDef = b2DefaultWorldDef();
-        worldDef.gravity = context->m_Gravity;
+        b2WorldDef worldDef           = b2DefaultWorldDef();
+        worldDef.gravity              = context->m_Gravity;
         worldDef.restitutionThreshold = context->m_VelocityThreshold * context->m_Scale;
 
         worldDef.contactHertz = 30.0f;
         worldDef.contactDampingRatio = 10.0f;
         worldDef.enableContinuous = true;
-
         m_WorldId = b2CreateWorld(&worldDef);
 
         m_Bodies.SetCapacity(32);
@@ -80,15 +80,16 @@ namespace dmPhysics
             uint16_t m_Count;
         };
 
-        HullSet(const b2Vec2* vertices, uint32_t vertex_count, const Hull* hulls, uint32_t hull_count)
+        HullSet(const b2Vec2* vertices, uint32_t vertex_count,
+                  const Hull* hulls, uint32_t hull_count)
         {
             uint32_t vertices_size = vertex_count * sizeof(vertices[0]);
-            m_Vertices = (b2Vec2*)malloc(vertices_size);
+            m_Vertices = (b2Vec2*) malloc(vertices_size);
             memcpy(m_Vertices, vertices, vertices_size);
             m_VertexCount = vertex_count;
 
             uint32_t hulls_size = hull_count * sizeof(hulls[0]);
-            m_Hulls = (Hull*)malloc(hulls_size);
+            m_Hulls = (Hull*) malloc(hulls_size);
             memcpy(m_Hulls, hulls, hulls_size);
             m_HullCount = hull_count;
         }
@@ -99,12 +100,12 @@ namespace dmPhysics
             free(m_Hulls);
         }
 
-        b2Vec2*  m_Vertices;
-        Hull*    m_Hulls;
-        uint32_t m_VertexCount;
-        uint32_t m_HullCount;
+        b2Vec2*   m_Vertices;
+        Hull*     m_Hulls;
+        uint32_t  m_VertexCount;
+        uint32_t  m_HullCount;
 
-        private:
+    private:
         HullSet(const HullSet&);
         HullSet& operator=(const HullSet&);
     };
@@ -127,8 +128,8 @@ namespace dmPhysics
         uint8_t                   m_ReturnAllResults : 1;
     };
 
-    static float cast_ray_cb(b2ShapeId shape_id, b2Vec2 point, b2Vec2 normal, float fraction, void* context);
-    static int   GetGridCellVertices(GridShapeData* shape_data, int index, b2Vec2* vertices);
+    static float cast_ray_cb(b2ShapeId shape_id, b2Vec2 point, b2Vec2 normal, float fraction, void* context );
+    static int GetGridCellVertices(GridShapeData* shape_data, int index, b2Vec2* vertices);
 
     template <typename T>
     static inline uint64_t ToOpaqueHandle(T id)
@@ -229,7 +230,7 @@ namespace dmPhysics
 
     void* GetCollisionObjectContext2D(HCollisionObject2D collision_object)
     {
-        return (void*)collision_object;
+        return (void*) collision_object;
     }
 
     static dmArray<b2ContactData>& GetContactsBuffer(HWorld2D world, b2BodyId id)
@@ -287,22 +288,22 @@ namespace dmPhysics
         }
 
         // Switch the winding of the polygon
-        for (int i = 0; i < count / 2; ++i)
+        for (int i = 0; i < count/2; ++i)
         {
             b2Vec2 tmp;
             tmp = shape->m_Polygon.vertices[i];
-            shape->m_Polygon.vertices[i] = shape->m_Polygon.vertices[count - i - 1];
-            shape->m_Polygon.vertices[count - i - 1] = tmp;
+            shape->m_Polygon.vertices[i] = shape->m_Polygon.vertices[count-i-1];
+            shape->m_Polygon.vertices[count-i-1] = tmp;
 
             tmp = shape->m_VerticesOriginal[i];
-            shape->m_VerticesOriginal[i] = shape->m_VerticesOriginal[count - i - 1];
-            shape->m_VerticesOriginal[count - i - 1] = tmp;
+            shape->m_VerticesOriginal[i] = shape->m_VerticesOriginal[count-i-1];
+            shape->m_VerticesOriginal[count-i-1] = tmp;
         }
 
         // Recalculate the normals
         for (int i = 0; i < count; ++i)
         {
-            b2Vec2 v = b2Sub(shape->m_Polygon.vertices[(i + 1) % count], shape->m_Polygon.vertices[i]);
+            b2Vec2 v = b2Sub(shape->m_Polygon.vertices[(i+1)%count], shape->m_Polygon.vertices[i]);
             b2Vec2 n = b2Normalize(v);
 
             shape->m_Polygon.normals[i].x = n.y;
@@ -312,25 +313,24 @@ namespace dmPhysics
 
     static void FlipBody(HWorld2D world, HCollisionObject2D collision_object, float horizontal, float vertical)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
 
         for (int i = 0; i < body->m_ShapeCount; ++i)
         {
             ShapeData* shape_data = body->m_Shapes[i];
-            switch (shape_data->m_Type)
+            switch(shape_data->m_Type)
             {
-                case SHAPE_TYPE_CIRCLE: {
-                    CircleShapeData* circle_shape = (CircleShapeData*)shape_data;
+                case SHAPE_TYPE_CIRCLE:
+                {
+                    CircleShapeData* circle_shape = (CircleShapeData*) shape_data;
                     circle_shape->m_Circle.center = FlipPoint(circle_shape->m_Circle.center, horizontal, vertical);
                     circle_shape->m_ShapeDataBase.m_CreationPosition = FlipPoint(circle_shape->m_ShapeDataBase.m_CreationPosition, horizontal, vertical);
-                }
-                break;
-                case SHAPE_TYPE_POLYGON: {
-                    FlipPolygon((PolygonShapeData*)shape_data, horizontal, vertical);
-                }
-                break;
-                default:
-                    break;
+                } break;
+                case SHAPE_TYPE_POLYGON:
+                {
+                    FlipPolygon((PolygonShapeData*) shape_data, horizontal, vertical);
+                } break;
+                default: break;
             }
         }
 
@@ -365,12 +365,12 @@ namespace dmPhysics
         (*world->m_GetWorldTransformCallback)(b2Body_GetUserData(body->m_BodyId), world_transform);
 
         float object_scale = GetUniformScale2D(world_transform);
-        bool  allow_sleep = true;
+        bool allow_sleep = true;
 
         for (int i = 0; i < body->m_ShapeCount; ++i)
         {
             ShapeData* shape_data = body->m_Shapes[i];
-            b2ShapeId  shape_id = shape_data->m_ShapeId;
+            b2ShapeId shape_id = shape_data->m_ShapeId;
 
             if (shape_data->m_LastScale == object_scale && !force_update)
             {
@@ -382,23 +382,23 @@ namespace dmPhysics
 
             if (shape_data->m_Type == SHAPE_TYPE_CIRCLE)
             {
-                CircleShapeData* circle_shape_data = (CircleShapeData*)shape_data;
+                CircleShapeData* circle_shape_data = (CircleShapeData*) shape_data;
                 circle_shape_data->m_Circle = b2Shape_GetCircle(shape_id);
 
                 // creation scale for circles, is the initial radius
-                circle_shape_data->m_Circle.radius = shape_data->m_CreationScale * object_scale;
+                circle_shape_data->m_Circle.radius   = shape_data->m_CreationScale * object_scale;
                 circle_shape_data->m_Circle.center.x = shape_data->m_CreationPosition.x * object_scale;
                 circle_shape_data->m_Circle.center.y = shape_data->m_CreationPosition.y * object_scale;
                 b2Shape_SetCircle(shape_id, &circle_shape_data->m_Circle);
             }
             else if (shape_data->m_Type == SHAPE_TYPE_POLYGON)
             {
-                PolygonShapeData* polygon_shape_data = (PolygonShapeData*)shape_data;
+                PolygonShapeData* polygon_shape_data = (PolygonShapeData*) shape_data;
                 polygon_shape_data->m_Polygon = b2Shape_GetPolygon(shape_id);
 
                 float s = object_scale / shape_data->m_CreationScale;
 
-                for (int i = 0; i < polygon_shape_data->m_Polygon.count; ++i)
+                for( int i = 0; i < polygon_shape_data->m_Polygon.count; ++i)
                 {
                     b2Vec2 p = polygon_shape_data->m_VerticesOriginal[i];
                     polygon_shape_data->m_Polygon.vertices[i].x = p.x * s;
@@ -409,10 +409,10 @@ namespace dmPhysics
             }
             else if (shape_data->m_Type == SHAPE_TYPE_GRID)
             {
-                GridShapeData* grid_shape = (GridShapeData*)shape_data;
+                GridShapeData* grid_shape = (GridShapeData*) shape_data;
 
-                b2Vec2         vertices[B2_MAX_POLYGON_VERTICES];
-                uint32_t       cell_count = grid_shape->m_RowCount * grid_shape->m_ColumnCount;
+                b2Vec2 vertices[B2_MAX_POLYGON_VERTICES];
+                uint32_t cell_count = grid_shape->m_RowCount * grid_shape->m_ColumnCount;
                 for (uint32_t i = 0; i < cell_count; ++i)
                 {
                     if (grid_shape->m_Cells[i].m_Index == B2GRIDSHAPE_EMPTY_CELL)
@@ -429,7 +429,7 @@ namespace dmPhysics
                             vertices[j].x *= object_scale;
                             vertices[j].y *= object_scale;
                         }
-                        b2Hull    polygon_hull = b2ComputeHull(vertices, count);
+                        b2Hull polygon_hull = b2ComputeHull(vertices, count);
                         b2Polygon polygon = b2MakePolygon(&polygon_hull, grid_shape->m_Radius);
                         b2Shape_SetPolygon(grid_shape->m_CellPolygonShapes[i], &polygon);
                     }
@@ -443,7 +443,7 @@ namespace dmPhysics
         }
     }
 
-#if 0
+    #if 0
     // Note:
     // These functions was used to keep track of unique collision pairs between shapes
     // so that we could reduce the amount of contacts generated. However, some tests
@@ -479,13 +479,13 @@ namespace dmPhysics
         world->m_ContactBuffer.Push(pair);
         return &world->m_ContactBuffer.Back();
     }
-#endif
+    #endif
 
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
-        float      dt = step_context.m_DT;
+        float dt = step_context.m_DT;
         HContext2D context = world->m_Context;
-        float      scale = context->m_Scale;
+        float scale = context->m_Scale;
         // Epsilon defining what transforms are considered noise and not
         // Values are picked by inspection, current rot value is roughly equivalent to 1 degree
         const float POS_EPSILON = 0.00005f * scale;
@@ -496,26 +496,26 @@ namespace dmPhysics
         {
             DM_PROFILE("UpdateKinematic");
 
-            for (int i = 0; i < world->m_Bodies.Size(); ++i)
+            for (int i=0; i < world->m_Bodies.Size(); ++i)
             {
-                Body*      body = world->m_Bodies[i];
-                b2BodyId   body_id = body->m_BodyId;
+                Body* body = world->m_Bodies[i];
+                b2BodyId body_id = body->m_BodyId;
                 b2BodyType body_type = b2Body_GetType(body_id);
 
-                bool       retrieve_gameworld_transform = world->m_AllowDynamicTransforms && body_type != b2_staticBody;
+                bool retrieve_gameworld_transform = world->m_AllowDynamicTransforms && body_type != b2_staticBody;
 
                 // translate & rotation
                 if (retrieve_gameworld_transform || body_type == b2_kinematicBody)
                 {
-                    void*                  body_user_data = b2Body_GetUserData(body_id);
+                    void* body_user_data = b2Body_GetUserData(body_id);
 
-                    Point3                 old_position = GetWorldPosition2D(context, &body_id);
+                    Point3 old_position = GetWorldPosition2D(context, &body_id);
                     dmTransform::Transform world_transform;
                     (*world->m_GetWorldTransformCallback)(body_user_data, world_transform);
                     Point3 position = Point3(world_transform.GetTranslation());
                     // Ignore z-component
                     position.setZ(0.0f);
-                    Quat  rotation = world_transform.GetRotation();
+                    Quat rotation = world_transform.GetRotation();
                     float dp = distSqr(old_position, position);
                     float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
 
@@ -539,7 +539,7 @@ namespace dmPhysics
                 }
 
                 // Scaling
-                if (retrieve_gameworld_transform)
+                if(retrieve_gameworld_transform)
                 {
                     UpdateScale(world, body, false);
                 }
@@ -562,10 +562,10 @@ namespace dmPhysics
 
                 for (int i = 0; i < world->m_Bodies.Size(); ++i)
                 {
-                    Body*                   body = world->m_Bodies[i];
-                    b2BodyId                body_id = body->m_BodyId;
+                    Body* body = world->m_Bodies[i];
+                    b2BodyId body_id = body->m_BodyId;
                     dmArray<b2ContactData>& contacts = GetContactsBuffer(world, body_id);
-                    int                     num_contacts = contacts.Size();
+                    int num_contacts = contacts.Size();
 
                     if (!b2Body_IsEnabled(body_id))
                     {
@@ -576,7 +576,7 @@ namespace dmPhysics
                     {
                         b2ContactData& contact = contacts[j];
 
-                        float          max_impulse = 0.0f;
+                        float max_impulse = 0.0f;
                         for (int k = 0; k < contact.manifold.pointCount; ++k)
                         {
                             b2ManifoldPoint& manifold = contact.manifold.points[k];
@@ -590,26 +590,26 @@ namespace dmPhysics
                         if (step_context.m_CollisionCallback)
                         {
                             step_context.m_CollisionCallback(
-                            b2Shape_GetUserData(contact.shapeIdA),
-                            b2Shape_GetFilter(contact.shapeIdA).categoryBits,
-                            b2Shape_GetUserData(contact.shapeIdB),
-                            b2Shape_GetFilter(contact.shapeIdB).categoryBits,
-                            step_context.m_CollisionUserData);
+                                b2Shape_GetUserData(contact.shapeIdA),
+                                b2Shape_GetFilter(contact.shapeIdA).categoryBits,
+                                b2Shape_GetUserData(contact.shapeIdB),
+                                b2Shape_GetFilter(contact.shapeIdB).categoryBits,
+                                step_context.m_CollisionUserData);
                         }
 
                         if (step_context.m_ContactPointCallback)
                         {
                             b2BodyId bodyIdA = b2Shape_GetBody(contact.shapeIdA);
                             b2BodyId bodyIdB = b2Shape_GetBody(contact.shapeIdB);
-                            b2Vec2   vel_a = b2Body_GetLinearVelocity(bodyIdA);
-                            b2Vec2   vel_b = b2Body_GetLinearVelocity(bodyIdB);
-                            b2Vec2   rv = b2Sub(vel_b, vel_a);
+                            b2Vec2 vel_a = b2Body_GetLinearVelocity(bodyIdA);
+                            b2Vec2 vel_b = b2Body_GetLinearVelocity(bodyIdB);
+                            b2Vec2 rv    = b2Sub(vel_b, vel_a);
 
                             for (int k = 0; k < contact.manifold.pointCount; ++k)
                             {
                                 b2ManifoldPoint& manifold_point = contact.manifold.points[k];
 
-                                ContactPoint     cp;
+                                ContactPoint cp;
                                 FromB2(manifold_point.point, cp.m_PositionA, inv_scale);
                                 FromB2(manifold_point.point, cp.m_PositionB, inv_scale);
                                 cp.m_UserDataA = b2Body_GetUserData(bodyIdA);
@@ -635,10 +635,10 @@ namespace dmPhysics
             // Update transforms of dynamic bodies
             if (world->m_SetWorldTransformCallback)
             {
-                for (int i = 0; i < world->m_Bodies.Size(); ++i)
+                for (int i=0; i < world->m_Bodies.Size(); ++i)
                 {
-                    Body*      body = world->m_Bodies[i];
-                    b2BodyId   body_id = body->m_BodyId;
+                    Body* body = world->m_Bodies[i];
+                    b2BodyId body_id = body->m_BodyId;
                     b2BodyType body_type = b2Body_GetType(body_id);
 
                     if (body_type == b2_dynamicBody && b2Body_IsEnabled(body_id))
@@ -646,7 +646,7 @@ namespace dmPhysics
                         Point3 position;
                         FromB2(b2Body_GetPosition(body_id), position, inv_scale);
                         b2Rot rot = b2Body_GetRotation(body_id);
-                        Quat  rotation = Quat::rotationZ(b2Rot_GetAngle(rot));
+                        Quat rotation = Quat::rotationZ(b2Rot_GetAngle(rot));
                         (*world->m_SetWorldTransformCallback)(b2Body_GetUserData(body_id), position, rotation);
                     }
                 }
@@ -666,7 +666,7 @@ namespace dmPhysics
             for (uint32_t i = 0; i < size; ++i)
             {
                 RayCastRequest& request = world->m_RayCastRequests[i];
-                b2Vec2          from;
+                b2Vec2 from;
                 ToB2(request.m_From, from, scale);
                 b2Vec2 to;
                 ToB2(request.m_To, to, scale);
@@ -679,7 +679,7 @@ namespace dmPhysics
                 ray_cast_context.m_Response.m_Hit = 0;
 
                 filter.maskBits = request.m_Mask;
-                filter.categoryBits = (uint64_t)-1; // This will search for all groups
+                filter.categoryBits = (uint64_t) -1; // This will search for all groups
 
                 b2World_CastRay(world->m_WorldId, from, translate, filter, cast_ray_cb, &ray_cast_context);
                 (*step_context.m_RayCastCallback)(ray_cast_context.m_Response, request, step_context.m_RayCastUserData);
@@ -693,7 +693,7 @@ namespace dmPhysics
         if (step_context.m_CollisionCallback)
         {
             DM_PROFILE("CollisionCallbacks");
-            for (int i = 0; i < world->m_Bodies.Size(); ++i)
+            for (int i=0; i < world->m_Bodies.Size(); ++i)
             {
                 Body* body = world->m_Bodies[i];
 
@@ -702,7 +702,7 @@ namespace dmPhysics
                     continue;
                 }
 
-                for (int j = 0; j < body->m_ShapeCount; ++j)
+                for (int j=0; j < body->m_ShapeCount; ++j)
                 {
                     b2ShapeId shapeIdA = body->m_Shapes[j]->m_ShapeId;
                     if (!b2Shape_IsValid(shapeIdA))
@@ -715,7 +715,7 @@ namespace dmPhysics
                         dmArray<b2ShapeId>& overlaps = GetSensorOverlapBuffer(world, shapeIdA);
 
                         // Trigger collision callbacks for overlapping sensors
-                        for (int k = 0; k < overlaps.Size(); ++k)
+                        for (int k=0; k < overlaps.Size(); ++k)
                         {
                             b2ShapeId shapeIdB = overlaps[k];
                             if (!b2Shape_IsValid(shapeIdB))
@@ -724,7 +724,9 @@ namespace dmPhysics
                             }
 
                             step_context.m_CollisionCallback(
-                            b2Shape_GetUserData(shapeIdA), b2Shape_GetFilter(shapeIdA).categoryBits, b2Shape_GetUserData(shapeIdB), b2Shape_GetFilter(shapeIdB).categoryBits, step_context.m_CollisionUserData);
+                                b2Shape_GetUserData(shapeIdA), b2Shape_GetFilter(shapeIdA).categoryBits,
+                                b2Shape_GetUserData(shapeIdB), b2Shape_GetFilter(shapeIdB).categoryBits,
+                                step_context.m_CollisionUserData);
                         }
                     }
                 }
@@ -749,12 +751,12 @@ namespace dmPhysics
                     continue;
                 }
 
-                add_data.m_ObjectA = ToOpaqueHandle(b2Shape_GetBody(shapeIdA));
+                add_data.m_ObjectA   = ToOpaqueHandle(b2Shape_GetBody(shapeIdA));
                 add_data.m_UserDataA = b2Shape_GetUserData(shapeIdA);
-                add_data.m_ObjectB = ToOpaqueHandle(b2Shape_GetBody(shapeIdB));
+                add_data.m_ObjectB   = ToOpaqueHandle(b2Shape_GetBody(shapeIdB));
                 add_data.m_UserDataB = b2Shape_GetUserData(shapeIdB);
-                add_data.m_GroupA = b2Shape_GetFilter(shapeIdA).categoryBits;
-                add_data.m_GroupB = b2Shape_GetFilter(shapeIdB).categoryBits;
+                add_data.m_GroupA    = b2Shape_GetFilter(shapeIdA).categoryBits;
+                add_data.m_GroupB    = b2Shape_GetFilter(shapeIdB).categoryBits;
                 OverlapCacheAdd(&world->m_TriggerOverlaps, add_data);
             }
 
@@ -782,26 +784,26 @@ namespace dmPhysics
 
     void SetDrawDebug2D(HWorld2D world, bool draw_debug)
     {
-        world->m_DebugDraw.m_DebugDraw.drawJoints = draw_debug;
-        world->m_DebugDraw.m_DebugDraw.drawShapes = draw_debug;
-        world->m_DebugDraw.m_DebugDraw.drawContactNormals = draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawJoints          = draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawShapes          = draw_debug;
+        world->m_DebugDraw.m_DebugDraw.drawContactNormals  = draw_debug;
         world->m_DebugDraw.m_DebugDraw.drawContactImpulses = draw_debug;
     }
 
     HCollisionShape2D NewCircleShape2D(HContext2D context, float radius)
     {
-        float            scale = context->m_Scale;
+        float scale = context->m_Scale;
         CircleShapeData* shape_data = new CircleShapeData();
         shape_data->m_ShapeDataBase.m_Type = SHAPE_TYPE_CIRCLE;
         shape_data->m_ShapeDataBase.m_CreationScale = radius * scale;
-        shape_data->m_Circle.center = { 0.0f, 0.0f };
+        shape_data->m_Circle.center = {0.0f, 0.0f};
         shape_data->m_Circle.radius = radius * scale;
         return shape_data;
     }
 
     HCollisionShape2D NewBoxShape2D(HContext2D context, const Vector3& half_extents)
     {
-        float             scale = context->m_Scale;
+        float scale = context->m_Scale;
         PolygonShapeData* shape_data = new PolygonShapeData();
         shape_data->m_ShapeDataBase.m_Type = SHAPE_TYPE_POLYGON;
         shape_data->m_ShapeDataBase.m_CreationScale = scale;
@@ -816,11 +818,11 @@ namespace dmPhysics
         assert(count >= 3);
 
         b2Vec2 c = {};
-        float  area = 0.0f;
+        float area = 0.0f;
 
         // pRef is the reference point for forming triangles.
         // It's location doesn't change the result (except for rounding error).
-        b2Vec2      pRef = {};
+        b2Vec2 pRef = {};
 
         const float inv3 = 1.0f / 3.0f;
 
@@ -829,14 +831,14 @@ namespace dmPhysics
             // Triangle vertices.
             b2Vec2 p1 = pRef;
             b2Vec2 p2 = vs[i];
-            b2Vec2 p3 = i + 1 < count ? vs[i + 1] : vs[0];
+            b2Vec2 p3 = i + 1 < count ? vs[i+1] : vs[0];
 
             b2Vec2 e1 = p2 - p1;
             b2Vec2 e2 = p3 - p1;
 
-            float  D = b2Cross(e1, e2);
+            float D = b2Cross(e1, e2);
 
-            float  triangleArea = 0.5f * D;
+            float triangleArea = 0.5f * D;
             area += triangleArea;
 
             // Area weighted centroid
@@ -863,8 +865,8 @@ namespace dmPhysics
         // Compute normals. Ensure the edges have non-zero length.
         for (int i = 0; i < count; ++i)
         {
-            int    i1 = i;
-            int    i2 = i + 1 < count ? i + 1 : 0;
+            int i1 = i;
+            int i2 = i + 1 < count ? i + 1 : 0;
             b2Vec2 edge = vertices[i2] - vertices[i1];
 
             assert(b2LengthSquared(edge) > FLT_EPSILON * FLT_EPSILON);
@@ -878,7 +880,7 @@ namespace dmPhysics
 
     HCollisionShape2D NewPolygonShape2D(HContext2D context, const float* vertices, uint32_t vertex_count)
     {
-        float             scale = context->m_Scale;
+        float scale = context->m_Scale;
 
         PolygonShapeData* shape_data = new PolygonShapeData();
         shape_data->m_ShapeDataBase.m_Type = SHAPE_TYPE_POLYGON;
@@ -892,43 +894,44 @@ namespace dmPhysics
 
         MakePolygonFromVertices(shape_data, v, vertex_count);
 
-        delete[] v;
+        delete [] v;
         return shape_data;
     }
 
-    HHullSet2D NewHullSet2D(HContext2D context, const float* vertices, uint32_t vertex_count, const HullDesc* hulls, uint32_t hull_count)
+    HHullSet2D NewHullSet2D(HContext2D context, const float* vertices, uint32_t vertex_count,
+                            const HullDesc* hulls, uint32_t hull_count)
     {
         assert(sizeof(HullDesc) == sizeof(const HullSet::Hull));
         // NOTE: We cast HullDesc* to const HullSet::Hull* here
         // We assume that they have the same physical layout
         // NOTE: No scaling of the vertices here since they are already assumed to be in a virtual "unit-space"
-        HullSet* hull_set = new HullSet((const b2Vec2*)vertices, vertex_count, (const HullSet::Hull*)hulls, hull_count);
+        HullSet* hull_set = new HullSet((const b2Vec2*) vertices, vertex_count, (const HullSet::Hull*) hulls, hull_count);
         return hull_set;
     }
 
     void DeleteHullSet2D(HHullSet2D hull_set)
     {
-        delete (HullSet*)hull_set;
+        delete (HullSet*) hull_set;
     }
 
     static inline void InitializeGridSHapeData(GridShapeData* shape_data)
     {
         uint32_t cell_count = shape_data->m_RowCount * shape_data->m_ColumnCount;
-        uint32_t size = sizeof(GridShapeData::Cell) * cell_count;
-        shape_data->m_Cells = (GridShapeData::Cell*)malloc(size);
+        uint32_t size       = sizeof(GridShapeData::Cell) * cell_count;
+        shape_data->m_Cells = (GridShapeData::Cell*) malloc(size);
         // This will set all Cell#m_Index to 0xffffffff to indicate free cells
         memset(shape_data->m_Cells, 0xff, size);
 
         size = sizeof(HullFlags) * cell_count;
-        shape_data->m_CellFlags = (HullFlags*)malloc(size);
+        shape_data->m_CellFlags = (HullFlags*) malloc(size);
         memset(shape_data->m_CellFlags, 0x0, size);
 
         size = sizeof(b2ShapeId) * cell_count;
-        shape_data->m_CellPolygonShapes = (b2ShapeId*)malloc(size);
+        shape_data->m_CellPolygonShapes = (b2ShapeId*) malloc(size);
         memset(shape_data->m_CellPolygonShapes, 0x0, size);
 
         size = sizeof(GridShapeData::Filter) * cell_count;
-        shape_data->m_CellFilters = (GridShapeData::Filter*)malloc(size);
+        shape_data->m_CellFilters = (GridShapeData::Filter*) malloc(size);
         memset(shape_data->m_CellFilters, 0x0, size);
     }
 
@@ -940,9 +943,12 @@ namespace dmPhysics
         free(shape_data->m_CellFilters);
     }
 
-    HCollisionShape2D NewGridShape2D(HContext2D context, HHullSet2D hull_set, const Point3& position, uint32_t cell_width, uint32_t cell_height, uint32_t row_count, uint32_t column_count)
+    HCollisionShape2D NewGridShape2D(HContext2D context, HHullSet2D hull_set,
+                                     const Point3& position,
+                                     uint32_t cell_width, uint32_t cell_height,
+                                     uint32_t row_count, uint32_t column_count)
     {
-        float  scale = context->m_Scale;
+        float scale = context->m_Scale;
         b2Vec2 p;
         ToB2(position, p, scale);
 
@@ -950,13 +956,13 @@ namespace dmPhysics
         shape_data->m_ShapeDataBase.m_Type = SHAPE_TYPE_GRID;
         shape_data->m_ShapeDataBase.m_CreationScale = scale;
 
-        shape_data->m_Position = p;
-        shape_data->m_HullSet = (HullSet*)hull_set;
-        shape_data->m_CellWidth = cell_width * scale;
-        shape_data->m_CellHeight = cell_height * scale;
-        shape_data->m_RowCount = row_count;
+        shape_data->m_Position    = p;
+        shape_data->m_HullSet     = (HullSet*) hull_set;
+        shape_data->m_CellWidth   = cell_width * scale;
+        shape_data->m_CellHeight  = cell_height * scale;
+        shape_data->m_RowCount    = row_count;
         shape_data->m_ColumnCount = column_count;
-        shape_data->m_Radius = b2_polygonRadius;
+        shape_data->m_Radius      = b2_polygonRadius;
 
         InitializeGridSHapeData(shape_data);
 
@@ -965,15 +971,15 @@ namespace dmPhysics
 
     void ClearGridShapeHulls(HCollisionObject2D collision_object)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
 
         for (int i = 0; i < body->m_ShapeCount; ++i)
         {
             if (body->m_Shapes[i]->m_Type == SHAPE_TYPE_GRID)
             {
-                GridShapeData* grid_shape = (GridShapeData*)body->m_Shapes[i];
+                GridShapeData* grid_shape = (GridShapeData*) body->m_Shapes[i];
 
-                uint32_t       cellCount = grid_shape->m_RowCount * grid_shape->m_ColumnCount;
+                uint32_t cellCount = grid_shape->m_RowCount * grid_shape->m_ColumnCount;
                 memset(grid_shape->m_Cells, B2GRIDSHAPE_EMPTY_CELL, sizeof(GridShapeData::Cell) * cellCount);
                 memset(grid_shape->m_CellFlags, 0x0, sizeof(HullFlags) * cellCount);
             }
@@ -992,7 +998,7 @@ namespace dmPhysics
         {
             return 0;
         }
-        return (GridShapeData*)shape_data;
+        return (GridShapeData*) shape_data;
     }
 
     static int GetGridCellVertices(GridShapeData* shape_data, int index, b2Vec2* vertices)
@@ -1016,21 +1022,21 @@ namespace dmPhysics
         const HullSet::Hull& hull = shape_data->m_HullSet->m_Hulls[cell.m_Index];
         assert(hull.m_Count <= B2_MAX_POLYGON_VERTICES);
 
-        int    row = index / shape_data->m_ColumnCount;
-        int    col = index - (shape_data->m_ColumnCount * row);
+        int row = index / shape_data->m_ColumnCount;
+        int col = index - (shape_data->m_ColumnCount * row);
 
-        float  halfWidth = shape_data->m_CellWidth * shape_data->m_ColumnCount * 0.5f;
-        float  halfHeight = shape_data->m_CellHeight * shape_data->m_RowCount * 0.5f;
+        float halfWidth = shape_data->m_CellWidth * shape_data->m_ColumnCount * 0.5f;
+        float halfHeight = shape_data->m_CellHeight * shape_data->m_RowCount * 0.5f;
 
-        b2Vec2 t = { shape_data->m_CellWidth * col - halfWidth, shape_data->m_CellHeight * row - halfHeight };
+        b2Vec2 t = {shape_data->m_CellWidth * col - halfWidth, shape_data->m_CellHeight * row - halfHeight};
         t.x += shape_data->m_CellWidth * 0.5f;
         t.y += shape_data->m_CellHeight * 0.5f;
         t += shape_data->m_Position;
 
         const HullFlags& flags = shape_data->m_CellFlags[index];
-        float            xScale = flags.m_FlipHorizontal ? -1.0f : 1.0f;
-        float            yScale = flags.m_FlipVertical ? -1.0f : 1.0f;
-        float            tmpX = 0.0;
+        float xScale = flags.m_FlipHorizontal ? -1.0f : 1.0f;
+        float yScale = flags.m_FlipVertical ? -1.0f : 1.0f;
+        float tmpX = 0.0;
 
         for (uint32_t i = 0; i < hull.m_Count; ++i)
         {
@@ -1060,7 +1066,7 @@ namespace dmPhysics
             {
                 b2Vec2& v1 = vertices[i];
                 b2Vec2& v2 = vertices[hull.m_Count - 1 - i];
-                b2Vec2  tmp = v1;
+                b2Vec2 tmp = v1;
                 v1 = v2;
                 v2 = tmp;
             }
@@ -1071,7 +1077,7 @@ namespace dmPhysics
 
     void CreateGridCellShape(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t child)
     {
-        Body*          body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         GridShapeData* shape_data = GetGridShapeData(body, shape_index);
 
         if (b2Shape_IsValid(shape_data->m_CellPolygonShapes[child]))
@@ -1086,7 +1092,7 @@ namespace dmPhysics
         HullSet::Hull& hull = shape_data->m_HullSet->m_Hulls[cell.m_Index];
         assert(hull.m_Count <= B2_MAX_POLYGON_VERTICES);
 
-        b2Vec2   vertices[B2_MAX_POLYGON_VERTICES];
+        b2Vec2 vertices[B2_MAX_POLYGON_VERTICES];
         uint32_t count = GetGridCellVertices(shape_data, child, vertices);
 
         if (count > 0)
@@ -1098,19 +1104,19 @@ namespace dmPhysics
             }
 
             // Filters can potentially have changed between creating/initializing the grid shape and when we need to create the actual b2 shapes
-            b2ShapeDef shape_def = shape_data->m_ShapeDef;
+            b2ShapeDef shape_def          = shape_data->m_ShapeDef;
             shape_def.filter.categoryBits = shape_data->m_CellFilters[child].m_Group;
-            shape_def.filter.maskBits = shape_data->m_CellFilters[child].m_Mask;
+            shape_def.filter.maskBits     = shape_data->m_CellFilters[child].m_Mask;
 
-            b2Hull    polygon_hull = b2ComputeHull(vertices, count);
-            b2Polygon polygon = b2MakePolygon(&polygon_hull, shape_data->m_Radius);
+            b2Hull polygon_hull                    = b2ComputeHull(vertices, count);
+            b2Polygon polygon                      = b2MakePolygon(&polygon_hull, shape_data->m_Radius);
             shape_data->m_CellPolygonShapes[child] = b2CreatePolygonShape(body->m_BodyId, &shape_def, &polygon);
         }
     }
 
     bool SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
-        Body*          body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         GridShapeData* shape_data = GetGridShapeData(body, shape_index);
 
         if (shape_data == 0)
@@ -1122,12 +1128,12 @@ namespace dmPhysics
         assert(index < shape_data->m_RowCount * shape_data->m_ColumnCount);
 
         GridShapeData::Cell* cell = &shape_data->m_Cells[index];
-        bool                 hull_changed = cell->m_Index != hull;
+        bool hull_changed = cell->m_Index != hull;
         cell->m_Index = hull;
 
         // We need to recreate polygon if the flags have changed
         HullFlags* cell_flags = &shape_data->m_CellFlags[index];
-        bool       cell_flags_changed = memcmp(&flags, cell_flags, sizeof(HullFlags)) != 0;
+        bool cell_flags_changed = memcmp(&flags, cell_flags, sizeof(HullFlags)) != 0;
         shape_data->m_CellFlags[index] = flags;
 
         uint64_t opaque_id = ToOpaqueHandle(shape_data->m_CellPolygonShapes[index]);
@@ -1166,7 +1172,7 @@ namespace dmPhysics
 
     bool SetGridShapeEnable(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t enable)
     {
-        Body*          body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         GridShapeData* shape_data = GetGridShapeData(body, shape_index);
         if (shape_data == 0)
         {
@@ -1191,12 +1197,10 @@ namespace dmPhysics
     }
 
     void SetCollisionObjectFilter(HCollisionObject2D collision_object,
-                                  uint32_t           shape,
-                                  uint32_t           child,
-                                  uint16_t           group,
-                                  uint16_t           mask)
+                                  uint32_t shape, uint32_t child,
+                                  uint16_t group, uint16_t mask)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         if (shape >= body->m_ShapeCount)
         {
             return;
@@ -1206,7 +1210,7 @@ namespace dmPhysics
 
         if (shape_data->m_Type == SHAPE_TYPE_GRID)
         {
-            GridShapeData*       grid_shape = (GridShapeData*)shape_data;
+            GridShapeData* grid_shape = (GridShapeData*) shape_data;
 
             GridShapeData::Cell* cell = &grid_shape->m_Cells[child];
             if (cell->m_Index == B2GRIDSHAPE_EMPTY_CELL)
@@ -1238,18 +1242,18 @@ namespace dmPhysics
 
     void DeleteCollisionShape2D(HCollisionShape2D _shape)
     {
-        ShapeData* shape = (ShapeData*)_shape;
+        ShapeData* shape = (ShapeData*) _shape;
 
         switch (shape->m_Type)
         {
             case SHAPE_TYPE_CIRCLE:
-                delete (CircleShapeData*)shape;
+                delete (CircleShapeData*) shape;
                 break;
             case SHAPE_TYPE_POLYGON:
-                delete (PolygonShapeData*)shape;
+                delete (PolygonShapeData*) shape;
                 break;
             case SHAPE_TYPE_GRID:
-                delete (GridShapeData*)shape;
+                delete (GridShapeData*) shape;
                 break;
             default:
                 assert(false);
@@ -1291,11 +1295,11 @@ namespace dmPhysics
      *
      */
 
-    static ShapeData* TransformCopyShape(HContext2D       context,
-                                         const ShapeData* shape,
-                                         const Vector3&   translation,
-                                         const Quat&      rotation,
-                                         float            scale)
+    static ShapeData* TransformCopyShape(HContext2D context,
+                                       const ShapeData* shape,
+                                       const Vector3& translation,
+                                       const Quat& rotation,
+                                       float scale)
     {
         b2Vec2 t;
         ToB2(translation, t, context->m_Scale * scale);
@@ -1307,34 +1311,35 @@ namespace dmPhysics
         transform.q = r;
         transform.p = t;
 
-        ShapeData* ret = (ShapeData*)shape;
+        ShapeData* ret = (ShapeData*) shape;
 
-        switch (shape->m_Type)
+        switch(shape->m_Type)
         {
-            case SHAPE_TYPE_CIRCLE: {
-                CircleShapeData* circle_shape = (CircleShapeData*)shape;
+            case SHAPE_TYPE_CIRCLE:
+            {
+                CircleShapeData* circle_shape      = (CircleShapeData*) shape;
                 CircleShapeData* circle_shape_prim = new CircleShapeData;
 
-                circle_shape_prim->m_ShapeDataBase.m_Type = shape->m_Type;
-                circle_shape_prim->m_ShapeDataBase.m_Resource = (ShapeData*)shape;
-                circle_shape_prim->m_Circle.center = TransformScaleB2(transform, scale, circle_shape->m_Circle.center);
-                circle_shape_prim->m_Circle.radius = circle_shape->m_Circle.radius;
+                circle_shape_prim->m_ShapeDataBase.m_Type     = shape->m_Type;
+                circle_shape_prim->m_ShapeDataBase.m_Resource = (ShapeData*) shape;
+                circle_shape_prim->m_Circle.center            = TransformScaleB2(transform, scale, circle_shape->m_Circle.center);
+                circle_shape_prim->m_Circle.radius            = circle_shape->m_Circle.radius;
 
                 if (context->m_AllowDynamicTransforms)
                 {
-                    circle_shape_prim->m_ShapeDataBase.m_CreationScale = circle_shape_prim->m_Circle.radius;
+                    circle_shape_prim->m_ShapeDataBase.m_CreationScale    = circle_shape_prim->m_Circle.radius;
                     circle_shape_prim->m_ShapeDataBase.m_CreationPosition = { transform.p.x / scale, transform.p.y / scale };
                 }
                 circle_shape_prim->m_Circle.radius *= scale;
-                ret = (ShapeData*)circle_shape_prim;
-            }
-            break;
-            case SHAPE_TYPE_POLYGON: {
-                PolygonShapeData* poly_shape = (PolygonShapeData*)shape;
+                ret = (ShapeData*) circle_shape_prim;
+            } break;
+            case SHAPE_TYPE_POLYGON:
+            {
+                PolygonShapeData* poly_shape = (PolygonShapeData*) shape;
                 PolygonShapeData* poly_shape_prim = new PolygonShapeData;
                 memcpy(poly_shape_prim, poly_shape, sizeof(PolygonShapeData));
 
-                b2Vec2  tmp[B2_MAX_POLYGON_VERTICES] = {};
+                b2Vec2 tmp[B2_MAX_POLYGON_VERTICES] = {};
                 int32_t n = poly_shape->m_Polygon.count;
                 for (int32_t i = 0; i < n; ++i)
                 {
@@ -1342,21 +1347,19 @@ namespace dmPhysics
                 }
 
                 MakePolygonFromVertices(poly_shape_prim, tmp, n);
-                ret = (ShapeData*)poly_shape_prim;
-            }
-            break;
-            case SHAPE_TYPE_GRID: {
-                GridShapeData* grid_shape = (GridShapeData*)shape;
+                ret = (ShapeData*) poly_shape_prim;
+            } break;
+            case SHAPE_TYPE_GRID:
+            {
+                GridShapeData* grid_shape = (GridShapeData*) shape;
                 GridShapeData* grid_shape_prim = new GridShapeData;
                 memcpy(grid_shape_prim, grid_shape, sizeof(GridShapeData));
 
                 InitializeGridSHapeData(grid_shape_prim);
 
-                ret = (ShapeData*)grid_shape_prim;
-            }
-            break;
-            default:
-                break;
+                ret = (ShapeData*) grid_shape_prim;
+            } break;
+            default: break;
         }
 
         if (shape->m_Type != SHAPE_TYPE_CIRCLE)
@@ -1369,26 +1372,29 @@ namespace dmPhysics
 
     static void FreeShape(ShapeData* shape)
     {
-        switch (shape->m_Type)
+        switch(shape->m_Type)
         {
-            case SHAPE_TYPE_CIRCLE: {
+            case SHAPE_TYPE_CIRCLE:
+            {
                 if (b2Shape_IsValid(shape->m_ShapeId))
                     b2DestroyShape(shape->m_ShapeId, false);
-                CircleShapeData* circle_shape = (CircleShapeData*)shape;
+                CircleShapeData* circle_shape = (CircleShapeData*) shape;
                 delete circle_shape;
             }
             break;
-            case SHAPE_TYPE_POLYGON: {
+            case SHAPE_TYPE_POLYGON:
+            {
                 if (b2Shape_IsValid(shape->m_ShapeId))
                     b2DestroyShape(shape->m_ShapeId, false);
-                PolygonShapeData* poly_shape = (PolygonShapeData*)shape;
+                PolygonShapeData* poly_shape = (PolygonShapeData*) shape;
                 delete poly_shape;
             }
             break;
-            case SHAPE_TYPE_GRID: {
-                GridShapeData* grid_shape = (GridShapeData*)shape;
+            case SHAPE_TYPE_GRID:
+            {
+                GridShapeData* grid_shape = (GridShapeData*) shape;
 
-                uint32_t       cell_count = grid_shape->m_RowCount * grid_shape->m_ColumnCount;
+                uint32_t cell_count = grid_shape->m_RowCount * grid_shape->m_ColumnCount;
 
                 for (int i = 0; i < cell_count; ++i)
                 {
@@ -1401,10 +1407,8 @@ namespace dmPhysics
 
                 FreeGridShapeData(grid_shape);
                 delete grid_shape;
-            }
-            break;
-            default:
-                break;
+            } break;
+            default: break;
         }
     }
 
@@ -1413,7 +1417,9 @@ namespace dmPhysics
      * This is required as the transform is part of the shape and due to absence of a compound shape, aka list shape
      * with per-child transform.
      */
-    HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D* shapes, Vector3* translations, Quat* rotations, uint32_t shape_count)
+    HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D* shapes,
+                                            Vector3* translations, Quat* rotations,
+                                            uint32_t shape_count)
     {
         if (shape_count == 0)
         {
@@ -1422,26 +1428,26 @@ namespace dmPhysics
         }
         switch (data.m_Type)
         {
-            case COLLISION_OBJECT_TYPE_DYNAMIC:
-                if (data.m_Mass == 0.0f)
-                {
-                    dmLogError("Collision objects can not be dynamic and have zero mass.");
-                    return 0x0;
-                }
-                break;
-            default:
-                if (data.m_Mass > 0.0f)
-                {
-                    dmLogError("Only dynamic collision objects can have a positive mass.");
-                    return 0x0;
-                }
-                break;
+        case COLLISION_OBJECT_TYPE_DYNAMIC:
+            if (data.m_Mass == 0.0f)
+            {
+                dmLogError("Collision objects can not be dynamic and have zero mass.");
+                return 0x0;
+            }
+            break;
+        default:
+            if (data.m_Mass > 0.0f)
+            {
+                dmLogError("Only dynamic collision objects can have a positive mass.");
+                return 0x0;
+            }
+            break;
         }
 
         HContext2D context = world->m_Context;
-        b2BodyDef  def = b2DefaultBodyDef();
+        b2BodyDef def = b2DefaultBodyDef();
 
-        float      scale = 1.0f;
+        float scale = 1.0f;
         if (world->m_GetWorldTransformCallback != 0x0)
         {
             if (data.m_UserData != 0x0)
@@ -1482,23 +1488,23 @@ namespace dmPhysics
                 def.type = b2_kinematicBody;
                 break;
         }
-        def.userData = data.m_UserData;
-        def.linearDamping = data.m_LinearDamping;
-        def.angularDamping = data.m_AngularDamping;
-        def.fixedRotation = data.m_LockedRotation;
-        def.isBullet = data.m_Bullet;
-        def.isEnabled = data.m_Enabled;
-        b2BodyId bodyId = b2CreateBody(world->m_WorldId, &def);
+        def.userData        = data.m_UserData;
+        def.linearDamping   = data.m_LinearDamping;
+        def.angularDamping  = data.m_AngularDamping;
+        def.fixedRotation   = data.m_LockedRotation;
+        def.isBullet        = data.m_Bullet;
+        def.isEnabled       = data.m_Enabled;
+        b2BodyId bodyId     = b2CreateBody(world->m_WorldId, &def);
 
-        Body*    body = new Body();
-        body->m_BodyId = bodyId;
-        body->m_Shapes = (ShapeData**)malloc(shape_count * sizeof(ShapeData*));
+        Body* body         = new Body();
+        body->m_BodyId     = bodyId;
+        body->m_Shapes     = (ShapeData**) malloc(shape_count * sizeof(ShapeData*));
         body->m_ShapeCount = shape_count;
 
         Vector3 zero_vec3 = Vector3(0);
         for (uint32_t i = 0; i < shape_count; ++i)
         {
-            ShapeData* s = (ShapeData*)shapes[i];
+            ShapeData* s = (ShapeData*) shapes[i];
 
             if (translations && rotations)
             {
@@ -1509,32 +1515,33 @@ namespace dmPhysics
                 s = TransformCopyShape(context, s, zero_vec3, Quat::identity(), scale);
             }
 
-            b2ShapeDef f_def = b2DefaultShapeDef();
-            f_def.userData = data.m_UserData;
+            b2ShapeDef f_def          = b2DefaultShapeDef();
+            f_def.userData            = data.m_UserData;
             f_def.filter.categoryBits = data.m_Group;
-            f_def.filter.maskBits = data.m_Mask;
-            f_def.density = 1.0f;
-            f_def.material.friction = data.m_Friction;
-            f_def.material.restitution = data.m_Restitution;
-            f_def.isSensor = data.m_Type == COLLISION_OBJECT_TYPE_TRIGGER;
+            f_def.filter.maskBits     = data.m_Mask;
+            f_def.density             = 1.0f;
+            f_def.material.friction   = data.m_Friction;
+            f_def.material.restitution= data.m_Restitution;
+            f_def.isSensor            = data.m_Type == COLLISION_OBJECT_TYPE_TRIGGER;
             f_def.enableContactEvents = true;
-            f_def.enableHitEvents = true;
+            f_def.enableHitEvents     = true;
             f_def.enableSensorEvents = true;
 
             switch (s->m_Type)
             {
-                case SHAPE_TYPE_CIRCLE: {
-                    CircleShapeData* c = (CircleShapeData*)s;
+                case SHAPE_TYPE_CIRCLE:
+                {
+                    CircleShapeData* c = (CircleShapeData*) s;
                     s->m_ShapeId = b2CreateCircleShape(bodyId, &f_def, &c->m_Circle);
-                }
-                break;
-                case SHAPE_TYPE_POLYGON: {
-                    PolygonShapeData* p = (PolygonShapeData*)s;
+                } break;
+                case SHAPE_TYPE_POLYGON:
+                {
+                    PolygonShapeData* p = (PolygonShapeData*) s;
                     s->m_ShapeId = b2CreatePolygonShape(bodyId, &f_def, &p->m_Polygon);
-                }
-                break;
-                case SHAPE_TYPE_GRID: {
-                    GridShapeData* g = (GridShapeData*)s;
+                } break;
+                case SHAPE_TYPE_GRID:
+                {
+                    GridShapeData* g = (GridShapeData*) s;
                     // Grid polygons are created later, so we need to store the definition for later.
                     memcpy(&g->m_ShapeDef, &f_def, sizeof(b2ShapeDef));
 
@@ -1542,12 +1549,10 @@ namespace dmPhysics
                     for (int i = 0; i < cell_count; ++i)
                     {
                         g->m_CellFilters[i].m_Group = data.m_Group;
-                        g->m_CellFilters[i].m_Mask = data.m_Mask;
+                        g->m_CellFilters[i].m_Mask  = data.m_Mask;
                     }
-                }
-                break;
-                default:
-                    assert(0);
+                } break;
+                default:assert(0);
             }
 
             body->m_Shapes[i] = s;
@@ -1566,7 +1571,7 @@ namespace dmPhysics
 
     void DeleteCollisionObject2D(HWorld2D world, HCollisionObject2D collision_object)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
 
         OverlapCacheRemove(&world->m_TriggerOverlaps, ToOpaqueHandle(body->m_BodyId));
 
@@ -1595,9 +1600,9 @@ namespace dmPhysics
 
     uint32_t GetCollisionShapes2D(HCollisionObject2D collision_object, HCollisionShape2D* out_buffer, uint32_t buffer_size)
     {
-        Body*    body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
 
-        uint32_t size = dmMath::Min(buffer_size, (uint32_t)body->m_ShapeCount);
+        uint32_t size = dmMath::Min(buffer_size, (uint32_t) body->m_ShapeCount);
         for (uint32_t i = 0; i < size; ++i)
         {
             out_buffer[i] = body->m_Shapes[i];
@@ -1607,20 +1612,20 @@ namespace dmPhysics
 
     HCollisionShape2D GetCollisionShape2D(HWorld2D world, HCollisionObject2D collision_object, uint32_t shape_index)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         return body->m_Shapes[shape_index];
     }
 
     void GetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D _shape, float* radius)
     {
-        CircleShapeData* shape = (CircleShapeData*)_shape;
+        CircleShapeData* shape = (CircleShapeData*) _shape;
         assert(shape->m_ShapeDataBase.m_Type == SHAPE_TYPE_CIRCLE);
         *radius = shape->m_Circle.radius * world->m_Context->m_InvScale;
     }
 
     void SetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D _shape, float radius)
     {
-        CircleShapeData* shape = (CircleShapeData*)_shape;
+        CircleShapeData* shape = (CircleShapeData*) _shape;
         assert(shape->m_ShapeDataBase.m_Type == SHAPE_TYPE_CIRCLE);
 
         shape->m_Circle.radius = radius * world->m_Context->m_Scale;
@@ -1631,16 +1636,16 @@ namespace dmPhysics
 
     void SetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D _shape, Quat rotation, float w, float h)
     {
-        ShapeData* shape = (ShapeData*)_shape;
+        ShapeData* shape = (ShapeData*) _shape;
 
         if (shape->m_Type == SHAPE_TYPE_POLYGON)
         {
-            float             angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()),
+            float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()),
                                 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
-            float             scale = world->m_Context->m_Scale;
+            float scale = world->m_Context->m_Scale;
 
-            PolygonShapeData* polygon = (PolygonShapeData*)shape;
-            b2Vec2            centroid = polygon->m_Polygon.centroid;
+            PolygonShapeData* polygon = (PolygonShapeData*) shape;
+            b2Vec2 centroid = polygon->m_Polygon.centroid;
 
             polygon->m_Polygon = b2MakeOffsetBox(w * scale, h * scale, centroid, b2MakeRot(angle));
             memcpy(polygon->m_VerticesOriginal, polygon->m_Polygon.vertices, sizeof(b2Vec2) * polygon->m_Polygon.count);
@@ -1650,7 +1655,7 @@ namespace dmPhysics
 
     void GetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D _shape, Quat rotation, float& w, float& h)
     {
-        ShapeData* shape = (ShapeData*)_shape;
+        ShapeData* shape = (ShapeData*) _shape;
 
         if (shape->m_Type == SHAPE_TYPE_POLYGON)
         {
@@ -1664,9 +1669,9 @@ namespace dmPhysics
             transform.p = t;
             transform.q = r;
 
-            PolygonShapeData* polygon_shape = (PolygonShapeData*)shape;
-            b2Vec2*           vertices = polygon_shape->m_Polygon.vertices;
-            float             min_x = INT32_MAX,
+            PolygonShapeData* polygon_shape = (PolygonShapeData*) shape;
+            b2Vec2* vertices = polygon_shape->m_Polygon.vertices;
+            float min_x = INT32_MAX,
                   min_y = INT32_MAX,
                   max_x = -INT32_MAX,
                   max_y = -INT32_MAX;
@@ -1686,32 +1691,32 @@ namespace dmPhysics
 
     void SetCollisionObjectUserData2D(HCollisionObject2D collision_object, void* user_data)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         b2Body_SetUserData(body->m_BodyId, user_data);
     }
 
     void* GetCollisionObjectUserData2D(HCollisionObject2D collision_object)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         return b2Body_GetUserData(body->m_BodyId);
     }
 
     void ApplyForce2D(HContext2D context, HCollisionObject2D collision_object, const Vector3& force, const Point3& position)
     {
-        float  scale = context->m_Scale;
+        float scale = context->m_Scale;
         b2Vec2 b2_force;
         ToB2(force, b2_force, scale);
         b2Vec2 b2_position;
         ToB2(position, b2_position, scale);
 
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         b2Body_ApplyForce(body->m_BodyId, b2_force, b2_position, true);
     }
 
     Vector3 GetTotalForce2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        Body*   body = (Body*)collision_object;
-        b2Vec2  b2_force = b2Body_GetTotalForce(body->m_BodyId);
+        Body* body = (Body*) collision_object;
+        b2Vec2 b2_force = b2Body_GetTotalForce(body->m_BodyId);
         Vector3 force;
         FromB2(b2_force, force, context->m_InvScale);
         return force;
@@ -1719,7 +1724,7 @@ namespace dmPhysics
 
     Point3 GetWorldPosition2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        Body*  body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         b2Vec2 b2_position = b2Body_GetPosition(body->m_BodyId);
         Point3 position;
         FromB2(b2_position, position, context->m_InvScale);
@@ -1728,7 +1733,7 @@ namespace dmPhysics
 
     Quat GetWorldRotation2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         b2Rot rot = b2Body_GetRotation(body->m_BodyId);
         float angle = b2Rot_GetAngle(rot);
         return Quat::rotationZ(angle);
@@ -1736,8 +1741,8 @@ namespace dmPhysics
 
     Vector3 GetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        Body*   body = (Body*)collision_object;
-        b2Vec2  b2_lin_vel = b2Body_GetLinearVelocity(body->m_BodyId);
+        Body* body = (Body*) collision_object;
+        b2Vec2 b2_lin_vel = b2Body_GetLinearVelocity(body->m_BodyId);
 
         Vector3 lin_vel;
         FromB2(b2_lin_vel, lin_vel, context->m_InvScale);
@@ -1746,14 +1751,14 @@ namespace dmPhysics
 
     Vector3 GetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         float ang_vel = b2Body_GetAngularVelocity(body->m_BodyId);
         return Vector3(0.0f, 0.0f, ang_vel);
     }
 
     void SetLinearVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vector3& velocity)
     {
-        Body*  body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         b2Vec2 b2_velocity;
         ToB2(velocity, b2_velocity, context->m_Scale);
 
@@ -1766,7 +1771,7 @@ namespace dmPhysics
 
     void SetAngularVelocity2D(HContext2D context, HCollisionObject2D collision_object, const Vector3& velocity)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
 
         if (!b2Body_IsEnabled(body->m_BodyId))
         {
@@ -1778,7 +1783,7 @@ namespace dmPhysics
 
     bool IsEnabled2D(HCollisionObject2D collision_object)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         return b2Body_IsEnabled(body->m_BodyId);
     }
 
@@ -1792,7 +1797,7 @@ namespace dmPhysics
             return;
         }
 
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
 
         if (enabled)
             b2Body_Enable(body->m_BodyId);
@@ -1808,8 +1813,8 @@ namespace dmPhysics
                 dmTransform::Transform world_transform;
                 (*world->m_GetWorldTransformCallback)(b2Body_GetUserData(body->m_BodyId), world_transform);
                 Point3 position = Point3(world_transform.GetTranslation());
-                Quat   rotation = Quat(world_transform.GetRotation());
-                float  angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
+                Quat rotation = Quat(world_transform.GetRotation());
+                float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
                 b2Vec2 b2_position;
                 ToB2(position, b2_position, world->m_Context->m_Scale);
 
@@ -1826,67 +1831,67 @@ namespace dmPhysics
 
     bool IsSleeping2D(HCollisionObject2D collision_object)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         return !b2Body_IsAwake(body->m_BodyId);
     }
 
     void Wakeup2D(HCollisionObject2D collision_object)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         b2Body_SetAwake(body->m_BodyId, true);
     }
 
     void SetLockedRotation2D(HCollisionObject2D collision_object, bool locked_rotation)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         b2Body_SetFixedRotation(body->m_BodyId, locked_rotation);
     }
 
     float GetLinearDamping2D(HCollisionObject2D collision_object)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         return b2Body_GetLinearDamping(body->m_BodyId);
     }
 
     void SetLinearDamping2D(HCollisionObject2D collision_object, float linear_damping)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         b2Body_SetLinearDamping(body->m_BodyId, linear_damping);
     }
 
     float GetAngularDamping2D(HCollisionObject2D collision_object)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         return b2Body_GetAngularDamping(body->m_BodyId);
     }
 
     void SetAngularDamping2D(HCollisionObject2D collision_object, float angular_damping)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         b2Body_SetAngularDamping(body->m_BodyId, angular_damping);
     }
 
     float GetMass2D(HCollisionObject2D collision_object)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         return b2Body_GetMass(body->m_BodyId);
     }
 
     bool IsBullet2D(HCollisionObject2D collision_object)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         return b2Body_IsBullet(body->m_BodyId);
     }
 
     void SetBullet2D(HCollisionObject2D collision_object, bool value)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         b2Body_SetBullet(body->m_BodyId, value);
     }
 
     void SetGroup2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
 
         for (int i = 0; i < body->m_ShapeCount; ++i)
         {
@@ -1902,7 +1907,7 @@ namespace dmPhysics
 
     uint16_t GetGroup2D(HWorld2D world, HCollisionObject2D collision_object)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
 
         for (int i = 0; i < body->m_ShapeCount; ++i)
         {
@@ -1918,7 +1923,7 @@ namespace dmPhysics
     // updates a specific group bit of a collision object's current mask
     void SetMaskBit2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
 
         for (int i = 0; i < body->m_ShapeCount; ++i)
         {
@@ -1939,7 +1944,7 @@ namespace dmPhysics
 
     bool GetMaskBit2D(HWorld2D world, HCollisionObject2D collision_object, uint16_t groupbit)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
         for (int i = 0; i < body->m_ShapeCount; ++i)
         {
             ShapeData* shape_data = body->m_Shapes[i];
@@ -1955,39 +1960,39 @@ namespace dmPhysics
 
     bool UpdateMass2D(HWorld2D world, HCollisionObject2D collision_object, float mass)
     {
-        Body* body = (Body*)collision_object;
+        Body* body = (Body*) collision_object;
 
-        if (b2Body_GetType(body->m_BodyId) != b2_dynamicBody)
-        {
+        if (b2Body_GetType(body->m_BodyId) != b2_dynamicBody) {
             return false;
         }
 
         float total_area = 0.0f;
         for (int i = 0; i < body->m_ShapeCount; ++i)
         {
-            switch (body->m_Shapes[i]->m_Type)
+            switch(body->m_Shapes[i]->m_Type)
             {
-                case SHAPE_TYPE_POLYGON: {
-                    PolygonShapeData* polygon = (PolygonShapeData*)body->m_Shapes[i];
-                    b2MassData        mass_data = b2ComputePolygonMass(&polygon->m_Polygon, 1.0f);
-                    total_area += mass_data.mass;
-                }
+            case SHAPE_TYPE_POLYGON:
+            {
+                PolygonShapeData* polygon = (PolygonShapeData*) body->m_Shapes[i];
+                b2MassData mass_data = b2ComputePolygonMass(&polygon->m_Polygon, 1.0f);
+                total_area += mass_data.mass;
+            } break;
+            case SHAPE_TYPE_CIRCLE:
+            {
+                CircleShapeData* circle = (CircleShapeData*) body->m_Shapes[i];
+                b2MassData mass_data = b2ComputeCircleMass(&circle->m_Circle, 1.0f);
+                total_area += mass_data.mass;
+            } break;
+            case SHAPE_TYPE_GRID:
+            {
+                GridShapeData* grid = (GridShapeData*) body->m_Shapes[i];
+                float w = grid->m_CellWidth * grid->m_ColumnCount;
+                float h = grid->m_CellHeight * grid->m_RowCount;
+                float area = w * h;
+                total_area += area;
+            }
+            default:
                 break;
-                case SHAPE_TYPE_CIRCLE: {
-                    CircleShapeData* circle = (CircleShapeData*)body->m_Shapes[i];
-                    b2MassData       mass_data = b2ComputeCircleMass(&circle->m_Circle, 1.0f);
-                    total_area += mass_data.mass;
-                }
-                break;
-                case SHAPE_TYPE_GRID: {
-                    GridShapeData* grid = (GridShapeData*)body->m_Shapes[i];
-                    float          w = grid->m_CellWidth * grid->m_ColumnCount;
-                    float          h = grid->m_CellHeight * grid->m_RowCount;
-                    float          area = w * h;
-                    total_area += area;
-                }
-                default:
-                    break;
             }
         }
 
@@ -2040,7 +2045,7 @@ namespace dmPhysics
         return diff < 0 ? -1 : 1;
     }
 
-    static float cast_ray_cb(b2ShapeId shape_id, b2Vec2 point, b2Vec2 normal, float fraction, void* context)
+    static float cast_ray_cb(b2ShapeId shape_id, b2Vec2 point, b2Vec2 normal, float fraction, void* context )
     {
         // Return value controls ray behavior:
         // -1: ignore this intersection
@@ -2048,9 +2053,9 @@ namespace dmPhysics
         // fraction: clip ray to this point
         // 1: continue ray to full length
 
-        RayCastContext* ctx = (RayCastContext*)context;
+        RayCastContext* ctx = (RayCastContext*) context;
 
-        b2Filter        shape_filter = b2Shape_GetFilter(shape_id);
+        b2Filter shape_filter = b2Shape_GetFilter(shape_id);
 
         if (b2Shape_IsSensor(shape_id))
         {
@@ -2096,7 +2101,7 @@ namespace dmPhysics
             return;
         }
 
-        float  scale = world->m_Context->m_Scale;
+        float scale = world->m_Context->m_Scale;
 
         b2Vec2 from;
         ToB2(from2d, from, scale);
@@ -2104,18 +2109,18 @@ namespace dmPhysics
         ToB2(to2d, to, scale);
 
         // Box2d V3 requires a translation vector, not a point
-        b2Vec2         translate = b2Sub(to, from);
+        b2Vec2 translate = b2Sub(to, from);
 
         RayCastContext context;
-        context.m_CollisionMask = request.m_Mask;
-        context.m_IgnoredUserData = request.m_IgnoredUserData;
-        context.m_Context = world->m_Context;
-        context.m_Results = &results;
+        context.m_CollisionMask    = request.m_Mask;
+        context.m_IgnoredUserData  = request.m_IgnoredUserData;
+        context.m_Context          = world->m_Context;
+        context.m_Results          = &results;
         context.m_ReturnAllResults = request.m_ReturnAllResults;
 
         b2QueryFilter filter = b2DefaultQueryFilter();
         filter.maskBits = request.m_Mask;
-        filter.categoryBits = (uint64_t)-1; // This will search for all groups, but we could expose a more narrow search if needed!
+        filter.categoryBits = (uint64_t) -1; // This will search for all groups, but we could expose a more narrow search if needed!
 
         b2World_CastRay(world->m_WorldId, from, translate, filter, cast_ray_cb, &context);
 
@@ -2133,7 +2138,7 @@ namespace dmPhysics
         }
         else
         {
-            qsort(results.Begin(), results.Size(), sizeof(dmPhysics::RayCastResponse), (int (*)(const void*, const void*))Sort_RayCastResponse);
+            qsort(results.Begin(), results.Size(), sizeof(dmPhysics::RayCastResponse), (int(*)(const void*, const void*))Sort_RayCastResponse);
         }
     }
 
@@ -2146,7 +2151,7 @@ namespace dmPhysics
 
     Vector3 GetGravity2D(HWorld2D world)
     {
-        b2Vec2  gravity_b = b2World_GetGravity(world->m_WorldId);
+        b2Vec2 gravity_b = b2World_GetGravity(world->m_WorldId);
         Vector3 gravity;
         FromB2(gravity_b, gravity, world->m_Context->m_InvScale);
         return gravity;
@@ -2160,7 +2165,7 @@ namespace dmPhysics
     void ReplaceShape2D(HContext2D context, HCollisionShape2D old_shape, HCollisionShape2D new_shape)
     {
         // ShapeData* old_shape_data = (ShapeData*) old_shape;
-        ShapeData* new_shape_data = (ShapeData*)new_shape;
+        ShapeData* new_shape_data = (ShapeData*) new_shape;
 
         for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
         {
@@ -2170,7 +2175,7 @@ namespace dmPhysics
             {
                 Body* body = world->m_Bodies[j];
 
-                bool  shape_found = false;
+                bool shape_found = false;
 
                 for (int s = 0; s < body->m_ShapeCount; ++s)
                 {
@@ -2180,31 +2185,31 @@ namespace dmPhysics
 
                         if (b2Shape_IsValid(body->m_Shapes[s]->m_ShapeId))
                         {
-                            switch (body->m_Shapes[s]->m_Type)
+                            switch(body->m_Shapes[s]->m_Type)
                             {
-                                case SHAPE_TYPE_CIRCLE: {
-                                    CircleShapeData* new_circle_shape = (CircleShapeData*)new_shape_data;
-                                    CircleShapeData* circle_shape = (CircleShapeData*)body->m_Shapes[s];
-                                    circle_shape->m_ShapeDataBase.m_Resource = new_shape_data;
+                            case SHAPE_TYPE_CIRCLE:
+                                {
+                                    CircleShapeData* new_circle_shape = (CircleShapeData*) new_shape_data;
+                                    CircleShapeData* circle_shape     = (CircleShapeData*) body->m_Shapes[s];
+                                    circle_shape->m_ShapeDataBase.m_Resource      = new_shape_data;
                                     circle_shape->m_ShapeDataBase.m_CreationScale = new_circle_shape->m_Circle.radius;
-                                }
-                                break;
-                                case SHAPE_TYPE_POLYGON: {
-                                    PolygonShapeData* new_polygon_shape = (PolygonShapeData*)new_shape_data;
-                                    PolygonShapeData* polygon_shape = (PolygonShapeData*)body->m_Shapes[s];
+                                } break;
+                            case SHAPE_TYPE_POLYGON:
+                                {
+                                    PolygonShapeData* new_polygon_shape = (PolygonShapeData*) new_shape_data;
+                                    PolygonShapeData* polygon_shape     = (PolygonShapeData*) body->m_Shapes[s];
                                     memcpy(polygon_shape, new_polygon_shape, sizeof(PolygonShapeData));
-                                }
-                                break;
-                                case SHAPE_TYPE_GRID: {
-                                    GridShapeData* new_grid_shape = (GridShapeData*)new_shape_data;
-                                    GridShapeData* grid_shape = (GridShapeData*)body->m_Shapes[s];
+                                } break;
+                            case SHAPE_TYPE_GRID:
+                                {
+                                    GridShapeData* new_grid_shape = (GridShapeData*) new_shape_data;
+                                    GridShapeData* grid_shape     = (GridShapeData*) body->m_Shapes[s];
 
                                     // Free and replace grid so we can recreate cells correctly
                                     FreeGridShapeData(grid_shape);
                                     memcpy(grid_shape, new_grid_shape, sizeof(GridShapeData));
                                     InitializeGridSHapeData(grid_shape);
-                                }
-                                break;
+                                } break;
                             }
                         }
                     }
@@ -2222,126 +2227,132 @@ namespace dmPhysics
 
     HJoint CreateJoint2D(HWorld2D world, HCollisionObject2D obj_a, const Point3& pos_a, HCollisionObject2D obj_b, const Point3& pos_b, dmPhysics::JointType type, const ConnectJointParams& params)
     {
-        float  scale = world->m_Context->m_Scale;
+        float scale = world->m_Context->m_Scale;
         b2Vec2 pa;
         ToB2(pos_a, pa, scale);
         b2Vec2 pb;
         ToB2(pos_b, pb, scale);
 
-        Body*     body_a = (Body*)obj_a;
-        Body*     body_b = (Body*)obj_b;
+        Body* body_a = (Body*) obj_a;
+        Body* body_b = (Body*) obj_b;
 
         b2JointId joint = {};
 
         switch (type)
         {
-            case dmPhysics::JOINT_TYPE_SPRING: {
-                b2DistanceJointDef jointDef = b2DefaultDistanceJointDef();
-                jointDef.bodyIdA = body_a->m_BodyId;
-                jointDef.bodyIdB = body_b->m_BodyId;
-                jointDef.localAnchorA = pa;
-                jointDef.localAnchorB = pb;
-                jointDef.length = params.m_SpringJointParams.m_Length * scale;
-                jointDef.hertz = params.m_SpringJointParams.m_FrequencyHz;
-                jointDef.dampingRatio = params.m_SpringJointParams.m_DampingRatio;
-                jointDef.collideConnected = params.m_CollideConnected;
-                jointDef.enableSpring = jointDef.hertz > 0.0 || jointDef.dampingRatio > 0.0;
+            case dmPhysics::JOINT_TYPE_SPRING:
+                {
+                    b2DistanceJointDef jointDef = b2DefaultDistanceJointDef();
+                    jointDef.bodyIdA          = body_a->m_BodyId;
+                    jointDef.bodyIdB          = body_b->m_BodyId;
+                    jointDef.localAnchorA     = pa;
+                    jointDef.localAnchorB     = pb;
+                    jointDef.length           = params.m_SpringJointParams.m_Length * scale;
+                    jointDef.hertz            = params.m_SpringJointParams.m_FrequencyHz;
+                    jointDef.dampingRatio     = params.m_SpringJointParams.m_DampingRatio;
+                    jointDef.collideConnected = params.m_CollideConnected;
+                    jointDef.enableSpring     = jointDef.hertz > 0.0 || jointDef.dampingRatio > 0.0;
 
-                joint = b2CreateDistanceJoint(world->m_WorldId, &jointDef);
-            }
-            break;
-            case dmPhysics::JOINT_TYPE_FIXED: {
-                b2DistanceJointDef jointDef = b2DefaultDistanceJointDef();
-                jointDef.bodyIdA = body_a->m_BodyId;
-                jointDef.bodyIdB = body_b->m_BodyId;
-                jointDef.localAnchorA = pa;
-                jointDef.localAnchorB = pb;
-                // Joints can't have zero length
-                jointDef.length = dmMath::Max(0.01f, params.m_FixedJointParams.m_MaxLength * scale);
-                jointDef.maxLength = dmMath::Max(0.01f, params.m_FixedJointParams.m_MaxLength * scale);
-                jointDef.collideConnected = params.m_CollideConnected;
-                jointDef.enableLimit = true;
-                jointDef.enableSpring = false;
+                    joint = b2CreateDistanceJoint(world->m_WorldId, &jointDef);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_FIXED:
+                {
+                    b2DistanceJointDef jointDef = b2DefaultDistanceJointDef();
+                    jointDef.bodyIdA            = body_a->m_BodyId;
+                    jointDef.bodyIdB            = body_b->m_BodyId;
+                    jointDef.localAnchorA       = pa;
+                    jointDef.localAnchorB       = pb;
+                    // Joints can't have zero length
+                    jointDef.length             = dmMath::Max(0.01f, params.m_FixedJointParams.m_MaxLength * scale);
+                    jointDef.maxLength          = dmMath::Max(0.01f, params.m_FixedJointParams.m_MaxLength * scale);
+                    jointDef.collideConnected   = params.m_CollideConnected;
+                    jointDef.enableLimit        = true;
+                    jointDef.enableSpring       = false;
 
-                joint = b2CreateDistanceJoint(world->m_WorldId, &jointDef);
-            }
-            break;
-            case dmPhysics::JOINT_TYPE_HINGE: {
-                b2RevoluteJointDef jointDef = b2DefaultRevoluteJointDef();
-                jointDef.bodyIdA = body_a->m_BodyId;
-                jointDef.bodyIdB = body_b->m_BodyId;
-                jointDef.localAnchorA = pa;
-                jointDef.localAnchorB = pb;
-                jointDef.referenceAngle = params.m_HingeJointParams.m_ReferenceAngle;
-                jointDef.lowerAngle = params.m_HingeJointParams.m_LowerAngle;
-                jointDef.upperAngle = params.m_HingeJointParams.m_UpperAngle;
-                jointDef.maxMotorTorque = params.m_HingeJointParams.m_MaxMotorTorque;
-                jointDef.motorSpeed = params.m_HingeJointParams.m_MotorSpeed;
-                jointDef.enableLimit = params.m_HingeJointParams.m_EnableLimit;
-                jointDef.enableMotor = params.m_HingeJointParams.m_EnableMotor;
-                jointDef.collideConnected = params.m_CollideConnected;
-                joint = b2CreateRevoluteJoint(world->m_WorldId, &jointDef);
-            }
-            break;
-            case dmPhysics::JOINT_TYPE_SLIDER: {
-                b2PrismaticJointDef jointDef = b2DefaultPrismaticJointDef();
-                jointDef.bodyIdA = body_a->m_BodyId;
-                jointDef.bodyIdB = body_b->m_BodyId;
-                jointDef.localAnchorA = pa;
-                jointDef.localAnchorB = pb;
-                b2Vec2  axis;
-                Vector3 apa(params.m_SliderJointParams.m_LocalAxisA[0], params.m_SliderJointParams.m_LocalAxisA[1], params.m_SliderJointParams.m_LocalAxisA[2]);
-                ToB2(apa, axis, 1.0f);
-                jointDef.localAxisA = axis;
-                jointDef.referenceAngle = params.m_SliderJointParams.m_ReferenceAngle;
-                jointDef.enableLimit = params.m_SliderJointParams.m_EnableLimit;
-                jointDef.lowerTranslation = params.m_SliderJointParams.m_LowerTranslation * scale;
-                jointDef.upperTranslation = params.m_SliderJointParams.m_UpperTranslation * scale;
-                jointDef.enableMotor = params.m_SliderJointParams.m_EnableMotor;
-                jointDef.maxMotorForce = params.m_SliderJointParams.m_MaxMotorForce * scale;
-                jointDef.motorSpeed = params.m_SliderJointParams.m_MotorSpeed;
-                jointDef.collideConnected = params.m_CollideConnected;
-                joint = b2CreatePrismaticJoint(world->m_WorldId, &jointDef);
-            }
-            break;
-            case dmPhysics::JOINT_TYPE_WELD: {
-                b2WeldJointDef jointDef = b2DefaultWeldJointDef();
-                jointDef.bodyIdA = body_a->m_BodyId;
-                jointDef.bodyIdB = body_b->m_BodyId;
-                jointDef.localAnchorA = pa;
-                jointDef.localAnchorB = pb;
-                jointDef.referenceAngle = params.m_WeldJointParams.m_ReferenceAngle;
-                jointDef.linearHertz = params.m_WeldJointParams.m_FrequencyHz;
-                jointDef.angularHertz = params.m_WeldJointParams.m_FrequencyHz;
-                jointDef.linearDampingRatio = params.m_WeldJointParams.m_DampingRatio;
-                jointDef.angularDampingRatio = params.m_WeldJointParams.m_DampingRatio;
-                jointDef.collideConnected = params.m_CollideConnected;
-                joint = b2CreateWeldJoint(world->m_WorldId, &jointDef);
-            }
-            break;
-            case dmPhysics::JOINT_TYPE_WHEEL: {
-                b2WheelJointDef jointDef = b2DefaultWheelJointDef();
-                jointDef.bodyIdA = body_a->m_BodyId;
-                jointDef.bodyIdB = body_b->m_BodyId;
-                jointDef.localAnchorA = pa;
-                jointDef.localAnchorB = pb;
-                b2Vec2  axis;
-                Vector3 apa(params.m_WheelJointParams.m_LocalAxisA[0], params.m_WheelJointParams.m_LocalAxisA[1], params.m_WheelJointParams.m_LocalAxisA[2]);
-                ToB2(apa, axis, 1.0f);
-                jointDef.localAxisA = axis;
-                jointDef.maxMotorTorque = params.m_WheelJointParams.m_MaxMotorTorque;
-                jointDef.motorSpeed = params.m_WheelJointParams.m_MotorSpeed;
-                jointDef.enableMotor = params.m_WheelJointParams.m_EnableMotor;
-                jointDef.hertz = params.m_WheelJointParams.m_FrequencyHz;
-                jointDef.dampingRatio = params.m_WheelJointParams.m_DampingRatio;
-                jointDef.collideConnected = params.m_CollideConnected;
+                    joint = b2CreateDistanceJoint(world->m_WorldId, &jointDef);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_HINGE:
+                {
+                    b2RevoluteJointDef jointDef = b2DefaultRevoluteJointDef();
+                    jointDef.bodyIdA          = body_a->m_BodyId;
+                    jointDef.bodyIdB          = body_b->m_BodyId;
+                    jointDef.localAnchorA     = pa;
+                    jointDef.localAnchorB     = pb;
+                    jointDef.referenceAngle   = params.m_HingeJointParams.m_ReferenceAngle;
+                    jointDef.lowerAngle       = params.m_HingeJointParams.m_LowerAngle;
+                    jointDef.upperAngle       = params.m_HingeJointParams.m_UpperAngle;
+                    jointDef.maxMotorTorque   = params.m_HingeJointParams.m_MaxMotorTorque;
+                    jointDef.motorSpeed       = params.m_HingeJointParams.m_MotorSpeed;
+                    jointDef.enableLimit      = params.m_HingeJointParams.m_EnableLimit;
+                    jointDef.enableMotor      = params.m_HingeJointParams.m_EnableMotor;
+                    jointDef.collideConnected = params.m_CollideConnected;
+                    joint = b2CreateRevoluteJoint(world->m_WorldId, &jointDef);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_SLIDER:
+                {
+                    b2PrismaticJointDef jointDef = b2DefaultPrismaticJointDef();
+                    jointDef.bodyIdA          = body_a->m_BodyId;
+                    jointDef.bodyIdB          = body_b->m_BodyId;
+                    jointDef.localAnchorA     = pa;
+                    jointDef.localAnchorB     = pb;
+                    b2Vec2 axis;
+                    Vector3 apa(params.m_SliderJointParams.m_LocalAxisA[0], params.m_SliderJointParams.m_LocalAxisA[1], params.m_SliderJointParams.m_LocalAxisA[2]);
+                    ToB2(apa, axis, 1.0f);
+                    jointDef.localAxisA       = axis;
+                    jointDef.referenceAngle   = params.m_SliderJointParams.m_ReferenceAngle;
+                    jointDef.enableLimit      = params.m_SliderJointParams.m_EnableLimit;
+                    jointDef.lowerTranslation = params.m_SliderJointParams.m_LowerTranslation * scale;
+                    jointDef.upperTranslation = params.m_SliderJointParams.m_UpperTranslation * scale;
+                    jointDef.enableMotor      = params.m_SliderJointParams.m_EnableMotor;
+                    jointDef.maxMotorForce    = params.m_SliderJointParams.m_MaxMotorForce * scale;
+                    jointDef.motorSpeed       = params.m_SliderJointParams.m_MotorSpeed;
+                    jointDef.collideConnected = params.m_CollideConnected;
+                    joint = b2CreatePrismaticJoint(world->m_WorldId, &jointDef);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_WELD:
+                {
+                    b2WeldJointDef jointDef      = b2DefaultWeldJointDef();
+                    jointDef.bodyIdA             = body_a->m_BodyId;
+                    jointDef.bodyIdB             = body_b->m_BodyId;
+                    jointDef.localAnchorA        = pa;
+                    jointDef.localAnchorB        = pb;
+                    jointDef.referenceAngle      = params.m_WeldJointParams.m_ReferenceAngle;
+                    jointDef.linearHertz         = params.m_WeldJointParams.m_FrequencyHz;
+                    jointDef.angularHertz        = params.m_WeldJointParams.m_FrequencyHz;
+                    jointDef.linearDampingRatio  = params.m_WeldJointParams.m_DampingRatio;
+                    jointDef.angularDampingRatio = params.m_WeldJointParams.m_DampingRatio;
+                    jointDef.collideConnected    = params.m_CollideConnected;
+                    joint = b2CreateWeldJoint(world->m_WorldId, &jointDef);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_WHEEL:
+                {
+                    b2WheelJointDef jointDef  = b2DefaultWheelJointDef();
+                    jointDef.bodyIdA          = body_a->m_BodyId;
+                    jointDef.bodyIdB          = body_b->m_BodyId;
+                    jointDef.localAnchorA     = pa;
+                    jointDef.localAnchorB     = pb;
+                    b2Vec2 axis;
+                    Vector3 apa(params.m_WheelJointParams.m_LocalAxisA[0], params.m_WheelJointParams.m_LocalAxisA[1], params.m_WheelJointParams.m_LocalAxisA[2]);
+                    ToB2(apa, axis, 1.0f);
+                    jointDef.localAxisA       = axis;
+                    jointDef.maxMotorTorque   = params.m_WheelJointParams.m_MaxMotorTorque;
+                    jointDef.motorSpeed       = params.m_WheelJointParams.m_MotorSpeed;
+                    jointDef.enableMotor      = params.m_WheelJointParams.m_EnableMotor;
+                    jointDef.hertz            = params.m_WheelJointParams.m_FrequencyHz;
+                    jointDef.dampingRatio     = params.m_WheelJointParams.m_DampingRatio;
+                    jointDef.collideConnected = params.m_CollideConnected;
 
-                // This is enabled as a default, but it seems like it wasn't default in the original code as per our unit tests.
-                jointDef.enableSpring = false;
+                    // This is enabled as a default, but it seems like it wasn't default in the original code as per our unit tests.
+                    jointDef.enableSpring = false;
 
-                joint = b2CreateWheelJoint(world->m_WorldId, &jointDef);
-            }
-            break;
+                    joint = b2CreateWheelJoint(world->m_WorldId, &jointDef);
+                }
+                break;
             default:
                 return 0x0;
         }
@@ -2354,51 +2365,57 @@ namespace dmPhysics
 
     bool SetJointParams2D(HWorld2D world, HJoint joint, dmPhysics::JointType type, const ConnectJointParams& params)
     {
-        float      scale = world->m_Context->m_Scale;
+        float scale = world->m_Context->m_Scale;
 
-        b2JointId* joint_raw = (b2JointId*)joint;
+        b2JointId* joint_raw = (b2JointId*) joint;
 
         switch (type)
         {
-            case dmPhysics::JOINT_TYPE_SPRING: {
-                b2DistanceJoint_SetLength(*joint_raw, params.m_SpringJointParams.m_Length * scale);
-                b2DistanceJoint_SetSpringHertz(*joint_raw, params.m_SpringJointParams.m_FrequencyHz);
-                b2DistanceJoint_SetSpringDampingRatio(*joint_raw, params.m_SpringJointParams.m_DampingRatio);
-            }
-            break;
-            case dmPhysics::JOINT_TYPE_FIXED: {
-                b2DistanceJoint_SetLengthRange(*joint_raw, b2DistanceJoint_GetMinLength(*joint_raw), params.m_FixedJointParams.m_MaxLength * scale);
-            }
-            break;
-            case dmPhysics::JOINT_TYPE_HINGE: {
-                b2RevoluteJoint_SetLimits(*joint_raw, params.m_HingeJointParams.m_LowerAngle, params.m_HingeJointParams.m_UpperAngle);
-                b2RevoluteJoint_SetMaxMotorTorque(*joint_raw, params.m_HingeJointParams.m_MaxMotorTorque * scale);
-                b2RevoluteJoint_SetMotorSpeed(*joint_raw, params.m_HingeJointParams.m_MotorSpeed);
-                b2RevoluteJoint_EnableLimit(*joint_raw, params.m_HingeJointParams.m_EnableLimit);
-                b2RevoluteJoint_EnableMotor(*joint_raw, params.m_HingeJointParams.m_EnableMotor);
-            }
-            break;
-            case dmPhysics::JOINT_TYPE_SLIDER: {
-                b2PrismaticJoint_EnableLimit(*joint_raw, params.m_SliderJointParams.m_EnableLimit);
-                b2PrismaticJoint_SetLimits(*joint_raw, params.m_SliderJointParams.m_LowerTranslation * scale, params.m_SliderJointParams.m_UpperTranslation * scale);
-                b2PrismaticJoint_EnableMotor(*joint_raw, params.m_SliderJointParams.m_EnableMotor);
-                b2PrismaticJoint_SetMaxMotorForce(*joint_raw, params.m_SliderJointParams.m_MaxMotorForce * scale);
-                b2PrismaticJoint_SetMotorSpeed(*joint_raw, params.m_SliderJointParams.m_MotorSpeed);
-            }
-            break;
-            case dmPhysics::JOINT_TYPE_WELD: {
-                b2WeldJoint_SetLinearHertz(*joint_raw, params.m_WeldJointParams.m_FrequencyHz);
-                b2WeldJoint_SetLinearDampingRatio(*joint_raw, params.m_WeldJointParams.m_DampingRatio);
-            }
-            break;
-            case dmPhysics::JOINT_TYPE_WHEEL: {
-                b2WheelJoint_SetMaxMotorTorque(*joint_raw, params.m_WheelJointParams.m_MaxMotorTorque);
-                b2WheelJoint_SetMotorSpeed(*joint_raw, params.m_WheelJointParams.m_MotorSpeed);
-                b2WheelJoint_EnableMotor(*joint_raw, params.m_WheelJointParams.m_EnableMotor);
-                b2WheelJoint_SetSpringHertz(*joint_raw, params.m_WheelJointParams.m_FrequencyHz);
-                b2WheelJoint_SetSpringDampingRatio(*joint_raw, params.m_WheelJointParams.m_DampingRatio);
-            }
-            break;
+            case dmPhysics::JOINT_TYPE_SPRING:
+                {
+                    b2DistanceJoint_SetLength(*joint_raw, params.m_SpringJointParams.m_Length * scale);
+                    b2DistanceJoint_SetSpringHertz(*joint_raw, params.m_SpringJointParams.m_FrequencyHz);
+                    b2DistanceJoint_SetSpringDampingRatio(*joint_raw, params.m_SpringJointParams.m_DampingRatio);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_FIXED:
+                {
+                    b2DistanceJoint_SetLengthRange(*joint_raw, b2DistanceJoint_GetMinLength(*joint_raw), params.m_FixedJointParams.m_MaxLength * scale);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_HINGE:
+                {
+                    b2RevoluteJoint_SetLimits(*joint_raw, params.m_HingeJointParams.m_LowerAngle, params.m_HingeJointParams.m_UpperAngle);
+                    b2RevoluteJoint_SetMaxMotorTorque(*joint_raw, params.m_HingeJointParams.m_MaxMotorTorque * scale);
+                    b2RevoluteJoint_SetMotorSpeed(*joint_raw, params.m_HingeJointParams.m_MotorSpeed);
+                    b2RevoluteJoint_EnableLimit(*joint_raw, params.m_HingeJointParams.m_EnableLimit);
+                    b2RevoluteJoint_EnableMotor(*joint_raw, params.m_HingeJointParams.m_EnableMotor);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_SLIDER:
+                {
+                    b2PrismaticJoint_EnableLimit(*joint_raw, params.m_SliderJointParams.m_EnableLimit);
+                    b2PrismaticJoint_SetLimits(*joint_raw, params.m_SliderJointParams.m_LowerTranslation * scale, params.m_SliderJointParams.m_UpperTranslation * scale);
+                    b2PrismaticJoint_EnableMotor(*joint_raw, params.m_SliderJointParams.m_EnableMotor);
+                    b2PrismaticJoint_SetMaxMotorForce(*joint_raw, params.m_SliderJointParams.m_MaxMotorForce * scale);
+                    b2PrismaticJoint_SetMotorSpeed(*joint_raw, params.m_SliderJointParams.m_MotorSpeed);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_WELD:
+                {
+                    b2WeldJoint_SetLinearHertz(*joint_raw, params.m_WeldJointParams.m_FrequencyHz);
+                    b2WeldJoint_SetLinearDampingRatio(*joint_raw, params.m_WeldJointParams.m_DampingRatio);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_WHEEL:
+                {
+                    b2WheelJoint_SetMaxMotorTorque(*joint_raw, params.m_WheelJointParams.m_MaxMotorTorque);
+                    b2WheelJoint_SetMotorSpeed(*joint_raw, params.m_WheelJointParams.m_MotorSpeed);
+                    b2WheelJoint_EnableMotor(*joint_raw, params.m_WheelJointParams.m_EnableMotor);
+                    b2WheelJoint_SetSpringHertz(*joint_raw, params.m_WheelJointParams.m_FrequencyHz);
+                    b2WheelJoint_SetSpringDampingRatio(*joint_raw, params.m_WheelJointParams.m_DampingRatio);
+                }
+                break;
             default:
                 return false;
         }
@@ -2408,70 +2425,77 @@ namespace dmPhysics
 
     bool GetJointParams2D(HWorld2D world, HJoint _joint, dmPhysics::JointType type, ConnectJointParams& params)
     {
-        float      inv_scale = world->m_Context->m_InvScale;
+        float inv_scale = world->m_Context->m_InvScale;
 
         b2JointId* joint_raw = (b2JointId*)_joint;
         params.m_CollideConnected = b2Joint_GetCollideConnected(*joint_raw);
 
         switch (type)
         {
-            case dmPhysics::JOINT_TYPE_SPRING: {
-                params.m_SpringJointParams.m_Length = b2DistanceJoint_GetLength(*joint_raw) * inv_scale;
-                params.m_SpringJointParams.m_FrequencyHz = b2DistanceJoint_GetSpringHertz(*joint_raw);
-                params.m_SpringJointParams.m_DampingRatio = b2DistanceJoint_GetSpringDampingRatio(*joint_raw);
-            }
-            break;
-            case dmPhysics::JOINT_TYPE_FIXED: {
-                params.m_FixedJointParams.m_MaxLength = b2DistanceJoint_GetMaxLength(*joint_raw) * inv_scale;
-            }
-            break;
-            case dmPhysics::JOINT_TYPE_HINGE: {
-                params.m_HingeJointParams.m_ReferenceAngle = b2RevoluteJoint_GetAngle(*joint_raw);
-                params.m_HingeJointParams.m_LowerAngle = b2RevoluteJoint_GetLowerLimit(*joint_raw);
-                params.m_HingeJointParams.m_UpperAngle = b2RevoluteJoint_GetUpperLimit(*joint_raw);
-                params.m_HingeJointParams.m_MaxMotorTorque = b2RevoluteJoint_GetMaxMotorTorque(*joint_raw) * inv_scale;
-                params.m_HingeJointParams.m_MotorSpeed = b2RevoluteJoint_GetMotorSpeed(*joint_raw);
-                params.m_HingeJointParams.m_EnableLimit = b2RevoluteJoint_IsLimitEnabled(*joint_raw);
-                params.m_HingeJointParams.m_EnableMotor = b2RevoluteJoint_IsMotorEnabled(*joint_raw);
+            case dmPhysics::JOINT_TYPE_SPRING:
+                {
+                    params.m_SpringJointParams.m_Length =  b2DistanceJoint_GetLength(*joint_raw) * inv_scale;
+                    params.m_SpringJointParams.m_FrequencyHz = b2DistanceJoint_GetSpringHertz(*joint_raw);
+                    params.m_SpringJointParams.m_DampingRatio = b2DistanceJoint_GetSpringDampingRatio(*joint_raw);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_FIXED:
+                {
+                    params.m_FixedJointParams.m_MaxLength = b2DistanceJoint_GetMaxLength(*joint_raw) * inv_scale;
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_HINGE:
+                {
+                    params.m_HingeJointParams.m_ReferenceAngle = b2RevoluteJoint_GetAngle(*joint_raw);
+                    params.m_HingeJointParams.m_LowerAngle = b2RevoluteJoint_GetLowerLimit(*joint_raw);
+                    params.m_HingeJointParams.m_UpperAngle = b2RevoluteJoint_GetUpperLimit(*joint_raw);
+                    params.m_HingeJointParams.m_MaxMotorTorque = b2RevoluteJoint_GetMaxMotorTorque(*joint_raw) * inv_scale;
+                    params.m_HingeJointParams.m_MotorSpeed = b2RevoluteJoint_GetMotorSpeed(*joint_raw);
+                    params.m_HingeJointParams.m_EnableLimit = b2RevoluteJoint_IsLimitEnabled(*joint_raw);
+                    params.m_HingeJointParams.m_EnableMotor = b2RevoluteJoint_IsMotorEnabled(*joint_raw);
 
-                // Read only properties
-                // params.m_HingeJointParams.m_JointAngle = typed_joint->GetJointAngle();
-                // params.m_HingeJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
-            }
-            break;
-            case dmPhysics::JOINT_TYPE_SLIDER: {
-                params.m_SliderJointParams.m_EnableLimit = b2PrismaticJoint_IsLimitEnabled(*joint_raw);
-                params.m_SliderJointParams.m_LowerTranslation = b2PrismaticJoint_GetLowerLimit(*joint_raw) * inv_scale;
-                params.m_SliderJointParams.m_UpperTranslation = b2PrismaticJoint_GetUpperLimit(*joint_raw) * inv_scale;
-                params.m_SliderJointParams.m_EnableMotor = b2PrismaticJoint_IsMotorEnabled(*joint_raw);
-                params.m_SliderJointParams.m_MaxMotorForce = b2PrismaticJoint_GetMaxMotorForce(*joint_raw) * inv_scale;
-                params.m_SliderJointParams.m_MotorSpeed = b2PrismaticJoint_GetMotorSpeed(*joint_raw);
+                    // Read only properties
+                    // params.m_HingeJointParams.m_JointAngle = typed_joint->GetJointAngle();
+                    // params.m_HingeJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_SLIDER:
+                {
+                    params.m_SliderJointParams.m_EnableLimit = b2PrismaticJoint_IsLimitEnabled(*joint_raw);
+                    params.m_SliderJointParams.m_LowerTranslation = b2PrismaticJoint_GetLowerLimit(*joint_raw) * inv_scale;
+                    params.m_SliderJointParams.m_UpperTranslation = b2PrismaticJoint_GetUpperLimit(*joint_raw) * inv_scale;
+                    params.m_SliderJointParams.m_EnableMotor = b2PrismaticJoint_IsMotorEnabled(*joint_raw);
+                    params.m_SliderJointParams.m_MaxMotorForce = b2PrismaticJoint_GetMaxMotorForce(*joint_raw) * inv_scale;
+                    params.m_SliderJointParams.m_MotorSpeed = b2PrismaticJoint_GetMotorSpeed(*joint_raw);
 
-                // Read only properties
-                // params.m_SliderJointParams.m_JointTranslation = typed_joint->GetJointTranslation();
-                // params.m_SliderJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
-            }
-            break;
-            case dmPhysics::JOINT_TYPE_WELD: {
-                params.m_WeldJointParams.m_FrequencyHz = b2WeldJoint_GetLinearHertz(*joint_raw);
-                params.m_WeldJointParams.m_DampingRatio = b2WeldJoint_GetLinearDampingRatio(*joint_raw);
+                    // Read only properties
+                    // params.m_SliderJointParams.m_JointTranslation = typed_joint->GetJointTranslation();
+                    // params.m_SliderJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_WELD:
+                {
+                    params.m_WeldJointParams.m_FrequencyHz = b2WeldJoint_GetLinearHertz(*joint_raw);
+                    params.m_WeldJointParams.m_DampingRatio = b2WeldJoint_GetLinearDampingRatio(*joint_raw);
 
-                // Read only properties
-                params.m_WeldJointParams.m_ReferenceAngle = b2WeldJoint_GetReferenceAngle(*joint_raw);
-            }
-            break;
-            case dmPhysics::JOINT_TYPE_WHEEL: {
-                params.m_WheelJointParams.m_MaxMotorTorque = b2WheelJoint_GetMaxMotorTorque(*joint_raw) * inv_scale;
-                params.m_WheelJointParams.m_MotorSpeed = b2WheelJoint_GetMotorSpeed(*joint_raw);
-                params.m_WheelJointParams.m_EnableMotor = b2WheelJoint_IsMotorEnabled(*joint_raw);
-                params.m_WheelJointParams.m_FrequencyHz = b2WheelJoint_GetSpringHertz(*joint_raw);
-                params.m_WheelJointParams.m_DampingRatio = b2WheelJoint_GetSpringDampingRatio(*joint_raw);
+                    // Read only properties
+                    params.m_WeldJointParams.m_ReferenceAngle = b2WeldJoint_GetReferenceAngle(*joint_raw);
+                    
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_WHEEL:
+                {
+                    params.m_WheelJointParams.m_MaxMotorTorque = b2WheelJoint_GetMaxMotorTorque(*joint_raw) * inv_scale;
+                    params.m_WheelJointParams.m_MotorSpeed = b2WheelJoint_GetMotorSpeed(*joint_raw);
+                    params.m_WheelJointParams.m_EnableMotor = b2WheelJoint_IsMotorEnabled(*joint_raw);
+                    params.m_WheelJointParams.m_FrequencyHz = b2WheelJoint_GetSpringHertz(*joint_raw);
+                    params.m_WheelJointParams.m_DampingRatio = b2WheelJoint_GetSpringDampingRatio(*joint_raw);
 
-                // Read only properties
-                // params.m_WheelJointParams.m_JointTranslation = typed_joint->GetJointTranslation();
-                // params.m_WheelJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
-            }
-            break;
+                    // Read only properties
+                    // params.m_WheelJointParams.m_JointTranslation = typed_joint->GetJointTranslation();
+                    // params.m_WheelJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
+                }
+                break;
             default:
                 return false;
         }
@@ -2490,10 +2514,10 @@ namespace dmPhysics
     // NOTE: inv_dt is not used. It is calculated from the last step + substep time inside box2d
     bool GetJointReactionForce2D(HWorld2D world, HJoint _joint, Vector3& force, float _inv_dt /*unused*/)
     {
-        float      inv_scale = world->m_Context->m_InvScale;
+        float inv_scale = world->m_Context->m_InvScale;
         b2JointId* joint_raw = (b2JointId*)_joint;
 
-        b2Vec2     bv2 = b2Joint_GetConstraintForce(*joint_raw);
+        b2Vec2 bv2 = b2Joint_GetConstraintForce(*joint_raw);
         FromB2(bv2, force, inv_scale);
         return true;
     }
@@ -2501,10 +2525,10 @@ namespace dmPhysics
     // NOTE: inv_dt is not used. It is calculated from the last step + substep time inside box2d
     bool GetJointReactionTorque2D(HWorld2D world, HJoint _joint, float& torque, float _inv_dt /*unused*/)
     {
-        float      inv_scale = world->m_Context->m_InvScale;
+        float inv_scale = world->m_Context->m_InvScale;
         b2JointId* joint_raw = (b2JointId*)_joint;
 
         torque = b2Joint_GetConstraintTorque(*joint_raw) * inv_scale;
         return true;
     }
-} // namespace dmPhysics
+}
