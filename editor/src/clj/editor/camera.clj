@@ -697,7 +697,10 @@
                                            :initial-y nil
                                            :movement :idle)
                         (g/set-property! self :cursor-type :default)
-                        (if (or (= movement :idle) is-secondary) action nil))
+                        (if (or (= movement :idle)
+                                (and is-secondary (not is-significant-drag)))
+                          action
+                          nil))
       :mouse-moved (if (not (= :idle movement))
                      (do
                        (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y)

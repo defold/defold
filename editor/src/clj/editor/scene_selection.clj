@@ -160,7 +160,6 @@
         op-seq (g/node-value self :op-seq)
         mode (g/node-value self :mode)
         toggle? (g/node-value self :toggle?)
-        drag? (g/node-value self :drag?)
         root-id (g/node-value self :root-id)
         cursor-pos [(:x action) (:y action) 0]
         contextual? (= (:button action) :secondary)]
@@ -184,8 +183,7 @@
                            (g/set-property self :prev-selection (g/node-value self :selection))))
                        nil)
       :mouse-released (do
-                        (when (and start (not drag?)) 
-                          (select self op-seq mode toggle?))
+                        (when start (select self op-seq mode toggle?))
                         (g/transact
                           (concat
                             (g/set-property self :start nil)
@@ -193,10 +191,9 @@
                             (g/set-property self :op-seq nil)
                             (g/set-property self :mode nil)
                             (g/set-property self :toggle? nil)
-                            (g/set-property self :drag? nil)
                             (g/set-property self :contextual? nil)
                             (g/set-property self :prev-selection nil)))
-                        (when (and contextual? (not drag?))
+                        (when contextual?
                           (let [node ^Node (:target action)
                                 scene ^Scene (.getScene node)
                                 context-menu (ui/init-context-menu! ::scene-context-menu scene)]
@@ -206,13 +203,12 @@
                      (let [new-mode (if (and (= :single mode) (< min-pick-size (distance start cursor-pos)))
                                       :multi
                                       mode)]
-                       (if (g/node-value self :contextual?)
-                         (g/set-property! self :drag? true)
-                         (do (g/transact
-                               (concat
-                                 (when (not= new-mode mode) (g/set-property self :mode new-mode))
-                                 (g/set-property self :current cursor-pos)))
-                             (select self op-seq new-mode toggle?)))
+                       (when-not (g/node-value self :contextual?)
+                         (g/transact
+                           (concat
+                             (when (not= new-mode mode) (g/set-property self :mode new-mode))
+                             (g/set-property self :current cursor-pos)))
+                         (select self op-seq new-mode toggle?))
                        nil)
                      action)
       action)))
@@ -242,7 +238,6 @@
   (property op-seq g/Any)
   (property mode SelectionMode)
   (property toggle? g/Bool)
-  (property drag? g/Bool)
   (property contextual? g/Bool)
   (property prev-selection g/Any)
 
