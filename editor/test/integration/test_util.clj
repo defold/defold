@@ -708,12 +708,14 @@
   ([view type x y modifiers]
    (fake-input! view type x y modifiers 0))
   ([view type x y modifiers click-count]
+   (fake-input! view type x y modifiers click-count :primary))
+  ([view type x y modifiers click-count button]
    (let [pos [x y 0.0]]
      (g/transact (g/set-property view :tool-picking-rect (scene-selection/calc-picking-rect pos pos))))
    (let [handlers (g/sources-of view :input-handlers)
          user-data (g/node-value view :selected-tool-renderables)
          action (reduce #(assoc %1 %2 true)
-                        {:type type :x x :y y :click-count click-count}
+                        {:type type :x x :y y :click-count click-count :button button}
                         modifiers)
          action (scene/augment-action view action)]
      (scene/dispatch-input handlers action user-data))))
