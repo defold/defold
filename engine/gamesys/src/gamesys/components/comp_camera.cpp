@@ -362,7 +362,8 @@ namespace dmGameSystem
         }
         else if (CAMERA_PROP_ASPECT_RATIO == get_property)
         {
-            out_value.m_Variant = dmGameObject::PropertyVar(camera_data.m_AspectRatio);
+            float aspect_ratio = dmRender::GetRenderCameraEffectiveAspectRatio(render_context, camera->m_RenderCamera);
+            out_value.m_Variant = dmGameObject::PropertyVar(aspect_ratio);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;

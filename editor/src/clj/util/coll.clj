@@ -635,6 +635,19 @@
        (sequential? input) (reduce (preserving-reduced xf) result input)
        :else (rf result input)))))
 
+(defn tree-xf
+  "Like clojure.core/tree-seq, but transducer"
+  [branch? children]
+  (fn [rf]
+    (fn xf
+      ([] (rf))
+      ([result] (rf result))
+      ([result input]
+       (let [result (rf result input)]
+         (if (or (reduced? result) (not (branch? input)))
+           result
+           (reduce (preserving-reduced xf) result (children input))))))))
+
 (defn some
   "Like clojure.core/some, but uses reduce instead of lazy sequences."
   [pred coll]

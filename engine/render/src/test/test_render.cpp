@@ -231,6 +231,52 @@ TEST_F(dmRenderTest, TestRenderCamera)
     dmRender::DeleteRenderCamera(m_Context, camera);
 }
 
+TEST_F(dmRenderTest, TestRenderCameraEffectiveAspectRatio)
+{
+    dmRender::HRenderCamera camera = dmRender::NewRenderCamera(m_Context);
+    dmRender::RenderCameraData data = {};
+    
+    // Test 1: Auto aspect ratio disabled - should return stored aspect ratio
+    data.m_AspectRatio        = 19.75f;  // Set specific aspect ratio
+    data.m_AutoAspectRatio    = false; // Disable auto mode
+    data.m_Fov                = M_PI / 4.0f;
+    data.m_NearZ              = 0.1f;
+    data.m_FarZ               = 1000.0f;
+    data.m_OrthographicZoom   = 1.0f;
+    data.m_OrthographicProjection = false;
+    
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+    
+    float effective_aspect_ratio = dmRender::GetRenderCameraEffectiveAspectRatio(m_Context, camera);
+    ASSERT_NEAR(19.75f, effective_aspect_ratio, EPSILON);
+    
+    // Test 2: Auto aspect ratio enabled - should calculate from window dimensions
+    data.m_AutoAspectRatio = true; // Enable auto mode
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+    
+    effective_aspect_ratio = dmRender::GetRenderCameraEffectiveAspectRatio(m_Context, camera);
+    
+    // Window dimensions from SetUp(): width=20, height=10, so expected ratio = 20/10 = 2.0
+    float expected_auto_ratio = 20.0f / 10.0f;
+    ASSERT_NEAR(expected_auto_ratio, effective_aspect_ratio, EPSILON);
+    
+    // Test 3: Change stored aspect ratio with auto mode - should still use calculated ratio
+    data.m_AspectRatio = 5.0f; // Different stored value
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+    
+    effective_aspect_ratio = dmRender::GetRenderCameraEffectiveAspectRatio(m_Context, camera);
+    ASSERT_NEAR(expected_auto_ratio, effective_aspect_ratio, EPSILON); // Should still be 2.0, not 5.0
+    
+    // Test 4: Switch back to manual mode - should use stored aspect ratio again
+    data.m_AutoAspectRatio = false;
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+    
+    effective_aspect_ratio = dmRender::GetRenderCameraEffectiveAspectRatio(m_Context, camera);
+    ASSERT_NEAR(5.0f, effective_aspect_ratio, EPSILON); // Should use stored value now
+    
+    dmRender::DeleteRenderCamera(m_Context, camera);
+}
+
 TEST_F(dmRenderTest, TestSquare2d)
 {
     Square2d(m_Context, 10.0f, 20.0f, 30.0f, 40.0f, Vector4(0.1f, 0.2f, 0.3f, 0.4f));

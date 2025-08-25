@@ -103,7 +103,6 @@ namespace dmGameObject
             dmHashInit64(&m_CollectionPathHashState, false);
             m_Depth = 0;
             m_Initialized = 0;
-            m_ScaleAlongZ = 0;
             m_Bone = 0;
             m_Generated = 0;
             m_Parent = INVALID_INSTANCE_INDEX;
@@ -143,14 +142,12 @@ namespace dmGameObject
         uint16_t        m_Depth : 8;
         // If the instance was initialized or not (Init())
         uint16_t        m_Initialized : 1;
-        // If this game object should have the Z component of the position affected by scale
-        uint16_t        m_ScaleAlongZ : 1;
         // If this game object is part of a skeleton
         uint16_t        m_Bone : 1;
         // If this is a generated instance, i.e. if the instance id is uniquely generated
         uint16_t        m_Generated : 1;
         // Padding
-        uint16_t        m_Pad : 4;
+        uint16_t        m_Pad : 5;
 
         // Index to parent
         uint16_t        m_Parent : 16;
@@ -290,8 +287,6 @@ namespace dmGameObject
         uint32_t                 m_InUpdate : 1;
         // Used for deferred deletion
         uint32_t                 m_ToBeDeleted : 1;
-        // If the game object dynamically created in this collection should have the Z component of the position affected by scale
-        uint32_t                 m_ScaleAlongZ : 1;
         uint32_t                 m_DirtyTransforms : 1;
         uint32_t                 m_Initialized : 1;
         uint32_t                 m_FirstUpdate : 1;

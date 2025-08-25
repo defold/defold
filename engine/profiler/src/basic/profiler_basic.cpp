@@ -984,12 +984,19 @@ static dmExtension::Result ProfilerBasic_AppInitialize(dmExtension::AppParams* p
     g_Listener.m_PropertyAddF64 = ProfilePropertyAddF64;
     g_Listener.m_PropertyReset = ProfilePropertyReset;
 
-    ProfileRegisterProfiler(g_ProfilerName, &g_Listener);
+    if (!IsProfileInitialized())
+    {
+        ProfileRegisterProfiler(g_ProfilerName, &g_Listener);
+    }
     return dmExtension::RESULT_OK;
 }
 
 static dmExtension::Result ProfilerBasic_AppFinalize(dmExtension::AppParams* params)
 {
+    if (dmExtension::AppParamsGetAppExitCode(params) == dmExtension::APP_EXIT_CODE_EXIT)
+    {
+        ProfileUnregisterProfiler(g_ProfilerName);
+    }
     return dmExtension::RESULT_OK;
 }
 

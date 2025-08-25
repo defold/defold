@@ -160,27 +160,29 @@
   ([self-id child-id]
    (tx-attach-go-referenced-go self-id child-id true))
   ([self-id child-id resolve-id]
-   (g/expand-ec
-     (fn tx-attach [evaluation-context]
-       (let [coll-id (core/scope-of-type (:basis evaluation-context) self-id CollectionNode)]
-         (concat
-           (when resolve-id
-             (g/update-property child-id :id id/resolve (g/node-value coll-id :ids evaluation-context)))
-           (attach-coll-ref-go coll-id child-id)
-           (child-go-go self-id child-id)))))))
+   (concat
+     (g/expand-ec
+       (fn tx-resolve-id [evaluation-context]
+         (let [coll-id (core/scope-of-type (:basis evaluation-context) self-id CollectionNode)]
+           (concat
+             (when resolve-id
+               (g/update-property child-id :id id/resolve (g/node-value coll-id :ids evaluation-context)))
+             (attach-coll-ref-go coll-id child-id)))))
+     (child-go-go self-id child-id))))
 
 (defn- tx-attach-go-embedded-go
   ([self-id child-id]
    (tx-attach-go-embedded-go self-id child-id true))
   ([self-id child-id resolve-id]
-   (g/expand-ec
-     (fn tx-attach [evaluation-context]
-       (let [coll-id (core/scope-of-type (:basis evaluation-context) self-id CollectionNode)]
-         (concat
-           (when resolve-id
-             (g/update-property child-id :id id/resolve (g/node-value coll-id :ids evaluation-context)))
-           (attach-coll-embedded-go coll-id child-id)
-           (child-go-go self-id child-id)))))))
+   (concat
+     (g/expand-ec
+       (fn tx-attach [evaluation-context]
+         (let [coll-id (core/scope-of-type (:basis evaluation-context) self-id CollectionNode)]
+           (concat
+             (when resolve-id
+               (g/update-property child-id :id id/resolve (g/node-value coll-id :ids evaluation-context)))
+             (attach-coll-embedded-go coll-id child-id)))))
+     (child-go-go self-id child-id))))
 
 (g/defnk produce-go-outline [_node-id id source-outline source-resource child-outlines node-outline-extras]
   (-> {:node-id _node-id
@@ -435,11 +437,11 @@
       (protobuf/sanitize-repeated :embedded-instances embedded-instance-desc-save-value)
       (protobuf/sanitize-repeated :collection-instances collection-instance-desc-save-value)))
 
-(g/defnk produce-build-targets [_node-id name resource sub-build-targets dep-build-targets id-counts scale-along-z]
+(g/defnk produce-build-targets [_node-id name resource sub-build-targets dep-build-targets id-counts]
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (game-object-common/maybe-duplicate-id-error _node-id dup-ids))
       (let [build-resource (workspace/make-build-resource resource)]
-        [(collection-common/collection-build-target build-resource _node-id name scale-along-z dep-build-targets sub-build-targets)])))
+        [(collection-common/collection-build-target build-resource _node-id name dep-build-targets sub-build-targets)])))
 
 (declare CollectionInstanceNode)
 

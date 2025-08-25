@@ -88,7 +88,7 @@
                       (:clear clipping-state)
                       (assoc :sb (->stencil-buffer))
 
-                      (reduce #(or %1 %2) test)
+                      (reduce fn/or test)
                       (->
                         (update :sb (partial mapv (fn [t v] (if t
                                                               (bit-or (bit-and (:ref-val clipping-state) (:write-mask clipping-state))

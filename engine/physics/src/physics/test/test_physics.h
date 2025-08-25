@@ -65,6 +65,9 @@ protected:
         m_StepWorldContext.m_ContactPointCallback = ContactPointCallback;
         m_StepWorldContext.m_ContactPointUserData = &m_ContactPointCount;
         m_StepWorldContext.m_MaxFixedTimeSteps = 2;
+        m_StepWorldContext.m_Box2DVelocityIterations = 10;
+        m_StepWorldContext.m_Box2DPositionIterations = 10;
+        m_StepWorldContext.m_Box2DSubStepCount = 10;
     }
 
     virtual void TearDown()

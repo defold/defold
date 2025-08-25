@@ -389,3 +389,109 @@
 
   (is (= 1 ((fn/make-case-fn [[:a 1]]) :a)) "Accepts sequence of pairs")
   (is (= 1 ((fn/make-case-fn {:a 1}) :a)) "Accepts map"))
+
+(deftest and-test
+  (testing "No arguments."
+    (is (true? (fn/and))))
+
+  (testing "Single argument."
+    (is (false? (fn/and false)))
+    (is (nil? (fn/and nil)))
+    (is (true? (fn/and true))))
+
+  (testing "Two arguments."
+    (is (false? (fn/and false nil)))
+    (is (nil? (fn/and nil false)))
+    (is (false? (fn/and false true)))
+    (is (nil? (fn/and nil true)))
+    (is (false? (fn/and true false)))
+    (is (nil? (fn/and true nil))))
+
+  (testing "Many arguments."
+    (is (false? (fn/and false nil nil)))
+    (is (nil? (fn/and nil false false)))
+    (is (false? (fn/and false true true)))
+    (is (nil? (fn/and nil true true)))
+    (is (false? (fn/and true true false)))
+    (is (nil? (fn/and true true nil)))
+    (is (false? (fn/and true false true)))
+    (is (nil? (fn/and true nil true)))
+    (is (false? (fn/and true false nil)))
+    (is (nil? (fn/and true nil false))))
+
+  (testing "Returns final argument when all are true."
+    (doseq [arg-count (range 1 32)]
+      (let [args (repeatedly arg-count #(Object.))]
+        (is (identical? (last args) (apply fn/and args))))))
+
+  (testing "Returns first false argument found."
+    (let [arg-count 32]
+      (doseq [false-value [nil false]]
+        (doseq [false-arg-index (range 0 arg-count)]
+          (let [args (-> (repeatedly arg-count #(Object.))
+                         (vec)
+                         (assoc false-arg-index false-value))]
+            (is (identical? false-value (apply fn/and args))))))))
+
+  (testing "Boolean false instance handling matches core implementation."
+    (let [false-a (Boolean. false)
+          false-b (Boolean. false)]
+      (is (identical? (and true false-b)
+                      (fn/and true false-b)))
+      (is (identical? (and false-a true)
+                      (fn/and false-a true)))
+      (is (identical? (and false-a false-b)
+                      (fn/and false-a false-b))))))
+
+(deftest or-test
+  (testing "No arguments."
+    (is (nil? (fn/or))))
+
+  (testing "Single argument."
+    (is (false? (fn/or false)))
+    (is (nil? (fn/or nil)))
+    (is (true? (fn/or true))))
+
+  (testing "Two arguments."
+    (is (nil? (fn/or false nil)))
+    (is (false? (fn/or nil false)))
+    (is (true? (fn/or false true)))
+    (is (true? (fn/or nil true)))
+    (is (true? (fn/or true false)))
+    (is (true? (fn/or true nil))))
+
+  (testing "Many arguments."
+    (is (true? (fn/or true false false)))
+    (is (true? (fn/or true nil nil)))
+    (is (true? (fn/or false true false)))
+    (is (true? (fn/or nil true nil)))
+    (is (true? (fn/or false false true)))
+    (is (true? (fn/or nil nil true)))
+    (is (nil? (fn/or false false nil)))
+    (is (false? (fn/or nil nil false))))
+
+  (testing "Returns final argument when all are false."
+    (doseq [arg-count (range 1 32)]
+      (doseq [false-value [nil false]]
+        (let [args (repeat arg-count false-value)]
+          (is (identical? (last args) (apply fn/or args)))))))
+
+  (testing "Returns first true argument found."
+    (let [arg-count 32]
+      (doseq [false-value [nil false]]
+        (doseq [true-arg-index (range 0 arg-count)]
+          (let [true-value (Object.)
+                args (-> (repeat arg-count false-value)
+                         (vec)
+                         (assoc true-arg-index true-value))]
+            (is (identical? true-value (apply fn/or args))))))))
+
+  (testing "Boolean false instance handling matches core implementation."
+    (let [false-a (Boolean. false)
+          false-b (Boolean. false)]
+      (is (identical? (or true false-b)
+                      (fn/or true false-b)))
+      (is (identical? (or false-a true)
+                      (fn/or false-a true)))
+      (is (identical? (or false-a false-b)
+                      (fn/or false-a false-b))))))

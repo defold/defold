@@ -25,6 +25,8 @@
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
+            [util.coll :as coll]
+            [util.eduction :as e]
             [util.fn :as fn]
             [util.thread-util :as thread-util]))
 
@@ -43,58 +45,93 @@
     (thread-util/throw-if-interrupted!)
     (sort-by resource/proj-path project-resources)))
 
-(defn- node-ids->owner-resource-node-ids [basis node-ids]
-  (into #{}
-        (keep #(resource-node/owner-resource-node-id basis %))
-        node-ids))
-
-(defn- deps-filter-fn [project filter-value _items]
+(defn deps-filter-fn [project filter-value _items]
   ;; Dependencies are files that this file depends on. I.e. the atlas this sprite uses.
   (g/with-auto-evaluation-context evaluation-context
     (when-some [resource-node-id (project/get-resource-node project filter-value evaluation-context)]
       (let [basis (:basis evaluation-context)
-            nodes-in-resource (core/recursive-owned-node-ids basis resource-node-id)
-
-            nodes-we-depend-on
-            (into #{}
-                  (comp
-                    (map thread-util/abortable-identity!)
-                    (mapcat #(g/explicit-arcs-by-target basis %))
-                    (map gt/source-id))
-                  nodes-in-resource)
 
             resource-nodes-we-depend-on
-            (disj (node-ids->owner-resource-node-ids basis nodes-we-depend-on)
-                  resource-node-id)]
+            (into #{}
+                  (comp
+                    ;; nodes in resource:
+                    (coll/tree-xf
+                      any?
+                      (fn [node-id]
+                        (let [node-type (g/node-type* basis node-id)
+                              cascade-deletes (g/cascade-deletes node-type)
+                              is-override (g/override? basis node-id)]
+                          (->> cascade-deletes
+                               ;; important: we use sources instead of
+                               ;; explicit-arcs-by-target because the latter
+                               ;; does not return inherited override
+                               ;; connections
+                               (e/mapcat #(g/sources basis node-id %))
+                               (e/map first)
+                               ;; important: it's possible that an override
+                               ;; "owns" a real node instead of another override
+                               ;; node. For example, EmbeddedComponent of a
+                               ;; referenced collection may refer to an original
+                               ;; component if the component's resource type
+                               ;; does not say that its properties may be
+                               ;; overridden using :overridable-properties tag
+                               (e/remove #(when is-override (not (g/override? basis %))))))))
 
-        (resource-node-ids->project-resources basis resource-nodes-we-depend-on)))))
+                    (map thread-util/abortable-identity!)
 
-(defn- refs-filter-fn [project filter-value _items]
+                    ;; resource nodes we depend on
+                    (mapcat
+                      ;; important: here, we explicit-arcs-by-target
+                      ;; instead of sources because for overrides, we
+                      ;; are only interested on overrides that establish
+                      ;; the connection
+                      #(g/explicit-arcs-by-target basis %))
+                    (map gt/source-id)
+                    (filter #(g/node-instance? basis resource/ResourceNode %))
+                    (map #(g/override-root basis %)))
+                  [resource-node-id])]
+
+        (resource-node-ids->project-resources basis (disj resource-nodes-we-depend-on resource-node-id))))))
+
+(defn refs-filter-fn [project filter-value _items]
   ;; Referencing files are files that depend on this file. I.e. the four sprites that refer to this atlas.
   (g/with-auto-evaluation-context evaluation-context
     (when-some [resource-node-id (project/get-resource-node project filter-value evaluation-context)]
       (let [basis (:basis evaluation-context)
-            nodes-in-resource (core/recursive-owned-node-ids basis resource-node-id)
-            recursive-overrides-fn #(g/overrides basis %)
-
-            all-overrides-of-nodes-in-resource
-            (eduction
-              (mapcat #(tree-seq some? recursive-overrides-fn %))
-              nodes-in-resource)
-
-            nodes-that-depend-on-us
-            (into #{}
-                  (comp
-                    (map thread-util/abortable-identity!)
-                    (mapcat #(g/explicit-arcs-by-source basis %))
-                    (map gt/target-id))
-                  all-overrides-of-nodes-in-resource)
 
             resource-nodes-that-depend-on-us
-            (disj (node-ids->owner-resource-node-ids basis nodes-that-depend-on-us)
-                  resource-node-id)]
 
-        (resource-node-ids->project-resources basis resource-nodes-that-depend-on-us)))))
+            (into #{}
+                  (comp
+                    ;; all overrides of the resource node
+                    (coll/tree-xf any? #(g/overrides basis %))
+                    (map thread-util/abortable-identity!)
+                    ;; nodes that depend on us
+                    (mapcat #(g/explicit-arcs-by-source basis %))
+                    (map gt/target-id)
+                    ;; their nearest holding resource nodes (possibly overrides)
+                    (keep (fn [node-id]
+                            (if (g/override? basis node-id)
+                              (resource-node/owner-resource-node-id basis node-id)
+                              ;; important: if we are not an override, we should
+                              ;; at most traverse up to the first override
+                              ;; owner. An override node can "own" non-override
+                              ;; one if it doesn't allow property overrides;
+                              ;; in this case, this "ownership" represents how
+                              ;; the override root refers to our node... very
+                              ;; confusing...
+                              (loop [node-id node-id
+                                     override false]
+                                (if (and (g/node-instance? basis resource/ResourceNode node-id)
+                                         (some? (resource/proj-path (resource-node/resource basis node-id))))
+                                  node-id
+                                  (when-not override
+                                    (when-let [owner-node-id (core/owner-node-id basis node-id)]
+                                      (recur owner-node-id (g/override? basis owner-node-id)))))))))
+                    (map #(g/override-root basis %)))
+                  [resource-node-id])]
+
+        (resource-node-ids->project-resources basis (disj resource-nodes-that-depend-on-us resource-node-id))))))
 
 (defn matched-list-item-view [{:keys [icon text matching-indices children]}]
   {:fx/type fx.h-box/lifecycle

@@ -895,7 +895,14 @@ public class ModelUtil {
         }
 
         modelBuilder.setId(MurmurHash.hash64(node.name)); // the node name is the human readable name (e.g Sword)
-        modelBuilder.setLocal(toDDFTransform(node.local));
+        // Handle GLTF hierarchy correctly based on whether the model has bone parenting:
+        // - If model has parentBone (skinned): use node.local to preserve bone hierarchy system
+        // - If model has no parentBone: use node.world to flatten transform hierarchy into model transform
+        if (model.parentBone != null) {
+            modelBuilder.setLocal(toDDFTransform(node.local));
+        } else {
+            modelBuilder.setLocal(toDDFTransform(node.world));
+        }
         modelBuilder.setBoneId(MurmurHash.hash64(model.parentBone != null ? model.parentBone.name : ""));
 
         return modelBuilder.build();
@@ -910,15 +917,6 @@ public class ModelUtil {
 
         for (Node child : node.children) {
             loadModelInstances(child, skeleton, models);
-        }
-    }
-
-    private static void findModelNodes(Node node, List<Node> modelNodes) {
-        if (node.model != null) {
-            modelNodes.add(node);
-        }
-        for (Node child : node.children) {
-            findModelNodes(child, modelNodes);
         }
     }
 
@@ -985,12 +983,7 @@ public class ModelUtil {
 
         ArrayList<Rig.Model> models = new ArrayList<>();
         for (Node root : scene.rootNodes) {
-            ArrayList<Node> modelNodes = new ArrayList<>();
-            findModelNodes(root, modelNodes);
-
-            for (Node modelNode : modelNodes) {
-                loadModelInstances(modelNode, skeleton, models);
-            }
+            loadModelInstances(root, skeleton, models);
         }
         meshSetBuilder.addAllModels(models);
         meshSetBuilder.setMaxBoneCount(skeleton.size());

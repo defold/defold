@@ -393,6 +393,7 @@ namespace dmGui
         scene->m_SetMaterialPropertyCallback = params->m_SetMaterialPropertyCallback;
         scene->m_SetMaterialPropertyCallbackContext = params->m_SetMaterialPropertyCallbackContext;
         scene->m_DestroyRenderConstantsCallback = params->m_DestroyRenderConstantsCallback;
+        scene->m_CloneRenderConstantsCallback = params->m_CloneRenderConstantsCallback;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
         scene->m_NewTextureResourceCallback = params->m_NewTextureResourceCallback;
         scene->m_DeleteTextureResourceCallback = params->m_DeleteTextureResourceCallback;
@@ -4269,6 +4270,18 @@ namespace dmGui
         out_n->m_Node.m_ResetPointProperties = 0;
         if (n->m_Node.m_Text != 0x0)
             out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
+        
+        // Handle render constants - clone them if callback is available and source has them
+        if (n->m_Node.m_RenderConstants && scene->m_CloneRenderConstantsCallback)
+        {
+            out_n->m_Node.m_RenderConstants = scene->m_CloneRenderConstantsCallback(n->m_Node.m_RenderConstants);
+            out_n->m_Node.m_RenderConstantsHash = n->m_Node.m_RenderConstantsHash;
+        }
+        else
+        {
+            out_n->m_Node.m_RenderConstants = 0x0;
+            out_n->m_Node.m_RenderConstantsHash = 0;
+        }
         out_n->m_NameHash = dmHashString64(name);
         out_n->m_Version = version;
         out_n->m_Index = index;

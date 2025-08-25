@@ -90,6 +90,7 @@ end
 local function print_collision_object(collision, indent)
     indent = indent or "  "
     local shapes = editor.get(collision, "shapes")
+    print(("%scollision_type: %s"):format(indent, editor.get(collision, "collision_type")))
     print(("%sshapes: %s"):format(indent, #shapes))
     for i = 1, #shapes do
         local shape = shapes[i]
@@ -393,6 +394,7 @@ function M.get_commands()
 
                 print("Transaction: add 3 shapes")
                 editor.transact({
+                    editor.tx.set(collision, "collision_type", "collision-object-type-static"),
                     editor.tx.add(collision, "shapes", {
                         id = "box",
                         type = "shape-type-box"
@@ -411,7 +413,10 @@ function M.get_commands()
                 print_collision_object(collision)
 
                 print("Transaction: clear")
-                editor.transact({editor.tx.clear(collision, "shapes")})
+                editor.transact({
+                    editor.tx.set(collision, "collision_type", "collision-object-type-dynamic"),
+                    editor.tx.clear(collision, "shapes")
+                })
 
                 print("After transaction (clear):")
                 print_collision_object(collision)
@@ -577,6 +582,7 @@ function M.get_commands()
                         id = "collisionobject-embedded",
                         type = "collisionobject",
                         locked_rotation = true,
+                        collision_type = "collision-object-type-static",
                         shapes = {
                             {
                                 id = "box",
