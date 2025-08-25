@@ -12,19 +12,17 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns editor.game-project-core
-  (:require [clojure.java.io :as io]
-            [editor.settings-core :as settings-core]))
+(ns integration.game-properties-test
+  (:require [clojure.test :refer :all]
+            [integration.test-util :as test-util]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
-(def basic-meta-info
-  (with-open [rdr (io/reader (io/resource "com/dynamo/bob/meta.properties"))]
-    (settings-core/load-meta-properties rdr)))
-
-(def meta-settings (:settings basic-meta-info))
-
-(def default-settings
-  (-> meta-settings
-      settings-core/make-default-settings
-      settings-core/make-settings-map))
+(deftest game-properties-test
+  (test-util/with-loaded-project "test/resources/game_properties_project"
+    (let [game-project (test-util/resource-node project "/game.project")]
+      (is (true? (test-util/get-setting game-project ["project" "subtitles"])))
+      (is (true? (test-util/get-setting game-project ["tv" "show_ads"])))
+      (is (= 128 (test-util/get-setting game-project ["spine" "max_count"])))
+      (is (thrown-with-msg? Throwable #"Invalid setting path." (test-util/get-setting game-project ["unrelated" "unexpected"]))))))

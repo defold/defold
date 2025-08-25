@@ -217,9 +217,9 @@
                       :portal {:source-paths ["src/portal"]
                                :dependencies [[djblue/portal "0.60.2"]]}
                       :reveal {:source-paths ["src/reveal"]
-                               :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading"]
+                               :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading" "-Dvlaaad.reveal.prefs={:use-eval-file-metadata-namespace,true}"]
                                :injections [(require 'editor.reveal)]
-                               :dependencies [[vlaaad/reveal "1.3.287"]
+                               :dependencies [[vlaaad/reveal "1.3.292"]
                                               [org.openjfx/javafx-web "23.0.1"]]}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :jamm {:dependencies [[com.github.jbellis/jamm "0.4.0"]]

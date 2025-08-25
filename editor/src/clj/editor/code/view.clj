@@ -1613,19 +1613,28 @@
     target-row             1-indexed row in the document"
   [resource-node canvas-repaint-info target-row]
   (let [{:keys [grammar lines]} canvas-repaint-info
+        invalidated-rows (:invalidated-rows canvas-repaint-info)
+        ;; Read-only views don't have invalidated rows at all: we detect changes
+        ;; in them by comparing lines hashes. When they change, we refresh the
+        ;; syntax from the start.
+        read-only-view (nil? invalidated-rows)
+        lines-hash (when read-only-view (hash lines))
         syntax-info
-        (vary-meta
-          (if (nil? grammar)
-            []
-            (if-some [prev-syntax-info (g/user-data resource-node :syntax-info)]
-              (let [invalidated-syntax-info
-                    (if-some [invalidated-row (invalidated-row (:invalidated-rows (meta prev-syntax-info))
-                                                               (:invalidated-rows canvas-repaint-info))]
-                      (data/invalidate-syntax-info prev-syntax-info invalidated-row (count lines))
-                      prev-syntax-info)]
-                (data/ensure-syntax-info invalidated-syntax-info target-row lines grammar))
-              (data/ensure-syntax-info [] target-row lines grammar)))
-          assoc :invalidated-rows (:invalidated-rows canvas-repaint-info))]
+        (-> (if (nil? grammar)
+              []
+              (if-some [prev-syntax-info (g/user-data resource-node :syntax-info)]
+                (let [invalidated-syntax-info
+                      (if-some [invalidated-row (if read-only-view
+                                                  (when-not (= lines-hash (:lines-hash (meta prev-syntax-info)))
+                                                    0)
+                                                  (invalidated-row (:invalidated-rows (meta prev-syntax-info))
+                                                                   invalidated-rows))]
+                        (data/invalidate-syntax-info prev-syntax-info invalidated-row (count lines))
+                        prev-syntax-info)]
+                  (data/ensure-syntax-info invalidated-syntax-info target-row lines grammar))
+                (data/ensure-syntax-info [] target-row lines grammar)))
+            (vary-meta assoc :invalidated-rows invalidated-rows)
+            (cond-> read-only-view (vary-meta assoc :lines-hash lines-hash)))]
     (g/user-data! resource-node :syntax-info syntax-info)
     syntax-info))
 
