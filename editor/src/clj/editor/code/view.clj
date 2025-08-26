@@ -2026,8 +2026,10 @@
                  :children [{:fx/type fx.stack-pane/lifecycle
                              :min-width completion-type-icon-size
                              :max-width completion-type-icon-size
-                             :children [{:fx/type completion-type-icon
-                                         :type (:type completion)}]}
+                             :children (if-let [type (:type completion)]
+                                         [{:fx/type completion-type-icon
+                                           :type type}]
+                                         [])}
                             (fuzzy-choices/make-matched-text-flow-cljfx
                               text matching-indices
                               :deprecated (contains? (:tags completion) :deprecated))]}
