@@ -36,7 +36,6 @@
             [util.num :as num])
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
-           [com.jogamp.opengl.math VectorUtil]
            [editor.gl.vertex2 VertexBuffer]
            [java.nio ByteOrder]
            [javax.vecmath Matrix4d Vector4d]))
@@ -185,8 +184,6 @@
                 vertex-attribute-bytes (assoc :vertex-attribute-bytes vertex-attribute-bytes))]
     (graphics/put-attributes! vbuf [mesh-renderable-data])))
 
-(def my-atom (atom 0))
-
 (defn- render-mesh-opaque-impl [^GL2 gl render-args renderable request-prefix override-shader override-vertex-description extra-render-args]
   (let [{:keys [node-id user-data ^Matrix4d world-transform]} renderable
         {:keys [material-attribute-infos material-data mesh-renderable-data textures vertex-attribute-bytes]} user-data
@@ -232,8 +229,6 @@
                          :vertex-description vertex-description
                          :vertex-attribute-bytes vertex-attribute-bytes})
         vertex-buffer-binding (vtx/use-with request-id vertex-buffer shader)]
-    ;; TODO: Look at shader uniforms from shader?
-    (reset! my-atom (shader/uniform-infos shader gl))
     (gl/with-gl-bindings gl render-args [shader vertex-buffer-binding]
       (doseq [[name t] textures]
         (gl/bind gl t render-args)

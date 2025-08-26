@@ -298,7 +298,6 @@ This must be submitted to the driver for compilation before you can use it. See
 
 (defonce/protocol ShaderVariables
   (attribute-infos [this gl])
-  (uniform-infos [this gl])
   (set-uniform [this gl name val])
   (set-uniform-array [this gl name count val]))
 
@@ -490,10 +489,6 @@ This must be submitted to the driver for compilation before you can use it. See
   (attribute-infos [_this gl]
     (when-let [{:keys [attribute-infos]} (scene-cache/request-object! ::shader request-id gl request-data)]
       attribute-infos))
-
-  (uniform-infos [_this gl]
-    (when-let [{:keys [uniform-infos]} (scene-cache/request-object! ::shader request-id gl request-data)]
-      uniform-infos))
 
   (set-uniform [_this gl name val]
     (assert (string? (not-empty name)))

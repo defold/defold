@@ -282,7 +282,8 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
         String basedir = ".";
         String pathIn = args[0];
-        // String pathSpc = args[1]; // Currently not used
+        // The .spc path is automatically passed in from waf, but it's currently not used since we derive the path from the material
+        // String pathSpc = args[1];
         String pathOut = args[2];
         String shaderName = null;
         File fileIn = new File(pathIn);
