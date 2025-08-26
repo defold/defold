@@ -349,9 +349,10 @@
 
 (defn- dolly-orthographic [camera delta]
   (let [dolly-fn (fn [fov]
-                   (max 0.01 (+ (or fov 0)
-                                (* (or fov 1)
-                                   delta))))]
+                   (min 1000000.0
+                        (max 0.01 (+ (or fov 0)
+                                     (* (or fov 1)
+                                        delta)))))]
     (-> camera
         (update :fov-x dolly-fn)
         (update :fov-y dolly-fn))))
