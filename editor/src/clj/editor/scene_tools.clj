@@ -512,7 +512,8 @@
                            original-values (->> selected-renderables
                                                 scene-picking/top-nodes
                                                 (mapv original-values))]
-                       (when (not (empty? original-values))
+                       (when (and (not (empty? original-values))
+                                  (= (:button action) :primary))
                          (g/transact
                             (concat
                               (g/set-property self :start-action action)
