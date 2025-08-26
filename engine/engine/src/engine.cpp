@@ -1460,6 +1460,10 @@ namespace dmEngine
                 char* filename = dmStrTok(tmp, ",", &iter);
                 do
                 {
+                    if (!filename || strlen(filename) == 0) {
+                        continue;
+                    }
+                    
                     // We need the size, in order to send it as a proper LuaModule message
                     void* data;
                     uint32_t datasize;
