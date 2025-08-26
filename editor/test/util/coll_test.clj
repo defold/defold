@@ -1040,6 +1040,59 @@
                                                   ["a1" "b1" "a2"]))]
         (is (identical? original-meta (meta altered-map)))))))
 
+(deftest map-vals-test
+  (testing "Over nil."
+    (is (nil? (coll/map-vals (fn [] :uncalled) nil))))
+
+  (testing "Over collection."
+    (doseq [target-coll [(array-map) (hash-map) (sorted-map)]]
+      (let [original-meta {:meta-key "meta-value"}
+            original-map (with-meta (into target-coll
+                                          {:a 1
+                                           :b 2})
+                                    original-meta)
+            altered-map (coll/map-vals inc original-map)]
+        (is (= {:a 2 :b 3} altered-map))
+        (is (identical? original-meta (meta altered-map))))))
+
+  (testing "As transducer."
+    (is (= {:a 0
+            :b 1}
+           (into {}
+                 (coll/map-vals dec)
+                 {:a 1
+                  :b 2})))))
+
+(deftest map-vals-kv-test
+  (testing "Over nil."
+    (is (nil? (coll/map-vals-kv (fn [] :uncalled) nil))))
+
+  (testing "Over collection."
+    (doseq [target-coll [(array-map) (hash-map) (sorted-map)]]
+      (let [original-meta {:meta-key "meta-value"}
+            original-map (with-meta (into target-coll
+                                          {:a 1
+                                           :b 2})
+                                    original-meta)
+            altered-map (coll/map-vals-kv (fn [k ^long v]
+                                            (case k
+                                              :b (+ 10 v)
+                                              v))
+                                          original-map)]
+        (is (= {:a 1 :b 12} altered-map))
+        (is (identical? original-meta (meta altered-map))))))
+
+  (testing "As transducer."
+    (is (= {:a "1"
+            :b 22}
+           (into {}
+                 (coll/map-vals-kv (fn [k ^long v]
+                                     (case k
+                                       :a (str v)
+                                       :b (+ 20 v))))
+                 {:a 1
+                  :b 2})))))
+
 (deftest mapcat-test
   (testing "Over collection."
     (is (= [[:< :a]

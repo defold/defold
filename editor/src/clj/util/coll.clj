@@ -225,6 +225,50 @@
 
 (defonce into-vector (fnil into []))
 
+(defn map-vals
+  "Applies f to all values in the supplied associative collection. Returns a new
+  associative collection of the same type with all the same keys, but the values
+  being the results of applying f to each previous value. Preserves metadata. If
+  coll is nil, returns nil without calling f."
+  ([f]
+   (map (fn [entry]
+          (pair (key entry)
+                (f (val entry))))))
+  ([f coll]
+   (when coll
+     (let [use-transient (supports-transient? coll)
+           rf (if use-transient
+                #(assoc! %1 %2 (f %3))
+                #(assoc %1 %2 (f %3)))
+           init (cond-> (empty coll)
+                        use-transient transient)]
+       (with-meta (cond-> (reduce-kv rf init coll)
+                          use-transient persistent!)
+                  (meta coll))))))
+
+(defn map-vals-kv
+  "Calls f with the key and value of each element in the supplied associative
+  collection. Returns a new associative collection of the same type with all the
+  same keys, but the values being the results of applying f to each previous key
+  and value.  Preserves metadata. If coll is nil, returns nil without calling f."
+  ([f]
+   (map (fn [entry]
+          (let [k (key entry)
+                v (val entry)]
+            (pair k
+                  (f k v))))))
+  ([f coll]
+   (when coll
+     (let [use-transient (supports-transient? coll)
+           rf (if use-transient
+                #(assoc! %1 %2 (f %2 %3))
+                #(assoc %1 %2 (f %2 %3)))
+           init (cond-> (empty coll)
+                        use-transient transient)]
+       (with-meta (cond-> (reduce-kv rf init coll)
+                          use-transient persistent!)
+                  (meta coll))))))
+
 (defn pair-map-by
   "Returns a hash-map where the keys are the result of applying the supplied
   key-fn to each item in the input sequence and the values are the items
