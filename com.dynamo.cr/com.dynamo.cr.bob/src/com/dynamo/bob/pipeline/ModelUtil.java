@@ -885,10 +885,10 @@ public class ModelUtil {
         }
 
         modelBuilder.setId(MurmurHash.hash64(node.name)); // the node name is the human readable name (e.g Sword)
-        // Handle GLTF hierarchy correctly based on whether the model has bone parenting:
-        // - If model has parentBone (skinned): use node.local to preserve bone hierarchy system
-        // - If model has no parentBone: use node.world to flatten transform hierarchy into model transform
-        if (model.parentBone != null) {
+        // Handle GLTF hierarchy correctly based on whether the model is skinned:
+        // - If model is skinned: use node.local to preserve bone hierarchy system
+        // - If model is not skinned: use node.world to flatten transform hierarchy into model transform
+        if (skeleton.size() > 0) {
             modelBuilder.setLocal(toDDFTransform(node.local));
         } else {
             modelBuilder.setLocal(toDDFTransform(node.world));
