@@ -1044,6 +1044,22 @@ class Configuration(object):
                 defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
                 self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
 
+            # the port scripts contain the necessary files, only need to include them once
+            if platform in ['wasm-web']:
+                wagyu_port_files = []
+                for root, dirs, files in os.walk(os.path.join(self.dynamo_home, 'ext/wagyu-port')):
+                    for f in files:
+                        _, ext = os.path.splitext(f)
+                        if ext in ('.pyc',):
+                            continue
+                        path = os.path.join(root, f)
+                        wagyu_port_files.append(path)
+
+                if not wagyu_port_files:
+                    raise Exception("Failed to find wagyu-port folder")
+
+                self._add_files_to_zip(zip, wagyu_port_files, self.dynamo_home, topfolder)
+
             if platform in ['js-web']:
                 # JavaScript files
                 # js-web-pre-x files
