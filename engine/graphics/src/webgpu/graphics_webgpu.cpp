@@ -1159,10 +1159,13 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_TEXTURE_ARRAY;
     context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
 
-    if (context->m_PrintDeviceInfo)
-    {
-        dmLogInfo("Device: webgpu");
-    }
+    #if defined (DM_GRAPHICS_WEBGPU2)
+        const uint32_t webgpu_version = 2;
+#else
+        const uint32_t webgpu_version = 1;
+#endif
+
+    dmLogInfo("WebGPU v%d", webgpu_version);
 
     context->m_Instance = wgpuCreateInstance(nullptr);
 
@@ -1175,7 +1178,9 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     {
         WGPUFutureWaitInfo waitInfo = { future, 0 };
         WGPUWaitStatus status = wgpuInstanceWaitAny(context->m_Instance, 1, &waitInfo, std::numeric_limits<uint64_t>::max());
-        assert(waitInfo.completed && waitInfo.future.id == future.id && status == WGPUWaitStatus_Success);
+        assert(waitInfo.completed);
+        assert(waitInfo.future.id == future.id);
+        assert(status == WGPUWaitStatus_Success);
         assert(context->m_InitComplete);
         (void)status;
     }
