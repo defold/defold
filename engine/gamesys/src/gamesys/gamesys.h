@@ -48,6 +48,12 @@ namespace dmGameSystem
     extern const char* PHYSICS_USE_FIXED_TIMESTEP;
     /// Config key for using max updates during a single step
     extern const char* PHYSICS_MAX_FIXED_TIMESTEPS;
+    /// Config key for Box2D 2.2 velocity iterations
+    extern const char* BOX2D_VELOCITY_ITERATIONS;
+    /// Config key for Box2D 2.2 position iterations
+    extern const char* BOX2D_POSITION_ITERATIONS;
+    /// Config key for Box2D 3.x sub-step count
+    extern const char* BOX2D_SUB_STEP_COUNT;
     /// Config key to use for tweaking maximum number of collection proxies
     extern const char* COLLECTION_PROXY_MAX_COUNT_KEY;
     /// Config key to use for tweaking maximum number of factories
@@ -179,6 +185,9 @@ namespace dmGameSystem
         bool              m_Debug;
         bool              m_UseFixedTimestep;
         uint32_t          m_MaxFixedTimesteps;
+        uint32_t          m_Box2DVelocityIterations;
+        uint32_t          m_Box2DPositionIterations;
+        uint32_t          m_Box2DSubStepCount;
         PhysicsEngineType m_PhysicsType;
     };
 

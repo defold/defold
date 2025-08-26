@@ -141,7 +141,7 @@
         _ (ui/request-focus! gesture-target)
         env (-> gesture-target (ui/node-contexts false) first :env)
         {:keys [selection workspace]} env
-        resource-strings (-> string string/split-lines sort)
+        resource-strings (some-> string string/split-lines sort)
         resources (e/keep (partial workspace/resolve-workspace-resource workspace) resource-strings)
         z-plane-pos (math/line-plane-intersection world-pos world-dir (Point3d. 0.0 0.0 0.0) (Vector3d. 0.0 0.0 1.0))
         drop-fn (partial drop-fn root-id selection workspace z-plane-pos)
@@ -181,14 +181,9 @@
                            (g/set-property self :toggle? toggle?)
                            (g/set-property self :contextual? contextual?)
                            (g/set-property self :prev-selection (g/node-value self :selection))))
-                       (select self op-seq mode toggle?)
-                       (when contextual?
-                         (let [node ^Node (:target action)
-                               scene ^Scene (.getScene node)
-                               context-menu (ui/init-context-menu! ::scene-context-menu scene)]
-                           (.show context-menu node ^double (:screen-x action) ^double (:screen-y action))))
                        nil)
       :mouse-released (do
+                        (when start (select self op-seq mode toggle?))
                         (g/transact
                           (concat
                             (g/set-property self :start nil)
@@ -198,16 +193,22 @@
                             (g/set-property self :toggle? nil)
                             (g/set-property self :contextual? nil)
                             (g/set-property self :prev-selection nil)))
+                        (when contextual?
+                          (let [node ^Node (:target action)
+                                scene ^Scene (.getScene node)
+                                context-menu (ui/init-context-menu! ::scene-context-menu scene)]
+                            (.show context-menu node ^double (:screen-x action) ^double (:screen-y action))))
                         nil)
-      :mouse-moved (if (and start (not (g/node-value self :contextual?)))
+      :mouse-moved (if start
                      (let [new-mode (if (and (= :single mode) (< min-pick-size (distance start cursor-pos)))
                                       :multi
                                       mode)]
-                       (g/transact
-                         (concat
-                           (when (not= new-mode mode) (g/set-property self :mode new-mode))
-                           (g/set-property self :current cursor-pos)))
-                       (select self op-seq new-mode toggle?)
+                       (when-not (g/node-value self :contextual?)
+                         (g/transact
+                           (concat
+                             (when (not= new-mode mode) (g/set-property self :mode new-mode))
+                             (g/set-property self :current cursor-pos)))
+                         (select self op-seq new-mode toggle?))
                        nil)
                      action)
       action)))

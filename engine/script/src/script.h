@@ -150,10 +150,9 @@ namespace dmScript
      * Implementations of this callback are expected to resolve the path given the user data.
      * @param resolve_user_data user data passed to the callback
      * @param path
-     * @param path_size
      * @return hashed resolved path
      */
-    typedef dmhash_t (*ResolvePathCallback)(uintptr_t resolve_user_data, const char* path, uint32_t path_size);
+    typedef dmhash_t (*ResolvePathCallback)(uintptr_t resolve_user_data, const char* path);
 
     /**
      * Callback used to retrieve url

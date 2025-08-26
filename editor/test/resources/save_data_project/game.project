@@ -207,6 +207,7 @@ texture_profiles = /checked.texture_profiles
 verify_graphics_calls = 0
 opengl_version_hint = 33
 opengl_core_profile_hint = 1
+memory_size = 512
 
 [iap]
 auto_finish_transactions = 0
@@ -239,6 +240,11 @@ trigger_overlap_capacity = 8
 velocity_threshold = 0.9
 max_fixed_timesteps = 3
 
+[box2d]
+velocity_iterations = 1
+position_iterations = 2
+sub_step_count = 3
+
 [profiler]
 track_cpu = 1
 sleep_between_server_updates = 10
@@ -260,6 +266,7 @@ uri = http://localhost:1234/save-data-project
 include_dirs = library
 
 [liveupdate]
+enabled = 1
 settings = /liveupdate.settings
 mount_on_start = 0
 
@@ -272,3 +279,7 @@ player_health = 120
 
 [shader]
 exclude_gles_sm100 = 0
+
+[font]
+runtime_generation = 1
+

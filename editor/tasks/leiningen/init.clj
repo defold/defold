@@ -68,6 +68,7 @@
    ["local-jars"]
    ; ["builtins"] builtins is in bob which we install in `local-jars` step
    ["ref-doc"]
+   ["project-templates"]
    ["protobuf"]
    ["sass" "once"]
    ["pack"]])

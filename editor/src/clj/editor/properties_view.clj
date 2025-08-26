@@ -256,9 +256,10 @@
                      (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (drag-event-handler event)))
                      (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-label-press-event! event)))
                      (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-label-release-event! event control))))]
+     (AnchorPane/setTopAnchor drag-icon 1.0)
      (if is-left-aligned
-       (AnchorPane/setRightAnchor drag-icon 0.0)
-       (AnchorPane/setLeftAnchor drag-icon 0.0))
+       (AnchorPane/setRightAnchor drag-icon 1.0)
+       (AnchorPane/setLeftAnchor drag-icon 1.0))
      (doto control
        (AnchorPane/setRightAnchor 0.0)
        (AnchorPane/setLeftAnchor 0.0))
@@ -929,6 +930,7 @@
         (doto (MenuButton.)
           (ui/add-style! "property-label")
           (ui/register-button-menu ::property-menu)
+          (.setFocusTraversable false)
           (.setPrefWidth Region/USE_COMPUTED_SIZE)
           (.setMinWidth Region/USE_PREF_SIZE)
           (.setTooltip (doto (Tooltip.)

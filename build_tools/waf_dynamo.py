@@ -616,9 +616,16 @@ def default_flags(self):
                 'MIN_SAFARI_VERSION=101000',
                 'MIN_CHROME_VERSION=45']
 
+        flags = []
+        linkflags = []
+
         if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
-            emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
-            # This is needed so long as we have to use sleep to make initialization
+            if 'wagyu' in Options.options.enable_features:
+                # When building the executable locally, targeting wagyu, we need to link with the stubs
+                wagyu_port = '%s/ext/wagyu-port/new/wagyu-port.py:extensions=true' % (os.environ['DYNAMO_HOME'])
+                linkflags += ['--use-port=%s' % wagyu_port]
+            else:
+                emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
             emflags_link += ['ASYNCIFY']
             #TEMP-HACK: make asyncify be active for indirects to allow -gseparate-dwarf / -g3 usage without crash around webGPU initialization
             #if int(opt_level) >= 3:
@@ -628,10 +635,8 @@ def default_flags(self):
             # sound needs this to startup its thread with no deadlock
             emflags_link += ['PTHREAD_POOL_SIZE=1']
 
-        flags = []
-        linkflags = []
         if 'wasm' == target_arch:
-            emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
+            emflags_link += ['WASM=1', 'WASM_BIGINT=1', 'ALLOW_MEMORY_GROWTH=1']
             if int(opt_level) < 2:
                 flags += ['-gseparate-dwarf', '-gsource-map']
                 linkflags += ['-gseparate-dwarf', '-gsource-map']
@@ -1823,11 +1828,8 @@ def detect(conf):
             exe_suffix = '.exe'
         target_arch = build_util.get_target_architecture()
         api_version = sdkinfo['api']
-        clang_name  = getAndroidCompilerName(target_arch, api_version)
-        # NDK doesn't support arm64 yet
-        if bp_arch == 'arm64':
-            bp_arch = 'x86_64';
-        bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (sdkinfo['ndk'], bp_os, bp_arch)
+        clang_name  = sdkinfo['clangname']
+        bintools    = sdkinfo['bintools']
         bintools    = os.path.normpath(bintools)
         sep         = os.path.sep
 
@@ -2038,16 +2040,15 @@ def detect(conf):
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
-    if TargetOS.WEB == target_os:
-        conf.env['STLIB_PROFILE'] = ['profile_basic']
-    else:
-        conf.env['STLIB_PROFILE'] = ['profile', 'remotery']
-    conf.env['STLIB_PROFILE_NULL'] = ['profile_null', 'remotery_null']
-    conf.env['DEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
-    conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan', 'remotery_null_noasan']
 
-    if platform in ('arm64-nx64',):
-        conf.env['STLIB_PROFILE'] = conf.env['STLIB_PROFILE_NULL']
+    conf.env['STLIB_PROFILE'] = ['profile']
+    conf.env['STLIB_PROFILE_NULL'] = ['profile_null']
+    conf.env['STLIB_PROFILER_BASIC'] = ['profiler_basic']
+    conf.env['STLIB_PROFILER_REMOTERY'] = ['profiler_remotery']
+    conf.env['STLIB_PROFILER_NULL'] = ['profiler_null']
+
+    conf.env['DEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
+    conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan']
 
     if ('record' not in Options.options.disable_features):
         conf.env['STLIB_RECORD'] = 'record_null'
@@ -2064,12 +2065,17 @@ def detect(conf):
     conf.env['STLIB_GRAPHICS_OPENGLES'] = ['graphics_opengles', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_DX12']     = ['graphics_dx12', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'graphics_transcoder_basisu', 'basis_transcoder']
+    if 'wagyu' in Options.options.enable_features:
+        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu_wagyu', 'graphics_transcoder_basisu', 'basis_transcoder']
+    else:
+        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
     conf.env['STLIB_PLATFORM']        = ['platform']
     conf.env['STLIB_PLATFORM_VULKAN'] = ['platform_vulkan']
     conf.env['STLIB_PLATFORM_NULL']   = ['platform_null']
+
+    conf.env['STLIB_FONT']            = ['font']
 
     if platform_glfw_version(platform) == 3:
         conf.env['STLIB_DMGLFW'] = 'glfw3'

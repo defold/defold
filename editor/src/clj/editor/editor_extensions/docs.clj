@@ -163,6 +163,39 @@ editor.command({
           :parameters [resource-path-param]
           :description "Create a directory if it does not exist, and all non-existent parent directories.\n\nThrows an error if the directory can't be created."
           :examples "```\neditor.create_directory(\"/assets/gen\")\n```"}
+         {:name "editor.create_resources"
+          :type :function
+          :parameters [{:name "resources"
+                        :types ["string[]"]
+                        :doc (str "Array of resource paths (strings starting with <code>/</code>) or resource definitions, lua tables with the following keys:"
+                                  (lua-completion/args-doc-html
+                                    [{:name "1"
+                                      :types ["string"]
+                                      :doc "required, resource path (starting with <code>/</code>)"}
+                                     {:name "2"
+                                      :types ["string"]
+                                      :doc "optional, created resource content"}]))}]
+          :description "Create resources (including non-existent parent directories).\n\nThrows an error if any of the provided resource paths already exist"
+          :examples "Create a single resource from template:
+```
+editor.create_resources({
+  \"/npc.go\"
+})
+```
+Create multiple resources:
+```
+editor.create_resources({
+  \"/npc.go\",
+  \"/levels/1.collection\",
+  \"/levels/2.collection\",
+})
+```
+Create a resource with custom content:
+```
+editor.create_resources({
+  {\"/npc.script\", \"go.property('hp', 100)\"}
+})
+```"}
          {:name "editor.delete_directory"
           :type :function
           :parameters [resource-path-param]
@@ -848,6 +881,50 @@ zip.pack(\"build.zip\", {
   {\"../secrets/auth-key.txt\", \"auth-key.txt\"}
 })
 ```"})
+         {:name "zip.unpack"
+          :type :function
+          :parameters [{:name "archive_path"
+                        :types ["string"]
+                        :doc "zip file path, resolved against project root if relative"}
+                       {:name "[target_path]"
+                        :types ["string"]
+                        :doc "target path for extraction, defaults to parent of <code>archive_path</code> if omitted"}
+                       {:name "[opts]"
+                        :types ["table"]
+                        :doc (str "extraction options, a table with the following keys:"
+                                  (lua-completion/args-doc-html
+                                    [{:name "on_conflict"
+                                      :types ["string"]
+                                      :doc "conflict resolution strategy, defaults to <code>zip.ON_CONFLICT.ERROR</code>"}]))}
+                       {:name "[paths]"
+                        :types ["table"]
+                        :doc "entries to extract, relative string paths"}]
+          :description "Extract a ZIP archive"
+          :examples "Extract everything to a build dir:
+```lua
+zip.unpack(\"build/dev/resources.zip\")
+```
+Extract to a different directory:
+```lua
+zip.unpack(
+  \"build/dev/resources.zip\",
+  \"build/dev/tmp\",
+)
+```
+Extract while overwriting existing files on conflict:
+```lua
+zip.unpack(
+  \"build/dev/resources.zip\",
+  {on_conflict = zip.ON_CONFLICT.OVERWRITE}
+)
+```
+Extract a single file:
+```lua
+zip.unpack(
+  \"build/dev/resources.zip\",
+  {\"config.json\"}
+)
+```"}
          {:name "zip.METHOD"
           :type :module
           :description "Constants for zip compression methods"}
@@ -856,4 +933,16 @@ zip.pack(\"build.zip\", {
           :description "<code>\"deflated\"</code> compression method"}
          {:name "zip.METHOD.STORED"
           :type :constant
-          :description "<code>\"stored\"</code> compression method, i.e. no compression"}]))))
+          :description "<code>\"stored\"</code> compression method, i.e. no compression"}
+         {:name "zip.ON_CONFLICT"
+          :type :module
+          :description "Constants defining conflict resolution strategies for zip archive extraction"}
+         {:name "zip.ON_CONFLICT.ERROR"
+          :type :constant
+          :description "`\"error\"`, any conflict aborts extraction"}
+         {:name "zip.ON_CONFLICT.SKIP"
+          :type :constant
+          :description "`\"skip\"`, existing file is preserved"}
+         {:name "zip.ON_CONFLICT.OVERWRITE"
+          :type :constant
+          :description "`\"skip\"`, existing file is overwritten"}]))))

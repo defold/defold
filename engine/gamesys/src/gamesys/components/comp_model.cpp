@@ -272,11 +272,15 @@ namespace dmGameSystem
         ModelWorld* world = (ModelWorld*)params.m_World;
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclarationSkinned);
+        dmGraphics::DeleteVertexDeclaration(world->m_InstanceVertexDeclaration);
+        dmGraphics::DeleteVertexDeclaration(world->m_InstanceVertexDeclarationSkinned);
 
         for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
         {
             dmRender::DeleteBufferedRenderBuffer(context->m_RenderContext, world->m_VertexBuffers[i]);
         }
+
+        dmRender::DeleteBufferedRenderBuffer(context->m_RenderContext, world->m_InstanceBufferLocalSpace);
 
         for (int i = 0; i < world->m_ScratchConstantBuffers.Size(); ++i)
         {
@@ -1036,6 +1040,27 @@ namespace dmGameSystem
         dmGameObject::DeleteBones(component->m_Instance);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_NodeInstances.SetCapacity(0);
+
+        // Clean up custom vertex buffers
+        for (uint32_t i = 0; i < component->m_MeshAttributeRenderDatas.Size(); ++i)
+        {
+            MeshAttributeRenderData& rd = component->m_MeshAttributeRenderDatas[i];
+            if (rd.m_VertexBuffer)
+            {
+                dmGraphics::DeleteVertexBuffer(rd.m_VertexBuffer);
+                rd.m_VertexBuffer = 0;
+            }
+            if (rd.m_VertexDeclaration)
+            {
+                dmGraphics::DeleteVertexDeclaration(rd.m_VertexDeclaration);
+                rd.m_VertexDeclaration = 0;
+            }
+            if (rd.m_InstanceVertexDeclaration)
+            {
+                dmGraphics::DeleteVertexDeclaration(rd.m_InstanceVertexDeclaration);
+                rd.m_InstanceVertexDeclaration = 0;
+            }
+        }
 
         if (component->m_RigInstance)
         {
@@ -1836,6 +1861,9 @@ namespace dmGameSystem
             if (!item.m_Enabled)
                 continue;
             dmRigDDF::Model* model = item.m_Model;
+            // Hierarchy handling: See ModelUtil.java:loadModel() for how model->m_Local is set
+            // For skinned models: m_Local contains node.local, hierarchy applied via bone_pose.m_World
+            // For non-skinned models: m_Local contains node.world, hierarchy already flattened
             if (item.m_BoneIndex != dmRig::INVALID_BONE_INDEX)
             {
                 dmRig::BonePose bone_pose = (*pose)[item.m_BoneIndex];
@@ -1868,16 +1896,7 @@ namespace dmGameSystem
 
             const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
             const Matrix4 local = dmTransform::ToMatrix4(c->m_Transform);
-
-            if (dmGameObject::ScaleAlongZ(c->m_Instance))
-            {
-                c->m_World = go_world * local;
-            }
-            else
-            {
-                c->m_World = dmTransform::MulNoScaleZ(go_world, local);
-            }
-
+            c->m_World = go_world * local;
             UpdateMeshTransforms(c);
 
             num_render_items += c->m_RenderItems.Size();

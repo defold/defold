@@ -32,20 +32,21 @@ namespace dmRender
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
 
-    static const dmhash_t VERTEX_STREAM_POSITION        = dmHashString64("position");
-    static const dmhash_t VERTEX_STREAM_NORMAL          = dmHashString64("normal");
-    static const dmhash_t VERTEX_STREAM_TANGENT         = dmHashString64("tangent");
-    static const dmhash_t VERTEX_STREAM_COLOR           = dmHashString64("color");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD0       = dmHashString64("texcoord0");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD1       = dmHashString64("texcoord1");
-    static const dmhash_t VERTEX_STREAM_PAGE_INDEX      = dmHashString64("page_index");
-    static const dmhash_t VERTEX_STREAM_WORLD_MATRIX    = dmHashString64("mtx_world");
-    static const dmhash_t VERTEX_STREAM_NORMAL_MATRIX   = dmHashString64("mtx_normal");
-    static const dmhash_t VERTEX_STREAM_BONE_WEIGHTS    = dmHashString64("bone_weights");
-    static const dmhash_t VERTEX_STREAM_BONE_INDICES    = dmHashString64("bone_indices");
-    static const dmhash_t VERTEX_STREAM_ANIMATION_DATA  = dmHashString64("animation_data");
-
-    static const dmhash_t SAMPLER_POSE_MATRIX_CACHE = dmHashString64("pose_matrix_cache");
+    // Keep only declarations to deduplicate symbols in binary
+    // Definitions are in render.cpp
+    extern const dmhash_t VERTEX_STREAM_POSITION;
+    extern const dmhash_t VERTEX_STREAM_NORMAL;
+    extern const dmhash_t VERTEX_STREAM_TANGENT;
+    extern const dmhash_t VERTEX_STREAM_COLOR;
+    extern const dmhash_t VERTEX_STREAM_TEXCOORD0;
+    extern const dmhash_t VERTEX_STREAM_TEXCOORD1;
+    extern const dmhash_t VERTEX_STREAM_PAGE_INDEX;
+    extern const dmhash_t VERTEX_STREAM_WORLD_MATRIX;
+    extern const dmhash_t VERTEX_STREAM_NORMAL_MATRIX;
+    extern const dmhash_t VERTEX_STREAM_BONE_WEIGHTS;
+    extern const dmhash_t VERTEX_STREAM_BONE_INDICES;
+    extern const dmhash_t VERTEX_STREAM_ANIMATION_DATA;
+    extern const dmhash_t SAMPLER_POSE_MATRIX_CACHE;
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
@@ -391,6 +392,7 @@ namespace dmRender
     void                            GetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData* data);
     void                            SetRenderCameraEnabled(HRenderContext render_context, HRenderCamera camera, bool value);
     void                            UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation);
+    float                           GetRenderCameraEffectiveAspectRatio(HRenderContext render_context, HRenderCamera camera);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)
     {

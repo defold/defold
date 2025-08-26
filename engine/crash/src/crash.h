@@ -157,6 +157,14 @@ namespace dmCrash
     void* GetBacktraceAddr(HDump dump, uint32_t index);
 
     /**
+     * Get the module index from the pointer index
+     * @param dump crash dump handle
+     * @param index index of the address to get
+     * @return module index
+     */
+    uint32_t GetBacktraceModuleIndex(HDump, uint32_t index);
+
+    /**
      * Get the text format version of the dump. It is written by platform-specific
      * backtrace functions (backtrace_symbols_fd) and there are no guarantees on the format
      * @param dump crash dump handle
@@ -184,6 +192,14 @@ namespace dmCrash
      * @return address of the module, null if there are no more
      */
     void* GetModuleAddr(HDump dump, uint32_t index);
+
+    /**
+     * Read out module size from the table stored in a crash dump.
+     * @param dump crash dump handle
+     * @param index index of the module to read
+     * @return size of the module, 0 if there are no size available
+     */
+    uint32_t GetModuleSize(HDump dump, uint32_t index);
 }
 
 #endif

@@ -537,7 +537,7 @@ public class BobProjectProperties {
         int cursor = 0;
         String line = reader.readLine();
         while (line != null) {
-            line.trim();
+            line = line.trim();
             if (line.startsWith("[")) {
                 if (!line.endsWith("]")) {
                     throw new ParseException("invalid category: " + line, cursor);

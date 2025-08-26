@@ -300,7 +300,7 @@ static bool UpdateAndWaitUntilDone(
             break;
         }
 
-        dmJobThread::Update(scriptlibcontext.m_JobThread);
+        dmJobThread::Update(scriptlibcontext.m_JobThread, 0);
         dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
         if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
         {
@@ -1692,7 +1692,7 @@ TEST_F(FontTest, GlyphBankTest)
 
 TEST_F(FontTest, DynamicGlyph)
 {
-    const char path_font[] = "/font/glyph_bank_test_1.fontc";
+    const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
     dmGameSystem::FontResource* font;
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font, (void**) &font));
@@ -1704,14 +1704,7 @@ TEST_F(FontTest, DynamicGlyph)
 
     {
         dmRender::FontGlyph* glyph = dmRender::GetGlyph(font_map, codepoint);
-        ASSERT_NE((void*)0, glyph);
-
-        ASSERT_EQ(codepoint, glyph->m_Character);
-        ASSERT_EQ(14U, glyph->m_Width);
-        ASSERT_EQ(13U, glyph->m_Ascent);
-        ASSERT_EQ(2U, glyph->m_Descent);
-        ASSERT_EQ(0.0f, glyph->m_LeftBearing);
-        ASSERT_EQ(8.0f, glyph->m_Advance);
+        ASSERT_EQ((void*)0, glyph);
     }
 
     // Add a new glyph
@@ -1739,7 +1732,7 @@ TEST_F(FontTest, DynamicGlyph)
     }
 
     {
-        uint32_t glyph_data_compression; // E.g. FONT_MAP_GLYPH_COMPRESSION_NONE;
+        uint32_t glyph_data_compression; // E.g. FONT_GLYPH_COMPRESSION_NONE;
         uint32_t glyph_data_size = 0;
         uint32_t glyph_image_width = 0;
         uint32_t glyph_image_height = 0;
@@ -1750,14 +1743,14 @@ TEST_F(FontTest, DynamicGlyph)
         dmRender::FontGlyph* glyph = dmRender::GetGlyph(font_map, codepoint);
         ASSERT_NE((void*)0, glyph);
 
-        ASSERT_EQ(0U, glyph_data_compression);
+        ASSERT_EQ((uint32_t)dmRender::FONT_GLYPH_COMPRESSION_NONE, glyph_data_compression);
         ASSERT_EQ(data_size-1, glyph_data_size);
         ASSERT_EQ(8U, glyph_image_width);
         ASSERT_EQ(9U, glyph_image_height);
         ASSERT_EQ(3U, glyph_image_channels);
 
         ASSERT_EQ(codepoint, glyph->m_Character);
-        ASSERT_EQ(1U + glyph_padding * 2, glyph->m_Width);
+        ASSERT_EQ(1U, glyph->m_Width);
         ASSERT_EQ(8U, glyph->m_ImageWidth);
         ASSERT_EQ(4.0f, glyph->m_Advance);
         ASSERT_EQ(5.0f, glyph->m_LeftBearing);
@@ -2875,132 +2868,6 @@ TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
     {
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-}
-
-/* Physics joints */
-TEST_F(ComponentTest, JointTest)
-{
-    /* Setup:
-    ** joint_test_a
-    ** - [collisionobject] collision_object/joint_test_sphere.collisionobject
-    ** - [script] collision_object/joint_test.script
-    ** joint_test_b
-    ** - [collisionobject] collision_object/joint_test_sphere.collisionobject
-    ** joint_test_c
-    ** - [collisionobject] collision_object/joint_test_static_floor.collisionobject
-    */
-
-    dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-
-    const char* path_joint_test_a = "/collision_object/joint_test_a.goc";
-    const char* path_joint_test_b = "/collision_object/joint_test_b.goc";
-    const char* path_joint_test_c = "/collision_object/joint_test_c.goc";
-
-    dmhash_t hash_go_joint_test_a = dmHashString64("/joint_test_a");
-    dmhash_t hash_go_joint_test_b = dmHashString64("/joint_test_b");
-    dmhash_t hash_go_joint_test_c = dmHashString64("/joint_test_c");
-
-    dmGameObject::HInstance go_c = Spawn(m_Factory, m_Collection, path_joint_test_c, hash_go_joint_test_c, 0, Point3(0, -100, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_c);
-
-    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_joint_test_b, hash_go_joint_test_b, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_b);
-
-    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_joint_test_a, hash_go_joint_test_a, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_a);
-
-    // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
-    bool tests_done = false;
-    while (!tests_done)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-
-}
-
-/* Physics listener */
-TEST_F(ComponentTest, PhysicsListenerTest)
-{
-    /* Setup:
-    ** callback_object
-    ** - [collisionobject] collision_object/callback_object.collisionobject
-    ** - [script] collision_object/callback_object.script
-    ** callback_trigger
-    ** - [collisionobject] collision_object/callback_trigger.collisionobject
-    */
-
-    dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-
-    const char* path_test_object = "/collision_object/callback_object.goc";
-    const char* path_test_trigger = "/collision_object/callback_trigger.goc";
-
-    dmhash_t hash_go_object = dmHashString64("/test_object");
-    dmhash_t hash_go_trigger = dmHashString64("/test_trigger");
-
-    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_b);
-
-    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_test_trigger, hash_go_trigger, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_a);
-
-    bool tests_done = false;
-    while (!tests_done)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-
-}
-
-/* Update mass for physics collision object */
-TEST_F(ComponentTest, PhysicsUpdateMassTest)
-{
-    /* Setup:
-    ** mass_object
-    ** - [collisionobject] collision_object/mass_object.collisionobject
-    ** - [script] collision_object/mass_object.script
-    */
-
-    dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-
-    const char* path_test_object = "/collision_object/mass_object.goc";
-
-    dmhash_t hash_go_object = dmHashString64("/test_object");
-
-    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_b);
-
-    bool tests_done = false;
-    while (!tests_done)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
         // check if tests are done
         lua_getglobal(L, "tests_done");
         tests_done = lua_toboolean(L, -1);

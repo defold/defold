@@ -173,17 +173,6 @@ namespace dmGameObject
     Result SetIdentifier(HCollection collection, HInstance instance, const char* identifier);
 
     /**
-     * Get absolute identifier relative to #instance. The returned identifier is the
-     * representation of the qualified name, i.e. the path from root-collection to the sub-collection which the #instance belongs to.
-     * Example: if #instance is part of a sub-collection in the root-collection named "sub" and id == "a" the returned identifier represents the path "sub.a"
-     * @param instance Instance to absolute identifier to
-     * @param id Identifier relative to #instance
-     * @param id_size Lenght of the id
-     * @return Absolute identifier
-     */
-    dmhash_t GetAbsoluteIdentifier(HInstance instance, const char* id, uint32_t id_size);
-
-    /**
      * Get component index from component identifier. This function has complexity O(n), where n is the number of components of the instance.
      * @param instance Instance
      * @param component_id Component id
@@ -191,13 +180,6 @@ namespace dmGameObject
      * @return RESULT_OK if the comopnent was found
      */
     Result GetComponentIndex(HInstance instance, dmhash_t component_id, uint16_t* component_index);
-
-    /**
-     * Returns whether the scale of the supplied instance should be applied along Z or not.
-     * @param instance Instance
-     * @return if the scale should be applied along Z
-     */
-    bool ScaleAlongZ(HInstance instance);
 
     /**
      * Initializes all game object instances in the supplied collection.
@@ -280,13 +262,6 @@ namespace dmGameObject
      * @return The frame message socket of the specified collection
      */
     dmMessage::HSocket GetFrameMessageSocket(HCollection collection);
-
-    /**
-     * Returns whether the scale of the instances in a collection should be applied along Z or not.
-     * @param collection Collection
-     * @return if the scale should be applied along Z
-     */
-    bool ScaleAlongZ(HCollection collection);
 
     /**
      * Get instance hierarchical depth
@@ -376,13 +351,6 @@ namespace dmGameObject
      * Allows for updating transforms an extra time
      */
     void UpdateTransforms(HCollection hcollection);
-
-    /**
-     * Adds a reference to a dynamically created resource into the collection.
-     * If the resource is not released before the collection is being destroyed,
-     * the collection will automatically free the resource.
-     */
-    void AddDynamicResourceHash(HCollection collection, dmhash_t resource_hash);
 
     /**
      * Remove the reference to a dynamically created resource. This implies

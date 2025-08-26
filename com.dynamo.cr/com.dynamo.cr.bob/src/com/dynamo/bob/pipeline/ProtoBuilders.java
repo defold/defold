@@ -172,7 +172,16 @@ public class ProtoBuilders {
 
     @ProtoParams(srcClass = GamepadMaps.class, messageClass = GamepadMaps.class)
     @BuilderParams(name="GamepadMaps", inExts=".gamepads", outExt=".gamepadsc")
-    public static class GamepadMapsBuilder extends ProtoBuilder<GamepadMaps.Builder> {}
+    public static class GamepadMapsBuilder extends ProtoBuilder<GamepadMaps.Builder> {
+        @Override
+        public Task create(IResource input) throws IOException, CompileExceptionError {
+            Task.TaskBuilder taskBuilder = Task.newBuilder(this)
+                    .setName(params.name())
+                    .addInput(input)
+                    .addOutput(input.changeExt(params.outExt()));
+            return taskBuilder.build();
+        }
+    }
 
     @ProtoParams(srcClass = RenderTargetDesc.class, messageClass = RenderTargetDesc.class)
     @BuilderParams(name="RenderTarget", inExts=".render_target", outExt=".render_targetc")

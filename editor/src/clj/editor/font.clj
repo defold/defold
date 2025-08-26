@@ -585,7 +585,14 @@
                      :outline-width (:outline-width font-map)
                      :layer-mask (:layer-mask font-map)
                      :output-format (:output-format font-map)
-                     :render-mode (:render-mode font-map))]
+                     :render-mode (:render-mode font-map)
+                     :all-chars (:all-chars font-map)
+                     :characters (:characters font-map)
+                     :cache-width (:cache-width font-map)
+                     :cache-height (:cache-height font-map)
+                     :sdf-spread (:sdf-spread font-map)
+                     :sdf-outline (:sdf-outline font-map)
+                     :sdf-shadow (:sdf-shadow font-map))]
         [(pipeline/make-protobuf-build-target _node-id resource Font$FontMap pb-map dep-build-targets+glyph-bank)])))
 
 (g/defnode FontSourceNode

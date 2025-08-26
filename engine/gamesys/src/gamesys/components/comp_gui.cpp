@@ -268,6 +268,34 @@ namespace dmGameSystem
         }
     }
 
+    static void* CloneRenderConstantsCallback(void* node_render_constants)
+    {
+        HComponentRenderConstants src_constants = (HComponentRenderConstants) node_render_constants;
+        if (!src_constants)
+        {
+            return 0x0;
+        }
+
+        HComponentRenderConstants cloned_constants = dmGameSystem::CreateRenderConstants();
+        
+        uint32_t count = dmGameSystem::GetRenderConstantCount(src_constants);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmRender::HConstant constant = dmGameSystem::GetRenderConstant(src_constants, i);
+            dmhash_t name_hash = dmRender::GetConstantName(constant);
+            
+            uint32_t num_values;
+            dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+            
+            if (values)
+            {
+                dmGameSystem::SetRenderConstant(cloned_constants, name_hash, values, num_values);
+            }
+        }
+        
+        return cloned_constants;
+    }
+
     static bool SetMaterialPropertyCallback(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, const dmGameObject::PropertyVar& property_var, const dmGameObject::PropertyOptions* options)
     {
         GuiComponent* gui_component  = (GuiComponent*) ctx;
@@ -950,6 +978,7 @@ namespace dmGameSystem
         scene_params.m_SetMaterialPropertyCallback = SetMaterialPropertyCallback;
         scene_params.m_SetMaterialPropertyCallbackContext = gui_component;
         scene_params.m_DestroyRenderConstantsCallback = DestroyRenderConstantsCallback;
+        scene_params.m_CloneRenderConstantsCallback = CloneRenderConstantsCallback;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
 
         scene_params.m_NewTextureResourceCallback    = &NewTextureResourceCallback;
@@ -2743,12 +2772,13 @@ namespace dmGameSystem
     }
 
     // Public function used by engine (as callback from gui system)
-    dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size)
+    dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        uint32_t path_size = strlen(path);
         if (path_size > 0)
         {
-            return dmGameObject::GetAbsoluteIdentifier(component->m_Instance, path, path_size);
+            return dmGameObject::GetAbsoluteIdentifier(component->m_Instance, path);
         }
         else
         {

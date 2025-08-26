@@ -117,6 +117,9 @@
                     :whole-word {:type :boolean}
                     :case-sensitive {:type :boolean}
                     :wrap {:type :boolean :default true}}}
+            :auto-closing-parens {:type :boolean
+                                  :default true
+                                  :ui {:label "Auto-insert closing parens"}}
             :visibility {:type :object
                          :properties
                          {:indentation-guides {:type :boolean :default true}

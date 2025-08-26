@@ -6,6 +6,7 @@
                              :duration "Short"
                              :user-level "Beginner"
                              :zip-url "https://github.com/defold/template-empty/archive/master.zip"
+                             :bundle true
                              :skip-root? true}
 
                             {:name "Mobile game"

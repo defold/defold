@@ -28,6 +28,11 @@
   collection specified as the second argument, using a transducer composed of
   the remaining arguments. Returns the resulting collection. Supplying :eduction
   as the destination returns an eduction instead."
+  ([from to]
+   (case to
+     :eduction `(->Eduction identity ~from)
+     `(into ~to
+            ~from)))
   ([from to xform]
    (case to
      :eduction `(->Eduction ~xform ~from)
@@ -629,6 +634,19 @@
        (nil? input) result
        (sequential? input) (reduce (preserving-reduced xf) result input)
        :else (rf result input)))))
+
+(defn tree-xf
+  "Like clojure.core/tree-seq, but transducer"
+  [branch? children]
+  (fn [rf]
+    (fn xf
+      ([] (rf))
+      ([result] (rf result))
+      ([result input]
+       (let [result (rf result input)]
+         (if (or (reduced? result) (not (branch? input)))
+           result
+           (reduce (preserving-reduced xf) result (children input))))))))
 
 (defn some
   "Like clojure.core/some, but uses reduce instead of lazy sequences."

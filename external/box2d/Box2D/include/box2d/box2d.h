@@ -57,23 +57,11 @@ B2_API b2ContactEvents b2World_GetContactEvents( b2WorldId worldId );
 
 /// Overlap test for all shapes that *potentially* overlap the provided AABB
 B2_API b2TreeStats b2World_OverlapAABB( b2WorldId worldId, b2AABB aabb, b2QueryFilter filter, b2OverlapResultFcn* fcn,
-											  void* context );
+										void* context );
 
-/// Overlap test for for all shapes that overlap the provided point.
-B2_API b2TreeStats b2World_OverlapPoint( b2WorldId worldId, b2Vec2 point, b2Transform transform,
-												b2QueryFilter filter, b2OverlapResultFcn* fcn, void* context );
-
-/// Overlap test for for all shapes that overlap the provided circle. A zero radius may be used for a point query.
-B2_API b2TreeStats b2World_OverlapCircle( b2WorldId worldId, const b2Circle* circle, b2Transform transform,
-												b2QueryFilter filter, b2OverlapResultFcn* fcn, void* context );
-
-/// Overlap test for all shapes that overlap the provided capsule
-B2_API b2TreeStats b2World_OverlapCapsule( b2WorldId worldId, const b2Capsule* capsule, b2Transform transform,
-												 b2QueryFilter filter, b2OverlapResultFcn* fcn, void* context );
-
-/// Overlap test for all shapes that overlap the provided polygon
-B2_API b2TreeStats b2World_OverlapPolygon( b2WorldId worldId, const b2Polygon* polygon, b2Transform transform,
-												 b2QueryFilter filter, b2OverlapResultFcn* fcn, void* context );
+/// Overlap test for all shapes that overlap the provided shape proxy.
+B2_API b2TreeStats b2World_OverlapShape( b2WorldId worldId, const b2ShapeProxy* proxy, b2QueryFilter filter,
+										 b2OverlapResultFcn* fcn, void* context );
 
 /// Cast a ray into the world to collect shapes in the path of the ray.
 /// Your callback function controls whether you get the closest point, any point, or n-points.
@@ -87,26 +75,25 @@ B2_API b2TreeStats b2World_OverlapPolygon( b2WorldId worldId, const b2Polygon* p
 /// @param context A user context that is passed along to the callback function
 ///	@return traversal performance counters
 B2_API b2TreeStats b2World_CastRay( b2WorldId worldId, b2Vec2 origin, b2Vec2 translation, b2QueryFilter filter,
-										  b2CastResultFcn* fcn, void* context );
+									b2CastResultFcn* fcn, void* context );
 
 /// Cast a ray into the world to collect the closest hit. This is a convenience function.
 /// This is less general than b2World_CastRay() and does not allow for custom filtering.
 B2_API b2RayResult b2World_CastRayClosest( b2WorldId worldId, b2Vec2 origin, b2Vec2 translation, b2QueryFilter filter );
 
-/// Cast a circle through the world. Similar to a cast ray except that a circle is cast instead of a point.
+/// Cast a shape through the world. Similar to a cast ray except that a shape is cast instead of a point.
 ///	@see b2World_CastRay
-B2_API b2TreeStats b2World_CastCircle( b2WorldId worldId, const b2Circle* circle, b2Transform originTransform,
-											 b2Vec2 translation, b2QueryFilter filter, b2CastResultFcn* fcn, void* context );
+B2_API b2TreeStats b2World_CastShape( b2WorldId worldId, const b2ShapeProxy* proxy, b2Vec2 translation, b2QueryFilter filter,
+									  b2CastResultFcn* fcn, void* context );
 
-/// Cast a capsule through the world. Similar to a cast ray except that a capsule is cast instead of a point.
-///	@see b2World_CastRay
-B2_API b2TreeStats b2World_CastCapsule( b2WorldId worldId, const b2Capsule* capsule, b2Transform originTransform,
-											  b2Vec2 translation, b2QueryFilter filter, b2CastResultFcn* fcn, void* context );
+/// Cast a capsule mover through the world. This is a special shape cast that handles sliding along other shapes while reducing
+/// clipping.
+B2_API float b2World_CastMover( b2WorldId worldId, const b2Capsule* mover, b2Vec2 translation, b2QueryFilter filter );
 
-/// Cast a polygon through the world. Similar to a cast ray except that a polygon is cast instead of a point.
-///	@see b2World_CastRay
-B2_API b2TreeStats b2World_CastPolygon( b2WorldId worldId, const b2Polygon* polygon, b2Transform originTransform,
-											  b2Vec2 translation, b2QueryFilter filter, b2CastResultFcn* fcn, void* context );
+/// Collide a capsule mover with the world, gathering collision planes that can be fed to b2SolvePlanes. Useful for
+/// kinematic character movement.
+B2_API void b2World_CollideMover( b2WorldId worldId, const b2Capsule* mover, b2QueryFilter filter, b2PlaneResultFcn* fcn,
+								  void* context );
 
 /// Enable/disable sleep. If your application does not need sleeping, you can gain some performance
 /// by disabling sleep completely at the world level.
@@ -182,7 +169,7 @@ B2_API void b2World_SetMaximumLinearSpeed( b2WorldId worldId, float maximumLinea
 B2_API float b2World_GetMaximumLinearSpeed( b2WorldId worldId );
 
 /// Enable/disable constraint warm starting. Advanced feature for testing. Disabling
-/// sleeping greatly reduces stability and provides no performance gain.
+/// warm starting greatly reduces stability and provides no performance gain.
 B2_API void b2World_EnableWarmStarting( b2WorldId worldId, bool flag );
 
 /// Is constraint warm starting enabled?
@@ -299,6 +286,11 @@ B2_API void b2Body_SetLinearVelocity( b2BodyId bodyId, b2Vec2 linearVelocity );
 /// Set the angular velocity of a body in radians per second
 B2_API void b2Body_SetAngularVelocity( b2BodyId bodyId, float angularVelocity );
 
+/// Set the velocity to reach the given transform after a given time step.
+/// The result will be close but maybe not exact. This is meant for kinematic bodies.
+/// This will automatically wake the body if asleep.
+B2_API void b2Body_SetTargetTransform( b2BodyId bodyId, b2Transform target, float timeStep );
+
 /// Get the linear velocity of a local point attached to a body. Usually in meters per second.
 B2_API b2Vec2 b2Body_GetLocalPointVelocity( b2BodyId bodyId, b2Vec2 localPoint );
 
@@ -388,6 +380,7 @@ B2_API b2MassData b2Body_GetMassData( b2BodyId bodyId );
 /// the mass and you later want to reset the mass.
 /// You may also use this when automatic mass computation has been disabled.
 /// You should call this regardless of body type.
+/// Note that sensor shapes may have mass.
 B2_API void b2Body_ApplyMassFromShapes( b2BodyId bodyId );
 
 /// Adjust the linear damping. Normally this is set in b2BodyDef before creation.
@@ -536,7 +529,9 @@ B2_API b2BodyId b2Shape_GetBody( b2ShapeId shapeId );
 /// Get the world that owns this shape
 B2_API b2WorldId b2Shape_GetWorld( b2ShapeId shapeId );
 
-/// Returns true If the shape is a sensor
+/// Returns true if the shape is a sensor. It is not possible to change a shape
+/// from sensor to solid dynamically because this breaks the contract for
+/// sensor events.
 B2_API bool b2Shape_IsSensor( b2ShapeId shapeId );
 
 /// Set the user data for a shape
@@ -572,7 +567,7 @@ B2_API float b2Shape_GetRestitution( b2ShapeId shapeId );
 /// @see b2ShapeDef::material
 B2_API void b2Shape_SetMaterial( b2ShapeId shapeId, int material );
 
-/// Get the shape material identifier 
+/// Get the shape material identifier
 B2_API int b2Shape_GetMaterial( b2ShapeId shapeId );
 
 /// Get the shape filter
@@ -583,6 +578,13 @@ B2_API b2Filter b2Shape_GetFilter( b2ShapeId shapeId );
 /// Sensor overlap state is also not updated until the next world step.
 /// @see b2ShapeDef::filter
 B2_API void b2Shape_SetFilter( b2ShapeId shapeId, b2Filter filter );
+
+/// Enable sensor events for this shape.
+/// @see b2ShapeDef::enableSensorEvents
+B2_API void b2Shape_EnableSensorEvents( b2ShapeId shapeId, bool flag );
+
+/// Returns true if sensor events are enabled.
+B2_API bool b2Shape_AreSensorEventsEnabled( b2ShapeId shapeId );
 
 /// Enable contact events for this shape. Only applies to kinematic and dynamic bodies. Ignored for sensors.
 /// @see b2ShapeDef::enableContactEvents
@@ -945,17 +947,17 @@ B2_API float b2MouseJoint_GetMaxForce( b2JointId jointId );
 /**@}*/
 
 /**
- * @defgroup null_joint Null Joint
- * @brief Functions for the null joint.
+ * @defgroup filter_joint Filter Joint
+ * @brief Functions for the filter joint.
  *
- * The null joint is used to disable collision between two bodies. As a side effect of being a joint, it also
+ * The filter joint is used to disable collision between two bodies. As a side effect of being a joint, it also
  * keeps the two bodies in the same simulation island.
  * @{
  */
 
-/// Create a null joint.
-/// @see b2NullJointDef for details
-B2_API b2JointId b2CreateNullJoint( b2WorldId worldId, const b2NullJointDef* def );
+/// Create a filter joint.
+/// @see b2FilterJointDef for details
+B2_API b2JointId b2CreateFilterJoint( b2WorldId worldId, const b2FilterJointDef* def );
 
 /**@}*/
 
@@ -1083,7 +1085,8 @@ B2_API float b2RevoluteJoint_GetLowerLimit( b2JointId jointId );
 /// Get the revolute joint upper limit in radians
 B2_API float b2RevoluteJoint_GetUpperLimit( b2JointId jointId );
 
-/// Set the revolute joint limits in radians
+/// Set the revolute joint limits in radians. It is expected that lower <= upper
+/// and that -0.95 * B2_PI <= lower && upper <= -0.95 * B2_PI.
 B2_API void b2RevoluteJoint_SetLimits( b2JointId jointId, float lower, float upper );
 
 /// Enable/disable a revolute joint motor
