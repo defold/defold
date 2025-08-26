@@ -530,6 +530,14 @@ void GamesysTest<T>::SetUp()
     m_ScriptContext = dmScript::NewContext(script_context_params);
     dmScript::Initialize(m_ScriptContext);
 
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    #ifdef DM_PHYSICS_BOX2D_V3
+        lua_pushstring(L, "box2dv3");
+    #else
+        lua_pushstring(L, "box2dv2");
+    #endif
+    lua_setglobal(L, "PHYSICS");
+
     dmGui::NewContextParams gui_params;
     gui_params.m_ScriptContext = m_ScriptContext;
     gui_params.m_HidContext = m_HidContext;
