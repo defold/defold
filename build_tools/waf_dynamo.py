@@ -270,10 +270,10 @@ def apidoc_extract_task(bld, src):
                     if not comment_language:
                         print("Missing @language in %s, assuming C++" % (resource_path))
                         comment_str = comment_str + "* @language C++\n"
-                    
+
                     if namespace:
                         default_namespace = namespace
-                
+
                 if not namespace:
                     namespace = default_namespace
                     comment["namespace"] = default_namespace
@@ -622,7 +622,7 @@ def default_flags(self):
         if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
             if 'wagyu' in Options.options.enable_features:
                 # When building the executable locally, targeting wagyu, we need to link with the stubs
-                wagyu_port = '%s/ext/wagyu-port/new/wagyu-port.py:extensions=true' % (os.environ['DYNAMO_HOME'])
+                wagyu_port = '%s/ext/wagyu-port/new/webgpu-port.py:wagyu=true' % (os.environ['DYNAMO_HOME'])
                 linkflags += ['--use-port=%s' % wagyu_port]
             else:
                 emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
