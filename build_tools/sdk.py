@@ -26,6 +26,7 @@ import os
 import sys
 import log
 import run
+import re
 import platform
 from collections import defaultdict
 
@@ -136,6 +137,9 @@ def _get_latest_version_from_folders(path, replace_patterns=[]):
     def _replace_pattern(s, patterns):
         for pattern, replace in patterns:
             s = s.replace(pattern, replace)
+        # handle -ext to fix Android versions like android-34-ext12
+        if '-ext' in s:
+            s = re.sub(r'-ext\d+$', '', s)
         return s
 
     dirs.sort(key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')), reverse=True)

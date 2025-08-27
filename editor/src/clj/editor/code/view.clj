@@ -2026,8 +2026,10 @@
                  :children [{:fx/type fx.stack-pane/lifecycle
                              :min-width completion-type-icon-size
                              :max-width completion-type-icon-size
-                             :children [{:fx/type completion-type-icon
-                                         :type (:type completion)}]}
+                             :children (if-let [type (:type completion)]
+                                         [{:fx/type completion-type-icon
+                                           :type type}]
+                                         [])}
                             (fuzzy-choices/make-matched-text-flow-cljfx
                               text matching-indices
                               :deprecated (contains? (:tags completion) :deprecated))]}
@@ -2506,11 +2508,7 @@
 
                  :else
                  javafx.scene.Cursor/DEFAULT)]
-    ;; The cursor refresh appears buggy at the moment.
-    ;; Calling setCursor with DISAPPEAR before setting the cursor forces it to refresh.
-    (when (not= cursor (.getCursor node))
-      (.setCursor node javafx.scene.Cursor/DISAPPEAR)
-      (.setCursor node cursor))))
+    (ui/set-cursor node cursor)))
 
 (handler/register-menu! ::code-context-menu
   [{:command :edit.cut :label "Cut"}
