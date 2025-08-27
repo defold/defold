@@ -35,7 +35,7 @@
             [util.coll :as coll :refer [pair]]
             [util.murmur :as murmur]
             [util.num :as num])
-  (:import [com.dynamo.bob.pipeline MaterialBuilder]
+  (:import [com.dynamo.bob.pipeline MaterialBuilder MaterialBuilder$PbrParameterType]
            [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace]
            [com.jogamp.opengl GL2]
