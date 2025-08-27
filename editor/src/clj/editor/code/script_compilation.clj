@@ -232,6 +232,22 @@
     (let [line-number (some-> line-number-string Long/parseLong)]
       (pair proj-path line-number))))
 
+(defn- script-property-error [_node-id resource script-properties]
+  (into []
+        (keep (fn [{:keys [status name] :as m}]
+                (when-not (= :ok status)
+                  (g/->error _node-id :modified-lines :fatal resource
+                             (format "Invalid %s%s go.property definition"
+                                     (case status
+                                       :invalid-args "arguments in "
+                                       :invalid-name "name in "
+                                       :invalid-value "default value in "
+                                       :invalid-location "location for "
+                                       "")
+                                     name)
+                             (meta m)))))
+        script-properties))
+
 (defn build-targets [_node-id resource lines lua-preprocessors script-properties original-resource-property-build-targets proj-path->resource-node]
   (let [workspace (resource/workspace resource)]
     (if-some [errors
@@ -262,36 +278,36 @@
               (g/->error _node-id :modified-lines :fatal resource build-error-message)))
           (let [preprocessed-lua-info
                 (with-open [reader (data/lines-reader preprocessed-lines)]
-                  (lua-parser/lua-info workspace valid-resource-kind? reader))
+                  (lua-parser/lua-info workspace valid-resource-kind? reader))]
+            (g/precluding-errors (script-property-error _node-id resource (:script-properties preprocessed-lua-info))
+              (let [preprocessed-script-properties (lua-info->script-properties preprocessed-lua-info)
+                    preprocessed-modules (lua-info->modules preprocessed-lua-info)
+                    preprocessed-go-props-with-source-resources
+                    (map (fn [{:keys [name type value]}]
+                           (let [go-prop-type (script-property-type->go-prop-type type)
+                                 go-prop-value (properties/clj-value->go-prop-value go-prop-type value)]
+                             {:id name
+                              :type go-prop-type
+                              :value go-prop-value
+                              :clj-value value}))
+                         preprocessed-script-properties)
 
-                preprocessed-script-properties (lua-info->script-properties preprocessed-lua-info)
-                preprocessed-modules (lua-info->modules preprocessed-lua-info)
-                preprocessed-go-props-with-source-resources
-                (map (fn [{:keys [name type value]}]
-                       (let [go-prop-type (script-property-type->go-prop-type type)
-                             go-prop-value (properties/clj-value->go-prop-value go-prop-type value)]
-                         {:id name
-                          :type go-prop-type
-                          :value go-prop-value
-                          :clj-value value}))
-                     preprocessed-script-properties)
+                    proj-path->resource-property-build-target
+                    (bt/make-proj-path->build-target original-resource-property-build-targets)
 
-                proj-path->resource-property-build-target
-                (bt/make-proj-path->build-target original-resource-property-build-targets)
-
-                [preprocessed-go-props preprocessed-go-prop-dep-build-targets]
-                (properties/build-target-go-props proj-path->resource-property-build-target preprocessed-go-props-with-source-resources)]
-            ;; NOTE: The :user-data must not contain any overridden data. If it does,
-            ;; the build targets won't be fused and the script will be recompiled
-            ;; for every instance of the script component. The :go-props here describe
-            ;; the original property values from the script, never overridden values.
-            [(bt/with-content-hash
-               {:node-id _node-id
-                :resource (workspace/make-build-resource resource)
-                :build-fn build-script
-                :user-data {:lines preprocessed-lines
-                            :go-props preprocessed-go-props
-                            :modules preprocessed-modules
-                            :proj-path (resource/proj-path resource)}
-                :deps preprocessed-go-prop-dep-build-targets
-                :dynamic-deps (mapv lua/lua-module->path preprocessed-modules)})]))))))
+                    [preprocessed-go-props preprocessed-go-prop-dep-build-targets]
+                    (properties/build-target-go-props proj-path->resource-property-build-target preprocessed-go-props-with-source-resources)]
+                ;; NOTE: The :user-data must not contain any overridden data. If it does,
+                ;; the build targets won't be fused and the script will be recompiled
+                ;; for every instance of the script component. The :go-props here describe
+                ;; the original property values from the script, never overridden values.
+                [(bt/with-content-hash
+                   {:node-id _node-id
+                    :resource (workspace/make-build-resource resource)
+                    :build-fn build-script
+                    :user-data {:lines preprocessed-lines
+                                :go-props preprocessed-go-props
+                                :modules preprocessed-modules
+                                :proj-path (resource/proj-path resource)}
+                    :deps preprocessed-go-prop-dep-build-targets
+                    :dynamic-deps (mapv lua/lua-module->path preprocessed-modules)})]))))))))

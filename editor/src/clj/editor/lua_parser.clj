@@ -15,14 +15,52 @@
 (ns editor.lua-parser
   (:refer-clojure :exclude [parse-boolean])
   (:require [clj-antlr.core :as antlr]
+            [clj-antlr.common :as antlr.common]
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
+            [editor.code.data :as data]
             [editor.math :as math]
             [editor.workspace :as workspace])
-  (:import [org.antlr.v4.runtime BufferedTokenStream Token]))
+  (:import [org.antlr.v4.runtime BufferedTokenStream Parser ParserRuleContext Token]
+           [org.antlr.v4.runtime.tree ParseTree]))
 
-(def real-lua-parser (antlr/parser (slurp (io/resource "Lua.g4")) {:throw? false}))
+(defn sexpr [^ParseTree t ^Parser p]
+  (if (instance? ParserRuleContext t)
+    (let [^ParserRuleContext t t
+          start (.getStart t)
+          stop (.getStop t)
+          node (cond->
+                 (cons
+                   (antlr.common/fast-keyword (antlr.common/parser-rule-name p (.getRuleIndex t)))
+                   (mapv (fn [^long i]
+                           (sexpr (.getChild t i) p))
+                         (range (.getChildCount t))))
+                 stop
+                 (with-meta
+                   {:cursor-range (data/->CursorRange
+                                    (data/->Cursor
+                                      (dec (.getLine start))
+                                      (.getCharPositionInLine start))
+                                    (data/->Cursor
+                                      (dec (.getLine stop))
+                                      (+ (.getCharPositionInLine stop) (.length (.getText stop)))))}))]
+      ; If there was a recognition error, we'll wrap the node in an ::error
+      ; and drop the exception in the metadata.
+      (if-let [e (.exception ^ParserRuleContext t)]
+        (with-meta (list :clj-antlr/error node)
+                   {:error (antlr.common/recognition-exception->map e)})
+        node))
+
+    ; Text literal
+    (.getText t)))
+
+(def real-lua-parser
+  (antlr/parser
+    (slurp (io/resource "Lua.g4"))
+    {:throw? false
+     :format (fn [{:keys [tree parser errors]}]
+               (vary-meta (sexpr tree parser) assoc :errors errors))}))
 
 (defn lua-parser [code]
   (try
@@ -236,26 +274,36 @@
 
 (def ^:private one-string-arg [parse-string-exp-node])
 
-(defmulti collect-node-info (fn [_result node] (if (seq? node) (first node) node)))
+(defmulti collect-node-info (fn [_result node _allow-go-properties] (if (seq? node) (first node) node)))
 
-(defmethod collect-node-info :default [result _]
+(defmethod collect-node-info :default [result _ _]
   result)
 
-(defmethod collect-node-info :chunk [result node]
-  (collect-node-info result (second node)))
+(defmethod collect-node-info :chunk [result node allow-go-properties]
+  (collect-node-info result (second node) allow-go-properties))
 
-(defmethod collect-node-info :block [result node]
-  (reduce collect-node-info result (rest node)))
+(defmethod collect-node-info :block [result node allow-go-properties]
+  (reduce #(collect-node-info %1 %2 allow-go-properties) result (rest node)))
 
-(defmulti collect-stat-node-info (fn [kw _result _node] kw))
+(defmulti collect-stat-node-info
+  (fn dispatch-fn [kw _result _node _allow-go-properties]
+    kw))
 
-(defmethod collect-node-info :stat [result node]
-  (let [k (second node)]
+(defn- is-go-property-call? [node]
+  (and (node-type? :functioncall node)
+       (if-let [[module-name function-name] (parse-functioncall node)]
+         (and (= "go" module-name)
+              (= "property" function-name))
+         false)))
+
+(defmethod collect-node-info :stat [result node allow-go-properties]
+  (let [k (second node)
+        allow-go-properties (and allow-go-properties (is-go-property-call? k))]
     (if (seq? k)
-      (collect-stat-node-info (first k) result node)
-      (collect-stat-node-info (keyword k) result node))))
+      (collect-stat-node-info (first k) result node allow-go-properties)
+      (collect-stat-node-info (keyword k) result node allow-go-properties))))
 
-(defmethod collect-stat-node-info :local [_ result node]
+(defmethod collect-stat-node-info :local [_ result node allow-go-properties]
   (if (and (> (count node) 2)
            (string? (nth node 2))
            (= "function" (nth node 2)))
@@ -264,7 +312,7 @@
       (if (error-node? fname)
         result
         (if-some [[parlist block] (parse-funcbody funcbody)]
-          (collect-node-info (conj result {:local-functions {fname {:params (parse-parlist parlist)}}}) block)
+          (collect-node-info (conj result {:local-functions {fname {:params (parse-parlist parlist)}}}) block allow-go-properties)
           result)))
     ;; 'local' namelist ('=' explist)?
     (let [[_ _ namelist _ _explist] node]
@@ -274,18 +322,18 @@
           (conj result {:local-vars parsed-names})
           result)))))
 
-(defmethod collect-stat-node-info :default [_ result _node] result)
+(defmethod collect-stat-node-info :default [_ result _node _allow-go-properties] result)
 
-(defmethod collect-stat-node-info :varlist [_ result node]
+(defmethod collect-stat-node-info :varlist [_ result node _allow-go-properties]
   (let [[_ varlist _ _explist] node
         parsed-names (parse-string-vars varlist)]
     (conj result {:vars parsed-names})))
 
-(defmethod collect-stat-node-info :function [_ result node]
+(defmethod collect-stat-node-info :function [_ result node allow-go-properties]
   (let [[_ _ funcname funcbody] node]
     (if-let [funcname (parse-funcname funcname)]
       (let [[parlist block] (parse-funcbody funcbody)]
-        (collect-node-info (conj result {:functions {funcname {:params (parse-parlist parlist)}}}) block))
+        (collect-node-info (conj result {:functions {funcname {:params (parse-parlist parlist)}}}) block allow-go-properties))
       result)))
 
 (defn- parse-hash-functioncall [node]
@@ -417,20 +465,22 @@
                       {:status :ok})]
     (merge name-info value-info status-info)))
 
-(defmethod collect-stat-node-info :functioncall [_ result node]
+(defmethod collect-stat-node-info :functioncall [_ result node allow-go-properties]
   (let [functioncall (second node)]
     (let [[module-name function-name arg-exps] (parse-functioncall functioncall)]
       (cond
         (and (= "go" module-name) (= "property" function-name))
         (if-some [script-property (parse-script-property-declaration arg-exps)]
-          (conj result {:script-properties script-property})
+          (conj result {:script-properties (-> script-property
+                                               (with-meta (meta functioncall))
+                                               (cond-> (not allow-go-properties) (assoc :status :invalid-location)))})
           result)
 
         :else
         result))))
 
 (defn collect-info [node]
-  (collect-node-info [] node))
+  (collect-node-info [] node true))
 
 (defn- parse-binding-forms [stat-node]
   (when (= :stat (first stat-node))
