@@ -267,6 +267,9 @@ def apidoc_extract_task(bld, src):
                         print("Missing @path in %s, adding %s" % (resource_path, relative_path))
                         comment_str = comment_str + ("* @path %s\n" % relative_path)
                     else:
+                        # there really shouldn't be any files with hardcoded paths anymore
+                        # but let's keep this here for some time in case we introduce a hardcoded
+                        # path somewhere again
                         print("Replacing @path in %s with %s" % (resource_path, relative_path))
                         comment_str = comment_str.replace(comment_path, relative_path)
 
