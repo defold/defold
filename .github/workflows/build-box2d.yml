@@ -306,7 +306,7 @@ jobs:
           source "$EMSDK/emsdk_env.sh"
           export CC=emcc
           export CXX=em++
-          export CFLAGS="-pthread -matomics -mbulk-memory -msimd128 -msse2"
+          export CFLAGS="-matomics -mbulk-memory -msimd128 -msse2"
           export CXXFLAGS="$CFLAGS"
           ./scripts/build.py install_waf
           cd external/box2d
