@@ -35,6 +35,7 @@
 
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
+#include <dmsdk/gamesys/gui.h>
 
 #include <testmain/testmain.h>
 
