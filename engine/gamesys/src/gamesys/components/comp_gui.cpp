@@ -63,6 +63,10 @@ namespace dmGameSystem
     static CompGuiNodeTypeDescriptor g_CompGuiNodeTypeSentinel = {0};
     static bool g_CompGuiNodeTypesInitialized = false;
 
+    // GUI extension property handlers using arrays
+    static dmArray<GuiExtensionSetterCallback> g_GuiExtensionSetters;
+    static dmArray<GuiExtensionGetterCallback> g_GuiExtensionGetters;
+
     static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(dmGui::HTextureSource, dmhash_t, dmGui::TextureSetAnimDesc*);
 
     // implemention in comp_particlefx.cpp
@@ -2840,6 +2844,17 @@ namespace dmGameSystem
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), (void*) dmGui::GetTexture(gui_component->m_Scene, params.m_Options.m_Key), out_value);
         }
+        
+        // Try extension getter handlers  
+        for (uint32_t i = 0; i < g_GuiExtensionGetters.Size(); ++i)
+        {
+            dmGameObject::PropertyResult result = g_GuiExtensionGetters[i](gui_component->m_Scene, params, out_value);
+            if (result != dmGameObject::PROPERTY_RESULT_NOT_FOUND)
+            {
+                return result;
+            }
+        }
+        
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -2933,6 +2948,17 @@ namespace dmGameSystem
             }
             return res;
         }
+        
+        // Try extension setter handlers
+        for (uint32_t i = 0; i < g_GuiExtensionSetters.Size(); ++i)
+        {
+            dmGameObject::PropertyResult result = g_GuiExtensionSetters[i](gui_component->m_Scene, params);
+            if (result != dmGameObject::PROPERTY_RESULT_NOT_FOUND)
+            {
+                return result;
+            }
+        }
+        
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -3291,6 +3317,52 @@ namespace dmGameSystem
         g_CompGuiNodeTypeSentinel.m_Next = desc;
 
         return dmGameObject::RESULT_OK;
+    }
+
+    dmGameObject::Result RegisterCompGuiSetProperty(GuiExtensionSetterCallback callback)
+    {
+        if (g_GuiExtensionSetters.Full())
+        {
+            g_GuiExtensionSetters.OffsetCapacity(1);
+        }
+        g_GuiExtensionSetters.Push(callback);
+        return dmGameObject::RESULT_OK;
+    }
+
+    dmGameObject::Result RegisterCompGuiGetProperty(GuiExtensionGetterCallback callback)
+    {
+        if (g_GuiExtensionGetters.Full())
+        {
+            g_GuiExtensionGetters.OffsetCapacity(1);
+        }
+        g_GuiExtensionGetters.Push(callback);
+        return dmGameObject::RESULT_OK;
+    }
+
+    dmGameObject::Result UnregisterCompGuiSetProperty(GuiExtensionSetterCallback callback)
+    {
+        for (uint32_t i = 0; i < g_GuiExtensionSetters.Size(); ++i)
+        {
+            if (g_GuiExtensionSetters[i] == callback)
+            {
+                g_GuiExtensionSetters.EraseSwap(i);
+                return dmGameObject::RESULT_OK;
+            }
+        }
+        return dmGameObject::RESULT_UNKNOWN_ERROR;
+    }
+
+    dmGameObject::Result UnregisterCompGuiGetProperty(GuiExtensionGetterCallback callback)
+    {
+        for (uint32_t i = 0; i < g_GuiExtensionGetters.Size(); ++i)
+        {
+            if (g_GuiExtensionGetters[i] == callback)
+            {
+                g_GuiExtensionGetters.EraseSwap(i);
+                return dmGameObject::RESULT_OK;
+            }
+        }
+        return dmGameObject::RESULT_UNKNOWN_ERROR;
     }
 
     dmGameObject::Result CreateRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, CompGuiContext* comp_gui_context)

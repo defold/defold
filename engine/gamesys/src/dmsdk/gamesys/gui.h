@@ -18,6 +18,7 @@
 #include <dmsdk/dlib/configfile_gen.hpp>
 #include <dmsdk/resource/resource.hpp>
 #include <dmsdk/gameobject/gameobject.h>
+#include <dmsdk/gameobject/component.h>
 #include <dmsdk/gui/gui.h>
 #include <dmsdk/script/script.h>
 #include <gamesys/gui_ddf.h>
@@ -146,6 +147,46 @@ namespace dmGameSystem
      * Get the vertices in local space
      */
     void CompGuiNodeTypeSetGetVerticesFn(CompGuiNodeType* type, CompGuiNodeGetVerticesFn fn);
+
+    /*#
+     * GUI extension property setter callback - handles all extension properties
+     * @typedef GuiExtensionSetterCallback
+     */
+    typedef dmGameObject::PropertyResult (*GuiExtensionSetterCallback)(dmGui::HScene scene, const dmGameObject::ComponentSetPropertyParams& params);
+
+    /*#
+     * GUI extension property getter callback - handles all extension properties  
+     * @typedef GuiExtensionGetterCallback
+     */
+    typedef dmGameObject::PropertyResult (*GuiExtensionGetterCallback)(dmGui::HScene scene, const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
+
+    /**
+     * Register a GUI component property setter
+     * @param callback [type:GuiExtensionSetterCallback] Setter function
+     * @return [type:dmGameObject::Result] RESULT_OK on success
+     */
+    dmGameObject::Result RegisterCompGuiSetProperty(GuiExtensionSetterCallback callback);
+
+    /**
+     * Register a GUI component property getter
+     * @param callback [type:GuiExtensionGetterCallback] Getter function
+     * @return [type:dmGameObject::Result] RESULT_OK on success
+     */
+    dmGameObject::Result RegisterCompGuiGetProperty(GuiExtensionGetterCallback callback);
+
+    /**
+     * Unregister a GUI component property setter
+     * @param callback [type:GuiExtensionSetterCallback] Setter function to remove
+     * @return [type:dmGameObject::Result] RESULT_OK on success
+     */
+    dmGameObject::Result UnregisterCompGuiSetProperty(GuiExtensionSetterCallback callback);
+
+    /**
+     * Unregister a GUI component property getter
+     * @param callback [type:GuiExtensionGetterCallback] Getter function to remove
+     * @return [type:dmGameObject::Result] RESULT_OK on success
+     */
+    dmGameObject::Result UnregisterCompGuiGetProperty(GuiExtensionGetterCallback callback);
 
 }
 
