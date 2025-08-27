@@ -559,13 +559,6 @@ namespace dmGameSystem
         dmRenderDDF::MaterialDesc::PbrParameters pbr_parameters;
         dmRender::GetMaterialPBRParameters(material, &pbr_parameters);
 
-        // Include the backing rig material's data into the hash, so that we can correctly group instances
-        if (pbr_parameters.m_HasParameters)
-        {
-            const dmRigDDF::Material& ddf_material = component->m_Resource->m_RigScene->m_MeshSetRes->m_MeshSet->m_Materials[item.m_MaterialIndex];
-            dmHashUpdateBuffer32(state, &ddf_material.m_Materialhash, sizeof(ddf_material.m_Materialhash));
-        }
-
         // Local space + instancing
         if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && instance_vx_decl)
         {

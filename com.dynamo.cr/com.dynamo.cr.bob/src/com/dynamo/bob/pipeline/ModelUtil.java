@@ -592,16 +592,6 @@ public class ModelUtil {
 
             materialBuilder.setEmissiveFactor(toDDFVector3(material.emissiveFactor));
 
-            // Construct a hash of the material data. Note that the material name is not included!
-            // The hash can be used in the runtime to separate between different GLTF materials
-            // when generating render objects.
-            Rig.Material materialForHash = Rig.Material.newBuilder(materialBuilder.build())
-                    .clearName()
-                    .build();
-            byte[] materialForHashBytes = materialForHash.toByteArray();
-            long hash = MurmurHash.hash64(materialForHashBytes, materialForHashBytes.length);
-            materialBuilder.setMaterialHash(hash);
-
             materials.add(materialBuilder.build());
         }
         return materials;
