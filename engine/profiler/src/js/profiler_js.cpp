@@ -243,8 +243,9 @@ static void ScopeEnd(void*, const char* name, uint64_t name_hash)
     DM_MUTEX_SCOPED_LOCK(g_Lock);
     const int32_t thread_id = GetThreadId();
 
-    dmProfileJSEndMark(thread_id);
-    dmProfileJSReset(thread_id);
+    if (dmProfileJSEndMark(thread_id)) {
+        dmProfileJSReset(thread_id);
+    }
 }
 
 // *******************************************************************
