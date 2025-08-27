@@ -17,6 +17,7 @@
             [editor.buffers :as buffers]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.attribute :as attribute]
             [editor.gl.buffer :as gl.buffer]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
@@ -49,7 +50,7 @@
 (def model-file-types ["dae" "gltf" "glb"])
 (def animation-file-types ["animationset" "dae" "gltf" "glb"])
 
-(def preview-shader
+(def ^:private preview-shader
   (shader/jar-shader
     "shaders/model-scene-preview.vp"
     "shaders/model-scene-preview.fp"))
@@ -209,7 +210,7 @@
        (zero? (rem input-float-count input-component-count))
        (let [attribute-buffer-data (make-attribute-float-buffer input-floats input-component-count output-component-count output-component-fill)
              attribute-buffer-request-id (conj mesh-request-id input-floats-pb-field)
-             attribute-vector-type (case output-component-count
+             attribute-vector-type (case (long output-component-count)
                                      1 :vector-type-scalar
                                      2 :vector-type-vec2
                                      3 :vector-type-vec3
@@ -535,24 +536,46 @@
       (assoc renderable-mesh-set-or-error-value :_node-id _node-id :_label :renderable-mesh-set)
       renderable-mesh-set-or-error-value)))
 
-(defn- make-mesh-scene [renderable-mesh model-scene-resource-node-id]
-  (let [{:keys [aabb material-name renderable-data renderable-buffers]} renderable-mesh]
+(defn- make-mesh-scene [renderable-mesh shader model-scene-resource-node-id]
+  (let [{:keys [aabb material-name renderable-data renderable-buffers]} renderable-mesh
+        index-buffer (:index-buffer renderable-buffers)
+        semantic-type->attribute-buffers (:attribute-buffers renderable-buffers)
+        semantic-type->shader-locations (:semantic-type->locations shader)
+
+        attribute-bindings
+        (->> semantic-type->attribute-buffers
+             (coll/mapcat (fn [[semantic-type attribute-buffers]]
+                            (let [shader-locations (semantic-type->shader-locations semantic-type)]
+                              (map (fn [attribute-buffer ^long shader-location]
+                                     (attribute/make-buffer-binding attribute-buffer shader-location))
+                                   attribute-buffers
+                                   shader-locations))))
+             (sort-by :base-location))
+
+        user-data
+        {:mesh-renderable-data renderable-data
+         :mesh-renderable-buffers renderable-buffers
+         :attribute-bindings attribute-bindings
+         :index-buffer index-buffer
+         :vertex-space :vertex-space-local
+         :material-name material-name
+         :shader shader
+         :textures {"texture_sampler" @texture/white-pixel}}
+
+        renderable
+        {:render-fn render-mesh
+         :tags #{:model}
+         :batch-key nil ; Batching is disabled in the editor for simplicity.
+         :select-batch-key model-scene-resource-node-id
+         :passes [pass/opaque pass/opaque-selection]
+         :user-data user-data}]
+
     {:aabb aabb
-     :renderable {:render-fn render-mesh
-                  :tags #{:model}
-                  :batch-key nil ; Batching is disabled in the editor for simplicity.
-                  :select-batch-key model-scene-resource-node-id
-                  :passes [pass/opaque pass/opaque-selection]
-                  :user-data {:mesh-renderable-data renderable-data
-                              :mesh-renderable-buffers renderable-buffers
-                              :vertex-space :vertex-space-local
-                              :material-name material-name
-                              :shader preview-shader
-                              :textures {"texture_sampler" @texture/white-pixel}}}}))
+     :renderable renderable}))
 
 (defn- make-model-scene [renderable-model model-scene-resource-node-id]
   (let [{:keys [transform aabb renderable-meshes]} renderable-model
-        mesh-scenes (mapv #(make-mesh-scene % model-scene-resource-node-id)
+        mesh-scenes (mapv #(make-mesh-scene % preview-shader model-scene-resource-node-id)
                           renderable-meshes)]
     {:transform transform
      :aabb aabb
