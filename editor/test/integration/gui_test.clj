@@ -21,6 +21,7 @@
             [editor.gl.pass :as pass]
             [editor.gui :as gui]
             [editor.handler :as handler]
+            [editor.math :as math]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
@@ -29,8 +30,7 @@
             [support.test-support :as test-support]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn])
-  (:import [com.dynamo.gamesys.proto Gui$NodeDesc]
-           [javax.vecmath Matrix4d Vector3d]))
+  (:import [com.dynamo.gamesys.proto Gui$NodeDesc]))
 
 (defn- prop [node-id label]
   (test-util/prop node-id label))
@@ -306,7 +306,7 @@
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/gui/scene.gui")
           sub-node (gui-node node-id "sub_scene/sub_box")]
-      (let [alpha (prop sub-node :alpha)]
+      (let [^double alpha (prop sub-node :alpha)]
         (g/transact (g/set-property sub-node :alpha (* 0.5 alpha)))
         (is (not= alpha (prop sub-node :alpha)))
         (g/transact (g/clear-property sub-node :alpha))
@@ -534,13 +534,6 @@
 (defn- gui-text [scene id]
   (-> (gui-node scene id)
       (g/node-value :text)))
-
-(defn- trans-x [root-id target-id]
-  (let [s (tree-seq fn/constantly-true :children (g/node-value root-id :scene))]
-    (when-let [^Matrix4d m (some #(and (= (:node-id %) target-id) (:transform %)) s)]
-      (let [t (Vector3d.)]
-        (.get m t)
-        (.getX t)))))
 
 (deftest gui-layout-template
   (test-util/with-loaded-project
@@ -3026,3 +3019,547 @@
                                                                :layer "shadowing_layer_renamed"
                                                                :material "shadowing_material_renamed"}}}
                      (make-layout->node->resource-field-values referencing-scene))))))))))
+
+(defn- round-num
+  ^double [^double num]
+  (math/round-with-precision num 0.001))
+
+(defn- round-vec [double-vec]
+  (into (empty double-vec)
+        (map round-num)
+        double-vec))
+
+(defn- round-layout->node->field->value [layout->node->field->value]
+  (coll/update-vals
+    layout->node->field->value
+    coll/update-vals
+    coll/update-vals-kv
+    (fn [field value]
+      (case field
+        (:alpha) (round-num value)
+        (:position :rotation :scale) (round-vec value)
+        value))))
+
+(def ^:private gui-alpha-pb-field-index (gui/prop-key->pb-field-index :alpha))
+(def ^:private gui-enabled-pb-field-index (gui/prop-key->pb-field-index :enabled))
+(def ^:private gui-inherit-alpha-pb-field-index (gui/prop-key->pb-field-index :inherit-alpha))
+(def ^:private gui-layer-pb-field-index (gui/prop-key->pb-field-index :layer))
+(def ^:private gui-position-pb-field-index (gui/prop-key->pb-field-index :position))
+(def ^:private gui-rotation-pb-field-index (gui/prop-key->pb-field-index :rotation))
+(def ^:private gui-scale-pb-field-index (gui/prop-key->pb-field-index :scale))
+
+(deftest template-props-baked-into-imported-node-descs-test
+  (testing "Template children are reparented to the template node's parent."
+    (test-util/with-temp-project-content
+      {"/imported.gui"
+       {:nodes
+        [{:type :type-box
+          :id "box"}
+         {:type :type-box
+          :id "box_child"
+          :parent "box"}]}
+
+       "/importing.gui"
+       {:nodes
+        [{:type :type-box
+          :id "imported_parent"}
+         {:type :type-template
+          :id "imported"
+          :parent "imported_parent"
+          :template "/imported.gui"}
+         {:type :type-box
+          :template-node-child true
+          :id "imported/box"
+          :parent "imported"}
+         {:type :type-box
+          :template-node-child true
+          :id "imported/box_child"
+          :parent "imported/box"}]
+
+        :layouts
+        [{:name "Unaltered"}]}}
+
+      (is (= {"Default" {"imported_parent" {}
+                         "imported/box" {:parent "imported_parent"}
+                         "imported/box_child" {:parent "imported/box"}}
+              "Unaltered" {"imported_parent" {}
+                           "imported/box" {:parent "imported_parent"}
+                           "imported/box_child" {:parent "imported/box"}}}
+             (-> (project/get-resource-node project "/importing.gui")
+                 (make-built-layout->node->field->value))))))
+
+  (testing "Template may disable imported children."
+    (test-util/with-temp-project-content
+      {"/off.gui"
+       {:nodes
+        [{:type :type-box
+          :id "box"
+          :enabled false}]}
+
+       "/on.gui"
+       {:nodes
+        [{:type :type-box
+          :id "box"}]}
+
+       "/importing.gui"
+       {:nodes
+        [{:type :type-template
+          :id "disabled_off"
+          :template "/off.gui"
+          :enabled false}
+         {:type :type-box
+          :template-node-child true
+          :id "disabled_off/box"
+          :parent "disabled_off"}
+         {:type :type-template
+          :id "enabled_off"
+          :template "/off.gui"}
+         {:type :type-box
+          :template-node-child true
+          :id "enabled_off/box"
+          :parent "enabled_off"}
+         {:type :type-template
+          :id "disabled_on"
+          :template "/on.gui"
+          :enabled false}
+         {:type :type-box
+          :template-node-child true
+          :id "disabled_on/box"
+          :parent "disabled_on"}
+         {:type :type-template
+          :id "enabled_on"
+          :template "/on.gui"}
+         {:type :type-box
+          :template-node-child true
+          :id "enabled_on/box"
+          :parent "enabled_on"}]
+
+        :layouts
+        [{:name "Unaltered"}
+         {:name "Altered Parent"
+          :nodes
+          [{:type :type-template
+            :id "disabled_off"
+            :template "/off.gui"
+            :overridden-fields [gui-enabled-pb-field-index]}
+           {:type :type-template
+            :id "enabled_off"
+            :template "/off.gui"
+            :enabled false
+            :overridden-fields [gui-enabled-pb-field-index]}
+           {:type :type-template
+            :id "disabled_on"
+            :template "/on.gui"
+            :overridden-fields [gui-enabled-pb-field-index]}
+           {:type :type-template
+            :id "enabled_on"
+            :template "/on.gui"
+            :enabled false
+            :overridden-fields [gui-enabled-pb-field-index]}]}
+         {:name "Altered Child"
+          :nodes
+          [{:type :type-box
+            :template-node-child true
+            :id "disabled_off/box"
+            :parent "disabled_off"
+            :overridden-fields [gui-enabled-pb-field-index]}
+           {:type :type-box
+            :template-node-child true
+            :id "enabled_off/box"
+            :parent "enabled_off"
+            :overridden-fields [gui-enabled-pb-field-index]}
+           {:type :type-box
+            :template-node-child true
+            :id "disabled_on/box"
+            :parent "disabled_on"
+            :enabled false
+            :overridden-fields [gui-enabled-pb-field-index]}
+           {:type :type-box
+            :template-node-child true
+            :id "enabled_on/box"
+            :parent "enabled_on"
+            :enabled false
+            :overridden-fields [gui-enabled-pb-field-index]}]}]}}
+
+      (is (= {"Default" {"disabled_off/box" {:enabled false}
+                         "enabled_off/box" {:enabled false}
+                         "disabled_on/box" {:enabled false}
+                         "enabled_on/box" {}}
+              "Unaltered" {"disabled_off/box" {:enabled false}
+                           "enabled_off/box" {:enabled false}
+                           "disabled_on/box" {:enabled false}
+                           "enabled_on/box" {}}
+              "Altered Parent" {"disabled_off/box" {:enabled false}
+                                "enabled_off/box" {:enabled false}
+                                "disabled_on/box" {}
+                                "enabled_on/box" {:enabled false}}
+              "Altered Child" {"disabled_off/box" {:enabled false}
+                               "enabled_off/box" {}
+                               "disabled_on/box" {:enabled false}
+                               "enabled_on/box" {:enabled false}}}
+             (-> (project/get-resource-node project "/importing.gui")
+                 (make-built-layout->node->field->value))))))
+
+  (testing "Template layer is applied to imported nodes with no layer specified."
+    (test-util/with-temp-project-content
+      {"/unlayered.gui"
+       {:nodes
+        [{:type :type-box
+          :id "box"}]}
+
+       "/layered.gui"
+       {:layers
+        [{:name "imported_layer"}]
+
+        :nodes
+        [{:type :type-box
+          :id "box"
+          :layer "imported_layer"}]}
+
+       "/importing.gui"
+       {:layers
+        [{:name "importing_layer"}
+         {:name "other_importing_layer"}]
+
+        :nodes
+        [{:type :type-template
+          :id "unlayered"
+          :template "/unlayered.gui"
+          :layer "importing_layer"}
+         {:type :type-box
+          :template-node-child true
+          :id "unlayered/box"
+          :parent "unlayered"}
+         {:type :type-template
+          :id "layered"
+          :template "/layered.gui"
+          :layer "importing_layer"}
+         {:type :type-box
+          :template-node-child true
+          :id "layered/box"
+          :parent "layered"}]
+
+        :layouts
+        [{:name "Unaltered"}
+         {:name "Altered Parent"
+          :nodes
+          [{:type :type-template
+            :id "unlayered"
+            :template "/unlayered.gui"
+            :layer "other_importing_layer"
+            :overridden-fields [gui-layer-pb-field-index]}
+           {:type :type-template
+            :id "layered"
+            :template "/layered.gui"
+            :layer "other_importing_layer"
+            :overridden-fields [gui-layer-pb-field-index]}]}
+         {:name "Altered Child"
+          :nodes
+          [{:type :type-box
+            :template-node-child true
+            :id "unlayered/box"
+            :parent "unlayered"
+            :layer "other_importing_layer"
+            :overridden-fields [gui-layer-pb-field-index]}
+           {:type :type-box
+            :template-node-child true
+            :id "layered/box"
+            :parent "layered"
+            :layer "other_importing_layer"
+            :overridden-fields [gui-layer-pb-field-index]}]}]}}
+
+      (is (= {"Default" {"unlayered/box" {:layer "importing_layer"}
+                         "layered/box" {:layer "imported_layer"}}
+              "Unaltered" {"unlayered/box" {:layer "importing_layer"}
+                           "layered/box" {:layer "imported_layer"}}
+              "Altered Parent" {"unlayered/box" {:layer "other_importing_layer"}
+                                "layered/box" {:layer "imported_layer"}}
+              "Altered Child" {"unlayered/box" {:layer "other_importing_layer"}
+                               "layered/box" {:layer "other_importing_layer"}}}
+             (-> (project/get-resource-node project "/importing.gui")
+                 (make-built-layout->node->field->value))))))
+
+  (testing "Template alpha is applied to imported nodes."
+    (test-util/with-temp-project-content
+      {"/forsaking.gui"
+       {:nodes
+        [{:type :type-box
+          :id "box"
+          :alpha 0.5
+          :inherit-alpha false}]}
+
+       "/inheriting.gui"
+       {:nodes
+        [{:type :type-box
+          :id "box"
+          :alpha 0.5
+          :inherit-alpha true}]}
+
+       "/importing.gui"
+       {:nodes
+        [{:type :type-template
+          :id "forsaking"
+          :template "/forsaking.gui"
+          :alpha 0.5}
+         {:type :type-box
+          :template-node-child true
+          :id "forsaking/box"
+          :parent "forsaking"}
+         {:type :type-template
+          :id "inheriting"
+          :template "/inheriting.gui"
+          :alpha 0.5}
+         {:type :type-box
+          :template-node-child true
+          :id "inheriting/box"
+          :parent "inheriting"}]
+
+        :layouts
+        [{:name "Unaltered"}
+         {:name "Altered Parent"
+          :nodes
+          [{:type :type-template
+            :id "forsaking"
+            :template "/forsaking.gui"
+            :alpha 0.75
+            :overridden-fields [gui-alpha-pb-field-index]}
+           {:type :type-template
+            :id "inheriting"
+            :template "/inheriting.gui"
+            :alpha 0.75
+            :overridden-fields [gui-alpha-pb-field-index]}]}
+         {:name "Altered Child"
+          :nodes
+          [{:type :type-box
+            :template-node-child true
+            :id "forsaking/box"
+            :parent "forsaking"
+            :alpha 0.75
+            :overridden-fields [gui-alpha-pb-field-index]}
+           {:type :type-box
+            :template-node-child true
+            :id "inheriting/box"
+            :parent "inheriting"
+            :alpha 0.75
+            :overridden-fields [gui-alpha-pb-field-index]}]}]}}
+
+      (is (= {"Default" {"inheriting/box" {:alpha 0.25}
+                         "forsaking/box" {:alpha 0.5}}
+              "Unaltered" {"inheriting/box" {:alpha 0.25}
+                           "forsaking/box" {:alpha 0.5}}
+              "Altered Parent" {"inheriting/box" {:alpha 0.375}
+                                "forsaking/box" {:alpha 0.5}}
+              "Altered Child" {"inheriting/box" {:alpha 0.375}
+                               "forsaking/box" {:alpha 0.75}}}
+             (-> (project/get-resource-node project "/importing.gui")
+                 (make-built-layout->node->field->value)
+                 (round-layout->node->field->value))))))
+
+  (testing "Overriding inherit-alpha."
+    (test-util/with-temp-project-content
+      {"/forsaking.gui"
+       {:nodes
+        [{:type :type-box
+          :id "box"
+          :inherit-alpha false}]}
+
+       "/inheriting.gui"
+       {:nodes
+        [{:type :type-box
+          :id "box"
+          :inherit-alpha true}]}
+
+       "/importing.gui"
+       {:nodes
+        [{:type :type-template
+          :id "forsaking"
+          :template "/forsaking.gui"
+          :alpha 0.5}
+         {:type :type-box
+          :template-node-child true
+          :id "forsaking/box"
+          :parent "forsaking"}
+         {:type :type-template
+          :id "not_forsaking"
+          :template "/forsaking.gui"
+          :alpha 0.5}
+         {:type :type-box
+          :template-node-child true
+          :id "not_forsaking/box"
+          :parent "not_forsaking"
+          :inherit-alpha true
+          :overridden-fields [gui-inherit-alpha-pb-field-index]}
+         {:type :type-template
+          :id "inheriting"
+          :template "/inheriting.gui"
+          :alpha 0.5}
+         {:type :type-box
+          :template-node-child true
+          :id "inheriting/box"
+          :parent "inheriting"}
+         {:type :type-template
+          :id "not_inheriting"
+          :template "/inheriting.gui"
+          :alpha 0.5}
+         {:type :type-box
+          :template-node-child true
+          :id "not_inheriting/box"
+          :parent "not_inheriting"
+          :inherit-alpha false
+          :overridden-fields [gui-inherit-alpha-pb-field-index]}]
+
+        :layouts
+        [{:name "Unaltered"}
+         {:name "Altered Child"
+          :nodes
+          [{:type :type-box
+            :template-node-child true
+            :id "forsaking/box"
+            :parent "forsaking"
+            :inherit-alpha true
+            :overridden-fields [gui-inherit-alpha-pb-field-index]}
+           {:type :type-box
+            :template-node-child true
+            :id "not_forsaking/box"
+            :parent "not_forsaking"
+            :inherit-alpha false
+            :overridden-fields [gui-inherit-alpha-pb-field-index]}
+           {:type :type-box
+            :template-node-child true
+            :id "inheriting/box"
+            :parent "inheriting"
+            :inherit-alpha false
+            :overridden-fields [gui-inherit-alpha-pb-field-index]}
+           {:type :type-box
+            :template-node-child true
+            :id "not_inheriting/box"
+            :parent "not_inheriting"
+            :inherit-alpha true
+            :overridden-fields [gui-inherit-alpha-pb-field-index]}]}]}}
+
+      (is (= {"Default" {"inheriting/box" {:alpha 0.5}
+                         "not_inheriting/box" {}
+                         "forsaking/box" {}
+                         "not_forsaking/box" {:alpha 0.5}}
+              "Unaltered" {"inheriting/box" {:alpha 0.5}
+                           "not_inheriting/box" {}
+                           "forsaking/box" {}
+                           "not_forsaking/box" {:alpha 0.5}}
+              "Altered Child" {"inheriting/box" {}
+                               "not_inheriting/box" {:alpha 0.5}
+                               "forsaking/box" {:alpha 0.5}
+                               "not_forsaking/box" {}}}
+             (-> (project/get-resource-node project "/importing.gui")
+                 (make-built-layout->node->field->value)
+                 (round-layout->node->field->value))))))
+
+  (testing "Template transform is applied to imported node transforms."
+    (test-util/with-temp-project-content
+      {"/untransformed.gui"
+       {:nodes
+        [{:type :type-box
+          :id "box"}]}
+
+       "/transformed.gui"
+       {:nodes
+        [{:type :type-box
+          :id "box"
+          :position [10.0 0.0 0.0 1.0]
+          :rotation [0.0 0.0 90.0 0.0]
+          :scale [2.0 2.0 1.0 1.0]}]}
+
+       "/importing.gui"
+       {:nodes
+        [{:type :type-template
+          :id "untransformed"
+          :template "/untransformed.gui"
+          :position [10.0 0.0 0.0 1.0]
+          :rotation [0.0 0.0 90.0 0.0]
+          :scale [2.0 2.0 1.0 1.0]}
+         {:type :type-box
+          :template-node-child true
+          :id "untransformed/box"
+          :parent "untransformed"}
+         {:type :type-template
+          :id "transformed"
+          :template "/transformed.gui"
+          :position [10.0 0.0 0.0 1.0]
+          :rotation [0.0 0.0 90.0 0.0]
+          :scale [2.0 2.0 1.0 1.0]}
+         {:type :type-box
+          :template-node-child true
+          :id "transformed/box"
+          :parent "transformed"}]
+
+        :layouts
+        [{:name "Unaltered"}
+         {:name "Altered Parent"
+          :nodes
+          [{:type :type-template
+            :id "untransformed"
+            :template "/untransformed.gui"
+            :position [20.0 0.0 0.0 1.0]
+            :rotation [0.0 0.0 180.0 0.0]
+            :scale [3.0 3.0 1.0 1.0]
+            :overridden-fields [gui-position-pb-field-index
+                                gui-rotation-pb-field-index
+                                gui-scale-pb-field-index]}
+           {:type :type-template
+            :id "transformed"
+            :template "/transformed.gui"
+            :position [20.0 0.0 0.0 1.0]
+            :rotation [0.0 0.0 180.0 0.0]
+            :scale [3.0 3.0 1.0 1.0]
+            :overridden-fields [gui-position-pb-field-index
+                                gui-rotation-pb-field-index
+                                gui-scale-pb-field-index]}]}
+         {:name "Altered Child"
+          :nodes
+          [{:type :type-box
+            :template-node-child true
+            :id "untransformed/box"
+            :parent "untransformed"
+            :position [20.0 0.0 0.0 1.0]
+            :rotation [0.0 0.0 180.0 0.0]
+            :scale [3.0 3.0 1.0 1.0]
+            :overridden-fields [gui-position-pb-field-index
+                                gui-rotation-pb-field-index
+                                gui-scale-pb-field-index]}
+           {:type :type-box
+            :template-node-child true
+            :id "transformed/box"
+            :parent "transformed"
+            :position [20.0 0.0 0.0 1.0]
+            :rotation [0.0 0.0 180.0 0.0]
+            :scale [3.0 3.0 1.0 1.0]
+            :overridden-fields [gui-position-pb-field-index
+                                gui-rotation-pb-field-index
+                                gui-scale-pb-field-index]}]}]}}
+
+      (is (= {"Default" {"transformed/box" {:position [10.0 20.0 0.0 1.0]
+                                            :rotation [0.0 0.0 180.0 0.0]
+                                            :scale [4.0 4.0 1.0 1.0]}
+                         "untransformed/box" {:position [10.0 0.0 0.0 1.0]
+                                              :rotation [0.0 0.0 90.0 0.0]
+                                              :scale [2.0 2.0 1.0 1.0]}}
+              "Unaltered" {"transformed/box" {:position [10.0 20.0 0.0 1.0]
+                                              :rotation [0.0 0.0 180.0 0.0]
+                                              :scale [4.0 4.0 1.0 1.0]}
+                           "untransformed/box" {:position [10.0 0.0 0.0 1.0]
+                                                :rotation [0.0 0.0 90.0 0.0]
+                                                :scale [2.0 2.0 1.0 1.0]}}
+              "Altered Parent" {"transformed/box" {:position [-10.0 0.0 0.0 1.0]
+                                                   :rotation [0.0 0.0 270.0 0.0]
+                                                   :scale [6.0 6.0 1.0 1.0]}
+                                "untransformed/box" {:position [20.0 0.0 0.0 1.0]
+                                                     :rotation [0.0 0.0 180.0 0.0]
+                                                     :scale [3.0 3.0 1.0 1.0]}}
+              "Altered Child" {"transformed/box" {:position [10.0 40.0 0.0 1.0]
+                                                  :rotation [0.0 0.0 270.0 0.0]
+                                                  :scale [6.0 6.0 1.0 1.0]}
+                               "untransformed/box" {:position [10.0 40.0 0.0 1.0]
+                                                    :rotation [0.0 0.0 270.0 0.0]
+                                                    :scale [6.0 6.0 1.0 1.0]}}}
+             (-> (project/get-resource-node project "/importing.gui")
+                 (make-built-layout->node->field->value)
+                 (round-layout->node->field->value)))))))
