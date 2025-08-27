@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
-  (:refer-clojure :exclude [any? bounded-count empty? every? mapcat merge merge-with not-any? not-empty not-every? some])
+  (:refer-clojure :exclude [any? bounded-count empty? every? mapcat merge merge-with not-any? not-empty not-every? some update-vals])
   (:import [clojure.core Eduction]
            [clojure.lang Cons Cycle IEditableCollection LazySeq MapEntry Repeat]
            [java.util ArrayList]))
@@ -225,6 +225,51 @@
 
 (defonce into-vector (fnil into []))
 
+(defn update-vals
+  "Like core.update-vals, but retains the type of the input map or record. Also
+  accepts additional arguments to f. Preserves metadata. If coll is nil, returns
+  nil without calling f."
+  [coll f & args]
+  (when coll
+    (let [use-transient (supports-transient? coll)
+          rf (if use-transient
+               (if (empty? args)
+                 #(assoc! %1 %2 (f %3))
+                 #(assoc! %1 %2 (apply f %3 args)))
+               (if (empty? args)
+                 #(assoc %1 %2 (f %3))
+                 #(assoc %1 %2 (apply f %3 args))))
+          init (if (record? coll)
+                 coll
+                 (cond-> (empty coll)
+                         use-transient transient))]
+      (with-meta (cond-> (reduce-kv rf init coll)
+                         use-transient persistent!)
+                 (meta coll)))))
+
+(defn update-vals-kv
+  "Like core.update-vals, but calls f with both the key and the value of each
+  map entry. Also retains the type of the input map or record and accepts
+  additional arguments to f. Preserves metadata. If coll is nil, returns nil
+  without calling f."
+  [coll f & args]
+  (when coll
+    (let [use-transient (supports-transient? coll)
+          rf (if use-transient
+               (if (empty? args)
+                 #(assoc! %1 %2 (f %2 %3))
+                 #(assoc! %1 %2 (apply f %2 %3 args)))
+               (if (empty? args)
+                 #(assoc %1 %2 (f %2 %3))
+                 #(assoc %1 %2 (apply f %2 %3 args))))
+          init (if (record? coll)
+                 coll
+                 (cond-> (empty coll)
+                         use-transient transient))]
+      (with-meta (cond-> (reduce-kv rf init coll)
+                         use-transient persistent!)
+                 (meta coll)))))
+
 (defn map-vals
   "Applies f to all values in the supplied associative collection. Returns a new
   associative collection of the same type with all the same keys, but the values
@@ -235,22 +280,13 @@
           (pair (key entry)
                 (f (val entry))))))
   ([f coll]
-   (when coll
-     (let [use-transient (supports-transient? coll)
-           rf (if use-transient
-                #(assoc! %1 %2 (f %3))
-                #(assoc %1 %2 (f %3)))
-           init (cond-> (empty coll)
-                        use-transient transient)]
-       (with-meta (cond-> (reduce-kv rf init coll)
-                          use-transient persistent!)
-                  (meta coll))))))
+   (update-vals coll f)))
 
 (defn map-vals-kv
   "Calls f with the key and value of each element in the supplied associative
   collection. Returns a new associative collection of the same type with all the
   same keys, but the values being the results of applying f to each previous key
-  and value.  Preserves metadata. If coll is nil, returns nil without calling f."
+  and value. Preserves metadata. If coll is nil, returns nil without calling f."
   ([f]
    (map (fn [entry]
           (let [k (key entry)
@@ -258,16 +294,7 @@
             (pair k
                   (f k v))))))
   ([f coll]
-   (when coll
-     (let [use-transient (supports-transient? coll)
-           rf (if use-transient
-                #(assoc! %1 %2 (f %2 %3))
-                #(assoc %1 %2 (f %2 %3)))
-           init (cond-> (empty coll)
-                        use-transient transient)]
-       (with-meta (cond-> (reduce-kv rf init coll)
-                          use-transient persistent!)
-                  (meta coll))))))
+   (update-vals-kv coll f)))
 
 (defn pair-map-by
   "Returns a hash-map where the keys are the result of applying the supplied
