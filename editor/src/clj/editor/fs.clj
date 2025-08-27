@@ -298,11 +298,10 @@
    (move-to-trash! file {}))
   (^File [^File file opts]
    (maybe-silently (fail-silently? opts) nil
-     (if (Desktop/isDesktopSupported)
-       (if (and (.isSupported (Desktop/getDesktop) Desktop$Action/MOVE_TO_TRASH)
-                (.moveToTrash (Desktop/getDesktop) file))
-         file
-         (delete! file opts))
+     (if (and (Desktop/isDesktopSupported)
+              (.isSupported (Desktop/getDesktop) Desktop$Action/MOVE_TO_TRASH)
+              (.moveToTrash (Desktop/getDesktop) file))
+       file
        (delete! file opts)))))
 
 ;; temp
