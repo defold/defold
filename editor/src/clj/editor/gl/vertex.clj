@@ -440,7 +440,7 @@ the `do-gl` macro from `editor.gl`."
     (mapv (fn [attrib]
             (let [attribute-name (name (first attrib))]
               (if-some [attribute-info (get attribute-infos attribute-name)]
-                (:index attribute-info)
+                (:location attribute-info)
                 -1)))
           attribs)))
 
@@ -454,7 +454,7 @@ the `do-gl` macro from `editor.gl`."
                   ^boolean norm (if (not (nil? (first more))) (first more) false)
                   attribute-name (name nm)]
               (when-some [attribute-info (get attribute-infos attribute-name)]
-                (let [^int loc (:index attribute-info)
+                (let [^int loc (:location attribute-info)
                       ^int gl-type (gl-types tp)]
                   (gl/gl-vertex-attrib-pointer gl loc sz gl-type norm stride offset)))))
           offsets

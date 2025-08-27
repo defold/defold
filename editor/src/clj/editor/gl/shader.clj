@@ -103,6 +103,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.protocols :refer [GlBind]]
+            [editor.graphics.types :as types]
             [editor.pipeline.shader-gen :as shader-gen]
             [editor.scene-cache :as scene-cache]
             [util.array :as array]
@@ -308,7 +309,7 @@ This must be submitted to the driver for compilation before you can use it. See
     (coll/transfer attribute-names (vector-of :int)
       (map (fn [attribute-name]
              (if-some [attribute-info (get attribute-infos-by-name attribute-name)]
-               (:index attribute-info)
+               (:location attribute-info)
                -1))))))
 
 (defonce/protocol SamplerVariables
@@ -387,14 +388,13 @@ This must be submitted to the driver for compilation before you can use it. See
   (when-not (zero? program)
     (.glDeleteProgram gl program)))
 
-(defn- attach-shaders [^GL2 gl ^long program shaders]
-  (doseq [^int shader shaders]
-    (.glAttachShader gl program shader)))
-
 (defn make-program
-  [^GL2 gl & shaders]
+  [^GL2 gl shaders location+attribute-name-pairs]
   (let [program (.glCreateProgram gl)]
-    (attach-shaders gl program shaders)
+    (doseq [^int shader shaders]
+      (.glAttachShader gl program shader))
+    (doseq [[^int location ^String attribute-name] location+attribute-name-pairs]
+      (.glBindAttribLocation gl program location attribute-name))
     (.glLinkProgram gl program)
     (let [status (IntBuffer/allocate 1)]
       (.glGetProgramiv gl program GL2/GL_LINK_STATUS status)
@@ -452,7 +452,7 @@ This must be submitted to the driver for compilation before you can use it. See
 (defn- set-uniform-impl! [gl program uniform-infos uniform-name uniform-value]
   (when-some [uniform-info (uniform-infos uniform-name)]
     (try
-      (set-uniform-at-index gl program (:index uniform-info) uniform-value)
+      (set-uniform-at-index gl program (:location uniform-info) uniform-value)
       (catch IllegalArgumentException e
         (throw (IllegalArgumentException. (format "Failed setting uniform '%s'." uniform-name) e))))))
 
@@ -461,17 +461,23 @@ This must be submitted to the driver for compilation before you can use it. See
     (map (fn [slice-sampler-uniform-name texture-unit]
            (if (nat-int? texture-unit)
              (when-some [slice-sampler-uniform-info (uniform-infos slice-sampler-uniform-name)]
-               (set-uniform-at-index gl program (:index slice-sampler-uniform-info) texture-unit))
+               (set-uniform-at-index gl program (:location slice-sampler-uniform-info) texture-unit))
              (throw (IllegalArgumentException. (format "Invalid texture unit '%s' for uniform '%s'." texture-unit slice-sampler-uniform-name)))))
          slice-sampler-uniform-names
          texture-units)))
 
 (defonce/record ^:private ShaderRequestData
   [shader-type+source-pairs
+   location+attribute-name-pairs
    array-sampler-name->uniform-names
    strip-resource-binding-namespace-regex-str])
 
-(defonce/record ShaderLifecycle [request-id ^ShaderRequestData request-data uniforms]
+(defonce/record ShaderLifecycle
+  [request-id
+   ^ShaderRequestData request-data
+   semantic-type->locations
+   uniforms]
+
   GlBind
   (bind [_this gl render-args]
     (let [{:keys [^int program uniform-infos]} (scene-cache/request-object! ::shader request-id gl request-data)]
@@ -504,7 +510,7 @@ This must be submitted to the driver for compilation before you can use it. See
       (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
         (when-some [uniform-info (uniform-infos name)]
           (try
-            (set-uniforms-at-index gl program (:index uniform-info) count vals)
+            (set-uniforms-at-index gl program (:location uniform-info) count vals)
             (catch IllegalArgumentException e
               (throw (IllegalArgumentException. (format "Failed setting array uniform '%s'." name) e))))))))
 
@@ -539,53 +545,33 @@ This must be submitted to the driver for compilation before you can use it. See
               (string? shader-source)
               (pos? (count shader-source))))))
 
-(defn- resource-binding-namespaces->regex-str
-  ^String [resource-binding-namespaces]
-  (str "^(" (string/join "|" resource-binding-namespaces) ")\\."))
+(defn- location+attribute-name-pair? [value]
+  (and (vector? value)
+       (= 2 (count value))
+       (let [[location attribute-name] value]
+         (and (nat-int? location)
+              (string? attribute-name)
+              (pos? (count attribute-name))))))
 
 (defn make-shader-request-data
-  ^ShaderRequestData [shader-type+source-pairs array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str]
+  ^ShaderRequestData [shader-type+source-pairs location+attribute-name-pairs array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str]
   {:pre [(every? shader-type+source-pair? shader-type+source-pairs)
+         (every? location+attribute-name-pair? location+attribute-name-pairs)
          (map? array-sampler-name->uniform-names)
          (or (nil? strip-resource-binding-namespace-regex-str)
              (and (string? strip-resource-binding-namespace-regex-str)
                   (pos? (count strip-resource-binding-namespace-regex-str))))]}
   (->ShaderRequestData
     (vec shader-type+source-pairs)
+    (vec location+attribute-name-pairs)
     array-sampler-name->uniform-names
     strip-resource-binding-namespace-regex-str))
 
-(defn compose-shader-request-data
-  ^ShaderRequestData [augmented-shader-infos max-page-count]
-  (let [shader-type+source-pairs
-        (coll/transfer augmented-shader-infos []
-          (map (fn [{:keys [shader-type transpiled-shader-source]}]
-                 (pair shader-type transpiled-shader-source))))
-
-        array-sampler-name->slice-sampler-names
-        (coll/transfer augmented-shader-infos {}
-          (mapcat :array-sampler-names)
-          (distinct)
-          (map (fn [array-sampler-name]
-                 (pair array-sampler-name
-                       (mapv (fn [page-index]
-                               (str array-sampler-name "_" page-index))
-                             (range max-page-count))))))
-
-        strip-resource-binding-namespace-regex-str
-        (resource-binding-namespaces->regex-str
-          (coll/transfer augmented-shader-infos (sorted-set)
-            (mapcat :resource-binding-namespaces)))]
-
-    (make-shader-request-data
-      shader-type+source-pairs
-      array-sampler-name->slice-sampler-names
-      strip-resource-binding-namespace-regex-str)))
-
 (defn make-shader-lifecycle
-  ^ShaderLifecycle [request-id request-data uniform-values-by-name]
+  ^ShaderLifecycle [request-id request-data semantic-type->locations uniform-values-by-name]
   {:pre [(scene-cache/valid-request-id? request-id)
          (instance? ShaderRequestData request-data)
+         (types/location-vectors-by-semantic-type? semantic-type->locations)
          (map? uniform-values-by-name)
          (every? string? (keys uniform-values-by-name))]}
   ;; TODO(instancing): We should be able to derive the attributes-infos from the
@@ -597,7 +583,7 @@ This must be submitted to the driver for compilation before you can use it. See
   ;; them to #version 140 first, since the transpiler does not support versions
   ;; earlier than that. Such shaders are also created from editor plugins, so we
   ;; need to update those.
-  (->ShaderLifecycle request-id request-data uniform-values-by-name))
+  (->ShaderLifecycle request-id request-data semantic-type->locations uniform-values-by-name))
 
 (defn shader-lifecycle? [value]
   (instance? ShaderLifecycle value))
@@ -613,16 +599,25 @@ This must be submitted to the driver for compilation before you can use it. See
    ;; TODO(instancing): Get rid of this and rename make-shader-lifecycle to make-shader.
    ;; We want to store the ShaderRequestData in a cached output when possible, so equality comparisons will be quicker.
    ;; We also want to keep the request-id around so we can benefit from cached structural hashing.
-   (let [request-data
+   ;;
+   ;; TODO(instancing): We don't have attribute location information unless we
+   ;; go through the transpiler. This results in the driver choosing whatever
+   ;; locations it likes for the attributes. Maybe we can fake it until we can
+   ;; port over all the inline shaders to be transpiled?
+   (let [location+attribute-name-pairs []
+         semantic-type->locations {}
+
+         request-data
          (make-shader-request-data
            [(pair :shader-type-vertex vertex-shader-source)
             (pair :shader-type-fragment fragment-shader-source)]
+           location+attribute-name-pairs
            array-sampler-name->uniform-names
            strip-resource-binding-namespace-regex-str)]
-     (make-shader-lifecycle request-id request-data uniforms))))
 
-(defn read-shader-request-data
-  ^ShaderRequestData [shader-paths opts shader-path->source]
+     (make-shader-lifecycle request-id request-data semantic-type->locations uniforms))))
+
+(defn read-combined-shader-info [shader-paths opts shader-path->source]
   (let [max-page-count (long (or (:max-page-count opts) 0))
 
         augmented-shader-infos
@@ -631,14 +626,29 @@ This must be submitted to the driver for compilation before you can use it. See
                  (let [shader-source (shader-path->source shader-path)]
                    (shader-gen/transpile-shader-source shader-path shader-source max-page-count)))))]
 
-    (compose-shader-request-data augmented-shader-infos max-page-count)))
+    (shader-gen/combined-shader-info augmented-shader-infos)))
 
 (defn read-shader
   ^ShaderLifecycle [shader-paths opts shader-path->source]
-  (let [request-id {:max-page-count (or (:max-page-count opts) 0)
-                    :shader-paths (vec (sort shader-paths))}
-        shader-request-data (read-shader-request-data shader-paths opts shader-path->source)]
-    (make-shader-lifecycle request-id shader-request-data {})))
+  (let [request-id
+        {:max-page-count (or (:max-page-count opts) 0)
+         :shader-paths (vec (sort shader-paths))}
+
+        {:keys [array-sampler-name->slice-sampler-names
+                location+attribute-name-pairs
+                semantic-type->locations
+                shader-type+source-pairs
+                strip-resource-binding-namespace-regex-str]}
+        (read-combined-shader-info shader-paths opts shader-path->source)
+
+        shader-request-data
+        (make-shader-request-data
+          shader-type+source-pairs
+          location+attribute-name-pairs
+          array-sampler-name->slice-sampler-names
+          strip-resource-binding-namespace-regex-str)]
+
+    (make-shader-lifecycle request-id shader-request-data semantic-type->locations {})))
 
 (defn jar-shader-path->source
   ^String [^String shader-path]
@@ -744,7 +754,7 @@ This must be submitted to the driver for compilation before you can use it. See
             ;; 1. strip brackets from uniform name, i.e "uniform_name[123]"
             sanitized-name (string/replace name name-array-suffix-pattern "")]
         {:name sanitized-name
-         :index location
+         :location location
          :type type
          :count count}))))
 
@@ -756,15 +766,16 @@ This must be submitted to the driver for compilation before you can use it. See
         out-name (byte-array name-buffer-size)]
     (fn attribute-info [^GL2 gl program attribute-index]
       (.glGetActiveAttrib gl program attribute-index name-buffer-size out-name-length 0 out-count 0 out-type 0 out-name 0)
-      (let [name-length (aget out-name-length 0)
-            name (String. out-name 0 name-length StandardCharsets/UTF_8)
-            location (.glGetAttribLocation gl program name)
-            type (gl-uniform-type->uniform-type (aget out-type 0))
-            count (aget out-count 0)]
-        {:name name
-         :index location
-         :type type
-         :count count}))))
+      (let [name-length (aget out-name-length 0)]
+        (when (pos? name-length)
+          (let [name (String. out-name 0 name-length StandardCharsets/UTF_8)
+                location (.glGetAttribLocation gl program name)
+                type (gl-uniform-type->uniform-type (aget out-type 0))
+                count (aget out-count 0)]
+            {:name name
+             :location location
+             :type type
+             :count count}))))))
 
 (defn- strip-resource-namespace [uniform-info strip-resource-binding-namespace-regex]
   (if strip-resource-binding-namespace-regex
@@ -792,7 +803,7 @@ This must be submitted to the driver for compilation before you can use it. See
           (try
             ;; This attaches all the created gl-shaders to the gl-program,
             ;; increasing their reference count.
-            (apply make-program gl gl-shaders)
+            (make-program gl gl-shaders (.-location+attribute-name-pairs request-data))
             (finally
               ;; Regardless of if the created gl-shaders failed to link, we
               ;; should decrease their reference count now that they have been
@@ -805,9 +816,9 @@ This must be submitted to the driver for compilation before you can use it. See
 
         attribute-infos
         (into {}
-              (map (fn [^long attribute-index]
-                     (let [attribute-info (attribute-info gl gl-program attribute-index)]
-                       (pair (:name attribute-info) attribute-info))))
+              (keep (fn [^long attribute-index]
+                      (when-let [attribute-info (attribute-info gl gl-program attribute-index)]
+                        (pair (:name attribute-info) attribute-info))))
               (range (gl-shader-parameter gl gl-program GL2/GL_ACTIVE_ATTRIBUTES)))
 
         uniform-infos
@@ -835,7 +846,7 @@ This must be submitted to the driver for compilation before you can use it. See
              (mapv (fn [[sampler-name uniform-names]]
                      (pair sampler-name
                            (uniform-infos (first uniform-names)))))
-             (sort-by (comp :index second))
+             (sort-by (comp :location second))
              (mapv first))]
 
     {:program gl-program

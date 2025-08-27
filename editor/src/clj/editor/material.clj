@@ -185,7 +185,7 @@
                                     error-cursor-range (assoc :cursor-range error-cursor-range))]
               (g/->error shader-resource-node-id :lines :fatal nil message user-data))))))))
 
-(g/defnk produce-shader-request-data [_node-id vertex-program vertex-shader-source-info fragment-program fragment-shader-source-info max-page-count]
+(g/defnk produce-combined-shader-info [_node-id vertex-program vertex-shader-source-info fragment-program fragment-shader-source-info max-page-count]
   (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
       (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
       (let [augmented-shader-infos
@@ -194,10 +194,18 @@
                   [vertex-shader-source-info
                    fragment-shader-source-info])]
         (g/precluding-errors augmented-shader-infos
-          (shader/compose-shader-request-data augmented-shader-infos max-page-count)))))
+          (shader-gen/combined-shader-info augmented-shader-infos)))))
 
-(g/defnk produce-shader [_node-id shader-request-data vertex-constants fragment-constants samplers]
-  (let [array-sampler-name->slice-sampler-names (:array-sampler-name->uniform-names shader-request-data)
+(g/defnk produce-shader-request-data [combined-shader-info]
+  (shader/make-shader-request-data
+    (:shader-type+source-pairs combined-shader-info)
+    (:location+attribute-name-pairs combined-shader-info)
+    (:array-sampler-name->slice-sampler-names combined-shader-info)
+    (:strip-resource-binding-namespace-regex-str combined-shader-info)))
+
+(g/defnk produce-shader [_node-id combined-shader-info shader-request-data vertex-constants fragment-constants samplers]
+  (let [semantic-type->locations (:semantic-type->locations combined-shader-info)
+        array-sampler-name->slice-sampler-names (:array-sampler-name->uniform-names shader-request-data)
 
         uniform-values-by-name
         (-> {}
@@ -212,7 +220,7 @@
                            (pair resolved-sampler-name nil))))
                   samplers))]
 
-    (shader/make-shader-lifecycle _node-id shader-request-data uniform-values-by-name)))
+    (shader/make-shader-lifecycle _node-id shader-request-data semantic-type->locations uniform-values-by-name)))
 
 (g/defnk produce-samplers [^:raw samplers default-sampler-filter-modes]
   ;; Replace any default filter modes with the setting from game.project.
@@ -561,6 +569,7 @@
 
   (output save-value g/Any produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
+  (output combined-shader-info g/Any :cached produce-combined-shader-info)
   (output shader-request-data g/Any :cached produce-shader-request-data)
   (output shader ShaderLifecycle :cached produce-shader)
   (output samplers [g/KeywordMap] :cached produce-samplers)

@@ -118,6 +118,17 @@
 
 (fn/defamong engine-provided-semantic-type? engine-provided-semantic-types)
 
+(defn location-vector? [value]
+  (and (= :int (coll/primitive-vector-type value))
+       (pos? (count value))))
+
+(defn location-vectors-by-semantic-type? [value]
+  (and (map? value)
+       (coll/every? (fn [entry]
+                      (and (semantic-type? (key entry))
+                           (location-vector? (val entry))))
+                    value)))
+
 (def vector-types (protobuf/valid-enum-values Graphics$VertexAttribute$VectorType))
 
 (fn/defamong vector-type? vector-types)

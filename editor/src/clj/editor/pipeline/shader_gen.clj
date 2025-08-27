@@ -14,7 +14,10 @@
 
 (ns editor.pipeline.shader-gen
   (:require [clojure.string :as string]
-            [util.coll :as coll :refer [pair]])
+            [editor.graphics.types :as graphics.types]
+            [internal.util :as util]
+            [util.coll :as coll :refer [pair]]
+            [util.eduction :as e])
   (:import [com.dynamo.bob CompileExceptionError]
            [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ShaderResource]
            [com.dynamo.bob.pipeline.shader SPIRVReflector]
@@ -106,13 +109,17 @@
     (pb-shader-data-type->vector-type+data-type pb-shader-data-type)))
 
 (defn- make-attribute-reflection-info [^Shaderc$ShaderResource attribute]
-  (let [[vector-type data-type] (shader-resource-type->vector-type+data-type (.-type attribute))]
+  (let [[vector-type data-type] (shader-resource-type->vector-type+data-type (.-type attribute))
+        reflected-location (.-location attribute)
+        name (.-name attribute)
+        name-key (graphics.types/attribute-name-key name)]
     ;; We want to keep the keys here in sync with the attribute-info maps in the
     ;; editor.graphics module. The idea is that you should be able to amend this
     ;; map with attribute-info keys from the material to get a fully formed
     ;; attribute-info map.
-    {:name (.-name attribute)
-     :location (.-location attribute)
+    {:name name
+     :name-key name-key
+     :location reflected-location
      :vector-type vector-type
      :data-type data-type}))
 
@@ -175,7 +182,113 @@
         attribute-reflection-infos (mapv make-attribute-reflection-info (.getInputs spirv-reflector))
         resource-binding-namespaces (resource-binding-namespaces spirv-reflector)]
     {:shader-type shader-type
+     :max-page-count max-page-count
      :transpiled-shader-source transpiled-shader-source
      :resource-binding-namespaces resource-binding-namespaces
      :array-sampler-names array-sampler-names
      :attribute-reflection-infos attribute-reflection-infos}))
+
+(defn- resource-binding-namespaces->regex-str
+  ^String [resource-binding-namespaces]
+  (str "^(" (string/join "|" resource-binding-namespaces) ")\\."))
+
+(defn deduce-semantic-type->locations [attribute-key+location-pairs]
+  (->> attribute-key+location-pairs
+       (sort-by val)
+       (util/group-into
+         {} (vector-of :int)
+         #(graphics.types/attribute-key-semantic-type (key %))
+         val)))
+
+(defn combined-shader-info [augmented-shader-infos]
+  ;; Move a bunch of reflection stuff from gl.shader/compose-shader-request-data
+  ;; Here and return it in a regular map we feed to compose-shader-request-data.
+  ;; The goal is to have ShaderRequestData only contain the stuff actually
+  ;; required by the GL parts of gl.shader/make-shader-program. Everything else
+  ;; is derived and does not need to be part of the compared ShaderRequestData.
+  ;; Consider having a parallel ShaderLifecycle implementation wholly based on
+  ;; the pre-GL shader reflection?
+
+  (let [max-page-count
+        (or (coll/consensus (e/map :max-page-count augmented-shader-infos))
+            (throw (ex-info "The shaders do not have a consensus max-page-count."
+                            {:augmented-shader-infos augmented-shader-infos})))
+
+        shader-type+source-pairs
+        (coll/transfer augmented-shader-infos []
+          (map (fn [{:keys [shader-type transpiled-shader-source]}]
+                 (pair shader-type transpiled-shader-source))))
+
+        array-sampler-name->slice-sampler-names
+        (coll/transfer augmented-shader-infos {}
+          (mapcat :array-sampler-names)
+          (distinct)
+          (map (fn [array-sampler-name]
+                 (pair array-sampler-name
+                       (mapv (fn [page-index]
+                               (str array-sampler-name "_" page-index))
+                             (range max-page-count))))))
+
+        strip-resource-binding-namespace-regex-str
+        (resource-binding-namespaces->regex-str
+          (coll/transfer augmented-shader-infos (sorted-set)
+            (mapcat :resource-binding-namespaces)))
+
+        [attribute-key->location
+         location->attribute-reflection-info]
+        (transduce
+          (mapcat :attribute-reflection-infos)
+          (fn
+            ([result] result)
+            ([[attribute-key->location
+               location->attribute-reflection-info
+               taken-locations :as result]
+              {:keys [name-key] :as attribute-reflection-info}]
+             ;; Ensure each attribute maps to a specific shader location. We
+             ;; will associate the attribute names with these locations as we
+             ;; link the shader.
+             (if (contains? attribute-key->location name-key)
+               result ; The first encountered shader takes precedence.
+               (let [attribute-count (graphics.types/vector-type-attribute-count (:vector-type attribute-reflection-info))
+                     reflected-location (:location attribute-reflection-info)
+                     base-location (util/first-where
+                                     #(not (contains? taken-locations %))
+                                     (iterate inc reflected-location))
+                     attribute-reflection-info (assoc attribute-reflection-info
+                                                 :location base-location
+                                                 :reflected-location reflected-location)
+                     attribute-key->location (assoc attribute-key->location name-key base-location)
+                     location->attribute-reflection-info (assoc location->attribute-reflection-info base-location attribute-reflection-info)
+                     location-range (range base-location (+ (long base-location) attribute-count))
+                     taken-locations (into taken-locations location-range)]
+                 [attribute-key->location
+                  location->attribute-reflection-info
+                  taken-locations]))))
+          [{} {} #{}]
+          augmented-shader-infos)
+
+        location+attribute-name-pairs
+        (->> location->attribute-reflection-info
+             (keys)
+             (sort)
+             (mapv (fn [location]
+                     (let [attribute-reflection-info (location->attribute-reflection-info location)
+                           attribute-name (:name attribute-reflection-info)]
+                       (pair location attribute-name)))))
+
+        attribute-name->location
+        (coll/transfer location+attribute-name-pairs {}
+          (map coll/flip))
+
+        semantic-type->locations
+        (deduce-semantic-type->locations attribute-key->location)]
+
+    {:max-page-count max-page-count
+     :strip-resource-binding-namespace-regex-str strip-resource-binding-namespace-regex-str
+     :array-sampler-name->slice-sampler-names array-sampler-name->slice-sampler-names
+     :attribute-key->location attribute-key->location
+     :attribute-name->location attribute-name->location
+     :semantic-type->locations semantic-type->locations
+     :location->attribute-reflection-info location->attribute-reflection-info
+     :location+attribute-name-pairs location+attribute-name-pairs
+     :shader-type+source-pairs shader-type+source-pairs}))
