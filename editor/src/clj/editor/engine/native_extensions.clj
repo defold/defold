@@ -270,8 +270,7 @@
          :extender-platform extender-platform}
         (let [extender-client (ExtenderClient. url cache-directory)
               destination-file (fs/create-temp-file! (str "build_" sdk-version) ".zip")
-              log-file (fs/create-temp-file! (str "build_" sdk-version) ".txt")
-              async true]
+              log-file (fs/create-temp-file! (str "build_" sdk-version) ".txt")]
           (try
             (when-let [^String auth (or
                                       (and (not (string/blank? username))
@@ -281,7 +280,7 @@
               (.setHeader extender-client "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes auth StandardCharsets/UTF_8)))))
             (when (pos? (count headers))
               (.setHeaders extender-client headers))
-            (.build extender-client extender-platform sdk-version extender-resources destination-file log-file async)
+            (.build extender-client extender-platform sdk-version extender-resources destination-file log-file)
             {:id {:type :custom :version cache-key}
              :engine-archive destination-file
              :extender-platform extender-platform}

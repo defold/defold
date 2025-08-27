@@ -207,6 +207,7 @@ texture_profiles = /checked.texture_profiles
 verify_graphics_calls = 0
 opengl_version_hint = 33
 opengl_core_profile_hint = 1
+memory_size = 512
 
 [iap]
 auto_finish_transactions = 0
@@ -265,6 +266,7 @@ uri = http://localhost:1234/save-data-project
 include_dirs = library
 
 [liveupdate]
+enabled = 1
 settings = /liveupdate.settings
 mount_on_start = 0
 

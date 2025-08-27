@@ -1454,12 +1454,18 @@ namespace dmEngine
 #if !defined(DM_RELEASE)
         {
             const char* init_script = dmConfigFile::GetString(engine->m_Config, "bootstrap.debug_init_script", 0);
-            if (init_script) {
+            if (init_script && init_script[0] != 0)
+            {
+                dmLogWarning("Using bootstrap.debug_init_script='%s'", init_script);
                 char* tmp = strdup(init_script);
                 char* iter = 0;
                 char* filename = dmStrTok(tmp, ",", &iter);
                 do
                 {
+                    if (!filename || strlen(filename) == 0) {
+                        continue;
+                    }
+                    
                     // We need the size, in order to send it as a proper LuaModule message
                     void* data;
                     uint32_t datasize;

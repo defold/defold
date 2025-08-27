@@ -88,7 +88,7 @@
                (is (test-util/selected? app-view resource-node))
                ;; Press
                (test-util/mouse-press! view 32 32)
-               (is (test-util/selected? app-view go-node))
+               (is (test-util/selected? app-view resource-node))
                ;; Click
                (test-util/mouse-release! view 32 32)
                (is (test-util/selected? app-view go-node))
@@ -96,7 +96,7 @@
                (test-util/mouse-drag! view 32 32 32 36)
                (is (test-util/selected? app-view go-node))
                ;; Deselect - default to "root" node
-               (test-util/mouse-press! view 0 0)
+               (test-util/mouse-click! view 0 0)
                (is (test-util/selected? app-view resource-node))
                ;; Toggling
                (let [modifiers (if system/mac? [:meta] [:shift])]
