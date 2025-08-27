@@ -1592,10 +1592,15 @@ public class Project {
                 IResource buildFileResource = getResource(transpiler.getBuildFileResourcePath());
                 if (buildFileResource.exists()) {
                     String ext = "." + transpiler.getSourceExt();
-                    List<IResource> sources = inputs.stream()
-                            .filter(s -> s.endsWith(ext))
-                            .map(this::getResource)
-                            .collect(Collectors.toList());
+                    ArrayList<IResource> sources = new ArrayList<>();
+                    fileSystem.walk("", new FileSystemWalker() {
+                        @Override
+                        public void handleFile(String path, Collection<String> results) {
+                            if (path.endsWith(ext)) {
+                                sources.add(fileSystem.get(path));
+                            }
+                        }
+                    }, new ArrayList<>());
                     if (!sources.isEmpty()) {
                         // We transpile to lua from the project dir only if all the source code files exist on disc. Since
                         // some source file may come as dependencies in zip archives, the transpiler will not be able to
@@ -1629,17 +1634,11 @@ public class Project {
                                 throw exception;
                             } else {
                                 issues.forEach(issue -> {
-                                    Level level;
-                                    switch (issue.severity) {
-                                        case INFO:
-                                            level = Level.INFO;
-                                            break;
-                                        case WARNING:
-                                            level = Level.WARNING;
-                                            break;
-                                        default:
-                                            throw new IllegalStateException();
-                                    }
+                                    Level level = switch (issue.severity) {
+                                        case INFO -> Level.INFO;
+                                        case WARNING -> Level.WARNING;
+                                        default -> throw new IllegalStateException();
+                                    };
                                     logger.log(level, issue.resourcePath + ":" + issue.lineNumber + ": " + issue.message);
                                 });
                             }
@@ -1654,7 +1653,6 @@ public class Project {
                                     }
                                 }
                             }, results);
-                            inputs.addAll(results);
                             fileSystem.addMountPoint(new FileSystemMountPoint(fileSystem, fs));
                         } catch (Exception e) {
                             throw new CompileExceptionError(buildFileResource, 1, "Transpilation failed", e);
