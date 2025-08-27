@@ -263,7 +263,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         task.output(0).setContent(materialDesc.toByteArray());
     }
 
-    private MaterialDesc.Sampler.Builder getSamplerBuilder(List<MaterialDesc.Sampler.Builder> samplerBuilders, String samplerName) {
+    private static MaterialDesc.Sampler.Builder getSamplerBuilder(List<MaterialDesc.Sampler.Builder> samplerBuilders, String samplerName) {
         for (MaterialDesc.Sampler.Builder builder : samplerBuilders) {
             if (builder.getName().equals(samplerName)) {
                 return builder;
