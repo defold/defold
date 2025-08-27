@@ -35,7 +35,6 @@
  * @document
  * @name Thread
  * @namespace dmThread
- * @path engine/dlib/src/dmsdk/dlib/thread.h
  * @language C++
  */
 
