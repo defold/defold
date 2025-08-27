@@ -1509,3 +1509,12 @@
   (is (= ::equal-value (coll/consensus [::equal-value ::equal-value] ::no-consensus)))
   (is (nil? (coll/consensus [::one-value ::conflicting-value])))
   (is (= ::no-consensus (coll/consensus [::one-value ::conflicting-value] ::no-consensus))))
+
+(deftest primitive-vector-type-test
+  (is (nil? (coll/primitive-vector-type nil)))
+  (is (nil? (coll/primitive-vector-type 0)))
+  (is (nil? (coll/primitive-vector-type [])))
+  (is (nil? (coll/primitive-vector-type "")))
+  (is (nil? (coll/primitive-vector-type (Object.))))
+  (doseq [primitive-type [:boolean :char :byte :short :int :long :float :double]]
+    (is (= primitive-type (coll/primitive-vector-type (vector-of primitive-type))))))

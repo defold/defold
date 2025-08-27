@@ -13,7 +13,6 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.array
-  (:require [util.fn :as fn])
   (:import [clojure.lang LazilyPersistentVector]
            [java.lang.reflect Array]
            [java.util Arrays]))
@@ -24,7 +23,7 @@
 (defn- empty-of-type-raw [^Class item-type]
   (Array/newInstance item-type 0))
 
-(defonce empty-of-type (fn/memoize empty-of-type-raw))
+(defonce empty-of-type (memoize empty-of-type-raw))
 
 (defonce ^"[Ljava.lang.Object;" empty-object-array (empty-of-type Object))
 (defonce ^"[Z" empty-boolean-array (empty-of-type Boolean/TYPE))

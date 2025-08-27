@@ -14,7 +14,7 @@
 
 (ns util.coll
   (:refer-clojure :exclude [any? bounded-count empty? every? mapcat merge merge-with not-any? not-empty not-every? some])
-  (:import [clojure.core Eduction]
+  (:import [clojure.core Eduction Vec]
            [clojure.lang Cons Cycle IEditableCollection LazySeq MapEntry Repeat]
            [java.util ArrayList Arrays]
            [java.util.concurrent.atomic AtomicInteger]))
@@ -760,3 +760,20 @@
      (if (= ::undefined consensus)
        not-found
        consensus))))
+
+(defonce ^:private primitive-types-by-array-manager-id
+  (into {}
+        (map (fn [primitive-type]
+               (let [^Vec primitive-vector (vector-of primitive-type)
+                     array-manager (.am primitive-vector)
+                     array-manager-id (System/identityHashCode array-manager)]
+                 (pair array-manager-id primitive-type))))
+        [:boolean :char :byte :short :int :long :float :double]))
+
+(defn primitive-vector-type
+  "Returns a keyword reflecting the primitive type stored in the specified
+  primitive vector, or nil if coll is not a primitive collection."
+  [^Vec coll]
+  (when (instance? Vec coll)
+    (let [array-manager-id (System/identityHashCode (.am coll))]
+      (primitive-types-by-array-manager-id array-manager-id))))
