@@ -63,7 +63,6 @@ namespace dmGameSystem
     static CompGuiNodeTypeDescriptor g_CompGuiNodeTypeSentinel = {0};
     static bool g_CompGuiNodeTypesInitialized = false;
 
-    // GUI extension property handlers using arrays
     static dmArray<GuiExtensionSetterCallback> g_GuiExtensionSetters;
     static dmArray<GuiExtensionGetterCallback> g_GuiExtensionGetters;
 
