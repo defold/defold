@@ -18,7 +18,7 @@
   (:require [clojure.string :as string]
             [editor.gl.protocols :as p]
             [service.log :as log]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.num :as num])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLCapabilities GLContext GLDrawableFactory GLException GLOffscreenAutoDrawable GLProfile]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -470,27 +470,33 @@
 (defmacro set-attribute-4fv! [gl location value-array offset]
   `(.glVertexAttrib4fv ~gl ~location ~value-array ~offset))
 
-(defmacro with-gl-bindings [gl-expr render-args-expr bindables-expr & body]
-  `(let [gl# ~gl-expr
-         render-args# ~render-args-expr
-         bindable-items# ~bindables-expr
+(defn with-gl-bindings-impl [^GL2 gl render-args bindable-items body-fn!]
+  (let [[bound-items exception]
+        (transduce
+          coll/flatten-xf
+          (fn
+            ([[bound-items exception]]
+             (pair (persistent! bound-items) exception))
+            ([[bound-items] bindable-item]
+             (try
+               (p/bind bindable-item gl render-args)
+               (pair (conj! bound-items bindable-item) nil)
+               (catch Throwable exception
+                 (reduced (pair bound-items exception))))))
+          (pair (transient []) nil)
+          bindable-items)]
 
-         [bound-items# exception#]
-         (reduce (fn [~'bound-items ~'bindable-item]
-                   (try
-                     (p/bind ~'bindable-item gl# render-args#)
-                     (pair (cons ~'bindable-item ~'bound-items) nil)
-                     (catch Throwable ~'exception
-                       (reduced (pair ~'bound-items ~'exception)))))
-                 (pair '() nil) ; The bound-items will be in reverse bind order.
-                 bindable-items#)]
+    (let [result (when-not exception
+                   (body-fn!))]
+      (reduce #(p/unbind %2 gl render-args)
+              nil
+              (rseq bound-items))
+      (if exception
+        (throw exception)
+        result))))
 
-     (if exception#
-       (do (reduce #(p/unbind %2 gl# render-args#) nil bound-items#)
-           (throw exception#))
-       (let [res# (do ~@body)]
-         (reduce #(p/unbind %2 gl# render-args#) nil bound-items#)
-         res#))))
+(defmacro with-gl-bindings [gl-expr render-args-expr bindable-items-expr & body]
+  `(with-gl-bindings-impl ~gl-expr ~render-args-expr ~bindable-items-expr (fn ~'body-fn! [] ~@body)))
 
 (defn bind [^GL2 gl bindable render-args]
   (p/bind bindable gl render-args))
