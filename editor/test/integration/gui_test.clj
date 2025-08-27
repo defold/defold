@@ -3030,17 +3030,15 @@
         double-vec))
 
 (defn- round-layout->node->field->value [layout->node->field->value]
-  (->> layout->node->field->value
-       (coll/map-vals
-         (partial
-           coll/map-vals
-           (partial
-             coll/map-vals-kv
-             (fn [field value]
-               (case field
-                 (:alpha) (round-num value)
-                 (:position :rotation :scale) (round-vec value)
-                 value)))))))
+  (coll/update-vals
+    layout->node->field->value
+    coll/update-vals
+    coll/update-vals-kv
+    (fn [field value]
+      (case field
+        (:alpha) (round-num value)
+        (:position :rotation :scale) (round-vec value)
+        value))))
 
 (def ^:private gui-alpha-pb-field-index (gui/prop-key->pb-field-index :alpha))
 (def ^:private gui-enabled-pb-field-index (gui/prop-key->pb-field-index :enabled))
