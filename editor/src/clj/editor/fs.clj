@@ -17,6 +17,7 @@
             [clojure.string :as string]
             [util.coll :as coll])
   (:import [clojure.lang IReduceInit]
+           [java.awt Desktop Desktop$Action]
            [java.io BufferedInputStream BufferedOutputStream File FileNotFoundException IOException RandomAccessFile]
            [java.nio.channels OverlappingFileLockException]
            [java.nio.charset Charset StandardCharsets]
@@ -283,6 +284,25 @@
   (if (.isDirectory file)
     (.. Runtime getRuntime (addShutdownHook (Thread. #(delete-directory! file {:fail :silently}))))
     (.deleteOnExit file)))
+
+(defn move-to-trash!
+  "Moves a file or directory to the system recycle bin or deletes if unsupported
+
+  Returns the trashed file if successful
+
+  Options:
+  :fail :silently will not throw an exception on failure, and instead return nil.
+  :missing :fail will fail if the file or directory is missing.
+  :missing :ignore will treat a missing file or directory as success."
+  (^File [^File file]
+   (move-to-trash! file {}))
+  (^File [^File file opts]
+   (maybe-silently (fail-silently? opts) nil
+     (if (and (Desktop/isDesktopSupported)
+              (.isSupported (Desktop/getDesktop) Desktop$Action/MOVE_TO_TRASH)
+              (.moveToTrash (Desktop/getDesktop) file))
+       file
+       (delete! file opts)))))
 
 ;; temp
 
