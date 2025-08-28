@@ -442,7 +442,7 @@ jobs:
   build-android:
     strategy:
       matrix:
-        platform: [ arm64-android ]
+        platform: [ arm64-android, armv7-android ]
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repo
@@ -477,106 +477,66 @@ jobs:
           source ci/env.sh
           echo "DYNAMO_HOME=$DYNAMO_HOME"
   
-          # Use runner SDK + the pinned NDK r25b
           export ANDROID_SDK_ROOT="/usr/local/lib/android/sdk"
           export ANDROID_HOME="$ANDROID_SDK_ROOT"
-          export DM_ANDROID_NDK_HOME="$ANDROID_NDK_ROOT"
-          export DM_ANDROID_API_LEVEL=21
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
   
           ./scripts/build.py install_waf
           cd external/box2d
   
-          BASE_CC="${CC:-}"
-          BASE_CXX="${CXX:-}"
-          BASE_CFLAGS="${CFLAGS:-}"
-          BASE_CXXFLAGS="${CXXFLAGS:-}"
+          if [[ "${{ matrix.platform }}" == "arm64-android" ]]; then
+            export CC="aarch64-linux-android21-clang"
+            export CXX="aarch64-linux-android21-clang++"
   
-          # Select toolchain + base arch flags (no NEON yet for armv7)
-          if [[ -z "${BASE_CC}" || -z "${BASE_CXX}" ]]; then
-            if [[ "${{ matrix.platform }}" == "arm64-android" ]]; then
-              BASE_CC="aarch64-linux-android21-clang"
-              BASE_CXX="aarch64-linux-android21-clang++"
-            else
-              BASE_CC="armv7a-linux-androideabi21-clang"
-              BASE_CXX="armv7a-linux-androideabi21-clang++"
-              BASE_ARCH_FLAGS="-march=armv7-a -mfloat-abi=softfp -marm"
-              BASE_CFLAGS="${BASE_CFLAGS:+$BASE_CFLAGS }$BASE_ARCH_FLAGS"
-              BASE_CXXFLAGS="${BASE_CXXFLAGS:+$BASE_CXXFLAGS }$BASE_ARCH_FLAGS"
-            fi
-          fi
+            waf distclean || true
+            PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }} -v
+            waf -v install
   
-          # SIMD pass: ensure -mfpu=neon is LAST (and the only -mfpu) on armv7
-          if [[ "${{ matrix.platform }}" == "armv7-android" ]]; then
-            BASE_CFLAGS="$(echo $BASE_CFLAGS | sed 's/-mfpu=[^ ]*//g')"
-            BASE_CXXFLAGS="$(echo $BASE_CXXFLAGS | sed 's/-mfpu=[^ ]*//g')"
-            SIMD_CFLAGS="$BASE_CFLAGS -mfpu=neon -D__ARM_NEON=1"
-            SIMD_CXXFLAGS="$BASE_CXXFLAGS -mfpu=neon -D__ARM_NEON=1"
+            PKG="build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz"
+            [ -f "$PKG" ] || { echo "Package not found at $PKG"; exit 1; }
+  
+            workdir="$(mktemp -d)"
+            tar -xzf "$PKG" -C "$workdir"
+            LIBDIR="$(find "$workdir" -type f -name 'libbox2d.a' -printf '%h\n' | head -n1)"
+  
+            waf distclean || true
+            export CFLAGS="-DBOX2D_DISABLE_SIMD"
+            export CXXFLAGS="$CFLAGS"
+            PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }} -v
+            waf -v install
+  
+            NOSIMD_LIB="$(find . -type f -name 'libbox2d.a' | head -n1)"
+            cp "$NOSIMD_LIB" "$LIBDIR/libbox2d_nosimd.a"
+  
+            (cd "$workdir" && tar -czf "$OLDPWD/$PKG" .)
+            echo "arm64 package includes:"
+            tar -tzf "$PKG" | grep -E 'libbox2d(_nosimd)?\.a'
+  
           else
-            SIMD_CFLAGS="$BASE_CFLAGS"
-            SIMD_CXXFLAGS="$BASE_CXXFLAGS"
-          fi
+            export CC="armv7a-linux-androideabi21-clang"
+            export CXX="armv7a-linux-androideabi21-clang++"
+            export CFLAGS="-march=armv7-a -mfloat-abi=softfp -marm -DBOX2D_DISABLE_SIMD"
+            export CXXFLAGS="$CFLAGS"
   
-          echo "=== Using NDK at: $ANDROID_NDK_ROOT ==="
-          $BASE_CC --version
+            waf distclean || true
+            PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }} -v
+            waf -v install
   
-          # --- Build 1: SIMD (NEON for armv7; normal for arm64) ---
-          waf distclean || true
-          echo "=== Checking target macros (SIMD build) ==="
-          echo | $BASE_CC $SIMD_CFLAGS -dM -E - | grep -E '__ARM_(ARCH|NEON)' || true
+            PKG="build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz"
+            [ -f "$PKG" ] || { echo "Package not found at $PKG"; exit 1; }
   
-          CC="$BASE_CC" CXX="$BASE_CXX" \
-          CFLAGS="$SIMD_CFLAGS" CXXFLAGS="$SIMD_CXXFLAGS" \
-          PREFIX="$DYNAMO_HOME" \
-          waf configure --platform=${{ matrix.platform }} -v
-          waf -v install
+            workdir="$(mktemp -d)"
+            tar -xzf "$PKG" -C "$workdir"
   
-          PKG="build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz"
-          if [ ! -f "$PKG" ]; then
-            echo "Package not found at $PKG"; ls -l build/Box2D || true; exit 1
-          fi
+            LIBFILE="$(find "$workdir" -type f -name 'libbox2d.a' | head -n1)"
+            mv "$LIBFILE" "$(dirname "$LIBFILE")/libbox2d_nosimd.a"
   
-          workdir="$(mktemp -d)"
-          tar -xzf "$PKG" -C "$workdir"
-  
-          LIBFILE="$(find "$workdir" -type f -name 'libbox2d.a' | head -n1)"
-          if [ -z "${LIBFILE:-}" ]; then
-            echo "Could not find libbox2d.a inside extracted package"; exit 1
-          fi
-          LIBDIR="$(dirname "$LIBFILE")"
-  
-          # --- Build 2: NO-SIMD (explicitly disable SIMD on both; arm64 still OK) ---
-          waf distclean || true
-          echo "=== Checking target macros (NO-SIMD build) ==="
-          echo | $BASE_CC $BASE_CFLAGS -DBOX2D_DISABLE_SIMD -dM -E - | grep -E '__ARM_(ARCH|NEON)' || true
-  
-          CC="$BASE_CC" CXX="$BASE_CXX" \
-          CFLAGS="$BASE_CFLAGS -DBOX2D_DISABLE_SIMD" \
-          CXXFLAGS="$BASE_CXXFLAGS -DBOX2D_DISABLE_SIMD" \
-          PREFIX="$DYNAMO_HOME" \
-          waf configure --platform=${{ matrix.platform }} -v
-          waf -v install
-  
-          NOSIMD_LIB_PATH="$(find . -type f -name 'libbox2d.a' | head -n1)"
-          if [ -z "${NOSIMD_LIB_PATH:-}" ]; then
-            echo "Failed to locate libbox2d.a from NO-SIMD build"; exit 1
-          fi
-  
-          cp "$NOSIMD_LIB_PATH" "$LIBDIR/libbox2d_nosimd.a"
-  
-          (cd "$workdir" && tar -czf "$OLDPWD/$PKG" .)
-  
-          echo "Final package includes:"
-          tar -tzf "$PKG" | grep -E 'libbox2d(_nosimd)?\.a' || true
-
-      - name: Check artifact existence
-        run: |
-          if [ ! -f external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz ]; then
-            echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
-            ls -lh external/box2d/build/Box2D || echo "Directory missing"
+            (cd "$workdir" && tar -czf "$OLDPWD/$PKG" .)
+            echo "armv7 package includes:"
+            tar -tzf "$PKG" | grep -E 'libbox2d_nosimd\.a'
           fi
 
-      - name: Archive results (platform-specific)
+      - name: Archive results
         uses: actions/upload-artifact@v4
         with:
           name: box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
