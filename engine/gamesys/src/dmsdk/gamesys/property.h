@@ -32,7 +32,6 @@ namespace dmGameSystem
      * @document
      * @namespace dmGameSystem
      * @name Property
-     * @path engine/gamesys/src/dmsdk/gamesys/property.h
      * @language C++
      */
 

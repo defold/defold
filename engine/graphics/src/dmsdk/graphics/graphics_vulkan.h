@@ -18,7 +18,6 @@
 #include <dmsdk/graphics/graphics.h>
 
 /*# Graphics API documentation
- * [file:<dmsdk/graphics/graphics_vulkan.h>]
  *
  * Graphics Vulkan API
  *

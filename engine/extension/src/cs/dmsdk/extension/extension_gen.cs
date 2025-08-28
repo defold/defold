@@ -24,7 +24,6 @@
  * @language C#
  * @name Extension
  * @namespace Extension
- * @path engine/extension/src/cs/dmsdk/extension/extension_gen.cs
  */
 
 using System.Runtime.InteropServices;

@@ -28,7 +28,6 @@
 #endif
 
 /*# Graphics API documentation
- * [file:<dmsdk/graphics/graphics_webgpu.h>]
  *
  * Graphics WebGPU API
  *

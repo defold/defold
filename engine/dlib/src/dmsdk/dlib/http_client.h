@@ -21,7 +21,6 @@
  * @document
  * @name Http Client
  * @namespace dmHttpClient
- * @path engine/dlib/src/dmsdk/dlib/hash.h
  * @language C++
  */
 

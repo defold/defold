@@ -24,7 +24,6 @@
  * @language C#
  * @name Lauxlib_gen
  * @namespace Lua
- * @path engine/lua/src/cs/dmsdk/lua/lauxlib_gen.cs
  */
 
 using System.Runtime.InteropServices;

@@ -32,7 +32,6 @@
  * @language C++
  * @name ConfigFile
  * @namespace dmConfigFile
- * @path engine/dlib/src/dmsdk/dlib/configfile_gen.hpp
  */
 
 #include <stdint.h>

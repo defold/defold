@@ -22,7 +22,6 @@
 
 
 /*# Message API documentation
- * [file:<dmsdk/dlib/message.h>]
  *
  * Api for sending messages
  *

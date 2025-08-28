@@ -30,7 +30,6 @@
  * @document
  * @name FileDescriptor
  * @namespace dmFileDescriptor
- * @path engine/dlib/src/dmsdk/dlib/file_descriptor.h
  * @language C++
  */
 namespace dmFileDescriptor

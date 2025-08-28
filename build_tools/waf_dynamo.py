@@ -37,8 +37,11 @@ def import_lib(module_name, path):
     # How import initializes the module.
     loader.exec_module(module)
 
+script_dir = os.path.dirname(__file__)
+defold_root = os.path.abspath(os.path.join(script_dir, ".."))
+
 # import the vendor specific build setup
-path = os.path.join(os.path.dirname(__file__), 'waf_dynamo_vendor.py')
+path = os.path.join(script_dir, 'waf_dynamo_vendor.py')
 if os.path.exists(path):
     sys.dont_write_bytecode = True
     import_lib('waf_dynamo_vendor', path)
@@ -248,6 +251,8 @@ def apidoc_extract_task(bld, src):
 
         elements = {}
         resource_path = resource.abspath()
+        resource_file = os.path.basename(resource_path)
+        relative_path = resource_path.replace(defold_root, "")[1:]
 
         with open(resource_path, encoding='utf8') as in_f:
             source = in_f.read()
@@ -260,11 +265,23 @@ def apidoc_extract_task(bld, src):
                 if comment["is_document"]:
                     comment_path = comment.get("path")
                     if not comment_path:
-                        print("Missing @path in %s, adding %s" % (resource_path, source_path))
-                        comment_str = comment_str + ("* @path %s\n" % source_path)
-                    elif comment_path != source_path:
-                        print("Path missmatch in %s, expected %s but was %s" % (resource_path, source_path, comment_path))
-                        comment_str = comment_str.replace(comment_path, source_path)
+                        print("Missing @path in '%s', adding '%s'" % (resource_path, relative_path))
+                        comment_str = comment_str + ("* @path %s\n" % relative_path)
+                    else:
+                        # there really shouldn't be any files with hardcoded paths anymore
+                        # but let's keep this here for some time in case we introduce a hardcoded
+                        # path somewhere again
+                        print("Replacing @path in '%s' with '%s'" % (resource_path, relative_path))
+                        comment_str = comment_str.replace("@path " + comment_path, "@path " + relative_path)
+
+                    comment_file = comment.get("file")
+                    if not comment_file:
+                        print("Missing @file in '%s', adding '%s'" % (resource_path, resource_file))
+                        comment_str = comment_str + ("* @file %s\n" % resource_file)
+                    elif comment_file != resource_file:
+                        # there shouldn't be any of these, but let's keep it here anyway
+                        print("Replacing @file in '%s' with '%s'" % (resource_path, resource_file))
+                        comment_str = comment_str.replace("@file " + comment_file, "@file " + resource_file)
 
                     comment_language = comment.get("language")
                     if not comment_language:

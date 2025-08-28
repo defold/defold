@@ -21,7 +21,6 @@
  *
  * @document
  * @name Atomic
- * @path engine/dlib/src/dmsdk/dlib/atomic.h
  * @language C++
  */
 
