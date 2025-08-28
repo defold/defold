@@ -484,57 +484,65 @@ jobs:
           ./scripts/build.py install_waf
           cd external/box2d
   
-          if [[ "${{ matrix.platform }}" == "arm64-android" ]]; then
-            export CC="aarch64-linux-android21-clang"
-            export CXX="aarch64-linux-android21-clang++"
+          BASE_CC="${CC:-}"
+          BASE_CXX="${CXX:-}"
+          BASE_CFLAGS="${CFLAGS:-}"
+          BASE_CXXFLAGS="${CXXFLAGS:-}"
   
-            waf distclean || true
-            PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }} -v
-            waf -v install
-  
-            PKG="build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz"
-            [ -f "$PKG" ] || { echo "Package not found at $PKG"; exit 1; }
-  
-            workdir="$(mktemp -d)"
-            tar -xzf "$PKG" -C "$workdir"
-            LIBDIR="$(find "$workdir" -type f -name 'libbox2d.a' -printf '%h\n' | head -n1)"
-  
-            waf distclean || true
-            export CFLAGS="-DBOX2D_DISABLE_SIMD"
-            export CXXFLAGS="$CFLAGS"
-            PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }} -v
-            waf -v install
-  
-            NOSIMD_LIB="$(find . -type f -name 'libbox2d.a' | head -n1)"
-            cp "$NOSIMD_LIB" "$LIBDIR/libbox2d_nosimd.a"
-  
-            (cd "$workdir" && tar -czf "$OLDPWD/$PKG" .)
-            echo "arm64 package includes:"
-            tar -tzf "$PKG" | grep -E 'libbox2d(_nosimd)?\.a'
-  
-          else
-            export CC="armv7a-linux-androideabi21-clang"
-            export CXX="armv7a-linux-androideabi21-clang++"
-            export CFLAGS="-march=armv7-a -mfloat-abi=softfp -marm -DBOX2D_DISABLE_SIMD"
-            export CXXFLAGS="$CFLAGS"
-  
-            waf distclean || true
-            PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }} -v
-            waf -v install
-  
-            PKG="build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz"
-            [ -f "$PKG" ] || { echo "Package not found at $PKG"; exit 1; }
-  
-            workdir="$(mktemp -d)"
-            tar -xzf "$PKG" -C "$workdir"
-  
-            LIBFILE="$(find "$workdir" -type f -name 'libbox2d.a' | head -n1)"
-            mv "$LIBFILE" "$(dirname "$LIBFILE")/libbox2d_nosimd.a"
-  
-            (cd "$workdir" && tar -czf "$OLDPWD/$PKG" .)
-            echo "armv7 package includes:"
-            tar -tzf "$PKG" | grep -E 'libbox2d_nosimd\.a'
+          if [[ -z "${BASE_CC}" || -z "${BASE_CXX}" ]]; then
+            if [[ "${{ matrix.platform }}" == "arm64-android" ]]; then
+              BASE_CC="aarch64-linux-android21-clang"
+              BASE_CXX="aarch64-linux-android21-clang++"
+            else
+              BASE_CC="armv7a-linux-androideabi21-clang"
+              BASE_CXX="armv7a-linux-androideabi21-clang++"
+              BASE_ARCH_FLAGS="-march=armv7-a -mfloat-abi=softfp -marm"
+              BASE_CFLAGS="${BASE_CFLAGS:+$BASE_CFLAGS }$BASE_ARCH_FLAGS"
+              BASE_CXXFLAGS="${BASE_CXXFLAGS:+$BASE_CXXFLAGS }$BASE_ARCH_FLAGS"
+            fi
           fi
+  
+          if [[ "${{ matrix.platform }}" == "armv7-android" ]]; then
+            # strip any previous -mfpu=… to avoid overrides
+            BASE_CFLAGS="$(echo "$BASE_CFLAGS" | sed 's/-mfpu=[^ ]*//g')"
+            BASE_CXXFLAGS="$(echo "$BASE_CXXFLAGS" | sed 's/-mfpu=[^ ]*//g')"
+            SIMD_CFLAGS="$BASE_CFLAGS -mfpu=neon"
+            SIMD_CXXFLAGS="$BASE_CXXFLAGS -mfpu=neon"
+          else
+            SIMD_CFLAGS="$BASE_CFLAGS"
+            SIMD_CXXFLAGS="$BASE_CXXFLAGS"
+          fi
+  
+          echo "=== Using NDK at: $ANDROID_NDK_ROOT ==="
+          $BASE_CC --version
+  
+          waf distclean || true
+          CC="$BASE_CC" CXX="$BASE_CXX" \
+          CFLAGS="$SIMD_CFLAGS" CXXFLAGS="$SIMD_CXXFLAGS" \
+          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }} -v
+          waf -v install
+  
+          PKG="build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz"
+          [ -f "$PKG" ] || { echo "Package not found at $PKG"; exit 1; }
+  
+          workdir="$(mktemp -d)"
+          tar -xzf "$PKG" -C "$workdir"
+          LIBDIR="$(find "$workdir" -type f -name 'libbox2d.a' -printf '%h\n' | head -n1)"
+          [ -n "$LIBDIR" ] || { echo "Could not locate libbox2d.a in package"; exit 1; }
+  
+          waf distclean || true
+          CC="$BASE_CC" CXX="$BASE_CXX" \
+          CFLAGS="$BASE_CFLAGS -DBOX2D_DISABLE_SIMD" \
+          CXXFLAGS="$BASE_CXXFLAGS -DBOX2D_DISABLE_SIMD" \
+          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }} -v
+          waf -v install
+  
+          NOSIMD_LIB="$(find . -type f -name 'libbox2d.a' | head -n1)"
+          [ -n "$NOSIMD_LIB" ] || { echo "NO_SIMD lib not found"; exit 1; }
+          cp "$NOSIMD_LIB" "$LIBDIR/libbox2d_nosimd.a"
+  
+          (cd "$workdir" && tar -czf "$OLDPWD/$PKG" .)
+          echo "Final package includes:" && tar -tzf "$PKG" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results
         uses: actions/upload-artifact@v4
