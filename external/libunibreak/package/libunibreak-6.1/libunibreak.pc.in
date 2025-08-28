@@ -1,0 +1,11 @@
+libunibreak:
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: libunibreak
+Description: Library to implement Unicode algorithms for line and word breaking
+Version: @VERSION@
+Libs: -L${libdir} -lunibreak
+Cflags: -I${includedir}

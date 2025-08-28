@@ -82,6 +82,8 @@ extern uint32_t      DEBUG_SPC_SIZE;
 
     extern unsigned char GAME_PROJECT[];
     extern uint32_t GAME_PROJECT_SIZE;
+
+    #include <dmsdk/gamesys/resources/res_font.h>
 #endif
 
 #if defined(__ANDROID__)
@@ -1125,6 +1127,7 @@ namespace dmEngine
         params.m_MaxResources = max_resources;
         params.m_Flags = 0;
         params.m_HttpCache = engine->m_HttpCache;
+        params.m_JobThreadContext = engine->m_JobThreadContext;
 
         if (dLib::IsDebugMode())
         {

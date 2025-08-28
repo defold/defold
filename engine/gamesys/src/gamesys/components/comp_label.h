@@ -51,7 +51,7 @@ namespace dmGameSystem
     // For scripting
     struct LabelComponent;
 
-    void CompLabelGetTextMetrics(const LabelComponent* component, struct dmRender::TextMetrics& metrics);
+    void CompLabelGetTextMetrics(const LabelComponent* component, dmRender::TextMetrics& metrics);
 
     const char* CompLabelGetText(const LabelComponent* component);
 

@@ -15,15 +15,17 @@
 #ifndef DM_GAMESYS_RES_GLYPH_BANK_H
 #define DM_GAMESYS_RES_GLYPH_BANK_H
 
+#include <dmsdk/font/font.h>
 #include <dmsdk/resource/resource.h>
 #include <render/font_ddf.h>
 
 namespace dmGameSystem
 {
-    struct GlyphBankResource
-    {
-        dmRenderDDF::GlyphBank* m_DDF;
-    };
+    struct GlyphBankResource;
+
+    HFont GetFont(GlyphBankResource* resource);
+
+    dmRenderDDF::GlyphBank* GetGlyphBank(GlyphBankResource* resource);
 
     dmResource::Result ResGlyphBankPreload(const dmResource::ResourcePreloadParams* params);
 

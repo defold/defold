@@ -16,7 +16,12 @@
 #define DM_GAMESYS_FONTGEN_H
 
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/font/font.h>
 #include <dmsdk/extension/extension.h>
+
+#include <dlib/job_thread.h>
+
+struct TextGlyph; // font/text_layout.h
 
 namespace dmGameSystem
 {
@@ -29,10 +34,10 @@ namespace dmGameSystem
     float FontGenGetBasePadding(); // E.g. 3
     float FontGenGetEdgeValue(); // [0 .. 255]
 
-    // Scripting
-    typedef void (*FGlyphCallback)(void* cbk_ctx, int result, const char* errmsg);
-    bool FontGenAddGlyphs(FontResource* resource, const char* text, bool loading, FGlyphCallback cbk, void* cbk_ctx);
-    bool FontGenRemoveGlyphs(FontResource* resource, const char* text);
+    // Resource api
+    typedef void (*FGlyphCallback)(dmJobThread::HJob hjob, uint64_t tag, void* cbk_ctx, int result, const char* errmsg);
+    dmJobThread::HJob FontGenAddGlyphByIndex(FontResource* fontresource, HFont font, uint32_t glyph_index, FGlyphCallback cbk, void* cbk_ctx);
+    dmJobThread::HJob FontGenAddGlyphs(FontResource* fontresource, TextGlyph* glyphs, uint32_t num_glyphs, FGlyphCallback cbk, void* cbk_ctx);
 
     // If we're busy waiting for created glyphs
     void FontGenFlushFinishedJobs(uint64_t timeout);

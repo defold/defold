@@ -20,6 +20,13 @@ DISCLAIMER:
 #include <stdlib.h>
 #include <assert.h> // disable with NDEBUG
 
+#define JC_SWAP(type, lhs, rhs)\
+    {\
+        type tmp = rhs;\
+        rhs = lhs;\
+        lhs = tmp;\
+    }
+
 namespace jc
 {
 
@@ -33,6 +40,14 @@ public:
     RingBuffer() : m_Buffer(0), m_Head(0), m_Tail(0), m_Max(0), m_Full(1) {}
     RingBuffer(uint32_t capacity) : m_Buffer(0), m_Head(0), m_Tail(0), m_Max(0) { SetCapacity(capacity); }
     ~RingBuffer()                               { Free(); }
+
+    void Swap(RingBuffer<T>& rhs)               {
+                                                    JC_SWAP(T*,       m_Buffer, rhs.m_Buffer);
+                                                    JC_SWAP(uint32_t, m_Head,   rhs.m_Head);
+                                                    JC_SWAP(uint32_t, m_Tail,   rhs.m_Tail);
+                                                    JC_SWAP(uint32_t, m_Max,    rhs.m_Max);
+                                                    JC_SWAP(uint32_t, m_Full,   rhs.m_Full);
+                                                }
 
     /// Gets the size of the buffer
     uint32_t    Size() const                    {
@@ -51,6 +66,9 @@ public:
     uint32_t    Capacity() const                { return (uint32_t)m_Max; }
     /// Increases or decreases capacity. Invalidates pointers to elements
     void        SetCapacity(uint32_t capacity);
+    /// Increases or decreases capacity. Invalidates pointers to elements
+    void        OffsetCapacity(uint32_t grow);
+
     /// Adds one item to the ring buffer. Asserts if the buffer is full
     void        Push(const T& item);
     /// Adds one item to the ring buffer. Does not assert, If full, overwrites the value at the tail.
@@ -137,6 +155,12 @@ void RingBuffer<T>::SetCapacity(uint32_t capacity)
 }
 
 template <typename T>
+void RingBuffer<T>::OffsetCapacity(uint32_t grow)
+{
+    SetCapacity(Capacity() + grow);
+}
+
+template <typename T>
 void RingBuffer<T>::Push(const T& item)
 {
     assert(!Full());
@@ -162,10 +186,13 @@ T RingBuffer<T>::Pop()
 
 } // namespace
 
+#undef JC_SWAP
+
 /*
 
 VERSION:
 
+    1.1 Added Swap() function
     1.0 Initial version
 
 
