@@ -27,7 +27,6 @@ namespace dmIntersection
 }
 
 /*# Render API documentation
- * [file:<dmsdk/render/render.h>]
  *
  * Api for render specific data
  *

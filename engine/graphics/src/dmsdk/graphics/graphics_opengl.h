@@ -18,7 +18,6 @@
 #include <dmsdk/graphics/graphics.h>
 
 /*# Graphics API documentation
- * [file:<dmsdk/graphics/graphics_opengl.h>]
  *
  * Graphics OpenGL API
  *

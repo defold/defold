@@ -23,7 +23,6 @@
  * @document
  * @name Intersection structs and functions
  * @namespace dmIntersection
- * @path engine/dlib/src/dmsdk/dlib/intersection.h
  * @language C++
  */
 

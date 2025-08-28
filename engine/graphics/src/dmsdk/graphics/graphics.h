@@ -20,7 +20,6 @@
 #include <graphics/graphics_ddf.h>
 
 /*# Graphics API documentation
- * [file:<dmsdk/graphics/graphics.h>]
  *
  * Graphics API
  *
