@@ -315,7 +315,7 @@ jobs:
           workdir="$(mktemp -d)"
           tar -xzf "$PKG" -C "$workdir"
   
-          LIBFILE="$(find "$workdir" -type f -name 'libbox2d.a' | head -n1)"
+          LIBFILE="$(find "$workdir" -type f -name 'libbox2d.lib' | head -n1)"
           if [ -z "${LIBFILE:-}" ]; then
             echo "Could not find libbox2d.a inside extracted package"; exit 1
           fi
@@ -327,17 +327,17 @@ jobs:
           PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
           waf install
   
-          NOSIMD_LIB_PATH="$(find . -type f -name 'libbox2d.a' | head -n1)"
+          NOSIMD_LIB_PATH="$(find . -type f -name 'libbox2d.lib' | head -n1)"
           if [ -z "${NOSIMD_LIB_PATH:-}" ]; then
-            echo "Failed to locate libbox2d.a from NO-SIMD build"; exit 1
+            echo "Failed to locate libbox2d.lib from NO-SIMD build"; exit 1
           fi
   
-          cp "$NOSIMD_LIB_PATH" "$LIBDIR/libbox2d_nosimd.a"
+          cp "$NOSIMD_LIB_PATH" "$LIBDIR/libbox2d_nosimd.lib"
   
           (cd "$workdir" && tar -czf "$OLDPWD/$PKG" .)
   
           echo "Final package includes:"
-          tar -tzf "$PKG" | grep -E 'libbox2d(_nosimd)?\.a' || true
+          tar -tzf "$PKG" | grep -E 'libbox2d(_nosimd)?\.lib' || true
 
       - name: Check artifact existence
         run: |
