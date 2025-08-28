@@ -508,8 +508,10 @@ jobs:
   
           # SIMD pass: ensure -mfpu=neon is LAST (and the only -mfpu) on armv7
           if [[ "${{ matrix.platform }}" == "armv7-android" ]]; then
-            SIMD_CFLAGS="$BASE_CFLAGS -mfpu=neon"
-            SIMD_CXXFLAGS="$BASE_CXXFLAGS -mfpu=neon"
+            BASE_CFLAGS="$(echo $BASE_CFLAGS | sed 's/-mfpu=[^ ]*//g')"
+            BASE_CXXFLAGS="$(echo $BASE_CXXFLAGS | sed 's/-mfpu=[^ ]*//g')"
+            SIMD_CFLAGS="$BASE_CFLAGS -mfpu=neon -D__ARM_NEON=1"
+            SIMD_CXXFLAGS="$BASE_CXXFLAGS -mfpu=neon -D__ARM_NEON=1"
           else
             SIMD_CFLAGS="$BASE_CFLAGS"
             SIMD_CXXFLAGS="$BASE_CXXFLAGS"
