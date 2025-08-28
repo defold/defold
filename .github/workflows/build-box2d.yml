@@ -497,14 +497,19 @@ jobs:
             fi
           fi
 
-          SIMD_CFLAGS="$BASE_CFLAGS -mfpu=neon"
-          SIMD_CXXFLAGS="$BASE_CXXFLAGS -mfpu=neon"
+          SIMD_CFLAGS="$BASE_CFLAGS -mfpu=neon -D__ARM_NEON__=1 -D__ARM_NEON=1"
+          SIMD_CXXFLAGS="$BASE_CXXFLAGS -mfpu=neon -D__ARM_NEON__=1 -D__ARM_NEON=1"
+
+          if [[ "${{ matrix.platform }}" == "armv7-android" ]]; then
+            SIMD_CFLAGS="$SIMD_CFLAGS -march=armv7-a -mfloat-abi=softfp -marm"
+            SIMD_CXXFLAGS="$SIMD_CXXFLAGS -march=armv7-a -mfloat-abi=softfp -marm"
+          fi
 
           waf distclean || true
           CC="$BASE_CC" CXX="$BASE_CXX" \
           CFLAGS="$SIMD_CFLAGS" CXXFLAGS="$SIMD_CXXFLAGS" \
-          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
-          waf install
+          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }} -v
+          waf -v install
 
           PKG="build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz"
           if [ ! -f "$PKG" ]; then
