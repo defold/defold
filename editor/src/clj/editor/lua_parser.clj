@@ -274,36 +274,29 @@
 
 (def ^:private one-string-arg [parse-string-exp-node])
 
-(defmulti collect-node-info (fn [_result node _allow-go-properties] (if (seq? node) (first node) node)))
+(defmulti collect-node-info (fn [_result node _stat-depth] (if (seq? node) (first node) node)))
 
 (defmethod collect-node-info :default [result _ _]
   result)
 
-(defmethod collect-node-info :chunk [result node allow-go-properties]
-  (collect-node-info result (second node) allow-go-properties))
+(defmethod collect-node-info :chunk [result node stat-depth]
+  (collect-node-info result (second node) stat-depth))
 
-(defmethod collect-node-info :block [result node allow-go-properties]
-  (reduce #(collect-node-info %1 %2 allow-go-properties) result (rest node)))
+(defmethod collect-node-info :block [result node stat-depth]
+  (reduce #(collect-node-info %1 %2 stat-depth) result (rest node)))
 
 (defmulti collect-stat-node-info
-  (fn dispatch-fn [kw _result _node _allow-go-properties]
+  (fn dispatch-fn [kw _result _node _stat-depth]
     kw))
 
-(defn- is-go-property-call? [node]
-  (and (node-type? :functioncall node)
-       (if-let [[module-name function-name] (parse-functioncall node)]
-         (and (= "go" module-name)
-              (= "property" function-name))
-         false)))
-
-(defmethod collect-node-info :stat [result node allow-go-properties]
+(defmethod collect-node-info :stat [result node stat-depth]
   (let [k (second node)
-        allow-go-properties (and allow-go-properties (is-go-property-call? k))]
+        stat-depth (inc stat-depth)]
     (if (seq? k)
-      (collect-stat-node-info (first k) result node allow-go-properties)
-      (collect-stat-node-info (keyword k) result node allow-go-properties))))
+      (collect-stat-node-info (first k) result node stat-depth)
+      (collect-stat-node-info (keyword k) result node stat-depth))))
 
-(defmethod collect-stat-node-info :local [_ result node allow-go-properties]
+(defmethod collect-stat-node-info :local [_ result node stat-depth]
   (if (and (> (count node) 2)
            (string? (nth node 2))
            (= "function" (nth node 2)))
@@ -312,7 +305,7 @@
       (if (error-node? fname)
         result
         (if-some [[parlist block] (parse-funcbody funcbody)]
-          (collect-node-info (conj result {:local-functions {fname {:params (parse-parlist parlist)}}}) block allow-go-properties)
+          (collect-node-info (conj result {:local-functions {fname {:params (parse-parlist parlist)}}}) block stat-depth)
           result)))
     ;; 'local' namelist ('=' explist)?
     (let [[_ _ namelist _ _explist] node]
@@ -322,18 +315,18 @@
           (conj result {:local-vars parsed-names})
           result)))))
 
-(defmethod collect-stat-node-info :default [_ result _node _allow-go-properties] result)
+(defmethod collect-stat-node-info :default [_ result _node _stat-depth] result)
 
-(defmethod collect-stat-node-info :varlist [_ result node _allow-go-properties]
+(defmethod collect-stat-node-info :varlist [_ result node _stat-depth]
   (let [[_ varlist _ _explist] node
         parsed-names (parse-string-vars varlist)]
     (conj result {:vars parsed-names})))
 
-(defmethod collect-stat-node-info :function [_ result node allow-go-properties]
+(defmethod collect-stat-node-info :function [_ result node stat-depth]
   (let [[_ _ funcname funcbody] node]
     (if-let [funcname (parse-funcname funcname)]
       (let [[parlist block] (parse-funcbody funcbody)]
-        (collect-node-info (conj result {:functions {funcname {:params (parse-parlist parlist)}}}) block allow-go-properties))
+        (collect-node-info (conj result {:functions {funcname {:params (parse-parlist parlist)}}}) block stat-depth))
       result)))
 
 (defn- parse-hash-functioncall [node]
@@ -465,7 +458,7 @@
                       {:status :ok})]
     (merge name-info value-info status-info)))
 
-(defmethod collect-stat-node-info :functioncall [_ result node allow-go-properties]
+(defmethod collect-stat-node-info :functioncall [_ result node stat-depth]
   (let [functioncall (second node)]
     (let [[module-name function-name arg-exps] (parse-functioncall functioncall)]
       (cond
@@ -473,14 +466,14 @@
         (if-some [script-property (parse-script-property-declaration arg-exps)]
           (conj result {:script-properties (-> script-property
                                                (with-meta (meta functioncall))
-                                               (cond-> (not allow-go-properties) (assoc :status :invalid-location)))})
+                                               (cond-> (< 1 stat-depth) (assoc :status :invalid-location)))})
           result)
 
         :else
         result))))
 
 (defn collect-info [node]
-  (collect-node-info [] node true))
+  (collect-node-info [] node 0))
 
 (defn- parse-binding-forms [stat-node]
   (when (= :stat (first stat-node))

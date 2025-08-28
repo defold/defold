@@ -47,7 +47,7 @@ import org.antlr.v4.runtime.TokenStreamRewriter;
 
 public class LuaScanner extends LuaParserBaseListener {
 
-    public class LuaScannerException extends Exception {
+    public static class LuaScannerException extends Exception {
         private final String errorMessage;
         private final int lineNumber;
 
@@ -78,7 +78,6 @@ public class LuaScanner extends LuaParserBaseListener {
      * .lua module file
      */
     private static final Set<String> LUA_LIBRARIES = new HashSet<String>(Arrays.asList(
-         new String[] {
             "coroutine",
             "package",
             "string",
@@ -91,22 +90,18 @@ public class LuaScanner extends LuaParserBaseListener {
             "bit",              // LuaJIT+Lua addon
             "ffi",              // LuaJIT
             "jit"               // LuaJIT
-        }
     ));
 
     private static final Set<String> LIFECYCLE_FUNCTIONS = new HashSet<String>(Arrays.asList(
-        new String[] {
             "init",
             "final",
             "update",
             "fixed_update",
             "on_message",
             "on_input",
-            "on_reload"
-        }
-    ));
+            "on_reload"));
 
-    private static final Map<Integer, String> QUOTES = new HashMap<Integer, String>() {{
+    private static final Map<Integer, String> QUOTES = new HashMap<>() {{
         put(LuaParser.NORMALSTRING, "\"");
         put(LuaParser.CHARSTRING, "'");
     }};
@@ -116,10 +111,11 @@ public class LuaScanner extends LuaParserBaseListener {
 
     // Using LinkedHashSet keeps insertion order while giving O(1) look‑ups
     private final Set<String> modules = new LinkedHashSet<>();
-    private final List<Property> properties = new ArrayList<Property>();
+    private final List<Property> properties = new ArrayList<>();
     public final List<LuaScannerException> exceptions = new ArrayList<>();
 
     private boolean isDebug;
+    private int statDepth;
 
     public void setDebug() {
         isDebug = true;
@@ -129,7 +125,8 @@ public class LuaScanner extends LuaParserBaseListener {
         public enum Status {
             OK,
             INVALID_ARGS,
-            INVALID_VALUE
+            INVALID_VALUE,
+            INVALID_LOCATION
         }
 
         /// Set if status != INVALID_ARGS
@@ -428,7 +425,9 @@ public class LuaScanner extends LuaParserBaseListener {
             List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
             Property property = new Property(tokens.get(0).getLine() - 1);
             property.name = firstArg;
-            if (firstArg == null) {
+            if (statDepth > 1) {
+                property.status = Status.INVALID_LOCATION;
+            } else if (firstArg == null) {
                 property.status = Status.INVALID_ARGS;
             } else {
                 try {
@@ -572,8 +571,18 @@ public class LuaScanner extends LuaParserBaseListener {
         return resultContext;
     }
 
+    @Override
+    public void enterStat(LuaParser.StatContext ctx) {
+        statDepth++;
+    }
+
+    @Override
+    public void exitStat(LuaParser.StatContext ctx) {
+        statDepth--;
+    }
+
     public static String concatenateUrl(List<String> allArgs) throws Exception {
-        if (allArgs == null || allArgs.size() == 0) {
+        if (allArgs == null || allArgs.isEmpty()) {
             return "";
         }
         if (allArgs.contains(null)) {
