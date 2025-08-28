@@ -447,6 +447,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: "${{env.BUILD_BRANCH}}"
 
       - name: Setup NDK (r25b)
         uses: nttld/setup-ndk@v1
@@ -475,6 +477,7 @@ jobs:
           source ci/env.sh
           echo "DYNAMO_HOME=$DYNAMO_HOME"
   
+          # Pin NDK and prevent waf from grabbing any preinstalled NDK
           export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
           export DM_ANDROID_NDK_HOME="$ANDROID_NDK_ROOT"
           export ANDROID_SDK_ROOT=
@@ -488,6 +491,7 @@ jobs:
           BASE_CFLAGS="${CFLAGS:-}"
           BASE_CXXFLAGS="${CXXFLAGS:-}"
   
+          # Toolchains + base arch flags (no NEON yet for armv7)
           if [[ -z "${BASE_CC}" || -z "${BASE_CXX}" ]]; then
             if [[ "${{ matrix.platform }}" == "arm64-android" ]]; then
               BASE_CC="aarch64-linux-android21-clang"
@@ -495,17 +499,16 @@ jobs:
             else
               BASE_CC="armv7a-linux-androideabi21-clang"
               BASE_CXX="armv7a-linux-androideabi21-clang++"
-              # Base arch flags (no NEON here yet)
               BASE_ARCH_FLAGS="-march=armv7-a -mfloat-abi=softfp -marm"
               BASE_CFLAGS="${BASE_CFLAGS:+$BASE_CFLAGS }$BASE_ARCH_FLAGS"
               BASE_CXXFLAGS="${BASE_CXXFLAGS:+$BASE_CXXFLAGS }$BASE_ARCH_FLAGS"
             fi
           fi
   
+          # SIMD pass: ensure -mfpu=neon is LAST (and the only -mfpu=...)
           if [[ "${{ matrix.platform }}" == "armv7-android" ]]; then
-            SIMD_ONLY_FLAGS="-mfpu=neon"
-            SIMD_CFLAGS="$BASE_CFLAGS $SIMD_ONLY_FLAGS"
-            SIMD_CXXFLAGS="$BASE_CXXFLAGS $SIMD_ONLY_FLAGS"
+            SIMD_CFLAGS="$BASE_CFLAGS -mfpu=neon"
+            SIMD_CXXFLAGS="$BASE_CXXFLAGS -mfpu=neon"
           else
             SIMD_CFLAGS="$BASE_CFLAGS"
             SIMD_CXXFLAGS="$BASE_CXXFLAGS"
@@ -514,7 +517,7 @@ jobs:
           echo "=== Using NDK at: $ANDROID_NDK_ROOT ==="
           $BASE_CC --version
   
-          # --- Build 1: SIMD (NEON when armv7) ---
+          # --- Build 1: SIMD (NEON for armv7) ---
           waf distclean || true
           echo "=== Checking target macros (SIMD build) ==="
           echo | $BASE_CC $SIMD_CFLAGS -dM -E - | grep -E '__ARM_(ARCH|NEON)' || true
@@ -539,6 +542,7 @@ jobs:
           fi
           LIBDIR="$(dirname "$LIBFILE")"
   
+          # --- Build 2: NO-SIMD (no -mfpu=neon/vfp; just base arch) ---
           waf distclean || true
           echo "=== Checking target macros (NO-SIMD build) ==="
           echo | $BASE_CC $BASE_CFLAGS -DBOX2D_DISABLE_SIMD -dM -E - | grep -E '__ARM_(ARCH|NEON)' || true
