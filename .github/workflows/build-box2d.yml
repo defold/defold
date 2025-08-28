@@ -25,14 +25,44 @@ jobs:
       - name: Install dependencies
         run: ci/ci.sh install --platform=${{ matrix.platform }}
       - name: Build Box2D
+        shell: bash
         run: |
+          set -euo pipefail
           ./scripts/build.py --save-env-path=ci/env.sh save_env
           source ci/env.sh
           echo "DYNAMO_HOME=$DYNAMO_HOME"
           ./scripts/build.py install_waf
           cd external/box2d
-          PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
+          waf distclean || true
+          export CFLAGS="-DBOX2D_DISABLE_SIMD"
+          export CXXFLAGS="$CFLAGS"
+          CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
           waf install
+          mkdir -p _stash
+          NOSIMD_LIB_PATH="$(find . -type f -name 'libbox2d.a' | head -n1)"
+          if [ -z "$NOSIMD_LIB_PATH" ]; then
+            echo "Failed to locate libbox2d.a from NO-SIMD build"; exit 1
+          fi
+          cp "$NOSIMD_LIB_PATH" _stash/libbox2d_nosimd.a
+          
+          waf distclean || true
+          unset CFLAGS CXXFLAGS
+          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
+          waf install
+          PKG="build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz"
+          if [ ! -f "$PKG" ]; then
+            echo "Package not found at $PKG"; ls -l build/Box2D || true; exit 1
+          fi
+          workdir="$(mktemp -d)"
+          tar -xzf "$PKG" -C "$workdir"
+          LIBDIR="$(find "$workdir" -type f -name 'libbox2d.a' -printf '%h\n' | head -n1)"
+          if [ -z "$LIBDIR" ]; then
+            echo "Could not find libbox2d.a inside extracted package"; exit 1
+          fi
+          cp _stash/libbox2d_nosimd.a "$LIBDIR/"
+          (cd "$workdir" && tar -czf "$OLDPWD/$PKG" .)
+          echo "Final package includes:"
+          tar -tzf "$PKG" | grep -E 'libbox2d(_nosimd)?\.a' || true
       - name: Check artifact existence
         run: |
           if [ ! -f external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz ]; then
@@ -273,6 +303,7 @@ jobs:
           path: external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz
           if-no-files-found: error
           retention-days: 1
+
   build-web:
     strategy:
       matrix:
@@ -316,7 +347,6 @@ jobs:
           CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" CC="$CC" CXX="$CXX" PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
           waf install
           
-          # Stash the produced libbox2d.a as libbox2d_nosimd.a
           mkdir -p _stash
           NOSIMD_LIB_PATH="$(find . -type f -name 'libbox2d.a' | head -n1)"
           if [ -z "$NOSIMD_LIB_PATH" ]; then
