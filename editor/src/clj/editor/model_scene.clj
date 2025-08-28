@@ -229,19 +229,25 @@
 (defn- make-index-buffer
   [mesh-request-id mesh indices-pb-field]
   (when-let [^ByteString indices-byte-string (get mesh indices-pb-field)]
-    (let [indices-byte-buffer (.order (.asReadOnlyByteBuffer indices-byte-string) ByteOrder/LITTLE_ENDIAN)
-          indices-byte-size (buffers/item-count indices-byte-buffer)
+    (let [source-byte-buffer (.order (.asReadOnlyByteBuffer indices-byte-string) ByteOrder/LITTLE_ENDIAN)
+          indices-byte-size (buffers/item-count source-byte-buffer)
           indices-format (:indices-format mesh)]
       (when (pos? indices-byte-size)
         (if-let [index-buffer-data
                  (case indices-format
                    :indexbuffer-format-16
                    (when (zero? (rem indices-byte-size Short/BYTES))
-                     (.asShortBuffer indices-byte-buffer))
+                     (-> (buffers/new-byte-buffer indices-byte-size :byte-order/native)
+                         (.asShortBuffer)
+                         (.put (.asShortBuffer source-byte-buffer))
+                         (.flip)))
 
                    :indexbuffer-format-32
                    (when (zero? (rem indices-byte-size Integer/BYTES))
-                     (.asIntBuffer indices-byte-buffer)))]
+                     (-> (buffers/new-byte-buffer indices-byte-size :byte-order/native)
+                         (.asIntBuffer)
+                         (.put (.asIntBuffer source-byte-buffer))
+                         (.flip))))]
           (let [index-buffer-request-id (conj mesh-request-id indices-pb-field)]
             (gl.buffer/make-index-buffer index-buffer-request-id index-buffer-data :static))
           (g/error-fatal

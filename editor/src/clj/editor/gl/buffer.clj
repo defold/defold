@@ -58,6 +58,7 @@
 
 (defn- make-gl-buffer-data
   ^GlBufferData [^Buffer data target usage]
+  (assert (or (.isDirect data) (.hasArray data)) "The Buffer must either be direct or backed by an array.")
   (let [buffer-data (buffers/make-buffer-data data)
         gl-target (target->gl-target target)
         gl-usage (usage->gl-usage usage)]

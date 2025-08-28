@@ -322,7 +322,13 @@
         (let [^BufferData that that]
           (and (instance? BufferData that)
                (= data-version (.-data-version that))
-               (= topology-hash (.-topology-hash that)))))))
+               (= topology-hash (.-topology-hash that))))))
+  (toString [_this]
+    (format "data=[pos=%d lim=%d cap=%d] ver=%d"
+            (.position data)
+            (.limit data)
+            (.capacity data)
+            data-version)))
 
 (defn make-buffer-data
   (^BufferData [^Buffer data]
