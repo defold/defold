@@ -28,7 +28,6 @@
 #endif
 
 /*# SDK Thread API documentation
- * [file:<dmsdk/dlib/thread.h>]
  *
  * Thread functions.
  *

@@ -19,7 +19,6 @@
 #include <dmsdk/dlib/vmath.h>
 
 /*# Transform API documentation
- * [file:<dmsdk/dlib/transform.h>]
  *
  * Api for transforms with rotation, scale and translation
  *
