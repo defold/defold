@@ -3323,9 +3323,7 @@ namespace dmGameSystem
     {
         if (g_CompGuiPropertySetters.Full())
         {
-            uint32_t capacity = g_CompGuiPropertySetters.Capacity();
-            capacity = capacity > 0 ? capacity * 2 : 16;
-            g_CompGuiPropertySetters.SetCapacity(capacity * 2, capacity);
+            g_CompGuiPropertySetters.OffsetCapacity(8);
         }
         g_CompGuiPropertySetters.Put(property_hash, setter);
         return dmGameObject::RESULT_OK;
@@ -3335,9 +3333,7 @@ namespace dmGameSystem
     {
         if (g_CompGuiPropertyGetters.Full())
         {
-            uint32_t capacity = g_CompGuiPropertyGetters.Capacity();
-            capacity = capacity > 0 ? capacity * 2 : 16;
-            g_CompGuiPropertyGetters.SetCapacity(capacity * 2, capacity);
+            g_CompGuiPropertyGetters.OffsetCapacity(8);
         }
         g_CompGuiPropertyGetters.Put(property_hash, getter);
         return dmGameObject::RESULT_OK;
@@ -3350,7 +3346,7 @@ namespace dmGameSystem
             g_CompGuiPropertySetters.Erase(property_hash);
             return dmGameObject::RESULT_OK;
         }
-        return dmGameObject::RESULT_PROPERTY_ALREADY_SET;
+        return dmGameObject::RESULT_ALREADY_REGISTERED;
     }
 
     dmGameObject::Result CompGuiUnregisterGetPropertyFn(dmhash_t property_hash)
@@ -3360,7 +3356,7 @@ namespace dmGameSystem
             g_CompGuiPropertyGetters.Erase(property_hash);
             return dmGameObject::RESULT_OK;
         }
-        return dmGameObject::RESULT_PROPERTY_NOT_FOUND;
+        return dmGameObject::RESULT_INVALID_OPERATION;
     }
 
     dmGameObject::Result CreateRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, CompGuiContext* comp_gui_context)

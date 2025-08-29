@@ -5761,8 +5761,8 @@ TEST_F(GuiTest, PerPropertyRegistration)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, result);
     
     // Test unregistering non-existent handler
-    ASSERT_EQ(dmGameObject::RESULT_PROPERTY_ALREADY_SET, dmGameSystem::CompGuiUnregisterSetPropertyFn(spine_scene_hash));
-    ASSERT_EQ(dmGameObject::RESULT_PROPERTY_NOT_FOUND, dmGameSystem::CompGuiUnregisterGetPropertyFn(spine_scene_hash));
+    ASSERT_EQ(dmGameObject::RESULT_ALREADY_REGISTERED, dmGameSystem::CompGuiUnregisterSetPropertyFn(spine_scene_hash));
+    ASSERT_EQ(dmGameObject::RESULT_INVALID_OPERATION, dmGameSystem::CompGuiUnregisterGetPropertyFn(spine_scene_hash));
     
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
