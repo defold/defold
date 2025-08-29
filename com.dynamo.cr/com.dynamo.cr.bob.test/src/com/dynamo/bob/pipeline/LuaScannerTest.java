@@ -559,4 +559,14 @@ public class LuaScannerTest {
         expected = " ";
         assertEquals(expected, scanner.getParsedLua());
     }
+
+    @Test
+    public void testGoPropertyNesting() {
+        var scanner = new LuaScanner();
+        scanner.parse("go.property('top-level', 1)\nfunction init() go.property('nested', 2) end");
+        List<Property> properties = scanner.getProperties();
+        assertEquals(2, properties.size());
+        assertPropertyStatus(properties, "top-level", Status.OK, 0);
+        assertPropertyStatus(properties, "nested", Status.INVALID_LOCATION, 1);
+    }
 }
