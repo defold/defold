@@ -35,19 +35,20 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.Builder;
+import com.dynamo.bob.BuilderParams;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.MultipleCompileException;
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.Task;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.FileUtils;
 
 import com.defold.extension.pipeline.ILuaObfuscator;
 import com.defold.extension.pipeline.ILuaPreprocessor;
 
-import com.dynamo.bob.Bob;
-import com.dynamo.bob.Builder;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.BuilderParams;
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Platform;
-import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
@@ -115,8 +116,7 @@ public abstract class LuaBuilder extends Builder {
             }
 
             luaScanner = new LuaScanner();
-            if (variant == Bob.VARIANT_DEBUG)
-            {
+            if (Bob.VARIANT_DEBUG.equals(variant)) {
                 luaScanner.setDebug();
             }
             luaScanner.parse(script);
@@ -666,6 +666,8 @@ public abstract class LuaBuilder extends Builder {
                     throw new CompileExceptionError(resource, property.line + 1, "go.property takes a string and a value as arguments. The value must have the type number, boolean, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat, or resource.*.");
                 } else if (property.status == Status.INVALID_VALUE) {
                     throw new CompileExceptionError(resource, property.line + 1, "Only these types are available: number, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat, resource.*");
+                } else if (property.status == Status.INVALID_LOCATION) {
+                    throw new CompileExceptionError(resource, property.line + 1, "go.property should be a top-level statement");
                 }
             }
         }

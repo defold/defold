@@ -253,9 +253,9 @@
   (let [fuzz-codes (take 100 (repeatedly #(RandomStringUtils/random (rand-int 400))))]
     (doall (map #(do (reset! last-fuzz %) (lua-info %)) fuzz-codes))
 
-  (let [original (slurp (io/resource "build_project/SideScroller/spaceship/spaceship.script"))
-        broken-versions (map soil (repeat 100 original))]
-    (doall (map #(do (reset! last-broken %) (lua-info %)) broken-versions)))))
+    (let [original (slurp (io/resource "build_project/SideScroller/spaceship/spaceship.script"))
+          broken-versions (map soil (repeat 100 original))]
+      (doall (map #(do (reset! last-broken %) (lua-info %)) broken-versions)))))
 
 (deftest string-as-function-parameter-is-ignored
   (let [code "function fun(\"foo\") end"
@@ -407,9 +407,19 @@
              (src->properties workspace "go.property")))
       (is (= [{:status :invalid-args}]
              (src->properties workspace "go.property()")))
-      (is (= [{:status :invalid-args :name "test"}]
+      (is (= [{:status :invalid-args
+               :name "test"}]
              (src->properties workspace "go.property(\"test\")")))
-      (is (= [{:status :invalid-name :name "" :type :script-property-type-number :value 0.0}]
+      (is (= [{:status :invalid-name
+               :name ""
+               :type :script-property-type-number
+               :value 0.0}]
              (src->properties workspace "go.property(\"\", 0.0)")))
-      (is (= [{:status :invalid-value :name "test"}]
-             (src->properties workspace "go.property(\"test\", \"foo\")"))))))
+      (is (= [{:status :invalid-value
+               :name "test"}]
+             (src->properties workspace "go.property(\"test\", \"foo\")")))
+      (is (= [{:name "nested"
+               :type :script-property-type-boolean
+               :value false
+               :status :invalid-location}]
+             (src->properties workspace "function init() go.property('nested', false) end"))))))
