@@ -2857,7 +2857,8 @@ If you do not specifically require different script states, consider changing th
                   (disk/async-reload! render-install-progress! workspace [] changes-view
                                       (fn [success]
                                         (when success
-                                          (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs web-server)))))))))))))
+                                          (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs web-server)
+                                          (project/update-fetch-libraries-notification! project)))))))))))))
 
 (handler/defhandler :private/add-dependency :global
   (enabled? [] (disk-availability/available?))

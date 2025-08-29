@@ -576,8 +576,12 @@ ordinary paths."
   (update-dependency-notifications! workspace lib-states)
   lib-states)
 
-(defn dependencies [workspace]
-  (g/node-value workspace :dependency-uris))
+(defn dependencies
+  ([workspace]
+   (g/with-auto-evaluation-context evaluation-context
+     (dependencies workspace evaluation-context)))
+  ([workspace evaluation-context]
+   (g/node-value workspace :dependency-uris evaluation-context)))
 
 (defn dependencies-reachable? [dependencies]
   (let [hosts (into #{} (map url/strip-path) dependencies)]
