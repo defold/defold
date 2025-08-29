@@ -3735,6 +3735,8 @@ bail:
 
     static void SubmitAndWait(VulkanContext* context, VkCommandBuffer cmd, VkCommandPool cmd_pool)
     {
+        DM_PROFILE(__FUNCTION__);
+
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
 
         VkResult res = vkEndCommandBuffer(cmd);
@@ -3763,6 +3765,8 @@ bail:
     static void CopyToTexture(VulkanContext* context, const TextureParams& params,
         bool use_stage_buffer, uint32_t tex_data_size, void* tex_data_ptr, VulkanTexture* texture_out)
     {
+        DM_PROFILE(__FUNCTION__);
+
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
         uint32_t layer_count = texture_out->m_LayerCount;
         assert(layer_count > 0);
@@ -4089,6 +4093,7 @@ bail:
 
     static void VulkanSetTexture(HTexture texture, const TextureParams& params)
     {
+        DM_PROFILE(__FUNCTION__);
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         VulkanSetTextureInternal(tex, params);

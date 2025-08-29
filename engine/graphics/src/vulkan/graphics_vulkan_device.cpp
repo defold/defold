@@ -14,6 +14,7 @@
 
 #include <dlib/math.h>
 #include <dlib/log.h>
+#include <dlib/profile.h>
 
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
@@ -462,6 +463,8 @@ namespace dmGraphics
         uint32_t layer_count,
         VkPipelineStageFlags vk_next_stage)
     {
+        DM_PROFILE(__FUNCTION__);
+
         VkImageLayout vk_from_layout = texture->m_ImageLayout[base_mip_level];
         if (vk_from_layout == vk_to_layout)
         {
