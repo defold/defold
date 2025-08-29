@@ -5706,7 +5706,7 @@ static dmGameObject::PropertyResult MockSpineSceneGetProperty(dmGui::HScene scen
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
     out_value.m_Variant.m_Hash = *value;
-    out_value.m_ValueType = dmGameObject::PROP_VALUE_HASH;
+    out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
     return dmGameObject::PROPERTY_RESULT_OK;
 }
 
@@ -5761,8 +5761,8 @@ TEST_F(GuiTest, PerPropertyRegistration)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, result);
     
     // Test unregistering non-existent handler
-    ASSERT_EQ(dmGameObject::RESULT_UNKNOWN_ERROR, dmGameSystem::CompGuiUnregisterSetPropertyFn(spine_scene_hash));
-    ASSERT_EQ(dmGameObject::RESULT_UNKNOWN_ERROR, dmGameSystem::CompGuiUnregisterGetPropertyFn(spine_scene_hash));
+    ASSERT_EQ(dmGameObject::RESULT_PROPERTY_ALREADY_SET, dmGameSystem::CompGuiUnregisterSetPropertyFn(spine_scene_hash));
+    ASSERT_EQ(dmGameObject::RESULT_PROPERTY_NOT_FOUND, dmGameSystem::CompGuiUnregisterGetPropertyFn(spine_scene_hash));
     
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
