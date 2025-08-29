@@ -61,6 +61,30 @@ namespace dmGameSystem
     extern const dmhash_t PROP_TEXTURES;
     extern const dmhash_t PROP_TILE_SOURCE;
 
+    extern const dmhash_t PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR;
+    extern const dmhash_t PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR;
+    extern const dmhash_t PBR_METALLIC_ROUGHNESS_TEXTURES;
+    extern const dmhash_t PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR;
+    extern const dmhash_t PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR;
+    extern const dmhash_t PBR_SPECULAR_GLOSSINESS_TEXTURES;
+    extern const dmhash_t PBR_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR;
+    extern const dmhash_t PBR_CLEAR_COAT_TEXTURES;
+    extern const dmhash_t PBR_TRANSMISSION_TRANSMISSION_FACTOR;
+    extern const dmhash_t PBR_TRANSMISSION_TEXTURES;
+    extern const dmhash_t PBR_IOR_IOR_FACTOR;
+    extern const dmhash_t PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR;
+    extern const dmhash_t PBR_SPECULAR_TEXTURES;
+    extern const dmhash_t PBR_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR;
+    extern const dmhash_t PBR_VOLUME_ATTENUATION_DISTANCE;
+    extern const dmhash_t PBR_VOLUME_TEXTURES;
+    extern const dmhash_t PBR_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR;
+    extern const dmhash_t PBR_SHEEN_TEXTURES;
+    extern const dmhash_t PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH;
+    extern const dmhash_t PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX;
+    extern const dmhash_t PBR_IRIDESCENCE_TEXTURES;
+    extern const dmhash_t PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT;
+    extern const dmhash_t PBR_COMMON_TEXTURES;
+
     static const dmGraphics::TextureFormat BIND_POSE_CACHE_TEXTURE_FORMAT = dmGraphics::TEXTURE_FORMAT_RGBA32F;
 
     struct EmitterStateChangedScriptData
