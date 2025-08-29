@@ -477,8 +477,8 @@ namespace dmGraphics
         vk_memory_barrier.image                           = texture->m_Handle.m_Image;
         vk_memory_barrier.subresourceRange.aspectMask     = vk_image_aspect;
         vk_memory_barrier.subresourceRange.baseMipLevel   = base_mip_level;
-        //vk_memory_barrier.subresourceRange.levelCount     = level_count;
-        //vk_memory_barrier.subresourceRange.baseArrayLayer = base_array_layer;
+        vk_memory_barrier.subresourceRange.levelCount     = 1;
+        vk_memory_barrier.subresourceRange.baseArrayLayer = 0;
         vk_memory_barrier.subresourceRange.layerCount     = layer_count;
 
         VkPipelineStageFlags vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
