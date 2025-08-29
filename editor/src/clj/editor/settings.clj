@@ -72,8 +72,11 @@
 
       (g/update-property node-id :raw-settings set-raw-setting meta-setting value))))
 
-(defn- set-form-op [user-data path value]
-  (g/transact (set-tx-data user-data path value)))
+(defn- set-form-op [{:keys [project owner-resource] :as user-data} path value]
+  (g/transact (set-tx-data user-data path value))
+  (when (and (= "/game.project" (resource/proj-path owner-resource))
+             (= path ["project" "dependencies"]))
+    (project/update-fetch-libraries-notification! project)))
 
 (defn clear-tx-data [{:keys [node-id resource-setting-nodes meta-settings] :as _user-data} path]
   (concat
@@ -84,14 +87,6 @@
 
 (defn- clear-form-op [user-data path]
   (g/transact (clear-tx-data user-data path)))
-
-(defn- make-form-ops [node-id resource-setting-nodes meta-settings resource-setting-connections]
-  {:user-data {:node-id node-id
-               :resource-setting-nodes resource-setting-nodes
-               :meta-settings meta-settings
-               :resource-setting-connections resource-setting-connections}
-   :set set-form-op
-   :clear clear-form-op})
 
 (defn- make-form-values-map [settings]
   (settings-core/make-settings-map settings))
@@ -171,7 +166,7 @@
                       error))))
           setting-values)))
 
-(g/defnk produce-form-data [_node-id meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]
+(g/defnk produce-form-data [_node-id project owner-resource meta-info raw-settings resource-setting-nodes resource-settings resource-setting-connections]
   (let [meta-settings (:settings meta-info)
         sanitized-settings (settings-core/sanitize-settings meta-settings (settings-core/settings-with-value raw-settings))
         non-defaulted-setting-paths (into #{}
@@ -181,7 +176,17 @@
                                           sanitized-settings)
         non-default-resource-settings (filter (comp non-defaulted-setting-paths :path) resource-settings)
         all-settings (concat sanitized-settings non-default-resource-settings)]
-    (make-form-data (make-form-ops _node-id resource-setting-nodes meta-settings resource-setting-connections) meta-info all-settings)))
+    (make-form-data
+      {:user-data {:node-id _node-id
+                   :project project
+                   :owner-resource owner-resource
+                   :resource-setting-nodes resource-setting-nodes
+                   :meta-settings meta-settings
+                   :resource-setting-connections resource-setting-connections}
+       :set set-form-op
+       :clear clear-form-op}
+      meta-info
+      all-settings)))
 
 (g/defnode SettingsNode
   (inherits core/Scope) ;; not a resource node, but a scope node for ResourceSettingNode's
@@ -191,6 +196,7 @@
   (property resource-setting-connections g/Any (dynamic visible (g/constantly false)))
 
   (input resource-setting-references g/Any :array)
+  (input project g/NodeID)
   (input owner-resource resource/Resource)
   (input meta-infos g/Any)
 
@@ -260,6 +266,7 @@
       ;; whether the value is/was set or cleared.
       (g/set-properties self :raw-settings raw-settings :raw-meta-info meta-info :resource-setting-connections resource-setting-connections)
       (g/connect project :meta-infos self :meta-infos)
+      (g/connect project :_node-id self :project)
       (g/connect owner-resource-node :resource self :owner-resource)
       (for [path resource-setting-paths]
         (let [resource (settings-core/get-setting-or-default meta-settings settings path)]
