@@ -16,6 +16,7 @@
 #define DMSDK_GAMESYSTEM_COMP_GUI_H
 
 #include <dmsdk/gameobject/gameobject.h>
+#include <dmsdk/gameobject/component.h>
 #include <dmsdk/gui/gui.h>
 
 /*# SDK Gui Component Property API documentation
