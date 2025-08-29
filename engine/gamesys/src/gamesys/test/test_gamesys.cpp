@@ -51,6 +51,7 @@
 #include "resource/booster_on_sfx.wav.embed.h" // BOOSTER_ON_SFX_WAV / BOOSTER_ON_SFX_WAV_SIZE
 
 #include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/gamesys/components/comp_gui.h>
 
 #include <sound/sound.h>
 
@@ -1615,153 +1616,6 @@ TEST_F(GuiTest, MaxDynamictextures)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-// Mock extension property handlers for testing
-static dmHashTable64<dmhash_t> g_MockExtensionProperties;
-
-static dmGameObject::PropertyResult MockExtensionSetProperty(dmGui::HScene scene, const dmGameObject::ComponentSetPropertyParams& params)
-{
-    if (params.m_PropertyId == dmHashString64("mock_prop"))
-    {
-        if (!params.m_Options.m_HasKey)
-        {
-            return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
-        }
-        g_MockExtensionProperties.Put(params.m_Options.m_Key, params.m_Value.m_Hash);
-        return dmGameObject::PROPERTY_RESULT_OK;
-    }
-    return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
-}
-
-static dmGameObject::PropertyResult MockExtensionGetProperty(dmGui::HScene scene, const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
-{
-    if (params.m_PropertyId == dmHashString64("mock_prop"))
-    {
-        if (!params.m_Options.m_HasKey)
-        {
-            return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
-        }
-        dmhash_t* value = g_MockExtensionProperties.Get(params.m_Options.m_Key);
-        if (!value)
-        {
-            return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
-        }
-        out_value.m_Variant = dmGameObject::PropertyVar(*value);
-        return dmGameObject::PROPERTY_RESULT_OK;
-    }
-    return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
-}
-
-TEST_F(GuiTest, ExtensionPropertyRegistration)
-{
-    g_MockExtensionProperties.Clear();
-    
-    // Test registering setter and getter
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::RegisterCompGuiSetProperty(MockExtensionSetProperty));
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::RegisterCompGuiGetProperty(MockExtensionGetProperty));
-    
-    // Test unregistering setter and getter
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::UnregisterCompGuiSetProperty(MockExtensionSetProperty));
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::UnregisterCompGuiGetProperty(MockExtensionGetProperty));
-    
-    // Test unregistering non-existent handler
-    ASSERT_EQ(dmGameObject::RESULT_UNKNOWN_ERROR, dmGameSystem::UnregisterCompGuiSetProperty(MockExtensionSetProperty));
-    ASSERT_EQ(dmGameObject::RESULT_UNKNOWN_ERROR, dmGameSystem::UnregisterCompGuiGetProperty(MockExtensionGetProperty));
-}
-
-TEST_F(GuiTest, ExtensionPropertySetGet)
-{
-    g_MockExtensionProperties.Clear();
-    g_MockExtensionProperties.SetCapacity(8, 16);
-    
-    // Register handlers
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::RegisterCompGuiSetProperty(MockExtensionSetProperty));
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::RegisterCompGuiGetProperty(MockExtensionGetProperty));
-    
-    // Create a GUI component
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/valid_gui.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
-    
-    // Test setting extension property with key
-    dmGameObject::PropertyOptions options;
-    options.m_HasKey = 1;
-    options.m_Key = dmHashString64("test_node");
-    
-    dmGameObject::PropertyVar value(dmHashString64("test_value"));
-    dmGameObject::PropertyResult result = dmGameObject::SetProperty(go, dmHashString64("gui"), dmHashString64("mock_prop"), options, value);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
-    
-    // Test getting extension property
-    dmGameObject::PropertyDesc desc;
-    result = dmGameObject::GetProperty(go, dmHashString64("gui"), dmHashString64("mock_prop"), options, desc);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
-    ASSERT_EQ(dmHashString64("test_value"), desc.m_Variant.m_Hash);
-    
-    // Test getting non-existent key
-    options.m_Key = dmHashString64("non_existent");
-    result = dmGameObject::GetProperty(go, dmHashString64("gui"), dmHashString64("mock_prop"), options, desc);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_INVALID_KEY, result);
-    
-    // Test setting without key (should fail)
-    options.m_HasKey = 0;
-    result = dmGameObject::SetProperty(go, dmHashString64("gui"), dmHashString64("mock_prop"), options, value);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_INVALID_KEY, result);
-    
-    // Unregister handlers
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::UnregisterCompGuiSetProperty(MockExtensionSetProperty));
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::UnregisterCompGuiGetProperty(MockExtensionGetProperty));
-    
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-}
-
-TEST_F(GuiTest, ExtensionPropertyUnregisterFunctional)
-{
-    g_MockExtensionProperties.Clear();
-    g_MockExtensionProperties.SetCapacity(8, 16);
-    
-    // Create a GUI component
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/valid_gui.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
-    
-    // Test setting extension property with key
-    dmGameObject::PropertyOptions options;
-    options.m_HasKey = 1;
-    options.m_Key = dmHashString64("test_node");
-    dmGameObject::PropertyVar value(dmHashString64("test_value"));
-    
-    // Register handler and verify it works
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::RegisterCompGuiSetProperty(MockExtensionSetProperty));
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::RegisterCompGuiGetProperty(MockExtensionGetProperty));
-    
-    dmGameObject::PropertyResult result = dmGameObject::SetProperty(go, dmHashString64("gui"), dmHashString64("mock_prop"), options, value);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
-    
-    dmGameObject::PropertyDesc desc;
-    result = dmGameObject::GetProperty(go, dmHashString64("gui"), dmHashString64("mock_prop"), options, desc);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
-    ASSERT_EQ(dmHashString64("test_value"), desc.m_Variant.m_Hash);
-    
-    // Unregister setter handler
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::UnregisterCompGuiSetProperty(MockExtensionSetProperty));
-    
-    // Verify setter no longer works
-    dmGameObject::PropertyVar newValue(dmHashString64("new_value"));
-    result = dmGameObject::SetProperty(go, dmHashString64("gui"), dmHashString64("mock_prop"), options, newValue);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, result);
-    
-    // But getter should still work since we didn't unregister it
-    result = dmGameObject::GetProperty(go, dmHashString64("gui"), dmHashString64("mock_prop"), options, desc);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
-    ASSERT_EQ(dmHashString64("test_value"), desc.m_Variant.m_Hash); // Should still have old value
-    
-    // Now unregister getter handler
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::UnregisterCompGuiGetProperty(MockExtensionGetProperty));
-    
-    // Verify getter no longer works
-    result = dmGameObject::GetProperty(go, dmHashString64("gui"), dmHashString64("mock_prop"), options, desc);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, result);
-    
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-}
 
 // Test setting gui font
 TEST_F(ResourceTest, ScriptSetFonts)
@@ -5824,6 +5678,128 @@ TEST_F(ModelScriptTest, GetAABB)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Mock per-property handlers for testing
+static dmHashTable64<dmhash_t> g_MockPerPropertyValues;
+
+static dmGameObject::PropertyResult MockSpineSceneSetProperty(dmGui::HScene scene, const dmGameObject::ComponentSetPropertyParams& params)
+{
+    if (!params.m_Options.m_HasKey)
+    {
+        return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
+    }
+    g_MockPerPropertyValues.Put(params.m_Options.m_Key, params.m_Value.m_Hash);
+    return dmGameObject::PROPERTY_RESULT_OK;
+}
+
+static dmGameObject::PropertyResult MockSpineSceneGetProperty(dmGui::HScene scene, const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
+{
+    if (!params.m_Options.m_HasKey)
+    {
+        return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
+    }
+    dmhash_t* value = g_MockPerPropertyValues.Get(params.m_Options.m_Key);
+    if (!value)
+    {
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+    out_value.m_Variant.m_Hash = *value;
+    out_value.m_ValueType = dmGameObject::PROP_VALUE_HASH;
+    return dmGameObject::PROPERTY_RESULT_OK;
+}
+
+TEST_F(GuiTest, PerPropertyRegistration)
+{
+    g_MockPerPropertyValues.Clear();
+    g_MockPerPropertyValues.SetCapacity(8, 16);
+    
+    dmhash_t spine_scene_hash = dmHashString64("spine_scene");
+    
+    // Test registering per-property setter and getter
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiRegisterSetPropertyFn(spine_scene_hash, MockSpineSceneSetProperty));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiRegisterGetPropertyFn(spine_scene_hash, MockSpineSceneGetProperty));
+    
+    // Create a GUI component
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/valid_gui.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+    
+    // Test setting per-property with key
+    dmGameObject::PropertyOptions options;
+    options.m_HasKey = 1;
+    options.m_Key = dmHashString64("test_node");
+    
+    dmGameObject::PropertyVar value(dmHashString64("test_spine_scene"));
+    dmGameObject::PropertyResult result = dmGameObject::SetProperty(go, dmHashString64("gui"), spine_scene_hash, options, value);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    
+    // Test getting per-property
+    dmGameObject::PropertyDesc desc;
+    result = dmGameObject::GetProperty(go, dmHashString64("gui"), spine_scene_hash, options, desc);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    ASSERT_EQ(dmHashString64("test_spine_scene"), desc.m_Variant.m_Hash);
+    
+    // Test unregistering setter
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterSetPropertyFn(spine_scene_hash));
+    
+    // Verify setter no longer works
+    dmGameObject::PropertyVar newValue(dmHashString64("new_spine_scene"));
+    result = dmGameObject::SetProperty(go, dmHashString64("gui"), spine_scene_hash, options, newValue);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, result);
+    
+    // But getter should still work
+    result = dmGameObject::GetProperty(go, dmHashString64("gui"), spine_scene_hash, options, desc);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    ASSERT_EQ(dmHashString64("test_spine_scene"), desc.m_Variant.m_Hash);
+    
+    // Test unregistering getter
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterGetPropertyFn(spine_scene_hash));
+    
+    // Verify getter no longer works
+    result = dmGameObject::GetProperty(go, dmHashString64("gui"), spine_scene_hash, options, desc);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, result);
+    
+    // Test unregistering non-existent handler
+    ASSERT_EQ(dmGameObject::RESULT_UNKNOWN_ERROR, dmGameSystem::CompGuiUnregisterSetPropertyFn(spine_scene_hash));
+    ASSERT_EQ(dmGameObject::RESULT_UNKNOWN_ERROR, dmGameSystem::CompGuiUnregisterGetPropertyFn(spine_scene_hash));
+    
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, PerPropertyPrecedence)
+{
+    g_MockPerPropertyValues.Clear();
+    g_MockPerPropertyValues.SetCapacity(8, 16);
+    
+    dmhash_t test_prop_hash = dmHashString64("test_prop");
+    
+    // Register per-property handlers first
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiRegisterSetPropertyFn(test_prop_hash, MockSpineSceneSetProperty));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiRegisterGetPropertyFn(test_prop_hash, MockSpineSceneGetProperty));
+    
+    // Create a GUI component
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/valid_gui.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+    
+    dmGameObject::PropertyOptions options;
+    options.m_HasKey = 1;
+    options.m_Key = dmHashString64("test_node");
+    
+    // Test that per-property handler is called (not extension handlers)
+    dmGameObject::PropertyVar value(dmHashString64("per_property_value"));
+    dmGameObject::PropertyResult result = dmGameObject::SetProperty(go, dmHashString64("gui"), test_prop_hash, options, value);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    
+    dmGameObject::PropertyDesc desc;
+    result = dmGameObject::GetProperty(go, dmHashString64("gui"), test_prop_hash, options, desc);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    ASSERT_EQ(dmHashString64("per_property_value"), desc.m_Variant.m_Hash);
+    
+    // Clean up
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterSetPropertyFn(test_prop_hash));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterGetPropertyFn(test_prop_hash));
+    
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
