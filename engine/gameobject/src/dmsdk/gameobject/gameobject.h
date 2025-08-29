@@ -169,8 +169,6 @@ namespace dmGameObject
      * @member dmGameObject::RESULT_INVALID_PROPERTIES
      * @member dmGameObject::RESULT_UNABLE_TO_CREATE_COMPONENTS
      * @member dmGameObject::RESULT_UNABLE_TO_INIT_INSTANCE
-     * @member dmGameObject::RESULT_PROPERTY_ALREADY_SET
-     * @member dmGameObject::RESULT_UNABLE_TO_INIT_INSTANCE
      * @member dmGameObject::RESULT_UNKNOWN_ERROR
      */
     enum Result
