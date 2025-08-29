@@ -453,17 +453,22 @@ namespace dmGraphics
         return vk_count_bits[dmMath::Min<uint8_t>(sample_count_index_requested, sample_count_index_max)];
     }
 
-    void TransitionImageLayoutWithCmdBuffer(VkCommandBuffer vk_command_buffer, VulkanTexture* texture,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t base_mip_level, uint32_t layer_count)
+    void TransitionImageLayoutWithCmdBuffer(
+        VkCommandBuffer vk_command_buffer,
+        VulkanTexture* texture,
+        VkImageAspectFlags vk_image_aspect,
+        VkImageLayout vk_to_layout,
+        uint32_t base_mip_level,
+        uint32_t layer_count,
+        VkPipelineStageFlags vk_next_stage)
     {
         VkImageLayout vk_from_layout = texture->m_ImageLayout[base_mip_level];
-
         if (vk_from_layout == vk_to_layout)
         {
             return;
         }
 
-        VkImageMemoryBarrier vk_memory_barrier            = {};
+        VkImageMemoryBarrier vk_memory_barrier = {};
         vk_memory_barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         vk_memory_barrier.oldLayout                       = vk_from_layout;
         vk_memory_barrier.newLayout                       = vk_to_layout;
@@ -472,87 +477,81 @@ namespace dmGraphics
         vk_memory_barrier.image                           = texture->m_Handle.m_Image;
         vk_memory_barrier.subresourceRange.aspectMask     = vk_image_aspect;
         vk_memory_barrier.subresourceRange.baseMipLevel   = base_mip_level;
-        vk_memory_barrier.subresourceRange.levelCount     = 1;
-        vk_memory_barrier.subresourceRange.baseArrayLayer = 0;
+        //vk_memory_barrier.subresourceRange.levelCount     = level_count;
+        //vk_memory_barrier.subresourceRange.baseArrayLayer = base_array_layer;
         vk_memory_barrier.subresourceRange.layerCount     = layer_count;
 
-        VkPipelineStageFlags vk_source_stage      = VK_IMAGE_LAYOUT_UNDEFINED;
-        VkPipelineStageFlags vk_destination_stage = VK_IMAGE_LAYOUT_UNDEFINED;
+        VkPipelineStageFlags vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        VkPipelineStageFlags vk_destination_stage = vk_next_stage;
 
-        // These stage changes are explicit in our case:
-        //   1) undefined -> shader read. This transition is used when uploading texture without a stage buffer.
-        //   2) undefined -> transfer. This transition is used for staging buffers when uploading texture data
-        //   3) transfer  -> shader read. This transition is used when the staging transfer is complete.
-        //   4) undefined -> depth stencil. This transition is used when creating a depth buffer attachment.
-        //   5) undefined -> color attachment. This transition is used when creating a color buffer attachment.
-        if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_HOST_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        }
-        else if ((vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED || vk_from_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+        // ---- Source stage / access ----
+        if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED)
         {
             vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            vk_source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
         }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && vk_to_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+        else if (vk_from_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
         {
             vk_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            vk_source_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
         }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+        else if (vk_from_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
         {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+            vk_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            vk_source_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
         }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+        else if (vk_from_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
         {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            vk_memory_barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            vk_source_stage = vk_next_stage;
         }
-        else if ((vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED || vk_from_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) && vk_to_layout == VK_IMAGE_LAYOUT_GENERAL)
+        else if (vk_from_layout == VK_IMAGE_LAYOUT_GENERAL)
         {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            vk_memory_barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+            vk_source_stage = vk_next_stage;
         }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+
+        // ---- Destination stage / access ----
+        if (vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
         {
-            vk_memory_barrier.srcAccessMask = 0;
             vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             vk_destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
         }
-        else
+        else if (vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
         {
-            // Transition not supported, so we early out
-            return;
+            vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            vk_destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        }
+        else if (vk_to_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+        {
+            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            vk_destination_stage = vk_next_stage;
+        }
+        else if (vk_to_layout == VK_IMAGE_LAYOUT_GENERAL)
+        {
+            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+            vk_destination_stage = vk_next_stage;
+        }
+        else if (vk_to_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+        {
+            vk_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            vk_destination_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        }
+        else if (vk_to_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+        {
+            vk_memory_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            vk_destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         }
 
         vkCmdPipelineBarrier(
             vk_command_buffer,
             vk_source_stage,
             vk_destination_stage,
-            0, 0, 0, 0, 0, 1,
-            &vk_memory_barrier);
+            VK_DEPENDENCY_BY_REGION_BIT,
+            0, nullptr,
+            0, nullptr,
+            1, &vk_memory_barrier
+        );
 
         texture->m_ImageLayout[base_mip_level] = vk_to_layout;
     }
