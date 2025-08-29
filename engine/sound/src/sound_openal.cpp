@@ -999,7 +999,6 @@ namespace dmSound
                 // this is a supported streaming format; we can directly read from the stream and pipe that data to OpenAL
                 Result read_result = SoundDataRead(&sound_data, sound_instance->m_StreamOffset, buffer_size - total_decoded, buffer_ptr, &decoded);
                 sound_instance->m_StreamOffset += decoded;
-                // TODO: handle end of stream...
                 if (read_result == Result::RESULT_OK) {
                     r = dmSoundCodec::Result::RESULT_OK;
                 } else if (read_result == Result::RESULT_PARTIAL_DATA) {
@@ -1217,15 +1216,10 @@ namespace dmSound
             alGetSourcei(source, AL_SOURCE_STATE, &state);
             if (instance.m_Playing) {
                 // feed new buffers and handle looping
-                uint16_t fed = 0;
                 while (instance.m_BufferCount < sound->m_BuffersPerSource) {
                     dmSoundCodec::Result r = Feed(&instance);
                     if (r == dmSoundCodec::RESULT_OK) {
                         // noop
-                        if (++fed >= sound->m_BuffersPerSource / 2) {
-                            // don't feed too many buffers at once to avoid spikes on sound start
-                            break;
-                        }
                     } else if (r == dmSoundCodec::RESULT_END_OF_STREAM) {
                         break;
                     } else {
