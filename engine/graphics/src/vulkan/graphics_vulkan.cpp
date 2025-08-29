@@ -2014,14 +2014,17 @@ bail:
         return (VkDescriptorType) -1;
     }
 
-    static void UpdateImageDescriptor(VulkanContext* context, HTexture texture_handle, ShaderResourceBinding* binding, VkDescriptorImageInfo& vk_image_info, VkWriteDescriptorSet& vk_write_desc_info)
+    static void UpdateImageDescriptor(
+        VulkanContext* context,
+        HTexture texture_handle,
+        ShaderResourceBinding* binding,
+        VkDescriptorImageInfo& vk_image_info,
+        VkWriteDescriptorSet& vk_write_desc_info)
     {
-        VulkanTexture* texture  = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture_handle);
+        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture_handle);
 
-        if (texture == 0x0)
-        {
+        if (!texture)
             texture = GetDefaultTexture(context, binding->m_Type.m_ShaderType);
-        }
 
         VkImageLayout image_layout       = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         VkSampler image_sampler          = context->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
@@ -2043,17 +2046,20 @@ bail:
             image_view   = VK_NULL_HANDLE;
         }
 
-        // If the image layout is in the wrong state, we need to transition it to the new layout,
-        // otherwise its memory might be getting wrriten to while we are reading from it.
-        if (texture->m_ImageLayout[0] != VK_IMAGE_LAYOUT_GENERAL && image_layout != texture->m_ImageLayout[0])
+        // Use the current frame's command buffer
+        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex];
+
+        // Transition the texture if needed
+        if (texture->m_ImageLayout[0] != image_layout)
         {
-            VkResult res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
-                context->m_LogicalDevice.m_CommandPool,
-                context->m_LogicalDevice.m_GraphicsQueue,
+            TransitionImageLayoutWithCmdBuffer(
+                vk_command_buffer,
                 texture,
                 VK_IMAGE_ASPECT_COLOR_BIT,
-                image_layout);
-            CHECK_VK_ERROR(res);
+                image_layout,
+                0,                      // base mip level
+                texture->m_LayerCount,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
         }
 
         vk_image_info.sampler     = image_sampler;
