@@ -3733,35 +3733,6 @@ bail:
         delete[] vk_copy_regions;
     }
 
-    static void SubmitAndWait(VulkanContext* context, VkCommandBuffer cmd, VkCommandPool cmd_pool)
-    {
-        DM_PROFILE(__FUNCTION__);
-
-        VkDevice vk_device = context->m_LogicalDevice.m_Device;
-
-        VkResult res = vkEndCommandBuffer(cmd);
-        CHECK_VK_ERROR(res);
-
-        VkFenceCreateInfo fence_info = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
-        VkFence fence = VK_NULL_HANDLE;
-        res = vkCreateFence(vk_device, &fence_info, nullptr, &fence);
-        CHECK_VK_ERROR(res);
-
-        VkSubmitInfo submit_info = {};
-        submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submit_info.commandBufferCount = 1;
-        submit_info.pCommandBuffers = &cmd;
-
-        res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submit_info, fence);
-        CHECK_VK_ERROR(res);
-
-        res = vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
-        CHECK_VK_ERROR(res);
-
-        vkDestroyFence(vk_device, fence, nullptr);
-        vkFreeCommandBuffers(vk_device, cmd_pool, 1, &cmd);
-    }
-
     static void CopyToTexture(VulkanContext* context, const TextureParams& params,
         bool use_stage_buffer, uint32_t tex_data_size, void* tex_data_ptr, VulkanTexture* texture_out)
     {
@@ -3780,12 +3751,7 @@ bail:
     #endif
 
         // Always allocate a temporary command buffer for the copy, even during a frame
-        VkCommandBuffer vk_command_buffer = VK_NULL_HANDLE;
-        CreateCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
-
-        VkCommandBufferBeginInfo begin_info = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-        begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        vkBeginCommandBuffer(vk_command_buffer, &begin_info);
+        VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
 
         // --- Direct device buffer path ---
         if (!use_stage_buffer)
@@ -3803,7 +3769,7 @@ bail:
                 layer_count,
                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
-            SubmitAndWait(context, vk_command_buffer, context->m_LogicalDevice.m_CommandPool);
+            SubmitAndWait(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, context->m_LogicalDevice.m_CommandPool);
             return;
         }
 
@@ -3859,7 +3825,7 @@ bail:
             layer_count,
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
-        SubmitAndWait(context, vk_command_buffer, context->m_LogicalDevice.m_CommandPool);
+        SubmitAndWait(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, context->m_LogicalDevice.m_CommandPool);
         DestroyDeviceBuffer(vk_device, &stage_buffer.m_Handle);
     }
 
@@ -4099,26 +4065,6 @@ bail:
         VulkanSetTextureInternal(tex, params);
     }
 
-    static VkCommandBuffer BeginSingleTimeCommands(VkDevice device, VkCommandPool cmd_pool)
-    {
-        VkCommandBufferAllocateInfo alloc_info = {};
-        alloc_info.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        alloc_info.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        alloc_info.commandPool                 = cmd_pool;
-        alloc_info.commandBufferCount          = 1;
-
-        VkCommandBuffer cmd_buffer;
-        vkAllocateCommandBuffers(device, &alloc_info, &cmd_buffer);
-
-        VkCommandBufferBeginInfo begin_info = {};
-        begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        begin_info.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-        vkBeginCommandBuffer(cmd_buffer, &begin_info);
-
-        return cmd_buffer;
-    }
-
     static int AsyncProcessCallback(void* _context, void* data)
     {
         VulkanContext* context     = (VulkanContext*) _context;
@@ -4141,8 +4087,6 @@ bail:
 
         // Async texture uploading
         {
-            VkSemaphore semaphore;
-            VkFence fence;
             VkCommandBuffer cmd_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
 
             uint8_t tex_layer_count   = dmMath::Max(tex->m_LayerCount, ap.m_Params.m_LayerCount);
@@ -4185,26 +4129,8 @@ bail:
 
             TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex->m_LayerCount);
 
-            vkEndCommandBuffer(cmd_buffer);
-
-            VkSemaphoreCreateInfo vk_create_semaphore_info = {};
-            vk_create_semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-            vkCreateSemaphore(context->m_LogicalDevice.m_Device, &vk_create_semaphore_info, 0, &semaphore);
-
-            VkFenceCreateInfo vk_create_fence_info = {};
-            vk_create_fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-            vkCreateFence(context->m_LogicalDevice.m_Device, &vk_create_fence_info, 0, &fence);
-
-            VkSubmitInfo submit_info         = {};
-            submit_info.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            submit_info.commandBufferCount   = 1;
-            submit_info.pCommandBuffers      = &cmd_buffer;
-            submit_info.signalSemaphoreCount = 1;
-            submit_info.pSignalSemaphores    = &semaphore;
-
-            vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submit_info, fence);
-            vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
-            vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker, 1, &cmd_buffer);
+            VkResult res = SubmitAndWait(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, cmd_buffer, context->m_LogicalDevice.m_CommandPoolWorker);
+            CHECK_VK_ERROR(res);
 
             if (!is_memoryless)
             {

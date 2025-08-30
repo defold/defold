@@ -559,34 +559,20 @@ namespace dmGraphics
         texture->m_ImageLayout[base_mip_level] = vk_to_layout;
     }
 
-    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout,
-        uint32_t base_mip_level, uint32_t layer_count)
+    VkResult TransitionImageLayout(VkDevice vk_device,
+        VkCommandPool vk_command_pool,
+        VkQueue vk_queue,
+        VulkanTexture* texture,
+        VkImageAspectFlags vk_image_aspect,
+        VkImageLayout vk_to_layout,
+        uint32_t base_mip_level,
+        uint32_t layer_count)
     {
-        // Create a one-time-execute command buffer that will only be used for the transition
-        VkCommandBuffer vk_command_buffer;
-        CreateCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
-
-        VkCommandBufferBeginInfo vk_command_buffer_begin_info = {};
-        vk_command_buffer_begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vk_command_buffer_begin_info.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-        vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
+        VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(vk_device, vk_command_pool);
 
         TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
-        vkEndCommandBuffer(vk_command_buffer);
-
-        VkSubmitInfo vk_submit_info;
-        memset(&vk_submit_info, 0, sizeof(VkSubmitInfo));
-
-        vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        vk_submit_info.commandBufferCount = 1;
-        vk_submit_info.pCommandBuffers    = &vk_command_buffer;
-
-        vkQueueSubmit(vk_graphics_queue, 1, &vk_submit_info, VK_NULL_HANDLE);
-        vkQueueWaitIdle(vk_graphics_queue);
-        vkFreeCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
+        SubmitAndWait(vk_device, vk_queue, vk_command_buffer, vk_command_pool);
 
         return VK_SUCCESS;
     }
@@ -677,6 +663,58 @@ namespace dmGraphics
         vk_buffers_allocate_info.commandBufferCount = numBuffersToCreate;
 
         return vkAllocateCommandBuffers(vk_device, &vk_buffers_allocate_info, vk_command_buffers_out);
+    }
+
+    VkCommandBuffer BeginSingleTimeCommands(VkDevice device, VkCommandPool cmd_pool)
+    {
+        VkCommandBufferAllocateInfo alloc_info = {};
+        alloc_info.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        alloc_info.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        alloc_info.commandPool                 = cmd_pool;
+        alloc_info.commandBufferCount          = 1;
+
+        VkCommandBuffer cmd_buffer;
+        vkAllocateCommandBuffers(device, &alloc_info, &cmd_buffer);
+
+        VkCommandBufferBeginInfo begin_info = {};
+        begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin_info.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(cmd_buffer, &begin_info);
+
+        return cmd_buffer;
+    }
+
+    VkResult SubmitAndWait(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkCommandPool cmd_pool)
+    {
+        DM_PROFILE(__FUNCTION__);
+
+        VkResult res = vkEndCommandBuffer(cmd);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        VkFenceCreateInfo fence_info = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+        VkFence fence = VK_NULL_HANDLE;
+        res = vkCreateFence(vk_device, &fence_info, nullptr, &fence);
+
+        VkSubmitInfo submit_info = {};
+        submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit_info.commandBufferCount = 1;
+        submit_info.pCommandBuffers = &cmd;
+
+        res = vkQueueSubmit(queue, 1, &submit_info, fence);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        res = vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
+
+        vkDestroyFence(vk_device, fence, nullptr);
+        vkFreeCommandBuffers(vk_device, cmd_pool, 1, &cmd);
+        return res;
     }
 
     VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, ShaderModule* shaderModuleOut)

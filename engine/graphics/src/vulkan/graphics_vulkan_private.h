@@ -496,12 +496,14 @@ namespace dmGraphics
     VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount);
 
     // Misc functions
-    void     TransitionImageLayoutWithCmdBuffer(VkCommandBuffer vk_command_buffer, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t base_mip_level, uint32_t layer_count, VkPipelineStageFlags vk_next_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
-    VkResult WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
-    void     DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value);
-    void     FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list);
-    void     ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
+    void            TransitionImageLayoutWithCmdBuffer(VkCommandBuffer vk_command_buffer, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t base_mip_level, uint32_t layer_count, VkPipelineStageFlags vk_next_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    VkResult        TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
+    VkResult        WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
+    void            DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value);
+    void            FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list);
+    void            ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
+    VkCommandBuffer BeginSingleTimeCommands(VkDevice device, VkCommandPool cmd_pool);
+    VkResult        SubmitAndWait(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkCommandPool cmd_pool);
 
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the
