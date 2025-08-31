@@ -4467,9 +4467,7 @@ bail:
         // input image must be in VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL or VK_IMAGE_LAYOUT_GENERAL, so we pick the optimal layout
         // otherwise, the validation layers will complain that this is a performance issue and spam errors..
 
-        OneTimeCommandBuffer cmd_buffer(context);
-        res = cmd_buffer.Begin();
-        CHECK_VK_ERROR(res);
+        VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool);
 
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
@@ -4492,14 +4490,25 @@ bail:
         vk_copy_region.imageSubresource.layerCount = 1;
 
         vkCmdCopyImageToBuffer(
-            cmd_buffer.m_CmdBuffer,
+            vk_command_buffer,
             context->m_SwapChain->Image(),
             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             stage_buffer.m_Handle.m_Buffer,
             1, &vk_copy_region);
 
-        res = cmd_buffer.End();
-        CHECK_VK_ERROR(res);
+        VkFence fence;
+        VkFenceCreateInfo fence_info = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+        vkCreateFence(context->m_LogicalDevice.m_Device, &fence_info, NULL, &fence);
+
+        VkSubmitInfo submit_info = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+        submit_info.commandBufferCount = 1;
+        submit_info.pCommandBuffers = &vk_command_buffer;
+
+        vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submit_info, fence);
+
+        // Wait for the copy command to finish
+        vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
+        vkDestroyFence(context->m_LogicalDevice.m_Device, fence, NULL);
 
         res = stage_buffer.MapMemory(context->m_LogicalDevice.m_Device);
         CHECK_VK_ERROR(res);

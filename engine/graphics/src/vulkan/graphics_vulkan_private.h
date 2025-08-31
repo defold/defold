@@ -42,16 +42,6 @@ namespace dmGraphics
         RESOURCE_TYPE_RENDER_TARGET = 3,
     };
 
-    struct OneTimeCommandBuffer
-    {
-        OneTimeCommandBuffer(struct VulkanContext* context) : m_Context(context) {}
-        VkResult Begin();
-        VkResult End();
-
-        struct VulkanContext*  m_Context;
-        VkCommandBuffer        m_CmdBuffer;
-    };
-
     struct DeviceBuffer
     {
         DeviceBuffer(){}
