@@ -240,12 +240,20 @@
        (finally
          (.swapBuffers ~canvas)))))
 
-(defn clear-attributes!
+(defn disable-vertex-attrib-arrays!
   [^GL2 gl ^long base-location ^long attribute-count]
   (loop [attribute-index 0]
     (when (< attribute-index attribute-count)
       (let [location (+ base-location attribute-index)]
         (gl-disable-vertex-attrib-array gl location)
+        (recur (inc location))))))
+
+(defn clear-attributes!
+  [^GL2 gl ^long base-location ^long attribute-count]
+  (loop [attribute-index 0]
+    (when (< attribute-index attribute-count)
+      (let [location (+ base-location attribute-index)]
+        (.glVertexAttrib1f gl location 0.0) ; Sets components to [0.0 0.0 0.0 1.0].
         (recur (inc location))))))
 
 (defn set-attribute-1bv! [^GL2 gl ^long location ^bytes value-array ^long offset]
@@ -553,8 +561,16 @@
 
 (defmacro gl-translate-f [gl x y z]     `(.glTranslatef ~gl ~x ~y ~z))
 
-(defmacro gl-draw-arrays [gl prim-type start count]      `(.glDrawArrays ~(with-meta gl {:tag `GL}) ~prim-type ~start ~count))
-(defmacro gl-draw-elements [gl prim-type start count]    `(.glDrawElements ~(with-meta gl {:tag `GL}) ~prim-type ~count GL/GL_UNSIGNED_INT ~start))
+(defmacro gl-draw-arrays [gl prim-type start count]
+  `(.glDrawArrays ~(with-meta gl {:tag `GL}) ~prim-type ~start ~count))
+
+(defmacro gl-draw-elements
+  ;; TODO: Deprecate this overload (used in extensions) - we should be explicit
+  ;; about the index-type.
+  ([gl prim-type start count]
+   `(.glDrawElements ~(with-meta gl {:tag `GL}) ~prim-type ~count GL/GL_UNSIGNED_INT ~start))
+  ([gl prim-type index-type start count]
+   `(.glDrawElements ~(with-meta gl {:tag `GL}) ~prim-type ~count ~index-type ~start)))
 
 (defmacro gl-uniform-matrix-4fv [gl idx cnt transpose val offset] `(.glUniformMatrix4fv ~gl ~idx ~cnt ~transpose ~val ~offset))
 

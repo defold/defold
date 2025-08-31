@@ -14,7 +14,8 @@
 
 (ns editor.graphics.types
   (:require [editor.protobuf :as protobuf]
-            [util.coll :as coll]
+            [internal.util :as util]
+            [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
             [util.ensure :as ensure]
             [util.fn :as fn])
@@ -118,16 +119,12 @@
 
 (fn/defamong engine-provided-semantic-type? engine-provided-semantic-types)
 
+(def location? nat-int?)
+
 (defn location-vector? [value]
   (and (= :int (coll/primitive-vector-type value))
-       (pos? (count value))))
-
-(defn location-vectors-by-semantic-type? [value]
-  (and (map? value)
-       (coll/every? (fn [entry]
-                      (and (semantic-type? (key entry))
-                           (location-vector? (val entry))))
-                    value)))
+       (pos? (count value))
+       (coll/not-any? neg? value)))
 
 (def vector-types (protobuf/valid-enum-values Graphics$VertexAttribute$VectorType))
 
@@ -260,10 +257,11 @@
 (defn attribute-name-key [^String attribute-name]
   (protobuf/field-name->key attribute-name))
 
-(defn attribute-key-semantic-type [attribute-key]
-  ;; Attempt to map an attribute-key to a semantic-type. The engine runtime
-  ;; uses the same heuristics for shader attributes that are not declared in the
-  ;; material.
+(defn infer-semantic-type
+  "Attempt to infer the semantic-type based on the supplied attribute-key name.
+  The engine runtime uses the same heuristics for shader attributes that are not
+  declared in the material. Returns :semantic-type-none if there is no match."
+  [attribute-key]
   (case attribute-key
     :position :semantic-type-position
     :normal :semantic-type-normal
@@ -277,3 +275,40 @@
     :mtx-world :semantic-type-world-matrix
     :mtx-normal :semantic-type-normal-matrix
     :semantic-type-none))
+
+(defn infer-normalize
+  [semantic-type data-type]
+  (and (not= :type-float data-type)
+       (case semantic-type
+         (:semantic-type-bone-indices :semantic-type-none :semantic-type-page-index) false
+         true)))
+
+(defn infer-semantic-type->locations [attribute-key+location-pairs]
+  (->> attribute-key+location-pairs
+       (sort-by val)
+       (util/group-into
+         {} (vector-of :int)
+         #(infer-semantic-type (key %))
+         val)))
+
+(defn infer-location->element-type [attribute-reflection-infos]
+  (coll/transfer attribute-reflection-infos {}
+    (map (fn [{:keys [location data-type name-key vector-type]}]
+           (let [semantic-type (infer-semantic-type name-key)
+                 normalize (infer-normalize semantic-type data-type)
+                 element-type (make-element-type vector-type data-type normalize)]
+             (pair location element-type))))))
+
+(defn element-types-by-location? [value]
+  (and (map? value)
+       (coll/every? (fn [entry]
+                      (and (location? (key entry))
+                           (element-type? (val entry))))
+                    value)))
+
+(defn location-vectors-by-semantic-type? [value]
+  (and (map? value)
+       (coll/every? (fn [entry]
+                      (and (semantic-type? (key entry))
+                           (location-vector? (val entry))))
+                    value)))

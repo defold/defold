@@ -204,8 +204,18 @@
     (:strip-resource-binding-namespace-regex-str combined-shader-info)))
 
 (g/defnk produce-shader [_node-id combined-shader-info shader-request-data vertex-constants fragment-constants samplers]
-  (let [semantic-type->locations (:semantic-type->locations combined-shader-info)
-        array-sampler-name->slice-sampler-names (:array-sampler-name->uniform-names shader-request-data)
+  (let [{:keys [array-sampler-name->slice-sampler-names
+                attribute-key->location
+                location->attribute-reflection-info]}
+        combined-shader-info
+
+        ;; TODO(instancing): Use material settings.
+        semantic-type->locations
+        (graphics.types/infer-semantic-type->locations attribute-key->location)
+
+        ;; TODO(instancing): Use material settings.
+        location->element-type
+        (graphics.types/infer-location->element-type (vals location->attribute-reflection-info))
 
         uniform-values-by-name
         (-> {}
@@ -220,7 +230,7 @@
                            (pair resolved-sampler-name nil))))
                   samplers))]
 
-    (shader/make-shader-lifecycle _node-id shader-request-data semantic-type->locations uniform-values-by-name)))
+    (shader/make-shader-lifecycle _node-id shader-request-data semantic-type->locations location->element-type uniform-values-by-name)))
 
 (g/defnk produce-samplers [^:raw samplers default-sampler-filter-modes]
   ;; Replace any default filter modes with the setting from game.project.

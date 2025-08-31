@@ -213,7 +213,7 @@
                            :vec4 4)
         attribute-name   (name nm)
         attribute-key    (types/attribute-name-key attribute-name)
-        semantic-type    (types/attribute-key-semantic-type attribute-key)
+        semantic-type    (types/infer-semantic-type attribute-key)
         vector-type      (case num-components
                            1 :vector-type-scalar
                            2 :vector-type-vec2

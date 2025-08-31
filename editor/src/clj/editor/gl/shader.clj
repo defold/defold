@@ -476,6 +476,7 @@ This must be submitted to the driver for compilation before you can use it. See
   [request-id
    ^ShaderRequestData request-data
    semantic-type->locations
+   location->element-type
    uniforms]
 
   GlBind
@@ -568,10 +569,11 @@ This must be submitted to the driver for compilation before you can use it. See
     strip-resource-binding-namespace-regex-str))
 
 (defn make-shader-lifecycle
-  ^ShaderLifecycle [request-id request-data semantic-type->locations uniform-values-by-name]
+  ^ShaderLifecycle [request-id request-data semantic-type->locations location->element-type uniform-values-by-name]
   {:pre [(scene-cache/valid-request-id? request-id)
          (instance? ShaderRequestData request-data)
          (types/location-vectors-by-semantic-type? semantic-type->locations)
+         (types/element-types-by-location? location->element-type)
          (map? uniform-values-by-name)
          (every? string? (keys uniform-values-by-name))]}
   ;; TODO(instancing): We should be able to derive the attributes-infos from the
@@ -583,7 +585,7 @@ This must be submitted to the driver for compilation before you can use it. See
   ;; them to #version 140 first, since the transpiler does not support versions
   ;; earlier than that. Such shaders are also created from editor plugins, so we
   ;; need to update those.
-  (->ShaderLifecycle request-id request-data semantic-type->locations uniform-values-by-name))
+  (->ShaderLifecycle request-id request-data semantic-type->locations location->element-type uniform-values-by-name))
 
 (defn shader-lifecycle? [value]
   (instance? ShaderLifecycle value))
@@ -606,6 +608,7 @@ This must be submitted to the driver for compilation before you can use it. See
    ;; port over all the inline shaders to be transpiled?
    (let [location+attribute-name-pairs []
          semantic-type->locations {}
+         location->element-type {}
 
          request-data
          (make-shader-request-data
@@ -615,7 +618,7 @@ This must be submitted to the driver for compilation before you can use it. See
            array-sampler-name->uniform-names
            strip-resource-binding-namespace-regex-str)]
 
-     (make-shader-lifecycle request-id request-data semantic-type->locations uniforms))))
+     (make-shader-lifecycle request-id request-data semantic-type->locations location->element-type uniforms))))
 
 (defn read-combined-shader-info [shader-paths opts shader-path->source]
   (let [max-page-count (long (or (:max-page-count opts) 0))
@@ -629,14 +632,17 @@ This must be submitted to the driver for compilation before you can use it. See
     (shader-gen/combined-shader-info augmented-shader-infos)))
 
 (defn read-shader
-  ^ShaderLifecycle [shader-paths opts shader-path->source]
+  ^ShaderLifecycle [request-type shader-paths opts shader-path->source]
+  {:pre [(keyword? request-type)]}
   (let [request-id
-        {:max-page-count (or (:max-page-count opts) 0)
+        {:request-type request-type
+         :max-page-count (or (:max-page-count opts) 0)
          :shader-paths (vec (sort shader-paths))}
 
         {:keys [array-sampler-name->slice-sampler-names
+                attribute-key->location
                 location+attribute-name-pairs
-                semantic-type->locations
+                location->attribute-reflection-info
                 shader-type+source-pairs
                 strip-resource-binding-namespace-regex-str]}
         (read-combined-shader-info shader-paths opts shader-path->source)
@@ -646,11 +652,17 @@ This must be submitted to the driver for compilation before you can use it. See
           shader-type+source-pairs
           location+attribute-name-pairs
           array-sampler-name->slice-sampler-names
-          strip-resource-binding-namespace-regex-str)]
+          strip-resource-binding-namespace-regex-str)
 
-    (make-shader-lifecycle request-id shader-request-data semantic-type->locations {})))
+        semantic-type->locations
+        (types/infer-semantic-type->locations attribute-key->location)
 
-(defn jar-shader-path->source
+        location->element-type
+        (types/infer-location->element-type (vals location->attribute-reflection-info))]
+
+    (make-shader-lifecycle request-id shader-request-data semantic-type->locations location->element-type {})))
+
+(defn classpath-shader-path->source
   ^String [^String shader-path]
   (slurp (io/resource shader-path)))
 
@@ -662,12 +674,12 @@ This must be submitted to the driver for compilation before you can use it. See
       (pair nil
             maybe-opts-and-shader-paths))))
 
-(defn jar-shader
+(defn classpath-shader
   ^ShaderRequestData [& shader-paths]
   (let [[opts shader-paths] (parse-opts+shader-paths shader-paths)]
     (if (coll/empty? shader-paths)
       (throw (IllegalArgumentException. "At least one shader-path must be supplied."))
-      (read-shader shader-paths opts jar-shader-path->source))))
+      (read-shader :classpath-shader shader-paths opts classpath-shader-path->source))))
 
 (defn is-using-array-samplers? [^ShaderLifecycle shader-lifecycle]
   (let [^ShaderRequestData request-data (.-request-data shader-lifecycle)

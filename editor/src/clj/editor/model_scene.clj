@@ -51,9 +51,11 @@
 (def animation-file-types ["animationset" "dae" "gltf" "glb"])
 
 (def ^:private preview-shader
-  (shader/jar-shader
-    "shaders/model-scene-preview.vp"
-    "shaders/model-scene-preview.fp"))
+  (-> (shader/classpath-shader
+        "shaders/model-scene-preview.vp"
+        "shaders/model-scene-preview.fp")
+      (assoc :uniforms {"mtx_view" :view
+                        "mtx_proj" :projection})))
 
 (vtx/defvertex id-vertex
   (vec3 position)
@@ -407,14 +409,20 @@
 
 (defn- render-mesh-opaque [^GL2 gl render-args renderables]
   ;; TODO(instancing): Work-in-progress.
-  (let [{:keys [attribute-bindings index-buffer shader]} (:user-data (first renderables))]
+  (let [{:keys [attribute-bindings index-buffer shader]} (:user-data (first renderables))
+        index-type (gl.buffer/gl-data-type index-buffer)
+        index-count (gl.buffer/vertex-count index-buffer)]
     (gl/with-gl-bindings gl render-args [shader attribute-bindings index-buffer]
       (gl/gl-disable gl GL/GL_BLEND)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)
-      (gl/gl-draw-elements gl GL/GL_TRIANGLES 0 (gl.buffer/vertex-count index-buffer))
+      (gl/gl-draw-elements gl GL/GL_TRIANGLES index-type 0 index-count)
       (gl/gl-disable gl GL/GL_CULL_FACE)
       (gl/gl-enable gl GL/GL_BLEND))))
+
+(defn- old-render-mesh-opaque [^GL2 gl render-args renderables]
+  (let [renderable (first renderables)]
+    (render-mesh-opaque-impl gl render-args renderable ::mesh nil nil nil)))
 
 (defn- render-mesh-opaque-selection [^GL2 gl render-args renderable]
   ;; TODO(instancing): We should use instanced rendering and put the id as a per-instance attribute.
@@ -547,15 +555,34 @@
         index-buffer (:index-buffer renderable-buffers)
         semantic-type->attribute-buffers (:attribute-buffers renderable-buffers)
         semantic-type->shader-locations (:semantic-type->locations shader)
+        shader-location->element-type (:location->element-type shader)
+
+        _ (assert (map? shader-location->element-type)) ; TODO(instancing)
+
+        make-render-arg-binding
+        (fn make-render-arg-binding [render-arg-key ^long shader-location]
+          (let [element-type (shader-location->element-type shader-location)]
+            (attribute/make-render-arg-binding render-arg-key element-type shader-location)))
 
         attribute-bindings
-        (->> semantic-type->attribute-buffers
-             (coll/mapcat (fn [[semantic-type attribute-buffers]]
-                            (let [shader-locations (semantic-type->shader-locations semantic-type)]
-                              (map (fn [attribute-buffer ^long shader-location]
-                                     (attribute/make-buffer-binding attribute-buffer shader-location))
-                                   attribute-buffers
-                                   shader-locations))))
+        (->> semantic-type->shader-locations
+             (coll/mapcat
+               (fn [[semantic-type shader-locations]]
+                 (case semantic-type
+                   :semantic-type-world-matrix
+                   (map #(make-render-arg-binding :world ^long %)
+                        shader-locations)
+
+                   :semantic-type-normal-matrix
+                   (map #(make-render-arg-binding :normal ^long %)
+                        shader-locations)
+
+                   ;; else
+                   (let [attribute-buffers (semantic-type->attribute-buffers semantic-type)]
+                     (map (fn [attribute-buffer ^long shader-location]
+                            (attribute/make-buffer-binding attribute-buffer shader-location))
+                          attribute-buffers
+                          shader-locations)))))
              (sort-by :base-location))
 
         user-data

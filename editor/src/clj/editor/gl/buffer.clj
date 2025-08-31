@@ -136,6 +136,13 @@
   ^Buffer [^BufferLifecycle buffer-lifecycle]
   (.-data ^BufferData (.-buffer-data ^GlBufferData (.-gl-buffer-data buffer-lifecycle))))
 
+(defn data-type [^BufferLifecycle buffer-lifecycle]
+  (.-data-type ^ElementType (.-buffer-element-type buffer-lifecycle)))
+
+(defn gl-data-type
+  ^long [^BufferLifecycle buffer-lifecycle]
+  (data-type->gl-type (data-type buffer-lifecycle)))
+
 (defn invalidate
   ^BufferLifecycle [^BufferLifecycle buffer-lifecycle]
   (->BufferLifecycle (.-request-id buffer-lifecycle)
@@ -184,7 +191,7 @@
   (let [buffer-element-type ^ElementType (.-buffer-element-type buffer-lifecycle)
         vector-type (.-vector-type buffer-element-type)
         attribute-count (types/vector-type-attribute-count vector-type)]
-    (gl/clear-attributes! gl base-location attribute-count)))
+    (gl/disable-vertex-attrib-arrays! gl base-location attribute-count)))
 
 (defn- update-gl-buffer!
   [^GL2 gl ^long gl-buffer ^GlBufferData gl-buffer-data]

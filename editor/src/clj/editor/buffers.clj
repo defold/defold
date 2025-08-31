@@ -324,7 +324,7 @@
                (= data-version (.-data-version that))
                (= topology-hash (.-topology-hash that))))))
   (toString [_this]
-    (format "data=[pos=%d lim=%d cap=%d] ver=%d"
+    (format "data=[pos=%d lim=%d cap=%d] ver=%#x"
             (.position data)
             (.limit data)
             (.capacity data)

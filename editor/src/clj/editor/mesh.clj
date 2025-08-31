@@ -302,7 +302,7 @@
                                                    position-stream-name :position
                                                    normal-stream-name :normal
                                                    attribute-key)]
-                      (graphics.types/attribute-key-semantic-type semantic-attribute-key))}))
+                      (graphics.types/infer-semantic-type semantic-attribute-key))}))
 
 (defn- max-stream-length [streams]
   (transduce (map (fn [stream]

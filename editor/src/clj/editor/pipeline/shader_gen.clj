@@ -19,7 +19,7 @@
             [util.coll :as coll :refer [pair]]
             [util.eduction :as e])
   (:import [com.dynamo.bob CompileExceptionError]
-           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ShaderResource]
+           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ShaderResource Shaderc$ShaderStage]
            [com.dynamo.bob.pipeline.shader SPIRVReflector]
            [com.dynamo.graphics.proto Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderDataType Graphics$ShaderDesc$ShaderType]
            [org.apache.commons.io FilenameUtils]))
@@ -152,6 +152,12 @@
     ::shader-transpile-error true
     false))
 
+(defonce ^{:private true :tag 'byte} vertex-shader-stage-flag (byte (.getValue Shaderc$ShaderStage/SHADER_STAGE_VERTEX)))
+
+(defn- vertex-shader-resource? [^Shaderc$ShaderResource shader-resource]
+  (pos? (bit-and (.-stageFlags shader-resource)
+                 vertex-shader-stage-flag)))
+
 (defn transpile-shader-source
   [^String shader-path ^String shader-source ^long max-page-count]
   {:pre [(string? shader-path)
@@ -179,8 +185,13 @@
         transpiled-shader-source (.source glsl-compile-result)
         array-sampler-names (vec (.arraySamplers glsl-compile-result))
         spirv-reflector (.reflector glsl-compile-result)
-        attribute-reflection-infos (mapv make-attribute-reflection-info (.getInputs spirv-reflector))
-        resource-binding-namespaces (resource-binding-namespaces spirv-reflector)]
+        resource-binding-namespaces (resource-binding-namespaces spirv-reflector)
+
+        attribute-reflection-infos
+        (coll/transfer (.getInputs spirv-reflector) []
+          (filter vertex-shader-resource?)
+          (map make-attribute-reflection-info))]
+
     {:shader-type shader-type
      :max-page-count max-page-count
      :transpiled-shader-source transpiled-shader-source
@@ -191,14 +202,6 @@
 (defn- resource-binding-namespaces->regex-str
   ^String [resource-binding-namespaces]
   (str "^(" (string/join "|" resource-binding-namespaces) ")\\."))
-
-(defn deduce-semantic-type->locations [attribute-key+location-pairs]
-  (->> attribute-key+location-pairs
-       (sort-by val)
-       (util/group-into
-         {} (vector-of :int)
-         #(graphics.types/attribute-key-semantic-type (key %))
-         val)))
 
 (defn combined-shader-info [augmented-shader-infos]
   ;; Move a bunch of reflection stuff from gl.shader/compose-shader-request-data
@@ -256,7 +259,7 @@
                                      (iterate inc reflected-location))
                      attribute-reflection-info (assoc attribute-reflection-info
                                                  :location base-location
-                                                 :reflected-location reflected-location)
+                                                 :reflected-location reflected-location) ; For debugging. TODO(instancing): Remove.
                      attribute-key->location (assoc attribute-key->location name-key base-location)
                      location->attribute-reflection-info (assoc location->attribute-reflection-info base-location attribute-reflection-info)
                      location-range (range base-location (+ (long base-location) attribute-count))
@@ -278,17 +281,13 @@
 
         attribute-name->location
         (coll/transfer location+attribute-name-pairs {}
-          (map coll/flip))
+          (map coll/flip))]
 
-        semantic-type->locations
-        (deduce-semantic-type->locations attribute-key->location)]
-
-    {:max-page-count max-page-count
-     :strip-resource-binding-namespace-regex-str strip-resource-binding-namespace-regex-str
-     :array-sampler-name->slice-sampler-names array-sampler-name->slice-sampler-names
+    {:array-sampler-name->slice-sampler-names array-sampler-name->slice-sampler-names
      :attribute-key->location attribute-key->location
      :attribute-name->location attribute-name->location
-     :semantic-type->locations semantic-type->locations
-     :location->attribute-reflection-info location->attribute-reflection-info
      :location+attribute-name-pairs location+attribute-name-pairs
-     :shader-type+source-pairs shader-type+source-pairs}))
+     :location->attribute-reflection-info location->attribute-reflection-info
+     :max-page-count max-page-count
+     :shader-type+source-pairs shader-type+source-pairs
+     :strip-resource-binding-namespace-regex-str strip-resource-binding-namespace-regex-str}))
