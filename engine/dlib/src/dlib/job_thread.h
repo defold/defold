@@ -33,7 +33,8 @@ namespace dmJobThread
 
     HContext Create(const JobThreadCreationParams& create_params);
     void     Destroy(HContext context);
-    void     Update(HContext context); // Flushes any items and calls PostProcess
+    // Flushes any finished items and calls PostProcess
+    void     Update(HContext context, uint64_t time_limit);
     void     PushJob(HContext context, FProcess process, FCallback callback, void* user_context, void* data);
     uint32_t GetWorkerCount(HContext context);
     bool     PlatformHasThreadSupport();

@@ -16,9 +16,10 @@ package com.dynamo.bob.textureset;
 
 import java.util.List;
 
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.textureset.TextureSetLayout.Layout;
 import com.dynamo.bob.textureset.TextureSetLayout.Rect;
 
 public interface TextureSetLayoutStrategy {
-    List<Layout> createLayout(List<Rect> srcRects);
+    List<Layout> createLayout(List<Rect> srcRects) throws CompileExceptionError;
 }

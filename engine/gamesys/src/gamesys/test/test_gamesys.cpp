@@ -51,6 +51,7 @@
 #include "resource/booster_on_sfx.wav.embed.h" // BOOSTER_ON_SFX_WAV / BOOSTER_ON_SFX_WAV_SIZE
 
 #include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/gamesys/components/comp_gui.h>
 
 #include <sound/sound.h>
 
@@ -300,7 +301,7 @@ static bool UpdateAndWaitUntilDone(
             break;
         }
 
-        dmJobThread::Update(scriptlibcontext.m_JobThread);
+        dmJobThread::Update(scriptlibcontext.m_JobThread, 0);
         dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
         if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
         {
@@ -746,28 +747,37 @@ TEST_F(ComponentTest, CameraTest)
 TEST_F(ComponentTest, ReloadInvalidMaterial)
 {
     const char path_material[] = "/material/valid.materialc";
-    const char path_shader[] = "/material/shader_16853236849430612714.spc";
     void* resource;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_material, &resource));
+
+    char path[1024];
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test%s", path_material);
+
+    dmRenderDDF::MaterialDesc* ddf = 0;
+    dmDDF::Result res = dmDDF::LoadMessageFromFile(path, dmRenderDDF::MaterialDesc::m_DDFDescriptor, (void**) &ddf);
+    ASSERT_EQ(dmDDF::RESULT_OK, res);
+
+    const char* program = ddf->m_Program;
 
     // Modify resource with simulated syntax error
     dmGraphics::SetForceVertexReloadFail(true);
 
     // Reload, validate fail
-    ASSERT_NE(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_shader, 0));
+    ASSERT_NE(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, program, 0));
 
     // Modify resource with correction
     dmGraphics::SetForceVertexReloadFail(false);
 
     // Reload, validate success
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_shader, 0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, program, 0));
 
     // Same as above but for fragment shader
     dmGraphics::SetForceFragmentReloadFail(true);
-    ASSERT_NE(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_shader, 0));
+    ASSERT_NE(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, program, 0));
     dmGraphics::SetForceFragmentReloadFail(false);
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_shader, 0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, program, 0));
 
+    dmDDF::FreeMessage(ddf);
     dmResource::Release(m_Factory, resource);
 }
 
@@ -1583,13 +1593,13 @@ TEST_F(GuiTest, MaxDynamictextures)
 
     dmGui::Scene* scene = gui_comp->m_Scene;
 
-    ASSERT_EQ(256, scene->m_DynamicTextures.Capacity());
+    ASSERT_EQ(32, scene->m_DynamicTextures.Capacity());
     ASSERT_EQ(0, scene->m_DynamicTextures.Size());
 
     // Test 1: create textures
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(256, scene->m_DynamicTextures.Size());
+    ASSERT_EQ(32, scene->m_DynamicTextures.Size());
 
     // Test 2: delete textures
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -1605,6 +1615,7 @@ TEST_F(GuiTest, MaxDynamictextures)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
+
 
 // Test setting gui font
 TEST_F(ResourceTest, ScriptSetFonts)
@@ -1683,7 +1694,7 @@ TEST_F(FontTest, GlyphBankTest)
 
 TEST_F(FontTest, DynamicGlyph)
 {
-    const char path_font[] = "/font/glyph_bank_test_1.fontc";
+    const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
     dmGameSystem::FontResource* font;
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font, (void**) &font));
@@ -1695,14 +1706,7 @@ TEST_F(FontTest, DynamicGlyph)
 
     {
         dmRender::FontGlyph* glyph = dmRender::GetGlyph(font_map, codepoint);
-        ASSERT_NE((void*)0, glyph);
-
-        ASSERT_EQ(codepoint, glyph->m_Character);
-        ASSERT_EQ(14U, glyph->m_Width);
-        ASSERT_EQ(13U, glyph->m_Ascent);
-        ASSERT_EQ(2U, glyph->m_Descent);
-        ASSERT_EQ(0.0f, glyph->m_LeftBearing);
-        ASSERT_EQ(8.0f, glyph->m_Advance);
+        ASSERT_EQ((void*)0, glyph);
     }
 
     // Add a new glyph
@@ -1730,7 +1734,7 @@ TEST_F(FontTest, DynamicGlyph)
     }
 
     {
-        uint32_t glyph_data_compression; // E.g. FONT_MAP_GLYPH_COMPRESSION_NONE;
+        uint32_t glyph_data_compression; // E.g. FONT_GLYPH_COMPRESSION_NONE;
         uint32_t glyph_data_size = 0;
         uint32_t glyph_image_width = 0;
         uint32_t glyph_image_height = 0;
@@ -1741,14 +1745,14 @@ TEST_F(FontTest, DynamicGlyph)
         dmRender::FontGlyph* glyph = dmRender::GetGlyph(font_map, codepoint);
         ASSERT_NE((void*)0, glyph);
 
-        ASSERT_EQ(0U, glyph_data_compression);
+        ASSERT_EQ((uint32_t)dmRender::FONT_GLYPH_COMPRESSION_NONE, glyph_data_compression);
         ASSERT_EQ(data_size-1, glyph_data_size);
         ASSERT_EQ(8U, glyph_image_width);
         ASSERT_EQ(9U, glyph_image_height);
         ASSERT_EQ(3U, glyph_image_channels);
 
         ASSERT_EQ(codepoint, glyph->m_Character);
-        ASSERT_EQ(1U + glyph_padding * 2, glyph->m_Width);
+        ASSERT_EQ(1U, glyph->m_Width);
         ASSERT_EQ(8U, glyph->m_ImageWidth);
         ASSERT_EQ(4.0f, glyph->m_Advance);
         ASSERT_EQ(5.0f, glyph->m_LeftBearing);
@@ -2008,7 +2012,7 @@ TEST_P(FactoryTest, Test)
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
 
         // --- step 5 ---
-        // recreate resources without factoy.load having been called (sync load on demand)
+        // recreate resources without factory.load having been called (sync load on demand)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         dmGameObject::PostUpdate(m_Register);
@@ -2093,6 +2097,35 @@ TEST_P(FactoryTest, IdHashTest)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/factory/factory_hash_test.goc", go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
     go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_P(FactoryTest, Create)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+    
+    lua_pushnumber(L, m_projectOptions.m_MaxInstances);
+    lua_setglobal(L, "max_instances");
+
+    // Spawn the game object with the script we want to call
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmhash_t go_hash = dmHashString64("/go");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/factory/factory_create_test.goc", go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -2846,132 +2879,6 @@ TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-/* Physics joints */
-TEST_F(ComponentTest, JointTest)
-{
-    /* Setup:
-    ** joint_test_a
-    ** - [collisionobject] collision_object/joint_test_sphere.collisionobject
-    ** - [script] collision_object/joint_test.script
-    ** joint_test_b
-    ** - [collisionobject] collision_object/joint_test_sphere.collisionobject
-    ** joint_test_c
-    ** - [collisionobject] collision_object/joint_test_static_floor.collisionobject
-    */
-
-    dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-
-    const char* path_joint_test_a = "/collision_object/joint_test_a.goc";
-    const char* path_joint_test_b = "/collision_object/joint_test_b.goc";
-    const char* path_joint_test_c = "/collision_object/joint_test_c.goc";
-
-    dmhash_t hash_go_joint_test_a = dmHashString64("/joint_test_a");
-    dmhash_t hash_go_joint_test_b = dmHashString64("/joint_test_b");
-    dmhash_t hash_go_joint_test_c = dmHashString64("/joint_test_c");
-
-    dmGameObject::HInstance go_c = Spawn(m_Factory, m_Collection, path_joint_test_c, hash_go_joint_test_c, 0, Point3(0, -100, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_c);
-
-    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_joint_test_b, hash_go_joint_test_b, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_b);
-
-    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_joint_test_a, hash_go_joint_test_a, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_a);
-
-    // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
-    bool tests_done = false;
-    while (!tests_done)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-
-}
-
-/* Physics listener */
-TEST_F(ComponentTest, PhysicsListenerTest)
-{
-    /* Setup:
-    ** callback_object
-    ** - [collisionobject] collision_object/callback_object.collisionobject
-    ** - [script] collision_object/callback_object.script
-    ** callback_trigger
-    ** - [collisionobject] collision_object/callback_trigger.collisionobject
-    */
-
-    dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-
-    const char* path_test_object = "/collision_object/callback_object.goc";
-    const char* path_test_trigger = "/collision_object/callback_trigger.goc";
-
-    dmhash_t hash_go_object = dmHashString64("/test_object");
-    dmhash_t hash_go_trigger = dmHashString64("/test_trigger");
-
-    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_b);
-
-    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_test_trigger, hash_go_trigger, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_a);
-
-    bool tests_done = false;
-    while (!tests_done)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-
-}
-
-/* Update mass for physics collision object */
-TEST_F(ComponentTest, PhysicsUpdateMassTest)
-{
-    /* Setup:
-    ** mass_object
-    ** - [collisionobject] collision_object/mass_object.collisionobject
-    ** - [script] collision_object/mass_object.script
-    */
-
-    dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-
-    const char* path_test_object = "/collision_object/mass_object.goc";
-
-    dmhash_t hash_go_object = dmHashString64("/test_object");
-
-    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go_b);
-
-    bool tests_done = false;
-    while (!tests_done)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-}
-
 TEST_F(ComponentTest, DispatchBuffersTest)
 {
     dmHashEnableReverseHash(true);
@@ -3531,7 +3438,8 @@ INSTANTIATE_TEST_CASE_P(Mesh, ResourceTest, jc_test_values_in(valid_mesh_resourc
 
 /* MeshSet */
 
-const char* valid_meshset_resources[] = {"/meshset/valid.meshsetc", "/meshset/valid.skeletonc", "/meshset/valid.animationsetc"};
+const char* valid_meshset_resources[] = {"/meshset/valid.meshsetc", "/meshset/valid.skeletonc", "/meshset/valid.animationsetc",
+                                         "/meshset/valid_gltf.meshsetc", "/meshset/valid_gltf.skeletonc", "/meshset/valid_gltf.animationsetc"};
 INSTANTIATE_TEST_CASE_P(MeshSet, ResourceTest, jc_test_values_in(valid_meshset_resources));
 
 ResourceFailParams invalid_mesh_resources[] =
@@ -5770,6 +5678,128 @@ TEST_F(ModelScriptTest, GetAABB)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Mock per-property handlers for testing
+static dmHashTable64<dmhash_t> g_MockPerPropertyValues;
+
+static dmGameObject::PropertyResult MockSpineSceneSetProperty(dmGui::HScene scene, const dmGameObject::ComponentSetPropertyParams& params)
+{
+    if (!params.m_Options.m_HasKey)
+    {
+        return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
+    }
+    g_MockPerPropertyValues.Put(params.m_Options.m_Key, params.m_Value.m_Hash);
+    return dmGameObject::PROPERTY_RESULT_OK;
+}
+
+static dmGameObject::PropertyResult MockSpineSceneGetProperty(dmGui::HScene scene, const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
+{
+    if (!params.m_Options.m_HasKey)
+    {
+        return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
+    }
+    dmhash_t* value = g_MockPerPropertyValues.Get(params.m_Options.m_Key);
+    if (!value)
+    {
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+    out_value.m_Variant.m_Hash = *value;
+    out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
+    return dmGameObject::PROPERTY_RESULT_OK;
+}
+
+TEST_F(GuiTest, PerPropertyRegistration)
+{
+    g_MockPerPropertyValues.Clear();
+    g_MockPerPropertyValues.SetCapacity(8, 16);
+    
+    dmhash_t spine_scene_hash = dmHashString64("spine_scene");
+    
+    // Test registering per-property setter and getter
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiRegisterSetPropertyFn(spine_scene_hash, MockSpineSceneSetProperty));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiRegisterGetPropertyFn(spine_scene_hash, MockSpineSceneGetProperty));
+    
+    // Create a GUI component
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/valid_gui.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+    
+    // Test setting per-property with key
+    dmGameObject::PropertyOptions options;
+    options.m_HasKey = 1;
+    options.m_Key = dmHashString64("test_node");
+    
+    dmGameObject::PropertyVar value(dmHashString64("test_spine_scene"));
+    dmGameObject::PropertyResult result = dmGameObject::SetProperty(go, dmHashString64("gui"), spine_scene_hash, options, value);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    
+    // Test getting per-property
+    dmGameObject::PropertyDesc desc;
+    result = dmGameObject::GetProperty(go, dmHashString64("gui"), spine_scene_hash, options, desc);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    ASSERT_EQ(dmHashString64("test_spine_scene"), desc.m_Variant.m_Hash);
+    
+    // Test unregistering setter
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterSetPropertyFn(spine_scene_hash));
+    
+    // Verify setter no longer works
+    dmGameObject::PropertyVar newValue(dmHashString64("new_spine_scene"));
+    result = dmGameObject::SetProperty(go, dmHashString64("gui"), spine_scene_hash, options, newValue);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, result);
+    
+    // But getter should still work
+    result = dmGameObject::GetProperty(go, dmHashString64("gui"), spine_scene_hash, options, desc);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    ASSERT_EQ(dmHashString64("test_spine_scene"), desc.m_Variant.m_Hash);
+    
+    // Test unregistering getter
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterGetPropertyFn(spine_scene_hash));
+    
+    // Verify getter no longer works
+    result = dmGameObject::GetProperty(go, dmHashString64("gui"), spine_scene_hash, options, desc);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, result);
+    
+    // Test unregistering non-existent handler
+    ASSERT_EQ(dmGameObject::RESULT_ALREADY_REGISTERED, dmGameSystem::CompGuiUnregisterSetPropertyFn(spine_scene_hash));
+    ASSERT_EQ(dmGameObject::RESULT_INVALID_OPERATION, dmGameSystem::CompGuiUnregisterGetPropertyFn(spine_scene_hash));
+    
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, PerPropertyPrecedence)
+{
+    g_MockPerPropertyValues.Clear();
+    g_MockPerPropertyValues.SetCapacity(8, 16);
+    
+    dmhash_t test_prop_hash = dmHashString64("test_prop");
+    
+    // Register per-property handlers first
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiRegisterSetPropertyFn(test_prop_hash, MockSpineSceneSetProperty));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiRegisterGetPropertyFn(test_prop_hash, MockSpineSceneGetProperty));
+    
+    // Create a GUI component
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/valid_gui.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+    
+    dmGameObject::PropertyOptions options;
+    options.m_HasKey = 1;
+    options.m_Key = dmHashString64("test_node");
+    
+    // Test that per-property handler is called (not extension handlers)
+    dmGameObject::PropertyVar value(dmHashString64("per_property_value"));
+    dmGameObject::PropertyResult result = dmGameObject::SetProperty(go, dmHashString64("gui"), test_prop_hash, options, value);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    
+    dmGameObject::PropertyDesc desc;
+    result = dmGameObject::GetProperty(go, dmHashString64("gui"), test_prop_hash, options, desc);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    ASSERT_EQ(dmHashString64("per_property_value"), desc.m_Variant.m_Hash);
+    
+    // Clean up
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterSetPropertyFn(test_prop_hash));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterGetPropertyFn(test_prop_hash));
+    
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 

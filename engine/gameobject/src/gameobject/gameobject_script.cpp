@@ -287,11 +287,11 @@ namespace dmGameObject
         out_url->m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
     }
 
-    static dmhash_t ScriptInstanceResolvePathCB(uintptr_t resolve_user_data, const char* path, uint32_t path_size) {
+    static dmhash_t ScriptInstanceResolvePathCB(uintptr_t resolve_user_data, const char* path) {
         ScriptInstance* i = (ScriptInstance*)resolve_user_data;
         if (path != 0x0 && *path != 0)
         {
-            return GetAbsoluteIdentifier(i->m_Instance, path, strlen(path));
+            return GetAbsoluteIdentifier(i->m_Instance, path);
         }
         else
         {
@@ -325,7 +325,7 @@ namespace dmGameObject
 
         if (path != 0x0 && *path != 0)
         {
-            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, path, strlen(path)));
+            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, path));
         }
         else
         {
@@ -363,6 +363,13 @@ namespace dmGameObject
         return 1;
     }
 
+    static int ScriptGetUniqueScriptId(lua_State* L)
+    {
+        ScriptInstance* inst = (ScriptInstance*)lua_touserdata(L, 1);
+        lua_pushinteger(L, (lua_Integer)inst->m_UniqueScriptId);
+        return 1;
+    }
+
     static const luaL_reg ScriptInstance_methods[] =
     {
         {0,0}
@@ -379,6 +386,7 @@ namespace dmGameObject
         {dmScript::META_TABLE_IS_VALID,                 ScriptInstanceIsValid},
         {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, ScriptGetInstanceContextTableRef},
         {dmScript::META_GET_INSTANCE_DATA_TABLE_REF,    ScriptGetInstanceDataTableRef},
+        {dmScript::META_GET_UNIQUE_SCRIPT_ID,           ScriptGetUniqueScriptId},
         {0, 0}
     };
 
@@ -541,9 +549,9 @@ namespace dmGameObject
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to retrieve
      * @param [options] [type:table] optional options table
-     * - index [type:integer] index into array property (1 based)
+     * - index [type:number] index into array property (1 based)
      * - key [type:hash] name of internal property
-     * @return value [type:any] the value of the specified property
+     * @return value [type:number|boolean|hash|url|vector3|vector4|quaternion|resource] the value of the specified property
      *
      * @examples
      * Get a property "speed" from a script "player", the property must be declared in the player-script:
@@ -672,7 +680,7 @@ namespace dmGameObject
      * @name go.set
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to set
-     * @param value [type:any|table] the value to set
+     * @param value [type:number|boolean|hash|url|vector3|vector4|quaternion|resource] the value to set
      * @param [options] [type:table] optional options table
      * - index [type:integer] index into array property (1 based)
      * - key [type:hash] name of internal property
@@ -1014,7 +1022,7 @@ namespace dmGameObject
     /*# sets the scale factor of the game object instance
      * The scale factor is relative to the parent (if any). The global world scale factor cannot be manually set.
      *
-     * [icon:attention] Physics are currently not affected when setting scale from this function.
+     * [icon:attention] See <a href="/manuals/project-settings/#allow-dynamic-transforms">manual</a> to know how physics affected when setting scale from this function.
      *
      * @name go.set_scale
      * @param scale [type:number|vector3] vector or uniform scale factor, must be greater than 0
@@ -1028,14 +1036,14 @@ namespace dmGameObject
      * go.set_scale(s)
      * ```
      *
-     * Set the scale of another game object instance with id "x":
+     * Set the scale of another game object instance with id "obj_id":
      *
      * ```lua
      * local s = 1.2
-     * go.set_scale(s, "x")
+     * go.set_scale(s, "obj_id")
      * ```
      */
-    int Script_SetScale(lua_State* L)
+    static int Script_SetScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 2);
 
@@ -1058,6 +1066,57 @@ namespace dmGameObject
             return luaL_error(L, "The scale supplied to go.set_scale must be greater than 0.");
         }
         dmGameObject::SetScale(instance, (float)n);
+        return 0;
+    }
+
+    /*# sets the scale factor only for width and height (x and y) of the game object instance
+     * The scale factor is relative to the parent (if any). The global world scale factor cannot be manually set.
+     *
+     * [icon:attention] See <a href="/manuals/project-settings/#allow-dynamic-transforms">manual</a> to know how physics affected when setting scale from this function.
+     *
+     * @name go.set_scale_xy
+     * @param scale [type:number|vector3] vector or uniform scale factor, must be greater than 0
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the scale for, by default the instance of the calling script
+     * @examples
+     *
+     * Set the scale of the game object instance the script is attached to:
+     *
+     * ```lua
+     * local s = vmath.vector3(2.0, 1.0, 5.0)
+     * go.set_scale_xy(s) -- z will not be set here, only x and y
+     * ```
+     *
+     * Set the scale of another game object instance with id "obj_id":
+     *
+     * ```lua
+     * local s = 1.2
+     * go.set_scale_xy(s, "obj_id") -- z will not be set here, only x and y
+     * ```
+     */
+    static int Script_SetScaleXY(lua_State* L)
+    {
+        Instance* instance = ResolveInstance(L, 2);
+
+        // Supports both vector and number
+        Vector3* v = dmScript::ToVector3(L, 1);
+        if (v != 0)
+        {
+            Vector3 scale = *v;
+            if (scale.getX() <= 0.0f || scale.getY() <= 0.0f)
+            {
+                return luaL_error(L, "Vector passed to go.set_scale_xy contains components that are below or equal to zero");
+            }
+            dmGameObject::SetScaleXY(instance, scale.getX(), scale.getY());
+            return 0;
+        }
+
+        lua_Number n = luaL_checknumber(L, 1);
+        if (n <= 0.0)
+        {
+            return luaL_error(L, "The scale supplied to go.set_scale_xy must be greater than 0.");
+        }
+        float value = (float)n;
+        dmGameObject::SetScaleXY(instance, value, value);
         return 0;
     }
 
@@ -1371,7 +1430,7 @@ namespace dmGameObject
         if (lua_gettop(L) > 0)
         {
             const char* ident = luaL_checkstring(L, 1);
-            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, ident, strlen(ident)));
+            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, ident));
         }
         else
         {
@@ -1451,7 +1510,7 @@ namespace dmGameObject
      * @name go.animate
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to animate
-     * @param playback [type:constant] playback mode of the animation
+     * @param playback [type:go.PLAYBACK_ONCE_FORWARD|go.PLAYBACK_ONCE_BACKWARD|go.PLAYBACK_ONCE_PINGPONG|go.PLAYBACK_LOOP_FORWARD|go.PLAYBACK_LOOP_BACKWARD|go.PLAYBACK_LOOP_PINGPONG] playback mode of the animation
      *
      * - `go.PLAYBACK_ONCE_FORWARD`
      * - `go.PLAYBACK_ONCE_BACKWARD`
@@ -1461,7 +1520,7 @@ namespace dmGameObject
      * - `go.PLAYBACK_LOOP_PINGPONG`
      *
      * @param to [type:number|vector3|vector4|quaternion] target property value
-     * @param easing [type:constant|vector] easing to use during animation. Either specify a constant, see the <a href="/manuals/animation#_easing">animation guide</a> for a complete list, or a vmath.vector with a curve
+     * @param easing [type:vector|go.EASING_INBACK|go.EASING_INBOUNCE|go.EASING_INCIRC|go.EASING_INCUBIC|go.EASING_INELASTIC|go.EASING_INEXPO|go.EASING_INOUTBACK|go.EASING_INOUTBOUNCE|go.EASING_INOUTCIRC|go.EASING_INOUTCUBIC|go.EASING_INOUTELASTIC|go.EASING_INOUTEXPO|go.EASING_INOUTQUAD|go.EASING_INOUTQUART|go.EASING_INOUTQUINT|go.EASING_INOUTSINE|go.EASING_INQUAD|go.EASING_INQUART|go.EASING_INQUINT|go.EASING_INSINE|go.EASING_LINEAR|go.EASING_OUTBACK|go.EASING_OUTBOUNCE|go.EASING_OUTCIRC|go.EASING_OUTCUBIC|go.EASING_OUTELASTIC|go.EASING_OUTEXPO|go.EASING_OUTINBACK|go.EASING_OUTINBOUNCE|go.EASING_OUTINCIRC|go.EASING_OUTINCUBIC|go.EASING_OUTINELASTIC|go.EASING_OUTINEXPO|go.EASING_OUTINQUAD|go.EASING_OUTINQUART|go.EASING_OUTINQUINT|go.EASING_OUTINSINE|go.EASING_OUTQUAD|go.EASING_OUTQUART|go.EASING_OUTQUINT|go.EASING_OUTSINE] easing to use during animation. Either specify a constant, see the <a href="/manuals/animation#_easing">animation guide</a> for a complete list, or a vmath.vector with a curve
      * @param duration [type:number] duration of the animation in seconds
      * @param [delay] [type:number] delay before the animation starts in seconds
      * @param [complete_function] [type:function(self, url, property)] optional function to call when the animation has completed
@@ -1861,7 +1920,7 @@ namespace dmGameObject
             }
         }
 
-        // Resolive argument #1 url
+        // Resolve argument #1 url
         dmGameObject::HInstance instance = ResolveInstance(L, 1);
         if(dmGameObject::IsBone(instance))
         {
@@ -1987,18 +2046,24 @@ namespace dmGameObject
 
 
     /*# check if the specified game object exists
-     * A lua-error will be raised if the game object belongs to another
-     * collection than the collection from which the function was called.
+     * This function can check for game objects in any collection by specifying
+     * the collection name in the URL.
      * 
      * @name go.exists
      * @param url [type:string|hash|url] url of the game object to check
-     * @return exists [type:bool] true if the game object exists
+     * @return exists [type:boolean] true if the game object exists
      *
      * @examples
-     * Check if game object "my_game_object" exists
+     * Check if game object "my_game_object" exists in the current collection
      *
      * ```lua
      * go.exists("/my_game_object")
+     * ```
+     *
+     * Check if game object exists in another collection
+     *
+     * ```lua
+     * go.exists("other_collection:/my_game_object")
      * ```
      */
     int Script_Exists(lua_State* L)
@@ -2013,20 +2078,38 @@ namespace dmGameObject
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
 
-        // resolve instance provided as argument and make sure it is the same as "this"
+        // resolve target URL
         dmMessage::URL receiver;
         dmScript::ResolveURL(L, 1, &receiver, 0x0);
-        if (receiver.m_Socket != dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
-        {
-            luaL_error(L, "function called can only access instances within the same collection.");
-        }
 
         dmMessage::URL sender;
         dmScript::GetURL(L, &sender);
         dmMessage::URL target;
         dmScript::ResolveURL(L, 1, &target, &sender);
 
-        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
+        dmGameObject::HInstance target_instance = 0;
+        
+        // Check if target is in the same collection
+        if (receiver.m_Socket == dmGameObject::GetMessageSocket(instance->m_Collection->m_HCollection))
+        {
+            // Same collection - use current collection
+            target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
+        }
+        else
+        {
+            // Different collection - find target collection by socket
+            dmhash_t target_socket_hash = dmMessage::GetSocketNameHash(receiver.m_Socket);
+            if (target_socket_hash != 0)
+            {
+                dmGameObject::HRegister regist = dmGameObject::GetRegister(instance->m_Collection->m_HCollection);
+                dmGameObject::HCollection target_collection = dmGameObject::GetCollectionByHash(regist, target_socket_hash);
+                if (target_collection != 0)
+                {
+                    target_instance = dmGameObject::GetInstanceFromIdentifier(target_collection, target.m_Path);
+                }
+            }
+        }
+
         lua_pushboolean(L, target_instance != 0);
         return 1;
     }
@@ -2104,6 +2187,7 @@ namespace dmGameObject
         {"set_position",            Script_SetPosition},
         {"set_rotation",            Script_SetRotation},
         {"set_scale",               Script_SetScale},
+        {"set_scale_xy",            Script_SetScaleXY},
         {"set_parent",              Script_SetParent},
         {"get_world_position",      Script_GetWorldPosition},
         {"get_world_rotation",      Script_GetWorldRotation},
@@ -2451,6 +2535,7 @@ bail:
         i->m_Instance = instance;
         i->m_ScriptWorld = script_world->m_ScriptWorld;
         i->m_ComponentIndex = component_index;
+        i->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
         NewPropertiesParams params;
         params.m_ResolvePathCallback = ScriptInstanceResolvePathCB;
         params.m_ResolvePathUserData = (uintptr_t)L;
@@ -2603,7 +2688,7 @@ bail:
      * to set the initial state of the script.
      *
      * @name init
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * ```lua
@@ -2620,7 +2705,7 @@ bail:
      * or release user input focus (see [ref:release_input_focus]).
      *
      * @name final
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * ```lua
@@ -2636,7 +2721,7 @@ bail:
      * It can be used to perform any kind of game related tasks, e.g. moving the game object instance.
      *
      * @name update
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param dt [type:number] the time-step of the frame update
      * @examples
      *
@@ -2663,7 +2748,7 @@ bail:
      * physics (enabled by ticking 'Use Fixed Timestep' in the Physics section of game.project).
      *
      * @name fixed_update
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param dt [type:number] the time-step of the frame update
      * @examples
      */
@@ -2677,7 +2762,7 @@ bail:
      * documentation of the message specifies which data is supplied.
      *
      * @name on_message
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param message_id [type:hash] id of the received message
      * @param message [type:table] a table containing the message data
      * @param sender [type:url] address of the sender
@@ -2788,7 +2873,7 @@ bail:
      * `acc_z`     | Accelerometer z value (if present).
      *
      * @name on_input
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
      * @param action [type:table] a table containing the input data, see above for a description
      * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
@@ -2830,7 +2915,7 @@ bail:
      * It can be used for live development, e.g. to tweak constants or set up the state properly for the instance.
      *
      * @name on_reload
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * This example demonstrates how to tweak the speed of a game object instance that is moved on user input.
@@ -2871,242 +2956,242 @@ bail:
     /*# no playback
      *
      * @name go.PLAYBACK_NONE
-     * @variable
+     * @constant
      */
     /*# once forward
      *
      * @name go.PLAYBACK_ONCE_FORWARD
-     * @variable
+     * @constant
      */
     /*# once backward
      *
      * @name go.PLAYBACK_ONCE_BACKWARD
-     * @variable
+     * @constant
      */
     /*# once ping pong
      *
      * @name go.PLAYBACK_ONCE_PINGPONG
-     * @variable
+     * @constant
      */
     /*# loop forward
      *
      * @name go.PLAYBACK_LOOP_FORWARD
-     * @variable
+     * @constant
      */
     /*# loop backward
      *
      * @name go.PLAYBACK_LOOP_BACKWARD
-     * @variable
+     * @constant
      */
     /*# ping pong loop
      *
      * @name go.PLAYBACK_LOOP_PINGPONG
-     * @variable
+     * @constant
      */
 
     /*# linear interpolation
      *
      * @name go.EASING_LINEAR
-     * @variable
+     * @constant
      */
     /*# in-quadratic
      *
      * @name go.EASING_INQUAD
-     * @variable
+     * @constant
      */
     /*# out-quadratic
      *
      * @name go.EASING_OUTQUAD
-     * @variable
+     * @constant
      */
     /*# in-out-quadratic
      *
      * @name go.EASING_INOUTQUAD
-     * @variable
+     * @constant
      */
     /*# out-in-quadratic
      *
      * @name go.EASING_OUTINQUAD
-     * @variable
+     * @constant
      */
     /*# in-cubic
      *
      * @name go.EASING_INCUBIC
-     * @variable
+     * @constant
      */
     /*# out-cubic
      *
      * @name go.EASING_OUTCUBIC
-     * @variable
+     * @constant
      */
     /*# in-out-cubic
      *
      * @name go.EASING_INOUTCUBIC
-     * @variable
+     * @constant
      */
     /*# out-in-cubic
      *
      * @name go.EASING_OUTINCUBIC
-     * @variable
+     * @constant
      */
     /*# in-quartic
      *
      * @name go.EASING_INQUART
-     * @variable
+     * @constant
      */
     /*# out-quartic
      *
      * @name go.EASING_OUTQUART
-     * @variable
+     * @constant
      */
     /*# in-out-quartic
      *
      * @name go.EASING_INOUTQUART
-     * @variable
+     * @constant
      */
     /*# out-in-quartic
      *
      * @name go.EASING_OUTINQUART
-     * @variable
+     * @constant
      */
     /*# in-quintic
      *
      * @name go.EASING_INQUINT
-     * @variable
+     * @constant
      */
     /*# out-quintic
      *
      * @name go.EASING_OUTQUINT
-     * @variable
+     * @constant
      */
     /*# in-out-quintic
      *
      * @name go.EASING_INOUTQUINT
-     * @variable
+     * @constant
      */
     /*# out-in-quintic
      *
      * @name go.EASING_OUTINQUINT
-     * @variable
+     * @constant
      */
     /*# in-sine
      *
      * @name go.EASING_INSINE
-     * @variable
+     * @constant
      */
     /*# out-sine
      *
      * @name go.EASING_OUTSINE
-     * @variable
+     * @constant
      */
     /*# in-out-sine
      *
      * @name go.EASING_INOUTSINE
-     * @variable
+     * @constant
      */
     /*# out-in-sine
      *
      * @name go.EASING_OUTINSINE
-     * @variable
+     * @constant
      */
     /*# in-exponential
      *
      * @name go.EASING_INEXPO
-     * @variable
+     * @constant
      */
     /*# out-exponential
      *
      * @name go.EASING_OUTEXPO
-     * @variable
+     * @constant
      */
     /*# in-out-exponential
      *
      * @name go.EASING_INOUTEXPO
-     * @variable
+     * @constant
      */
     /*# out-in-exponential
      *
      * @name go.EASING_OUTINEXPO
-     * @variable
+     * @constant
      */
     /*# in-circlic
      *
      * @name go.EASING_INCIRC
-     * @variable
+     * @constant
      */
     /*# out-circlic
      *
      * @name go.EASING_OUTCIRC
-     * @variable
+     * @constant
      */
     /*# in-out-circlic
      *
      * @name go.EASING_INOUTCIRC
-     * @variable
+     * @constant
      */
     /*# out-in-circlic
      *
      * @name go.EASING_OUTINCIRC
-     * @variable
+     * @constant
      */
     /*# in-elastic
      *
      * @name go.EASING_INELASTIC
-     * @variable
+     * @constant
      */
     /*# out-elastic
      *
      * @name go.EASING_OUTELASTIC
-     * @variable
+     * @constant
      */
     /*# in-out-elastic
      *
      * @name go.EASING_INOUTELASTIC
-     * @variable
+     * @constant
      */
     /*# out-in-elastic
      *
      * @name go.EASING_OUTINELASTIC
-     * @variable
+     * @constant
      */
     /*# in-back
      *
      * @name go.EASING_INBACK
-     * @variable
+     * @constant
      */
     /*# out-back
      *
      * @name go.EASING_OUTBACK
-     * @variable
+     * @constant
      */
     /*# in-out-back
      *
      * @name go.EASING_INOUTBACK
-     * @variable
+     * @constant
      */
     /*# out-in-back
      *
      * @name go.EASING_OUTINBACK
-     * @variable
+     * @constant
      */
     /*# in-bounce
      *
      * @name go.EASING_INBOUNCE
-     * @variable
+     * @constant
      */
     /*# out-bounce
      *
      * @name go.EASING_OUTBOUNCE
-     * @variable
+     * @constant
      */
     /*# in-out-bounce
      *
      * @name go.EASING_INOUTBOUNCE
-     * @variable
+     * @constant
      */
     /*# out-in-bounce
      *
      * @name go.EASING_OUTINBOUNCE
-     * @variable
+     * @constant
      */
 }

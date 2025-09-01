@@ -36,6 +36,12 @@ namespace dmGameSystem
     const char* PHYSICS_USE_FIXED_TIMESTEP          = "physics.use_fixed_timestep";
     /// Config key for using max updates during a single step
     const char* PHYSICS_MAX_FIXED_TIMESTEPS         = "physics.max_fixed_timesteps";
+    /// Config key for Box2D 2.2 velocity iterations
+    const char* BOX2D_VELOCITY_ITERATIONS            = "box2d.velocity_iterations";
+    /// Config key for Box2D 2.2 position iterations  
+    const char* BOX2D_POSITION_ITERATIONS            = "box2d.position_iterations";
+    /// Config key for Box2D 3.x sub-step count
+    const char* BOX2D_SUB_STEP_COUNT                 = "box2d.sub_step_count";
 
     dmGameObject::CreateResult CompCollisionObjectNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {

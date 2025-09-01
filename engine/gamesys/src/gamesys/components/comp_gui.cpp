@@ -33,6 +33,7 @@
 #include <gameobject/gameobject_ddf.h> // dmGameObjectDDF enable/disable
 #include <gamesys/atlas_ddf.h>
 #include <dmsdk/gamesys/resources/res_font.h>
+#include <dmsdk/gamesys/components/comp_gui.h>
 
 #include "comp_gui.h"
 #include "comp_gui_private.h"
@@ -62,6 +63,9 @@ namespace dmGameSystem
 
     static CompGuiNodeTypeDescriptor g_CompGuiNodeTypeSentinel = {0};
     static bool g_CompGuiNodeTypesInitialized = false;
+
+    static dmHashTable64<CompGuiPropertySetterFn> g_CompGuiPropertySetters;
+    static dmHashTable64<CompGuiPropertyGetterFn> g_CompGuiPropertyGetters;
 
     static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(dmGui::HTextureSource, dmhash_t, dmGui::TextureSetAnimDesc*);
 
@@ -266,6 +270,34 @@ namespace dmGameSystem
         {
             dmGameSystem::DestroyRenderConstants(render_constants);
         }
+    }
+
+    static void* CloneRenderConstantsCallback(void* node_render_constants)
+    {
+        HComponentRenderConstants src_constants = (HComponentRenderConstants) node_render_constants;
+        if (!src_constants)
+        {
+            return 0x0;
+        }
+
+        HComponentRenderConstants cloned_constants = dmGameSystem::CreateRenderConstants();
+        
+        uint32_t count = dmGameSystem::GetRenderConstantCount(src_constants);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmRender::HConstant constant = dmGameSystem::GetRenderConstant(src_constants, i);
+            dmhash_t name_hash = dmRender::GetConstantName(constant);
+            
+            uint32_t num_values;
+            dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+            
+            if (values)
+            {
+                dmGameSystem::SetRenderConstant(cloned_constants, name_hash, values, num_values);
+            }
+        }
+        
+        return cloned_constants;
     }
 
     static bool SetMaterialPropertyCallback(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, const dmGameObject::PropertyVar& property_var, const dmGameObject::PropertyOptions* options)
@@ -931,7 +963,8 @@ namespace dmGameSystem
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxDynamicTextures = scene_desc->m_MaxDynamicTextures;
-        scene_params.m_MaxTextures = 128;
+        uint32_t texture_count = scene_resource->m_GuiTextureSets.Size();
+        scene_params.m_MaxTextures = texture_count > 0 ? texture_count : 1;
         scene_params.m_MaxMaterials = 16;
         scene_params.m_MaxAnimations = gui_world->m_MaxAnimationCount;
         scene_params.m_MaxParticlefx = gui_world->m_MaxParticleFXCount;
@@ -949,6 +982,7 @@ namespace dmGameSystem
         scene_params.m_SetMaterialPropertyCallback = SetMaterialPropertyCallback;
         scene_params.m_SetMaterialPropertyCallbackContext = gui_component;
         scene_params.m_DestroyRenderConstantsCallback = DestroyRenderConstantsCallback;
+        scene_params.m_CloneRenderConstantsCallback = CloneRenderConstantsCallback;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
 
         scene_params.m_NewTextureResourceCallback    = &NewTextureResourceCallback;
@@ -2355,7 +2389,12 @@ namespace dmGameSystem
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
         char resource_path[dmResource::RESOURCE_PATH_MAX];
         dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
-        ReleaseDynamicResource(dmGameObject::GetFactory(component->m_Instance), dmGameObject::GetCollection(component->m_Instance), resolved_path_hash);
+        dmResource::HFactory factory = dmGameObject::GetFactory(component->m_Instance);
+        ResourceDescriptor* rd = dmResource::FindByHash(factory, resolved_path_hash);
+        if (rd)
+        {
+            dmResource::Release(factory, dmResource::GetResource(rd));
+        }
     }
 
     static void SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
@@ -2737,12 +2776,13 @@ namespace dmGameSystem
     }
 
     // Public function used by engine (as callback from gui system)
-    dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size)
+    dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        uint32_t path_size = strlen(path);
         if (path_size > 0)
         {
-            return dmGameObject::GetAbsoluteIdentifier(component->m_Instance, path, path_size);
+            return dmGameObject::GetAbsoluteIdentifier(component->m_Instance, path);
         }
         else
         {
@@ -2804,6 +2844,13 @@ namespace dmGameSystem
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), (void*) dmGui::GetTexture(gui_component->m_Scene, params.m_Options.m_Key), out_value);
         }
+
+        CompGuiPropertyGetterFn* getter_fn = g_CompGuiPropertyGetters.Get(set_property);
+        if (getter_fn != 0)
+        {
+            return (*getter_fn)(gui_component->m_Scene, params, out_value);
+        }
+        
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -2851,7 +2898,7 @@ namespace dmGameSystem
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
                 dmGraphics::HTexture texture = texture_source->m_Texture->m_Texture;
-                dmGui::Result r = dmGui::AddTexture(gui_component->m_Scene, params.m_Options.m_Key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
+                dmGui::Result r = dmGui::AddDynamicTexture(gui_component->m_Scene, params.m_Options.m_Key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
                 if (r != dmGui::RESULT_OK)
                 {
                     dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(params.m_Options.m_Key),  r);
@@ -2897,6 +2944,13 @@ namespace dmGameSystem
             }
             return res;
         }
+
+        CompGuiPropertySetterFn* setter_fn = g_CompGuiPropertySetters.Get(set_property);
+        if (setter_fn != 0)
+        {
+            return (*setter_fn)(gui_component->m_Scene, params);
+        }
+        
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -3145,6 +3199,9 @@ namespace dmGameSystem
 
     static dmGameObject::Result CompGuiTypeCreate(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
     {
+        g_CompGuiPropertySetters.SetCapacity(4, 8);
+        g_CompGuiPropertyGetters.SetCapacity(4, 8);
+        
         CompGuiContext* gui_context = new CompGuiContext;
         gui_context->m_Factory = ctx->m_Factory;
         gui_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64("render"));
@@ -3238,6 +3295,10 @@ namespace dmGameSystem
             dmLogError("Failed to initialize gui component custom node types: %d", r);//dmGameObject::ResultToString(r));
         }
 
+        // Clear per-property handler hash tables
+        g_CompGuiPropertySetters.Clear();
+        g_CompGuiPropertyGetters.Clear();
+
         delete gui_context;
         return dmGameObject::RESULT_OK;
     }
@@ -3255,6 +3316,47 @@ namespace dmGameSystem
         g_CompGuiNodeTypeSentinel.m_Next = desc;
 
         return dmGameObject::RESULT_OK;
+    }
+
+
+    dmGameObject::Result CompGuiRegisterSetPropertyFn(dmhash_t property_hash, CompGuiPropertySetterFn setter)
+    {
+        if (g_CompGuiPropertySetters.Full())
+        {
+            g_CompGuiPropertySetters.OffsetCapacity(8);
+        }
+        g_CompGuiPropertySetters.Put(property_hash, setter);
+        return dmGameObject::RESULT_OK;
+    }
+
+    dmGameObject::Result CompGuiRegisterGetPropertyFn(dmhash_t property_hash, CompGuiPropertyGetterFn getter)
+    {
+        if (g_CompGuiPropertyGetters.Full())
+        {
+            g_CompGuiPropertyGetters.OffsetCapacity(8);
+        }
+        g_CompGuiPropertyGetters.Put(property_hash, getter);
+        return dmGameObject::RESULT_OK;
+    }
+
+    dmGameObject::Result CompGuiUnregisterSetPropertyFn(dmhash_t property_hash)
+    {
+        if (g_CompGuiPropertySetters.Get(property_hash) != 0)
+        {
+            g_CompGuiPropertySetters.Erase(property_hash);
+            return dmGameObject::RESULT_OK;
+        }
+        return dmGameObject::RESULT_ALREADY_REGISTERED;
+    }
+
+    dmGameObject::Result CompGuiUnregisterGetPropertyFn(dmhash_t property_hash)
+    {
+        if (g_CompGuiPropertyGetters.Get(property_hash) != 0)
+        {
+            g_CompGuiPropertyGetters.Erase(property_hash);
+            return dmGameObject::RESULT_OK;
+        }
+        return dmGameObject::RESULT_INVALID_OPERATION;
     }
 
     dmGameObject::Result CreateRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, CompGuiContext* comp_gui_context)

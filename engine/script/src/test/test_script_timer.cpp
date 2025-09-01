@@ -740,6 +740,7 @@ struct ScriptInstance
 {
     int m_InstanceReference;
     int m_ContextTableReference;
+    int m_UniqueScriptId;
 };
 
 static int ScriptGetInstanceContextTableRef(lua_State* L)
@@ -767,6 +768,13 @@ static int ScriptInstanceIsValid(lua_State* L)
     return 1;
 }
 
+static int ScriptScriptGetUniqueScriptId(lua_State* L)
+{
+    ScriptInstance* inst = (ScriptInstance*)lua_touserdata(L, 1);
+    lua_pushinteger(L, (lua_Integer)inst->m_UniqueScriptId);
+    return 1;
+}
+
 static const luaL_reg ScriptInstance_methods[] =
 {
     {0,0}
@@ -776,6 +784,7 @@ static const luaL_reg ScriptInstance_meta[] =
 {
     {dmScript::META_TABLE_IS_VALID,                 ScriptInstanceIsValid},
     {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, ScriptGetInstanceContextTableRef},
+    {dmScript::META_GET_UNIQUE_SCRIPT_ID,           ScriptScriptGetUniqueScriptId},
     {0, 0}
 };
 
@@ -786,6 +795,7 @@ static void CreateScriptInstance(lua_State* L, const char* type)
 
     lua_newtable(L);
     i->m_ContextTableReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
+    i->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_InstanceReference);
     luaL_getmetatable(L, type);

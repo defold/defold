@@ -278,7 +278,7 @@ union SaveLoadBuffer
      *
      * @name sys.exists
      * @param path [type:string] path to check
-     * @return result [type:bool] `true` if the path exists, `false` otherwise
+     * @return result [type:boolean] `true` if the path exists, `false` otherwise
      * @examples
      *
      * Load data but return nil if path didn't exist
@@ -502,8 +502,8 @@ union SaveLoadBuffer
      *
      * @name sys.get_config_int
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
-     * @param [default_value] [type:integer] (optional) default value to return if the value does not exist
-     * @return value [type:integer] config value as an integer. default_value if the config key does not exist. 0 if no default value was supplied.
+     * @param [default_value] [type:number] (optional) default value to return if the value does not exist
+     * @return value [type:number] config value as an integer. default_value if the config key does not exist. 0 if no default value was supplied.
      * @examples
      *
      * Get user config value
@@ -1481,17 +1481,17 @@ union SaveLoadBuffer
 
     /*# no network connection found
      * @name sys.NETWORK_DISCONNECTED
-     * @variable
+     * @constant
      */
 
     /*# network connected through mobile cellular
      * @name sys.NETWORK_CONNECTED_CELLULAR
-     * @variable
+     * @constant
      */
 
     /*# network connected through other, non cellular, connection
      * @name sys.NETWORK_CONNECTED
-     * @variable
+     * @constant
      */
 
     void InitializeSys(lua_State* L)

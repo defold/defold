@@ -157,7 +157,7 @@
 (defn load-pb [def _project self _resource pb-map-without-defaults]
   (let [pb-class (:pb-class def)
         pb-map-with-defaults (protobuf/inject-defaults pb-class pb-map-without-defaults)]
-    (g/set-property self
+    (g/set-properties self
       :def def
       :pb pb-map-with-defaults)))
 

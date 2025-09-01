@@ -56,7 +56,7 @@
             [util.fn :as fn]
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.pipeline AtlasUtil ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
-           [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
+           [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult TextureSetLayout]
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback]
            [com.jogamp.opengl GL GL2]
            [editor.gl.vertex2 VertexBuffer]
@@ -521,15 +521,6 @@
                                                  child-build-errors
                                                  own-build-errors))))
 
-(defn- get-animation-images [animation evaluation-context]
-  (let [child->order (g/node-value animation :child->order evaluation-context)]
-    (vec (sort-by child->order (keys child->order)))))
-
-(attachment/register!
-  AtlasAnimation :images
-  :add {AtlasImage attach-image-to-animation}
-  :get get-animation-images)
-
 (g/defnk produce-save-value [margin inner-padding extrude-borders max-page-size img-ddf anim-ddf rename-patterns]
   (protobuf/make-map-without-defaults AtlasProto$Atlas
     :margin margin
@@ -554,6 +545,8 @@
   (cond
     (neg? x) "'Max Page Width' cannot be negative"
     (neg? y) "'Max Page Height' cannot be negative"
+    (> x TextureSetLayout/MAX_ATLAS_DIMENSION) (format "'Max Page Width' cannot exceed %d" TextureSetLayout/MAX_ATLAS_DIMENSION)
+    (> y TextureSetLayout/MAX_ATLAS_DIMENSION) (format "'Max Page Height' cannot exceed %d" TextureSetLayout/MAX_ATLAS_DIMENSION)
     :else nil))
 
 (defn- validate-max-page-size [node-id page-size]
@@ -927,16 +920,6 @@
                                                               child-build-errors
                                                               own-build-errors))))
 
-(attachment/register!
-  AtlasNode :animations
-  :add {AtlasAnimation attach-animation-to-atlas}
-  :get (attachment/nodes-by-type-getter AtlasAnimation))
-
-(attachment/register!
-  AtlasNode :images
-  :add {AtlasImage attach-image-to-atlas}
-  :get (attachment/nodes-by-type-getter AtlasImage))
-
 (defn- make-image-nodes
   [attach-fn parent image-msgs]
   (let [graph-id (g/node-id->graph-id parent)]
@@ -1231,16 +1214,11 @@
     AtlasAnimation (->> (image-resources->image-msgs image-resources)
                         (make-image-nodes-in-animation parent))))
 
-(defn- parent-animation-or-atlas
-  [selection]
-  (or (first (handler/adapt-every selection AtlasAnimation))
-      (some #(core/scope-of-type % AtlasAnimation) selection)
-      (some #(core/scope-of-type % AtlasNode) selection)
-      (first (handler/adapt-every selection AtlasNode))))
-
 (defn- handle-drop
-  [selection _workspace _world-pos resources]
-  (when-let [parent (parent-animation-or-atlas selection)]
+  [root-id selection _workspace _world-pos resources]
+  (let [parent (or (handler/adapt-single selection AtlasAnimation)
+                   (some #(core/scope-of-type % AtlasAnimation) selection)
+                   root-id)]
     (->> resources
          (e/filter image/image-resource?)
          (create-dropped-images parent))))
@@ -1302,16 +1280,33 @@
   (output input-handler Runnable :cached (g/constantly handle-input))
   (output info-text g/Str (g/constantly nil)))
 
+(defn- get-animation-images [animation evaluation-context]
+  (let [child->order (g/node-value animation :child->order evaluation-context)]
+    (vec (sort-by child->order (keys child->order)))))
+
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext "atlas"
-    :label "Atlas"
-    :build-ext "a.texturesetc"
-    :node-type AtlasNode
-    :ddf-type AtlasProto$Atlas
-    :load-fn load-atlas
-    :icon atlas-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:drop-fn handle-drop
-                        :tool-controller AtlasToolController}}))
+  (concat
+    (attachment/register
+      workspace AtlasAnimation :images
+      :add {AtlasImage attach-image-to-animation}
+      :get get-animation-images)
+    (attachment/register
+      workspace AtlasNode :animations
+      :add {AtlasAnimation attach-animation-to-atlas}
+      :get (attachment/nodes-by-type-getter AtlasAnimation))
+    (attachment/register
+      workspace AtlasNode :images
+      :add {AtlasImage attach-image-to-atlas}
+      :get (attachment/nodes-by-type-getter AtlasImage))
+    (resource-node/register-ddf-resource-type workspace
+      :ext "atlas"
+      :label "Atlas"
+      :build-ext "a.texturesetc"
+      :node-type AtlasNode
+      :ddf-type AtlasProto$Atlas
+      :load-fn load-atlas
+      :icon atlas-icon
+      :icon-class :design
+      :view-types [:scene :text]
+      :view-opts {:scene {:drop-fn handle-drop
+                          :tool-controller AtlasToolController}})))

@@ -68,6 +68,7 @@
            [editor.properties Curve CurveSpread]
            [java.awt.image BufferedImage]
            [java.io ByteArrayOutputStream File FileInputStream FilenameFilter]
+           [java.lang AutoCloseable]
            [java.net URI URL]
            [java.nio.file Files]
            [java.util UUID]
@@ -153,6 +154,27 @@
 
 (defmethod set-control-value! ToggleButton [^ToggleButton toggle-button _num-value]
   (.fire toggle-button))
+
+(defonce temp-directory-path
+  (memoize
+    (fn temp-directory-path []
+      (let [temp-file (fs/create-temp-file!)
+            parent-directory-path (.getCanonicalPath (.getParentFile temp-file))]
+        (fs/delete! temp-file {:fail :silently})
+        parent-directory-path))))
+
+(defn make-directory-deleter
+  "Returns an AutoCloseable that deletes the directory at the specified
+  path when closed. Suitable for use with the (with-open) macro. The
+  directory path must be a temp directory."
+  ^AutoCloseable [directory-path]
+  (let [directory (io/file directory-path)]
+    (assert (string/starts-with? (.getCanonicalPath directory)
+                                 (temp-directory-path))
+            (str "directory-path `" (.getCanonicalPath directory) "` is not a temp directory"))
+    (reify AutoCloseable
+      (close [_]
+        (fs/delete-directory! directory {:fail :silently})))))
 
 (defn make-dir! ^File [^File dir]
   (fs/create-directory! dir))
@@ -416,8 +438,15 @@
                                  :as opts}]
    (FakeFileResource. workspace root file children exists? source-type read-only? loaded? content)))
 
-(defn resource-node [project path]
-  (project/get-resource-node project path))
+(defn resource-node
+  "Returns the node-id of the ResourceNode matching the specified Resource or
+  proj-path in the project. Throws an exception if no matching ResourceNode can
+  be found in the project."
+  [project resource-or-proj-path]
+  (or (project/get-resource-node project resource-or-proj-path)
+      (throw (ex-info (str "Resource node not found: " resource-or-proj-path)
+                      {:project project
+                       :resource-or-proj-path resource-or-proj-path}))))
 
 (defn empty-selection? [app-view]
   (let [sel (g/node-value app-view :selected-node-ids)]
@@ -622,6 +651,22 @@
                  ~'app-view (setup-app-view! ~'project)]
              ~@forms))))))
 
+(defmacro with-temp-project-content
+  [save-values-by-proj-path & body]
+  `(let [save-values-by-proj-path# ~save-values-by-proj-path
+         ~'project-path (make-temp-project-copy! "test/resources/empty_project")]
+     (with-open [project-directory-deleter# (make-directory-deleter ~'project-path)]
+       (test-support/with-clean-system {:cache-size ~system-cache-size
+                                        :cache-retain? project/cache-retain?}
+         (let [~'workspace (setup-workspace! ~'world ~'project-path)]
+           (doseq [[proj-path# save-value#] save-values-by-proj-path#]
+             (write-file-resource! ~'workspace proj-path# save-value#))
+           (workspace/resource-sync! ~'workspace)
+           (fetch-libraries! ~'workspace)
+           (let [~'project (setup-project! ~'workspace)
+                 ~'app-view (setup-app-view! ~'project)]
+             ~@body))))))
+
 (defmacro with-ui-run-later-rebound
   [& forms]
   `(let [laters# (atom [])]
@@ -663,12 +708,14 @@
   ([view type x y modifiers]
    (fake-input! view type x y modifiers 0))
   ([view type x y modifiers click-count]
+   (fake-input! view type x y modifiers click-count :primary))
+  ([view type x y modifiers click-count button]
    (let [pos [x y 0.0]]
      (g/transact (g/set-property view :tool-picking-rect (scene-selection/calc-picking-rect pos pos))))
    (let [handlers (g/sources-of view :input-handlers)
          user-data (g/node-value view :selected-tool-renderables)
          action (reduce #(assoc %1 %2 true)
-                        {:type type :x x :y y :click-count click-count}
+                        {:type type :x x :y y :click-count click-count :button button}
                         modifiers)
          action (scene/augment-action view action)]
      (scene/dispatch-input handlers action user-data))))
@@ -747,6 +794,59 @@
          (vector? outline-path)
          (every? nat-int? outline-path)]}
   (->OutlineItemIterator root-node-id outline-path))
+
+(defn outline-node-info
+  "Given a node-id, evaluate its :node-outline output and locate the child
+  element addressed by the supplied path of outline-label strings. Return the
+  :node-outline info at the resulting path. Throws an exception if the path does
+  not lead up to a valid node."
+  [node-id & outline-labels]
+  {:pre [(every? string? outline-labels)]}
+  (reduce (fn [node-outline outline-label]
+            (or (some (fn [child-outline]
+                        (when (= outline-label (:label child-outline))
+                          child-outline))
+                      (:children node-outline))
+                (let [candidates (into (sorted-set)
+                                       (map :label)
+                                       (:children node-outline))]
+                  (throw (ex-info (format "node-outline for %s '%s' has no child-outline '%s'. Candidates: %s"
+                                          (symbol (g/node-type-kw node-id))
+                                          (:label node-outline)
+                                          outline-label
+                                          (string/join ", " (map #(str \' % \') candidates)))
+                                  {:start-node-type-kw (g/node-type-kw node-id)
+                                   :outline-labels (vec outline-labels)
+                                   :failed-outline-label outline-label
+                                   :failed-outline-label-candidates candidates
+                                   :failed-node-outline node-outline})))))
+          (g/valid-node-value node-id :node-outline)
+          outline-labels))
+
+(defn outline-node-id
+  "Given a node-id, evaluate its :node-outline output and locate the child
+  element addressed by the supplied path of outline-label strings. Return its
+  node-id. Throws an exception if the path does not lead up to a valid node."
+  [node-id & outline-labels]
+  (:node-id (apply outline-node-info node-id outline-labels)))
+
+(defn resource-outline-node-info
+  "Looks up a resource node in the project, evaluates its :node-outline output,
+  and locates the child element addressed by the supplied path of outline-label
+  strings. Returns the :node-outline info at the resulting path. Throws an
+  exception if the resource does not exist, or the outline-label path does not
+  lead up to a valid node."
+  [project resource-or-proj-path & outline-labels]
+  (let [resource-node-id (resource-node project resource-or-proj-path)]
+    (apply outline-node-info resource-node-id outline-labels)))
+
+(defn resource-outline-node-id
+  "Looks up a resource node in the project, evaluates its :node-outline output,
+  and locates the child element addressed by the supplied path of outline-label
+  strings. Returns its node-id. Throws an exception if the resource does not
+  exist, or the outline-label path does not lead up to a valid node."
+  [project resource-or-proj-path & outline-labels]
+  (:node-id (apply resource-outline-node-info project resource-or-proj-path outline-labels)))
 
 (defn outline-copy
   "Return a serialized a data representation of the specified parts of the
@@ -905,44 +1005,40 @@
          (finally
            (prop! ~node-id# ~property# old-value#))))))
 
-(def temp-directory-path
-  (memoize
-    (fn temp-directory-path []
-      (let [temp-file (fs/create-temp-file!)
-            parent-directory-path (.getCanonicalPath (.getParentFile temp-file))]
-        (fs/delete! temp-file {:fail :silently})
-        parent-directory-path))))
-
-(defn make-directory-deleter
-  "Returns an AutoCloseable that deletes the directory at the specified
-  path when closed. Suitable for use with the (with-open) macro. The
-  directory path must be a temp directory."
-  ^java.lang.AutoCloseable [directory-path]
-  (let [directory (io/file directory-path)]
-    (assert (string/starts-with? (.getCanonicalPath directory)
-                                 (temp-directory-path))
-            (str "directory-path `" (.getCanonicalPath directory) "` is not a temp directory"))
-    (reify java.lang.AutoCloseable
-      (close [_]
-        (fs/delete-directory! directory {:fail :silently})))))
-
 (defn make-graph-reverter
-  "Returns an AutoCloseable that reverts the specified graph to
-  the state it was at construction time when its close method
-  is invoked. Suitable for use with the (with-open) macro."
-  ^java.lang.AutoCloseable [graph-id]
+  "Returns an AutoCloseable that reverts the specified graph to the state it was
+  at construction time when its close method is invoked. Suitable for use with
+  the (with-open) macro."
+  ^AutoCloseable [graph-id]
   (let [initial-undo-stack-count (g/undo-stack-count graph-id)]
-    (reify java.lang.AutoCloseable
+    (reify AutoCloseable
       (close [_]
         (loop [undo-stack-count (g/undo-stack-count graph-id)]
           (when (< initial-undo-stack-count undo-stack-count)
             (g/undo! graph-id)
             (recur (g/undo-stack-count graph-id))))))))
 
+(defn make-project-graph-reverter
+  "Returns an AutoCloseable that reverts the project graph to the state it was
+  at construction time when its close method is invoked. Suitable for use with
+  the (with-open) macro."
+  ^AutoCloseable [project]
+  {:pre [(g/node-instance? project/Project project)]}
+  (let [project-graph-id (g/node-id->graph-id project)]
+    (make-graph-reverter project-graph-id)))
+
 (defn- throw-invalid-component-resource-node-id-exception [basis node-id]
   (throw (ex-info "The specified node cannot be resolved to a component ResourceNode."
                   {:node-id node-id
                    :node-type (g/node-type* basis node-id)})))
+
+(defmacro with-changes-reverted
+  "Evaluates the body expressions in a try expression, and reverts any changes
+  to the project graph in the finally clause. Returns the result of the last
+  body expression."
+  [project & body]
+  `(with-open [project-graph-reverter# (make-project-graph-reverter ~project)]
+     ~@body))
 
 (defn- validate-component-resource-node-id
   ([node-id]
@@ -971,7 +1067,6 @@
      game-object/ReferencedComponent
      (validate-component-resource-node-id basis (g/node-feeding-into basis node-id :source-resource))
 
-     :else
      (throw-invalid-component-resource-node-id-exception basis node-id))))
 
 (defn to-game-object-node-id
@@ -986,7 +1081,6 @@
      collection/GameObjectInstanceNode
      (g/node-feeding-into basis node-id :source-resource)
 
-     :else
      (throw (ex-info "The specified node cannot be resolved to a GameObjectNode."
                      {:node-id node-id
                       :node-type (g/node-type* basis node-id)})))))
@@ -1003,7 +1097,6 @@
      collection/CollectionInstanceNode
      (g/node-feeding-into basis node-id :source-resource)
 
-     :else
      (throw (ex-info "The specified node cannot be resolved to a CollectionNode."
                      {:node-id node-id
                       :node-type (g/node-type* basis node-id)})))))
@@ -1219,7 +1312,7 @@
         workspace (project/workspace project)
         old-artifact-map (workspace/artifact-map workspace)]
     (g/with-auto-evaluation-context evaluation-context
-      (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!))))
+      (build/build-project! project resource-node old-artifact-map nil evaluation-context))))
 
 (defn build-node! [resource-node]
   (let [build-result (build-node-result! resource-node)]
@@ -1231,7 +1324,7 @@
     build-result))
 
 (defn build!
-  ^java.lang.AutoCloseable [resource-node]
+  ^AutoCloseable [resource-node]
   (let [resource (resource-node/resource resource-node)
         workspace (resource/workspace resource)
         build-directory (workspace/build-path workspace)]

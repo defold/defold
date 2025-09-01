@@ -26,6 +26,7 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
+            [editor.grid :as grid]
             [editor.handler :as handler]
             [editor.id :as id]
             [editor.material :as material]
@@ -38,7 +39,6 @@
             [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
             [editor.tile-map-common :as tile-map-common]
-            [editor.tile-map-grid :as tile-map-grid]
             [editor.tile-source :as tile-source]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -724,11 +724,6 @@
   (output node-outline outline/OutlineData :cached produce-node-outline)
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
-
-(attachment/register!
-  TileMapNode :layers
-  :add {LayerNode attach-layer-node}
-  :get attachment/nodes-getter)
 
 ;;--------------------------------------------------------------------
 ;; tool
@@ -1552,19 +1547,42 @@
    {:label "Rotate Brush 90 Degrees"
     :command :scene.rotate-brush-90-degrees}])
 
+(g/defnode TileMapGrid
+  (inherits grid/Grid)
+  (input grid-size g/Any :substitute nil)
+  (output options g/Any (g/fnk [grid-size]
+                          {:active-plane :z
+                           :auto-scale false
+                           :size {:x (or (first grid-size) 1.0)
+                                  :y (or (second grid-size) 1.0)
+                                  :z 1.0}})))
+
+(defmethod scene/attach-grid ::TileMapGrid
+  [_ grid-node-id view-id resource-node camera]
+  (concat
+    (g/connect grid-node-id :_node-id view-id :grid)
+    (g/connect grid-node-id :renderable view-id :aux-renderables)
+    (g/connect camera :camera grid-node-id :camera)
+    (g/connect resource-node :tile-dimensions grid-node-id :grid-size)))
+
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext ["tilemap" "tilegrid"]
-    :build-ext "tilemapc"
-    :node-type TileMapNode
-    :ddf-type Tile$TileGrid
-    :load-fn load-tile-map
-    :sanitize-fn sanitize-tile-map
-    :icon tile-map-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:grid tile-map-grid/TileMapGrid
-                        :tool-controller TileMapController}}
-    :tags #{:component :non-embeddable}
-    :tag-opts {:component {:transform-properties #{:position :rotation}}}
-    :label "Tile Map"))
+  (concat
+    (attachment/register
+      workspace TileMapNode :layers
+      :add {LayerNode attach-layer-node}
+      :get attachment/nodes-getter)
+    (resource-node/register-ddf-resource-type workspace
+      :ext ["tilemap" "tilegrid"]
+      :build-ext "tilemapc"
+      :node-type TileMapNode
+      :ddf-type Tile$TileGrid
+      :load-fn load-tile-map
+      :sanitize-fn sanitize-tile-map
+      :icon tile-map-icon
+      :icon-class :design
+      :view-types [:scene :text]
+      :view-opts {:scene {:grid TileMapGrid
+                          :tool-controller TileMapController}}
+      :tags #{:component :non-embeddable}
+      :tag-opts {:component {:transform-properties #{:position :rotation}}}
+      :label "Tile Map")))

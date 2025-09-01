@@ -30,7 +30,6 @@ extern "C" {
  * @document
  * @name ConfigFile
  * @namespace dmConfigFile
- * @path engine/dlib/src/dmsdk/dlib/configfile.h
  * @language C++
  */
 
@@ -180,7 +179,7 @@ typedef bool (*FConfigFileGetFloat)(HConfigFile config, const char* key, float d
 
 /*# Used when registering new config file extensions.
  * It defines the minimum size of the description blob being registered.
- * @variable
+ * @constant
  * @name ConfigFileExtensionDescBufferSize
  */
 const uint32_t ConfigFileExtensionDescBufferSize = 64;

@@ -275,6 +275,49 @@
     (is (returns-input? (repeatedly 1 rand)))
     (is (returns-input? (JustA. 1)))))
 
+(deftest lazy?-test
+  (is (false? (coll/lazy? nil)))
+  (is (false? (coll/lazy? "")))
+  (is (false? (coll/lazy? [])))
+  (is (false? (coll/lazy? (vector-of :long))))
+  (is (false? (coll/lazy? '())))
+  (is (false? (coll/lazy? {})))
+  (is (false? (coll/lazy? #{})))
+  (is (false? (coll/lazy? (sorted-map))))
+  (is (false? (coll/lazy? (sorted-set))))
+  (is (false? (coll/lazy? (double-array 0))))
+  (is (false? (coll/lazy? (object-array 0))))
+  (is (false? (coll/lazy? (range 1))))
+  (is (true? (coll/lazy? (repeat 1))))
+  (is (true? (coll/lazy? (repeatedly 1 rand))))
+  (is (true? (coll/lazy? (cycle [1]))))
+  (is (true? (coll/lazy? (map identity [1]))))
+  (is (true? (coll/lazy? (eduction (map identity) [1])))))
+
+(deftest eager-seqable?-test
+  (is (true? (coll/eager-seqable? nil)))
+  (is (true? (coll/eager-seqable? "")))
+  (is (true? (coll/eager-seqable? [])))
+  (is (true? (coll/eager-seqable? (vector-of :long))))
+  (is (true? (coll/eager-seqable? '())))
+  (is (true? (coll/eager-seqable? {})))
+  (is (true? (coll/eager-seqable? #{})))
+  (is (true? (coll/eager-seqable? (sorted-map))))
+  (is (true? (coll/eager-seqable? (sorted-set))))
+  (is (true? (coll/eager-seqable? (double-array 0))))
+  (is (true? (coll/eager-seqable? (object-array 0))))
+  (is (true? (coll/eager-seqable? (range 1))))
+  (is (false? (coll/eager-seqable? (repeat 1))))
+  (is (false? (coll/eager-seqable? (repeatedly 1 rand))))
+  (is (false? (coll/eager-seqable? (cycle [1]))))
+  (is (false? (coll/eager-seqable? (map identity [1]))))
+  (is (false? (coll/eager-seqable? (eduction (map identity) [1]))))
+  (is (false? (coll/eager-seqable? (map identity [1]))))
+  (is (false? (coll/eager-seqable? (eduction (map identity) [1]))))
+  (is (false? (coll/eager-seqable? 0)))
+  (is (false? (coll/eager-seqable? (Object.))))
+  (is (false? (coll/eager-seqable? (Object.)))))
+
 (deftest pair-map-by-test
   (testing "Works as a transducer with key-fn"
     (let [result (into (sorted-map)
@@ -997,6 +1040,147 @@
                                                   ["a1" "b1" "a2"]))]
         (is (identical? original-meta (meta altered-map)))))))
 
+(deftest update-vals-test
+  (testing "Over nil."
+    (is (nil? (coll/update-vals nil (fn [] :uncalled)))))
+
+  (testing "Over collection."
+    (doseq [target-coll [(array-map) (hash-map) (sorted-map)]]
+      (let [original-meta {:meta-key "meta-value"}
+            original-map (with-meta (into target-coll
+                                          {:a 1
+                                           :b 2})
+                                    original-meta)
+            altered-map (coll/update-vals original-map inc)]
+        (is (= {:a 2 :b 3} altered-map))
+        (is (identical? original-meta (meta altered-map))))))
+
+  (testing "Over record."
+    (let [original-meta {:meta-key "meta-value"}
+          original-record (with-meta (->PairAB 1 2) original-meta)
+          altered-record (coll/update-vals original-record inc)]
+      (is (instance? PairAB altered-record))
+      (is (= (->PairAB 2 3) altered-record))
+      (is (identical? original-meta (meta altered-record)))))
+
+  (testing "Supplies additional arguments to f."
+    (let [original-map {:a 1 :b 2}
+          altered-map (coll/update-vals original-map vector :arg1 :arg2)]
+      (is (= {:a [1 :arg1 :arg2]
+              :b [2 :arg1 :arg2]}
+             altered-map)))))
+
+(deftest update-vals-kv-test
+  (testing "Over nil."
+    (is (nil? (coll/update-vals-kv nil (fn [] :uncalled)))))
+
+  (testing "Over collection."
+    (doseq [target-coll [(array-map) (hash-map) (sorted-map)]]
+      (let [original-meta {:meta-key "meta-value"}
+            original-map (with-meta (into target-coll
+                                          {:a 1
+                                           :b 2})
+                                    original-meta)
+            altered-map (coll/update-vals-kv original-map
+                                             (fn [k ^long v]
+                                               (case k
+                                                 :b (+ 10 v)
+                                                 v)))]
+        (is (= {:a 1 :b 12} altered-map))
+        (is (identical? original-meta (meta altered-map))))))
+
+  (testing "Over record."
+    (let [original-meta {:meta-key "meta-value"}
+          original-record (with-meta (->PairAB 1 2) original-meta)
+          altered-record (coll/update-vals-kv original-record
+                                              (fn [k ^long v]
+                                                (case k
+                                                  :b (+ 10 v)
+                                                  v)))]
+      (is (instance? PairAB altered-record))
+      (is (= (->PairAB 1 12) altered-record))
+      (is (identical? original-meta (meta altered-record)))))
+
+  (testing "Supplies additional arguments to f."
+    (let [original-map {:a 1 :b 2}
+          altered-map (coll/update-vals-kv original-map vector :arg1 :arg2)]
+      (is (= {:a [:a 1 :arg1 :arg2]
+              :b [:b 2 :arg1 :arg2]}
+             altered-map)))))
+
+(deftest map-vals-test
+  (testing "Over nil."
+    (is (nil? (coll/map-vals (fn [] :uncalled) nil))))
+
+  (testing "Over collection."
+    (doseq [target-coll [(array-map) (hash-map) (sorted-map)]]
+      (let [original-meta {:meta-key "meta-value"}
+            original-map (with-meta (into target-coll
+                                          {:a 1
+                                           :b 2})
+                                    original-meta)
+            altered-map (coll/map-vals inc original-map)]
+        (is (= {:a 2 :b 3} altered-map))
+        (is (identical? original-meta (meta altered-map))))))
+
+  (testing "Over record."
+    (let [original-meta {:meta-key "meta-value"}
+          original-record (with-meta (->PairAB 1 2) original-meta)
+          altered-record (coll/map-vals inc original-record)]
+      (is (instance? PairAB altered-record))
+      (is (= (->PairAB 2 3) altered-record))
+      (is (identical? original-meta (meta altered-record)))))
+
+  (testing "As transducer."
+    (is (= {:a 0
+            :b 1}
+           (into {}
+                 (coll/map-vals dec)
+                 {:a 1
+                  :b 2})))))
+
+(deftest map-vals-kv-test
+  (testing "Over nil."
+    (is (nil? (coll/map-vals-kv (fn [] :uncalled) nil))))
+
+  (testing "Over collection."
+    (doseq [target-coll [(array-map) (hash-map) (sorted-map)]]
+      (let [original-meta {:meta-key "meta-value"}
+            original-map (with-meta (into target-coll
+                                          {:a 1
+                                           :b 2})
+                                    original-meta)
+            altered-map (coll/map-vals-kv (fn [k ^long v]
+                                            (case k
+                                              :b (+ 10 v)
+                                              v))
+                                          original-map)]
+        (is (= {:a 1 :b 12} altered-map))
+        (is (identical? original-meta (meta altered-map))))))
+
+  (testing "Over record."
+    (let [original-meta {:meta-key "meta-value"}
+          original-record (with-meta (->PairAB 1 2) original-meta)
+          altered-record (coll/map-vals-kv (fn [k ^long v]
+                                             (case k
+                                               :b (+ 10 v)
+                                               v))
+                                           original-record)]
+      (is (instance? PairAB altered-record))
+      (is (= (->PairAB 1 12) altered-record))
+      (is (identical? original-meta (meta altered-record)))))
+
+  (testing "As transducer."
+    (is (= {:a 1
+            :b 12}
+           (into {}
+                 (coll/map-vals-kv (fn [k ^long v]
+                                     (case k
+                                       :b (+ 10 v)
+                                       v)))
+                 {:a 1
+                  :b 2})))))
+
 (deftest mapcat-test
   (testing "Over collection."
     (is (= [[:< :a]
@@ -1377,6 +1561,29 @@
               [[:stop
                 (repeatedly #(throw (Exception. "Should not be reduced!")))]]])))))
 
+(deftest tree-xf-test
+  (testing "tree behavior"
+    (are [ids root] (and (= (tree-seq :children :children root)
+                            (into [] (coll/tree-xf :children :children) [root]))
+                         (= ids (mapv :id (tree-seq :children :children root))))
+      (range 1) {:id 0}
+      (range 1) {:id 0 :children []}
+      (range 3) {:id 0 :children [{:id 1 :children nil}
+                                  {:id 2 :children []}]}
+      (range 4) {:id 0 :children [{:id 1 :children nil}
+                                  {:id 2 :children [{:id 3}]}]}))
+  (testing "reduced support"
+    (is (= :stop
+           (transduce
+             (comp
+               (coll/tree-xf :children :children)
+               (halt-when #(= :stop %)))
+             conj
+             []
+             [{:children [{:children []}
+                          :stop
+                          {:children (repeatedly #(throw (Exception. "Should not be reduced!")))}]}])))))
+
 (deftest some-test
   (testing "some behavior"
     (are [pred coll ret] (= ret (some pred coll) (coll/some pred coll))
@@ -1384,6 +1591,46 @@
       #(= % 100) (range 1000) true
       #(= % 100) (range 50) nil
       #(= % 100) [] nil)))
+
+(deftest any?-test
+  (testing "any? behavior"
+    (are [pred coll ret] (= ret (boolean (some pred coll)) (coll/any? pred coll))
+      even? nil false
+      even? [] false
+      even? [1 3 5] false
+      even? [1 2 3 5] true
+      odd? [2 4 6] false
+      odd? [2 4 5 6] true)))
+
+(deftest not-any?-test
+  (testing "not-any? behavior"
+    (are [pred coll ret] (= ret (not-any? pred coll) (coll/not-any? pred coll))
+      even? nil true
+      even? [] true
+      even? [1 3 5] true
+      even? [1 2 3 5] false
+      odd? [2 4 6] true
+      odd? [2 4 5 6] false)))
+
+(deftest every?-test
+  (testing "every? behavior"
+    (are [pred coll ret] (= ret (every? pred coll) (coll/every? pred coll))
+      odd? nil true
+      odd? [] true
+      odd? [1 3 5] true
+      odd? [1 2 3 5] false
+      even? [2 4 6] true
+      even? [2 4 5 6] false)))
+
+(deftest not-every?-test
+  (testing "not-every? behavior"
+    (are [pred coll ret] (= ret (not-every? pred coll) (coll/not-every? pred coll))
+      odd? nil false
+      odd? [] false
+      odd? [1 3 5] false
+      odd? [1 2 3 5] true
+      even? [2 4 6] false
+      even? [2 4 5 6] true)))
 
 (deftest join-to-string-test
   (is (= "" (coll/join-to-string ", " [])))

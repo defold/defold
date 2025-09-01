@@ -28,6 +28,7 @@
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.os :as os]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.process :as process]
@@ -40,7 +41,9 @@
             [support.test-support :as test-support]
             [util.diff :as diff]
             [util.http-server :as http-server])
-  (:import [java.util.zip ZipEntry]
+  (:import [java.nio.file Files]
+           [java.nio.file.attribute PosixFilePermission]
+           [java.util.zip ZipEntry]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
            [org.luaj.vm2 LuaError]))
 
@@ -320,7 +323,22 @@
                 nil
                 (catch Throwable e e))))
         (is (= [1.5 1.5 1.5] (test-util/prop sprite-outline :position)))
-        (is (= 2.5 (test-util/prop sprite-outline :playback-rate)))))))
+        (is (= 2.5 (test-util/prop sprite-outline :playback-rate))))
+      (let [handler+context (handler/active
+                             (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
+                             (handler/eval-contexts
+                               [(handler/->context :global {} (->StaticSelection [sprite-outline]))]
+                               false)
+                             {})]
+        (is (= [1.0 1.0 1.0] (test-util/prop sprite-outline :scale)))
+        (is (some? handler+context))
+        (is (handler/enabled? handler+context))
+        (is (nil?
+              (try
+                @(handler/run handler+context)
+                nil
+                (catch Throwable e e))))
+        (is (= [2 2 2] (test-util/prop sprite-outline :scale)))))))
 
 (deftest refresh-context-after-write-test
   (test-util/with-scratch-project "test/resources/editor_extensions/refresh_context_project"
@@ -868,8 +886,7 @@ nesting:
 (defn- expect-script-output [expected actual]
   (let [actual (normalize-pprint-output (str actual))]
     (let [output-matches-expectation (= expected actual)]
-      (when-not output-matches-expectation
-        (is output-matches-expectation (string/join "\n" (diff/make-diff-output-lines actual expected 3)))))))
+      (is output-matches-expectation (when-not output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3)))))))
 
 (deftest pprint-test
   (test-util/with-loaded-project "test/resources/editor_extensions/pprint-test"
@@ -920,10 +937,151 @@ POST http://localhost:23456/echo hello world! as string => 200
         (finally
           (http-server/stop! server 0))))))
 
+(def ^:private resource-io-test-output
+  "editor.create_resources({{\"/test/config.json\", \"{\\\"test\\\": true}\"}}) => ok!
+/test
+  /config.json
+/test/config.json:
+{ --[[0x0]]
+  text = \"{\\\"test\\\": true}\"
+}
+editor.create_resources({\"/test/npc.go\", \"/test/npc.collection\"}) => ok!
+/test
+  /config.json
+  /npc.collection
+  /npc.go
+/test/npc.go:
+{ --[[0x1]]
+  components = {} --[[0x2]]
+}
+/test/npc.collection:
+{ --[[0x3]]
+  name = \"npc\"
+}
+editor.create_resources({\"/test/UPPER.COLLECTION\"}) => ok!
+/test
+  /config.json
+  /npc.collection
+  /npc.go
+  /UPPER.COLLECTION
+/test/UPPER.COLLECTION:
+{ --[[0x4]]
+  name = \"UPPER\"
+}
+editor.create_resources({\"/test/../../../outside.txt\"}) => Can't create /test/../../../outside.txt: outside of project directory
+/test
+  /config.json
+  /npc.collection
+  /npc.go
+  /UPPER.COLLECTION
+editor.create_resources({\"/test/npc.go\"}) => Resource already exists: /test/npc.go
+/test
+  /config.json
+  /npc.collection
+  /npc.go
+  /UPPER.COLLECTION
+editor.create_resources({\"/test/repeated.go\", \"/test/repeated.go\"}) => Resource repeated more than once: /test/repeated.go
+/test
+  /config.json
+  /npc.collection
+  /npc.go
+  /UPPER.COLLECTION
+")
+
+(deftest resources-io-test
+  (test-util/with-scratch-project "test/resources/editor_extensions/resources_io_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output resource-io-test-output out))))
+
+(defn- expected-zip-test-output [root]
+  (str "Testing zip.pack...
+A file:
+zip.pack('gitignore.zip', {'.gitignore'}) => ok
+A directory:
+zip.pack('foo.zip', {'foo'}) => ok
+Multiple:
+zip.pack('multiple.zip', {'foo', {'foo', 'bar'}, '.gitignore', {'game.project', 'settings.ini'}}) => ok
+Outside:
+zip.pack('outside.zip', {{'" (System/getenv "PWD") "/project.clj', 'project.clj'}}) => ok
+Stored method:
+zip.pack('stored.zip', {method = 'stored'}, {'foo'}) => ok
+Compression level 0:
+zip.pack('level_0.zip', {level = 0}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 1:
+zip.pack('level_1.zip', {level = 1}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 2:
+zip.pack('level_2.zip', {level = 2}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 3:
+zip.pack('level_3.zip', {level = 3}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 4:
+zip.pack('level_4.zip', {level = 4}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 5:
+zip.pack('level_5.zip', {level = 5}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 6:
+zip.pack('level_6.zip', {level = 6}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 7:
+zip.pack('level_7.zip', {level = 7}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 8:
+zip.pack('level_8.zip', {level = 8}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Compression level 9:
+zip.pack('level_9.zip', {level = 9}, {'foo', {'foo', 'bar'}, '.gitignore', 'game.project'}) => ok
+Unix:
+zip.pack('script.zip', {'script.sh'}) => ok
+Mixed compression settings:
+zip.pack('mixed.zip', {{'foo', '9', level = 9}, {'foo', '1', level = 1}, {'foo', '0', level = 0}, {'foo', 'stored', method = 'stored'}}) => ok
+Archive path is a directory:
+zip.pack('foo', {'game.project'}) => error: Output path is a directory: foo
+Source path does not exist:
+zip.pack('error.zip', {'does-not-exist.txt'}) => error: Source path does not exist: " root "/does-not-exist.txt
+Target path is absolute:
+zip.pack('error.zip', {'" (System/getenv "HOME") "'}) => error: Target path must be relative: " (System/getenv "HOME") "
+Target path is a relative path above root:
+zip.pack('error.zip', {{'game.project', '../../game.project'}}) => error: Target path is above archive root: ../../game.project
+zip.pack('error.zip', {{'game.project', 'foo/bar/../../../../game.project'}}) => error: Target path is above archive root: ../../game.project
+Testing zip.unpack...
+zip.unpack('script.zip', 'build', {'script.sh'}) => ok
+Default conflict resolution is error:
+zip.unpack('script.zip', 'build', {'script.sh'}) => error: Path already exists: " root "/build/script.sh
+Overwrite option:
+zip.unpack('script.zip', 'build', {on_conflict = 'overwrite'}, {'script.sh'}) => ok
+Skip:
+zip.unpack('foo.zip', 'build/skip') => ok
+build/skip/foo exists: true
+build/skip/bar exists: false
+zip.unpack('multiple.zip', 'build/skip', {on_conflict = 'skip'}) => ok
+build/skip/foo exists: true
+build/skip/bar exists: true
+Overwrite can't replace directory with a file:
+zip.unpack('script.zip', 'build/dir_conflict', {on_conflict = 'overwrite'}) => error: Can't overwrite directory: " root "/build/dir_conflict/script.sh
+Partial unpack:
+zip.unpack('multiple.zip', 'build/subset', {'settings.ini'}) => ok
+build/subset/settings.ini exists: true
+build/subset/bar exists: false
+build/subset/foo exists: false
+Archive validation:
+zip.unpack('does-not-exist.zip') => error: Archive path does not exist: " root "/does-not-exist.zip
+zip.unpack('foo') => error: Archive path is a directory: " root "/foo
+Paths validation:
+zip.unpack('script.zip', 'build', {on_conflict = 'skip'}, {'foo/../../../bar'}) => error: Invalid argument:
+- \"foo/../../../bar\" is above root
+- {\"foo/../../../bar\"} is unexpected
+zip.unpack('script.zip', 'build', {on_conflict = 'skip'}, {'/tmp'}) => error: Invalid argument:
+- \"/tmp\" is absolute
+- {\"/tmp\"} is unexpected
+zip.unpack('script.zip', 'build', {on_conflict = 'skip'}, {'tmp/..'}) => error: Invalid argument:
+- \"tmp/..\" is empty
+- {\"tmp/..\"} is unexpected
+Extract to parent:
+zip.pack('build/nested/archive.zip', {'game.project'}) => ok
+zip.unpack('build/nested/archive.zip') => ok
+build/nested/game.project exists: true
+"))
+
 (deftest zip-test
   (test-util/with-scratch-project "test/resources/editor_extensions/zip_project"
-    (let [output (atom [])
-          root (workspace/project-directory workspace)
+    (let [root (workspace/project-directory workspace)
           list-entries (fn list-entries [path-str]
                          (with-open [zis (ZipArchiveInputStream. (io/input-stream (fs/path root path-str)))]
                            (loop [acc (transient #{})]
@@ -939,61 +1097,13 @@ POST http://localhost:23456/echo hello world! as string => 200
                                (recur (assoc! acc (.getName e) (condp = (.getMethod e)
                                                                  ZipEntry/STORED :stored
                                                                  ZipEntry/DEFLATED :deflated)))
-                               (persistent! acc)))))]
-      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+                               (persistent! acc)))))
+          out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
       ;; See test.editor_script: the script creates a bunch of archives and logs pack
       ;; arguments with the result of execution
-      (is (= [;; Pack a single file
-              [:out "A file:"]
-              [:out "zip.pack(\"gitignore.zip\", {\".gitignore\"}) => ok"]
-              ;; Pack a directory
-              [:out "A directory:"]
-              [:out "zip.pack(\"foo.zip\", {\"foo\"}) => ok"]
-              ;; Pack multiple files
-              [:out "Multiple:"]
-              [:out "zip.pack(\"multiple.zip\", {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", {\"game.project\", \"settings.ini\"}}) => ok"]
-              ;; Pack a file from outside the project
-              [:out "Outside:"]
-              [:out (str "zip.pack(\"outside.zip\", {{\"" (System/getenv "PWD") "/project.clj\", \"project.clj\"}}) => ok")]
-              ;; Pack using stored compression method
-              [:out "Stored method:"]
-              [:out "zip.pack(\"stored.zip\", {method = \"stored\"}, {\"foo\"}) => ok"]
-              ;; Pack using different compression levels
-              [:out "Compression level 0:"]
-              [:out "zip.pack(\"level_0.zip\", {level = 0}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 1:"]
-              [:out "zip.pack(\"level_1.zip\", {level = 1}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 2:"]
-              [:out "zip.pack(\"level_2.zip\", {level = 2}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 3:"]
-              [:out "zip.pack(\"level_3.zip\", {level = 3}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 4:"]
-              [:out "zip.pack(\"level_4.zip\", {level = 4}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 5:"]
-              [:out "zip.pack(\"level_5.zip\", {level = 5}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 6:"]
-              [:out "zip.pack(\"level_6.zip\", {level = 6}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 7:"]
-              [:out "zip.pack(\"level_7.zip\", {level = 7}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 8:"]
-              [:out "zip.pack(\"level_8.zip\", {level = 8}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              [:out "Compression level 9:"]
-              [:out "zip.pack(\"level_9.zip\", {level = 9}, {\"foo\", {\"foo\", \"bar\"}, \".gitignore\", \"game.project\"}) => ok"]
-              ;; Different compression settings for different entries
-              [:out "Mixed compression settings:"]
-              [:out "zip.pack(\"mixed.zip\", {{\"foo\", \"9\", level = 9}, {\"foo\", \"1\", level = 1}, {\"foo\", \"0\", level = 0}, {\"foo\", \"stored\", method = \"stored\"}}) => ok"]
-              ;; Expected errors
-              [:out "Archive path is a directory:"]
-              [:out "zip.pack(\"foo\", {\"game.project\"}) => error: Output path is a directory: foo"]
-              [:out "Source path does not exist:"]
-              [:out (str "zip.pack(\"error.zip\", {\"does-not-exist.txt\"}) => error: Source path does not exist: " root "/does-not-exist.txt")]
-              [:out "Target path is absolute:"]
-              [:out (str "zip.pack(\"error.zip\", {\"" (System/getenv "HOME") "\"}) => error: Target path must be relative: " (System/getenv "HOME"))]
-              [:out "Target path is a relative path above root:"]
-              [:out "zip.pack(\"error.zip\", {{\"game.project\", \"../../game.project\"}}) => error: Target path is above archive root: ../../game.project"]
-              [:out "zip.pack(\"error.zip\", {{\"game.project\", \"foo/bar/../../../../game.project\"}}) => error: Target path is above archive root: ../../game.project"]]
-             @output))
+      (expect-script-output (expected-zip-test-output root) out)
       (is (= #{".gitignore"} (list-entries "gitignore.zip")))
       (is (= #{"foo/bar.txt" "foo/long.txt" "foo/subdir/baz.txt"} (list-entries "foo.zip")))
       (is (= #{"foo/bar.txt" "foo/long.txt" "foo/subdir/baz.txt"
@@ -1027,7 +1137,11 @@ POST http://localhost:23456/echo hello world! as string => 200
               "stored/bar.txt" :stored
               "stored/long.txt" :stored
               "stored/subdir/baz.txt" :stored}
-             (list-methods "mixed.zip"))))))
+             (list-methods "mixed.zip")))
+      (when-not (os/is-win32?)
+        (is (contains?
+              (Files/getPosixFilePermissions (fs/path root "build" "script.sh") fs/empty-link-option-array)
+              PosixFilePermission/OWNER_EXECUTE))))))
 
 (def expected-http-server-test-output
   "Omitting conflicting routes for 'GET /test/conflict/same-path-and-method' defined in /test.editor_script
@@ -1122,7 +1236,7 @@ GET /test/resources/test.json as json => 200
              (run! (fn [{:keys [outline key] :as p}]
                      (let [{:keys [node-id]} outline
                            ext-key (string/replace (name key) \- \_)]
-                       (is (some? (graph/ext-value-getter node-id ext-key ec)))
+                       (is (some? (graph/ext-value-getter node-id ext-key project ec)))
                        (when-not (properties/read-only? p)
                          (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))))))
 
@@ -1219,10 +1333,10 @@ After transaction (remove animation):
   images: 0
   animations: 0
 Expected errors:
-  Wrong list name to add => AtlasNode does not define \"layers\"
-  Wrong list name to remove => AtlasNode does not define \"layers\"
+  Wrong list name to add => \"layers\" is undefined
+  Wrong list name to remove => \"layers\" is undefined
   Wrong list item to remove => /test.atlas is not in the \"images\" list of /test.atlas
-  Wrong list name to clear => AtlasNode does not define \"layers\"
+  Wrong list name to clear => \"layers\" is undefined
   Wrong child property name => Can't set property \"no_such_prop\" of AtlasAnimation
   Added value is not a table => \"/foo.png\" is not a table
   Added nested value is not a table => \"/foo.png\" is not a table
@@ -1306,9 +1420,11 @@ After transaction (clear):
   emitters: 0
   modifiers: 0
 Collision object initial state:
+  collision_type: collision-object-type-dynamic
   shapes: 0
 Transaction: add 3 shapes
 After transaction (add 3 shapes):
+  collision_type: collision-object-type-static
   shapes: 3
   - id: box
     type: shape-type-box
@@ -1322,6 +1438,7 @@ After transaction (add 3 shapes):
     height: 40
 Transaction: clear
 After transaction (clear):
+  collision_type: collision-object-type-dynamic
   shapes: 0
 Expected errors:
   missing type => type is required
@@ -1332,6 +1449,9 @@ GUI initial state:
   particlefxs: 0
   textures: 0
   layouts: 0
+  spine scenes: 0
+  fonts: 0
+  nodes: 0
 Transaction: edit GUI
 After transaction (edit):
   layers: 2
@@ -1352,7 +1472,72 @@ After transaction (edit):
   layouts: 2
     layout: Landscape
     layout: Portrait
+  spine scenes: 4
+    spine scene: spine_scene
+    spine scene: explicit name
+    spine scene: template /defold-spine/assets/template/template.spinescene
+    spine scene: spine_scene1
+  fonts: 3
+    font: test /test.font
+    font: font
+    font: font1
+  nodes: 2
+  - type: gui-node-type-box
+    id: box
+    nodes: 5
+    - type: gui-node-type-pie
+      id: pie
+      nodes: 0
+    - type: gui-node-type-text
+      id: text
+      nodes: 0
+    - type: gui-node-type-template
+      id: button
+      nodes: 2
+      - type: gui-node-type-box
+        id: button/box
+        nodes: 0
+      - type: gui-node-type-text
+        id: button/text
+        nodes: 0
+    - type: gui-node-type-particlefx
+      id: particlefx
+      nodes: 0
+    - type: gui-node-type-spine
+      id: spine
+      nodes: 1
+      - type: gui-node-type-box
+        id: box1
+        nodes: 0
+  - type: gui-node-type-text
+    id: text1
+    nodes: 0
+Transaction: set Landscape position
+  position = {10, 10, 10}, can reset = false
+  Landscape:position = {20, 20, 20}, can reset = true
+  Portrait:position = {10, 10, 10}, can reset = false
+Transaction: reset Landscape position
+  position = {10, 10, 10}, can reset = false
+  Landscape:position = {10, 10, 10}, can reset = false
+  Portrait:position = {10, 10, 10}, can reset = false
+Template node: button
+  can add: false
+  can reorder: false
+Override text node: button/text
+  can add: false
+  can reorder: false
+Transaction: set override node property
+  text: custom text
+  can reset: true
+Transaction: reset override node property
+  text: <text>
+  can reset: false
+Transaction: set override position and layout position properties
+  position = {10, 10, 10}, can reset = true
+  Landscape:position = {20, 20, 20}, can reset = true
+  Portrait:position = {10, 10, 10}, can reset = false
 can reorder layers: true
+can reorder nodes: true
 Transaction: reorder
 After transaction (reorder):
   layers: 2
@@ -1373,12 +1558,57 @@ After transaction (reorder):
   layouts: 2
     layout: Landscape
     layout: Portrait
+  spine scenes: 4
+    spine scene: spine_scene
+    spine scene: explicit name
+    spine scene: template /defold-spine/assets/template/template.spinescene
+    spine scene: spine_scene1
+  fonts: 3
+    font: test /test.font
+    font: font
+    font: font1
+  nodes: 2
+  - type: gui-node-type-text
+    id: text1
+    nodes: 0
+  - type: gui-node-type-box
+    id: box
+    nodes: 5
+    - type: gui-node-type-pie
+      id: pie
+      nodes: 0
+    - type: gui-node-type-text
+      id: text
+      nodes: 0
+    - type: gui-node-type-template
+      id: button
+      nodes: 2
+      - type: gui-node-type-box
+        id: button/box
+        nodes: 0
+      - type: gui-node-type-text
+        id: button/text
+        nodes: 0
+    - type: gui-node-type-particlefx
+      id: particlefx
+      nodes: 0
+    - type: gui-node-type-spine
+      id: spine
+      nodes: 1
+      - type: gui-node-type-box
+        id: box1
+        nodes: 0
 Expected reorder errors:
-  undefined property => GuiSceneNode does not define \"not-a-property\"
-  reorder not defined => CollisionObjectNode does not support \"shapes\" reordering
+  undefined property => \"not-a-property\" is undefined
+  reorder not defined => \"shapes\" is not reorderable
   duplicates => Reordered child nodes are not the same as current child nodes
   missing children => Reordered child nodes are not the same as current child nodes
   wrong child nodes => Reordered child nodes are not the same as current child nodes
+  add to template node => \"nodes\" is read-only
+  reorder template node => \"nodes\" is read-only
+  add to overridden text node => \"nodes\" is read-only
+  reorder overridden text node => \"nodes\" is read-only
+  reset unresettable => Can't reset property \"text\" of TextNode
 Transaction: clear GUI
 Expected layout errors:
   no name => layout name is required
@@ -1390,6 +1620,364 @@ After transaction (clear):
   particlefxs: 0
   textures: 0
   layouts: 0
+  spine scenes: 0
+  fonts: 0
+  nodes: 0
+Go initial state:
+  components: 0
+Transaction: add go components
+After transaction (add go components):
+  components: 15
+  - type: camera
+    id: camera
+  - type: collectionfactory
+    id: collectionfactory
+  - type: collectionproxy
+    id: collectionproxy
+  - type: collectionproxy
+    id: collectionproxy1
+  - type: collisionobject
+    id: collisionobject-embedded
+    collision_type: collision-object-type-static
+    shapes: 1
+    - id: box
+      type: shape-type-box
+      dimensions: 2.5 2.5 2.5
+  - type: factory
+    id: factory
+  - type: label
+    id: label
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {0.05, 0.05, 0.05}
+  - type: mesh
+    id: mesh
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+  - type: model
+    id: model
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+  - type: sound
+    id: boom
+  - type: spinemodel
+    id: spinemodel
+    position: {3.14, 3.14, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+  - type: sprite
+    id: blob
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+  - type: component-reference
+    id: test
+  - type: component-reference
+    id: collisionobject-referenced
+  - type: component-reference
+    id: referenced-tilemap
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+Collision object components found:
+  referenced: true
+  embedded: true
+Collision object components have shapes property:
+  referenced: false
+  embedded: true
+Transaction: clear go components
+After transaction (clear go components):
+  components: 0
+Collection initial state
+  children: 0 (editable)
+Transaction: add gos and collections
+After transaction (add gos and collections):
+  children: 5 (editable)
+  - id: go
+    url: /go
+    type: go
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {0.5, 0.5, 0.5}
+    components: 0
+    children: 4 (editable)
+    - id: go1
+      url: /go1
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+    - id: ref
+      url: /ref
+      type: go-reference
+      path: /ref.go
+      position: {3.14, 3.14, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+    - id: go2
+      url: /go2
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 1 (editable)
+      - id: char
+        url: /char
+        type: go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 3
+        - type: sprite
+          id: sprite
+          position: {0.5, 0.5, 0.5}
+          rotation: {0, 0, 0}
+          scale: {1, 1, 1}
+        - type: collisionobject
+          id: collisionobject
+          collision_type: collision-object-type-dynamic
+          shapes: 1
+          - id: box
+            type: shape-type-box
+            dimensions: 2.5 2.5 2.5
+        - type: component-reference
+          id: test
+        children: 0 (editable)
+    - id: empty-ref
+      url: /empty-ref
+      type: go-reference
+      path: -
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      children: 0 (editable)
+  - id: empty-collection
+    url: /empty-collection
+    type: collection-reference
+    path: -
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+  - id: ref1
+    url: /ref1
+    type: collection-reference
+    path: /ref.collection
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    children: 1 (readonly)
+    - id: go
+      url: /ref1/go
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 1
+      - type: sprite
+        id: sprite
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+      children: 1 (readonly)
+      - id: ref
+        url: /ref1/ref
+        type: go-reference
+        path: /ref.go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 0
+        children: 0 (readonly)
+  - id: readonly
+    url: /readonly
+    type: collection-reference
+    path: /readonly/readonly.collection
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    children: 0 (readonly)
+  - id: readonly1
+    url: /readonly1
+    type: go-reference
+    path: /readonly/readonly.go
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    components: 0
+    children: 1 (editable)
+    - id: allowed-child-of-readonly-go
+      url: /allowed-child-of-readonly-go
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+Transaction: edit already existing collection elements
+After transaction (edit already existing collection elements):
+  children: 5 (editable)
+  - id: go
+    url: /go
+    type: go
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {0.5, 0.5, 0.5}
+    components: 0
+    children: 5 (editable)
+    - id: go1
+      url: /go1
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+    - id: ref
+      url: /ref
+      type: go-reference
+      path: /ref.go
+      position: {3.14, 3.14, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 1 (editable)
+      - id: new-referenced-go-child
+        url: /new-referenced-go-child
+        type: go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 0
+        children: 0 (editable)
+    - id: go2
+      url: /go2
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 1 (editable)
+      - id: char
+        url: /char
+        type: go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 3
+        - type: sprite
+          id: sprite
+          position: {0.5, 0.5, 0.5}
+          rotation: {0, 0, 0}
+          scale: {1, 1, 1}
+        - type: collisionobject
+          id: collisionobject
+          collision_type: collision-object-type-dynamic
+          shapes: 1
+          - id: box
+            type: shape-type-box
+            dimensions: 2.5 2.5 2.5
+        - type: component-reference
+          id: test
+        children: 0 (editable)
+    - id: empty-ref
+      url: /empty-ref
+      type: go-reference
+      path: -
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      children: 0 (editable)
+    - id: new-embedded-go-child
+      url: /new-embedded-go-child
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+  - id: empty-collection
+    url: /empty-collection
+    type: collection-reference
+    path: -
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+  - id: ref1
+    url: /ref1
+    type: collection-reference
+    path: /ref.collection
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    children: 1 (readonly)
+    - id: go
+      url: /ref1/go
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 1
+      - type: sprite
+        id: sprite
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+      children: 1 (readonly)
+      - id: ref
+        url: /ref1/ref
+        type: go-reference
+        path: /ref.go
+        position: {0, 0, 0}
+        rotation: {0, 0, 0}
+        scale: {1, 1, 1}
+        components: 0
+        children: 0 (readonly)
+  - id: readonly
+    url: /readonly
+    type: collection-reference
+    path: /readonly/readonly.collection
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    children: 0 (readonly)
+  - id: readonly1
+    url: /readonly1
+    type: go-reference
+    path: /readonly/readonly.go
+    position: {0, 0, 0}
+    rotation: {0, 0, 0}
+    scale: {1, 1, 1}
+    components: 0
+    children: 2 (editable)
+    - id: allowed-child-of-readonly-go
+      url: /allowed-child-of-readonly-go
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+    - id: new-readonly-referenced-go-child
+      url: /new-readonly-referenced-go-child
+      type: go
+      position: {0, 0, 0}
+      rotation: {0, 0, 0}
+      scale: {1, 1, 1}
+      components: 0
+      children: 0 (editable)
+Expected collection errors:
+  add child to referenced collection => \"children\" is read-only
+  remove child of referenced collection => \"children\" is read-only
+  add child to go in referenced collection => \"children\" is read-only
+  clear children of a go in referenced collection => \"children\" is read-only
+  add child to readonly referenced collection => \"children\" is read-only
+Transaction: clear collection
+After transaction (clear collection)
+  children: 0 (editable)
 ")
 
 (deftest attachment-properties-test
@@ -1471,3 +2059,37 @@ emitters: 0
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
       (expect-script-output expected-particlefx-test-output out))))
+
+(deftest inheritance-chain-test
+  (testing "hierarchy adherence"
+    (let [h-ref (atom (-> (make-hierarchy)
+                          (derive :mammal :animal)
+                          (derive :bird :animal)
+                          (derive :dog :mammal)
+                          (derive :cat :mammal)
+                          (derive :sparrow :bird)
+                          (derive :eagle :bird)))
+          sound-chain (graph/make-inheritance-chain h-ref)]
+      (sound-chain :animal (constantly :grunt))
+      (sound-chain :mammal (constantly :roar))
+      (sound-chain :bird (constantly :chirp))
+      (sound-chain :cat #(when (:happy %) :meow))
+      (sound-chain :eagle (constantly :screech))
+      (is (= :chirp ((sound-chain :sparrow) {})))
+      (is (= :screech ((sound-chain :eagle) {})))
+      (is (= :roar ((sound-chain :dog) {})))
+      (is (= :roar ((sound-chain :cat) {})))
+      (is (= :meow ((sound-chain :cat) {:happy true})))))
+  (testing "hierarchy modification"
+    (let [h-ref (atom (derive (make-hierarchy) :mammal :animal))
+          sound-chain (graph/make-inheritance-chain h-ref)]
+      (sound-chain :animal (constantly :grunt))
+      (sound-chain :mammal (constantly :roar))
+      (is (= :roar ((sound-chain :mammal) {})))
+      (is (nil? ((sound-chain :cat) {})))
+      ;; hierarchy is modified
+      (swap! h-ref derive :cat :mammal)
+      (is (= :roar ((sound-chain :cat) {})))
+      ;; chain is modified
+      (sound-chain :cat (constantly :meow))
+      (is (= :meow ((sound-chain :cat) {}))))))

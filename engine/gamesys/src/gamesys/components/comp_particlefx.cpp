@@ -235,7 +235,6 @@ namespace dmGameSystem
                 dmParticle::SetPosition(particle_context, c.m_ParticleInstance, Point3(world_transform.GetTranslation()));
                 dmParticle::SetRotation(particle_context, c.m_ParticleInstance, world_transform.GetRotation());
                 dmParticle::SetScale(particle_context, c.m_ParticleInstance, world_transform.GetUniformScale());
-                dmParticle::SetScaleAlongZ(particle_context, c.m_ParticleInstance, dmGameObject::ScaleAlongZ(c.m_Instance));
                 if (prototype->m_AddedToUpdate && !c.m_AddedToUpdate) {
                     dmParticle::StartInstance(particle_context, c.m_ParticleInstance);
                     c.m_AddedToUpdate = true;
@@ -642,7 +641,6 @@ namespace dmGameSystem
             dmParticle::SetPosition(particle_context, instance, Point3(world_transform.GetTranslation()));
             dmParticle::SetRotation(particle_context, instance, world_transform.GetRotation());
             dmParticle::SetScale(particle_context, instance, world_transform.GetUniformScale());
-            dmParticle::SetScaleAlongZ(particle_context, instance, dmGameObject::ScaleAlongZ(params.m_Instance));
 
             if (prototype->m_AddedToUpdate)
             {

@@ -272,11 +272,15 @@ namespace dmGameSystem
         ModelWorld* world = (ModelWorld*)params.m_World;
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclarationSkinned);
+        dmGraphics::DeleteVertexDeclaration(world->m_InstanceVertexDeclaration);
+        dmGraphics::DeleteVertexDeclaration(world->m_InstanceVertexDeclarationSkinned);
 
         for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
         {
             dmRender::DeleteBufferedRenderBuffer(context->m_RenderContext, world->m_VertexBuffers[i]);
         }
+
+        dmRender::DeleteBufferedRenderBuffer(context->m_RenderContext, world->m_InstanceBufferLocalSpace);
 
         for (int i = 0; i < world->m_ScratchConstantBuffers.Size(); ++i)
         {
@@ -599,8 +603,10 @@ namespace dmGameSystem
 
     static bool CreateGOBones(ModelWorld* world, ModelComponent* component)
     {
-        if(!component->m_Resource->m_RigScene->m_SkeletonRes)
+        if ((!component->m_Resource->m_Model->m_CreateGoBones) || (!component->m_Resource->m_RigScene->m_SkeletonRes))
+        {
             return true;
+        }
 
         dmGameObject::HInstance instance = component->m_Instance;
         dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
@@ -925,9 +931,12 @@ namespace dmGameSystem
     {
         dmRig::InstanceCreateParams create_params = {0};
 
-        create_params.m_PoseCallback = CompModelPoseCallback;
-        create_params.m_PoseCBUserData1 = component;
-        create_params.m_PoseCBUserData2 = 0;
+        if (component->m_Resource->m_Model->m_CreateGoBones)
+        {
+            create_params.m_PoseCallback = CompModelPoseCallback;
+            create_params.m_PoseCBUserData1 = component;
+            create_params.m_PoseCBUserData2 = 0;
+        }
         create_params.m_EventCallback = CompModelEventCallback;
         create_params.m_EventCBUserData1 = component;
         create_params.m_EventCBUserData2 = 0;
@@ -991,11 +1000,14 @@ namespace dmGameSystem
 
         // Create GO<->bone representation
         // We need to make sure that bone GOs are created before we start the default animation.
-        if (!CreateGOBones(world, component))
+        if (component->m_Resource->m_Model->m_CreateGoBones)
         {
-            dmLogError("Failed to create game objects for bones in model. Consider increasing collection max instances (collection.max_instances).");
-            DestroyComponent(world, index);
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            if (!CreateGOBones(world, component))
+            {
+                dmLogError("Failed to create game objects for bones in model. Consider increasing collection max instances (collection.max_instances).");
+                DestroyComponent(world, index);
+                return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            }
         }
 
         // Create rig instance
@@ -1028,6 +1040,27 @@ namespace dmGameSystem
         dmGameObject::DeleteBones(component->m_Instance);
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_NodeInstances.SetCapacity(0);
+
+        // Clean up custom vertex buffers
+        for (uint32_t i = 0; i < component->m_MeshAttributeRenderDatas.Size(); ++i)
+        {
+            MeshAttributeRenderData& rd = component->m_MeshAttributeRenderDatas[i];
+            if (rd.m_VertexBuffer)
+            {
+                dmGraphics::DeleteVertexBuffer(rd.m_VertexBuffer);
+                rd.m_VertexBuffer = 0;
+            }
+            if (rd.m_VertexDeclaration)
+            {
+                dmGraphics::DeleteVertexDeclaration(rd.m_VertexDeclaration);
+                rd.m_VertexDeclaration = 0;
+            }
+            if (rd.m_InstanceVertexDeclaration)
+            {
+                dmGraphics::DeleteVertexDeclaration(rd.m_InstanceVertexDeclaration);
+                rd.m_InstanceVertexDeclaration = 0;
+            }
+        }
 
         if (component->m_RigInstance)
         {
@@ -1116,7 +1149,7 @@ namespace dmGameSystem
         if (world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentWidth < max_width ||
             world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentHeight < max_height)
         {
-            world->m_SkinnedAnimationData.m_BindPoseCacheBuffer = (uint8_t*) realloc(world->m_SkinnedAnimationData.m_BindPoseCacheBuffer, max_width * max_height * sizeof(dmVMath::Matrix4) );
+            world->m_SkinnedAnimationData.m_BindPoseCacheBuffer = (uint8_t*) realloc(world->m_SkinnedAnimationData.m_BindPoseCacheBuffer, max_width * max_height * sizeof(dmVMath::Vector4) );
             world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentWidth = max_width;
             world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentHeight = max_height;
         }
@@ -1289,8 +1322,8 @@ namespace dmGameSystem
 
                 if (dmRig::IsAnimating(instance_component->m_RigInstance))
                 {
-                    // *4 = 4 vectors per matrix (RGBA)
-                    uint32_t cache_offset = 4 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance);
+                    // *3 = 3 vectors per matrix (we store only first 3 columns, 4th is always 0,0,0,1)
+                    uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance);
                     instance_data->m_AnimationData.setX((float) cache_offset);
                     instance_data->m_AnimationData.setY((float) GetBoneCount(instance_component->m_RigInstance));
                     instance_data->m_AnimationData.setZ((float) dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
@@ -1450,8 +1483,8 @@ namespace dmGameSystem
 
                 if (dmRig::IsAnimating(component->m_RigInstance))
                 {
-                    // *4 = 4 vectors per matrix (RGBA)
-                    uint32_t cache_offset = 4 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance);
+                    // *3 = 3 vectors per matrix (we store only first 3 columns, 4th is always 0,0,0,1)
+                    uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance);
                     animation_data.setX((float) cache_offset);
                     animation_data.setY((float) GetBoneCount(component->m_RigInstance));
                     animation_data.setZ((float) dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
@@ -1769,6 +1802,7 @@ namespace dmGameSystem
 
     static void WritePoseMatricesToTexture(ModelWorld* world)
     {
+        ModelSkinnedAnimationData& anim_data = world->m_SkinnedAnimationData;
         const dmVMath::Matrix4* pose_matrix_read_ptr;
         uint32_t pose_matrix_count;
 
@@ -1776,16 +1810,34 @@ namespace dmGameSystem
         if (pose_matrix_count == 0)
             return;
 
-        // TODO!
-        // We should be able to write 4x3 matrices here. The last column will always be (0, 0, 0, 1)
-        uint32_t num_bone_pixels = pose_matrix_count * 4;
-        uint32_t max_width  = dmMath::Min(num_bone_pixels, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth);
-        uint32_t max_height = dmMath::Min(num_bone_pixels / world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth + 1, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxHeight);
+        // Store only the first 3 columns of each 4x4 matrix (4th column is always 0,0,0,1)
+        // Each matrix now takes 3 pixels instead of 4, saving 25% memory
+        uint32_t num_bone_pixels = pose_matrix_count * 3;
+        uint32_t max_width  = dmMath::Min(num_bone_pixels, (uint32_t) anim_data.m_BindPoseCacheTextureMaxWidth);
+        uint32_t max_height = dmMath::Min(num_bone_pixels / anim_data.m_BindPoseCacheTextureMaxWidth + 1, (uint32_t) anim_data.m_BindPoseCacheTextureMaxHeight);
+
+        if (num_bone_pixels > (max_width * max_height))
+        {
+            dmLogOnceError("Bone matrix texture cache is too small to fit %d pixels of bone data. Increase model.max_bone_matrix_texture_width and/or max_bone_matrix_texture_height.", num_bone_pixels);
+            // prevent overflow and crash
+            pose_matrix_count = (max_width * max_height) / 3;
+        }
 
         EnsureBindPoseCacheBufferSize(world, max_width, max_height);
-        dmVMath::Matrix4* animation_data_write_ptr = (dmVMath::Matrix4*) world->m_SkinnedAnimationData.m_BindPoseCacheBuffer;
+        dmVMath::Vector4* animation_data_write_ptr = (dmVMath::Vector4*) anim_data.m_BindPoseCacheBuffer;
 
-        memcpy(animation_data_write_ptr, pose_matrix_read_ptr, pose_matrix_count * sizeof(dmVMath::Matrix4));
+        // Store the first 3 columns and the translation from the 4th column
+        for (uint32_t i = 0; i < pose_matrix_count; ++i)
+        {
+            const dmVMath::Matrix4& matrix = pose_matrix_read_ptr[i];
+            
+            // Store the first 3 columns as Vector4 (RGBA format)
+            // Each matrix takes 3 pixels: [col0, col1, col2]
+            // The translation is in column 3, and we reconstruct the 4th column as (0,0,0,1)
+            animation_data_write_ptr[i * 3 + 0] = dmVMath::Vector4(matrix.getCol(0).getXYZ(), matrix.getCol(3).getX());
+            animation_data_write_ptr[i * 3 + 1] = dmVMath::Vector4(matrix.getCol(1).getXYZ(), matrix.getCol(3).getY());
+            animation_data_write_ptr[i * 3 + 2] = dmVMath::Vector4(matrix.getCol(2).getXYZ(), matrix.getCol(3).getZ());
+        }
 
         dmGraphics::TextureParams tp;
         tp.m_Width     = max_width;
@@ -1795,7 +1847,7 @@ namespace dmGameSystem
         tp.m_Data      = animation_data_write_ptr;
         tp.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         tp.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
-        dmGraphics::SetTexture(world->m_SkinnedAnimationData.m_BindPoseCacheTexture, tp);
+        dmGraphics::SetTexture(anim_data.m_BindPoseCacheTexture, tp);
     }
 
     static void UpdateMeshTransforms(ModelComponent* component)
@@ -1809,6 +1861,9 @@ namespace dmGameSystem
             if (!item.m_Enabled)
                 continue;
             dmRigDDF::Model* model = item.m_Model;
+            // Hierarchy handling: See ModelUtil.java:loadModel() for how model->m_Local is set
+            // For skinned models: m_Local contains node.local, hierarchy applied via bone_pose.m_World
+            // For non-skinned models: m_Local contains node.world, hierarchy already flattened
             if (item.m_BoneIndex != dmRig::INVALID_BONE_INDEX)
             {
                 dmRig::BonePose bone_pose = (*pose)[item.m_BoneIndex];
@@ -1841,16 +1896,7 @@ namespace dmGameSystem
 
             const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
             const Matrix4 local = dmTransform::ToMatrix4(c->m_Transform);
-
-            if (dmGameObject::ScaleAlongZ(c->m_Instance))
-            {
-                c->m_World = go_world * local;
-            }
-            else
-            {
-                c->m_World = dmTransform::MulNoScaleZ(go_world, local);
-            }
-
+            c->m_World = go_world * local;
             UpdateMeshTransforms(c);
 
             num_render_items += c->m_RenderItems.Size();
@@ -1905,6 +1951,8 @@ namespace dmGameSystem
         }
 
         dmRig::Result rig_res = dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
+
+        WritePoseMatricesToTexture(world);
 
         assert(world->m_MaxBatchIndex < VERTEX_BUFFER_MAX_BATCHES);
         for (int i = 0; i <= world->m_MaxBatchIndex; ++i)
@@ -1991,8 +2039,6 @@ namespace dmGameSystem
                     dmRender::SetBufferData(params.m_Context, gfx_vertex_buffer, vb_size, vertex_buffer_data.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
                     world->m_VertexBufferDispatchCounts[batch_index]++;
                 }
-
-                WritePoseMatricesToTexture(world);
 
                 DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, world->m_StatisticsVertexCount);
                 DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, world->m_StatisticsVertexDataSize);
@@ -2392,7 +2438,14 @@ namespace dmGameSystem
 
     dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index)
     {
-        return component->m_NodeInstances[bone_index];
+        if (component->m_Resource->m_Model->m_CreateGoBones)
+        {
+            return component->m_NodeInstances[bone_index];
+        }
+        else
+        {
+            return 0x0;
+        }
     }
 
     bool CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled)

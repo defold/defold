@@ -329,7 +329,7 @@ namespace dmSys
     Result OpenURL(const char* url, const char* target)
     {
         intptr_t ret = (intptr_t) ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
-        if (ret == 32)
+        if (ret > 32)
         {
             return RESULT_OK;
         }
@@ -750,40 +750,45 @@ namespace dmSys
 #endif
     }
 
-#if (defined(__linux__) && !defined(__ANDROID__)) || defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__)
+    void GetSystemInfo(SystemInfo* info)
+    {
+        memset(info, 0, sizeof(*info));
+
+        dmStrlCpy(info->m_SystemName, "HTML5", sizeof(info->m_SystemName));
+
+        const char* default_lang = "en_US";
+        info->m_UserAgent = dmSysGetUserAgent(); // transfer ownership to SystemInfo struct
+        const char* const lang = dmSysGetUserPreferredLanguage(default_lang);
+        FillLanguageTerritory(lang, info);
+        FillTimeZone(info);
+
+        free((void*)lang);
+    }
+
+    void GetSecureInfo(SystemInfo* info)
+    {
+    }
+
+#elif defined(__linux__) && !defined(__ANDROID__)
     void GetSystemInfo(SystemInfo* info)
     {
         memset(info, 0, sizeof(*info));
         struct utsname uts;
-#if !defined(__EMSCRIPTEN__)
         uname(&uts);
-#endif
 
-#if defined(__EMSCRIPTEN__)
-        dmStrlCpy(info->m_SystemName, "HTML5", sizeof(info->m_SystemName));
-#else
         dmStrlCpy(info->m_SystemName, "Linux", sizeof(info->m_SystemName));
-#endif
         dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
-        info->m_DeviceModel[0] = '\0';
 
         const char* default_lang = "en_US";
-#if defined(__EMSCRIPTEN__)
-        info->m_UserAgent = dmSysGetUserAgent(); // transfer ownership to SystemInfo struct
-        const char* const lang = dmSysGetUserPreferredLanguage(default_lang);
-#else
         const char* lang = getenv("LANG");
-        if (!lang) {
+        if (!lang)
+        {
             dmLogWarning("Variable LANG not set");
             lang = default_lang;
         }
-#endif
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
-
-#if defined(__EMSCRIPTEN__)
-        free((void*)lang);
-#endif
     }
 
     void GetSecureInfo(SystemInfo* info)
@@ -972,8 +977,13 @@ namespace dmSys
             return true;
         }
 #endif
+#ifdef _WIN32
+        struct _stat64 file_stat;
+        return _stat64(path, &file_stat) == 0;
+#else
         struct stat file_stat;
         return stat(path, &file_stat) == 0;
+#endif
     }
 
     Result ResourceSize(const char* path, uint32_t* resource_size)
@@ -989,8 +999,13 @@ namespace dmSys
             return RESULT_OK;
         }
 #endif
+#ifdef _WIN32
+        struct _stat64 file_stat;
+        if (_stat64(path, &file_stat) == 0) {
+#else
         struct stat file_stat;
         if (stat(path, &file_stat) == 0) {
+#endif
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
@@ -1025,8 +1040,13 @@ namespace dmSys
             return RESULT_OK;
         }
 #endif
+#ifdef _WIN32
+        struct _stat64 file_stat;
+        if (_stat64(path, &file_stat) == 0) {
+#else
         struct stat file_stat;
         if (stat(path, &file_stat) == 0) {
+#endif
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
@@ -1069,8 +1089,13 @@ namespace dmSys
             return RESULT_OK;
         }
 #endif
+#ifdef _WIN32
+        struct _stat64 file_stat;
+        if (_stat64(path, &file_stat) == 0) {
+#else
         struct stat file_stat;
         if (stat(path, &file_stat) == 0) {
+#endif
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
@@ -1127,8 +1152,13 @@ namespace dmSys
 
     Result IsDir(const char* path)
     {
+#ifdef _WIN32
+        struct _stat64 path_stat;
+        int ret = _stat64(path, &path_stat);
+#else
         struct stat path_stat;
         int ret = stat(path, &path_stat);
+#endif
         if (ret != 0)
             return ErrnoToResult(errno);
         return path_stat.st_mode & S_IFDIR ? RESULT_OK : RESULT_UNKNOWN;
@@ -1136,8 +1166,13 @@ namespace dmSys
 
     bool Exists(const char* path)
     {
+#ifdef _WIN32
+        struct _stat64 path_stat;
+        int ret = _stat64(path, &path_stat);
+#else
         struct stat path_stat;
         int ret = stat(path, &path_stat);
+#endif
         return ret == 0;
     }
 
@@ -1163,8 +1198,13 @@ namespace dmSys
             char abs_path[1024];
             dmSnPrintf(abs_path, sizeof(abs_path), "%s/%s", dirpath, entry->d_name);
 
+#ifdef _WIN32
+            struct _stat64 path_stat;
+            _stat64(abs_path, &path_stat);
+#else
             struct stat path_stat;
             stat(abs_path, &path_stat);
+#endif
 
             bool isdir = S_ISDIR(path_stat.st_mode);
 
@@ -1213,8 +1253,13 @@ namespace dmSys
 
     Result Stat(const char* path, StatInfo* stat_info)
     {
+#ifdef _WIN32
+        struct _stat64 info;
+        int ret = _stat64(path, &info);
+#else
         struct stat info;
         int ret = stat(path, &info);
+#endif
         if (ret != 0)
             return RESULT_NOENT;
         stat_info->m_Size = (uint64_t)info.st_size;

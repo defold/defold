@@ -65,8 +65,11 @@
 
                      [metosin/reitit-core "0.8.0-alpha1"]
 
-                     [org.commonmark/commonmark "0.21.0"]
-                     [org.commonmark/commonmark-ext-autolink "0.21.0"]
+                     [org.commonmark/commonmark "0.25.1"]
+                     [org.commonmark/commonmark-ext-autolink "0.25.1"]
+                     [org.commonmark/commonmark-ext-gfm-tables "0.25.1"]
+                     [org.commonmark/commonmark-ext-yaml-front-matter "0.25.1"]
+                     [org.commonmark/commonmark-ext-heading-anchor "0.25.1"]
 
                      [com.cognitect.aws/api "0.8.673"]
                      [com.cognitect.aws/endpoints "1.1.12.478"]
@@ -163,9 +166,9 @@
                       ;; hide warnings about illegal reflective access by clojure
                       "--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED"
                       ;; used in editor.scene$read_to_buffered_image
-                      "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"
+                      "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"]
                       ;; "-XX:MaxJavaStackTraceDepth=1073741823"
-                      ]
+
   :main ^:skip-aot   com.defold.editor.Main
 
   :uberjar-exclusions [#"^natives/"]
@@ -211,10 +214,13 @@
                                  :dependencies [[org.testfx/openjfx-monocle "jdk-12.0.1+2"]]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
                       :cache-libraries {:jvm-opts ["-Ddefold.cache.libraries=true"]}
+                      :portal {:source-paths ["src/portal"]
+                               :dependencies [[djblue/portal "0.60.2"]]}
                       :reveal {:source-paths ["src/reveal"]
-                               :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading"]
+                               :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading" "-Dvlaaad.reveal.prefs={:use-eval-file-metadata-namespace,true}"]
                                :injections [(require 'editor.reveal)]
-                               :dependencies [[vlaaad/reveal "1.3.284"]]}
+                               :dependencies [[vlaaad/reveal "1.3.292"]
+                                              [org.openjfx/javafx-web "23.0.1"]]}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :jamm {:dependencies [[com.github.jbellis/jamm "0.4.0"]]
                              :jvm-opts [~(str "-javaagent:"
@@ -227,6 +233,7 @@
                                         "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"
                                         "--add-opens=java.net.http/jdk.internal.net.http=ALL-UNNAMED"
                                         "--add-opens=java.net.http/jdk.internal.net.http.common=ALL-UNNAMED"]}
+                      :strict-pb-map-keys {:jvm-opts ["-Ddefold.protobuf.strict.enable=true"]}
                       :no-asserts {:global-vars {*assert* false}}
                       :no-decorated-exceptions {:jvm-opts ["-Ddefold.exception.decorate.disable=true"]}
                       :no-schemas {:jvm-opts ["-Ddefold.schema.check.disable=true"]}
@@ -237,7 +244,6 @@
                                                     [org.openjfx/javafx-controls "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-graphics "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-media "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-web "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-web org.openjfx/javafx-controls org.openjfx/javafx-media]]
                                                     [org.openjfx/javafx-fxml "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
                                                     [org.openjfx/javafx-swing "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
                                      :uberjar-name "editor-x86_64-linux-standalone.jar"}
@@ -245,7 +251,6 @@
                                                     [org.openjfx/javafx-controls "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-graphics "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-media "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-web "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-web org.openjfx/javafx-controls org.openjfx/javafx-media]]
                                                     [org.openjfx/javafx-fxml "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
                                                     [org.openjfx/javafx-swing "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
                                      :uberjar-name "editor-x86_64-win32-standalone.jar"}
@@ -253,7 +258,6 @@
                                                     [org.openjfx/javafx-controls "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-graphics "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-media "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-web "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-web org.openjfx/javafx-controls org.openjfx/javafx-media]]
                                                     [org.openjfx/javafx-fxml "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
                                                     [org.openjfx/javafx-swing "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
                                      :uberjar-name "editor-x86_64-macos-standalone.jar"}
@@ -261,7 +265,6 @@
                                                    [org.openjfx/javafx-controls "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
                                                    [org.openjfx/javafx-graphics "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
                                                    [org.openjfx/javafx-media "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                   [org.openjfx/javafx-web "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-web org.openjfx/javafx-controls org.openjfx/javafx-media]]
                                                    [org.openjfx/javafx-fxml "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
                                                    [org.openjfx/javafx-swing "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
                                     :uberjar-name "editor-arm64-macos-standalone.jar"}
@@ -270,7 +273,6 @@
                                                     [org.openjfx/javafx-controls "23.0.1"]
                                                     [org.openjfx/javafx-graphics "23.0.1"]
                                                     [org.openjfx/javafx-media "23.0.1"]
-                                                    [org.openjfx/javafx-web "23.0.1"]
                                                     [org.openjfx/javafx-fxml "23.0.1"]
                                                     [org.openjfx/javafx-swing "23.0.1"]
                                                     [com.clojure-goes-fast/clj-async-profiler "0.5.1"]
@@ -287,8 +289,8 @@
                                 :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.1.3.zip"
                                                     "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/3.9.0.zip"
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.1.0.zip"
-                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/3.7.0.zip"
-                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.2.zip"
+                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/3.9.2.zip"
+                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.4.zip"
                                                     "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.2.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"

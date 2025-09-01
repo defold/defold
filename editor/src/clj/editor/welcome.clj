@@ -83,6 +83,7 @@
    :zip-url URLString
    (s/optional-key :duration) VisibleString
    (s/optional-key :user-level) VisibleString
+   (s/optional-key :bundle) s/Bool
    (s/optional-key :skip-root?) s/Bool})
 
 (def ^:private TemplateProjectCategory
@@ -221,6 +222,10 @@
         (fs/delete-file! file)
         nil)
       file)))
+
+(defn- find-bundled-proj-zip!
+  ^File [project-title]
+  (io/resource (str "template-projects/" project-title ".zip")))
 
 (defn- expand-proj-zip! [src dst skip-root?]
   (with-open [zip (ZipInputStream. (io/input-stream src))]
@@ -455,7 +460,7 @@
     (ui/with-controls [^ButtonBase create-new-project-button new-project-location-field ^TextField new-project-title-field template-categories ^ListVew template-list]
       (setup-location-field! new-project-location-field "Select New Project Location" new-project-location-directory)
       (let [title-text-property (.textProperty new-project-title-field)
-        sanitized-title-property (b/map dialogs/sanitize-folder-name title-text-property)]
+            sanitized-title-property (b/map dialogs/sanitize-folder-name title-text-property)]
         (b/bind! (location-field-title-property new-project-location-field) sanitized-title-property))
       (doto template-list
         (ui/cell-factory! (fn [project-template]
@@ -630,7 +635,8 @@
                                 (analytics/track-event! "welcome" "download-template" template-title)
                                 (future
                                   (try
-                                    (if-some [template-zip-file (download-proj-zip! zip-url progress-callback cancelled-atom)]
+                                    (if-some [template-zip-file (or (find-bundled-proj-zip! template-title)
+                                                                    (download-proj-zip! zip-url progress-callback cancelled-atom))]
                                       (let [project-file (io/file dest-directory "game.project")]
                                         (expand-proj-zip! template-zip-file dest-directory skip-root?)
                                         (write-project-title! project-file project-title)

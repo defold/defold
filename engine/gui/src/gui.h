@@ -157,6 +157,11 @@ namespace dmGui
     typedef void (*DestroyRenderConstantsCallback)(void* render_constants);
 
     /**
+     * Callback to clone render constants
+     */
+    typedef void* (*CloneRenderConstantsCallback)(void* render_constants);
+
+    /**
      * Callback to create a texture resource
      */
     typedef HTextureSource (*NewTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
@@ -203,6 +208,7 @@ namespace dmGui
         SetMaterialPropertyCallback    m_SetMaterialPropertyCallback;
         void*                          m_SetMaterialPropertyCallbackContext;
         DestroyRenderConstantsCallback m_DestroyRenderConstantsCallback;
+        CloneRenderConstantsCallback   m_CloneRenderConstantsCallback;
         FetchTextureSetAnimCallback    m_FetchTextureSetAnimCallback;
         OnWindowResizeCallback         m_OnWindowResizeCallback;
         NewTextureResourceCallback     m_NewTextureResourceCallback;
@@ -220,7 +226,7 @@ namespace dmGui
 
     typedef void (*GetURLCallback)(HScene scene, dmMessage::URL* url);
     typedef uintptr_t (*GetUserDataCallback)(HScene scene);
-    typedef dmhash_t (*ResolvePathCallback)(HScene scene, const char* path, uint32_t path_size);
+    typedef dmhash_t (*ResolvePathCallback)(HScene scene, const char* path);
 
     /**
      * Font metrics of a text string
@@ -542,6 +548,19 @@ namespace dmGui
      * @return Outcome of the operation
      */
     Result AddTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height);
+
+    /**
+     * Adds a texture and optional textureset with the specified name to the scene as Dynamic texture.
+     * @note Any nodes connected to the same texture_name will also be connected to the new texture/textureset. This makes this function O(n), where n is #nodes.
+     * @param scene Scene to add the texture/textureset to
+     * @param texture_name_hash Hash of the texture name that will be used in the gui scripts
+     * @param texture The texture to add
+     * @param textureset The textureset to add if animation is used, otherwise zero. If set, texture parameter is expected to be equal to textureset texture.
+     * @param original_width Original With of the texture
+     * @param original_height Original Height of the texture
+     * @return Outcome of the operation
+     */
+    Result AddDynamicTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height);
 
     /**
      * Removes a texture with the specified name from the scene.

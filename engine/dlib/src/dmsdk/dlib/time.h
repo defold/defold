@@ -24,7 +24,6 @@
  * @document
  * @name Time
  * @namespace dmTime
- * @path engine/dlib/src/dmsdk/dlib/time.h
  * @language C++
  */
 
@@ -60,7 +59,7 @@ namespace dmTime
      *
      * Sleep thread with low precision (~10 milliseconds).
      * @name dmTime::Sleep
-     * @param useconds Time to sleep in microseconds
+     * @param useconds [type:uint32_t] Time to sleep in microseconds
      */
     void Sleep(uint32_t useconds);
 

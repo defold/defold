@@ -55,7 +55,8 @@
             [util.fn :as fn]
             [util.thread-util :as thread-util])
   (:import [java.io File]
-           [java.util.concurrent.atomic AtomicLong]))
+           [java.util.concurrent.atomic AtomicLong]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -1423,6 +1424,45 @@
       (texture.engine/reload-texture-compressors! java/class-loader)
       (workspace/load-clojure-editor-plugins! workspace touched-resources))))
 
+(defn settings
+  ([project]
+   (g/with-auto-evaluation-context evaluation-context
+     (settings project evaluation-context)))
+  ([project evaluation-context]
+   (g/node-value project :settings evaluation-context)))
+
+(defn project-dependencies
+  ([project]
+   (g/with-auto-evaluation-context evaluation-context
+     (project-dependencies project evaluation-context)))
+  ([project evaluation-context]
+   (when-let [settings (settings project evaluation-context)]
+     (settings ["project" "dependencies"]))))
+
+(defn update-fetch-libraries-notification!
+  "Show or hide a 'Fetch Libraries' suggestion when the project dependency list
+  differs from the currently installed dependencies in the workspace."
+  [project]
+  (g/with-auto-evaluation-context evaluation-context
+    (when-let [workspace (workspace project evaluation-context)]
+      (let [ignored-dep (:default (:element (settings-core/get-meta-setting gpc/meta-settings ["project" "dependencies"])))
+            desired-deps (disj (set (project-dependencies project evaluation-context)) ignored-dep)
+            installed-deps (set (workspace/dependencies workspace evaluation-context))
+            notifications (workspace/notifications workspace evaluation-context)
+            notification-id ::dependencies-changed]
+        (if (not= desired-deps installed-deps)
+          (notifications/show!
+            notifications
+            {:id notification-id
+             :type :info
+             :text "Project dependencies have changed. Do you want to fetch the libraries now?"
+             :actions [{:text "Fetch Libraries"
+                        :on-action #(ui/execute-command
+                                      (ui/contexts (ui/main-scene))
+                                      :project.fetch-libraries
+                                      nil)}]})
+          (notifications/close! notifications notification-id))))))
+
 (defn- handle-resource-changes [project changes render-progress!]
   (reload-plugins! project (set/union (set (:added changes)) (set (:changed changes))))
   (let [[old-nodes-by-path old-node->old-disk-sha256]
@@ -1439,7 +1479,9 @@
     ;; For debugging resource loading / reloading issues:
     ;; (resource-update/print-plan resource-change-plan)
     (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))
-    (lsp/apply-resource-changes! (lsp/get-node-lsp project) changes)))
+    (lsp/apply-resource-changes! (lsp/get-node-lsp project) changes)
+    ;; Suggest fetching libraries if dependencies changed externally.
+    (update-fetch-libraries-notification! project)))
 
 (g/defnk produce-collision-groups-data
   [collision-group-nodes]
@@ -1509,6 +1551,7 @@
   (input collision-group-nodes g/Any :array :substitute gu/array-subst-remove-errors)
   (input build-settings g/Any)
   (input breakpoints Breakpoints :array :substitute gu/array-subst-remove-errors)
+  (input proj-path+meta-info-pairs g/Any :array :substitute gu/array-subst-remove-errors)
 
   (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
                                                              (let [selected-node-id-set (set all-selected-node-ids)]
@@ -1538,6 +1581,7 @@
                                                                  (not (resource/read-only? resource))))))
                                                    save-data)))
   (output settings g/Any (g/fnk [settings] (or settings gpc/default-settings)))
+  (output exclude-gles-sm100 g/Any (g/fnk [settings] (get settings ["shader" "exclude_gles_sm100"])))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
   (output texture-profiles g/Any :cached (gu/passthrough texture-profiles))
   (output nil-resource resource/Resource (g/constantly nil))
@@ -1545,7 +1589,20 @@
   (output default-tex-params g/Any :cached produce-default-tex-params)
   (output default-sampler-filter-modes g/Any :cached produce-default-sampler-filter-modes)
   (output build-settings g/Any (gu/passthrough build-settings))
-  (output breakpoints Breakpoints :cached (g/fnk [breakpoints] (into [] cat breakpoints))))
+  (output breakpoints Breakpoints :cached (g/fnk [breakpoints] (into [] cat breakpoints)))
+  (output meta-infos g/Any :cached
+          (g/fnk [proj-path+meta-info-pairs]
+            {:ext-meta-info
+             (when-not (coll/empty? proj-path+meta-info-pairs)
+               (transduce
+                 (keep (fn [e]
+                         (when (= "ext" (FilenameUtils/getBaseName (key e)))
+                           (val e))))
+                 settings-core/merge-meta-infos
+                 proj-path+meta-info-pairs))
+
+             :game-project-proj-path->additional-meta-info
+             (coll/pair-map-by #(str (FilenameUtils/removeExtension (key %)) ".project") val proj-path+meta-info-pairs)})))
 
 (defn get-project
   ([node]
@@ -1557,13 +1614,6 @@
   (let [resource-path-to-node (g/node-value project :nodes-by-resource-path)
         resources        (resource/filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
-
-(defn settings [project]
-  (g/node-value project :settings))
-
-(defn project-dependencies [project]
-  (when-let [settings (settings project)]
-    (settings ["project" "dependencies"])))
 
 (defn shared-script-state? [project]
   (some-> (settings project) (get ["script" "shared_state"])))
@@ -1821,5 +1871,5 @@
                          (let [target-node (get-resource-node project resource)]
                            (cond-> resources
                              target-node
-                             (concat (acc-fn target-node resource)))))
+                             (concat (acc-fn target-node)))))
                        (conj checked-paths current-path)))))))))

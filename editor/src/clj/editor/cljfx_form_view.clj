@@ -175,10 +175,10 @@
   - `:resource-string-converter` - a resource string converter"
   :type)
 
-(defmethod form-input-view :default [{:keys [value type] :as field}]
+(defmethod form-input-view :default [{:keys [value]}]
   {:fx/type fx.label/lifecycle
    :wrap-text true
-   :text (str type " " (if (nil? value) "***NIL***" value) " " field)})
+   :text (str value)})
 
 (defmulti cell-input-view
   "Analogous to form input, but displayed in a cell (in list-view or table-view)
@@ -465,7 +465,7 @@
      :on-value-changed on-value-changed
      :converter (DefoldStringConverter.
                   #(get value->label % (to-string %))
-                  #(get label->value % (and from-string (from-string %))))
+                  #(or (label->value %) (and from-string (from-string %))))
      :editable (some? from-string)
      :button-cell (fn [x]
                     {:text (value->label x)})
@@ -1413,7 +1413,7 @@
                          (text-util/includes-ignore-case? help filter-term)))
         fields (into []
                      (comp
-                       (remove :hidden?)
+                       (remove :hidden)
                        (map #(set-field-visibility % values filter-term visible)))
                      fields)]
     (assoc section :visible (boolean (some :visible fields))

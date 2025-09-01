@@ -24,7 +24,6 @@
  * @document
  * @name Hid
  * @namespace dmHid
- * @path engine/hid/src/dmsdk/hid/hid.h
  * @language C++
  */
 

@@ -3,7 +3,7 @@
 import os, sys, re, run, shutil
 from waflib import Build
 
-VERSION = '3.0.0'
+VERSION = '3.1.0'
 APPNAME = 'box2d'
 
 def configure(conf):

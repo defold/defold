@@ -22,6 +22,21 @@
 
 (defrecord Arc [source-id source-label target-id target-label])
 
+(defn arc-print-data [^Arc arc]
+  (into [(.-source-id arc) (.-source-label arc)
+         (.-target-id arc) (.-target-label arc)]
+        cat
+        (dissoc arc :source-id :source-label :target-id :target-label)))
+
+(defmethod print-method Arc [^Arc arc ^Writer writer]
+  (.write writer "#g/arc ")
+  (print-method (arc-print-data arc) writer))
+
+(defn- read-arc [[source-id source-label target-id target-label & {:as kvs}]]
+  (if kvs
+    `(Arc. ~source-id ~source-label ~target-id ~target-label nil ~kvs)
+    `(Arc. ~source-id ~source-label ~target-id ~target-label)))
+
 (defn source-id [^Arc arc] (.source-id arc))
 (defn source-label [^Arc arc] (.source-label arc))
 (defn source [^Arc arc] [(.source-id arc) (.source-label arc)])

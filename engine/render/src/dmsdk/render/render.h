@@ -27,7 +27,6 @@ namespace dmIntersection
 }
 
 /*# Render API documentation
- * [file:<dmsdk/render/render.h>]
  *
  * Api for render specific data
  *
@@ -334,10 +333,10 @@ namespace dmRender
     };
 
     /*#
-     * Render dispatch function callback.
+     * Render visibility function callback.
      * @typedef
-     * @name RenderListDispatchFn
-     * @param params [type: dmRender::RenderListDispatchParams] the params
+     * @name RenderListVisibilityFn
+     * @param params [type: dmRender::RenderListVisibilityParams] the params
      */
     typedef void (*RenderListVisibilityFn)(RenderListVisibilityParams const &params);
 
@@ -614,14 +613,23 @@ namespace dmRender
      */
     uint32_t GetNamedConstantCount(HNamedConstantBuffer buffer);
 
+
+    /*#
+     * @typedef
+     * @name IterateNamedConstantsFn
+     * @param name_hash [type:dmhash_t]
+     * @param ctx [type:void*]
+     */
+    typedef void (*IterateNamedConstantsFn)(dmhash_t name_hash, void* ctx);
+
     /*#
      * Iterates over the constants
      * @name IterateNamedConstants
      * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
-     * @param callback [type: void (*callback)(dmhash_t name_hash, void* ctx)] the callback function void (*callback)(dmhash_t name_hash, void* ctx)
+     * @param callback [type: IterateNamedConstantsFn] the callback function
      * @param ctx [type: void*] the callback context
      */
-    void IterateNamedConstants(HNamedConstantBuffer buffer, void (*callback)(dmhash_t name_hash, void* ctx), void* ctx);
+    void IterateNamedConstants(HNamedConstantBuffer buffer, IterateNamedConstantsFn callback, void* ctx);
 }
 
 #endif /* DMSDK_RENDER_H */

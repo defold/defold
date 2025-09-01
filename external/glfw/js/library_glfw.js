@@ -205,6 +205,10 @@ var LibraryGLFW = {
       return res;
     },
 
+    onWindowClose: function(event) {
+        GLFW.params[0x00020001] = false; // GLFW_OPENED
+    },
+
     onKeyPress: function(event) {
       if (!GLFW.isCanvasActive(event)) { return; }
 
@@ -566,20 +570,19 @@ var LibraryGLFW = {
       }
     },
 
-    //adaptation for our needs of https://github.com/emscripten-core/emscripten/blob/941bbc6b9b35d3124f17d2503d7a32cc81032dac/src/library_glfw.js#L662
     joys: {}, // glfw joystick data
     lastGamepadState: null,
-    lastGamepadStateFrame: null, // The integer value of Browser.mainLoop.currentFrameNumber of when the last gamepad state was produced.
+    lastGamepadStateFrame: null, // The integer value of MainLoop.currentFrameNumber of when the last gamepad state was produced.
 
     refreshJoysticks: function(forceUpdate) {
         // Produce a new Gamepad API sample if we are ticking a new game frame, or if not using emscripten_set_main_loop() at all to drive animation.
         if (GLFW.gamepadFunc) {
-          if (forceUpdate || Browser.mainLoop.currentFrameNumber !== GLFW.lastGamepadStateFrame || !Browser.mainLoop.currentFrameNumber) {
+          if (forceUpdate || MainLoop.currentFrameNumber !== GLFW.lastGamepadStateFrame || !MainLoop.currentFrameNumber) {
             GLFW.lastGamepadState = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : null);
             if (!GLFW.lastGamepadState) {
               return;
             }
-            GLFW.lastGamepadStateFrame = Browser.mainLoop.currentFrameNumber;
+            GLFW.lastGamepadStateFrame = MainLoop.currentFrameNumber;
             for (var joy = 0; joy < GLFW.lastGamepadState.length; ++joy) {
               var gamepad = GLFW.lastGamepadState[joy];
 
@@ -619,6 +622,7 @@ var LibraryGLFW = {
   glfwInitJS: function() {
     GLFW.initTime = Date.now() / 1000;
 
+    GLFW.addEventListener("unload", GLFW.onWindowClose, true);
     GLFW.addEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
     GLFW.addEventListener("gamepaddisconnected", GLFW.onJoystickDisconnected, true);
     GLFW.addEventListener("keydown", GLFW.onKeydown, true);
@@ -928,6 +932,7 @@ var LibraryGLFW = {
       return 1;
     }
     catch(e) {
+      console.error(e);
       GLFW.gamepadFunc = null;
       return 0;
     }

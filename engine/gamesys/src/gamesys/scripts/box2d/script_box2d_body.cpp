@@ -406,7 +406,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        b2Vec2 p = CheckVec2(L, 2, GetPhysicsScale());
         dmScript::PushVector3(L, FromB2(b2Body_GetWorldPoint(*body, p), GetInvPhysicsScale()));
         return 1;
     }
@@ -415,7 +415,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        b2Vec2 p = CheckVec2(L, 2, GetPhysicsScale());
         dmScript::PushVector3(L, FromB2(b2Body_GetWorldVector(*body, p), GetInvPhysicsScale()));
         return 1;
     }
@@ -424,7 +424,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        b2Vec2 p = CheckVec2(L, 2, GetPhysicsScale());
         dmScript::PushVector3(L, FromB2(b2Body_GetLocalPoint(*body, p), GetInvPhysicsScale()));
         return 1;
     }
@@ -433,7 +433,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        b2Vec2 p = CheckVec2(L, 2, GetPhysicsScale());
         dmScript::PushVector3(L, FromB2(b2Body_GetLocalVector(*body, p), GetInvPhysicsScale()));
         return 1;
     }
@@ -442,7 +442,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        b2Vec2 p = CheckVec2(L, 2, GetPhysicsScale());
         dmScript::PushVector3(L, FromB2(b2Body_GetWorldPointVelocity(*body, p), GetInvPhysicsScale()));
         return 1;
     }
@@ -451,7 +451,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2BodyId* body = CheckBody(L, 1);
-        b2Vec2 p = CheckVec2(L, 1, GetPhysicsScale());
+        b2Vec2 p = CheckVec2(L, 2, GetPhysicsScale());
         dmScript::PushVector3(L, FromB2(b2Body_GetLocalPointVelocity(*body, p), GetInvPhysicsScale()));
         return 1;
     }
@@ -602,20 +602,32 @@ namespace dmGameSystem
  * @language Lua
  */
 
+/*# Box2D world
+ * @typedef
+ * @name b2World
+ * @param value [type:userdata]
+ */
+
+/*# Box2D body
+ * @typedef
+ * @name b2Body
+ * @param value [type:userdata]
+ */
+
 /*# Static (immovable) body
  *
  * @name b2d.body.B2_STATIC_BODY
- * @variable
+ * @constant
  */
 /*# Kinematic body
  *
  * @name b2d.body.B2_KINEMATIC_BODY
- * @variable
+ * @constant
  */
 /*# Dynamic body
  *
  * @name b2d.body.B2_DYNAMIC_BODY
- * @variable
+ * @constant
  */
 
 /**
@@ -889,37 +901,37 @@ namespace dmGameSystem
 /*# Should this body be treated like a bullet for continuous collision detection?
  * @name b2d.body.set_bullet
  * @param body [type: b2Body] body
- * @param enable [type: bool] if true, the body will be in bullet mode
+ * @param enable [type: boolean] if true, the body will be in bullet mode
  */
 
 /*# Is this body in bullet mode
  * @name b2d.body.is_bullet
  * @param body [type: b2Body] body
- * @return enabled [type: bool] true if the body is in bullet mode
+ * @return enabled [type: boolean] true if the body is in bullet mode
  */
 
 /*# You can disable sleeping on this body. If you disable sleeping, the body will be woken.
  * @name b2d.body.enable_sleep
  * @param body [type: b2Body] body
- * @param enable [type: bool] if false, the body will never sleep, and consume more CPU
+ * @param enable [type: boolean] if false, the body will never sleep, and consume more CPU
  */
 
 /*# Is this body allowed to sleep
  * @name b2d.body.is_sleeping_enabled
  * @param body [type: b2Body] body
- * @return enabled [type: bool] true if the body is allowed to sleep
+ * @return enabled [type: boolean] true if the body is allowed to sleep
  */
 
 /*# Set the sleep state of the body. A sleeping body has very low CPU cost.
  * @name b2d.body.set_awake
  * @param body [type: b2Body] body
- * @param enable [type: bool] flag set to false to put body to sleep, true to wake it.
+ * @param enable [type: boolean] flag set to false to put body to sleep, true to wake it.
  */
 
 /*# Get the sleeping state of this body.
  * @name b2d.body.is_awake
  * @param body [type: b2Body] body
- * @return enabled [type: bool] true if the body is awake, false if it's sleeping.
+ * @return enabled [type: boolean] true if the body is awake, false if it's sleeping.
  */
 
 /*# Set the active state of the body
@@ -939,26 +951,26 @@ namespace dmGameSystem
  *
  * @name b2d.body.set_active
  * @param body [type: b2Body] body
- * @param enable [type: bool] true if the body should be active
+ * @param enable [type: boolean] true if the body should be active
  */
 
 /*# Get the active state of the body.
  * @name b2d.body.is_active
  * @param body [type: b2Body] body
- * @return enabled [type: bool] is the body active
+ * @return enabled [type: boolean] is the body active
  */
 
 
 /*# Set this body to have fixed rotation. This causes the mass to be reset.
  * @name b2d.body.set_fixed_rotation
  * @param body [type: b2Body] body
- * @param enable [type: bool] true if the rotation should be fixed
+ * @param enable [type: boolean] true if the rotation should be fixed
  */
 
 /*# Does this body have fixed rotation?
  * @name b2d.body.is_fixed_rotation
  * @param body [type: b2Body] body
- * @return enabled [type: bool] is the rotation fixed
+ * @return enabled [type: boolean] is the rotation fixed
  */
 
 /** Get the list of all fixtures attached to this body.

@@ -69,6 +69,7 @@ struct ProjectOptions {
   uint32_t m_MaxCollisionCount;
   uint32_t m_MaxCollisionObjectCount;
   uint32_t m_MaxContactPointCount;
+  uint32_t m_MaxInstances;
   bool m_3D;
   float m_Scale;
   float m_VelocityThreshold;
@@ -100,6 +101,7 @@ public:
         this->m_projectOptions.m_MaxCollisionCount = 0;
         this->m_projectOptions.m_MaxCollisionObjectCount = 0;
         this->m_projectOptions.m_MaxContactPointCount = 0;
+        this->m_projectOptions.m_MaxInstances = 1024;
         this->m_projectOptions.m_3D = false;
         this->m_projectOptions.m_Scale = 1.0f;
         this->m_projectOptions.m_VelocityThreshold = 1.0f;
@@ -528,6 +530,14 @@ void GamesysTest<T>::SetUp()
     m_ScriptContext = dmScript::NewContext(script_context_params);
     dmScript::Initialize(m_ScriptContext);
 
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    #ifdef DM_PHYSICS_BOX2D_V3
+        lua_pushstring(L, "box2dv3");
+    #else
+        lua_pushstring(L, "box2dv2");
+    #endif
+    lua_setglobal(L, "PHYSICS");
+
     dmGui::NewContextParams gui_params;
     gui_params.m_ScriptContext = m_ScriptContext;
     gui_params.m_HidContext = m_HidContext;
@@ -539,22 +549,14 @@ void GamesysTest<T>::SetUp()
     m_Register = dmGameObject::NewRegister();
     dmGameObject::Initialize(m_Register, m_ScriptContext);
 
-    m_Contexts.SetCapacity(7,16);
-    m_Contexts.Put(dmHashString64("goc"), m_Register);
-    m_Contexts.Put(dmHashString64("collectionc"), m_Register);
-    m_Contexts.Put(dmHashString64("scriptc"), m_ScriptContext);
-    m_Contexts.Put(dmHashString64("luac"), &m_ModuleContext);
-    m_Contexts.Put(dmHashString64("guic"), m_GuiContext);
-    m_Contexts.Put(dmHashString64("gui_scriptc"), m_ScriptContext);
-
-    dmResource::RegisterTypes(m_Factory, &m_Contexts);
-
     dmConfigFile::LoadFromBuffer(0, 0, 0, 0, &m_Config);
 
     ExtensionAppParamsInitialize(&m_AppParams);
     ExtensionParamsInitialize(&m_Params);
 
     m_Params.m_L = dmScript::GetLuaState(m_ScriptContext);
+    m_Params.m_ResourceFactory = m_Factory;
+    m_Params.m_ConfigFile = m_Config;
     ExtensionParamsSetContext(&m_Params, "lua", dmScript::GetLuaState(m_ScriptContext));
     ExtensionParamsSetContext(&m_Params, "config", m_Config);
 
@@ -606,6 +608,9 @@ void GamesysTest<T>::SetUp()
         m_PhysicsContextBox2D.m_BaseContext.m_MaxContactPointCount = 128;
         m_PhysicsContextBox2D.m_BaseContext.m_MaxCollisionObjectCount = 512;
         m_PhysicsContextBox2D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BOX2D;
+        m_PhysicsContextBox2D.m_BaseContext.m_Box2DVelocityIterations = 10;
+        m_PhysicsContextBox2D.m_BaseContext.m_Box2DPositionIterations = 10;
+        m_PhysicsContextBox2D.m_BaseContext.m_Box2DSubStepCount = 4;
 
         dmPhysics::NewContextParams context2DParams = dmPhysics::NewContextParams();
         context2DParams.m_Scale = this->m_projectOptions.m_Scale;
@@ -649,6 +654,17 @@ void GamesysTest<T>::SetUp()
 
     dmBuffer::NewContext(); // ???
 
+    m_Contexts.OffsetCapacity(16);
+    m_Contexts.Put(dmHashString64("goc"), m_Register);
+    m_Contexts.Put(dmHashString64("collectionc"), m_Register);
+    m_Contexts.Put(dmHashString64("scriptc"), m_ScriptContext);
+    m_Contexts.Put(dmHashString64("luac"), &m_ModuleContext);
+    m_Contexts.Put(dmHashString64("guic"), m_GuiContext);
+    m_Contexts.Put(dmHashString64("gui_scriptc"), m_ScriptContext);
+    m_Contexts.Put(dmHashString64("fontc"), m_RenderContext);
+
+    dmResource::RegisterTypes(m_Factory, &m_Contexts);
+
     dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_InputContext, physics_context);
     ASSERT_EQ(dmResource::RESULT_OK, r);
 
@@ -669,7 +685,7 @@ void GamesysTest<T>::SetUp()
     // TODO: Investigate why the ConsumeInputInCollectionProxy test fails if the components are actually sorted (the way they're supposed to)
     //dmGameObject::SortComponentTypes(m_Register);
 
-    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0x0);
+    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, this->m_projectOptions.m_MaxInstances, 0x0);
 }
 
 template<typename T>

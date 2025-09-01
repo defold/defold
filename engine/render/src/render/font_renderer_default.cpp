@@ -231,10 +231,9 @@ namespace dmRender
         //     back to front layer in the order of shadow -> outline -> face, where the offset of each
         //     layer depends on how many glyphs we actually can place in the buffer. To get a valid count, we
         //     do a dry run first over the input string and place glyphs in the cache if they are renderable.
-        if (HAS_LAYER(layer_mask,OUTLINE) || HAS_LAYER(layer_mask,SHADOW))
+        layer_count += HAS_LAYER(layer_mask,OUTLINE) + HAS_LAYER(layer_mask,SHADOW);
+        if (layer_count > 1)
         {
-            layer_count += HAS_LAYER(layer_mask,OUTLINE) + HAS_LAYER(layer_mask,SHADOW);
-
             // Calculate number of valid glyphs
             for (int line = 0; line < line_count; ++line)
             {

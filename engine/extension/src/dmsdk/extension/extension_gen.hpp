@@ -1,5 +1,5 @@
 // Generated, do not edit!
-// Generated with cwd=/Users/agulev/projects/defold/engine/extension and cmd=/Users/agulev/projects/defold/scripts/dmsdk/gen_sdk.py -i /Users/agulev/projects/defold/engine/extension/sdk_gen.json
+// Generated with cwd=/Users/bjornritzl/projects/defold/engine/extension and cmd=/Users/bjornritzl/projects/defold/scripts/dmsdk/gen_sdk.py -i /Users/bjornritzl/projects/defold/engine/extension/sdk_gen.json
 
 // Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
@@ -31,7 +31,6 @@
  * @language C++
  * @name Extension
  * @namespace dmExtension
- * @path engine/extension/src/dmsdk/extension/extension_gen.hpp
  */
 
 #include <dmsdk/resource/resource.h>
@@ -106,13 +105,18 @@ namespace dmExtension
         APP_EXIT_CODE_EXIT = -1,
     };
 
-    /*#
-        * Generated from [ref:ExtensionAppParams]
-        */
+    /*# 
+     * The extension app parameters
+     * @struct
+     * @name AppParams
+     * @language C++
+     * @member m_ConfigFile [type:HConfigFile] Deprecated
+     * @member m_ExitStatus [type:ExtensionAppExitCode] App exit code
+     */
     typedef ExtensionAppParams AppParams;
 
     /*# 
-     * The global parameters avalable when registering and unregistering an extensioin
+     * The global parameters avalable when registering and unregistering an extension
      * @struct
      * @name Params
      * @language C++
@@ -122,9 +126,12 @@ namespace dmExtension
      */
     typedef ExtensionParams Params;
 
-    /*#
-        * Generated from [ref:ExtensionEvent]
-        */
+    /*# 
+     * Extension event
+     * @struct
+     * @name Event
+     * @language C++
+     */
     typedef ExtensionEvent Event;
 
     /*# Extra extension callback typedef
@@ -251,7 +258,7 @@ namespace dmExtension
      * Register an iOS application delegate to the engine. Multiple delegates are supported (Max 32)
      * @name RegisteriOSUIApplicationDelegate
      * @language C++
-     * @param delegate [type:id<UIApplicationDelegate>] An UIApplicationDelegate, see: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
+     * @param delegate [type:void*] An id<UIApplicationDelegate>, see: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
      * @note Note that the delegate needs to be registered before the UIApplicationMain in order to
      * handle any earlier callbacks.
      * 
@@ -353,13 +360,29 @@ namespace dmExtension
  */
 
 /*# 
- * The global parameters avalable when registering and unregistering an extensioin
+ * The extension app parameters
+ * @struct
+ * @name ExtensionAppParams
+ * @language C
+ * @member m_ConfigFile [type:HConfigFile] Deprecated
+ * @member m_ExitStatus [type:ExtensionAppExitCode] App exit code
+ */
+
+/*# 
+ * The global parameters avalable when registering and unregistering an extension
  * @struct
  * @name ExtensionParams
  * @language C
  * @member m_ConfigFile [type:HConfigFile] The game project settings (including overrides and plugins)
  * @member m_ResourceFactory [type:HResourceFactory] The game resource factory / repository
  * @member m_L [type:lua_State*] The Lua state.
+ */
+
+/*# 
+ * Extension event
+ * @struct
+ * @name ExtensionEvent
+ * @language C
  */
 
 /*# 
@@ -479,7 +502,7 @@ namespace dmExtension
 /*# 
  * Callback when the app is being finalized
  * @typedef
- * @name FExtensionInitialize
+ * @name FExtensionAppFinalize
  * @language C
  * @param params [type:ExtensionAppParams] 
  * @return result [type:ExtensionResult] EXTENSION_RESULT_OK if all went ok
@@ -547,7 +570,7 @@ namespace dmExtension
  * Register an iOS application delegate to the engine. Multiple delegates are supported (Max 32)
  * @name ExtensionRegisteriOSUIApplicationDelegate
  * @language C
- * @param delegate [type:id<UIApplicationDelegate>] An UIApplicationDelegate, see: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
+ * @param delegate [type:void*] An id<UIApplicationDelegate>, see: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
  * @note Note that the delegate needs to be registered before the UIApplicationMain in order to
  * handle any earlier callbacks.
  * 

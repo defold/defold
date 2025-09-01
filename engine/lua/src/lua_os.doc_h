@@ -56,8 +56,8 @@
  * 
  * 
  * @name os.date
- * @param [format]
- * @param [time]
+ * @param [format] [type:string]
+ * @param [time] [type:number]
  */
 
 /*# calculates a time difference in seconds
@@ -68,8 +68,8 @@
  * 
  * 
  * @name os.difftime
- * @param t2
- * @param t1
+ * @param t2 [type:number]
+ * @param t1 [type:number]
  */
 
 /*# executes an operating system command
@@ -82,7 +82,7 @@
  * 
  * 
  * @name os.execute
- * @param [command]
+ * @param [command] [type:string]
  */
 
 /*# attempts to terminate the process
@@ -101,7 +101,7 @@
  * `msg.post("@system:", "exit", {code = 0})`
  * 
  * @name os.exit
- * @param [code]
+ * @param [code] [type:number]
  */
 
 /*# returns an operating system environment variable
@@ -111,7 +111,7 @@
  * 
  * 
  * @name os.getenv
- * @param varname
+ * @param varname [type:string]
  */
 
 /*# deletes a file
@@ -123,7 +123,7 @@
  * 
  * 
  * @name os.remove
- * @param filename
+ * @param filename [type:string]
  */
 
 /*# renames a file
@@ -134,8 +134,8 @@
  * 
  * 
  * @name os.rename
- * @param oldname
- * @param newname
+ * @param oldname [type:string]
+ * @param newname [type:string]
  */
 
 /*# sets the current locale to the supplied locale
@@ -160,8 +160,8 @@
  * 
  * 
  * @name os.setlocale
- * @param locale
- * @param [category]
+ * @param locale [type:string]
+ * @param [category] [type:string]
  */
 
 /*# returns the current time or calculates the time in seconds from a table
@@ -181,7 +181,7 @@
  * 
  * 
  * @name os.time
- * @param [table]
+ * @param [table] [type:table]
  */
 
 /*# returns a name for a temporary file

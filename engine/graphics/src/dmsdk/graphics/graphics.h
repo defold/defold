@@ -20,7 +20,6 @@
 #include <graphics/graphics_ddf.h>
 
 /*# Graphics API documentation
- * [file:<dmsdk/graphics/graphics.h>]
  *
  * Graphics API
  *
@@ -940,7 +939,7 @@ namespace dmGraphics
      * @param x [type:int32_t] x-coordinate of the starting position
      * @param y [type:int32_t] y-coordinate of the starting position
      * @param width [type:uint32_t] width of the region
-     * @param height [type:uin32_t] height of the region
+     * @param height [type:uint32_t] height of the region
      * @param buffer [type:void*] buffer to read to
      * @param buffer_size [type:uint32_t] buffer size
      */

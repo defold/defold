@@ -122,7 +122,7 @@ TEST_F(EngineTest, ProjectFail)
     const char* argv[] = {"test_engine", MAKE_PATH(project_path, "/notexist.projectc")};
     ASSERT_NE(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 
-    dmProfile::Finalize(); // Making sure it is cleaned up
+    ProfileFinalize(); // Making sure it is cleaned up
 }
 
 static void PostRunFrameCount(dmEngine::HEngine engine, void* ctx)
@@ -424,9 +424,11 @@ TEST_P(DrawCountTest, DrawCount)
 
 DrawCountParams draw_count_params[] =
 {
-    // Box2d v2:
+#ifdef DM_PHYSICS_BOX2D_V3
+    {"/game.projectc", 3, 2},    // 1 draw call for sprite, 1 for debug physics
+#else
     {"/game.projectc", 3, 3},    // 1 draw call for sprite, 2 for debug physics
-    // Box2d v3: {"/game.projectc", 3, 2},    // 1 draw call for sprite, 1 for debug physics
+#endif
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_params));
 
@@ -517,13 +519,13 @@ int main(int argc, char **argv)
     dmExportedSymbols();
     TestMainPlatformInit();
 
-    dmProfile::Initialize(0);
+    ProfileInitialize();
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     dmHashEnableReverseHash(true);
     dmGraphics::InstallAdapter();
 
     int ret = jc_test_run_all();
-    dmProfile::Finalize();
+    ProfileFinalize();
     return ret;
 }

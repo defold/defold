@@ -72,8 +72,6 @@ namespace dmSoundCodec
 
             decoder = decoder->m_Next;
         }
-
-        assert(best != 0);
         return best;
     }
 
@@ -94,5 +92,20 @@ namespace dmSoundCodec
             default: return "Unknown";
         }
 #undef RESULT_CASE
+    }
+
+    const char* FormatToString(Format format)
+    {
+        switch(format)
+        {
+#define FORMAT_CASE(_NAME) \
+    case _NAME: return #_NAME
+
+            FORMAT_CASE(FORMAT_WAV);
+            FORMAT_CASE(FORMAT_VORBIS);
+            FORMAT_CASE(FORMAT_OPUS);
+            default: return "Unknown";
+        }
+#undef FORMAT_CASE
     }
 }

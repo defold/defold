@@ -16,7 +16,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- hex-color->color [str]
+(defn hex-color->color [str]
   (let [conv (fn [s] (/ (Integer/parseInt s 16) 255.0))]
     [(conv (subs str 1 3))
      (conv (subs str 3 5))
@@ -52,7 +52,6 @@
 
 (def input-background (hex-color->color "#292a2f"))
 (def scene-background input-background)
-(def scene-grid dark-grey)
 (def scene-grid-x-axis (alpha defold-red 0.4))
 (def scene-grid-y-axis (alpha defold-green 0.4))
 (def scene-grid-z-axis (alpha defold-blue 0.4))
@@ -103,3 +102,6 @@
 
 (defn hsl->rgba [h s l]
   (alpha (hsl->rgb h s l) 1.0))
+
+(defn hsla->rgba [h s l a]
+  (alpha (hsl->rgb h s l) a))

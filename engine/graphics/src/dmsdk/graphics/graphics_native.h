@@ -63,7 +63,6 @@ namespace dmGraphics
      * @document
      * @name Graphics
      * @namespace dmGraphics
-     * @path engine/dlib/src/dmsdk/graphics/graphics_native.h
      * @language C++
      */
 

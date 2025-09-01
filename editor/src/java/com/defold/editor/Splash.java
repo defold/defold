@@ -87,6 +87,10 @@ public class Splash {
         games.add(new String[]{"Look Your Loot", "/games/lookyourloot.jpg"});
         games.add(new String[]{"Warnament", "/games/warnament.jpg"});
         games.add(new String[]{"Craftomation 101", "/games/craftomation101.jpg"});
+        games.add(new String[]{"BORE BLASTERS", "/games/boreblasters.jpg"});
+        games.add(new String[]{"Skull Horde", "/games/skullhorde.jpg"});
+        games.add(new String[]{"SuperWEIRD", "/games/superweird.jpg"});
+        games.add(new String[]{"Tiny Racing", "/games/tinyracing.jpeg"});
 
         String[] game = games.get(randomInt(games.size()));
 

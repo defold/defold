@@ -21,6 +21,8 @@
 
 namespace dmShaderc
 {
+    static const uint8_t HLSL_NUM_WORKGROUPS_SET = 0;
+
     struct ShaderContext
     {
         uint8_t*          m_ShaderCode;
@@ -92,6 +94,26 @@ namespace dmShaderc
     void                 SetResourceSetSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, uint64_t name_hash, uint8_t set);
     ShaderCompileResult* CompileSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, const ShaderCompilerOptions& options);
 
+    // Extra functions
+    const ShaderResource* FindShaderResourceInputOutput(HShaderContext context, uint64_t name_hash);
+    const ShaderResource* FindShaderResourceUniform(HShaderContext context, uint64_t name_hash);
+
+    // Used for building HLSL resource bindings
+    struct CombinedSampler
+    {
+        const char* m_CombinedName;
+        uint8_t     m_CombinedId;
+        const char* m_ImageName;
+        uint8_t     m_ImageId;
+        const char* m_SamplerName;
+        uint8_t     m_SamplerId;
+    };
+
+    void GetCombinedSamplerMapSPIRV(HShaderContext context, ShaderCompilerSPVC* compiler, dmArray<CombinedSampler>& samplers);
+
+#ifdef DM_BINARY_HLSL_SUPPORTED
+    ShaderCompileResult* CompileRawHLSLToBinary(HShaderContext context, HShaderCompiler compiler, ShaderCompileResult* raw_hlsl);
+#endif
 }
 
 #endif
