@@ -32,6 +32,7 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
+import org.apache.commons.io.FilenameUtils;
 
 
 @BundlerParams(platforms = {"x86_64-macos", "arm64-macos"})
@@ -171,6 +172,9 @@ public class MacOSBundler implements IBundler {
         FileUtils.copyFile(exe, destExecutable);
         destExecutable.setExecutable(true);
         logger.info("Bundle binary: " + IOSBundler.getFileDescription(destExecutable));
+
+        File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair()));
+        BundleHelper.copySharedLibraries(platform, binaryDir, macosDir);
 
         // Copy debug symbols
         // Create list of dSYM binaries
