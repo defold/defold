@@ -25,6 +25,8 @@
     typedef int WGPUQueue;
     typedef int WGPUDevice;
     typedef int WGPUTextureView;
+    typedef int WGPUCommandEncoder;
+    typedef int WGPURenderPassEncoder;
 #endif
 
 /*# Graphics API documentation
@@ -39,12 +41,16 @@
 
 namespace dmGraphics
 {
-    WGPUInstance    WebGPUGetInstance(HContext context);
-    WGPUAdapter     WebGPUGetAdapter(HContext context);
-    WGPUDevice      WebGPUGetDevice(HContext context);
-    WGPUQueue       WebGPUGetQueue(HContext context);
-    WGPUTextureView WebGPUGetTextureView(HContext context, HTexture texture);
-    HTexture        WebGPUGetActiveSwapChainTexture(HContext context);
+    WGPUInstance            WebGPUGetInstance(HContext context);
+    WGPUAdapter             WebGPUGetAdapter(HContext context);
+    WGPUDevice              WebGPUGetDevice(HContext context);
+    WGPUQueue               WebGPUGetQueue(HContext context);
+    WGPUTextureView         WebGPUGetTextureView(HContext context, HTexture texture);
+    HTexture                WebGPUGetActiveSwapChainTexture(HContext context);
+    WGPUCommandEncoder      WebGPUGetActiveCommandEncoder(HContext context);
+    // Ends the current render+compute passes, letting someone else use the encoder to post new render passes
+    void                    WebGPUPauseRenderPasses(HContext context);
+    void                    WebGPUUnpauseRenderPasses(HContext context);
 }
 
 #endif
