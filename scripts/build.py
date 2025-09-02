@@ -181,7 +181,8 @@ PACKAGES_MACOS_ARM64=[
     "astcenc-8b0aa01",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
-    "opus-1.5.2"]
+    "opus-1.5.2",
+    "dawn-6bab1bd"]
 
 PACKAGES_WIN32=[
     "protobuf-3.20.1",
