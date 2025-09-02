@@ -3221,7 +3221,7 @@
                    (assert (map? prop->value))
                    (when-some [node-desc-for-layout
                                (some->> (-> decorated-node-msg
-                                            (select-keys [:custom-type :id :parent :template-node-child :type])
+                                            (dissoc :layout->prop->override :layout->prop->value)
                                             (into (map prop-entry->pb-field-entry)
                                                   prop->value)
                                             (node-desc->rt-node-desc layout-name))
