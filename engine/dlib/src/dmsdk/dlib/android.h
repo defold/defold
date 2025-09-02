@@ -26,7 +26,6 @@
  * @document
  * @name Android
  * @namespace dmAndroid
- * @path engine/dlib/src/dmsdk/dlib/android.h
  * @language C++
  */
 

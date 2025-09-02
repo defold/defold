@@ -51,6 +51,7 @@
 #include "resource/booster_on_sfx.wav.embed.h" // BOOSTER_ON_SFX_WAV / BOOSTER_ON_SFX_WAV_SIZE
 
 #include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/gamesys/components/comp_gui.h>
 
 #include <sound/sound.h>
 
@@ -1615,6 +1616,7 @@ TEST_F(GuiTest, MaxDynamictextures)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
+
 
 // Test setting gui font
 TEST_F(ResourceTest, ScriptSetFonts)
@@ -5851,6 +5853,128 @@ TEST_F(ModelTest, PbrProperties)
     exp = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Mock per-property handlers for testing
+static dmHashTable64<dmhash_t> g_MockPerPropertyValues;
+
+static dmGameObject::PropertyResult MockSpineSceneSetProperty(dmGui::HScene scene, const dmGameObject::ComponentSetPropertyParams& params)
+{
+    if (!params.m_Options.m_HasKey)
+    {
+        return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
+    }
+    g_MockPerPropertyValues.Put(params.m_Options.m_Key, params.m_Value.m_Hash);
+    return dmGameObject::PROPERTY_RESULT_OK;
+}
+
+static dmGameObject::PropertyResult MockSpineSceneGetProperty(dmGui::HScene scene, const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
+{
+    if (!params.m_Options.m_HasKey)
+    {
+        return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
+    }
+    dmhash_t* value = g_MockPerPropertyValues.Get(params.m_Options.m_Key);
+    if (!value)
+    {
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+    out_value.m_Variant.m_Hash = *value;
+    out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
+    return dmGameObject::PROPERTY_RESULT_OK;
+}
+
+TEST_F(GuiTest, PerPropertyRegistration)
+{
+    g_MockPerPropertyValues.Clear();
+    g_MockPerPropertyValues.SetCapacity(8, 16);
+    
+    dmhash_t spine_scene_hash = dmHashString64("spine_scene");
+    
+    // Test registering per-property setter and getter
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiRegisterSetPropertyFn(spine_scene_hash, MockSpineSceneSetProperty));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiRegisterGetPropertyFn(spine_scene_hash, MockSpineSceneGetProperty));
+    
+    // Create a GUI component
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/valid_gui.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+    
+    // Test setting per-property with key
+    dmGameObject::PropertyOptions options;
+    options.m_HasKey = 1;
+    options.m_Key = dmHashString64("test_node");
+    
+    dmGameObject::PropertyVar value(dmHashString64("test_spine_scene"));
+    dmGameObject::PropertyResult result = dmGameObject::SetProperty(go, dmHashString64("gui"), spine_scene_hash, options, value);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    
+    // Test getting per-property
+    dmGameObject::PropertyDesc desc;
+    result = dmGameObject::GetProperty(go, dmHashString64("gui"), spine_scene_hash, options, desc);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    ASSERT_EQ(dmHashString64("test_spine_scene"), desc.m_Variant.m_Hash);
+    
+    // Test unregistering setter
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterSetPropertyFn(spine_scene_hash));
+    
+    // Verify setter no longer works
+    dmGameObject::PropertyVar newValue(dmHashString64("new_spine_scene"));
+    result = dmGameObject::SetProperty(go, dmHashString64("gui"), spine_scene_hash, options, newValue);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, result);
+    
+    // But getter should still work
+    result = dmGameObject::GetProperty(go, dmHashString64("gui"), spine_scene_hash, options, desc);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    ASSERT_EQ(dmHashString64("test_spine_scene"), desc.m_Variant.m_Hash);
+    
+    // Test unregistering getter
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterGetPropertyFn(spine_scene_hash));
+    
+    // Verify getter no longer works
+    result = dmGameObject::GetProperty(go, dmHashString64("gui"), spine_scene_hash, options, desc);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, result);
+    
+    // Test unregistering non-existent handler
+    ASSERT_EQ(dmGameObject::RESULT_ALREADY_REGISTERED, dmGameSystem::CompGuiUnregisterSetPropertyFn(spine_scene_hash));
+    ASSERT_EQ(dmGameObject::RESULT_INVALID_OPERATION, dmGameSystem::CompGuiUnregisterGetPropertyFn(spine_scene_hash));
+    
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, PerPropertyPrecedence)
+{
+    g_MockPerPropertyValues.Clear();
+    g_MockPerPropertyValues.SetCapacity(8, 16);
+    
+    dmhash_t test_prop_hash = dmHashString64("test_prop");
+    
+    // Register per-property handlers first
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiRegisterSetPropertyFn(test_prop_hash, MockSpineSceneSetProperty));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiRegisterGetPropertyFn(test_prop_hash, MockSpineSceneGetProperty));
+    
+    // Create a GUI component
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/valid_gui.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+    
+    dmGameObject::PropertyOptions options;
+    options.m_HasKey = 1;
+    options.m_Key = dmHashString64("test_node");
+    
+    // Test that per-property handler is called (not extension handlers)
+    dmGameObject::PropertyVar value(dmHashString64("per_property_value"));
+    dmGameObject::PropertyResult result = dmGameObject::SetProperty(go, dmHashString64("gui"), test_prop_hash, options, value);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    
+    dmGameObject::PropertyDesc desc;
+    result = dmGameObject::GetProperty(go, dmHashString64("gui"), test_prop_hash, options, desc);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    ASSERT_EQ(dmHashString64("per_property_value"), desc.m_Variant.m_Hash);
+    
+    // Clean up
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterSetPropertyFn(test_prop_hash));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterGetPropertyFn(test_prop_hash));
+    
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 

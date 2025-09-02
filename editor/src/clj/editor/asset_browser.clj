@@ -178,7 +178,7 @@
     (let [workspace (resource/workspace (first resources))]
       (doseq [resource resources]
         (let [f (File. (resource/abs-path resource))]
-          (fs/delete! f {:fail :silently})))
+          (fs/move-to-trash! f {:fail :silently})))
       (workspace/resource-sync! workspace))))
 
 (defn- copy [files]

@@ -22,7 +22,6 @@
  * @document
  * @name Resource
  * @namespace dmResource
- * @path engine/resource/src/dmsdk/resource/resource.hpp
  * @language C++
  */
 

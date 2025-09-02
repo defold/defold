@@ -22,7 +22,6 @@
  * @document
  * @name PropertyContainer
  * @namespace dmGameObject
- * @path engine/gameobject/src/dmsdk/gameobject/gameobject_props.h
  * @language C++
  */
 
