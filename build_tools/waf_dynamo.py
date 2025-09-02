@@ -643,12 +643,12 @@ def default_flags(self):
                 linkflags += ['--use-port=%s' % wagyu_port]
             else:
                 emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
-            emflags_link += ['ASYNCIFY']
+            emflags_link += ['ASYNCIFY', 'WASM_BIGINT=1']
             if int(opt_level) >= 3:
                 emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
 
         if 'wasm' == target_arch:
-            emflags_link += ['WASM=1', 'WASM_BIGINT=1', 'ALLOW_MEMORY_GROWTH=1']
+            emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
             if int(opt_level) < 2:
                 flags += ['-gseparate-dwarf', '-gsource-map']
                 linkflags += ['-gseparate-dwarf', '-gsource-map']

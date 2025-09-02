@@ -544,7 +544,7 @@ platforms:
   wasm-web:
     context:
         libPaths:   ["{{dynamo_home}}/lib/wasm-web", "{{dynamo_home}}/ext/lib/wasm-web"]
-        emscriptenLinkFlags: ["ALLOW_MEMORY_GROWTH=1", "WASM=1", "WASM_BIGINT=1"]
+        emscriptenLinkFlags: ["ALLOW_MEMORY_GROWTH=1", "WASM=1"]
 
     symbolsPattern:  'dmengine.(js.symbols|wasm.debug.wasm)'
     zipContentPattern: 'dmengine.(wasm|js)'
