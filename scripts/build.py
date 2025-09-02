@@ -631,7 +631,7 @@ class Configuration(object):
         if self.package_path is None:
             print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
             sys.exit(1)
-    
+
     def install_waf(self):
         def make_package_path(root, platform, package):
             return join(root, 'packages', package) + '-%s.tar.gz' % platform
@@ -646,7 +646,7 @@ class Configuration(object):
 
         def make_package_paths(root, platform, packages):
             return [make_package_path(root, platform, package) for package in packages]
-        
+
         self.install_waf()
 
         print("Installing common packages")
@@ -1881,7 +1881,10 @@ class Configuration(object):
 
         args = [SHELL, '-l']
 
-        process = subprocess.Popen(args, env=self._form_env(), shell=True)
+        if os.path.exists("/nix"):
+            args = ["nix-shell", os.path.join("scripts", "nix", "shell.nix"), "--run", " ".join(args)]
+
+        process = subprocess.Popen(args, env=self._form_env())
         try:
             output = process.communicate()[0]
         except KeyboardInterrupt as e:
@@ -2480,7 +2483,7 @@ class Configuration(object):
                     _threads[i].join()
                     self._log('Uploaded #%d %s -> %s' % (i + 1, path, url))
 
-                
+
                 if len(list(mp.parts.all())) == chunkcount:
                     try:
                         parts = []
