@@ -1090,6 +1090,70 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
     context->m_InitComplete = true;
 }
 
+#ifndef __EMSCRIPTEN__
+static WGPUAdapter RequestAdapter(WGPUInstance instance)
+{
+    auto onAdapterRequestEnded = [](WGPURequestAdapterStatus status, WGPUAdapter adapter, const char* message, void* pUserData)
+    {
+        if (status == WGPURequestAdapterStatus_Success)
+        {
+            *(WGPUAdapter*)(pUserData) = adapter;
+        }
+        else
+        {
+            dmLogError("Could not get WebGPU adapter: %s", message);
+        }
+    };
+
+    WGPUAdapter adapter;
+
+    WGPURequestAdapterCallbackInfo requestAdapterCallbackInfo = WGPU_REQUEST_ADAPTER_CALLBACK_INFO_INIT;
+    requestAdapterCallbackInfo.mode                           = WGPUCallbackMode_WaitAnyOnly;
+    requestAdapterCallbackInfo.callback                       = (WGPURequestAdapterCallback)&onAdapterRequestEnded;
+    requestAdapterCallbackInfo.userdata1                      = (void*)&adapter;
+
+    wgpuInstanceRequestAdapter(instance, nullptr, requestAdapterCallbackInfo);
+    return adapter;
+}
+
+static WGPUDevice RequestDevice(WGPUAdapter& adapter)
+{
+    auto onDeviceRequestEnded = [](WGPURequestDeviceStatus status, WGPUDevice device, const char* message, void* pUserData)
+    {
+        if (status == WGPURequestDeviceStatus_Success)
+        {
+            *(WGPUDevice*)(pUserData) = device;
+        }
+        else
+        {
+            dmLogError("Could not get WebGPU device: %s", message);
+        }
+    };
+
+    WGPUDevice device;
+
+    WGPURequestDeviceCallbackInfo requestDeviceCallbackInfo = WGPU_REQUEST_DEVICE_CALLBACK_INFO_INIT;
+    requestDeviceCallbackInfo.mode                          = WGPUCallbackMode_AllowProcessEvents;
+    requestDeviceCallbackInfo.callback                      = (WGPURequestDeviceCallback)&onDeviceRequestEnded;
+    requestDeviceCallbackInfo.userdata1                     = (void*)&device;
+
+    WGPUDeviceDescriptor descriptor = WGPU_DEVICE_DESCRIPTOR_INIT;
+
+    WGPUFeatureName features[16];
+    descriptor.requiredFeatures = features;
+    if (wgpuAdapterHasFeature(adapter, WGPUFeatureName_TextureCompressionBC))
+        features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionBC;
+    if (wgpuAdapterHasFeature(adapter, WGPUFeatureName_TextureCompressionASTC))
+        features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionASTC;
+
+    wgpuAdapterRequestDevice(adapter, &descriptor, requestDeviceCallbackInfo);
+
+    //wgpuAdapterRequestDevice(adapter, nullptr, onDeviceRequestEnded, (void*)&device);
+    return device;
+}
+#endif
+
+
 #if defined(DM_GRAPHICS_WEBGPU2)
 static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message, void* userdata, void *)
 #else
@@ -1167,9 +1231,40 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
 
     dmLogInfo("WebGPU v%d", webgpu_version);
 
-    context->m_Instance = wgpuCreateInstance(nullptr);
+#if defined (DM_GRAPHICS_DAWN)
+    WGPUInstanceDescriptor instance_descriptor = WGPU_INSTANCE_DESCRIPTOR_INIT;
 
-#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPUInstanceFeatureName features[] = { WGPUInstanceFeatureName_TimedWaitAny };
+    instance_descriptor.requiredFeatures = features;
+    instance_descriptor.requiredFeatureCount = 1;
+
+    context->m_Instance = wgpuCreateInstance(&instance_descriptor);
+#else
+    context->m_Instance = wgpuCreateInstance(0);
+#endif
+
+    if (!context->m_Instance)
+    {
+        dmLogError("Failed to create instance!");
+        return false;
+    }
+
+#if defined(DM_GRAPHICS_DAWN)
+    context->m_Adapter = RequestAdapter(context->m_Instance);
+    if (!context->m_Adapter)
+    {
+        dmLogError("Failed to request adapter!");
+        return false;
+    }
+
+    context->m_Device = RequestDevice(context->m_Adapter);
+    if (!context->m_Device)
+    {
+        dmLogError("Failed to request device!");
+        return false;
+    }
+
+#elif defined(DM_GRAPHICS_WEBGPU2)
     WGPURequestAdapterCallbackInfo requestAdapterCallbackInfo = WGPU_REQUEST_ADAPTER_CALLBACK_INFO_INIT;
     requestAdapterCallbackInfo.mode                           = WGPUCallbackMode_WaitAnyOnly;
     requestAdapterCallbackInfo.callback                       = instanceRequestAdapterCallback;
@@ -1371,6 +1466,8 @@ static HContext WebGPUNewContext(const ContextParams& params)
 
 static bool WebGPUIsSupported()
 {
+#ifdef __EMSCRIPTEN__
+
     TRACE_CALL;
     return MAIN_THREAD_EM_ASM_INT({
         if (typeof window !== 'undefined' && typeof document !== 'undefined') {
@@ -1379,6 +1476,9 @@ static bool WebGPUIsSupported()
         // if running outside of the browser - return true by default
         return 1;
     }) == 1;
+#else
+    return true;
+#endif
 }
 
 static HContext WebGPUGetContext()

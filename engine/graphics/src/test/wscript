@@ -45,7 +45,9 @@ def build(bld):
             extra_symbols += ['GraphicsAdapterDX12']
 
         if waflib.Options.options.with_webgpu and platform_supports_feature(bld.env.PLATFORM, 'webgpu', {}):
-            graphics_lib += ['GRAPHICS_WEBGPU']
+            graphics_libs += ['GRAPHICS_WEBGPU']
+            if bld.env.PLATFORM in ['arm64-macos']:
+                graphics_libs += ['DAWN']
             extra_symbols += ['GraphicsAdapterWebGPU']
 
         if bld.env.PLATFORM in ('arm64-nx64'):

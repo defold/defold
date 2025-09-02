@@ -25,6 +25,8 @@
 
 #ifdef __EMSCRIPTEN__
 #include <webgpu/webgpu.h>
+#elif defined(__APPLE__)
+#include <webgpu/webgpu.h>
 #endif
 
 #ifdef DM_GRAPHICS_WEBGPU_WAGYU

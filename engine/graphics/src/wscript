@@ -80,22 +80,28 @@ def build(bld):
                             target          = opengl_target)
 
     if platform_supports_feature(bld.env.PLATFORM, 'webgpu', {}):
+
+        webgpu_libs = []
+        if build_util.get_target_os() in ['macos']:
+            webgpu_libs += ['DAWN']
+
         obj = bld.stlib(features        = 'cxx',
                         includes        = ['.', 'webgpu'] + proto_cpp_includes,
-                        use             = 'DDF DLIB',
+                        use             = ['DDF', 'DLIB'] + webgpu_libs,
                         source          = bld.path.ant_glob(['*.cpp', 'webgpu/*.cpp']) + proto_cpp_source,
                         target          = 'graphics_webgpu')
 
 
-        obj = bld.stlib(features        = 'cxx',
-                        includes        = ['.', 'webgpu'] + proto_cpp_includes,
-                        defines         = ['DM_GRAPHICS_WEBGPU_WAGYU'],
-                        use             = 'DDF DLIB',
-                        source          = bld.path.ant_glob(['*.cpp', 'webgpu/*.cpp']) + proto_cpp_source,
-                        target          = 'graphics_webgpu_wagyu')
+        if bld.env.PLATFORM in ['wasm-web', 'wasm_pthread-web']:
+            obj = bld.stlib(features        = 'cxx',
+                includes        = ['.', 'webgpu'] + proto_cpp_includes,
+                defines         = ['DM_GRAPHICS_WEBGPU_WAGYU'],
+                use             = ['DDF', 'DLIB'] + webgpu_libs,
+                source          = bld.path.ant_glob(['*.cpp', 'webgpu/*.cpp']) + proto_cpp_source,
+                target          = 'graphics_webgpu_wagyu')
 
-        wagyu_port = '%s/ext/wagyu-port/new/webgpu-port.py:wagyu=true' % (os.environ['DYNAMO_HOME'])
-        obj.env.append_value('CXXFLAGS', ['--use-port=%s' % wagyu_port])
+            wagyu_port = '%s/ext/wagyu-port/new/webgpu-port.py:wagyu=true' % (os.environ['DYNAMO_HOME'])
+            obj.env.append_value('CXXFLAGS', ['--use-port=%s' % wagyu_port])
 
     bld.add_group()
 
