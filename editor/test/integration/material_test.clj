@@ -38,18 +38,18 @@
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/materials/test_pbr_materials.material")
           pbr-parameters (get-in (g/node-value node-id :build-targets) [0 :user-data :material-desc-with-build-resources :pbr-parameters])]
-      (is pbr-parameters
-         {:has-iridescene true
-          :has-metallic-roughness true
-          :has-volume true
-          :has-clearcoat true
-          :has-sheen true
-          :has-specular true
-          :has-transmission true
-          :has-specular-glossiness true
-          :has-ior true
-          :has-parameters true
-          :has-emissive-strength true}))))
+      (is (= {:has-iridescence true
+              :has-metallic-roughness true
+              :has-volume true
+              :has-clearcoat true
+              :has-sheen true
+              :has-specular true
+              :has-transmission true
+              :has-specular-glossiness true
+              :has-ior true
+              :has-parameters true
+              :has-emissive-strength true}
+             pbr-parameters)))))
 
 (deftest material-combined-shaders
   ;; Test that materials that have the same .vp and .fp pair will reference the same .sp file

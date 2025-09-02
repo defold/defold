@@ -302,9 +302,6 @@
       default-material-ids
       ret)))
 
-(defn- vec->vector4d [v]
-  (Vector4d. (nth v 0) (nth v 1) (nth v 2) (nth v 3)))
-
 (defn- make-renderable-material-data [mesh-material-data]
   (when mesh-material-data
     (let [pbr-metallic-roughness (:pbr-metallic-roughness mesh-material-data)
@@ -337,7 +334,8 @@
 
        ;; Metallic roughness
        ["pbrMetallicRoughness.baseColorFactor"
-        (vec->vector4d (:base-color-factor pbr-metallic-roughness))]
+        (doto (Vector4d.)
+          (math/clj->vecmath (:base-color-factor pbr-metallic-roughness)))]
        ["pbrMetallicRoughness.metallicRoughnessFactor"
         (Vector4d. (:metallic-factor pbr-metallic-roughness)
                    (:roughness-factor pbr-metallic-roughness)
@@ -351,11 +349,13 @@
 
        ;; Specular glossiness
        ["pbrSpecularGlossiness.diffuseFactor"
-        (vec->vector4d (:diffuse-factor pbr-specular-glossiness))]
+        (doto (Vector4d.)
+          (math/clj->vecmath (:diffuse-factor pbr-specular-glossiness)))]
        ["pbrSpecularGlossiness.specularAndSpecularGlossinessFactor"
-        (vec->vector4d (conj
-                         (:specular-factor pbr-specular-glossiness)
-                         (:glossiness-factor pbr-specular-glossiness)))]
+        (doto (Vector4d.)
+          (math/clj->vecmath (conj
+                               (:specular-factor pbr-specular-glossiness)
+                               (:glossiness-factor pbr-specular-glossiness))))]
        ["pbrSpecularGlossiness.specularGlossinessTextures"
         (Vector4d. (pbr-texture-index->value
                      (get-in pbr-specular-glossiness [:diffuse-texture :texture :index]))
@@ -391,9 +391,10 @@
 
        ;; Specular
        ["pbrSpecular.specularColorAndSpecularFactor"
-        (vec->vector4d (conj
-                         (:specular-color-factor pbr-specular)
-                         (:specular-factor pbr-specular)))]
+        (doto (Vector4d.)
+          (math/clj->vecmath (conj
+                               (:specular-color-factor pbr-specular)
+                               (:specular-factor pbr-specular))))]
        ["pbrSpecular.specularTextures"
         (Vector4d. (pbr-texture-index->value
                      (get-in pbr-specular [:specular-texture :texture :index]))
@@ -403,9 +404,10 @@
 
        ;; Volume
        ["pbrVolume.thicknessFactorAndAttenuationColor"
-        (vec->vector4d (into
-                         [(:thickness-factor pbr-volume)]
-                         (:attenuation-color pbr-volume)))]
+        (doto (Vector4d.)
+          (math/clj->vecmath (into
+                               [(:thickness-factor pbr-volume)]
+                               (:attenuation-color pbr-volume))))]
        ["pbrVolume.attenuationDistance"
         (Vector4d. (:attenuation-distance pbr-volume) 0 0 0)]
        ["pbrVolume.volumeTextures"
@@ -415,9 +417,10 @@
 
        ;; Sheen
        ["sheenColorAndRoughnessFactor"
-        (vec->vector4d (conj
-                         (:sheen-color-factor pbr-sheen)
-                         (:sheen-roughness-factor pbr-sheen)))]
+        (doto (Vector4d.)
+          (math/clj->vecmath (conj
+                               (:sheen-color-factor pbr-sheen)
+                               (:sheen-roughness-factor pbr-sheen))))]
        ["sheenTextures"
         (Vector4d. (pbr-texture-index->value
                      (get-in pbr-sheen [:sheen-color-texture :texture :index]))

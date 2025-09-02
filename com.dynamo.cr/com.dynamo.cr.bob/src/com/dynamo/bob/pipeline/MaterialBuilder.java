@@ -188,8 +188,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         }
     }
 
-    // Used in both Bob and editor to produce the built data
-    public static PbrParameterType[] getPbrParameters(Graphics.ShaderDesc.ShaderReflection shaderReflection) {
+    private static PbrParameterType[] getPbrParameters(Graphics.ShaderDesc.ShaderReflection shaderReflection) {
         ArrayList<PbrParameterType> params = new ArrayList<>();
         if (shaderReflection != null) {
             for (ShaderDesc.ResourceBinding resourceBinding : shaderReflection.getUniformBuffersList()) {
@@ -211,17 +210,24 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         return params.toArray(new PbrParameterType[0]);
     }
 
-    private static void buildPbrParameters(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) {
+    public static MaterialDesc.PbrParameters makePbrParametersProtoMessage(Graphics.ShaderDesc.ShaderReflection shaderReflection) {
         MaterialDesc.PbrParameters.Builder pbrParametersBuilder = MaterialDesc.PbrParameters.newBuilder();
-
-        PbrParameterType[] parameters = getPbrParameters(shaderBuilder.getReflection());
+        PbrParameterType[] parameters = getPbrParameters(shaderReflection);
         for (PbrParameterType parameter : parameters) {
             addPbrParameter(pbrParametersBuilder, parameter);
         }
 
         if (parameters.length > 0) {
             pbrParametersBuilder.setHasParameters(true);
-            materialBuilder.setPbrParameters(pbrParametersBuilder);
+            return pbrParametersBuilder.build();
+        }
+        return null;
+    }
+
+    private static void buildPbrParameters(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) {
+        MaterialDesc.PbrParameters builtPbrParameters = makePbrParametersProtoMessage(shaderBuilder.getReflection());
+        if (builtPbrParameters != null) {
+            materialBuilder.setPbrParameters(builtPbrParameters);
         }
     }
 
