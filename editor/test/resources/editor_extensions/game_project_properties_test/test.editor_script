@@ -7,7 +7,11 @@ local function print_properties(gp)
     print("  display.fullscreen: " .. tostring(editor.get(gp, "display.fullscreen")))
     print("  input.game_binding: " .. editor.get(gp, "input.game_binding"))
     print("  physics.type: " .. editor.get(gp, "physics.type"))
-    print("  project.dependencies: " .. table.concat(editor.get(gp, "project.dependencies"), ","))
+    local deps_str = table.concat(editor.get(gp, "project.dependencies"), ",")
+    if #deps_str == 0 then
+        deps_str = "-"
+    end
+    print("  project.dependencies: " .. deps_str)
 end
 
 local function expect_error(message, ...) 

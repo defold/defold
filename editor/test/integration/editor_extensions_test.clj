@@ -2102,7 +2102,7 @@ emitters: 0
   display.fullscreen: false
   input.game_binding: /input/game.input_binding
   physics.type: 2D
-  project.dependencies:
+  project.dependencies: -
 Set settings...
 After transaction:
   project.title: Set from Editor Script!
