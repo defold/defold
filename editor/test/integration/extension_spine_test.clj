@@ -25,6 +25,7 @@
             [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
+            [integration.gui-test :as gui-test]
             [integration.test-util :as test-util]
             [support.test-support :as test-support]
             [util.coll :refer [pair]]
@@ -426,3 +427,40 @@
                              "   15 +   \"material: \\\\\\\"/defold-spine/assets/spine.material\\\\\\\"\\\\n\""]}
 
                            save-data-diffs-by-proj-path))))))))))))
+
+(defn- built-scene-desc [gui-scene-node-id]
+  (-> gui-scene-node-id
+      (g/valid-node-value :build-targets)
+      (get-in [0 :user-data :pb])))
+
+(deftest layout-node-desc-includes-size-mode-test
+  (test-util/with-loaded-project project-path
+    (let [gui-scene (test-util/resource-node project "/main/spineboy.gui")]
+
+      (testing "Built Spine NodeDescs have :size-mode-auto."
+        (let [built-scene-desc (built-scene-desc gui-scene)
+              built-node-desc (get-in built-scene-desc [:nodes 0])]
+          (is (= :size-mode-auto (:size-mode built-node-desc)))
+          (is (not (contains? built-scene-desc :layouts)))))
+
+      ;; Add a Portrait layout to the gui scene.
+      (gui-test/add-layout! project app-view gui-scene "Portrait")
+
+      (testing "Newly added layout exists, but contains no override NodeDescs."
+        (let [built-scene-desc (built-scene-desc gui-scene)
+              built-layout-desc (get-in built-scene-desc [:layouts 0])]
+          (is (= "Portrait" (:name built-layout-desc)))
+          (is (not (contains? built-layout-desc :nodes)))))
+
+      ;; Override the default animation on the SpineNode.
+      (let [spine-node (test-util/outline-node-id gui-scene "Nodes" "spineboy")]
+        (gui-test/with-visible-layout! gui-scene "Portrait"
+          (test-util/prop! spine-node :spine-default-animation "jump")))
+
+      (testing "After overriding a property, the override NodeDesc includes all properties from the default layout."
+        (let [built-scene-desc (built-scene-desc gui-scene)
+              built-node-desc (get-in built-scene-desc [:nodes 0])
+              built-layout-desc (get-in built-scene-desc [:layouts 0])
+              built-node-desc-for-layout (get-in built-layout-desc [:nodes 0])]
+          (is (= (assoc built-node-desc :spine-default-animation "jump")
+                 built-node-desc-for-layout)))))))

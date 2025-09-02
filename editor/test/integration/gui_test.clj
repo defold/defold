@@ -476,7 +476,7 @@
     (let [node-id (test-util/resource-node project "/gui/scene.gui")]
       (is (= ["Landscape"] (map :name (:layouts (g/node-value node-id :save-value))))))))
 
-(defn- add-layout! [project app-view scene name]
+(defn add-layout! [project app-view scene name]
   (let [parent (g/node-value scene :layouts-node)
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
     (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
@@ -485,7 +485,7 @@
   (let [user-data {:scene scene :parent parent :node-type node-type :custom-type custom-type :handler-fn gui/add-gui-node-handler}]
     (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
-(defn- set-visible-layout! [scene layout]
+(defn set-visible-layout! [scene layout]
   (g/transact (g/set-property scene :visible-layout layout)))
 
 (defmacro with-visible-layout! [scene layout & body]
