@@ -18,13 +18,17 @@
 
 (set! *warn-on-reflection* true)
 
-(defn set-value! [{:keys [user-data set]} path value]
+(defn set-value
+  "Returns transaction steps for setting the value"
+  [{:keys [user-data set]} path value]
   (set user-data path value))
 
 (defn can-clear? [{:keys [clear]}]
   (not (nil? clear)))
 
-(defn clear-value! [{:keys [user-data clear]} path]
+(defn clear-value
+  "Returns transaction steps for clearing the value"
+  [{:keys [user-data clear]} path]
   (clear user-data path))
 
 (def ^:private type-defaults

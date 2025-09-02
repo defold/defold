@@ -442,7 +442,7 @@
 
 (defn- set-form-op [{:keys [node-id] :as user-data} [property] value]
   (let [processed-value (set-form-value-fn property value user-data)]
-    (g/set-property! node-id property processed-value)))
+    (g/set-property node-id property processed-value)))
 
 (g/defnk produce-form-data [_node-id name attributes vertex-program fragment-program vertex-constants fragment-constants max-page-count ^:raw samplers tags vertex-space :as args]
   (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))

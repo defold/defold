@@ -73,10 +73,13 @@
       (g/update-property node-id :raw-settings set-raw-setting meta-setting value))))
 
 (defn- set-form-op [{:keys [project owner-resource] :as user-data} path value]
-  (g/transact (set-tx-data user-data path value))
-  (when (and (= "/game.project" (resource/proj-path owner-resource))
-             (= path ["project" "dependencies"]))
-    (project/update-fetch-libraries-notification! project)))
+  (concat
+    (set-tx-data user-data path value)
+    (when (and (= "/game.project" (resource/proj-path owner-resource))
+               (= path ["project" "dependencies"]))
+      (g/expand-ec
+        (fn update-fetch-libraries-notification [evaluation-context]
+          (project/update-fetch-libraries-notification project evaluation-context))))))
 
 (defn clear-tx-data [{:keys [node-id resource-setting-nodes meta-settings] :as _user-data} path]
   (concat
@@ -86,7 +89,7 @@
     (g/update-property node-id :raw-settings settings-core/clear-setting path)))
 
 (defn- clear-form-op [user-data path]
-  (g/transact (clear-tx-data user-data path)))
+  (clear-tx-data user-data path))
 
 (defn- make-form-values-map [settings]
   (settings-core/make-settings-map settings))
