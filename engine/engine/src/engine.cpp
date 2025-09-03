@@ -1879,8 +1879,6 @@ bail:
                     }
                 }
 
-                dmSound::Update();
-
                 bool esc_pressed = false;
                 if (engine->m_QuitOnEsc)
                 {
@@ -1923,6 +1921,8 @@ bail:
                 update_context.m_FixedUpdateFrequency = engine->m_FixedUpdateFrequency;
                 update_context.m_AccumFrameTime = engine->m_AccumFrameTime;
                 dmGameObject::Update(engine->m_MainCollection, &update_context);
+
+                dmSound::Update();
 
                 // Don't render while iconified
                 if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED)

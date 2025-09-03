@@ -930,6 +930,7 @@
         (doto (MenuButton.)
           (ui/add-style! "property-label")
           (ui/register-button-menu ::property-menu)
+          (.setMnemonicParsing false)
           (.setFocusTraversable false)
           (.setPrefWidth Region/USE_COMPUTED_SIZE)
           (.setMinWidth Region/USE_PREF_SIZE)

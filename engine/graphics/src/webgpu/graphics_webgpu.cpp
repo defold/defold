@@ -1159,10 +1159,10 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_TEXTURE_ARRAY;
     context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
 
-    #if defined (DM_GRAPHICS_WEBGPU2)
-        const uint32_t webgpu_version = 2;
+#if defined (DM_GRAPHICS_WEBGPU2)
+    const uint32_t webgpu_version = 2;
 #else
-        const uint32_t webgpu_version = 1;
+    const uint32_t webgpu_version = 1;
 #endif
 
     dmLogInfo("WebGPU v%d", webgpu_version);
@@ -1536,19 +1536,118 @@ static void WebGPUBeginComputePass(WebGPUContext* context)
     }
 }
 
-static void WebGPUEndRenderPass(WebGPUContext* context)
+static void RenderPassEnd(WebGPUContext* context)
 {
-    TRACE_CALL;
     if (context->m_CurrentRenderPass.m_Encoder)
     {
-        assert(context->m_CurrentRenderPass.m_Target);
         wgpuRenderPassEncoderEnd(context->m_CurrentRenderPass.m_Encoder);
         wgpuRenderPassEncoderRelease(context->m_CurrentRenderPass.m_Encoder);
+    }
+    context->m_CurrentRenderPass.m_Encoder = 0;
+}
+
+static void WebGPUEndRenderPass(WebGPUContext* context)
+{
+    if (context->m_CurrentRenderPass.m_Encoder)
+    {
+        TRACE_CALL;
+        assert(context->m_CurrentRenderPass.m_Target);
+        RenderPassEnd(context);
         memset(&context->m_CurrentRenderPass, 0, sizeof(context->m_CurrentRenderPass));
     }
 }
 
-static void WebGPUBeginRenderPass(WebGPUContext* context, const float* clearColor = NULL, float clearDepth = 1.0f, uint32_t clearStencil = 0)
+static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, const float* clear_color, float clear_depth, uint32_t clear_stencil)
+{
+#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPURenderPassDescriptor desc = WGPU_RENDER_PASS_DESCRIPTOR_INIT;
+#else
+    WGPURenderPassDescriptor desc = {};
+#endif
+
+    // color
+    WGPURenderPassColorAttachment colorAttachments[MAX_BUFFER_COLOR_ATTACHMENTS];
+    for (int i = 0; i < context->m_CurrentRenderPass.m_Target->m_ColorBufferCount; ++i)
+    {
+#if defined(DM_GRAPHICS_WEBGPU2)
+        colorAttachments[i]            = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
+#else
+        colorAttachments[i]            = {};
+#endif
+        colorAttachments[i].depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
+        {
+            WebGPUTexture* texture   = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureColor[i]);
+            colorAttachments[i].view = texture->m_TextureView;
+        }
+        if (context->m_CurrentRenderPass.m_Target->m_TextureResolve[i])
+        {
+            WebGPUTexture* texture            = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureResolve[i]);
+            colorAttachments[i].resolveTarget = texture->m_TextureView;
+        }
+        switch (context->m_CurrentRenderPass.m_Target->m_ColorBufferStoreOps[i])
+        {
+            case ATTACHMENT_OP_STORE:
+                colorAttachments[i].storeOp = WGPUStoreOp_Store;
+                break;
+            default:
+                colorAttachments[i].storeOp = WGPUStoreOp_Undefined;
+                break;
+        }
+        if (clear_color)
+        {
+            colorAttachments[i].loadOp       = WGPULoadOp_Clear;
+            colorAttachments[i].clearValue.r = clear_color[0];
+            colorAttachments[i].clearValue.g = clear_color[1];
+            colorAttachments[i].clearValue.b = clear_color[2];
+            colorAttachments[i].clearValue.a = clear_color[3];
+        }
+        else
+        {
+            switch (context->m_CurrentRenderPass.m_Target->m_ColorBufferLoadOps[i])
+            {
+                case ATTACHMENT_OP_DONT_CARE:
+                case ATTACHMENT_OP_LOAD:
+                    colorAttachments[i].loadOp = WGPULoadOp_Load;
+                    break;
+                case ATTACHMENT_OP_CLEAR:
+                    colorAttachments[i].loadOp       = WGPULoadOp_Clear;
+                    colorAttachments[i].clearValue.r = context->m_CurrentRenderPass.m_Target->m_ColorBufferClearValue[i][0];
+                    colorAttachments[i].clearValue.g = context->m_CurrentRenderPass.m_Target->m_ColorBufferClearValue[i][1];
+                    colorAttachments[i].clearValue.b = context->m_CurrentRenderPass.m_Target->m_ColorBufferClearValue[i][2];
+                    colorAttachments[i].clearValue.a = context->m_CurrentRenderPass.m_Target->m_ColorBufferClearValue[i][3];
+                    break;
+                default:
+                    colorAttachments[i].loadOp = WGPULoadOp_Undefined;
+                    break;
+            }
+        }
+    }
+    desc.colorAttachments     = colorAttachments;
+    desc.colorAttachmentCount = context->m_CurrentRenderPass.m_Target->m_ColorBufferCount;
+
+    // depth/stencil
+#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPURenderPassDepthStencilAttachment dsAttachment = WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_INIT;
+#else
+    WGPURenderPassDepthStencilAttachment dsAttachment = {};
+#endif
+    if (context->m_CurrentRenderPass.m_Target->m_TextureDepthStencil)
+    {
+        WebGPUTexture* texture         = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureDepthStencil);
+        dsAttachment.view              = texture->m_TextureView;
+        dsAttachment.depthLoadOp       = WGPULoadOp_Clear;
+        dsAttachment.depthStoreOp      = WGPUStoreOp_Store;
+        dsAttachment.depthClearValue   = clear_depth;
+        dsAttachment.stencilLoadOp     = WGPULoadOp_Clear;
+        dsAttachment.stencilStoreOp    = WGPUStoreOp_Store;
+        dsAttachment.stencilClearValue = clear_stencil;
+        desc.depthStencilAttachment    = &dsAttachment;
+    }
+
+    return wgpuCommandEncoderBeginRenderPass(context->m_CommandEncoder, &desc);
+}
+
+static void WebGPUBeginRenderPass(WebGPUContext* context, const float* clear_color, float clear_depth, uint32_t clear_stencil)
 {
     TRACE_CALL;
     WebGPUEndComputePass(context);
@@ -1557,95 +1656,10 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, const float* clearColo
         WebGPUEndRenderPass(context);
         WebGPUCreateCommandEncoder(context);
         ++context->m_RenderPasses;
+
         context->m_CurrentRenderPass.m_Target = context->m_CurrentRenderTarget;
-        {
-#if defined(DM_GRAPHICS_WEBGPU2)
-            WGPURenderPassDescriptor desc = WGPU_RENDER_PASS_DESCRIPTOR_INIT;
-#else
-            WGPURenderPassDescriptor desc = {};
-#endif
+        context->m_CurrentRenderPass.m_Encoder = RenderPassBegin(context, clear_color, clear_depth, clear_stencil);
 
-            // color
-            WGPURenderPassColorAttachment colorAttachments[MAX_BUFFER_COLOR_ATTACHMENTS];
-            for (int i = 0; i < context->m_CurrentRenderPass.m_Target->m_ColorBufferCount; ++i)
-            {
-#if defined(DM_GRAPHICS_WEBGPU2)
-                colorAttachments[i]            = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
-#else
-                colorAttachments[i]            = {};
-#endif
-                colorAttachments[i].depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
-                {
-                    WebGPUTexture* texture   = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureColor[i]);
-                    colorAttachments[i].view = texture->m_TextureView;
-                }
-                if (context->m_CurrentRenderPass.m_Target->m_TextureResolve[i])
-                {
-                    WebGPUTexture* texture            = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureResolve[i]);
-                    colorAttachments[i].resolveTarget = texture->m_TextureView;
-                }
-                switch (context->m_CurrentRenderPass.m_Target->m_ColorBufferStoreOps[i])
-                {
-                    case ATTACHMENT_OP_STORE:
-                        colorAttachments[i].storeOp = WGPUStoreOp_Store;
-                        break;
-                    default:
-                        colorAttachments[i].storeOp = WGPUStoreOp_Undefined;
-                        break;
-                }
-                if (clearColor)
-                {
-                    colorAttachments[i].loadOp       = WGPULoadOp_Clear;
-                    colorAttachments[i].clearValue.r = clearColor[0];
-                    colorAttachments[i].clearValue.g = clearColor[1];
-                    colorAttachments[i].clearValue.b = clearColor[2];
-                    colorAttachments[i].clearValue.a = clearColor[3];
-                }
-                else
-                {
-                    switch (context->m_CurrentRenderPass.m_Target->m_ColorBufferLoadOps[i])
-                    {
-                        case ATTACHMENT_OP_DONT_CARE:
-                        case ATTACHMENT_OP_LOAD:
-                            colorAttachments[i].loadOp = WGPULoadOp_Load;
-                            break;
-                        case ATTACHMENT_OP_CLEAR:
-                            colorAttachments[i].loadOp       = WGPULoadOp_Clear;
-                            colorAttachments[i].clearValue.r = context->m_CurrentRenderPass.m_Target->m_ColorBufferClearValue[i][0];
-                            colorAttachments[i].clearValue.g = context->m_CurrentRenderPass.m_Target->m_ColorBufferClearValue[i][1];
-                            colorAttachments[i].clearValue.b = context->m_CurrentRenderPass.m_Target->m_ColorBufferClearValue[i][2];
-                            colorAttachments[i].clearValue.a = context->m_CurrentRenderPass.m_Target->m_ColorBufferClearValue[i][3];
-                            break;
-                        default:
-                            colorAttachments[i].loadOp = WGPULoadOp_Undefined;
-                            break;
-                    }
-                }
-            }
-            desc.colorAttachments     = colorAttachments;
-            desc.colorAttachmentCount = context->m_CurrentRenderPass.m_Target->m_ColorBufferCount;
-
-            // depth/stencil
-#if defined(DM_GRAPHICS_WEBGPU2)
-            WGPURenderPassDepthStencilAttachment dsAttachment = WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_INIT;
-#else
-            WGPURenderPassDepthStencilAttachment dsAttachment = {};
-#endif
-            if (context->m_CurrentRenderPass.m_Target->m_TextureDepthStencil)
-            {
-                WebGPUTexture* texture         = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureDepthStencil);
-                dsAttachment.view              = texture->m_TextureView;
-                dsAttachment.depthLoadOp       = WGPULoadOp_Clear;
-                dsAttachment.depthStoreOp      = WGPUStoreOp_Store;
-                dsAttachment.depthClearValue   = clearDepth;
-                dsAttachment.stencilLoadOp     = WGPULoadOp_Clear;
-                dsAttachment.stencilStoreOp    = WGPUStoreOp_Store;
-                dsAttachment.stencilClearValue = clearStencil;
-                desc.depthStencilAttachment    = &dsAttachment;
-            }
-
-            context->m_CurrentRenderPass.m_Encoder = wgpuCommandEncoderBeginRenderPass(context->m_CommandEncoder, &desc);
-        }
         context->m_CurrentRenderPass.m_Target->m_Scissor[0] = 0;
         context->m_CurrentRenderPass.m_Target->m_Scissor[1] = 0;
         context->m_CurrentRenderPass.m_Target->m_Scissor[2] = context->m_CurrentRenderPass.m_Target->m_Width;
@@ -1671,8 +1685,8 @@ static void WebGPUClear(HContext _context, uint32_t flags, uint8_t red, uint8_t 
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUEndRenderPass(context);
-    const float clearColor[] = { red / 255.0f, green / 255.0f, blue / 255.0f, alpha / 255.0f };
-    WebGPUBeginRenderPass(context, clearColor, depth, stencil);
+    const float clear_color[] = { red / 255.0f, green / 255.0f, blue / 255.0f, alpha / 255.0f };
+    WebGPUBeginRenderPass(context, clear_color, depth, stencil);
 }
 
 static void WebGPUBeginFrame(HContext _context)
@@ -2315,7 +2329,7 @@ static void WebGPUSetupComputePipeline(WebGPUContext* context)
 static void WebGPUSetupRenderPipeline(WebGPUContext* context, WebGPUBuffer* indexBuffer, Type indexBufferType)
 {
     TRACE_CALL;
-    WebGPUBeginRenderPass(context);
+    WebGPUBeginRenderPass(context, 0, 1.0f, 0);
     WebGPUUpdateBindGroups(context);
 
     // Get the pipeline for the active draw state
@@ -3547,6 +3561,26 @@ HTexture dmGraphics::WebGPUGetActiveSwapChainTexture(HContext _context)
         return context->m_MainRenderTarget->m_TextureColor[0];
     else
         return context->m_MainRenderTarget->m_TextureResolve[0];
+}
+
+WGPUCommandEncoder dmGraphics::WebGPUGetActiveCommandEncoder(HContext _context)
+{
+    WebGPUContext* context = (WebGPUContext*) _context;
+    return context->m_CommandEncoder;
+}
+
+void dmGraphics::WebGPURenderPassEnd(HContext _context)
+{
+    TRACE_CALL;
+    WebGPUContext* context = (WebGPUContext*) _context;
+    RenderPassEnd(context);
+}
+
+void dmGraphics::WebGPURenderPassBegin(HContext _context)
+{
+    TRACE_CALL;
+    WebGPUContext* context = (WebGPUContext*) _context;
+    context->m_CurrentRenderPass.m_Encoder = RenderPassBegin(context, 0, 1.0f, 0);
 }
 
 static GraphicsAdapterFunctionTable WebGPURegisterFunctionTable()

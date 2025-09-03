@@ -253,6 +253,7 @@
                 :go-prop-type go-prop-type
                 :node-id _node-id
                 :prop-kw :value
+                :label name
                 :read-only? read-only?
                 :type prop-type
                 :value value
