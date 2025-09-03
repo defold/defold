@@ -29,156 +29,44 @@
   ([workspace valid-resource-kind? code]
    (lp/lua-info workspace valid-resource-kind? code)))
 
-(deftest test-variables
-  (testing "global variable with assignment"
-    (is (= #{"foo"} (:vars (lua-info "foo=1")))))
-  (testing "mulitiple global variable with assignment"
-    (is (= #{"foo" "bar"} (:vars (lua-info "foo,bar=1,2")))))
-  (testing "one local with no assignment"
-    (is (= #{"foo"} (:local-vars (lua-info "local foo")))))
-  (testing "multiple locals with no assignment"
-    (is (= #{"foo" "bar"} (:local-vars (lua-info "local foo,bar")))))
-  (testing "one local with assignment"
-    (is (= #{"foo"} (:local-vars (lua-info "local foo=1")))))
-  (testing "multiple locals with assignment"
-    (is (= #{"foo" "bar"} (:local-vars (lua-info "local foo,bar = 1,3")))))
-  (testing "local with a require assignment"
-    (let [code "local mymathmodule = require(\"mymath\")"
-          result (select-keys (lua-info code) [:local-vars :requires])]
-      (is (= {:local-vars #{"mymathmodule"}
-              :requires [["mymathmodule" "mymath"]]} result))))
-  (testing "global with a require assignment"
-    (let [code "mymathmodule = require(\"mymath\")"
-          result (select-keys (lua-info code) [:vars :requires])]
-      (is (= {:vars #{"mymathmodule"}
-              :requires [["mymathmodule" "mymath"]]} result))))
-  (testing "multiple local require assignments"
-    (let [code "local x = require(\"myx\") \n local y = require(\"myy\")"
-          result (select-keys (lua-info code) [:local-vars :requires])]
-      (is (= {:local-vars #{"x" "y"}
-              :requires [["x" "myx"] ["y" "myy"]]} result))))
-  (testing "local with multiple require assignments"
-    (let [code "local x,y = require(\"myx\"), require(\"myy\")"
-          result (select-keys (lua-info code) [:local-vars :requires])]
-      (is (= {:local-vars #{"x" "y"}
-              :requires [["x" "myx"] ["y" "myy"]]} result))))
-  (testing "multiple global require assignments"
-    (let [code "x = require(\"myx\") \n y = require(\"myy\")"
-          result (select-keys (lua-info code) [:vars :requires])]
-      (is (= {:vars #{"x" "y"}
-              :requires [["x" "myx"] ["y" "myy"]]} result))))
-  (testing "multiple require string types"
-    (let [code "x = require('myx') \n y = require(\"myy\") \n z = require([==[myz]==])"
-          result (select-keys (lua-info code) [:vars :requires])]
-      (is (= {:vars #{"x" "y" "z"}
-              :requires [["x" "myx"] ["y" "myy"] ["z" "myz"]]} result))))
-  (testing "global with multiple require assignments"
-    (let [code "x,y = require(\"myx\"), require(\"myy\")"
-          result (select-keys (lua-info code) [:vars :requires])]
-      (is (= {:vars #{"x" "y"}
-              :requires [["x" "myx"] ["y" "myy"]]} result))))
-  (testing "global with multiple global require assignments"
-    (let [code "x,y = _G.require(\"myx\"), _G.require(\"myy\")"
-          result (select-keys (lua-info code) [:vars :requires])]
-      (is (= {:vars #{"x" "y"}
-              :requires [["x" "myx"] ["y" "myy"]]} result)))))
-
 (deftest test-require
   (testing "bare require function call"
     (let [code "require(\"mymath\")"
-          result (select-keys (lua-info code) [:vars :requires])]
-      (is (= {:vars #{}
-              :requires [[nil "mymath"]]} result))))
+          result (:modules (lua-info code))]
+      (is (= ["mymath"] result))))
   (testing "require function call with tail function call"
     (let [code "require(\"deep_thought\").get_question(\"42\")"
-          result (select-keys (lua-info code) [:vars :requires])]
-      (is (= {:vars #{}
-              :requires [[nil "deep_thought"]]} result))))
+          result (:modules (lua-info code))]
+      (is (= ["deep_thought"] result))))
   (testing "global require function call with tail function call"
     (let [code "_G.require(\"deep_thought\").get_question(\"42\")"
-          result (select-keys (lua-info code) [:vars :requires])]
-      (is (= {:vars #{}
-              :requires [[nil "deep_thought"]]} result))))
+          result (:modules (lua-info code))]
+      (is (= ["deep_thought"] result))))
   (testing "require function call with tail function call with local assignment"
     (let [code "local result = require(\"deep_thought\").get_question(\"42\")"
-          result (select-keys (lua-info code) [:local-vars :requires])]
-      (is (= {:local-vars #{"result"}
-              :requires [["result" "deep_thought"]]} result))))
+          result (:modules (lua-info code))]
+      (is (= ["deep_thought"] result))))
   (testing "global require function call with tail function call with local assignment"
     (let [code "local result = _G.require(\"deep_thought\").get_question(\"42\")"
-          result (select-keys (lua-info code) [:local-vars :requires])]
-      (is (= {:local-vars #{"result"}
-              :requires [["result" "deep_thought"]]} result))))
+          result (:modules (lua-info code))]
+      (is (= ["deep_thought"] result))))
   (testing "require call as part of complex expression"
     (let [code (string/join "\n" ["state_rules[hash(\"main\")] = hash_rules("
                                   "    require \"main/state_rules\""
                                   ")"])
-          result (select-keys (lua-info code) [:vars :requires])]
-      (is (= {:vars #{"state_rules"}
-              :requires [[nil "main/state_rules"]]} result)))))
-
-(deftest test-functions
-  (testing "global function with no params"
-    (let [code "function oadd() return num1 end"]
-      (is (= {"oadd" {:params []}} (:functions (lua-info code))))))
-  (testing "local function with no params"
-    (let [code "local function oadd() return num1 end"]
-      (is (= {"oadd" {:params []}} (:local-functions (lua-info code))))))
-  (testing "global function with namespace"
-    (let [code "function foo.oadd() return num1 end"]
-      (is (= {"foo.oadd" {:params []}} (:functions (lua-info code))))))
-  (testing "global function with params"
-    (let [code "function oadd(num1, num2) return num1 end"]
-      (is (= {"oadd" {:params ["num1" "num2"]}} (:functions (lua-info code))))))
-  (testing "global multiple functions"
-    (let [code "function oadd(num1, num2) return num1 end \n function tadd(foo) return num1 end"]
-      (is (= {"oadd" {:params ["num1" "num2"]}, "tadd" {:params ["foo"]}} (:functions (lua-info code)))))))
+          result (:modules (lua-info code))]
+      (is (= ["main/state_rules"] result)))))
 
 (deftest test-lua-info-with-files
-  (testing "variable test file"
-    (let [result (lua-info (slurp (io/resource "lua/variable_test.lua")))]
-      (is (= {:local-vars #{"a" "b" "c" "d"}
-              :vars #{"x"}
-              :functions {}
-              :local-functions {}
-              :script-properties []
-              :requires []} result))))
-  (testing "function test file"
-    (let [result (lua-info (slurp (io/resource "lua/function_test.lua")))]
-      (is (= {:vars #{}
-              :local-vars #{}
-              :local-functions {"ladd" {:params ["num1" "num2"]}}
-              :functions {"add" {:params ["num1" "num2"]}
-                          "oadd" {:params ["num1" "num2"]}}
-              :script-properties []
-              :requires []} result))))
   (testing "require test file"
     (let [result (lua-info (slurp (io/resource "lua/require_test.lua")))]
-      (is (= {:vars #{"foo"}
-              :local-vars #{"bar"}
-              :functions {}
-              :local-functions {}
-              :script-properties []
-              :requires [[nil "mymath"] ["foo" "mymath"] ["bar" "mymath"]]} result)))))
-
-(deftest test-lua-info-with-spaceship
-  (let [result (lua-info (slurp (io/resource "build_project/SideScroller/spaceship/spaceship.script")))]
-    (is (= {:vars #{"self"}
-            :local-vars #{"max_speed" "min_y" "max_y" "p"}
-            :functions {"init" {:params ["self"]}
-                        "update" {:params ["self" "dt"]}
-                        "on_input" {:params ["self" "action_id" "action"]}}
-            :local-functions {}
-            :script-properties []
-            :requires []} result))))
+      (is (= {:modules ["mymath"]
+              :script-properties []}
+             (select-keys result [:modules :script-properties]))))))
 
 (deftest test-lua-info-with-props-script
   (let [result (lua-info (slurp (io/resource "build_project/SideScroller/script/props.script")))]
-    (is (= {:vars #{}
-            :local-vars #{}
-            :functions {}
-            :local-functions {}
-            :script-properties [{:name "number"
+    (is (= {:script-properties [{:name "number"
                                  :type :script-property-type-number
                                  :value 100.0
                                  :status :ok}
@@ -234,7 +122,8 @@
                                  :type :script-property-type-boolean
                                  :value false
                                  :status :ok}]
-            :requires [[nil "script.test"]]} result))))
+            :modules ["script.test"]}
+           (select-keys result [:modules :script-properties])))))
 
 (defn- soil-once [code]
   (let [split (rand-int (count code))
@@ -251,31 +140,17 @@
 
 (deftest parsing-garbage-works
   (let [fuzz-codes (take 100 (repeatedly #(RandomStringUtils/random (rand-int 400))))]
-    (doall (map #(do (reset! last-fuzz %) (lua-info %)) fuzz-codes))
+    (run! #(do (reset! last-fuzz %) (lua-info %)) fuzz-codes)
 
     (let [original (slurp (io/resource "build_project/SideScroller/spaceship/spaceship.script"))
           broken-versions (map soil (repeat 100 original))]
-      (doall (map #(do (reset! last-broken %) (lua-info %)) broken-versions)))))
-
-(deftest string-as-function-parameter-is-ignored
-  (let [code "function fun(\"foo\") end"
-        result (lua-info code)]
-    (is (= {:vars #{}
-            :local-vars #{}
-            :functions {"fun" {:params []}}
-            :local-functions {}
-            :script-properties []
-            :requires []} result))))
+      (run! #(do (reset! last-broken %) (lua-info %)) broken-versions))))
 
 (deftest function-following-local-function
   (are [code]
-    (= {:vars #{}
-        :local-vars #{}
-        :functions {}
-        :local-functions {}
-        :script-properties []
-        :requires []}
-       (lua-info code))
+    (= {:script-properties []
+        :modules []}
+       (select-keys (lua-info code) [:modules :script-properties]))
 
     "local function\nfunction"
     "local function\nfunction foo"
@@ -287,13 +162,8 @@
     "local function\nfunction foo(a,b"
     "local function\nfunction foo(a,b)"))
 
-(deftest test-broken-table-def
-  ;; "=" missing after MY_LIST creates an antlr error node wrapping the namelist
-  (let [code "local MY_LIST { [1] = \"hello\", [2] = \"world\" }"
-        result (lua-info code)]
-    (is (= #{} (:local-vars result)))))
-
-(def ^:private valid-resource-kind? #{"atlas" "font" "material" "texture" "tile_source"})
+(def ^:private valid-resource-kind?
+  (partial contains? #{"atlas" "font" "material" "texture" "tile_source" "render_target"}))
 
 (defn- src->properties [workspace src]
   (:script-properties (lua-info workspace valid-resource-kind? src)))
@@ -407,19 +277,16 @@
              (src->properties workspace "go.property")))
       (is (= [{:status :invalid-args}]
              (src->properties workspace "go.property()")))
-      (is (= [{:status :invalid-args
+      (is (= [{:status :invalid-value
                :name "test"}]
              (src->properties workspace "go.property(\"test\")")))
-      (is (= [{:status :invalid-name
-               :name ""
-               :type :script-property-type-number
-               :value 0.0}]
+      (is (= [{:status :invalid-args}]
              (src->properties workspace "go.property(\"\", 0.0)")))
       (is (= [{:status :invalid-value
                :name "test"}]
              (src->properties workspace "go.property(\"test\", \"foo\")")))
-      (is (= [{:name "nested"
+      (is (= [{:status :invalid-location
+               :name "nested"
                :type :script-property-type-boolean
-               :value false
-               :status :invalid-location}]
+               :value false}]
              (src->properties workspace "function init() go.property('nested', false) end"))))))

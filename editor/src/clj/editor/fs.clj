@@ -22,7 +22,7 @@
            [java.nio.channels OverlappingFileLockException]
            [java.nio.charset Charset StandardCharsets]
            [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException FileVisitResult FileVisitor Files LinkOption NoSuchFileException NotDirectoryException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
-           [java.nio.file.attribute BasicFileAttributes FileAttribute]
+           [java.nio.file.attribute BasicFileAttributes FileAttribute FileTime]
            [java.util UUID]))
 
 (set! *warn-on-reflection* true)
@@ -743,6 +743,10 @@
 (defn path-last-modified-time
   ^long [p]
   (.toMillis (Files/getLastModifiedTime p empty-link-option-array)))
+
+(defn path-last-modified-time!
+  [p ^long mtime]
+  (Files/setLastModifiedTime p (FileTime/fromMillis mtime)))
 
 (defn path-size
   ^long [p]

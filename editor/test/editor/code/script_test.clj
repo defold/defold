@@ -18,7 +18,9 @@
             [editor.code.data :as data]
             [editor.code.data-test :refer [c cr layout-info]]
             [editor.code.script :as script]
-            [editor.code.script-compilation :as script-compilation]))
+            [editor.code.script-compilation :as script-compilation]
+            [editor.lua-parser :as lua-parser])
+  (:import [com.dynamo.bob.pipeline LuaScanner]))
 
 (def ^:private indent-string "    ")
 (def ^:private indent-level-pattern (data/indent-level-pattern (count indent-string)))
@@ -234,69 +236,3 @@
     ["    s = 'will end something'|"]
     ["    s = 'will end something'"
      "    |"]))
-
-(def strip-go-prop-declarations #'script-compilation/strip-go-property-declarations)
-
-(deftest strip-go-prop-declarations-test
-  (are [code expected]
-    (= expected (strip-go-prop-declarations code))
-
-    ["go.property()"]
-    ["             "]
-
-    ["go.property('name', hash())"]
-    ["                    hash() "]
-
-    ["go.property('name',hash())"]
-    ["                   hash() "]
-
-    ["go.property('name', hash(\"value\"))"]
-    ["                    hash(\"value\") "]
-
-    ["go.property('name',hash(\"value\"))"]
-    ["                   hash(\"value\") "]
-
-    ["go.property('name', resource.texture('/image.png'))"]
-    ["                                                   "]
-
-    ["go.property('name', 1) -- comment"]
-    ["                       -- comment"]
-
-    ["go.property('name1', 1) --[[comment]] go.property('name2', 2)"]
-    ["                        --[[comment]]                        "]
-
-    ["go.property('name',"
-     "            123456) -- comment"]
-    ["                   "
-     "                    -- comment"]
-
-    ["do"
-     "    go.property('name', 1)"
-     "end"]
-    ["do"
-     "                          "
-     "end"]
-
-    ["go.property();"]
-    ["              "]
-
-    ["go.property()"
-     ";"]
-    ["             "
-     " "]
-
-    ["go.property(); -- comment"]
-    ["               -- comment"]
-
-    ["go.property()"
-     "; -- comment"]
-    ["             "
-     "  -- comment"]
-
-    ["go.property('name;', resource.texture('/image.png'));"]
-    ["                                                     "]
-
-    ["go.property('name;',"
-     "            123456); -- comment"]
-    ["                    "
-     "                     -- comment"]))

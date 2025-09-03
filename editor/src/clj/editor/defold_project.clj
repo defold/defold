@@ -21,6 +21,7 @@
             [dynamo.graph :as g]
             [editor.code.preprocessors :as code.preprocessors]
             [editor.code.resource :as code.resource]
+            [editor.code.script-annotations :as script-annotations]
             [editor.code.script-intelligence :as si]
             [editor.code.transpilers :as code.transpilers]
             [editor.collision-groups :as collision-groups]
@@ -866,6 +867,9 @@
   ([project evaluation-context]
    (g/node-value project :script-intelligence evaluation-context)))
 
+(defn script-annotations [project evaluation-context]
+  (g/node-value project :script-annotations evaluation-context))
+
 (defn make-node-id+resource-pairs [^long graph-id resources]
   ;; Note: We sort the resources by extension and proj-path to achieve a
   ;; deterministic order for the assigned node-ids.
@@ -1548,6 +1552,7 @@
 
   (input script-intelligence g/NodeID :cascade-delete)
   (input editor-extensions g/NodeID :cascade-delete)
+  (input script-annotations g/NodeID :cascade-delete)
   (input all-selected-node-ids g/Any :array)
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
@@ -1754,7 +1759,10 @@
             (g/transact
               (g/make-nodes graph
                   [script-intelligence si/ScriptIntelligenceNode
-                   project [Project :workspace workspace-id]]
+                   project [Project :workspace workspace-id]
+                   script-annotations script-annotations/ScriptAnnotations]
+                (g/connect workspace-id :root script-annotations :root)
+                (g/connect script-annotations :_node-id project :script-annotations)
                 (g/connect extensions :_node-id project :editor-extensions)
                 (g/connect script-intelligence :_node-id project :script-intelligence)
                 (g/connect workspace-id :build-settings project :build-settings)

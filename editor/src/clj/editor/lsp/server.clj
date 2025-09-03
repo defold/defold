@@ -21,6 +21,7 @@
             [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.code.util :as util]
+            [editor.fs :as fs]
             [editor.lsp.async :as lsp.async]
             [editor.lsp.base :as lsp.base]
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
@@ -258,11 +259,14 @@
           (case section
             "Lua"
             (let [script-intelligence (g/node-value project :script-intelligence evaluation-context)
-                  completions (g/node-value script-intelligence :lua-completions evaluation-context)]
+                  completions (g/node-value script-intelligence :lua-completions evaluation-context)
+                  workspace (g/node-value project :workspace evaluation-context)
+                  root (g/raw-property-value (:basis evaluation-context) workspace :root)]
               {:runtime {:version "Lua 5.1" :pathStrict true}
                :diagnostics {:globals (-> lua/defined-globals
                                           (into (lua/extract-globals-from-completions completions))
-                                          (into (lua/extract-globals-from-completions lua/editor-completions)))}})
+                                          (into (lua/extract-globals-from-completions lua/editor-completions)))}
+               :workspace {:library [(str (fs/path root ".internal" "lua-annotations"))]}})
 
             "files.associations"
             (let [workspace (g/node-value project :workspace evaluation-context)
