@@ -1439,29 +1439,38 @@
    (when-let [settings (settings project evaluation-context)]
      (settings ["project" "dependencies"]))))
 
+(defn update-fetch-libraries-notification
+  "Create transaction steps for showing or hiding a 'Fetch Libraries' suggestion
+  when the project dependency list differs from the currently installed
+  dependencies in the workspace."
+  [project evaluation-context]
+  (when-let [workspace (workspace project evaluation-context)]
+    (let [ignored-dep (:default (:element (settings-core/get-meta-setting gpc/meta-settings ["project" "dependencies"])))
+          desired-deps (disj (set (project-dependencies project evaluation-context)) ignored-dep)
+          installed-deps (set (workspace/dependencies workspace evaluation-context))
+          notifications (workspace/notifications workspace evaluation-context)
+          notification-id ::dependencies-changed]
+      (if (not= desired-deps installed-deps)
+        (notifications/show
+          notifications
+          {:id notification-id
+           :type :info
+           :text "Project dependencies have changed. Do you want to fetch the libraries now?"
+           :actions [{:text "Fetch Libraries"
+                      :on-action #(ui/execute-command
+                                    (ui/contexts (ui/main-scene))
+                                    :project.fetch-libraries
+                                    nil)}]})
+        (notifications/close notifications notification-id)))))
+
 (defn update-fetch-libraries-notification!
   "Show or hide a 'Fetch Libraries' suggestion when the project dependency list
   differs from the currently installed dependencies in the workspace."
   [project]
-  (g/with-auto-evaluation-context evaluation-context
-    (when-let [workspace (workspace project evaluation-context)]
-      (let [ignored-dep (:default (:element (settings-core/get-meta-setting gpc/meta-settings ["project" "dependencies"])))
-            desired-deps (disj (set (project-dependencies project evaluation-context)) ignored-dep)
-            installed-deps (set (workspace/dependencies workspace evaluation-context))
-            notifications (workspace/notifications workspace evaluation-context)
-            notification-id ::dependencies-changed]
-        (if (not= desired-deps installed-deps)
-          (notifications/show!
-            notifications
-            {:id notification-id
-             :type :info
-             :text "Project dependencies have changed. Do you want to fetch the libraries now?"
-             :actions [{:text "Fetch Libraries"
-                        :on-action #(ui/execute-command
-                                      (ui/contexts (ui/main-scene))
-                                      :project.fetch-libraries
-                                      nil)}]})
-          (notifications/close! notifications notification-id))))))
+  (g/transact
+    (g/with-auto-evaluation-context evaluation-context
+      (update-fetch-libraries-notification project evaluation-context)))
+  nil)
 
 (defn- handle-resource-changes [project changes render-progress!]
   (reload-plugins! project (set/union (set (:added changes)) (set (:changed changes))))
