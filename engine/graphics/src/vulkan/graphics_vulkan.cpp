@@ -2024,7 +2024,18 @@ bail:
         VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture_handle);
 
         if (!texture)
+        {
             texture = GetDefaultTexture(context, binding->m_Type.m_ShaderType);
+        }
+
+        if (texture->m_SubmitFence != VK_NULL_HANDLE)
+        {
+            // Wait until upload completes
+            vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &texture->m_SubmitFence, VK_TRUE, UINT64_MAX);
+            vkDestroyFence(context->m_LogicalDevice.m_Device, texture->m_SubmitFence, NULL);
+            texture->m_SubmitFence = VK_NULL_HANDLE;
+            //texture->upload_done   = true;
+        }
 
         VkImageLayout image_layout       = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         VkSampler image_sampler          = context->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
@@ -3632,6 +3643,7 @@ bail:
         tex->m_UsageHintFlags = params.m_UsageHintBits;
         tex->m_PageCount      = params.m_LayerCount;
         tex->m_DataState      = 0;
+        tex->m_SubmitFence    = VK_NULL_HANDLE;
 
         for (int i = 0; i < DM_ARRAY_SIZE(tex->m_ImageLayout); ++i)
         {
@@ -3769,7 +3781,7 @@ bail:
                 layer_count,
                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
-            SubmitAndWait(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, context->m_LogicalDevice.m_CommandPool);
+            SubmitAndWait(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, context->m_LogicalDevice.m_CommandPool, texture_out);
             return;
         }
 
@@ -3825,8 +3837,11 @@ bail:
             layer_count,
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
-        SubmitAndWait(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, context->m_LogicalDevice.m_CommandPool);
-        DestroyDeviceBuffer(vk_device, &stage_buffer.m_Handle);
+        SubmitAndWait(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, context->m_LogicalDevice.m_CommandPool, texture_out);
+        
+        // DestroyDeviceBuffer(vk_device, &stage_buffer.m_Handle);
+
+        DestroyResourceDeferred(context->m_MainResourcesToDestroy[context->m_SwapChain->m_ImageIndex], &stage_buffer);
     }
 
     static void VulkanSetTextureInternal(VulkanTexture* texture, const TextureParams& params)
@@ -4129,12 +4144,14 @@ bail:
 
             TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex->m_LayerCount);
 
-            VkResult res = SubmitAndWait(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, cmd_buffer, context->m_LogicalDevice.m_CommandPoolWorker);
+            VkResult res = SubmitAndWait(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, cmd_buffer, context->m_LogicalDevice.m_CommandPoolWorker, tex);
             CHECK_VK_ERROR(res);
 
             if (!is_memoryless)
             {
-                DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &stage_buffer.m_Handle);
+                //DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &stage_buffer.m_Handle);
+
+                DestroyResourceDeferred(context->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], &stage_buffer);
 
                 if (format_orig == TEXTURE_FORMAT_RGB)
                 {

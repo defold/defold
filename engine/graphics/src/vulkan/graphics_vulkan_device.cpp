@@ -517,8 +517,8 @@ namespace dmGraphics
             vk_source_stage,
             vk_destination_stage,
             VK_DEPENDENCY_BY_REGION_BIT,
-            0, nullptr,
-            0, nullptr,
+            0, NULL,
+            0, NULL,
             1, &vk_memory_barrier
         );
 
@@ -538,7 +538,7 @@ namespace dmGraphics
 
         TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
-        SubmitAndWait(vk_device, vk_queue, vk_command_buffer, vk_command_pool);
+        SubmitAndWait(vk_device, vk_queue, vk_command_buffer, vk_command_pool, texture);
 
         return VK_SUCCESS;
     }
@@ -651,7 +651,7 @@ namespace dmGraphics
         return cmd_buffer;
     }
 
-    VkResult SubmitAndWait(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkCommandPool cmd_pool)
+    VkResult SubmitAndWait(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkCommandPool cmd_pool, VulkanTexture* textureOut)
     {
         DM_PROFILE(__FUNCTION__);
 
@@ -663,7 +663,7 @@ namespace dmGraphics
 
         VkFenceCreateInfo fence_info = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
         VkFence fence = VK_NULL_HANDLE;
-        res = vkCreateFence(vk_device, &fence_info, nullptr, &fence);
+        res = vkCreateFence(vk_device, &fence_info, NULL, &fence);
 
         VkSubmitInfo submit_info = {};
         submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -676,9 +676,16 @@ namespace dmGraphics
             return res;
         }
 
-        res = vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
+        // Replace the existing fence with a new one
+        if (textureOut->m_SubmitFence != VK_NULL_HANDLE)
+        {
+            vkDestroyFence(vk_device, textureOut->m_SubmitFence, NULL);
+        }
+        textureOut->m_SubmitFence = fence;
 
-        vkDestroyFence(vk_device, fence, nullptr);
+        //res = vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
+        //vkDestroyFence(vk_device, fence, NULL);
+
         vkFreeCommandBuffers(vk_device, cmd_pool, 1, &cmd);
         return res;
     }

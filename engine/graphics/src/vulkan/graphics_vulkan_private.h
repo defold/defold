@@ -86,6 +86,7 @@ namespace dmGraphics
         VkFormat          m_Format;
         VkImageLayout     m_ImageLayout[16];
         VkImageUsageFlags m_UsageFlags;
+        VkFence           m_SubmitFence;
         DeviceBuffer      m_DeviceBuffer;
         int32_atomic_t    m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         uint16_t          m_Width;
@@ -493,7 +494,7 @@ namespace dmGraphics
     void            FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list);
     void            ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
     VkCommandBuffer BeginSingleTimeCommands(VkDevice device, VkCommandPool cmd_pool);
-    VkResult        SubmitAndWait(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkCommandPool cmd_pool);
+    VkResult        SubmitAndWait(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkCommandPool cmd_pool, VulkanTexture* textureOut);
 
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the
