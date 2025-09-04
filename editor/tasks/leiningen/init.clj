@@ -61,7 +61,7 @@
   [user_domain]
   (let [default_domain "d.defold.com"
         env_domain (System/getenv "DM_ARCHIVE_DOMAIN")]
-        (or user_domain env_domain default_domain)))
+    (or user_domain env_domain default_domain)))
 
 (def init-tasks
   [["clean"]
@@ -70,6 +70,12 @@
    ["ref-doc"]
    ["project-templates"]
    ["protobuf"]
+   ["with-profile" "grammar" "run" "-m" "org.antlr.v4.Tool"
+    "LSPSnippet.g4"
+    "-o" "src/java/com/defold/editor"
+    "-package" "com.defold.editor"
+    "-no-listener"
+    "-no-visitor"]
    ["sass" "once"]
    ["pack"]])
 

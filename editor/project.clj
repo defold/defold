@@ -51,10 +51,6 @@
                      [org.codehaus.jackson/jackson-core-asl       "1.9.13"]
                      [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
                      [org.eclipse.jgit/org.eclipse.jgit           "4.2.0.201601211800-r"]
-                     [clj-antlr                                   "0.2.2"
-                      :exclusions [org.antlr/antlr4 org.antlr/antlr4-runtime]]
-                     [org.antlr/antlr4 "4.7.2"]
-                     [org.antlr/antlr4-runtime "4.7.2"]
                      [org.apache.commons/commons-compress         "1.18"]
 
                      [net.java.dev.jna/jna                        "4.1.0"]
@@ -195,10 +191,11 @@
                                                       [commons-io/commons-io "2.4"]
                                                       [prismatic/schema "1.1.9"]
                                                       [org.luaj/luaj-jse "3.0.1"]
-                                                      [clj-antlr "0.2.2"
-                                                       :exclusions [org.antlr/antlr4 org.antlr/antlr4-runtime]]
-                                                      [org.antlr/antlr4 "4.7.2"]
-                                                      [org.antlr/antlr4-runtime "4.7.2"]]}
+                                                      ;; normally, we get this from bob
+                                                      [org.antlr/antlr4-runtime "4.9.1"]]}
+                      :grammar {:java-source-paths ^:replace []
+                                :dependencies ^:replace [[org.clojure/clojure "1.12.0"]
+                                                         [org.antlr/antlr4 "4.9.1"]]}
                       :uberjar {:prep-tasks  ^:replace []
                                 :aot          :all
                                 :auto-clean   false
