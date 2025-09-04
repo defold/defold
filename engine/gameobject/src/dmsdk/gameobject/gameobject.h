@@ -30,7 +30,6 @@
  * @document
  * @name Gameobject
  * @namespace dmGameObject
- * @path engine/gameobject/src/dmsdk/gameobject/gameobject.h
  * @language C++
  */
 

@@ -31,7 +31,7 @@
            [java.io Closeable File FilterInputStream IOException InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
-           [java.util.zip ZipEntry ZipFile ZipInputStream]
+           [java.util.zip ZipEntry ZipFile]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
 (set! *warn-on-reflection* true)
@@ -467,6 +467,9 @@
         (make-writer [_ _] (throw (Exception. "Zip resources are read-only")))
         Closeable
         (close [_] (.close zip-file))))))
+
+(defn zip-resource? [x]
+  (instance? ZipResource x))
 
 (core/register-record-type! ZipResource)
 

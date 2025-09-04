@@ -809,8 +809,19 @@
         (when (not @version-line)
           (when-let [engine-version-line (engine/parse-engine-version-line line)]
             (reset! version-line engine-version-line))))
+      ;; After the version line, wait briefly for stream readiness, then call the callback.
       (when (and @updated-target (= @version-line line))
-        (on-service-url-found @updated-target))
+        (future
+          (let [max-wait-ms 2000
+                step-ms 100
+                deadline (+ (System/currentTimeMillis) max-wait-ms)]
+            (loop []
+              (if (or (console/current-stream? (:log-stream @updated-target))
+                      (>= (System/currentTimeMillis) deadline))
+                (on-service-url-found @updated-target)
+                (do
+                  (Thread/sleep step-ms)
+                  (recur)))))))
       (when (console/current-stream? (:log-stream launched-target))
         (console/append-console-line! line)))))
 
@@ -2857,7 +2868,8 @@ If you do not specifically require different script states, consider changing th
                   (disk/async-reload! render-install-progress! workspace [] changes-view
                                       (fn [success]
                                         (when success
-                                          (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs web-server)))))))))))))
+                                          (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs web-server)
+                                          (project/update-fetch-libraries-notification! project)))))))))))))
 
 (handler/defhandler :private/add-dependency :global
   (enabled? [] (disk-availability/available?))

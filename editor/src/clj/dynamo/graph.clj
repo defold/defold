@@ -241,6 +241,13 @@
 ;; ---------------------------------------------------------------------------
 ;; Using transaction values
 ;; ---------------------------------------------------------------------------
+(defn tx-result? [x]
+  (and (map? x)
+       (contains? x :status)
+       (contains? x :basis)
+       (contains? x :graphs-modified)
+       (contains? x :nodes-added)))
+
 (defn tx-nodes-added
  "Returns a list of the node-ids added given a result from a transaction, (tx-result)."
   [tx-result]

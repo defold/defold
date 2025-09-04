@@ -25,7 +25,6 @@
  * @document
  * @name Socket
  * @namespace dmSocket
- * @path engine/dlib/src/dmsdk/dlib/socket.h
  * @language C++
  */
 namespace dmSocket

@@ -2093,3 +2093,40 @@ emitters: 0
       ;; chain is modified
       (sound-chain :cat (constantly :meow))
       (is (= :meow ((sound-chain :cat) {}))))))
+
+(def ^:private expected-game-project-properties-test-output
+  "Initial state:
+  project.title: unnamed
+  sound.gain: 1
+  display.width: 960
+  display.fullscreen: false
+  input.game_binding: /input/game.input_binding
+  physics.type: 2D
+  project.dependencies: -
+Set settings...
+After transaction:
+  project.title: Set from Editor Script!
+  sound.gain: 0.5
+  display.width: 1000
+  display.fullscreen: true
+  input.game_binding: /builtins/input/all.input_binding
+  physics.type: 3D
+  project.dependencies: https://github.com/defold/extension-spine/archive/refs/tags/3.10.0.zip
+Expected errors:
+  set undefined property => Can't set property \"gooboo.gaabaa\" of GameProjectNode
+  not a string type => 1 is not a string
+  not a number type => \"max\" is not a number
+  not an integer type => 0.5 is not an integer
+  not a boolean type => 1 is not a boolean
+  not a valid resource type => resource extension should be input_binding
+  not a valid enum value => \"2D+3D\" is not \"2D\" or \"3D\"
+  not an array => \"https://defold.com/\" is not an array
+  not a valid url => \"latest spine\" is not a valid URL
+")
+
+(deftest game-project-properties-test
+  (test-util/with-scratch-project "test/resources/editor_extensions/game_project_properties_test"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-game-project-properties-test-output out))))
