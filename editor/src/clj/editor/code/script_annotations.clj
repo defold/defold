@@ -52,7 +52,7 @@
             (with-open [writer (io/writer path)]
               (.write writer "---@meta\n")
               (io/copy (data/lines-reader lines) writer))
-            (fs/path-last-modified-time! path mtime)))
+            (fs/set-path-last-modified-time! path mtime)))
         path->mtime+lines)
       (hash path->mtime+lines))
     (catch IOException e

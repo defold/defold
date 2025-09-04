@@ -744,7 +744,7 @@
   ^long [p]
   (.toMillis (Files/getLastModifiedTime p empty-link-option-array)))
 
-(defn path-last-modified-time!
+(defn set-path-last-modified-time!
   [p ^long mtime]
   (Files/setLastModifiedTime p (FileTime/fromMillis mtime)))
 

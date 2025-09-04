@@ -16,11 +16,8 @@
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
             [editor.code.data :as data]
-            [editor.code.data-test :refer [c cr layout-info]]
-            [editor.code.script :as script]
-            [editor.code.script-compilation :as script-compilation]
-            [editor.lua-parser :as lua-parser])
-  (:import [com.dynamo.bob.pipeline LuaScanner]))
+            [editor.code.data-test :refer [layout-info]]
+            [editor.code.script :as script]))
 
 (def ^:private indent-string "    ")
 (def ^:private indent-level-pattern (data/indent-level-pattern (count indent-string)))
