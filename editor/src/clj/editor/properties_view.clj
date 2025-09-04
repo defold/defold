@@ -931,6 +931,7 @@
           (ui/add-style! "property-label")
           (ui/register-button-menu ::property-menu)
           (.setFocusTraversable false)
+          (.addEventHandler MouseEvent/MOUSE_PRESSED #(.requestFocus ^Node (.getSource ^MouseEvent %)))
           (.setPrefWidth Region/USE_COMPUTED_SIZE)
           (.setMinWidth Region/USE_PREF_SIZE)
           (.setTooltip (doto (Tooltip.)
