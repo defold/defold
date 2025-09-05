@@ -70,12 +70,6 @@
    ["ref-doc"]
    ["project-templates"]
    ["protobuf"]
-   ["with-profile" "grammar" "run" "-m" "org.antlr.v4.Tool"
-    "LSPSnippet.g4"
-    "-o" "src/java/com/defold/editor"
-    "-package" "com.defold.editor"
-    "-no-listener"
-    "-no-visitor"]
    ["sass" "once"]
    ["pack"]])
 
