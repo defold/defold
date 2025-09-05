@@ -1175,6 +1175,7 @@ namespace dmGameSystem
         uint32_t instance_stride              = dmGraphics::GetVertexDeclarationStride(inst_decl);
         MeshAttributeRenderData* attribute_rd = 0;
         dmRender::HMaterial render_material   = GetRenderMaterial(render_context_material, component, component->m_Resource, material_index);
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
         bool render_context_material_custom_attributes = false;
         if (render_context_material)
@@ -1326,8 +1327,8 @@ namespace dmGameSystem
                     uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance);
                     instance_data->m_AnimationData.setX((float) cache_offset);
                     instance_data->m_AnimationData.setY((float) GetBoneCount(instance_component->m_RigInstance));
-                    instance_data->m_AnimationData.setZ((float) dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
-                    instance_data->m_AnimationData.setW((float) dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                    instance_data->m_AnimationData.setZ((float) dmGraphics::GetTextureWidth(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                    instance_data->m_AnimationData.setW((float) dmGraphics::GetTextureHeight(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
                 }
                 else
                 {
@@ -1409,6 +1410,7 @@ namespace dmGameSystem
             ModelResourceBuffers* buffers          = render_item->m_Buffers;
             MeshAttributeRenderData* attribute_rd  = 0;
             bool has_skin_data                     = render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED;
+            dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
             dmRender::HMaterial component_material      = GetComponentMaterial(component, component->m_Resource, material_index);
             dmGraphics::HVertexDeclaration vx_decl_base = GetBaseVertexDeclaration(world, component_material, has_skin_data);
@@ -1487,8 +1489,8 @@ namespace dmGameSystem
                     uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance);
                     animation_data.setX((float) cache_offset);
                     animation_data.setY((float) GetBoneCount(component->m_RigInstance));
-                    animation_data.setZ((float) dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
-                    animation_data.setW((float) dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                    animation_data.setZ((float) dmGraphics::GetTextureWidth(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
+                    animation_data.setW((float) dmGraphics::GetTextureHeight(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture));
                 }
 
                 SetRenderConstant(constants, dmRender::VERTEX_STREAM_ANIMATION_DATA, &animation_data, 1);

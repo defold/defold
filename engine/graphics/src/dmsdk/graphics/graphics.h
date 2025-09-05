@@ -1030,24 +1030,26 @@ namespace dmGraphics
     /*#
      * Get texture's width
      * @name GetTextureWidth
+     * @param context [type:dmGraphics::HContext] Graphics context
      * @param texture [type:dmGraphics::HTexture] Texture handle
      * @return width [type:uint16_t] Texture's width
      */
-    uint16_t GetTextureWidth(HTexture texture);
+    uint16_t GetTextureWidth(HContext context, HTexture texture);
 
     /*#
      * Get texture's height
      * @name GetTextureHeight
+     * @param context [type:dmGraphics::HContext] Graphics context
      * @param texture [type:dmGraphics::HTexture] Texture handle
      * @return height [type:uint16_t] Texture's height
      */
-    uint16_t GetTextureHeight(HTexture texture);
+    uint16_t GetTextureHeight(HContext context, HTexture texture);
 
     /*#
      * Get texture's depth
      * @name GetTextureDepth
      * @param context [type:dmGraphics::HContext] 
-     * @param texture [type:dmGraphics::HTexture] texture handle
+     * @param texture [type:dmGraphics::HTexture] Texture handle
      * @return depth [type:uint16_t] Texture's depth
      */
     uint16_t GetTextureDepth(HContext context, HTexture texture);
@@ -1062,40 +1064,40 @@ namespace dmGraphics
 
     /*#
      * @name GetOriginalTextureHeight
-     * @param context [type:dmGraphics::HContext]
-     * @param texture [type:dmGraphics::HTexture]
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param texture [type:dmGraphics::HTexture] Texture handle
      * @return original_height [type:uint16_t]
      */
     uint16_t GetOriginalTextureHeight(HContext context, HTexture texture);
 
     /*#
      * @name GetTextureMipmapCount
-     * @param context [type:dmGraphice::HContext]
-     * @param texture [type:dmGraphics::HTexture]
+     * @param context [type:dmGraphice::HContext] Graphics context
+     * @param texture [type:dmGraphics::HTexture] Texture handle
      * @return count [type:uint8_t]
      */
     uint8_t GetTextureMipmapCount(HContext context, HTexture texture);
 
     /*#
      * @name GetTextureType
-     * @param context [type:dmGraphics::HContext]
-     * @param texture [type:dmGraphics::HTexture]
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param texture [type:dmGraphics::HTexture] Texture handle
      * @return type [type:dmGraphics::TextureType]
      */
     TextureType GetTextureType(HContext context, HTexture texture);
 
     /*#
      * @name GetNumTextureHandles
-     * @param context [type:dmGraphics::Context]
-     * @param texture [type:dmGraphics::HTexture]
+     * @param context [type:dmGraphics::Context] Graphics context
+     * @param texture [type:dmGraphics::HTexture] Texture handle
      * @return handles_amount [type:uint8_t]
      */
     uint8_t GetNumTextureHandles(HContext context, HTexture texture);
 
     /*#
      * @name GetTextureUsageHintFlags
-     * @param context [type:dmGraphics::HContext]
-     * @param texture [type:dmGraphics::HTexture]
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param texture [type:dmGraphics::HTexture] Texture handle
      * @return flags [type:uint32_t]
      */
     uint32_t GetTextureUsageHintFlags(HContext context, HTexture texture);
@@ -1104,26 +1106,26 @@ namespace dmGraphics
      * Get status of texture.
      *
      * @name GetTextureStatusFlags
-     * @param context [type:dmGraphics::HContext]
-     * @param texture [type:dmGraphics::HTexture]
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param texture [type:dmGraphics::HTexture] Texture handle
      * @return flags [type:dmGraphics::TextureStatusFlags] enumerated status bit flags
      */
     uint32_t GetTextureStatusFlags(HContext context, HTexture texture);
 
     /*#
      * @name EnableTexture
-     * @param context [type:dmGraphics::HContext]
+     * @param context [type:dmGraphics::HContext] Graphics context
      * @param unit [type: uint32_t]
      * @param id_index [type:uint8_t]
-     * @param texture [type:dmGraphics::HTexture]
+     * @param texture [type:dmGraphics::HTexture] Texture handle
      */
     void EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
 
     /*#
      * @name DisableTexture
-     * @param context [type:dmGraphics::HContext]
+     * @param context [type:dmGraphics::HContext] Graphics context
      * @param unit [type:uint32_t]
-     * @param texture [type:dmGraphics::HTexture]
+     * @param texture [type:dmGraphics::HTexture] Texture handle
      */
     void DisableTexture(HContext context, uint32_t unit, HTexture texture);
 
@@ -1143,7 +1145,7 @@ namespace dmGraphics
 
     /*#
      * @name GetMaxTextureSize
-     * @param context [type:dmGraphics::HContext]
+     * @param context [type:dmGraphics::HContext] Graphics context
      * @return max_texture_size [type:uint32_t]
      */
     uint32_t GetMaxTextureSize(HContext context);

@@ -1294,8 +1294,8 @@ TEST_F(dmGraphicsTest, TestTexture)
     dmGraphics::SetTexture(texture, params);
 
     delete [] (char*)params.m_Data;
-    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(texture));
-    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(texture));
+    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(m_Context, texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(m_Context, texture));
     ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(m_Context, texture));
     ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(m_Context, texture));
     dmGraphics::EnableTexture(m_Context, 0, 0, texture);
@@ -1365,8 +1365,8 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
 
     for (int i = 0; i < TEXTURE_COUNT; ++i)
     {
-        ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(textures[i]));
-        ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(textures[i]));
+        ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(m_Context, textures[i]));
+        ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(m_Context, textures[i]));
         ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(m_Context, textures[i]));
         ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(m_Context, textures[i]));
         dmGraphics::EnableTexture(m_Context, 0, 0, textures[i]);
@@ -1571,8 +1571,8 @@ TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimension)
     dmGraphics::SetTexture(texture, params);
 
     delete [] (char*)params.m_Data;
-    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(texture));
-    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(texture));
+    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(m_Context, texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(m_Context, texture));
     ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(m_Context, texture));
     ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(m_Context, texture));
     dmGraphics::EnableTexture(m_Context, 0, 0, texture);

@@ -127,8 +127,8 @@ namespace dmGraphics
     typedef void (*SetTextureAsyncFn)(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
     typedef void (*SetTextureParamsFn)(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
     typedef uint32_t (*GetTextureResourceSizeFn)(HTexture texture);
-    typedef uint16_t (*GetTextureWidthFn)(HTexture texture);
-    typedef uint16_t (*GetTextureHeightFn)(HTexture texture);
+    typedef uint16_t (*GetTextureWidthFn)(HContext context, HTexture texture);
+    typedef uint16_t (*GetTextureHeightFn)(HContext context, HTexture texture);
     typedef uint16_t (*GetOriginalTextureWidthFn)(HContext context, HTexture texture);
     typedef uint16_t (*GetOriginalTextureHeightFn)(HContext context, HTexture texture);
     typedef uint16_t (*GetTextureDepthFn)(HContext context, HTexture texture);

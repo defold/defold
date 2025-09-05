@@ -4392,14 +4392,14 @@ bail:
         return size_total + sizeof(VulkanTexture);
     }
 
-    static uint16_t VulkanGetTextureWidth(HTexture texture)
+    static uint16_t VulkanGetTextureWidth(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         return tex ? tex->m_Width : 0;
     }
 
-    static uint16_t VulkanGetTextureHeight(HTexture texture)
+    static uint16_t VulkanGetTextureHeight(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);

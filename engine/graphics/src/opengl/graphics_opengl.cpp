@@ -4482,14 +4482,14 @@ static void LogFrameBufferError(GLenum status)
         return size_total + sizeof(OpenGLTexture);
     }
 
-    static uint16_t OpenGLGetTextureWidth(HTexture texture)
+    static uint16_t OpenGLGetTextureWidth(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         return tex ? tex->m_Width : 0;
     }
 
-    static uint16_t OpenGLGetTextureHeight(HTexture texture)
+    static uint16_t OpenGLGetTextureHeight(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);

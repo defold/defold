@@ -241,8 +241,8 @@ namespace dmGameSystem
             }
             else
             {
-                uint16_t tex_width_full    = dmGraphics::GetTextureWidth(texture);
-                uint16_t tex_height_full   = dmGraphics::GetTextureHeight(texture);
+                uint16_t tex_width_full    = dmGraphics::GetTextureWidth(context, texture);
+                uint16_t tex_height_full   = dmGraphics::GetTextureHeight(context, texture);
                 uint16_t tex_width_mipmap  = dmGraphics::GetMipmapSize(tex_width_full, params.m_MipMap);
                 uint16_t tex_height_mipmap = dmGraphics::GetMipmapSize(tex_height_full, params.m_MipMap);
                 uint8_t  tex_mipmap_count  = dmGraphics::GetMipmapCount(dmMath::Max(tex_width_full, tex_height_full));
@@ -297,8 +297,8 @@ namespace dmGameSystem
             // If we are uploading data for a mipmap, we need to pass the actual texture size for the validation
             if (params.m_MipMap > 0)
             {
-                tex_width_full  = dmGraphics::GetTextureWidth(texture);
-                tex_height_full = dmGraphics::GetTextureHeight(texture);
+                tex_width_full  = dmGraphics::GetTextureWidth(context, texture);
+                tex_height_full = dmGraphics::GetTextureHeight(context, texture);
             }
 
             // If we requested to upload a specific mipmap, upload only that level

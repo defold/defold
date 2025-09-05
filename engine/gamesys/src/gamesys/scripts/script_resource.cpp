@@ -1648,8 +1648,8 @@ static int SetTexture(lua_State* L)
 
 static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
 {
-    uint32_t texture_width               = dmGraphics::GetTextureWidth(texture_handle);
-    uint32_t texture_height              = dmGraphics::GetTextureHeight(texture_handle);
+    uint32_t texture_width               = dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture_handle);
+    uint32_t texture_height              = dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture_handle);
     uint32_t texture_depth               = dmGraphics::GetTextureDepth(g_ResourceModule.m_GraphicsContext, texture_handle);
     uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(g_ResourceModule.m_GraphicsContext, texture_handle);
     dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(g_ResourceModule.m_GraphicsContext, texture_handle);
@@ -2095,8 +2095,8 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
     texture_set_ddf->m_Texture     = 0;
     texture_set_ddf->m_TextureHash = texture_path_hash;
 
-    float tex_width            = dmGraphics::GetTextureWidth(texture);
-    float tex_height           = dmGraphics::GetTextureHeight(texture);
+    float tex_width            = dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture);
+    float tex_height           = dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture);
     uint32_t frame_index_count = 0;
 
     texture_set_ddf->m_Geometries.m_Data  = new dmGameSystemDDF::SpriteGeometry[num_geometries];
@@ -2762,8 +2762,8 @@ static int GetAtlas(lua_State* L)
     dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
     assert(texture_set);
 
-    float tex_width  = (float) dmGraphics::GetTextureWidth(texture_set_res->m_Texture->m_Texture);
-    float tex_height = (float) dmGraphics::GetTextureHeight(texture_set_res->m_Texture->m_Texture);
+    float tex_width  = (float) dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture_set_res->m_Texture->m_Texture);
+    float tex_height = (float) dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture_set_res->m_Texture->m_Texture);
 
     #define SET_LUA_TABLE_FIELD(set_fn, key, val) \
         set_fn(L, val); \

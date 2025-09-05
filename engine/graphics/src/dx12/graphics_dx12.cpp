@@ -3106,12 +3106,12 @@ namespace dmGraphics
         return 0;
     }
 
-    static uint16_t DX12GetTextureWidth(HTexture texture)
+    static uint16_t DX12GetTextureWidth(HContext context, HTexture texture)
     {
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_Width;
     }
 
-    static uint16_t DX12GetTextureHeight(HTexture texture)
+    static uint16_t DX12GetTextureHeight(HContext context, HTexture texture)
     {
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_Height;
     }

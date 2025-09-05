@@ -1507,13 +1507,13 @@ namespace dmGraphics
         return size_total + sizeof(Texture);
     }
 
-    static uint16_t NullGetTextureWidth(HTexture texture)
+    static uint16_t NullGetTextureWidth(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_Width;
     }
 
-    static uint16_t NullGetTextureHeight(HTexture texture)
+    static uint16_t NullGetTextureHeight(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_Height;

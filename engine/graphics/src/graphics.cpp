@@ -1799,13 +1799,13 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureResourceSize(texture);
     }
-    uint16_t GetTextureWidth(HTexture texture)
+    uint16_t GetTextureWidth(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureWidth(texture);
+        return g_functions.m_GetTextureWidth(context, texture);
     }
-    uint16_t GetTextureHeight(HTexture texture)
+    uint16_t GetTextureHeight(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureHeight(texture);
+        return g_functions.m_GetTextureHeight(context, texture);
     }
     uint16_t GetTextureDepth(HContext context, HTexture texture)
     {
