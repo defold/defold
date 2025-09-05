@@ -276,8 +276,8 @@ TEST_F(ResourceTest, TestRenderPrototypeResources)
     ASSERT_EQ(128, dmGraphics::GetTextureHeight(attachment_0));
     ASSERT_EQ(128, dmGraphics::GetTextureWidth(attachment_1));
     ASSERT_EQ(128, dmGraphics::GetTextureHeight(attachment_1));
-    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(attachment_0));
-    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(attachment_1));
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(m_GraphicsContext, attachment_0));
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(m_GraphicsContext, attachment_1));
 
     dmResource::Release(m_Factory, (void**) render_prototype);
 }

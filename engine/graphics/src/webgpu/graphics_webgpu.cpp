@@ -3385,7 +3385,7 @@ static bool WebGPUIsExtensionSupported(HContext context, const char* extension)
     return true;
 }
 
-static TextureType WebGPUGetTextureType(HTexture _texture)
+static TextureType WebGPUGetTextureType(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);

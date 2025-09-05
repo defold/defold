@@ -1074,10 +1074,11 @@ namespace dmGraphics
 
     /*#
      * @name GetTextureType
+     * @param context [type:HContext]
      * @param texture [type:HTexture]
      * @return type [type:dmGraphics::TextureType]
      */
-    TextureType GetTextureType(HTexture texture);
+    TextureType GetTextureType(HContext context, HTexture texture);
 
     /*#
      * @name GetNumTextureHandles

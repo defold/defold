@@ -4434,7 +4434,7 @@ bail:
         return tex ? tex->m_MipMapCount : 0;
     }
 
-    static TextureType VulkanGetTextureType(HTexture texture)
+    static TextureType VulkanGetTextureType(HContext contex, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);

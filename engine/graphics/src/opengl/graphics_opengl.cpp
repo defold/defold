@@ -4510,7 +4510,7 @@ static void LogFrameBufferError(GLenum status)
         return tex ? tex->m_OriginalHeight : 0;
     }
 
-    static TextureType OpenGLGetTextureType(HTexture texture)
+    static TextureType OpenGLGetTextureType(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);

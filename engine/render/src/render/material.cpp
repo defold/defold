@@ -731,7 +731,7 @@ namespace dmRender
 
     bool GetCanBindTexture(dmGraphics::HContext context, dmGraphics::HTexture texture, HSampler sampler, uint32_t unit)
     {
-        dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture);
+        dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(context, texture);
         Sampler* s = (Sampler*) sampler;
 
         if (s == 0x0)

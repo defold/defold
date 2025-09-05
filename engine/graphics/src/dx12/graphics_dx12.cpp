@@ -3296,7 +3296,7 @@ namespace dmGraphics
         return true;
     }
 
-    static TextureType DX12GetTextureType(HTexture texture)
+    static TextureType DX12GetTextureType(HContext context, HTexture texture)
     {
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_Type;
     }
