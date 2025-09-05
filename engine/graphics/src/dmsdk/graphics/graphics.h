@@ -1046,10 +1046,11 @@ namespace dmGraphics
     /*#
      * Get texture's depth
      * @name GetTextureDepth
+     * @param context [type:dmGraphics::HContext] 
      * @param texture [type:dmGraphics::HTexture] texture handle
      * @return depth [type:uint16_t] Texture's depth
      */
-    uint16_t GetTextureDepth(HTexture texture);
+    uint16_t GetTextureDepth(HContext context, HTexture texture);
 
     /*#
      * @name GetOriginalTextureWidth

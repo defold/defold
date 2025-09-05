@@ -3431,7 +3431,7 @@ static bool WebGPUIsContextFeatureSupported(HContext _context, ContextFeature fe
     return (context->m_ContextFeatures & (1 << feature)) != 0;
 }
 
-static uint16_t WebGPUGetTextureDepth(HTexture _texture)
+static uint16_t WebGPUGetTextureDepth(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);

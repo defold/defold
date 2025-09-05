@@ -1807,9 +1807,9 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureHeight(texture);
     }
-    uint16_t GetTextureDepth(HTexture texture)
+    uint16_t GetTextureDepth(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureDepth(texture);
+        return g_functions.m_GetTextureDepth(context, texture);
     }
     uint16_t GetOriginalTextureWidth(HContext context, HTexture texture)
     {

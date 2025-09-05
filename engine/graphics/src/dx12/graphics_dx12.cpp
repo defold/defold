@@ -3336,7 +3336,7 @@ namespace dmGraphics
         return true;
     }
 
-    static uint16_t DX12GetTextureDepth(HTexture texture)
+    static uint16_t DX12GetTextureDepth(HContext context, HTexture texture)
     {
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_Depth;
     }

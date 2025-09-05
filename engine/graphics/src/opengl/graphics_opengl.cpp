@@ -4517,7 +4517,7 @@ static void LogFrameBufferError(GLenum status)
         return tex ? tex->m_Type : TEXTURE_TYPE_2D;
     }
 
-    static uint16_t OpenGLGetTextureDepth(HTexture texture)
+    static uint16_t OpenGLGetTextureDepth(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);

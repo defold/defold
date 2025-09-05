@@ -1820,7 +1820,7 @@ namespace dmGraphics
         return (context->m_ContextFeatures & (1 << feature)) != 0;
     }
 
-    static uint16_t NullGetTextureDepth(HTexture texture)
+    static uint16_t NullGetTextureDepth(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_Depth;

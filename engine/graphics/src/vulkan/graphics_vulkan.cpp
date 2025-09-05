@@ -4420,7 +4420,7 @@ bail:
         return tex ? tex->m_OriginalHeight : 0;
     }
 
-    static uint16_t VulkanGetTextureDepth(HTexture texture)
+    static uint16_t VulkanGetTextureDepth(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
