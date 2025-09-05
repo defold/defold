@@ -1819,9 +1819,9 @@ namespace dmGraphics
     {
         return g_functions.m_GetOriginalTextureHeight(texture);
     }
-    uint8_t GetTextureMipmapCount(HTexture texture)
+    uint8_t GetTextureMipmapCount(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureMipmapCount(texture);
+        return g_functions.m_GetTextureMipmapCount(context, texture);
     }
     TextureType GetTextureType(HContext context, HTexture texture)
     {

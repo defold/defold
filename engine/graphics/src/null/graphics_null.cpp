@@ -1826,7 +1826,7 @@ namespace dmGraphics
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_Depth;
     }
 
-    static uint8_t NullGetTextureMipmapCount(HTexture texture)
+    static uint8_t NullGetTextureMipmapCount(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_MipMapCount;

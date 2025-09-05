@@ -4427,7 +4427,7 @@ bail:
         return tex ? tex->m_Depth : 0;
     }
 
-    static uint8_t VulkanGetTextureMipmapCount(HTexture texture)
+    static uint8_t VulkanGetTextureMipmapCount(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);

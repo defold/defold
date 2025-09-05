@@ -3438,7 +3438,7 @@ static uint16_t WebGPUGetTextureDepth(HTexture _texture)
     return texture->m_Depth;
 }
 
-static uint8_t WebGPUGetTextureMipmapCount(HTexture _texture)
+static uint8_t WebGPUGetTextureMipmapCount(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);

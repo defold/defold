@@ -1067,10 +1067,11 @@ namespace dmGraphics
 
     /*#
      * @name GetTextureMipmapCount
+     * @param context [type:dmGraphice::HContext]
      * @param texture [type:dmGraphics::HTexture]
      * @return count [type:uint8_t]
      */
-    uint8_t GetTextureMipmapCount(HTexture texture);
+    uint8_t GetTextureMipmapCount(HContext context, HTexture texture);
 
     /*#
      * @name GetTextureType

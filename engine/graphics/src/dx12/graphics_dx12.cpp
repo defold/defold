@@ -3341,7 +3341,7 @@ namespace dmGraphics
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_Depth;
     }
 
-    static uint8_t DX12GetTextureMipmapCount(HTexture texture)
+    static uint8_t DX12GetTextureMipmapCount(HContext context, HTexture texture)
     {
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_MipMapCount;
     }

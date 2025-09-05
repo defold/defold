@@ -1889,7 +1889,7 @@ TEST_F(dmGraphicsTest, TestGetTextureParams)
 
         ASSERT_EQ(1,                                         dmGraphics::GetTextureDepth(texture));
         ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D,               dmGraphics::GetTextureType(m_Context, texture));
-        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(texture));
+        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(m_Context, texture));
 
         dmGraphics::DeleteTexture(texture);
     }
@@ -1913,7 +1913,7 @@ TEST_F(dmGraphicsTest, TestGetTextureParams)
 
         ASSERT_EQ(params.m_Depth,                            dmGraphics::GetTextureDepth(texture));
         ASSERT_EQ(dmGraphics::TEXTURE_TYPE_CUBE_MAP,         dmGraphics::GetTextureType(m_Context, texture));
-        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(texture));
+        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(m_Context, texture));
 
         dmGraphics::DeleteTexture(texture);
     }
@@ -1938,7 +1938,7 @@ TEST_F(dmGraphicsTest, TestGetTextureParams)
 
         ASSERT_EQ(params.m_Depth,                            dmGraphics::GetTextureDepth(texture));
         ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D_ARRAY,         dmGraphics::GetTextureType(m_Context, texture));
-        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(texture));
+        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(m_Context, texture));
 
         dmGraphics::DeleteTexture(texture);
     }
