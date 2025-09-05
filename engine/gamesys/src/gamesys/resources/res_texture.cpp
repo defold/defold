@@ -109,9 +109,9 @@ namespace dmGameSystem
         return (dmGraphics::TextureFormat)-1;
     }
 
-    static void DestroyTexture(TextureResource* resource)
+    static void DestroyTexture(dmGraphics::HContext graphics_context, TextureResource* resource)
     {
-        dmGraphics::DeleteTexture(resource->m_Texture);
+        dmGraphics::DeleteTexture(graphics_context, resource->m_Texture);
         delete resource;
     }
 
@@ -463,7 +463,7 @@ namespace dmGameSystem
 
         if (texture_res->m_DelayDelete)
         {
-            DestroyTexture(texture_res);
+            DestroyTexture(graphics_context, texture_res);
             return dmResource::RESULT_OK;
         }
 
@@ -524,7 +524,8 @@ namespace dmGameSystem
             return dmResource::RESULT_OK;
         }
 
-        DestroyTexture(texture_res);
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext)params->m_Context;
+        DestroyTexture(graphics_context, texture_res);
         return dmResource::RESULT_OK;
     }
 

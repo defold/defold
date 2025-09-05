@@ -2933,7 +2933,7 @@ static HTexture WebGPUNewTexture(HContext _context, const TextureCreationParams&
     return StoreAssetInContainer(context->m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
 }
 
-static void WebGPUDeleteTexture(HTexture _texture)
+static void WebGPUDeleteTexture(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
@@ -3133,15 +3133,16 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
 static void WebGPUDestroyRenderTarget(WebGPURenderTarget *rt)
 {
     TRACE_CALL;
+    HContext context = (HContext)g_WebGPUContext;
     for (size_t i = 0; i < rt->m_ColorBufferCount; ++i)
     {
         if (rt->m_TextureColor[i])
-            WebGPUDeleteTexture(rt->m_TextureColor[i]);
+            WebGPUDeleteTexture(context, rt->m_TextureColor[i]);
         if (rt->m_TextureResolve[i])
-            WebGPUDeleteTexture(rt->m_TextureResolve[i]);
+            WebGPUDeleteTexture(context, rt->m_TextureResolve[i]);
     }
     if (rt->m_TextureDepthStencil)
-        WebGPUDeleteTexture(rt->m_TextureDepthStencil);
+        WebGPUDeleteTexture(context, rt->m_TextureDepthStencil);
     delete rt;
 }
 

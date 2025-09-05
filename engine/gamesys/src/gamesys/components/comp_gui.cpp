@@ -464,9 +464,10 @@ namespace dmGameSystem
             }
         }
 
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
         dmGraphics::DeleteVertexDeclaration(gui_world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(gui_world->m_VertexBuffer);
-        dmGraphics::DeleteTexture(gui_world->m_WhiteTexture);
+        dmGraphics::DeleteTexture(graphics_context, gui_world->m_WhiteTexture);
 
         dmScript::DeleteScriptWorld(gui_world->m_ScriptWorld);
 

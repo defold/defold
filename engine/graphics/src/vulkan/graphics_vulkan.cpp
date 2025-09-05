@@ -3447,6 +3447,7 @@ bail:
 
     static void VulkanDeleteRenderTarget(HRenderTarget render_target)
     {
+        HContext context = (HContext)g_VulkanContext;
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_VulkanContext->m_AssetHandleContainer, render_target);
         g_VulkanContext->m_AssetHandleContainer.Release(render_target);
 
@@ -3454,13 +3455,13 @@ bail:
         {
             if (rt->m_TextureColor[i])
             {
-                DeleteTexture(rt->m_TextureColor[i]);
+                DeleteTexture(context, rt->m_TextureColor[i]);
             }
         }
 
         if (rt->m_TextureDepthStencil)
         {
-            DeleteTexture(rt->m_TextureDepthStencil);
+            DeleteTexture(context, rt->m_TextureDepthStencil);
         }
 
         DestroyRenderTarget(g_VulkanContext, rt);
@@ -3661,7 +3662,7 @@ bail:
         delete texture;
     }
 
-    static void VulkanDeleteTexture(HTexture texture)
+    static void VulkanDeleteTexture(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanDeleteTextureInternal(GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture));

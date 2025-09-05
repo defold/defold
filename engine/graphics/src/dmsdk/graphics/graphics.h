@@ -975,9 +975,10 @@ namespace dmGraphics
     /*#
      * Delete texture
      * @name DeleteTexture
+     * @param context [type:dmGraphics::HContext] Graphics context
      * @param texture [type:dmGraphics::HTexture] Texture handle
      */
-    void DeleteTexture(HTexture texture);
+    void DeleteTexture(HContext context, HTexture texture);
 
     /*#
      * Set texture data. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that

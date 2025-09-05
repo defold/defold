@@ -156,7 +156,7 @@ namespace dmRender
 
         if (font_map->m_Texture)
         {
-            dmGraphics::DeleteTexture(font_map->m_Texture);
+            dmGraphics::DeleteTexture(graphics_context, font_map->m_Texture);
         }
         font_map->m_Texture = dmGraphics::NewTexture(graphics_context, tex_create_params);
 

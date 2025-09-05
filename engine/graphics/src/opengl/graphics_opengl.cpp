@@ -924,7 +924,7 @@ static void LogFrameBufferError(GLenum status)
             glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
             CHECK_GL_ERROR;
             glDeleteFramebuffers(1, &osfb);
-            DeleteTexture(texture_handle);
+            DeleteTexture(_context, texture_handle);
 
             if(memcmp(data, gpu_data, sizeof(data))!=0)
             {
@@ -3475,7 +3475,7 @@ static void LogFrameBufferError(GLenum status)
         }
         else if (attachment.m_Type == ATTACHMENT_TYPE_TEXTURE && attachment.m_Texture)
         {
-            DeleteTexture(attachment.m_Texture);
+            DeleteTexture((HContext)g_Context, attachment.m_Texture);
             attachment.m_Texture = 0;
         }
     }
@@ -3805,7 +3805,7 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static void OpenGLDeleteTexture(HTexture texture)
+    static void OpenGLDeleteTexture(HContext context, HTexture texture)
     {
         assert(texture);
         // We can only delete valid textures

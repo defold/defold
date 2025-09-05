@@ -1779,9 +1779,9 @@ namespace dmGraphics
     {
         return g_functions.m_NewTexture(context, params);
     }
-    void DeleteTexture(HTexture t)
+    void DeleteTexture(HContext context, HTexture t)
     {
-        g_functions.m_DeleteTexture(t);
+        g_functions.m_DeleteTexture(context, t);
     }
     void SetTexture(HContext context, HTexture texture, const TextureParams& params)
     {

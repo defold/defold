@@ -786,16 +786,16 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     ASSERT_EQ(0, CountSamplersInTextureBindTable(m_Context, texture_sampler_1_hash));
     ASSERT_EQ(1, CountSamplersInTextureBindTable(m_Context, texture_sampler_2_hash));
 
-    dmGraphics::DeleteTexture(test_texture_0);
-    dmGraphics::DeleteTexture(test_texture_1);
-    dmGraphics::DeleteTexture(test_texture_array);
+    dmGraphics::DeleteTexture(m_GraphicsContext, test_texture_0);
+    dmGraphics::DeleteTexture(m_GraphicsContext, test_texture_1);
+    dmGraphics::DeleteTexture(m_GraphicsContext, test_texture_array);
 
     for (int i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
     {
-        dmGraphics::DeleteTexture(textures[i]);
+        dmGraphics::DeleteTexture(m_GraphicsContext, textures[i]);
     }
 
-    dmGraphics::DeleteTexture(test_texture_0);
+    dmGraphics::DeleteTexture(m_GraphicsContext, test_texture_0);
 
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
     dmRender::DeleteMaterial(m_Context, material);
@@ -1050,7 +1050,7 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
     dmRender::DeleteMaterial(m_Context, material_no_samplers);
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 
-    dmGraphics::DeleteTexture(texture);
+    dmGraphics::DeleteTexture(m_GraphicsContext, texture);
     dmGraphics::DeleteVertexBuffer(vx_buffer);
     dmGraphics::DeleteVertexDeclaration(vx_decl);
 }

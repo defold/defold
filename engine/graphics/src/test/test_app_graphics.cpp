@@ -299,7 +299,7 @@ struct AsyncTextureUploadTest : ITest
                 CheckTexture(engine->m_GraphicsContext, back.m_Texture);
 
                 // Immediately delete, so we simulate putting them on a post-delete-queue
-                dmGraphics::DeleteTexture(back.m_Texture);
+                dmGraphics::DeleteTexture(engine->m_GraphicsContext, back.m_Texture);
             }
         }
     }

@@ -690,7 +690,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
     SetTextureAsyncRequest* request = (SetTextureAsyncRequest*) user_data;
 
     // Swap out the texture
-    dmGraphics::DeleteTexture(request->m_TextureResource->m_Texture);
+    dmGraphics::DeleteTexture(g_ResourceModule.m_GraphicsContext, request->m_TextureResource->m_Texture);
     request->m_TextureResource->m_Texture = texture;
 
     if (dmScript::IsCallbackValid(request->m_CallbackInfo))

@@ -1106,6 +1106,7 @@ namespace dmGraphics
 
     static void NullDeleteRenderTarget(HRenderTarget render_target)
     {
+        HContext context = (HContext)g_NullContext;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_NullContext->m_AssetHandleContainer, render_target);
 
@@ -1113,16 +1114,16 @@ namespace dmGraphics
         {
             if (rt->m_ColorBufferTexture[i])
             {
-                DeleteTexture(rt->m_ColorBufferTexture[i]);
+                DeleteTexture(context, rt->m_ColorBufferTexture[i]);
             }
         }
         if (rt->m_DepthBufferTexture)
         {
-            DeleteTexture(rt->m_DepthBufferTexture);
+            DeleteTexture(context, rt->m_DepthBufferTexture);
         }
         if (rt->m_StencilBufferTexture)
         {
-            DeleteTexture(rt->m_StencilBufferTexture);
+            DeleteTexture(context, rt->m_StencilBufferTexture);
         }
         delete [] (char*)rt->m_FrameBuffer.m_DepthBuffer;
         delete [] (char*)rt->m_FrameBuffer.m_StencilBuffer;
@@ -1402,7 +1403,7 @@ namespace dmGraphics
         }
     }
 
-    static void NullDeleteTexture(HTexture texture)
+    static void NullDeleteTexture(HContext context, HTexture texture)
     {
         if (g_NullContext->m_AsyncProcessingSupport && g_NullContext->m_UseAsyncTextureLoad)
         {

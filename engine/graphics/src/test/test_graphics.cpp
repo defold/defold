@@ -1300,7 +1300,7 @@ TEST_F(dmGraphicsTest, TestTexture)
     ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(m_Context, texture));
     dmGraphics::EnableTexture(m_Context, 0, 0, texture);
     dmGraphics::DisableTexture(m_Context, 0, texture);
-    dmGraphics::DeleteTexture(texture);
+    dmGraphics::DeleteTexture(m_Context, texture);
 }
 
 #if defined(DM_HAS_THREADS)
@@ -1371,7 +1371,7 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
         ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(m_Context, textures[i]));
         dmGraphics::EnableTexture(m_Context, 0, 0, textures[i]);
         dmGraphics::DisableTexture(m_Context, 0, textures[i]);
-        dmGraphics::DeleteTexture(textures[i]);
+        dmGraphics::DeleteTexture(m_Context, textures[i]);
     }
 
     all_complete = false;
@@ -1455,7 +1455,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
             dmGraphics::SetTextureAsync(m_Context, textures[i], params, 0, 0);
 
             // Immediately delete, so we simulate putting them on a post-delete-queue
-            dmGraphics::DeleteTexture(textures[i]);
+            dmGraphics::DeleteTexture(m_Context, textures[i]);
         }
 
         // Trigger a flush of the post deletion textures by issuing a flip
@@ -1490,7 +1490,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
 
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
-            dmGraphics::DeleteTexture(textures[i]);
+            dmGraphics::DeleteTexture(m_Context, textures[i]);
         }
 
         ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobThread, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_DELETE));
@@ -1546,7 +1546,7 @@ TEST_F(dmGraphicsSynchronousTest, TestSetTextureBounds)
 
     delete [] (char*)params.m_Data;
 
-    dmGraphics::DeleteTexture(texture);
+    dmGraphics::DeleteTexture(m_Context, texture);
 }
 
 TEST_F(dmGraphicsTest, TestMaxTextureSize)
@@ -1577,7 +1577,7 @@ TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimension)
     ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(m_Context, texture));
     dmGraphics::EnableTexture(m_Context, 0, 0, texture);
     dmGraphics::DisableTexture(m_Context, 0, texture);
-    dmGraphics::DeleteTexture(texture);
+    dmGraphics::DeleteTexture(m_Context, texture);
 }
 
 static inline dmGraphics::RenderTargetCreationParams InitializeRenderTargetParams(uint32_t w, uint32_t h)
@@ -1891,7 +1891,7 @@ TEST_F(dmGraphicsTest, TestGetTextureParams)
         ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D,               dmGraphics::GetTextureType(m_Context, texture));
         ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(m_Context, texture));
 
-        dmGraphics::DeleteTexture(texture);
+        dmGraphics::DeleteTexture(m_Context, texture);
     }
     // Texture cube
     {
@@ -1915,7 +1915,7 @@ TEST_F(dmGraphicsTest, TestGetTextureParams)
         ASSERT_EQ(dmGraphics::TEXTURE_TYPE_CUBE_MAP,         dmGraphics::GetTextureType(m_Context, texture));
         ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(m_Context, texture));
 
-        dmGraphics::DeleteTexture(texture);
+        dmGraphics::DeleteTexture(m_Context, texture);
     }
 
     // Texture 2D array
@@ -1940,7 +1940,7 @@ TEST_F(dmGraphicsTest, TestGetTextureParams)
         ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D_ARRAY,         dmGraphics::GetTextureType(m_Context, texture));
         ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(m_Context, texture));
 
-        dmGraphics::DeleteTexture(texture);
+        dmGraphics::DeleteTexture(m_Context, texture);
     }
 }
 
@@ -1964,7 +1964,7 @@ TEST_F(dmGraphicsTest, TestGraphicsHandles)
 
         dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture));
-        dmGraphics::DeleteTexture(texture);
+        dmGraphics::DeleteTexture(m_Context, texture);
 
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, texture));
 

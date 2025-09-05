@@ -2863,7 +2863,7 @@ namespace dmGraphics
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
-    static void DX12DeleteTexture(HTexture texture)
+    static void DX12DeleteTexture(HContext context, HTexture texture)
     {
     }
 

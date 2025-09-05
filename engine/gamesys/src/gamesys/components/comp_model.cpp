@@ -270,6 +270,7 @@ namespace dmGameSystem
     {
         ModelContext* context = (ModelContext*)params.m_Context;
         ModelWorld* world = (ModelWorld*)params.m_World;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(context->m_RenderContext);
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclarationSkinned);
         dmGraphics::DeleteVertexDeclaration(world->m_InstanceVertexDeclaration);
@@ -297,7 +298,7 @@ namespace dmGameSystem
         if (world->m_SkinnedAnimationData.m_BindPoseCacheBuffer)
             free(world->m_SkinnedAnimationData.m_BindPoseCacheBuffer);
         if (world->m_SkinnedAnimationData.m_BindPoseCacheTexture)
-            dmGraphics::DeleteTexture(world->m_SkinnedAnimationData.m_BindPoseCacheTexture);
+            dmGraphics::DeleteTexture(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture);
 
         delete [] world->m_VertexBufferData;
         delete [] world->m_VertexBufferDispatchCounts;
