@@ -274,7 +274,7 @@ struct AsyncTextureUploadTest : ITest
         dmGraphics::GetTextureMipmapCount(texture);
         dmGraphics::GetTextureType(texture);
         dmGraphics::GetNumTextureHandles(texture);
-        dmGraphics::GetTextureUsageHintFlags(texture);
+        dmGraphics::GetTextureUsageHintFlags(context, texture);
 
         dmGraphics::EnableTexture(context, 0, 0, texture);
         dmGraphics::DisableTexture(context, 0, texture);

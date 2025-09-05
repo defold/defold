@@ -1884,9 +1884,9 @@ namespace dmGraphics
     {
         return g_functions.m_GetNumTextureHandles(texture);
     }
-    uint32_t GetTextureUsageHintFlags(HTexture texture)
+    uint32_t GetTextureUsageHintFlags(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureUsageHintFlags(texture);
+        return g_functions.m_GetTextureUsageHintFlags(context, texture);
     }
     uint8_t GetTexturePageCount(HTexture texture)
     {

@@ -1653,7 +1653,7 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
     uint32_t texture_depth               = dmGraphics::GetTextureDepth(texture_handle);
     uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(texture_handle);
     dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture_handle);
-    uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(texture_handle);
+    uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(g_ResourceModule.m_GraphicsContext, texture_handle);
     uint8_t  page_count                  = dmGraphics::GetTexturePageCount(texture_handle);
 
     lua_pushnumber(L, texture_handle);

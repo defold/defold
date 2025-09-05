@@ -4441,7 +4441,7 @@ bail:
         return tex ? tex->m_Type : TEXTURE_TYPE_2D;
     }
 
-    static uint32_t VulkanGetTextureUsageHintFlags(HTexture texture)
+    static uint32_t VulkanGetTextureUsageHintFlags(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);

@@ -145,7 +145,7 @@ namespace dmGraphics
     typedef uint32_t (*GetNumSupportedExtensionsFn)(HContext context);
     typedef const char* (*GetSupportedExtensionFn)(HContext context, uint32_t index);
     typedef uint8_t (*GetNumTextureHandlesFn)(HTexture texture);
-    typedef uint32_t (*GetTextureUsageHintFlagsFn)(HTexture texture);
+    typedef uint32_t (*GetTextureUsageHintFlagsFn)(HContext context, HTexture texture);
     typedef uint8_t (*GetTexturePageCountFn)(HTexture texture);
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);

@@ -3410,7 +3410,7 @@ static uint8_t WebGPUGetNumTextureHandles(HTexture texture)
     return 1;
 }
 
-static uint32_t WebGPUGetTextureUsageHintFlags(HTexture _texture)
+static uint32_t WebGPUGetTextureUsageHintFlags(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);

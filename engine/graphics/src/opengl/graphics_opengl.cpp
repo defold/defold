@@ -3914,7 +3914,7 @@ static void LogFrameBufferError(GLenum status)
         return tex ? tex->m_NumTextureIds : 0;
     }
 
-    static uint32_t OpenGLGetTextureUsageHintFlags(HTexture texture)
+    static uint32_t OpenGLGetTextureUsageHintFlags(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);

@@ -3301,7 +3301,7 @@ namespace dmGraphics
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_Type;
     }
 
-    static uint32_t DX12GetTextureUsageHintFlags(HTexture texture)
+    static uint32_t DX12GetTextureUsageHintFlags(HContext context, HTexture texture)
     {
         return 0;
         // return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_UsageHintFlags;

@@ -1088,10 +1088,11 @@ namespace dmGraphics
 
     /*#
      * @name GetTextureUsageHintFlags
+     * @param context [type:dmGraphics::HContext]
      * @param texture [type:dmGraphics::HTexture]
      * @return flags [type:uint32_t]
      */
-    uint32_t GetTextureUsageHintFlags(HTexture texture);
+    uint32_t GetTextureUsageHintFlags(HContext context, HTexture texture);
 
     /*#
      * Get status of texture.
