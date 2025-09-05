@@ -2972,7 +2972,7 @@ static void WebGPUSetTextureParams(HContext context, HTexture _texture, TextureF
     WebGPUSetTextureParamsInternal(texture, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
 }
 
-static void WebGPUSetTexture(HTexture _texture, const TextureParams& params)
+static void WebGPUSetTexture(HContext context, HTexture _texture, const TextureParams& params)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);

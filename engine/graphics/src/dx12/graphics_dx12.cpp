@@ -3021,7 +3021,7 @@ namespace dmGraphics
         DX12SetTextureParamsInternal(g_DX12Context, tex, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
 
-    static void DX12SetTexture(HTexture texture, const TextureParams& params)
+    static void DX12SetTexture(HContext context, HTexture texture, const TextureParams& params)
     {
         // Same as graphics_opengl.cpp
         switch (params.m_Format)
@@ -3279,7 +3279,7 @@ namespace dmGraphics
 
     static void DX12SetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
-        SetTexture(texture, params);
+        SetTexture(context, texture, params);
         if (callback)
         {
             callback(texture, user_data);
