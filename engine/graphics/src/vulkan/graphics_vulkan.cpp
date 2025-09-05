@@ -4461,7 +4461,7 @@ bail:
         return HANDLE_RESULT_NOT_AVAILABLE;
     }
 
-    static uint8_t VulkanGetNumTextureHandles(HTexture texture)
+    static uint8_t VulkanGetNumTextureHandles(HContext context, HTexture texture)
     {
         return 1;
     }

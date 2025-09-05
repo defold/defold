@@ -1081,10 +1081,11 @@ namespace dmGraphics
 
     /*#
      * @name GetNumTextureHandles
+     * @param context [type:dmGraphics::Context]
      * @param texture [type:dmGraphics::HTexture]
      * @return handles_amount [type:uint8_t]
      */
-    uint8_t GetNumTextureHandles(HTexture texture);
+    uint8_t GetNumTextureHandles(HContext context, HTexture texture);
 
     /*#
      * @name GetTextureUsageHintFlags

@@ -3404,7 +3404,7 @@ static const char* WebGPUGetSupportedExtension(HContext context, uint32_t index)
     return "";
 }
 
-static uint8_t WebGPUGetNumTextureHandles(HTexture texture)
+static uint8_t WebGPUGetNumTextureHandles(HContext context, HTexture texture)
 {
     TRACE_CALL;
     return 1;

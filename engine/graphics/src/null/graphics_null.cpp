@@ -1796,7 +1796,7 @@ namespace dmGraphics
         return "";
     }
 
-    static uint8_t NullGetNumTextureHandles(HTexture texture)
+    static uint8_t NullGetNumTextureHandles(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_NumTextureIds;

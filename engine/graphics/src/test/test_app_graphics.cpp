@@ -273,7 +273,7 @@ struct AsyncTextureUploadTest : ITest
         dmGraphics::GetOriginalTextureHeight(texture);
         dmGraphics::GetTextureMipmapCount(texture);
         dmGraphics::GetTextureType(texture);
-        dmGraphics::GetNumTextureHandles(texture);
+        dmGraphics::GetNumTextureHandles(context, texture);
         dmGraphics::GetTextureUsageHintFlags(context, texture);
 
         dmGraphics::EnableTexture(context, 0, 0, texture);

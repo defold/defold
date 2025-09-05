@@ -1880,9 +1880,9 @@ namespace dmGraphics
     {
         return g_functions.m_GetPipelineState(context);
     }
-    uint8_t GetNumTextureHandles(HTexture texture)
+    uint8_t GetNumTextureHandles(HContext context, HTexture texture)
     {
-        return g_functions.m_GetNumTextureHandles(texture);
+        return g_functions.m_GetNumTextureHandles(context, texture);
     }
     uint32_t GetTextureUsageHintFlags(HContext context, HTexture texture)
     {

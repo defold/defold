@@ -3326,7 +3326,7 @@ namespace dmGraphics
         return "";
     }
 
-    static uint8_t DX12GetNumTextureHandles(HTexture texture)
+    static uint8_t DX12GetNumTextureHandles(HContext context, HTexture texture)
     {
         return 1;
     }

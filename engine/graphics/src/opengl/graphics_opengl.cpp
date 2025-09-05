@@ -3907,7 +3907,7 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static uint8_t OpenGLGetNumTextureHandles(HTexture texture)
+    static uint8_t OpenGLGetNumTextureHandles(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
