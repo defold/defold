@@ -611,8 +611,8 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     //      -> set_texture.script::test_success_compressed
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 32);
-    ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 32);
+    ASSERT_EQ(dmGraphics::GetTextureWidth(m_GraphicsContext, backing_texture), 32);
+    ASSERT_EQ(dmGraphics::GetTextureHeight(m_GraphicsContext, backing_texture), 32);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Test 6: Set texture with mipmaps
