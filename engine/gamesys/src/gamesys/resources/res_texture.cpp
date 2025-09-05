@@ -476,7 +476,7 @@ namespace dmGameSystem
         ImageDesc* image_desc = (ImageDesc*) params->m_PreloadData;
         dmDDF::FreeMessage(image_desc->m_DDFImage);
         DestroyImage(image_desc);
-        dmResource::SetResourceSize(params->m_Resource, dmGraphics::GetTextureResourceSize(texture_res->m_Texture));
+        dmResource::SetResourceSize(params->m_Resource, dmGraphics::GetTextureResourceSize(graphics_context, texture_res->m_Texture));
         return dmResource::RESULT_OK;
     }
 
@@ -587,7 +587,7 @@ namespace dmGameSystem
         }
         if(r == dmResource::RESULT_OK)
         {
-            dmResource::SetResourceSize(params->m_Resource, dmGraphics::GetTextureResourceSize(texture));
+            dmResource::SetResourceSize(params->m_Resource, dmGraphics::GetTextureResourceSize(graphics_context, texture));
         }
         return r;
     }

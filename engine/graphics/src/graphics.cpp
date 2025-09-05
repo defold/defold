@@ -1795,9 +1795,9 @@ namespace dmGraphics
     {
         g_functions.m_SetTextureParams(texture, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
-    uint32_t GetTextureResourceSize(HTexture texture)
+    uint32_t GetTextureResourceSize(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureResourceSize(texture);
+        return g_functions.m_GetTextureResourceSize(context, texture);
     }
     uint16_t GetTextureWidth(HContext context, HTexture texture)
     {

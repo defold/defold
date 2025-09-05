@@ -4462,7 +4462,7 @@ static void LogFrameBufferError(GLenum status)
     }
 
     // NOTE: This is an approximation
-    static uint32_t OpenGLGetTextureResourceSize(HTexture texture)
+    static uint32_t OpenGLGetTextureResourceSize(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);

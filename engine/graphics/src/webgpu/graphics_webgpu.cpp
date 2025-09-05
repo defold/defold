@@ -2965,7 +2965,7 @@ static void WebGPUSetTexture(HTexture _texture, const TextureParams& params)
     WebGPUSetTextureInternal(texture, params);
 }
 
-static uint32_t WebGPUGetTextureResourceSize(HTexture _texture)
+static uint32_t WebGPUGetTextureResourceSize(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);

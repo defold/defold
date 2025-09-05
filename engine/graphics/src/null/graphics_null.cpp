@@ -1484,7 +1484,7 @@ namespace dmGraphics
         tex->m_Sampler.m_VWrap     = params.m_VWrap;
     }
 
-    static uint32_t NullGetTextureResourceSize(HTexture texture)
+    static uint32_t NullGetTextureResourceSize(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         Texture* tex = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);

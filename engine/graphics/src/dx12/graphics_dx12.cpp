@@ -3101,7 +3101,7 @@ namespace dmGraphics
         }
     }
 
-    static uint32_t DX12GetTextureResourceSize(HTexture texture)
+    static uint32_t DX12GetTextureResourceSize(HContext context, HTexture texture)
     {
         return 0;
     }

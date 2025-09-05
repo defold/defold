@@ -4370,7 +4370,7 @@ bail:
     }
 
     // NOTE: Currently over estimates the resource usage for compressed formats!
-    static uint32_t VulkanGetTextureResourceSize(HTexture texture)
+    static uint32_t VulkanGetTextureResourceSize(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);

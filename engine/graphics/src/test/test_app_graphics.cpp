@@ -265,7 +265,7 @@ struct AsyncTextureUploadTest : ITest
     void CheckTexture(dmGraphics::HContext context, dmGraphics::HTexture texture)
     {
         dmGraphics::SetTextureParams(texture, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, 0.0f);
-        dmGraphics::GetTextureResourceSize(texture);
+        dmGraphics::GetTextureResourceSize(context, texture);
         dmGraphics::GetTextureWidth(context, texture);
         dmGraphics::GetTextureHeight(context, texture);
         dmGraphics::GetTextureDepth(context, texture);

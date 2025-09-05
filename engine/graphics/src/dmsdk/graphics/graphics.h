@@ -1022,10 +1022,11 @@ namespace dmGraphics
 
     /*#
      * @name GetTextureResourceSize
+     * @param context [type:dmGraphics::HContext] Graphics context
      * @param texture [type:dmGraphics::HTexture] Texture handle
      * @return data_size [type:uint32_t] Resource data size in bytes
      */ 
-    uint32_t GetTextureResourceSize(HTexture texture);
+    uint32_t GetTextureResourceSize(HContext context, HTexture texture);
 
     /*#
      * Get texture's width
