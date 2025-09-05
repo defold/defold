@@ -2997,14 +2997,14 @@ static uint16_t WebGPUGetTextureHeight(HTexture _texture)
     return texture->m_Height;
 }
 
-static uint16_t WebGPUGetOriginalTextureWidth(HTexture _texture)
+static uint16_t WebGPUGetOriginalTextureWidth(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
     return texture->m_OriginalWidth;
 }
 
-static uint16_t WebGPUGetOriginalTextureHeight(HTexture _texture)
+static uint16_t WebGPUGetOriginalTextureHeight(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);

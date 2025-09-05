@@ -3116,12 +3116,12 @@ namespace dmGraphics
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_Height;
     }
 
-    static uint16_t DX12GetOriginalTextureWidth(HTexture texture)
+    static uint16_t DX12GetOriginalTextureWidth(HContext context, HTexture texture)
     {
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_OriginalWidth;
     }
 
-    static uint16_t DX12GetOriginalTextureHeight(HTexture texture)
+    static uint16_t DX12GetOriginalTextureHeight(HContext context, HTexture texture)
     {
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_OriginalHeight;
     }

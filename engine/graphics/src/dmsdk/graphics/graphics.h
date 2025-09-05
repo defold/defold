@@ -1053,17 +1053,19 @@ namespace dmGraphics
 
     /*#
      * @name GetOriginalTextureWidth
+     * @param context [type:dmGraphics::HContext]
      * @param texture [type:dmGraphics::HTexture] Texture handle
      * @return original_width [type:uin16_t] Texture's original width
      */
-    uint16_t GetOriginalTextureWidth(HTexture texture);
+    uint16_t GetOriginalTextureWidth(HContext context, HTexture texture);
 
     /*#
      * @name GetOriginalTextureHeight
+     * @param context [type:dmGraphics::HContext]
      * @param texture [type:dmGraphics::HTexture]
      * @return original_height [type:uint16_t]
      */
-    uint16_t GetOriginalTextureHeight(HTexture texture);
+    uint16_t GetOriginalTextureHeight(HContext context, HTexture texture);
 
     /*#
      * @name GetTextureMipmapCount
@@ -1075,8 +1077,8 @@ namespace dmGraphics
 
     /*#
      * @name GetTextureType
-     * @param context [type:HContext]
-     * @param texture [type:HTexture]
+     * @param context [type:dmGraphics::HContext]
+     * @param texture [type:dmGraphics::HTexture]
      * @return type [type:dmGraphics::TextureType]
      */
     TextureType GetTextureType(HContext context, HTexture texture);

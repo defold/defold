@@ -129,8 +129,8 @@ namespace dmGraphics
     typedef uint32_t (*GetTextureResourceSizeFn)(HTexture texture);
     typedef uint16_t (*GetTextureWidthFn)(HTexture texture);
     typedef uint16_t (*GetTextureHeightFn)(HTexture texture);
-    typedef uint16_t (*GetOriginalTextureWidthFn)(HTexture texture);
-    typedef uint16_t (*GetOriginalTextureHeightFn)(HTexture texture);
+    typedef uint16_t (*GetOriginalTextureWidthFn)(HContext context, HTexture texture);
+    typedef uint16_t (*GetOriginalTextureHeightFn)(HContext context, HTexture texture);
     typedef uint16_t (*GetTextureDepthFn)(HTexture texture);
     typedef uint8_t (*GetTextureMipmapCountFn)(HContext context, HTexture texture);
     typedef TextureType (*GetTextureTypeFn)(HContext context, HTexture texture);

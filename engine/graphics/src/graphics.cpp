@@ -1811,13 +1811,13 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureDepth(texture);
     }
-    uint16_t GetOriginalTextureWidth(HTexture texture)
+    uint16_t GetOriginalTextureWidth(HContext context, HTexture texture)
     {
-        return g_functions.m_GetOriginalTextureWidth(texture);
+        return g_functions.m_GetOriginalTextureWidth(context, texture);
     }
-    uint16_t GetOriginalTextureHeight(HTexture texture)
+    uint16_t GetOriginalTextureHeight(HContext context, HTexture texture)
     {
-        return g_functions.m_GetOriginalTextureHeight(texture);
+        return g_functions.m_GetOriginalTextureHeight(context, texture);
     }
     uint8_t GetTextureMipmapCount(HContext context, HTexture texture)
     {

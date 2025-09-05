@@ -1296,8 +1296,8 @@ TEST_F(dmGraphicsTest, TestTexture)
     delete [] (char*)params.m_Data;
     ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(texture));
     ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(texture));
-    ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(texture));
-    ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
+    ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(m_Context, texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(m_Context, texture));
     dmGraphics::EnableTexture(m_Context, 0, 0, texture);
     dmGraphics::DisableTexture(m_Context, 0, texture);
     dmGraphics::DeleteTexture(texture);
@@ -1367,8 +1367,8 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     {
         ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(textures[i]));
         ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(textures[i]));
-        ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(textures[i]));
-        ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(textures[i]));
+        ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(m_Context, textures[i]));
+        ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(m_Context, textures[i]));
         dmGraphics::EnableTexture(m_Context, 0, 0, textures[i]);
         dmGraphics::DisableTexture(m_Context, 0, textures[i]);
         dmGraphics::DeleteTexture(textures[i]);
@@ -1573,8 +1573,8 @@ TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimension)
     delete [] (char*)params.m_Data;
     ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(texture));
     ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(texture));
-    ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(texture));
-    ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
+    ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(m_Context, texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(m_Context, texture));
     dmGraphics::EnableTexture(m_Context, 0, 0, texture);
     dmGraphics::DisableTexture(m_Context, 0, texture);
     dmGraphics::DeleteTexture(texture);
