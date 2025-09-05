@@ -1148,6 +1148,13 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    void GetDecoderOutputSettings(DecoderOutputSettings* settings)
+    {
+        memset(settings, 0, sizeof(DecoderOutputSettings));
+        settings->m_UseNormalizedFloatRange = true;
+        settings->m_UseInterleaved = true;
+    }
+
     uint32_t GetAndIncreasePlayCounter()
     {
        if (g_SoundSystem->m_PlayCounter == dmSound::INVALID_PLAY_ID)

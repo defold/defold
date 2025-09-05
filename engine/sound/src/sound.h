@@ -165,6 +165,12 @@ namespace dmSound
     bool IsMusicPlaying();
     bool IsAudioInterrupted();
 
+    struct DecoderOutputSettings {
+        bool m_UseNormalizedFloatRange;     //!< if true, decoders must deliver any float data in [-1..1] range, otherwise: [-32768, 32767]
+        bool m_UseInterleaved;              //!< if true, decoders must deliver data with interleaved channels, otherwise: they can choose
+    };
+    void GetDecoderOutputSettings(DecoderOutputSettings* settings);
+
     void OnWindowFocus(bool focus);
 }
 

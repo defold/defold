@@ -250,7 +250,7 @@ namespace dmSound
         params->m_UseThread = true;
         params->m_DSPImplementation = DSPIMPL_TYPE_DEFAULT;
         params->m_UseLinearGain = true;
-}
+    }
 
     Result RegisterDevice(struct DeviceType* device)
     {
@@ -353,9 +353,11 @@ namespace dmSound
         HDevice device = 0;
         OpenDeviceParams device_params;
 
+        bool use_thread = params->m_UseThread;
+
         // Configure number of buffers lower if we are running on a thread (we can guarantee more frequent and more reliable updates)
         // TODO: m_BufferCount configurable?
-        const uint16_t num_outbuffers = params->m_UseThread ? SOUND_OUTBUFFER_COUNT : SOUND_OUTBUFFER_COUNT_NO_THREADS;
+        const uint16_t num_outbuffers = use_thread ? SOUND_OUTBUFFER_COUNT : SOUND_OUTBUFFER_COUNT_NO_THREADS;
         assert(num_outbuffers <= SOUND_OUTBUFFER_MAX_COUNT);
 
         device_params.m_BufferCount = num_outbuffers;
@@ -468,7 +470,7 @@ namespace dmSound
 
         sound->m_Thread = 0;
         sound->m_Mutex = 0;
-        if (params->m_UseThread)
+        if (use_thread)
         {
             sound->m_Mutex = dmMutex::New();
             sound->m_Thread = dmThread::New((dmThread::ThreadStart)SoundThread, 0x80000, sound, "sound");
@@ -476,6 +478,7 @@ namespace dmSound
 
         dmLogInfo("Sound");
         dmLogInfo("  nSamplesPerSec:   %d", device_info.m_MixRate);
+        dmLogInfo("       useThread:   %d", use_thread);
 
         return r;
     }
@@ -1776,6 +1779,14 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    void GetDecoderOutputSettings(DecoderOutputSettings* settings)
+    {
+        memset(settings, 0, sizeof(DecoderOutputSettings));
+        // We need non-normallized float output
+        settings->m_UseNormalizedFloatRange = false;
+        // Decoder data can also be non-interleaved (for 'direct delivery')
+        settings->m_UseInterleaved = false;
+    }
 
     bool IsMusicPlaying()
     {
