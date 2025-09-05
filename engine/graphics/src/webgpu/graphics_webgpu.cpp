@@ -3373,7 +3373,7 @@ static void WebGPUSetTextureAsync(HTexture texture, const TextureParams& params,
         callback(texture, user_data);
 }
 
-static uint32_t WebGPUGetTextureStatusFlags(HTexture texture)
+static uint32_t WebGPUGetTextureStatusFlags(HContext context, HTexture texture)
 {
     TRACE_CALL;
     return 0;

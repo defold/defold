@@ -137,7 +137,7 @@ namespace dmGraphics
     typedef void (*EnableTextureFn)(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
     typedef void (*DisableTextureFn)(HContext context, uint32_t unit, HTexture texture);
     typedef uint32_t (*GetMaxTextureSizeFn)(HContext context);
-    typedef uint32_t (*GetTextureStatusFlagsFn)(HTexture texture);
+    typedef uint32_t (*GetTextureStatusFlagsFn)(HContext context, HTexture texture);
     typedef void (*ReadPixelsFn)(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size);
     typedef void (*RunApplicationLoopFn)(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running);
     typedef HandleResult (*GetTextureHandleFn)(HTexture texture, void** out_handle);

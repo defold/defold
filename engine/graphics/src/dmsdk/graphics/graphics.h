@@ -187,7 +187,7 @@ namespace dmGraphics
      * @member TEXTURE_FORMAT_R_ETC2
      * @member TEXTURE_FORMAT_RG_ETC2
      * @member TEXTURE_FORMAT_RGBA_ETC2
-     * @member TEXTURE_FORMAT_RGBA_ASTC_4x4
+     * @member TEXTURE_FORMAT_RGBA_ASTC_4X4
      * @member TEXTURE_FORMAT_RGB_BC1
      * @member TEXTURE_FORMAT_RGBA_BC3
      * @member TEXTURE_FORMAT_R_BC4
@@ -238,7 +238,7 @@ namespace dmGraphics
         TEXTURE_FORMAT_R_ETC2               = 13,
         TEXTURE_FORMAT_RG_ETC2              = 14,
         TEXTURE_FORMAT_RGBA_ETC2            = 15,
-        TEXTURE_FORMAT_RGBA_ASTC_4x4        = 16,
+        TEXTURE_FORMAT_RGBA_ASTC_4X4        = 16,
         TEXTURE_FORMAT_RGB_BC1              = 17,
         TEXTURE_FORMAT_RGBA_BC3             = 18,
         TEXTURE_FORMAT_R_BC4                = 19,
@@ -1097,10 +1097,11 @@ namespace dmGraphics
      * Get status of texture.
      *
      * @name GetTextureStatusFlags
+     * @param context [type:dmGraphics::HContext]
      * @param texture [type:dmGraphics::HTexture]
      * @return flags [type:dmGraphics::TextureStatusFlags] enumerated status bit flags
      */
-    uint32_t GetTextureStatusFlags(HTexture texture);
+    uint32_t GetTextureStatusFlags(HContext context, HTexture texture);
 
     /*#
      * @name EnableTexture

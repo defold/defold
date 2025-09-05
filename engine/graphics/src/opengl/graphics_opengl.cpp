@@ -886,7 +886,7 @@ static void LogFrameBufferError(GLenum status)
             params.m_MipMap = 0;
             SetTextureAsync(texture_handle, params, 0, 0);
 
-            while(GetTextureStatusFlags(texture_handle) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+            while(GetTextureStatusFlags(g_Context, texture_handle) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
             {
                 dmTime::Sleep(100);
             }
@@ -3792,7 +3792,7 @@ static void LogFrameBufferError(GLenum status)
         while(i < context->m_SetTextureAsyncState.m_PostDeleteTextures.Size())
         {
             HTexture texture = context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
-            if(!(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
+            if(!(dmGraphics::GetTextureStatusFlags(g_Context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
             {
                 OpenGLDeleteTextureAsync(context, texture);
                 context->m_SetTextureAsyncState.m_PostDeleteTextures.EraseSwap(i);
@@ -3813,7 +3813,7 @@ static void LogFrameBufferError(GLenum status)
             return;
         }
         // If they're not uploaded yet, we cannot delete them
-        if(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+        if(dmGraphics::GetTextureStatusFlags(g_Context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
         {
             PushSetTextureAsyncDeleteTexture(g_Context->m_SetTextureAsyncState, texture);
         }
@@ -3928,7 +3928,7 @@ static void LogFrameBufferError(GLenum status)
         return tex ? tex->m_PageCount : 0;
     }
 
-    static uint32_t OpenGLGetTextureStatusFlags(HTexture texture)
+    static uint32_t OpenGLGetTextureStatusFlags(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);

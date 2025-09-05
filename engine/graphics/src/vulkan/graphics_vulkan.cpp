@@ -4483,7 +4483,7 @@ bail:
         return g_VulkanContext->m_PhysicalDevice.m_Properties.limits.maxImageDimension2D;
     }
 
-    static uint32_t VulkanGetTextureStatusFlags(HTexture texture)
+    static uint32_t VulkanGetTextureStatusFlags(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);

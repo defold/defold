@@ -1390,7 +1390,7 @@ namespace dmGraphics
         while(i < context->m_SetTextureAsyncState.m_PostDeleteTextures.Size())
         {
             HTexture texture = context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
-            if(!(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
+            if(!(dmGraphics::GetTextureStatusFlags(context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
             {
                 NullDeleteTextureAsync(context, texture);
                 context->m_SetTextureAsyncState.m_PostDeleteTextures.EraseSwap(i);
@@ -1407,7 +1407,7 @@ namespace dmGraphics
         if (g_NullContext->m_AsyncProcessingSupport && g_NullContext->m_UseAsyncTextureLoad)
         {
             // If they're not uploaded yet, we cannot delete them
-            if(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+            if(dmGraphics::GetTextureStatusFlags(g_NullContext, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
             {
                 PushSetTextureAsyncDeleteTexture(g_NullContext->m_SetTextureAsyncState, texture);
             }
@@ -1751,7 +1751,7 @@ namespace dmGraphics
         }
     }
 
-    static uint32_t NullGetTextureStatusFlags(HTexture texture)
+    static uint32_t NullGetTextureStatusFlags(HContext context, HTexture texture)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         Texture* tex   = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);

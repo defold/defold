@@ -28,6 +28,17 @@
  * @language C++
  */
 
+
+/*
+ * @name VkDevice
+ * @type typedef
+ */
+
+/*
+ * @name VkDescriptorPool
+ * @type typedef 
+ */
+
 namespace dmGraphics
 {
     /*#

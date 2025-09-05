@@ -636,7 +636,7 @@ namespace dmGraphics
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_PVRTC_4BPPV1);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_ETC1);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ETC2);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ASTC_4x4);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ASTC_4X4);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_BC1);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_BC3);
             DM_TEXTURE_FORMAT_TO_STR_CASE(R_BC4);
@@ -900,7 +900,7 @@ namespace dmGraphics
         if (IsFormatRGBA(format))
         {
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_BC7);
-            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4);
+            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4X4);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2);
             if (width == height) {
                 TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
@@ -1839,9 +1839,9 @@ namespace dmGraphics
     {
         return g_functions.m_GetMaxTextureSize(context);
     }
-    uint32_t GetTextureStatusFlags(HTexture texture)
+    uint32_t GetTextureStatusFlags(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureStatusFlags(texture);
+        return g_functions.m_GetTextureStatusFlags(context, texture);
     }
     void ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {

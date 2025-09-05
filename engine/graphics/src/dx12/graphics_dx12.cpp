@@ -370,7 +370,7 @@ namespace dmGraphics
             case TEXTURE_FORMAT_R_ETC2:                  return DXGI_FORMAT_UNKNOWN;
             case TEXTURE_FORMAT_RG_ETC2:                 return DXGI_FORMAT_UNKNOWN;
             case TEXTURE_FORMAT_RGBA_ETC2:               return DXGI_FORMAT_UNKNOWN;
-            case TEXTURE_FORMAT_RGBA_ASTC_4x4:           return DXGI_FORMAT_UNKNOWN;
+            case TEXTURE_FORMAT_RGBA_ASTC_4X4:           return DXGI_FORMAT_UNKNOWN;
 
             case TEXTURE_FORMAT_RGB_BC1:                 return DXGI_FORMAT_BC1_UNORM;
             case TEXTURE_FORMAT_RGBA_BC3:                return DXGI_FORMAT_BC3_UNORM;
@@ -3286,7 +3286,7 @@ namespace dmGraphics
         }
     }
 
-    static uint32_t DX12GetTextureStatusFlags(HTexture texture)
+    static uint32_t DX12GetTextureStatusFlags(HContext context, HTexture texture)
     {
         return TEXTURE_STATUS_OK;
     }

@@ -1413,7 +1413,7 @@ static bool WaitUntilSyncronizedTextures(dmGraphics::HContext graphics_context, 
         all_complete = true;
         for (int i = 0; i < texture_count; ++i)
         {
-            if (cond == WAIT_CONDITION_UPLOAD && dmGraphics::GetTextureStatusFlags(textures[i]) != dmGraphics::TEXTURE_STATUS_OK)
+            if (cond == WAIT_CONDITION_UPLOAD && dmGraphics::GetTextureStatusFlags(graphics_context, textures[i]) != dmGraphics::TEXTURE_STATUS_OK)
                 all_complete = false;
             else if (cond == WAIT_CONDITION_DELETE && dmGraphics::IsAssetHandleValid(graphics_context, textures[i]))
                 all_complete = false;

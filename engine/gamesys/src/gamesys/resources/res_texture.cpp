@@ -115,9 +115,9 @@ namespace dmGameSystem
         delete resource;
     }
 
-    static bool SynchronizeTexture(dmGraphics::HTexture texture, bool wait)
+    static bool SynchronizeTexture(dmGraphics::HContext graphics_context, dmGraphics::HTexture texture, bool wait)
     {
-        while(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+        while(dmGraphics::GetTextureStatusFlags(graphics_context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
         {
             if(!wait)
                 return false;
@@ -459,6 +459,7 @@ namespace dmGameSystem
     {
         // Poll state of texture async texture processing and return state. RESULT_PENDING indicates we need to poll again.
         TextureResource* texture_res = (TextureResource*) dmResource::GetResource(params->m_Resource);
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext)params->m_Context;
 
         if (texture_res->m_DelayDelete)
         {
@@ -466,7 +467,7 @@ namespace dmGameSystem
             return dmResource::RESULT_OK;
         }
 
-        if(!SynchronizeTexture(texture_res->m_Texture, false))
+        if(!SynchronizeTexture(graphics_context, texture_res->m_Texture, false))
         {
             return dmResource::RESULT_PENDING;
         }
@@ -569,14 +570,14 @@ namespace dmGameSystem
         }
 
         // Set up the new texture (version), wait for it to finish before issuing new requests
-        SynchronizeTexture(texture, true);
+        SynchronizeTexture(graphics_context, texture, true);
         dmResource::Result r = AcquireResources(params->m_Filename, graphics_context, image_desc, upload_params, texture, &texture);
 
         // Texture might have changed
         texture_res->m_Texture = texture;
 
         // Wait for any async texture uploads
-        SynchronizeTexture(texture, true);
+        SynchronizeTexture(graphics_context, texture, true);
 
         DestroyImage(image_desc);
 
