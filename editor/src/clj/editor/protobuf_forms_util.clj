@@ -18,7 +18,7 @@
 (set! *warn-on-reflection* true)
 
 (defn set-form-op [{:keys [node-id]} [property] value]
-  (g/set-property! node-id property value))
+  (g/set-property node-id property value))
 
 (defn clear-form-op [{:keys [node-id]} [property]]
-  (g/clear-property! node-id property))
+  (g/clear-property node-id property))

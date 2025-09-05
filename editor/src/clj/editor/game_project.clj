@@ -17,6 +17,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.form :as form]
             [editor.fs :as fs]
             [editor.game-project-core :as gpcore]
             [editor.graph-util :as gu]
@@ -240,9 +241,7 @@
 (defn set-setting!
   "Exposed for tests"
   [game-project path value]
-  (let [form-data (g/node-value game-project :form-data)]
-    (let [{:keys [user-data set]} (:form-ops form-data)]
-      (set user-data path value))))
+  (g/transact (form/set-value (:form-ops (g/node-value game-project :form-data)) path value)))
 
 (defn get-setting
   ([game-project path]

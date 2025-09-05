@@ -21,6 +21,7 @@
             [dynamo.graph :as g]
             [editor.code.preprocessors :as code.preprocessors]
             [editor.code.resource :as code.resource]
+            [editor.code.script-annotations :as script-annotations]
             [editor.code.script-intelligence :as si]
             [editor.code.transpilers :as code.transpilers]
             [editor.collision-groups :as collision-groups]
@@ -866,6 +867,9 @@
   ([project evaluation-context]
    (g/node-value project :script-intelligence evaluation-context)))
 
+(defn script-annotations [project evaluation-context]
+  (g/node-value project :script-annotations evaluation-context))
+
 (defn make-node-id+resource-pairs [^long graph-id resources]
   ;; Note: We sort the resources by extension and proj-path to achieve a
   ;; deterministic order for the assigned node-ids.
@@ -1439,29 +1443,38 @@
    (when-let [settings (settings project evaluation-context)]
      (settings ["project" "dependencies"]))))
 
+(defn update-fetch-libraries-notification
+  "Create transaction steps for showing or hiding a 'Fetch Libraries' suggestion
+  when the project dependency list differs from the currently installed
+  dependencies in the workspace."
+  [project evaluation-context]
+  (when-let [workspace (workspace project evaluation-context)]
+    (let [ignored-dep (:default (:element (settings-core/get-meta-setting gpc/meta-settings ["project" "dependencies"])))
+          desired-deps (disj (set (project-dependencies project evaluation-context)) ignored-dep)
+          installed-deps (set (workspace/dependencies workspace evaluation-context))
+          notifications (workspace/notifications workspace evaluation-context)
+          notification-id ::dependencies-changed]
+      (if (not= desired-deps installed-deps)
+        (notifications/show
+          notifications
+          {:id notification-id
+           :type :info
+           :text "Project dependencies have changed. Do you want to fetch the libraries now?"
+           :actions [{:text "Fetch Libraries"
+                      :on-action #(ui/execute-command
+                                    (ui/contexts (ui/main-scene))
+                                    :project.fetch-libraries
+                                    nil)}]})
+        (notifications/close notifications notification-id)))))
+
 (defn update-fetch-libraries-notification!
   "Show or hide a 'Fetch Libraries' suggestion when the project dependency list
   differs from the currently installed dependencies in the workspace."
   [project]
-  (g/with-auto-evaluation-context evaluation-context
-    (when-let [workspace (workspace project evaluation-context)]
-      (let [ignored-dep (:default (:element (settings-core/get-meta-setting gpc/meta-settings ["project" "dependencies"])))
-            desired-deps (disj (set (project-dependencies project evaluation-context)) ignored-dep)
-            installed-deps (set (workspace/dependencies workspace evaluation-context))
-            notifications (workspace/notifications workspace evaluation-context)
-            notification-id ::dependencies-changed]
-        (if (not= desired-deps installed-deps)
-          (notifications/show!
-            notifications
-            {:id notification-id
-             :type :info
-             :text "Project dependencies have changed. Do you want to fetch the libraries now?"
-             :actions [{:text "Fetch Libraries"
-                        :on-action #(ui/execute-command
-                                      (ui/contexts (ui/main-scene))
-                                      :project.fetch-libraries
-                                      nil)}]})
-          (notifications/close! notifications notification-id))))))
+  (g/transact
+    (g/with-auto-evaluation-context evaluation-context
+      (update-fetch-libraries-notification project evaluation-context)))
+  nil)
 
 (defn- handle-resource-changes [project changes render-progress!]
   (reload-plugins! project (set/union (set (:added changes)) (set (:changed changes))))
@@ -1539,6 +1552,7 @@
 
   (input script-intelligence g/NodeID :cascade-delete)
   (input editor-extensions g/NodeID :cascade-delete)
+  (input script-annotations g/NodeID :cascade-delete)
   (input all-selected-node-ids g/Any :array)
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
@@ -1745,7 +1759,10 @@
             (g/transact
               (g/make-nodes graph
                   [script-intelligence si/ScriptIntelligenceNode
-                   project [Project :workspace workspace-id]]
+                   project [Project :workspace workspace-id]
+                   script-annotations script-annotations/ScriptAnnotations]
+                (g/connect workspace-id :root script-annotations :root)
+                (g/connect script-annotations :_node-id project :script-annotations)
                 (g/connect extensions :_node-id project :editor-extensions)
                 (g/connect script-intelligence :_node-id project :script-intelligence)
                 (g/connect workspace-id :build-settings project :build-settings)

@@ -16,12 +16,12 @@
   (:require [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
+            [editor.code.script-annotations :as script-annotations]
             [editor.code.script-compilation :as script-compilation]
             [editor.code.script-intelligence :as script-intelligence]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.lsp :as lsp]
-            [editor.lua :as lua]
             [editor.lua-parser :as lua-parser]
             [editor.properties :as properties]
             [editor.resource :as resource]
@@ -218,12 +218,8 @@
                    :label "Lua Module"
                    :icon "icons/32/Icons_11-Script-general.png"
                    :icon-class :script
+                   :annotations true
                    :tags #{:debuggable}}])
-
-(def ^:private status-errors
-  {:ok nil
-   :invalid-args (g/error-fatal "Invalid arguments to go.property call") ; TODO: not used for now
-   :invalid-value (g/error-fatal "Invalid value in go.property call")})
 
 (defn- prop->key [p]
   (-> p :name properties/user-name->key))
@@ -412,9 +408,6 @@
     original-resource-property-build-targets
     (partial project/get-resource-node (project/get-project _node-id))))
 
-(g/defnk produce-completions [completion-info module-completion-infos script-intelligence-completions]
-  (lua/combine-completions completion-info module-completion-infos script-intelligence-completions))
-
 (g/defnk produce-breakpoints [resource regions]
   (into []
         (comp (filter data/breakpoint-region?)
@@ -430,7 +423,6 @@
   (inherits r/CodeEditorResourceNode)
 
   (input lua-preprocessors g/Any)
-  (input module-completion-infos g/Any :array :substitute gu/array-subst-remove-errors)
   (input script-intelligence-completions script-intelligence/ScriptCompletions)
   (input script-property-name+node-ids NameNodeIDPair :array)
   (input script-property-entries ScriptPropertyEntries :array)
@@ -438,8 +430,6 @@
   (input resource-property-resources resource/Resource :array)
   (input resource-property-build-targets g/Any :array :substitute gu/array-subst-remove-errors)
   (input original-resource-property-build-targets g/Any :array :substitute gu/array-subst-remove-errors)
-
-  (property completion-info g/Any (default {}) (dynamic visible (g/constantly false)))
 
   ;; Overrides modified-lines property in CodeEditorResourceNode.
   (property modified-lines types/Lines
@@ -452,29 +442,9 @@
                          workspace (resource/workspace resource)
                          lua-info (with-open [reader (data/lines-reader new-value)]
                                     (lua-parser/lua-info workspace script-compilation/valid-resource-kind? reader))
-                         own-module (lua/path->lua-module (resource/proj-path resource))
-                         completion-info (assoc lua-info :module own-module)
-                         modules (script-compilation/lua-info->modules lua-info)
                          script-properties (script-compilation/lua-info->script-properties lua-info)]
                      (lsp/notify-lines-modified! lsp resource source-value new-value)
-                     (concat
-                       (g/set-property self :completion-info completion-info)
-                       (g/set-property self :modules modules)
-                       (g/set-property self :script-properties script-properties))))))
-
-  (property modules Modules
-            (default [])
-            (dynamic visible (g/constantly false))
-            (set (fn [evaluation-context self _old-value new-value]
-                   (let [basis (:basis evaluation-context)
-                         project (project/get-project basis self)]
-                     (concat
-                       (g/disconnect-sources basis self :module-completion-infos)
-                       (for [module new-value]
-                         (let [path (lua/lua-module->path module)]
-                           (:tx-data (project/connect-resource-node
-                                       evaluation-context project path self
-                                       [[:completion-info :module-completion-infos]])))))))))
+                     (g/set-property self :script-properties script-properties)))))
 
   (property script-properties g/Any
             (default [])
@@ -499,27 +469,34 @@
 
   (output _properties g/Properties :cached produce-properties)
   (output build-targets g/Any :cached produce-build-targets)
-  (output completions g/Any :cached produce-completions)
+  (output completions g/Any :cached (gu/passthrough script-intelligence-completions))
+  (output resource-with-lines script-annotations/ResourceWithLines (g/fnk [resource lines :as ret] ret))
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output script-property-entries ScriptPropertyEntries (g/fnk [script-property-entries] (reduce into {} script-property-entries)))
   (output script-property-node-ids-by-name NameNodeIDMap (g/fnk [script-property-name+node-ids] (into {} script-property-name+node-ids))))
 
 (defn- additional-load-fn
-  [project self _resource]
-  (let [code-preprocessors (project/code-preprocessors project)
-        script-intelligence (project/script-intelligence project)]
-    (concat
-      (g/connect code-preprocessors :lua-preprocessors self :lua-preprocessors)
-      (g/connect script-intelligence :lua-completions self :script-intelligence-completions))))
+  [annotations project self resource]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [code-preprocessors (project/code-preprocessors project evaluation-context)
+          script-intelligence (project/script-intelligence project evaluation-context)
+          script-annotations (project/script-annotations project evaluation-context)]
+      (concat
+        (g/connect code-preprocessors :lua-preprocessors self :lua-preprocessors)
+        (g/connect script-intelligence :lua-completions self :script-intelligence-completions)
+        (when (and annotations (resource/zip-resource? resource))
+          (g/connect self :resource-with-lines script-annotations :script-annotations))))))
 
 (defn register-resource-types [workspace]
   (for [def script-defs
-        :let [args (assoc def
-                     :node-type ScriptNode
-                     :built-pb-class script-compilation/built-pb-class
-                     :language "lua"
-                     :lazy-loaded false
-                     :additional-load-fn additional-load-fn
-                     :view-types [:code :default]
-                     :view-opts lua-code-opts)]]
+        :let [args (-> def
+                       (dissoc :annotations)
+                       (assoc
+                         :node-type ScriptNode
+                         :built-pb-class script-compilation/built-pb-class
+                         :language "lua"
+                         :lazy-loaded false
+                         :additional-load-fn (partial additional-load-fn (:annotations def))
+                         :view-types [:code :default]
+                         :view-opts lua-code-opts))]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))

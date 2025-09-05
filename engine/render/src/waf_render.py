@@ -66,20 +66,21 @@ def material_file(self, node):
     material.env['CONTENT_ROOT'] = material.generator.content_root
     material.env['SHADER_NAME']  = shader_name
 
-    material.set_inputs(node)
-    material_node = node.change_ext('.materialc')
-    material.set_outputs(material_node)
-
     shader = self.create_task('material_shaderbuilder')
     shader.env['CLASSPATH'] = os.pathsep.join(classpath)
     shader.env['FP'] = material.generator.content_root + msg.fragment_program
     shader.env['VP'] = material.generator.content_root + msg.vertex_program
     shader.env['CONTENT_ROOT'] = material.generator.content_root
 
-    shader.set_inputs(material_node)
-
     shader_node = node.parent.get_bld().make_node(shader_name)
     shader.set_outputs(shader_node)
+
+    # Material task depends on shader output
+    material.set_inputs([node, shader_node])
+    material_node = node.change_ext('.materialc')
+    material.set_outputs(material_node)
+    # Ensure shader runs first, material builders depend on reflection data from shaders
+    material.set_run_after(shader)
 
 waflib.Task.task_factory('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${TGT} ${CONTENT_ROOT} ${DYNAMIC}',
                          color='PINK',
