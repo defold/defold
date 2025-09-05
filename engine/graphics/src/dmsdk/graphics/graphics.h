@@ -569,7 +569,7 @@ namespace dmGraphics
     };
 
     /*#
-     * Texture filter
+     * Texture filters
      * @enum
      * @name TextureFilter
      * @member TEXTURE_FILTER_DEFAULT
