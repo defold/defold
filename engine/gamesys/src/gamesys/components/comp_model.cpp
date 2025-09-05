@@ -243,7 +243,7 @@ namespace dmGameSystem
         default_texture_params.m_Depth  = 1;
         default_texture_params.m_Data   = default_texture_data;
         default_texture_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
-        dmGraphics::SetTexture(world->m_SkinnedAnimationData.m_BindPoseCacheTexture, default_texture_params);
+        dmGraphics::SetTexture(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, default_texture_params);
 
         world->m_CurrentFrameTick           = 0;
         world->m_VertexBuffers              = new dmRender::HBufferedRenderBuffer[VERTEX_BUFFER_MAX_BATCHES];
@@ -1802,7 +1802,7 @@ namespace dmGameSystem
         }
     }
 
-    static void WritePoseMatricesToTexture(ModelWorld* world)
+    static void WritePoseMatricesToTexture(dmGraphics::HContext graphics_context, ModelWorld* world)
     {
         ModelSkinnedAnimationData& anim_data = world->m_SkinnedAnimationData;
         const dmVMath::Matrix4* pose_matrix_read_ptr;
@@ -1849,7 +1849,7 @@ namespace dmGameSystem
         tp.m_Data      = animation_data_write_ptr;
         tp.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         tp.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
-        dmGraphics::SetTexture(anim_data.m_BindPoseCacheTexture, tp);
+        dmGraphics::SetTexture(graphics_context, anim_data.m_BindPoseCacheTexture, tp);
     }
 
     static void UpdateMeshTransforms(ModelComponent* component)
@@ -1921,6 +1921,7 @@ namespace dmGameSystem
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
         ModelContext* context = (ModelContext*)params.m_Context;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(context->m_RenderContext);
         dmRig::ResetPoseMatrixCache(world->m_RigContext);
 
         const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
@@ -1954,7 +1955,7 @@ namespace dmGameSystem
 
         dmRig::Result rig_res = dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
 
-        WritePoseMatricesToTexture(world);
+        WritePoseMatricesToTexture(graphics_context, world);
 
         assert(world->m_MaxBatchIndex < VERTEX_BUFFER_MAX_BATCHES);
         for (int i = 0; i <= world->m_MaxBatchIndex; ++i)

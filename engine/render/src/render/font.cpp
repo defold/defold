@@ -140,7 +140,7 @@ namespace dmRender
         tex_params.m_Data = malloc(tex_params.m_DataSize);
         memset((void*)tex_params.m_Data, 0, tex_params.m_DataSize);
 
-        dmGraphics::SetTexture(font_map->m_Texture, tex_params);
+        dmGraphics::SetTexture(font_map->m_GraphicsContext, font_map->m_Texture, tex_params);
 
         free((void*)tex_params.m_Data);
     }
@@ -549,7 +549,7 @@ namespace dmRender
         tex_params.m_Data = data;
 
         // Upload glyph data to GPU
-        dmGraphics::SetTexture(font_map->m_Texture, tex_params);
+        dmGraphics::SetTexture(font_map->m_GraphicsContext, font_map->m_Texture, tex_params);
     }
 
     struct CompareCacheGlyphPred

@@ -1291,7 +1291,7 @@ TEST_F(dmGraphicsTest, TestTexture)
     params.m_Height = HEIGHT;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
-    dmGraphics::SetTexture(texture, params);
+    dmGraphics::SetTexture(m_Context, texture, params);
 
     delete [] (char*)params.m_Data;
     ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(m_Context, texture));
@@ -1342,7 +1342,7 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     for (int i = 0; i < TEXTURE_COUNT; ++i)
     {
         textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
-        dmGraphics::SetTextureAsync(textures[i], params, TestTextureAsyncCallback, (void*) (values + i));
+        dmGraphics::SetTextureAsync(m_Context, textures[i], params, TestTextureAsyncCallback, (void*) (values + i));
     }
 
     uint64_t stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
@@ -1452,7 +1452,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
-            dmGraphics::SetTextureAsync(textures[i], params, 0, 0);
+            dmGraphics::SetTextureAsync(m_Context, textures[i], params, 0, 0);
 
             // Immediately delete, so we simulate putting them on a post-delete-queue
             dmGraphics::DeleteTexture(textures[i]);
@@ -1483,7 +1483,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
-            dmGraphics::SetTextureAsync(textures[i], params, 0, 0);
+            dmGraphics::SetTextureAsync(m_Context, textures[i], params, 0, 0);
         }
 
         ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobThread, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_UPLOAD));
@@ -1531,7 +1531,7 @@ TEST_F(dmGraphicsSynchronousTest, TestSetTextureBounds)
     params.m_Y         = HEIGHT / 2;
 
     dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
-    ASSERT_DEATH(dmGraphics::SetTexture(texture, params),"");
+    ASSERT_DEATH(dmGraphics::SetTexture(m_Context, texture, params),"");
 
     delete [] (char*)params.m_Data;
 
@@ -1542,7 +1542,7 @@ TEST_F(dmGraphicsSynchronousTest, TestSetTextureBounds)
     params.m_DataSize  = params.m_Width * params.m_Height;
     params.m_Data      = new char[params.m_DataSize];
 
-    ASSERT_DEATH(dmGraphics::SetTexture(texture, params),"");
+    ASSERT_DEATH(dmGraphics::SetTexture(m_Context, texture, params),"");
 
     delete [] (char*)params.m_Data;
 
@@ -1568,7 +1568,7 @@ TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimension)
     params.m_Height = HEIGHT;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
-    dmGraphics::SetTexture(texture, params);
+    dmGraphics::SetTexture(m_Context, texture, params);
 
     delete [] (char*)params.m_Data;
     ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(m_Context, texture));
@@ -1885,7 +1885,7 @@ TEST_F(dmGraphicsTest, TestGetTextureParams)
         //     we only allocate data for _this_ SetTexture call and not reallocate the buffer
         //     depending on the actual data size..
         params.m_MipMap = 127;
-        dmGraphics::SetTexture(texture, params);
+        dmGraphics::SetTexture(m_Context, texture, params);
 
         ASSERT_EQ(1,                                         dmGraphics::GetTextureDepth(m_Context, texture));
         ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D,               dmGraphics::GetTextureType(m_Context, texture));
@@ -1909,7 +1909,7 @@ TEST_F(dmGraphicsTest, TestGetTextureParams)
         // JG: We don't really do bounds check for the depth either in graphics_null
         params.m_MipMap = 127;
         params.m_Depth  = 6;
-        dmGraphics::SetTexture(texture, params);
+        dmGraphics::SetTexture(m_Context, texture, params);
 
         ASSERT_EQ(params.m_Depth,                            dmGraphics::GetTextureDepth(m_Context, texture));
         ASSERT_EQ(dmGraphics::TEXTURE_TYPE_CUBE_MAP,         dmGraphics::GetTextureType(m_Context, texture));
@@ -1934,7 +1934,7 @@ TEST_F(dmGraphicsTest, TestGetTextureParams)
         // JG: We don't really do bounds check for the depth either in graphics_null
         params.m_MipMap = 127;
         params.m_Depth  = 1337;
-        dmGraphics::SetTexture(texture, params);
+        dmGraphics::SetTexture(m_Context, texture, params);
 
         ASSERT_EQ(params.m_Depth,                            dmGraphics::GetTextureDepth(m_Context, texture));
         ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D_ARRAY,         dmGraphics::GetTextureType(m_Context, texture));

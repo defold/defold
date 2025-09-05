@@ -606,7 +606,7 @@ static dmGraphics::HTexture MakeDummyTexture(dmGraphics::HContext context, uint3
     params.m_MagFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
 
     dmGraphics::HTexture texture = dmGraphics::NewTexture(context, creation_params);
-    dmGraphics::SetTexture(texture, params);
+    dmGraphics::SetTexture(context, texture, params);
     return texture;
 }
 
@@ -953,7 +953,7 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
     params.m_Format    = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     params.m_MinFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
     params.m_MagFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
-    dmGraphics::SetTexture(texture, params);
+    dmGraphics::SetTexture(m_GraphicsContext, texture, params);
 
     ASSERT_TRUE(dmRender::SetMaterialSampler(material,
         dmHashString64("texture_sampler_1"), 0,

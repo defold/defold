@@ -403,7 +403,7 @@ namespace dmGameSystem
         tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
 
         gui_world->m_WhiteTexture = dmGraphics::NewTexture(graphics_context, tex_create_params);
-        dmGraphics::SetTexture(gui_world->m_WhiteTexture, tex_params);
+        dmGraphics::SetTexture(graphics_context, gui_world->m_WhiteTexture, tex_params);
 
         // Grows automatically
         gui_world->m_GuiRenderObjects.SetCapacity(128);

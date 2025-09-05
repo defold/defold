@@ -983,10 +983,11 @@ namespace dmGraphics
      * Set texture data. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
      * 6 mip-maps are present contiguously in memory with stride m_DataSize
      * @name SetTexture
+     * @param context [type:dmGraphics::HContext] Graphics context
      * @param texture [type:dmGraphics::HTexture] Texture handle
      * @param params [type:const dmGraphics::TextureParams&]
      */
-    void SetTexture(HTexture texture, const TextureParams& params);
+    void SetTexture(HContext context, HTexture texture, const TextureParams& params);
 
     /*#
      * Function called when a texture has been set asynchronously
@@ -1001,16 +1002,18 @@ namespace dmGraphics
      * Set texture data asynchronously. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
      * 6 mip-maps are present contiguously in memory with stride m_DataSize
      * @name SetTextureAsync
+     * @param context [type:dmGraphics::HContext] Graphics context
      * @param texture [type:dmGraphics::HTexture] Texture handle
      * @param params [type:const dmGraphics::TextureParams&] Texture parameters. Texture will be recreated if parameters differ from creation parameters
      * @param callback [type:dmGraphics::SetTextureAsyncCallback] Completion callback
      * @param user_data [type:void*] User data that will be passed to completion callback
      */
-    void SetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
+    void SetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
 
     /*#
      * Set texture parameters
      * @name SetTextureParams
+     * @param context [type:dmGraphics::HContext] Graphics context
      * @param texture [type:dmGraphics::HTexture] Texture handle
      * @param min_filter [type:dmGraphics::TextureFilter]
      * @param mag_filter [type:dmGraphics::TextureFilter]
@@ -1018,7 +1021,7 @@ namespace dmGraphics
      * @param vwrap [type:dmGraphics::TextureWrap]
      * @param max_anisotropy [type:float]
      */
-    void SetTextureParams(HTexture texture, TextureFilter min_filter, TextureFilter mag_filter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
+    void SetTextureParams(HContext context, HTexture texture, TextureFilter min_filter, TextureFilter mag_filter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
 
     /*#
      * @name GetTextureResourceSize

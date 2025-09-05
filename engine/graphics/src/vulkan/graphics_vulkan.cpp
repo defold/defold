@@ -4072,7 +4072,7 @@ bail:
         DestroyPhysicalDevice(&context->m_PhysicalDevice);
     }
 
-    static void VulkanSetTexture(HTexture texture, const TextureParams& params)
+    static void VulkanSetTexture(HContext context, HTexture texture, const TextureParams& params)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
@@ -4306,7 +4306,7 @@ bail:
         }
     }
 
-    static void VulkanSetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
+    static void VulkanSetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
         if (g_VulkanContext->m_AsyncProcessingSupport)
         {
@@ -4362,7 +4362,7 @@ bail:
         }
     }
 
-    static void VulkanSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    static void VulkanSetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);

@@ -126,7 +126,7 @@ namespace dmGameSystem
         return true;
     }
 
-    static void SetBlankTexture(dmGraphics::HTexture texture, dmGraphics::TextureParams& params)
+    static void SetBlankTexture(dmGraphics::HContext context, dmGraphics::HTexture texture, dmGraphics::TextureParams& params)
     {
         const static uint8_t blank[6*4] = {0};
         params.m_Width = 1;
@@ -135,7 +135,7 @@ namespace dmGameSystem
         params.m_Data = blank;
         params.m_DataSize = 4;
         params.m_MipMap = 0;
-        dmGraphics::SetTextureAsync(texture, params, 0, (void*) 0);
+        dmGraphics::SetTextureAsync(context, texture, params, 0, (void*) 0);
     }
 
     static bool ValidateTextureParams(uint32_t tex_width_full, uint32_t tex_height_full, const dmGraphics::TextureParams& params)
@@ -284,7 +284,7 @@ namespace dmGameSystem
             if (params.m_Width > max_size || params.m_Height > max_size) {
                 // dmGraphics::SetTextureAsync will fail if texture is too big; fall back to 1x1 texture.
                 dmLogError("Texture size %ux%u exceeds maximum supported texture size (%ux%u). Using blank texture.", params.m_Width, params.m_Height, max_size, max_size);
-                SetBlankTexture(texture, params);
+                SetBlankTexture(context, texture, params);
                 break;
             }
 
@@ -322,7 +322,7 @@ namespace dmGameSystem
                     dmLogError("Unable to create mipmap %d, texture parameters are invalid.", params.m_MipMap);
                     return dmResource::RESULT_FORMAT_ERROR;
                 }
-                dmGraphics::SetTextureAsync(texture, params, 0, 0);
+                dmGraphics::SetTextureAsync(context, texture, params, 0, 0);
             }
             else
             {
@@ -349,7 +349,7 @@ namespace dmGameSystem
                         return dmResource::RESULT_FORMAT_ERROR;
                     }
 
-                    dmGraphics::SetTextureAsync(texture, params, 0, 0);
+                    dmGraphics::SetTextureAsync(context, texture, params, 0, 0);
                 }
             }
             break;
@@ -375,7 +375,7 @@ namespace dmGameSystem
             {
                 dmGraphics::TextureParams params;
                 dmGraphics::GetDefaultTextureFilters(context, params.m_MinFilter, params.m_MagFilter);
-                SetBlankTexture(texture, params);
+                SetBlankTexture(context, texture, params);
                 result = dmResource::RESULT_OK;
             }
         }

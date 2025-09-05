@@ -1783,17 +1783,17 @@ namespace dmGraphics
     {
         g_functions.m_DeleteTexture(t);
     }
-    void SetTexture(HTexture texture, const TextureParams& params)
+    void SetTexture(HContext context, HTexture texture, const TextureParams& params)
     {
-        g_functions.m_SetTexture(texture, params);
+        g_functions.m_SetTexture(context, texture, params);
     }
-    void SetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
+    void SetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
-        g_functions.m_SetTextureAsync(texture, params, callback, user_data);
+        g_functions.m_SetTextureAsync(context, texture, params, callback, user_data);
     }
-    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    void SetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
-        g_functions.m_SetTextureParams(texture, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
+        g_functions.m_SetTextureParams(context, texture, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
     uint32_t GetTextureResourceSize(HContext context, HTexture texture)
     {

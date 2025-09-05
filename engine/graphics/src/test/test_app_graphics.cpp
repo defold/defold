@@ -264,7 +264,7 @@ struct AsyncTextureUploadTest : ITest
 
     void CheckTexture(dmGraphics::HContext context, dmGraphics::HTexture texture)
     {
-        dmGraphics::SetTextureParams(texture, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, 0.0f);
+        dmGraphics::SetTextureParams(context, texture, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, 0.0f);
         dmGraphics::GetTextureResourceSize(context, texture);
         dmGraphics::GetTextureWidth(context, texture);
         dmGraphics::GetTextureHeight(context, texture);
@@ -294,7 +294,7 @@ struct AsyncTextureUploadTest : ITest
 
                 Texture& back = m_Textures.Back();
 
-                dmGraphics::SetTextureAsync(back.m_Texture, t.m_Params, 0, 0);
+                dmGraphics::SetTextureAsync(engine->m_GraphicsContext, back.m_Texture, t.m_Params, 0, 0);
 
                 CheckTexture(engine->m_GraphicsContext, back.m_Texture);
 

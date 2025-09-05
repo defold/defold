@@ -1230,7 +1230,7 @@ static int CreateTextureAsync(lua_State* L)
     }
 
     // Execute the upload, the upload buffer should now be locked by this request
-    dmGraphics::SetTextureAsync(texture_dst, texture_params, HandleRequestCompleted, request);
+    dmGraphics::SetTextureAsync(g_ResourceModule.m_GraphicsContext, texture_dst, texture_params, HandleRequestCompleted, request);
 
     dmScript::PushHash(L, create_params.m_PathHash);
     lua_pushnumber(L, request_handle);

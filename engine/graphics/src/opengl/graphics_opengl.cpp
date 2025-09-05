@@ -884,7 +884,7 @@ static void LogFrameBufferError(GLenum status)
             params.m_Data = data;
             params.m_DataSize = sizeof(data);
             params.m_MipMap = 0;
-            SetTextureAsync(texture_handle, params, 0, 0);
+            SetTextureAsync(_context, texture_handle, params, 0, 0);
 
             while(GetTextureStatusFlags(g_Context, texture_handle) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
             {
@@ -3247,16 +3247,17 @@ static void LogFrameBufferError(GLenum status)
         attachment.m_Attached = true;
     }
 
-    static void ApplyRenderTargetAttachments(OpenGLContext* context, OpenGLRenderTarget* rt, bool update_current)
+    static void ApplyRenderTargetAttachments(HContext context, OpenGLRenderTarget* rt, bool update_current)
     {
+        OpenGLContext* gl_context = (OpenGLContext*)context;
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             if (rt->m_ColorAttachments[i].m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
-                SetTexture(rt->m_ColorAttachments[i].m_Texture, rt->m_ColorAttachments[i].m_Params);
+                SetTexture(context, rt->m_ColorAttachments[i].m_Texture, rt->m_ColorAttachments[i].m_Params);
 
                 GLenum attachments[] = { (GLenum) GL_COLOR_ATTACHMENT0 + i };
-                AttachRenderTargetAttachment(context, rt->m_ColorAttachments[i], attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_ColorAttachments[i], attachments, DM_ARRAY_SIZE(attachments));
             }
         }
 
@@ -3264,27 +3265,27 @@ static void LogFrameBufferError(GLenum status)
         {
             if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
-                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_DepthStencilAttachment.m_Buffer));
+                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(gl_context, rt->m_DepthStencilAttachment.m_Buffer));
                 glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL, rt->m_DepthStencilAttachment.m_Params.m_Width, rt->m_DepthStencilAttachment.m_Params.m_Height);
                 CHECK_GL_ERROR;
     #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 // if we have the capability of GL_DEPTH_STENCIL_ATTACHMENT, create a single combined depth-stencil buffer
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
     #else
                 // create a depth-stencil that has the same buffer attached to both GL_DEPTH_ATTACHMENT and GL_STENCIL_ATTACHMENT (typical ES <= 2.0)
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
     #endif
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
             else if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
-                OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, rt->m_DepthStencilAttachment.m_Texture);
+                OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(gl_context->m_AssetHandleContainer, rt->m_DepthStencilAttachment.m_Texture);
 
                 // JG: This is a workaround! We can't use SetTexture here since there is no compound format for depth+stencil, and I don't want to introduce one *right now* just for OpenGL..
 
-                glBindTexture(GL_TEXTURE_2D, GetGLHandle(context, attachment_tex->m_TextureIds[0]));
+                glBindTexture(GL_TEXTURE_2D, GetGLHandle(gl_context, attachment_tex->m_TextureIds[0]));
                 CHECK_GL_ERROR;
 
                  // The data type (DMGRAPHICS_TYPE_UNSIGNED_INT_24_8) might change later when we introduce 32f depth formats
@@ -3298,10 +3299,10 @@ static void LogFrameBufferError(GLenum status)
                 glBindTexture(GL_TEXTURE_2D, 0);
             #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
             #else
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_DepthStencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
             #endif
             }
             else
@@ -3313,40 +3314,40 @@ static void LogFrameBufferError(GLenum status)
         {
             if (rt->m_DepthAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
-                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_DepthAttachment.m_Buffer));
-                glRenderbufferStorage(GL_RENDERBUFFER, GetDepthBufferFormat(context), rt->m_DepthAttachment.m_Params.m_Width, rt->m_DepthAttachment.m_Params.m_Height);
+                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(gl_context, rt->m_DepthAttachment.m_Buffer));
+                glRenderbufferStorage(GL_RENDERBUFFER, GetDepthBufferFormat(gl_context), rt->m_DepthAttachment.m_Params.m_Width, rt->m_DepthAttachment.m_Params.m_Height);
                 CHECK_GL_ERROR;
 
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_DepthAttachment, attachments, DM_ARRAY_SIZE(attachments));
 
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
             else if (rt->m_DepthAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
-                SetTexture(rt->m_DepthAttachment.m_Texture, rt->m_DepthAttachment.m_Params);
+                SetTexture(context, rt->m_DepthAttachment.m_Texture, rt->m_DepthAttachment.m_Params);
 
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_DepthAttachment, attachments, DM_ARRAY_SIZE(attachments));
             }
 
             if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
-                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_StencilAttachment.m_Buffer));
+                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(gl_context, rt->m_StencilAttachment.m_Buffer));
                 glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8, rt->m_StencilAttachment.m_Params.m_Width, rt->m_StencilAttachment.m_Params.m_Height);
                 CHECK_GL_ERROR;
 
                 GLenum attachments[] = { GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_StencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
 
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
             else if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
-                SetTexture(rt->m_StencilAttachment.m_Texture, rt->m_StencilAttachment.m_Params);
+                SetTexture(context, rt->m_StencilAttachment.m_Texture, rt->m_StencilAttachment.m_Params);
 
                 GLenum attachments[] = { GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(gl_context, rt->m_StencilAttachment, attachments, DM_ARRAY_SIZE(attachments));
             }
         }
     }
@@ -3440,7 +3441,7 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
-        ApplyRenderTargetAttachments(context, rt, false);
+        ApplyRenderTargetAttachments(_context, rt, false);
 
         // Disable color buffer
         if (!any_color_attachment_set)
@@ -3661,7 +3662,7 @@ static void LogFrameBufferError(GLenum status)
         rt->m_StencilAttachment.m_Params.m_Width       = width;
         rt->m_StencilAttachment.m_Params.m_Height      = height;
 
-        ApplyRenderTargetAttachments(g_Context, rt, true);
+        ApplyRenderTargetAttachments((HContext)g_Context, rt, true);
     }
 
     static bool OpenGLIsTextureFormatSupported(HContext _context, TextureFormat format)
@@ -3869,7 +3870,7 @@ static void LogFrameBufferError(GLenum status)
     }
 
 
-    static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    static void OpenGLSetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_AssetHandleContainerMutex);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
@@ -3957,7 +3958,7 @@ static void LogFrameBufferError(GLenum status)
         //       The window handle (pointer) isn't protected by a mutex either,
         //       but it is currently not used with our GLFW version (yet) so
         //       we don't necessarily need to guard it right now.
-        SetTexture(ap.m_Texture, ap.m_Params);
+        SetTexture(_context, ap.m_Texture, ap.m_Params);
         glFlush();
 
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
@@ -3983,7 +3984,7 @@ static void LogFrameBufferError(GLenum status)
         ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
     }
 
-    static void OpenGLSetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
+    static void OpenGLSetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
         if (g_Context->m_AsyncProcessingSupport)
         {
@@ -4000,7 +4001,7 @@ static void LogFrameBufferError(GLenum status)
         }
         else
         {
-            SetTexture(texture, params);
+            SetTexture(context, texture, params);
         }
     }
 
@@ -4169,7 +4170,7 @@ static void LogFrameBufferError(GLenum status)
     #undef ANDROID_ES2_BACKWARDS_COMPAT
     }
 
-    static void OpenGLSetTexture(HTexture texture, const TextureParams& params)
+    static void OpenGLSetTexture(HContext context, HTexture texture, const TextureParams& params)
     {
         DM_PROFILE(__FUNCTION__);
 
@@ -4239,7 +4240,7 @@ static void LogFrameBufferError(GLenum status)
 
             if (!params.m_SubUpdate)
             {
-                SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
+                SetTextureParams(context, texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
             }
 
             switch (params.m_Format)
@@ -4622,7 +4623,7 @@ static void LogFrameBufferError(GLenum status)
         {
             glBindTexture(GetOpenGLTextureType(tex->m_Type), GetGLHandle(context, tex->m_TextureIds[id_index]));
             CHECK_GL_ERROR;
-            OpenGLSetTextureParams(texture, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
+            OpenGLSetTextureParams(_context, texture, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
         }
     }
 

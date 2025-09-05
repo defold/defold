@@ -2951,7 +2951,7 @@ static HandleResult WebGPUGetTextureHandle(HTexture texture, void** out_handle)
     return HANDLE_RESULT_NOT_AVAILABLE;
 }
 
-static void WebGPUSetTextureParams(HTexture _texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+static void WebGPUSetTextureParams(HContext context, HTexture _texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
@@ -3365,10 +3365,10 @@ static PipelineState WebGPUGetPipelineState(HContext context)
     return ((WebGPUContext*)context)->m_CurrentPipelineState;
 }
 
-static void WebGPUSetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
+static void WebGPUSetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
 {
     TRACE_CALL;
-    WebGPUSetTexture(texture, params);
+    WebGPUSetTexture(context, texture, params);
     if (callback)
         callback(texture, user_data);
 }
