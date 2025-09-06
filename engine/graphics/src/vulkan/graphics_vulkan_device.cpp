@@ -794,6 +794,8 @@ bail:
             return res;
         }
 
+        dmLogInfo("CreateScratchBuffer - stage buffer: handle=0x%llx", scratchBufferOut->m_DeviceBuffer.m_Handle.m_Buffer);
+
         if (clearData)
         {
             res = device_buffer.MapMemory(vk_device);
@@ -1255,7 +1257,10 @@ bail:
 
         vk_input_assembly.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
         vk_input_assembly.topology               = vk_primitive_type;
-        vk_input_assembly.primitiveRestartEnable = VK_TRUE;
+        // Only enable restart for strip topologies
+        vk_input_assembly.primitiveRestartEnable =
+            (vk_primitive_type == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP ||
+             vk_primitive_type == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP) ? VK_TRUE : VK_FALSE;
 
         VkViewport vk_viewport;
         memset(&vk_viewport, 0, sizeof(vk_viewport));

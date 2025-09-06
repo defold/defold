@@ -153,8 +153,6 @@ namespace dmGraphics
                 capabilities.m_SurfaceCapabilities.maxImageCount);
         }
 
-        swap_chain_image_count = dmMath::Min(swap_chain_image_count, (uint32_t) DM_MAX_FRAMES_IN_FLIGHT);
-
         VkSwapchainCreateInfoKHR vk_swap_chain_create_info;
         memset((void*)&vk_swap_chain_create_info, 0, sizeof(vk_swap_chain_create_info));
 
