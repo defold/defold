@@ -17,28 +17,63 @@ if(NOT TARGET_PLATFORM)
 endif()
 
 if(NOT TARGET_PLATFORM)
-  message(FATAL_ERROR "Could not infer TARGET_PLATFORM. Please pass -DTARGET_PLATFORM=<triple> (e.g. x86_64-macos)")
+  message(FATAL_ERROR "Could not infer TARGET_PLATFORM. Please pass -DTARGET_PLATFORM=<2-tuple> (e.g. x86_64-macos)")
 endif()
 
 message(STATUS "TARGET_PLATFORM: ${TARGET_PLATFORM}")
 
+#**************************************************************************
 # Common compile settings
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
+#**************************************************************************
+# Common defines
+add_compile_definitions(
+  __STDC_LIMIT_MACROS
+  DDF_EXPOSE_DESCRIPTORS
+  GOOGLE_PROTOBUF_NO_RTTI
+)
+
+#**************************************************************************
+# Common flags
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   # Apply per-language flags using separate generator expressions per option
-  add_compile_options(
-    $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
-    $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
-  )
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=format")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -flto")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+
+  if (CMAKE_BUILD_TYPE MATCHES "Release")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+  else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
+  endif()
+
 elseif(MSVC)
   # Disable RTTI; don't force /EH to avoid changing exception model globally
-  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/GR->)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /GR-")
+
+  if (CMAKE_BUILD_TYPE MATCHES "Release")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /O2")
+  else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Od")
+  endif()
+
 endif()
 
 # Platform specific options
+include(sdk)
 
 if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
     include(platform_macos)
@@ -46,4 +81,7 @@ endif()
 
 # message(STATUS "CFLAGS: ${CMAKE_C_FLAGS}")
 # message(STATUS "CXXFLAGS: ${CMAKE_CXX_FLAGS}")
+
+message(STATUS "CC: ${CMAKE_C_COMPILER}")
+message(STATUS "CXX: ${CMAKE_CXX_COMPILER}")
 

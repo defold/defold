@@ -1,10 +1,11 @@
 # Minimum CMake version and project
 cmake_minimum_required(VERSION 3.16)
-project(defold_hid LANGUAGES C CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/cmake")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(defold)
+
+project(defold_hid LANGUAGES C CXX)
 
 # Options
 #option(BUILD_HID_TESTS "Build HID unit tests" ON)
