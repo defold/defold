@@ -12,6 +12,7 @@ pkgs.mkShell {
     leiningen
     libGL
     libGLU
+    libxext
     ninja
     openal
     openjdk21
@@ -42,6 +43,7 @@ pkgs.mkShell {
         pkgs.glib
         pkgs.libGL
         pkgs.libGLU
+        pkgs.libxext
         pkgs.openal
         pkgs.xorg.libX11
         pkgs.xorg.libXcursor
