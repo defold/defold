@@ -46,3 +46,7 @@ link_directories(
     "${DEFOLD_LIB_DIR}"
     "${DEFOLD_EXT_LIB_DIR}"
 )
+
+# Install into DEFOLD_SDK_ROOT
+set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}" CACHE PATH "Install prefix" FORCE)
+message(STATUS "Install prefix set to DEFOLD_SDK_ROOT: ${CMAKE_INSTALL_PREFIX}")
