@@ -16,29 +16,26 @@ add_compile_definitions(DLIB_LOG_DOMAIN="HID")
 
 # Sources
 set(HID_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
-set(HID_NATIVE_DIR "${HID_SRC_DIR}/native")
-
 
 # hid (native backend)
-add_library(hid STATIC
-  "${HID_SRC_DIR}/hid.cpp"
-  "${HID_NATIVE_DIR}/hid_native.cpp"
-  "${HID_NATIVE_DIR}/hid_gamepad_driver_glfw.cpp"
-)
-target_include_directories(hid
-  PUBLIC
-    "${HID_SRC_DIR}"            # for dmsdk/hid and local headers
-)
+set(hid_SOURCES )
+list(APPEND hid_SOURCES "${HID_SRC_DIR}/hid.cpp")
+
+if (NOT TARGET_PLATFORM MATCHES "x86_64-ps4|x86_64-ps5|arm64-nx64")
+  list(APPEND hid_SOURCES "${HID_SRC_DIR}/native/hid_native.cpp")
+  list(APPEND hid_SOURCES "${HID_SRC_DIR}/native/hid_gamepad_driver_glfw.cpp")
+endif()
+
+add_library(hid STATIC ${hid_SOURCES})
+
+target_include_directories(hid PUBLIC "${HID_SRC_DIR}") # for dmsdk/hid and local headers
 
 # hid_null (null backend)
 add_library(hid_null STATIC
   "${HID_SRC_DIR}/hid.cpp"
   "${HID_SRC_DIR}/hid_null.cpp"
 )
-target_include_directories(hid_null
-  PUBLIC
-    "${HID_SRC_DIR}"
-)
+target_include_directories(hid_null PUBLIC "${HID_SRC_DIR}")
 
 # ***********************************************************************
 
