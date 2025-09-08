@@ -3765,27 +3765,7 @@ bail:
         // Always allocate a temporary command buffer for the copy, even during a frame
         VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
 
-        // --- Direct device buffer path ---
-        if (!use_stage_buffer)
-        {
-            uint32_t write_offset = GetOffsetFromMipmap(texture_out, params.m_MipMap);
-            VkResult res = WriteToDeviceBuffer(vk_device, tex_data_size, write_offset, tex_data_ptr, &texture_out->m_DeviceBuffer);
-            CHECK_VK_ERROR(res);
-
-            TransitionImageLayoutWithCmdBuffer(
-                vk_command_buffer,
-                texture_out,
-                VK_IMAGE_ASPECT_COLOR_BIT,
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                params.m_MipMap,
-                layer_count,
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-
-            SubmitAndWait(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, context->m_LogicalDevice.m_CommandPool, texture_out);
-            return;
-        }
-
-        // --- Stage buffer path ---
+        // Stage buffer path
         DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
         VkResult res = CreateDeviceBuffer(
             context->m_PhysicalDevice.m_Device,
@@ -3807,13 +3787,14 @@ bail:
             layer_count,
             VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-        // --- Copy regions on the stack ---
-        const uint32_t MAX_LAYERS = 8;
-        assert(layer_count <= MAX_LAYERS);
-        VkBufferImageCopy vk_copy_regions[MAX_LAYERS] = {};
+        // Copy regions on the stack
+        dmArray<VkBufferImageCopy> copy_regions;
+        copy_regions.SetCapacity(layer_count);
+        copy_regions.SetSize(layer_count);
+
         CopyToTextureLayerWithtStageBuffer(
             vk_command_buffer,
-            vk_copy_regions,
+            copy_regions.Begin(),
             &stage_buffer,
             texture_out,
             params,
@@ -3826,7 +3807,7 @@ bail:
             texture_out->m_Handle.m_Image,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             layer_count,
-            vk_copy_regions);
+            copy_regions.Begin());
 
         TransitionImageLayoutWithCmdBuffer(
             vk_command_buffer,
@@ -3838,8 +3819,6 @@ bail:
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
         SubmitAndWait(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, context->m_LogicalDevice.m_CommandPool, texture_out);
-        
-        // DestroyDeviceBuffer(vk_device, &stage_buffer.m_Handle);
 
         DestroyResourceDeferred(context->m_MainResourcesToDestroy[context->m_SwapChain->m_ImageIndex], &stage_buffer);
     }
