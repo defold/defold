@@ -11,4 +11,6 @@ set(CMAKE_CXX_COMPILER "clang++")
 if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
     # Try to detect packaged toolchains (e.g. Xcode) inside DEFOLD_SDK_ROOT
     include(sdk_xcode)
+elseif (TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+    include(sdk_android)
 endif()

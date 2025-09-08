@@ -79,9 +79,12 @@ if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
     include(platform_macos)
 endif()
 
+if (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
+    include(platform_android)
+endif()
+
 # message(STATUS "CFLAGS: ${CMAKE_C_FLAGS}")
 # message(STATUS "CXXFLAGS: ${CMAKE_CXX_FLAGS}")
 
 message(STATUS "CC: ${CMAKE_C_COMPILER}")
 message(STATUS "CXX: ${CMAKE_CXX_COMPILER}")
-
