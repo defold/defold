@@ -794,8 +794,6 @@ bail:
             return res;
         }
 
-        // dmLogInfo("CreateScratchBuffer - stage buffer: handle=0x%llx", scratchBufferOut->m_DeviceBuffer.m_Handle.m_Buffer);
-
         if (clearData)
         {
             res = device_buffer.MapMemory(vk_device);

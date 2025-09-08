@@ -398,6 +398,24 @@ namespace dmGraphics
         rt->m_Scissor.offset.y = 0;
 
         context->m_CurrentRenderTarget = render_target;
+
+        // We need to update the current frame stamp for all attachments and framebuffer, since they are part of the render pass
+        rt->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            if (rt->m_TextureColor[i])
+            {
+                VulkanTexture* texture_color = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, rt->m_TextureColor[i]);
+                texture_color->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+            }
+        }
+
+        if (rt->m_TextureDepthStencil)
+        {
+            VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, rt->m_TextureDepthStencil);
+            depth_stencil_texture->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+        }
     }
 
     static VkImageAspectFlags GetDefaultDepthAndStencilAspectFlags(VkFormat vk_format)
@@ -740,8 +758,10 @@ namespace dmGraphics
         VulkanTexture* depth_stencil_texture = &context->m_MainTextureDepthStencil;
         DestroyDeviceBuffer(vk_device, &depth_stencil_texture->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &depth_stencil_texture->m_Handle);
-
         DestroySwapChain(vk_device, context->m_SwapChain);
+
+        // Reset the image layout to uninitialized (should maybe be generalized in DestroyTexture?)
+        depth_stencil_texture->m_ImageLayout[0] = VK_IMAGE_LAYOUT_UNDEFINED;
 
         // At this point, we've destroyed the framebuffers, depth/stencil textures, and the swapchain
         // and the platform may do extra setup
@@ -1498,8 +1518,6 @@ bail:
             res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
                 size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, bufferOut);
             CHECK_VK_ERROR(res);
-
-            // dmLogInfo("DeviceBufferUploadHelper: handle=0x%llx", bufferOut->m_Handle.m_Buffer);
         }
 
         VkCommandBuffer vk_command_buffer;
@@ -1562,9 +1580,6 @@ bail:
         }
 
         uint32_t frame_ix = resource->m_Handle.m_LastUsedFrame;
-
-        // assert(frame_ix < context->m_CurrentFrameInFlight);
-
         if (context->m_MainResourcesToDestroy[frame_ix]->Full())
         {
             context->m_MainResourcesToDestroy[frame_ix]->OffsetCapacity(8);
@@ -2377,9 +2392,9 @@ bail:
                 vk_index_type = VK_INDEX_TYPE_UINT32;
             }
 
-            vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_Handle.m_Buffer, 0, vk_index_type);
-
             indexBuffer->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+
+            vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_Handle.m_Buffer, 0, vk_index_type);
         }
 
         vkCmdBindVertexBuffers(vk_command_buffer, 0, num_vx_buffers, vk_buffers, vk_buffer_offsets);
@@ -3705,7 +3720,7 @@ bail:
         return offset;
     }
 
-    static void CopyToTextureLayerWithtStageBuffer(VkCommandBuffer cmd_buffer, VkBufferImageCopy* copy_regions, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t layer_count, uint32_t slice_size)
+    static void CopyToTextureLayerWithtStageBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, VkBufferImageCopy* copy_regions, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t layer_count, uint32_t slice_size)
     {
         for (int i = 0; i < layer_count; ++i)
         {
@@ -3725,6 +3740,9 @@ bail:
             vk_copy_region.imageSubresource.layerCount     = 1;
         }
 
+        stage_buffer->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+        texture->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+
         vkCmdCopyBufferToImage(cmd_buffer, stage_buffer->m_Handle.m_Buffer,
             texture->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             layer_count, copy_regions);
@@ -3741,7 +3759,7 @@ bail:
         // NOTE: We should check max layer count in the device properties!
         VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[layer_count];
 
-        CopyToTextureLayerWithtStageBuffer(cmd_buffer, vk_copy_regions, stage_buffer, texture, params, layer_count, slice_size);
+        CopyToTextureLayerWithtStageBuffer(context, cmd_buffer, vk_copy_regions, stage_buffer, texture, params, layer_count, slice_size);
 
         delete[] vk_copy_regions;
     }
@@ -3808,19 +3826,13 @@ bail:
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
             CHECK_VK_ERROR(res);
 
-            // dmLogInfo("CopyToTexture - stage buffer: handle=0x%llx", stage_buffer.m_Handle.m_Buffer);
-
             res = WriteToDeviceBuffer(vk_device, texDataSize, 0, texDataPtr, &stage_buffer);
             CHECK_VK_ERROR(res);
 
             // NOTE: We should check max layer count in the device properties!
             VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[layer_count];
             
-            CopyToTextureLayerWithtStageBuffer(vk_command_buffer, vk_copy_regions, &stage_buffer, textureOut, params, layer_count, slice_size);
-
-            vkCmdCopyBufferToImage(vk_command_buffer, stage_buffer.m_Handle.m_Buffer,
-                textureOut->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                layer_count, vk_copy_regions);
+            CopyToTextureLayerWithtStageBuffer(context, vk_command_buffer, vk_copy_regions, &stage_buffer, textureOut, params, layer_count, slice_size);
 
             res = vkEndCommandBuffer(vk_command_buffer);
             CHECK_VK_ERROR(res);
@@ -3839,8 +3851,6 @@ bail:
                 params.m_MipMap,
                 layer_count);
             CHECK_VK_ERROR(res);
-
-            // DestroyDeviceBuffer(vk_device, &stage_buffer.m_Handle);
 
             DestroyResourceDeferred(context, &stage_buffer);
 
@@ -4167,8 +4177,6 @@ bail:
                     context->m_LogicalDevice.m_Device, tex_data_size,
                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
                 CHECK_VK_ERROR(res);
-
-                // dmLogInfo("AsyncProcessCallback - stage buffer: handle=0x%llx", stage_buffer.m_Handle.m_Buffer);
 
                 // Note: There's no RGB support in Vulkan. We have to expand this to four channels
                 // TODO: Can we use R11G11B10 somehow?
@@ -4543,8 +4551,6 @@ bail:
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
         CHECK_VK_ERROR(res);
 
-        // dmLogInfo("VulkanReadPixels - stage buffer: handle=0x%llx", stage_buffer.m_Handle.m_Buffer);
-
         // input image must be in VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL or VK_IMAGE_LAYOUT_GENERAL, so we pick the optimal layout
         // otherwise, the validation layers will complain that this is a performance issue and spam errors..
 
@@ -4571,6 +4577,9 @@ bail:
         vk_copy_region.imageExtent.depth           = 1;
         vk_copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         vk_copy_region.imageSubresource.layerCount = 1;
+
+        tex_sc->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+        stage_buffer.m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
 
         vkCmdCopyImageToBuffer(
             cmd_buffer.m_CmdBuffer,
