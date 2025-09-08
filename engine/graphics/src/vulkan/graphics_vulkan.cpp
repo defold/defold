@@ -4126,14 +4126,23 @@ bail:
             VkCommandBuffer cmd_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
 
             uint8_t tex_layer_count   = dmMath::Max(tex->m_LayerCount, ap.m_Params.m_LayerCount);
-            uint16_t tex_depth        = dmMath::Max(tex->m_Depth, ap.m_Params.m_Depth);
+            uint16_t tex_depth = dmMath::Max<uint16_t>( (uint16_t)1, dmMath::Max<uint16_t>(tex->m_Depth, ap.m_Params.m_Depth) );
             uint8_t tex_bpp           = GetTextureFormatBitsPerPixel(ap.m_Params.m_Format);
             uint32_t tex_data_size    = tex_bpp * ap.m_Params.m_Width * ap.m_Params.m_Height * tex_depth * tex_layer_count;
             TextureFormat format_orig = ap.m_Params.m_Format;
             void*  tex_data_ptr       = (void*) ap.m_Params.m_Data;
-            bool is_memoryless        = IsTextureMemoryless(tex);
 
             DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+
+            const bool no_payload =
+                (ap.m_Params.m_Width  == 0) ||
+                (ap.m_Params.m_Height == 0) ||
+                (tex_layer_count      == 0) ||
+                (tex_depth            == 0) ||
+                (tex_bpp              == 0) ||
+                (tex_data_size        == 0);
+
+            bool is_memoryless        = IsTextureMemoryless(tex) || no_payload;
 
             if (!is_memoryless)
             {
