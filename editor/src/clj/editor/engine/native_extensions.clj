@@ -150,7 +150,7 @@
   (^String [prefs project evaluation-context]
    (or (not-empty (string/trim (prefs/get prefs [:extensions :build-server]))) ;; always trim because `prefs/get` does not return nil
        (not-empty (some-> (shared-editor-settings/get-setting project ["extensions" "build_server"] evaluation-context) string/trim)) ;; use `some->` because `get-setting` may return nil
-       connection-properties/defold-build-server-url)))
+       (connection-properties/defold-build-server-url))))
 
 (defn get-build-server-headers
   "Returns a (possibly empty) vector of header strings"
