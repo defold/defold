@@ -1639,8 +1639,6 @@ namespace dmGameSystem
             }
         }
 
-        FillTextures(&ro, component, material_index);
-
         // If the material supports PBR data, we need to use the render item's constants.
         // Otherwise, each render item will overwrite the component render constants with new values
         // before the render object is processed and the draw call is dispatched.
