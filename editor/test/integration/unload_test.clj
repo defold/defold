@@ -544,7 +544,7 @@
               (is (not (loaded-proj-path? "/unloaded/unloaded.tilesource")))
               (is (loaded-proj-path? "/loaded_referencing_unloaded_tilesource.script")))
 
-            (testing "Editing a script to reference unloaded Lua modules will load transitive dependencies."
+            (testing "Editing a script to reference unloaded Lua modules will not load transitive dependencies."
               (let [node-load-info-tx-data-calls
                     (call-logged-transact!
                       (test-util/set-code-editor-lines
@@ -552,14 +552,13 @@
                         ["local first_alias = require 'unloaded.unloaded'"
                          "local second_alias = require 'unloaded.unloaded'"]))]
 
-                (is (= ["/unloaded/unloaded.lua"
-                        "/unloaded/unloaded_math.lua"]
+                (is (= []
                        (mapv (comp resource/proj-path :resource first)
                              node-load-info-tx-data-calls))))
 
               (is (loaded-proj-path? "/loaded_math.lua"))
-              (is (loaded-proj-path? "/unloaded/unloaded_math.lua"))
-              (is (loaded-proj-path? "/unloaded/unloaded.lua"))
+              (is (not (loaded-proj-path? "/unloaded/unloaded_math.lua")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.lua")))
               (is (loaded-proj-path? "/loaded_referencing_unloaded_lua.script"))
               (is (not (loaded-proj-path? "/unloaded/unloaded.png")))
               (is (not (loaded-proj-path? "/unloaded/unloaded.tilesource")))
@@ -591,8 +590,8 @@
                              node-load-info-tx-data-calls))))
 
               (is (loaded-proj-path? "/loaded_math.lua"))
-              (is (loaded-proj-path? "/unloaded/unloaded_math.lua"))
-              (is (loaded-proj-path? "/unloaded/unloaded.lua"))
+              (is (not (loaded-proj-path? "/unloaded/unloaded_math.lua")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.lua")))
               (is (loaded-proj-path? "/loaded_referencing_unloaded_lua.script"))
               (is (loaded-proj-path? "/unloaded/unloaded.png"))
               (is (loaded-proj-path? "/unloaded/unloaded.tilesource"))
