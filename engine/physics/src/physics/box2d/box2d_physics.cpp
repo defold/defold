@@ -404,7 +404,7 @@ namespace dmPhysics
                     polygon_shape_data->m_Polygon.vertices[i].x = p.x * s;
                     polygon_shape_data->m_Polygon.vertices[i].y = p.y * s;
                 }
-
+                polygon_shape_data->m_Polygon.centroid = polygon_shape_data->m_CentroidOriginal * s;
                 b2Shape_SetPolygon(shape_id, &polygon_shape_data->m_Polygon);
             }
             else if (shape_data->m_Type == SHAPE_TYPE_GRID)
@@ -813,42 +813,39 @@ namespace dmPhysics
         return shape_data;
     }
 
-    static b2Vec2 ComputeCentroid(const b2Vec2* vs, int count)
+    // From Box2dv3 (geometry.c)
+    static b2Vec2 b2ComputePolygonCentroid( const b2Vec2* vertices, int count )
     {
-        assert(count >= 3);
-
-        b2Vec2 c = {};
+        b2Vec2 center = { 0.0f, 0.0f };
         float area = 0.0f;
 
-        // pRef is the reference point for forming triangles.
-        // It's location doesn't change the result (except for rounding error).
-        b2Vec2 pRef = {};
+        // Get a reference point for forming triangles.
+        // Use the first vertex to reduce round-off errors.
+        b2Vec2 origin = vertices[0];
 
         const float inv3 = 1.0f / 3.0f;
 
-        for (int i = 0; i < count; ++i)
+        for ( int i = 1; i < count - 1; ++i )
         {
-            // Triangle vertices.
-            b2Vec2 p1 = pRef;
-            b2Vec2 p2 = vs[i];
-            b2Vec2 p3 = i + 1 < count ? vs[i+1] : vs[0];
-
-            b2Vec2 e1 = p2 - p1;
-            b2Vec2 e2 = p3 - p1;
-
-            float D = b2Cross(e1, e2);
-
-            float triangleArea = 0.5f * D;
-            area += triangleArea;
+            // Triangle edges
+            b2Vec2 e1 = b2Sub( vertices[i], origin );
+            b2Vec2 e2 = b2Sub( vertices[i + 1], origin );
+            float a = 0.5f * b2Cross( e1, e2 );
 
             // Area weighted centroid
-            c += triangleArea * inv3 * (p1 + p2 + p3);
+            center = b2MulAdd( center, a * inv3, b2Add( e1, e2 ) );
+            area += a;
         }
 
-        // Centroid
-        assert(area > FLT_EPSILON);
-        c *= 1.0f / area;
-        return c;
+        B2_ASSERT( area > FLT_EPSILON );
+        float invArea = 1.0f / area;
+        center.x *= invArea;
+        center.y *= invArea;
+
+        // Restore offset
+        center = b2Add( origin, center );
+
+        return center;
     }
 
     static void MakePolygonFromVertices(PolygonShapeData* polygon, const b2Vec2* vertices, uint32_t count)
@@ -862,7 +859,7 @@ namespace dmPhysics
             polygon->m_Polygon.vertices[i] = vertices[i];
         }
 
-        // Compute normals. Ensure the edges have non-zero length.
+        // Compute normals. Ensure the edges have non-zero length (b2MakePolygon from geometry.c in Box2d)
         for (int i = 0; i < count; ++i)
         {
             int i1 = i;
@@ -875,7 +872,8 @@ namespace dmPhysics
         }
 
         // Compute the polygon centroid.
-        polygon->m_Polygon.centroid = ComputeCentroid(polygon->m_Polygon.vertices, count);
+        polygon->m_Polygon.centroid = b2ComputePolygonCentroid(polygon->m_Polygon.vertices, count);
+        polygon->m_CentroidOriginal = polygon->m_Polygon.centroid;
     }
 
     HCollisionShape2D NewPolygonShape2D(HContext2D context, const float* vertices, uint32_t vertex_count)
