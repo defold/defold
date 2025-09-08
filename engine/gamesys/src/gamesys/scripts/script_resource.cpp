@@ -1027,7 +1027,9 @@ static int CreateTexture(lua_State* L)
  * - `COMPRESSION_TYPE_BASIS_UASTC`
  *
  * @param buffer [type:buffer] optional buffer of precreated pixel data
+ * @param callback [type:function] callback function when texture is created (self, request_id, resource)
  *
+ * @return path [type:hash] The path to the texture resource.
  * @return request_id [type:number] The request id for the async request.
  *
  * [icon:attention] 3D Textures are currently only supported on OpenGL and Vulkan adapters. To check if your device supports 3D textures, use:
