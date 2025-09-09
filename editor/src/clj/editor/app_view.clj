@@ -2135,8 +2135,8 @@ If you do not specifically require different script states, consider changing th
 (defn view-types
   [resource]
   (cond->> (:view-types (resource/resource-type resource))
-    (text-util/binary? resource)
-    (e/filter #(not= :code (:id %)))))
+           (text-util/binary? resource)
+           (e/filter #(not= :code (:id %)))))
 
 (defn open-resource
   ([app-view prefs workspace project resource]
