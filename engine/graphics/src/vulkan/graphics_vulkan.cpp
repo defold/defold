@@ -728,11 +728,13 @@ namespace dmGraphics
         default_texture_creation_params.m_Type          = TEXTURE_TYPE_2D_ARRAY;
         default_texture_creation_params.m_LayerCount    = 1;
         context->m_DefaultTexture2DArray                = VulkanNewTextureInternal(default_texture_creation_params);
+        VulkanSetTextureInternal(context->m_DefaultTexture2DArray, default_texture_params);
 
         default_texture_creation_params.m_Type       = TEXTURE_TYPE_CUBE_MAP;
-        default_texture_creation_params.m_Depth      = 6;
-        default_texture_creation_params.m_LayerCount = 1;
+        default_texture_creation_params.m_Depth      = 1;
+        default_texture_creation_params.m_LayerCount = 6;
         context->m_DefaultTextureCubeMap = VulkanNewTextureInternal(default_texture_creation_params);
+        VulkanSetTextureInternal(context->m_DefaultTextureCubeMap, default_texture_params);
 
         memset(context->m_TextureUnits, 0x0, sizeof(context->m_TextureUnits));
         context->m_CurrentSwapchainTexture  = StoreAssetInContainer(context->m_AssetHandleContainer, VulkanNewTextureInternal({}), ASSET_TYPE_TEXTURE);
@@ -2756,13 +2758,6 @@ bail:
         DestroyResourceDeferred((VulkanContext*) context, program);
     }
 
-    static void VulkanDeleteProgram(HContext context, HProgram program)
-    {
-        assert(program);
-        VulkanProgram* program_ptr = (VulkanProgram*) program;
-        delete program_ptr;
-    }
-
     static void DestroyShader(VulkanContext* context, ShaderModule* shader)
     {
         if (!shader)
@@ -2771,6 +2766,21 @@ bail:
         }
 
         DestroyShaderModule(context->m_LogicalDevice.m_Device, shader);
+    }
+
+    static void VulkanDeleteProgram(HContext _context, HProgram program)
+    {
+        assert(program);
+        VulkanProgram* program_ptr = (VulkanProgram*) program;
+        VulkanContext* context = (VulkanContext*) _context;
+
+        DestroyProgram(context, program_ptr);
+
+        DestroyShader(context, program_ptr->m_VertexModule);
+        DestroyShader(context, program_ptr->m_FragmentModule);
+        DestroyShader(context, program_ptr->m_ComputeModule);
+
+        delete program_ptr;
     }
 
     static bool ReloadShader(VulkanContext* context, ShaderModule* shader, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage_flag)
@@ -4059,9 +4069,16 @@ bail:
 
         DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
+        DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2D->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTexture2D->m_Handle);
+        DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2DArray->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTexture2DArray->m_Handle);
+        DestroyDeviceBuffer(vk_device, &context->m_DefaultTextureCubeMap->m_DeviceBuffer.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTextureCubeMap->m_Handle);
+        DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2D32UI->m_DeviceBuffer.m_Handle);
+        DestroyTexture(vk_device, &context->m_DefaultTexture2D32UI->m_Handle);
+        DestroyDeviceBuffer(vk_device, &context->m_DefaultStorageImage2D->m_DeviceBuffer.m_Handle);
+        DestroyTexture(vk_device, &context->m_DefaultStorageImage2D->m_Handle);
 
         vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
@@ -4218,6 +4235,9 @@ bail:
             vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submit_info, fence);
             vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
             vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker, 1, &cmd_buffer);
+
+            vkDestroySemaphore(context->m_LogicalDevice.m_Device, semaphore, 0);
+            vkDestroyFence(context->m_LogicalDevice.m_Device, fence, 0);
 
             if (!is_memoryless)
             {

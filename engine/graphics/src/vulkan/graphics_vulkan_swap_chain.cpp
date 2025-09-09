@@ -287,6 +287,7 @@ namespace dmGraphics
             vk_create_info_image_view.subresourceRange.layerCount     = 1;
 
             res = vkCreateImageView(vk_device, &vk_create_info_image_view, 0, &swapChain->m_ImageViews[i]);
+
             if (res != VK_SUCCESS)
             {
                 return res;

@@ -1548,6 +1548,7 @@ bail:
     void DestroyLogicalDevice(LogicalDevice* device)
     {
         vkDestroyCommandPool(device->m_Device, device->m_CommandPool, 0);
+        vkDestroyCommandPool(device->m_Device, device->m_CommandPoolWorker, 0);
         vkDestroyDevice(device->m_Device, 0);
         memset(device, 0, sizeof(*device));
     }
