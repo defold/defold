@@ -74,13 +74,22 @@ if(BUILD_TESTS)
   )
 
   target_link_libraries(test_app_hid PRIVATE
+    dlib
     hid
     graphics
     platform
-    profile
-    dlib
-    glfw3
+    profile_null
   )
+
+  if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+    target_link_libraries(test_app_hid PRIVATE
+      dmglfw EGL GLESv1_CM GLESv2
+    )
+  else()
+    target_link_libraries(test_app_hid PRIVATE
+      glfw3
+    )
+  endif()
 
 
   # Platform link hints (adjust if needed)

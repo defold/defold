@@ -2,7 +2,8 @@ message("platform_android.cmake:")
 
 # Derive target arch
 if(TARGET_PLATFORM MATCHES "^arm64-")
-    set(_DEFOLD_ANDROID_ARCH "arm64")
+    # Use canonical name "aarch64" for 64-bit ARM
+    set(_DEFOLD_ANDROID_ARCH "aarch64")
 else()
     set(_DEFOLD_ANDROID_ARCH "armv7")
 endif()
@@ -27,7 +28,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fomit-frame-pointer")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-strict-aliasing")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funwind-tables")
 
-if(_DEFOLD_ANDROID_ARCH STREQUAL "arm64")
+if(_DEFOLD_ANDROID_ARCH STREQUAL "aarch64")
     add_compile_definitions(__aarch64__)
     add_compile_options(-march=armv8-a)
 else()
@@ -56,6 +57,7 @@ set(_DEFOLD_ANDROID_LINK_OPTS
     -Wl,--no-undefined
     -Wl,-z,noexecstack
     -landroid
+    -llog
     -z text
     -Wl,--build-id=uuid
     -static-libstdc++
@@ -65,11 +67,10 @@ set(_DEFOLD_ANDROID_LINK_OPTS
 #     list(APPEND _DEFOLD_ANDROID_LINK_OPTS -isysroot=${_DEFOLD_SYSROOT})
 # endif()
 
-if(_DEFOLD_ANDROID_ARCH STREQUAL "arm64")
+if(_DEFOLD_ANDROID_ARCH STREQUAL "aarch64")
     list(APPEND _DEFOLD_ANDROID_LINK_OPTS -Wl,-z,max-page-size=16384)
 else()
     list(APPEND _DEFOLD_ANDROID_LINK_OPTS -Wl,--fix-cortex-a8)
 endif()
 
 add_link_options(${_DEFOLD_ANDROID_LINK_OPTS})
-

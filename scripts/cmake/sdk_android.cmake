@@ -57,6 +57,42 @@ if(EXISTS "${_ANDROID_TOOLCHAIN_FILE}")
     endif()
     # Hint the NDK root
     set(ANDROID_NDK "${_ANDROID_NDK_ROOT}" CACHE PATH "Android NDK root" FORCE)
+
+    # Some CMake/NDK versions also key off CMAKE_SYSTEM_VERSION
+    if(NOT DEFINED CMAKE_SYSTEM_VERSION)
+        if(TARGET_PLATFORM MATCHES "armv7-android")
+            set(CMAKE_SYSTEM_VERSION 19 CACHE STRING "Android API level (system version)" FORCE)
+        elseif(TARGET_PLATFORM MATCHES "arm64-android")
+            set(CMAKE_SYSTEM_VERSION 21 CACHE STRING "Android API level (system version)" FORCE)
+        endif()
+    endif()
+
+    # Select default Android API level per target if not provided
+    # armv7-android -> API 19, arm64-android -> API 21
+    if(NOT DEFINED ANDROID_PLATFORM)
+        set(ANDROID_PLATFORM "android-${CMAKE_SYSTEM_VERSION}" CACHE STRING "Android API level" FORCE)
+    endif()
+
+    # Map Defold TARGET_PLATFORM to Android ABI name if not explicitly set
+    if(NOT DEFINED ANDROID_ABI)
+        if(TARGET_PLATFORM MATCHES "armv7-android")
+            set(ANDROID_ABI "armeabi-v7a" CACHE STRING "Android ABI" FORCE)
+        elseif(TARGET_PLATFORM MATCHES "arm64-android")
+            set(ANDROID_ABI "arm64-v8a" CACHE STRING "Android ABI" FORCE)
+        endif()
+    endif()
+
+    # For arm64-android, ensure Clang uses aarch64-linux-android21 target triple
+    if(TARGET_PLATFORM MATCHES "arm64-android")
+        set(CMAKE_C_COMPILER_TARGET   "aarch64-linux-android${CMAKE_SYSTEM_VERSION}" CACHE STRING "Clang target triple" FORCE)
+        set(CMAKE_CXX_COMPILER_TARGET "aarch64-linux-android${CMAKE_SYSTEM_VERSION}" CACHE STRING "Clang target triple" FORCE)
+    endif()
+
+    # For armv7-android, ensure Clang uses aarch64-linux-android21 target triple
+    if(TARGET_PLATFORM MATCHES "armv7-android")
+        set(CMAKE_C_COMPILER_TARGET   "armv7-linux-androidi${CMAKE_SYSTEM_VERSION}" CACHE STRING "Clang target triple" FORCE)
+        set(CMAKE_CXX_COMPILER_TARGET "armv7-linux-androidi${CMAKE_SYSTEM_VERSION}" CACHE STRING "Clang target triple" FORCE)
+    endif()
 endif()
 
 if (NOT CMAKE_TOOLCHAIN_FILE)
