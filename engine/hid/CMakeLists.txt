@@ -38,7 +38,8 @@ add_library(hid_null STATIC
 )
 target_include_directories(hid_null PUBLIC "${HID_SRC_DIR}")
 
-# ***********************************************************************
+
+# ===================== Tests =====================
 
 if(BUILD_TESTS)
   enable_testing()
@@ -47,11 +48,11 @@ if(BUILD_TESTS)
   add_executable(test_hid "${HID_SRC_DIR}/test/test_hid.cpp")
 
   target_link_libraries(test_hid PRIVATE
-    hid_null
-    testmain
     dlib
     profile_null
     platform_null
+    hid_null
+    testmain
   )
 
   add_test(NAME hid_unit_tests COMMAND test_hid)
@@ -91,7 +92,6 @@ if(BUILD_TESTS)
     )
   endif()
 
-
   # Platform link hints (adjust if needed)
   if(APPLE)
     target_link_libraries(test_app_hid PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo" "-framework OpenGL")
@@ -102,3 +102,15 @@ if(BUILD_TESTS)
     target_link_libraries(test_app_hid PRIVATE Threads::Threads dl)
   endif()
 endif()
+
+# ===================== Install =====================
+
+# Install static libraries to lib/<target-platform>
+install(TARGETS hid hid_null
+    ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
+    LIBRARY DESTINATION lib/${TARGET_PLATFORM}
+    RUNTIME DESTINATION bin/${TARGET_PLATFORM}
+)
+
+# Install public headers
+install(FILES "${HID_SRC_DIR}/hid.h" DESTINATION include/hid)
