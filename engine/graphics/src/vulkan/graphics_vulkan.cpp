@@ -3983,6 +3983,9 @@ bail:
                 texture->m_Height = params.m_Height;
                 texture->m_Depth  = params.m_Depth;
 
+                // Reset the intiail layout, so that the new texture handle is in the correct start layout.
+                texture->m_ImageLayout[0] = VK_IMAGE_LAYOUT_UNDEFINED;
+
                 // Note:
                 // If the texture has requested mipmaps and we need to recreate the texture, make sure to allocate enough mipmaps.
                 // For vulkan this means that we can't cap a texture to a specific mipmap count since the engine expects
