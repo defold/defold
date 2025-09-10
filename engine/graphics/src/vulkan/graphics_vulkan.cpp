@@ -141,6 +141,57 @@ namespace dmGraphics
         return g_VulkanContext;
     }
 
+    template <typename T>
+    static inline void TouchResource(VulkanContext* context, T* resource)
+    {
+        resource->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+    }
+
+    template <typename T>
+    static void DestroyResourceDeferred(VulkanContext* context, T* resource)
+    {
+        if (resource == 0x0 || resource->m_Destroyed)
+        {
+            return;
+        }
+
+        ResourceToDestroy resource_to_destroy;
+        resource_to_destroy.m_ResourceType = resource->GetType();
+
+        switch(resource_to_destroy.m_ResourceType)
+        {
+            case RESOURCE_TYPE_TEXTURE:
+            {
+                VulkanTexture* tex = (VulkanTexture*) resource;
+                resource_to_destroy.m_Texture = tex->m_Handle;
+                DestroyResourceDeferred(context, &tex->m_DeviceBuffer);
+                memset(tex->m_ImageLayout, 0, sizeof(tex->m_ImageLayout));
+            } break;
+            case RESOURCE_TYPE_DEVICE_BUFFER:
+                resource_to_destroy.m_DeviceBuffer = ((DeviceBuffer*) resource)->m_Handle;
+                ((DeviceBuffer*) resource)->UnmapMemory(context->m_LogicalDevice.m_Device);
+                break;
+            case RESOURCE_TYPE_PROGRAM:
+                resource_to_destroy.m_Program = ((VulkanProgram*) resource)->m_Handle;
+                break;
+            case RESOURCE_TYPE_RENDER_TARGET:
+                resource_to_destroy.m_RenderTarget = ((RenderTarget*) resource)->m_Handle;
+                break;
+            default:
+                assert(0);
+                break;
+        }
+
+        uint32_t frame_ix = resource->m_Handle.m_LastUsedFrame;
+        if (context->m_MainResourcesToDestroy[frame_ix]->Full())
+        {
+            context->m_MainResourcesToDestroy[frame_ix]->OffsetCapacity(8);
+        }
+
+        context->m_MainResourcesToDestroy[frame_ix]->Push(resource_to_destroy);
+        resource->m_Destroyed = 1;
+    }
+
     static inline bool IsTextureMemoryless(VulkanTexture* texture)
     {
         return texture->m_UsageFlags & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
@@ -400,21 +451,21 @@ namespace dmGraphics
         context->m_CurrentRenderTarget = render_target;
 
         // We need to update the current frame stamp for all attachments and framebuffer, since they are part of the render pass
-        rt->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+        TouchResource(context, rt);
 
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             if (rt->m_TextureColor[i])
             {
                 VulkanTexture* texture_color = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, rt->m_TextureColor[i]);
-                texture_color->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+                TouchResource(context, texture_color);
             }
         }
 
         if (rt->m_TextureDepthStencil)
         {
             VulkanTexture* depth_stencil_texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, rt->m_TextureDepthStencil);
-            depth_stencil_texture->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+            TouchResource(context, depth_stencil_texture);
         }
     }
 
@@ -772,8 +823,8 @@ namespace dmGraphics
         DestroyTexture(vk_device, &depth_stencil_texture->m_Handle);
         DestroySwapChain(vk_device, context->m_SwapChain);
 
-        // Reset the image layout to uninitialized (should maybe be generalized in DestroyTexture?)
-        depth_stencil_texture->m_ImageLayout[0] = VK_IMAGE_LAYOUT_UNDEFINED;
+        // Reset the image layout
+        memset(depth_stencil_texture->m_ImageLayout, 0, sizeof(depth_stencil_texture->m_ImageLayout));
 
         // At this point, we've destroyed the framebuffers, depth/stencil textures, and the swapchain
         // and the platform may do extra setup
@@ -1559,48 +1610,6 @@ bail:
         }
     }
 
-    template <typename T>
-    static void DestroyResourceDeferred(VulkanContext* context, T* resource)
-    {
-        if (resource == 0x0 || resource->m_Destroyed)
-        {
-            return;
-        }
-
-        ResourceToDestroy resource_to_destroy;
-        resource_to_destroy.m_ResourceType = resource->GetType();
-
-        switch(resource_to_destroy.m_ResourceType)
-        {
-            case RESOURCE_TYPE_TEXTURE:
-                resource_to_destroy.m_Texture = ((VulkanTexture*) resource)->m_Handle;
-                DestroyResourceDeferred(context, &((VulkanTexture*) resource)->m_DeviceBuffer);
-                break;
-            case RESOURCE_TYPE_DEVICE_BUFFER:
-                resource_to_destroy.m_DeviceBuffer = ((DeviceBuffer*) resource)->m_Handle;
-                ((DeviceBuffer*) resource)->UnmapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
-                break;
-            case RESOURCE_TYPE_PROGRAM:
-                resource_to_destroy.m_Program = ((VulkanProgram*) resource)->m_Handle;
-                break;
-            case RESOURCE_TYPE_RENDER_TARGET:
-                resource_to_destroy.m_RenderTarget = ((RenderTarget*) resource)->m_Handle;
-                break;
-            default:
-                assert(0);
-                break;
-        }
-
-        uint32_t frame_ix = resource->m_Handle.m_LastUsedFrame;
-        if (context->m_MainResourcesToDestroy[frame_ix]->Full())
-        {
-            context->m_MainResourcesToDestroy[frame_ix]->OffsetCapacity(8);
-        }
-
-        context->m_MainResourcesToDestroy[frame_ix]->Push(resource_to_destroy);
-        resource->m_Destroyed = 1;
-    }
-
     static Pipeline* GetOrCreateComputePipeline(VkDevice vk_device, PipelineCache& pipelineCache, VulkanProgram* program)
     {
         HashState64 pipeline_hash_state;
@@ -2055,7 +2064,7 @@ bail:
             texture = GetDefaultTexture(context, binding->m_Type.m_ShaderType);
         }
 
-        texture->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+        TouchResource(context, texture);
 
         VkImageLayout image_layout       = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         VkSampler image_sampler          = context->m_TextureSamplers[texture->m_TextureSamplerIndex].m_Sampler;
@@ -2156,8 +2165,7 @@ bail:
                     const StorageBufferBinding binding = context->m_CurrentStorageBuffers[next->m_StorageBufferUnit];
                     
                     DeviceBuffer* ssbo_buffer = (DeviceBuffer*) binding.m_Buffer;
-                    ssbo_buffer->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
-
+                    TouchResource(context, ssbo_buffer);
                     UpdateUniformBufferDescriptor(context,
                         ssbo_buffer->m_Handle.m_Buffer,
                         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -2189,7 +2197,8 @@ bail:
                         uniform_size_align);
 
                     scratch_buffer->m_MappedDataCursor += uniform_size_align;
-                    scratch_buffer->m_DeviceBuffer.m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+                    TouchResource(context, &scratch_buffer->m_DeviceBuffer);
+
                     dynamic_offset_index++;
                 } break;
                 case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
@@ -2312,12 +2321,10 @@ bail:
         {
             if (context->m_CurrentVertexBuffer[i] && context->m_CurrentVertexDeclaration[i])
             {
+                TouchResource(context, context->m_CurrentVertexBuffer[i]);
                 vx_declarations[num_vx_buffers]   = context->m_CurrentVertexDeclaration[i];
                 vk_buffers[num_vx_buffers]        = context->m_CurrentVertexBuffer[i]->m_Handle.m_Buffer;
                 vk_buffer_offsets[num_vx_buffers] = context->m_CurrentVertexBufferOffset[i];
-
-                context->m_CurrentVertexBuffer[i]->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
-
                 num_vx_buffers++;
             }
         }
@@ -2404,7 +2411,7 @@ bail:
                 vk_index_type = VK_INDEX_TYPE_UINT32;
             }
 
-            indexBuffer->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+            TouchResource(context, indexBuffer);
 
             vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_Handle.m_Buffer, 0, vk_index_type);
         }
@@ -3760,8 +3767,8 @@ bail:
             vk_copy_region.imageSubresource.layerCount     = 1;
         }
 
-        stage_buffer->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
-        texture->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+        TouchResource(context, stage_buffer);
+        TouchResource(context, texture);
 
         vkCmdCopyBufferToImage(cmd_buffer, stage_buffer->m_Handle.m_Buffer,
             texture->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -3982,9 +3989,6 @@ bail:
                 texture->m_Width  = params.m_Width;
                 texture->m_Height = params.m_Height;
                 texture->m_Depth  = params.m_Depth;
-
-                // Reset the intiail layout, so that the new texture handle is in the correct start layout.
-                texture->m_ImageLayout[0] = VK_IMAGE_LAYOUT_UNDEFINED;
 
                 // Note:
                 // If the texture has requested mipmaps and we need to recreate the texture, make sure to allocate enough mipmaps.
@@ -4611,8 +4615,8 @@ bail:
         vk_copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         vk_copy_region.imageSubresource.layerCount = 1;
 
-        tex_sc->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
-        stage_buffer.m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+        TouchResource(context, tex_sc);
+        TouchResource(context, &stage_buffer);
 
         vkCmdCopyImageToBuffer(
             cmd_buffer.m_CmdBuffer,
