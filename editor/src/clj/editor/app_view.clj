@@ -2661,7 +2661,7 @@ If you do not specifically require different script states, consider changing th
 (defn- gen-tooltip [workspace project app-view resource]
   (when (resource/loaded? resource)
     (let [resource-type (resource/resource-type resource)
-          view-type (or (first (view-types resource))
+          view-type (or (first (:view-types resource-type))
                         (workspace/get-view-type workspace :text))]
       (when-let [make-preview-fn (:make-preview-fn view-type)]
         {:fx/type fx.tooltip/lifecycle
