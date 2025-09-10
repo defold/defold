@@ -755,6 +755,21 @@ namespace dmGameSystem
         DispatchMessage(scene, message);
     }
 
+    static bool GetDisplayProfileDescForGui(const dmGui::HScene scene, dmhash_t layout_id, uint32_t* out_width, uint32_t* out_height)
+    {
+        dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
+        if (!display_profiles)
+            return false;
+        dmRender::DisplayProfileDesc desc;
+        if (dmRender::GetDisplayProfileDesc(display_profiles, layout_id, desc) == dmRender::RESULT_OK)
+        {
+            *out_width = desc.m_Width;
+            *out_height = desc.m_Height;
+            return true;
+        }
+        return false;
+    }
+
     static void* GetSceneResourceByHash(void* ctx, dmGui::HScene scene, dmhash_t name_hash, dmhash_t suffix_with_dot)
     {
         (void)scene;
@@ -1044,6 +1059,7 @@ namespace dmGameSystem
         scene_params.m_CloneRenderConstantsCallback = CloneRenderConstantsCallback;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
         scene_params.m_ApplyLayoutCallback    = &ApplyLayoutFromScript;
+        scene_params.m_GetDisplayProfileDescCallback = &GetDisplayProfileDescForGui;
 
         scene_params.m_NewTextureResourceCallback    = &NewTextureResourceCallback;
         scene_params.m_DeleteTextureResourceCallback = &DeleteTextureResourceCallback;

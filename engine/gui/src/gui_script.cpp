@@ -27,7 +27,6 @@
 
 #include "gui.h"
 #include "gui_private.h"
-#include <render/display_profiles.h>
 
 extern "C"
 {
@@ -2659,8 +2658,8 @@ namespace dmGui
     /*# returns available layouts with sizes
      *
      * Returns a table mapping each layout id hash to a vector3(width, height, 0). For the default layout,
-     * the current scene resolution is returned. If a layout name is not present in the Display Profiles,
-     * the width/height pair is 0.
+     * the current scene resolution is returned. If a layout name is not present in the Display Profiles (or when
+     * no display profiles are assigned), the width/height pair is 0.
      *
      * @name gui.get_layouts
      * @return [type:table] layout_id_hash -> vmath.vector3(width, height, 0)
@@ -2673,7 +2672,6 @@ namespace dmGui
         lua_newtable(L);
 
         uint16_t layout_count = dmGui::GetLayoutCount(scene);
-        dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
         for (uint16_t i = 0; i < layout_count; ++i)
         {
             dmhash_t id;
@@ -2685,14 +2683,9 @@ namespace dmGui
             {
                 dmGui::GetSceneResolution(scene, w, h);
             }
-            else if (display_profiles)
+            else if (scene->m_GetDisplayProfileDescCallback)
             {
-                dmRender::DisplayProfileDesc desc;
-                if (dmRender::GetDisplayProfileDesc(display_profiles, id, desc) == dmRender::RESULT_OK)
-                {
-                    w = desc.m_Width;
-                    h = desc.m_Height;
-                }
+                scene->m_GetDisplayProfileDescCallback(scene, id, &w, &h);
             }
 
             dmScript::PushHash(L, id);

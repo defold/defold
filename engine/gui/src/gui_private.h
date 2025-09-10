@@ -301,6 +301,7 @@ namespace dmGui
         NewTextureResourceCallback            m_NewTextureResourceCallback;
         DeleteTextureResourceCallback         m_DeleteTextureResourceCallback;
         SetTextureResourceCallback            m_SetTextureResourceCallback;
+        GetDisplayProfileDescCallback         m_GetDisplayProfileDescCallback;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);

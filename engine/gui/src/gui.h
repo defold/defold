@@ -182,6 +182,12 @@ namespace dmGui
     typedef void (*SetTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
 
     /**
+     * Callback to query display profile resolution for a layout id
+     * Should return true and fill out parameters when found; false otherwise
+     */
+    typedef bool (*GetDisplayProfileDescCallback)(HScene scene, dmhash_t layout_id, uint32_t* out_width, uint32_t* out_height);
+
+    /**
      * Scene creation
      */
     struct NewSceneParams;
@@ -217,6 +223,7 @@ namespace dmGui
         FetchTextureSetAnimCallback    m_FetchTextureSetAnimCallback;
         OnWindowResizeCallback         m_OnWindowResizeCallback;
         ApplyLayoutCallback            m_ApplyLayoutCallback;
+        GetDisplayProfileDescCallback  m_GetDisplayProfileDescCallback;
         NewTextureResourceCallback     m_NewTextureResourceCallback;
         DeleteTextureResourceCallback  m_DeleteTextureResourceCallback;
         SetTextureResourceCallback     m_SetTextureResourceCallback;
