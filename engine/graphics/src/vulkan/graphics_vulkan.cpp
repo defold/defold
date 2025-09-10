@@ -730,9 +730,9 @@ namespace dmGraphics
         context->m_DefaultTexture2DArray                = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultTexture2DArray, default_texture_params);
 
-        default_texture_creation_params.m_Type       = TEXTURE_TYPE_CUBE_MAP;
-        default_texture_creation_params.m_Depth      = 1;
-        default_texture_creation_params.m_LayerCount = 6;
+        default_texture_creation_params.m_Type          = TEXTURE_TYPE_CUBE_MAP;
+        default_texture_creation_params.m_Depth         = 1;
+        default_texture_creation_params.m_LayerCount    = 6;
         context->m_DefaultTextureCubeMap = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultTextureCubeMap, default_texture_params);
 

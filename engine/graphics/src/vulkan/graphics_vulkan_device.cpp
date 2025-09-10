@@ -860,7 +860,6 @@ bail:
         else if (tex_type == TEXTURE_TYPE_2D_ARRAY)
         {
             assert(imageLayers > 0);
-            vk_image_create_info.flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
             vk_view_type = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
         }
         else if (tex_type == TEXTURE_TYPE_3D || tex_type == TEXTURE_TYPE_IMAGE_3D || tex_type == TEXTURE_TYPE_TEXTURE_3D)
