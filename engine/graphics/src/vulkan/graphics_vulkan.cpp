@@ -420,17 +420,27 @@ namespace dmGraphics
 
     static VkImageAspectFlags GetDefaultDepthAndStencilAspectFlags(VkFormat vk_format)
     {
-        // The aspect flag indicates what the image should be used for,
-        // it is usually color or stencil | depth.
-        VkImageAspectFlags vk_aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
-
-        if (vk_format == VK_FORMAT_D32_SFLOAT_S8_UINT ||
-            vk_format == VK_FORMAT_D24_UNORM_S8_UINT  ||
-            vk_format == VK_FORMAT_D16_UNORM_S8_UINT)
+        switch (vk_format)
         {
-            vk_aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
+            // Depth-only formats
+            case VK_FORMAT_D32_SFLOAT:
+            case VK_FORMAT_D16_UNORM:
+                return VK_IMAGE_ASPECT_DEPTH_BIT;
+
+            // Stencil-only
+            case VK_FORMAT_S8_UINT:
+                return VK_IMAGE_ASPECT_STENCIL_BIT;
+
+            // Depth+stencil formats
+            case VK_FORMAT_D32_SFLOAT_S8_UINT:
+            case VK_FORMAT_D24_UNORM_S8_UINT:
+            case VK_FORMAT_D16_UNORM_S8_UINT:
+                return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+
+            default:
+                // Fallback: assume depth only (safe but may be incomplete)
+                return VK_IMAGE_ASPECT_DEPTH_BIT;
         }
-        return vk_aspect;
     }
 
     static void GetDepthFormatAndTiling(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_list, uint8_t vk_format_list_size, VkFormat* vk_format_out, VkImageTiling* vk_tiling_out)
@@ -3475,7 +3485,7 @@ bail:
             VkResult res = CreateDepthStencilTexture(g_VulkanContext,
                 vk_depth_stencil_format, vk_depth_tiling,
                 fb_width, fb_height, VK_SAMPLE_COUNT_1_BIT, // No support for multisampled FBOs
-                VK_IMAGE_ASPECT_DEPTH_BIT, // JG: This limits us to sampling depth only afaik
+                GetDefaultDepthAndStencilAspectFlags(vk_depth_stencil_format),
                 texture_depth_stencil_ptr);
             CHECK_VK_ERROR(res);
         }
@@ -4187,7 +4197,7 @@ bail:
 
             if (!is_memoryless)
             {
-                TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex->m_Depth);
+                TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
 
                 VkResult res = CreateDeviceBuffer(
                     context->m_PhysicalDevice.m_Device,
@@ -4213,7 +4223,7 @@ bail:
                 CopyToTextureWithStageBuffer(context, cmd_buffer, &stage_buffer, tex, ap.m_Params, tex_data_size, tex_data_ptr);
             }
 
-            TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex->m_LayerCount);
+            TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
 
             vkEndCommandBuffer(cmd_buffer);
 
