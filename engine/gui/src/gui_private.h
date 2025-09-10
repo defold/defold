@@ -291,6 +291,7 @@ namespace dmGui
         void*                                 m_GetResourceCallbackContext;
         FetchTextureSetAnimCallback           m_FetchTextureSetAnimCallback;
         OnWindowResizeCallback                m_OnWindowResizeCallback;
+        ApplyLayoutCallback                   m_ApplyLayoutCallback;
         GetMaterialPropertyCallback           m_GetMaterialPropertyCallback;
         void*                                 m_GetMaterialPropertyCallbackContext;
         SetMaterialPropertyCallback           m_SetMaterialPropertyCallback;

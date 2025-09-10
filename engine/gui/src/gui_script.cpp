@@ -27,6 +27,7 @@
 
 #include "gui.h"
 #include "gui_private.h"
+#include <render/display_profiles.h>
 
 extern "C"
 {
@@ -2609,6 +2610,99 @@ namespace dmGui
         return 1;
     }
 
+    /*# sets the scene layout
+     *
+     * Applies a named layout on the GUI scene. This re-applies per-layout node descriptors
+     * and, if a matching Display Profile exists, updates the scene resolution. Emits
+     * the "layout_changed" message to the scene script when the layout actually changes.
+     *
+     * @name gui.set_layout
+     * @param layout [type:string|hash] the layout id to apply
+     * @return [type:boolean] true if the layout exists in the scene and was applied, false otherwise
+     */
+    static int LuaSetLayout(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        dmhash_t layout_id = dmScript::CheckHashOrString(L, 1);
+
+        // Verify existence
+        bool has_layout = false;
+        uint16_t layout_count = dmGui::GetLayoutCount(scene);
+        for (uint16_t i = 0; i < layout_count; ++i)
+        {
+            dmhash_t id;
+            if (dmGui::GetLayoutId(scene, i, id) == dmGui::RESULT_OK && id == layout_id)
+            {
+                has_layout = true;
+                break;
+            }
+        }
+
+        if (!has_layout)
+        {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
+        if (!scene->m_ApplyLayoutCallback)
+        {
+            return DM_LUA_ERROR("gui.set_layout is unavailable in this context");
+        }
+
+        scene->m_ApplyLayoutCallback(scene, layout_id);
+        lua_pushboolean(L, 1);
+        return 1;
+    }
+
+    /*# returns available layouts with sizes
+     *
+     * Returns a table mapping each layout id hash to a vector3(width, height, 0). For the default layout,
+     * the current scene resolution is returned. If a layout name is not present in the Display Profiles,
+     * the width/height pair is 0.
+     *
+     * @name gui.get_layouts
+     * @return [type:table] layout_id_hash -> vmath.vector3(width, height, 0)
+     */
+    static int LuaGetLayouts(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        lua_newtable(L);
+
+        uint16_t layout_count = dmGui::GetLayoutCount(scene);
+        dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
+        for (uint16_t i = 0; i < layout_count; ++i)
+        {
+            dmhash_t id;
+            if (dmGui::GetLayoutId(scene, i, id) != dmGui::RESULT_OK)
+                continue;
+
+            uint32_t w = 0, h = 0;
+            if (id == dmGui::DEFAULT_LAYOUT)
+            {
+                dmGui::GetSceneResolution(scene, w, h);
+            }
+            else if (display_profiles)
+            {
+                dmRender::DisplayProfileDesc desc;
+                if (dmRender::GetDisplayProfileDesc(display_profiles, id, desc) == dmRender::RESULT_OK)
+                {
+                    w = desc.m_Width;
+                    h = desc.m_Height;
+                }
+            }
+
+            dmScript::PushHash(L, id);
+            dmScript::PushVector3(L, dmVMath::Vector3((float)w, (float)h, 0.0f));
+            lua_settable(L, -3);
+        }
+
+        return 1;
+    }
+
     /*# gets the node clipping mode
      * Clipping mode defines how the node will clip it's children nodes
      *
@@ -4944,6 +5038,8 @@ namespace dmGui
         {"get_layer",        LuaGetLayer},
         {"set_layer",        LuaSetLayer},
         {"get_layout",        LuaGetLayout},
+        {"set_layout",        LuaSetLayout},
+        {"get_layouts",       LuaGetLayouts},
         {"get_text_metrics",LuaGetTextMetrics},
         {"get_text_metrics_from_node",LuaGetTextMetricsFromNode},
         {"get_xanchor",     LuaGetXAnchor},

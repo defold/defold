@@ -117,6 +117,11 @@ namespace dmGui
     typedef void (*OnWindowResizeCallback)(const HScene scene, uint32_t width, uint32_t height);
 
     /**
+     * Callback for applying a layout from script
+     */
+    typedef void (*ApplyLayoutCallback)(const HScene scene, dmhash_t layout_id);
+
+    /**
      * Callback to create custom node data
      */
     typedef void* (*CreateCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type);
@@ -211,6 +216,7 @@ namespace dmGui
         CloneRenderConstantsCallback   m_CloneRenderConstantsCallback;
         FetchTextureSetAnimCallback    m_FetchTextureSetAnimCallback;
         OnWindowResizeCallback         m_OnWindowResizeCallback;
+        ApplyLayoutCallback            m_ApplyLayoutCallback;
         NewTextureResourceCallback     m_NewTextureResourceCallback;
         DeleteTextureResourceCallback  m_DeleteTextureResourceCallback;
         SetTextureResourceCallback     m_SetTextureResourceCallback;

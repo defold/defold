@@ -395,6 +395,7 @@ namespace dmGui
         scene->m_DestroyRenderConstantsCallback = params->m_DestroyRenderConstantsCallback;
         scene->m_CloneRenderConstantsCallback = params->m_CloneRenderConstantsCallback;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
+        scene->m_ApplyLayoutCallback    = params->m_ApplyLayoutCallback;
         scene->m_NewTextureResourceCallback = params->m_NewTextureResourceCallback;
         scene->m_DeleteTextureResourceCallback = params->m_DeleteTextureResourceCallback;
         scene->m_SetTextureResourceCallback = params->m_SetTextureResourceCallback;
