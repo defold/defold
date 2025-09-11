@@ -10,10 +10,21 @@ def configure(conf):
     pass
 
 def build(bld):
+    # Build simd version
     box2d = bld.stlib(features = 'c',
                       includes = '.. include',
                       source = bld.path.ant_glob('**/*.c'),
                       target = 'box2d')
+
+    # Build simd-disabled version
+    box2d_nosimd = bld.stlib(features = 'c',
+                             includes = '.. include',
+                             source = bld.path.ant_glob('**/*.c'),
+                             target = 'box2d_nosimd')
+
+    # Add SIMD disable flag to the nosimd version
+    box2d_nosimd.env.append_unique('CFLAGS', '-DBOX2D_DISABLE_SIMD')
+    box2d_nosimd.env.append_unique('CXXFLAGS', '-DBOX2D_DISABLE_SIMD')
 
     name = "%s-%s" % (APPNAME, VERSION)
     packagedir = '.'
@@ -24,16 +35,21 @@ def build(bld):
         bld.env.cxxstlib_PATTERN = 'lib%s.lib'
 
         box2d.env.append_unique('CFLAGS', '/std:c11') # for _Static_assert
+        box2d_nosimd.env.append_unique('CFLAGS', '/std:c11') # for _Static_assert
 
+    # Install both libs
     bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'box2d')
+    bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'box2d_nosimd')
+
+    # Install headers
     bld.install_files('${PREFIX}/%s' % (name),
-                        bld.path.ant_glob('include/**/*.h'),
-                        relative_base=bld.path.find_dir('.'),
-                        relative_trick=True)
+                      bld.path.ant_glob('include/**/*.h'),
+                      relative_base=bld.path.find_dir('.'),
+                      relative_trick=True)
     bld.install_files('${PREFIX}/%s/include/box2d' % (name),
-                        bld.path.ant_glob('src/**/*.h'),
-                        relative_base=bld.path.find_dir('.'),
-                        relative_trick=True)
+                      bld.path.ant_glob('src/**/*.h'),
+                      relative_base=bld.path.find_dir('.'),
+                      relative_trick=True)
 
     if isinstance(bld, Build.InstallContext):
 
@@ -62,11 +78,6 @@ def build(bld):
                   always=True)
 
 
-## NOTE!
-## This seems a bit hacky, and it sure is. We leave a folder behind in the packages folder now,
-## so when using this to build external libraries, make sure to NOT commit that folder. We can
-## potentially solve it by running some sort of cleanup task after the other package tasks perhaps.
-## I tried with bld.add_groups() after the package tasks, but it was not working.
 def create_package(self):
     target = self.outputs[0].abspath()
     name = self.outputs[0].name
@@ -97,4 +108,3 @@ def create_package(self):
 
 def package(package):
     pass
-
