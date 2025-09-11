@@ -25,8 +25,8 @@ def configure(conf):
         conf.env.SIMD_CXXFLAGS += ['-mfpu=neon']
 
     if plat in ('wasm-web', 'wasm_pthread-web'):
-        conf.env.SIMD_CFLAGS   += ['-msimd128']
-        conf.env.SIMD_CXXFLAGS += ['-msimd128']
+        conf.env.SIMD_CFLAGS   += ['-msimd128', '-msse2']
+        conf.env.SIMD_CXXFLAGS += ['-msimd128', '-msse2']
     elif plat == 'js-web':
         pass
 
