@@ -39,12 +39,10 @@ def configure(conf):
 
 
 def build(bld):
-    # Sources/Includes
     srcs = bld.path.ant_glob('**/*.c')
     incs = '.. include'
 
     name = f"{APPNAME}-{VERSION}"
-
     plat = bld.env.PLATFORM
     install_dir = '${PREFIX}/%s/lib/%s/' % (name, plat)
 
@@ -55,7 +53,6 @@ def build(bld):
                           target='box2d',
                           cflags=bld.env.SIMD_CFLAGS,
                           cxxflags=bld.env.SIMD_CXXFLAGS)
-
         bld.install_files(install_dir, bld.env.cxxstlib_PATTERN % 'box2d')
 
     box2d_nosimd = bld.stlib(features='c',
@@ -64,10 +61,14 @@ def build(bld):
                              target='box2d_nosimd',
                              cflags=bld.env.NOSIMD_CFLAGS + ['-DBOX2D_DISABLE_SIMD'],
                              cxxflags=bld.env.NOSIMD_CXXFLAGS + ['-DBOX2D_DISABLE_SIMD'])
-
     bld.install_files(install_dir, bld.env.cxxstlib_PATTERN % 'box2d_nosimd')
 
-    # Install headers
+    if plat == 'js-web':
+        simd_name = bld.env.cxxstlib_PATTERN % 'box2d'
+        nosimd_name = bld.env.cxxstlib_PATTERN % 'box2d_nosimd'
+        nosimd_node = bld.path.get_bld().make_node(nosimd_name)
+        bld.install_as(install_dir + simd_name, nosimd_node)
+
     bld.install_files('${PREFIX}/%s' % (name),
                       bld.path.ant_glob('include/**/*.h'),
                       relative_base=bld.path.find_dir('.'),
@@ -78,11 +79,11 @@ def build(bld):
                       relative_trick=True)
 
     if isinstance(bld, Build.InstallContext):
-        bld.add_group()  # ensure install finished
+        bld.add_group()
 
         output_dir = '%s/%s' % (bld.env.PREFIX, name)
         try:
-            shutil.rmtree(output_dir)  # clear old content
+            shutil.rmtree(output_dir)
         except Exception:
             pass
 
