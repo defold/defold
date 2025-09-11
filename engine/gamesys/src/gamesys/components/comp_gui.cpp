@@ -661,7 +661,7 @@ namespace dmGameSystem
     static void OnWindowResizeCallback(const dmGui::HScene scene, uint32_t width, uint32_t height)
     {
         dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
-        if (display_profiles && !dmRender::GetAutoLayoutSelection(display_profiles))
+        if (!dmRender::GetAutoLayoutSelection(display_profiles))
         {
             return;
         }
@@ -730,13 +730,10 @@ namespace dmGameSystem
         }
 
         dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
-        if (display_profiles)
+        dmRender::DisplayProfileDesc profile_desc;
+        if (dmRender::GetDisplayProfileDesc(display_profiles, layout_id, profile_desc) == dmRender::RESULT_OK)
         {
-            dmRender::DisplayProfileDesc profile_desc;
-            if (dmRender::GetDisplayProfileDesc(display_profiles, layout_id, profile_desc) == dmRender::RESULT_OK)
-            {
-                dmGui::SetSceneResolution(scene, profile_desc.m_Width, profile_desc.m_Height);
-            }
+            dmGui::SetSceneResolution(scene, profile_desc.m_Width, profile_desc.m_Height);
         }
 
         dmGui::SetLayout(scene, layout_id, SetNodeCallback);
@@ -974,7 +971,7 @@ namespace dmGameSystem
 
             // we might have any resolution starting the scene, so let's set the best alternative layout directly
             dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles)dmGui::GetDisplayProfiles(scene);
-            if (display_profiles && !dmRender::GetAutoLayoutSelection(display_profiles))
+            if (!dmRender::GetAutoLayoutSelection(display_profiles))
             {
                 // Skip auto layout selection when disabled
                 return result;
