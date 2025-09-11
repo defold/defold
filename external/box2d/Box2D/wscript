@@ -6,41 +6,49 @@ from waflib import Build
 VERSION = '3.1.0'
 APPNAME = 'box2d'
 
+
 def configure(conf):
     plat = conf.env.PLATFORM
     if not plat:
         conf.fatal('Pass --platform=...')
 
-    conf.env.SIMD_CFLAGS,   conf.env.SIMD_CXXFLAGS   = [], []
+    conf.env.SIMD_CFLAGS, conf.env.SIMD_CXXFLAGS = [], []
     conf.env.NOSIMD_CFLAGS, conf.env.NOSIMD_CXXFLAGS = [], []
 
     if plat in ('win32', 'x86_64-win32'):
-        conf.env.STLIB_ST         = 'lib%s.lib'
-        conf.env.cstlib_PATTERN   = 'lib%s.lib'
+        conf.env.STLIB_ST = 'lib%s.lib'
+        conf.env.cstlib_PATTERN = 'lib%s.lib'
         conf.env.cxxstlib_PATTERN = 'lib%s.lib'
         conf.env.append_unique('CFLAGS', ['/std:c11'])
 
     if plat == 'armv7-android':
-        conf.env.SIMD_CFLAGS   += ['-mfpu=neon']
+        conf.env.SIMD_CFLAGS += ['-mfpu=neon']
         conf.env.SIMD_CXXFLAGS += ['-mfpu=neon']
 
     if plat in ('wasm-web', 'wasm_pthread-web'):
-        conf.env.SIMD_CFLAGS   += ['-msimd128', '-msse2']
+        conf.env.SIMD_CFLAGS += ['-msimd128', '-msse2']
         conf.env.SIMD_CXXFLAGS += ['-msimd128', '-msse2']
     elif plat == 'js-web':
         pass
+
 
 def build(bld):
     # Sources/Includes
     srcs = bld.path.ant_glob('**/*.c')
     incs = '.. include'
+    plat = bld.env.PLATFORM
 
-    box2d = bld.stlib(features='c',
-                      includes=incs,
-                      source=srcs,
-                      target='box2d',
-                      cflags=bld.env.SIMD_CFLAGS,
-                      cxxflags=bld.env.SIMD_CXXFLAGS)
+    name = f"{APPNAME}-{VERSION}"
+    install_dir = '${PREFIX}/%s/lib/%s/' % (name, plat)
+
+    build_simd = (plat != 'js-web')
+    if build_simd:
+        box2d = bld.stlib(features='c',
+                          includes=incs,
+                          source=srcs,
+                          target='box2d',
+                          cflags=bld.env.SIMD_CFLAGS,
+                          cxxflags=bld.env.SIMD_CXXFLAGS)
 
     box2d_nosimd = bld.stlib(features='c',
                              includes=incs,
@@ -50,12 +58,9 @@ def build(bld):
                              cflags=bld.env.NOSIMD_CFLAGS,
                              cxxflags=bld.env.NOSIMD_CXXFLAGS)
 
-    name = f"{APPNAME}-{VERSION}"
-
-    bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM),
-                      bld.env.cxxstlib_PATTERN % 'box2d')
-    bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM),
-                      bld.env.cxxstlib_PATTERN % 'box2d_nosimd')
+    if build_simd:
+        bld.install_files(install_dir, bld.env.cxxstlib_PATTERN % 'box2d')
+    bld.install_files(install_dir, bld.env.cxxstlib_PATTERN % 'box2d_nosimd')
 
     bld.install_files('${PREFIX}/%s' % (name),
                       bld.path.ant_glob('include/**/*.h'),
@@ -76,7 +81,7 @@ def build(bld):
             pass
 
         bld(rule=create_package, cwd=output_dir,
-            target=f'{name}-{bld.env.PLATFORM}.tar.gz', always=True)
+            target=f'{name}-{plat}.tar.gz', always=True)
         bld(rule=create_package, cwd=output_dir,
             target=f'{name}-common.tar.gz', always=True)
 
@@ -94,6 +99,7 @@ def create_package(self):
     dest = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'packages', name))
     shutil.copy2(target, dest)
     print("Installed to", dest)
+
 
 def package(package):
     pass
