@@ -7,41 +7,56 @@ VERSION = '3.1.0'
 APPNAME = 'box2d'
 
 def configure(conf):
-    pass
+    plat = conf.env.PLATFORM
+    if not plat:
+        conf.fatal('Pass --platform=...')
+
+    conf.env.SIMD_CFLAGS,   conf.env.SIMD_CXXFLAGS   = [], []
+    conf.env.NOSIMD_CFLAGS, conf.env.NOSIMD_CXXFLAGS = [], []
+
+    if plat in ('win32', 'x86_64-win32'):
+        conf.env.STLIB_ST         = 'lib%s.lib'
+        conf.env.cstlib_PATTERN   = 'lib%s.lib'
+        conf.env.cxxstlib_PATTERN = 'lib%s.lib'
+        conf.env.append_unique('CFLAGS', ['/std:c11'])
+
+    if plat == 'armv7-android':
+        conf.env.SIMD_CFLAGS   += ['-mfpu=neon']
+        conf.env.SIMD_CXXFLAGS += ['-mfpu=neon']
+
+    if plat in ('wasm-web', 'wasm_pthread-web'):
+        conf.env.SIMD_CFLAGS   += ['-msimd128']
+        conf.env.SIMD_CXXFLAGS += ['-msimd128']
+    elif plat == 'js-web':
+        pass
 
 def build(bld):
-    # Build simd version
-    box2d = bld.stlib(features = 'c',
-                      includes = '.. include',
-                      source = bld.path.ant_glob('**/*.c'),
-                      target = 'box2d')
+    # Sources/Includes
+    srcs = bld.path.ant_glob('**/*.c')
+    incs = '.. include'
 
-    # Build simd-disabled version
-    box2d_nosimd = bld.stlib(features = 'c',
-                             includes = '.. include',
-                             source = bld.path.ant_glob('**/*.c'),
-                             target = 'box2d_nosimd')
+    box2d = bld.stlib(features='c',
+                      includes=incs,
+                      source=srcs,
+                      target='box2d',
+                      cflags=bld.env.SIMD_CFLAGS,
+                      cxxflags=bld.env.SIMD_CXXFLAGS)
 
-    # Add SIMD disable flag to the nosimd version
-    box2d_nosimd.env.append_unique('CFLAGS', '-DBOX2D_DISABLE_SIMD')
-    box2d_nosimd.env.append_unique('CXXFLAGS', '-DBOX2D_DISABLE_SIMD')
+    box2d_nosimd = bld.stlib(features='c',
+                             includes=incs,
+                             source=srcs,
+                             target='box2d_nosimd',
+                             defines=['BOX2D_DISABLE_SIMD'],
+                             cflags=bld.env.NOSIMD_CFLAGS,
+                             cxxflags=bld.env.NOSIMD_CXXFLAGS)
 
-    name = "%s-%s" % (APPNAME, VERSION)
-    packagedir = '.'
+    name = f"{APPNAME}-{VERSION}"
 
-    if bld.env.PLATFORM in ('win32', 'x86_64-win32'):
-        bld.env.STLIB_ST         = 'lib%s.lib'
-        bld.env.cstlib_PATTERN   = 'lib%s.lib'
-        bld.env.cxxstlib_PATTERN = 'lib%s.lib'
+    bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM),
+                      bld.env.cxxstlib_PATTERN % 'box2d')
+    bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM),
+                      bld.env.cxxstlib_PATTERN % 'box2d_nosimd')
 
-        box2d.env.append_unique('CFLAGS', '/std:c11') # for _Static_assert
-        box2d_nosimd.env.append_unique('CFLAGS', '/std:c11') # for _Static_assert
-
-    # Install both libs
-    bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'box2d')
-    bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'box2d_nosimd')
-
-    # Install headers
     bld.install_files('${PREFIX}/%s' % (name),
                       bld.path.ant_glob('include/**/*.h'),
                       relative_base=bld.path.find_dir('.'),
@@ -52,59 +67,33 @@ def build(bld):
                       relative_trick=True)
 
     if isinstance(bld, Build.InstallContext):
-
-        bld.add_group() # make sure the previous install step is done before we create the archive
+        bld.add_group()  # ensure install finished
 
         output_dir = '%s/%s' % (bld.env.PREFIX, name)
-
         try:
-            # Delete the old build result first (this is a bit smelly)
-            shutil.rmtree(output_dir)
-        except Exception as e:
+            shutil.rmtree(output_dir)  # clear old content
+        except Exception:
             pass
 
-        target_tar = '%s-%s.tar.gz' % (name, bld.env.PLATFORM)
-
-        pkg = bld(rule=create_package,
-                  cwd=output_dir,
-                  target=target_tar,
-                  always=True)
-
-        target_tar = '%s-common.tar.gz' % name
-
-        pkg = bld(rule=create_package,
-                  cwd=output_dir,
-                  target=target_tar,
-                  always=True)
+        bld(rule=create_package, cwd=output_dir,
+            target=f'{name}-{bld.env.PLATFORM}.tar.gz', always=True)
+        bld(rule=create_package, cwd=output_dir,
+            target=f'{name}-common.tar.gz', always=True)
 
 
 def create_package(self):
     target = self.outputs[0].abspath()
     name = self.outputs[0].name
 
-    dirs = []
-    dirs_search = ['lib', 'sdk', 'share']
+    dirs_search = ['include'] if '-common' in name else ['lib', 'sdk', 'share']
+    dirs = [x for x in dirs_search if os.path.exists(os.path.join(self.cwd, x))]
 
-    # Create the common package with includes
-    if target.find("-common") > 0:
-        dirs_search = ['include']
-
-    print("SELF.CWD", self.cwd)
-    for x in dirs_search:
-        try_path = os.path.join(self.cwd, x)
-        if os.path.exists(try_path):
-            dirs.append(x)
-
-    args = ['tar', 'zcvf', os.path.normpath(target)] + dirs
-
-    run.command(args, cwd=self.cwd)
+    run.command(['tar', 'zcvf', os.path.normpath(target)] + dirs, cwd=self.cwd)
     print("Wrote", target)
 
-    # copy to the defold package path
-    source = target
-    target = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'packages', name))
-    shutil.copy2(source, target)
-    print("Installed to", target)
+    dest = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'packages', name))
+    shutil.copy2(target, dest)
+    print("Installed to", dest)
 
 def package(package):
     pass
