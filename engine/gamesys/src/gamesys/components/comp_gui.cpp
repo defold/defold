@@ -658,6 +658,22 @@ namespace dmGameSystem
         SetNode(scene, n, (const dmGuiDDF::NodeDesc*) node_desc);
     }
 
+    static void SendLayoutChangedMessage(const dmGui::HScene scene, dmhash_t layout_id, dmhash_t previous_layout_id)
+    {
+        char buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
+        dmMessage::Message* message = (dmMessage::Message*)buf;
+        memset(message, 0, sizeof(dmMessage::Message));
+        message->m_Sender = dmMessage::URL();
+        message->m_Receiver = dmMessage::URL();
+        message->m_Id = dmHashString64("layout_changed");
+        message->m_Descriptor = (uintptr_t)dmGuiDDF::LayoutChanged::m_DDFDescriptor;
+        message->m_DataSize = sizeof(dmGuiDDF::LayoutChanged);
+        dmGuiDDF::LayoutChanged* message_data = (dmGuiDDF::LayoutChanged*)message->m_Data;
+        message_data->m_Id = layout_id;
+        message_data->m_PreviousId = previous_layout_id;
+        DispatchMessage(scene, message);
+    }
+
     static void OnWindowResizeCallback(const dmGui::HScene scene, uint32_t width, uint32_t height)
     {
         dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
@@ -690,18 +706,7 @@ namespace dmGameSystem
             dmGui::SetLayout(scene, layout_id, SetNodeCallback);
 
             // Notify the scene script. The callback originates from the dmGraphics::SetWindowSize firing the callback.
-            char buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
-            dmMessage::Message* message = (dmMessage::Message*)buf;
-            memset(message, 0, sizeof(dmMessage::Message));
-            message->m_Sender = dmMessage::URL();
-            message->m_Receiver = dmMessage::URL();
-            message->m_Id = dmHashString64("layout_changed");
-            message->m_Descriptor = (uintptr_t)dmGuiDDF::LayoutChanged::m_DDFDescriptor;
-            message->m_DataSize = sizeof(dmGuiDDF::LayoutChanged);
-            dmGuiDDF::LayoutChanged* message_data = (dmGuiDDF::LayoutChanged*)message->m_Data;
-            message_data->m_Id = layout_id;
-            message_data->m_PreviousId = current_layout_id;
-            DispatchMessage(scene, message);
+            SendLayoutChangedMessage(scene, layout_id, current_layout_id);
         }
     }
 
@@ -738,18 +743,7 @@ namespace dmGameSystem
 
         dmGui::SetLayout(scene, layout_id, SetNodeCallback);
 
-        char buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
-        dmMessage::Message* message = (dmMessage::Message*)buf;
-        memset(message, 0, sizeof(dmMessage::Message));
-        message->m_Sender = dmMessage::URL();
-        message->m_Receiver = dmMessage::URL();
-        message->m_Id = dmHashString64("layout_changed");
-        message->m_Descriptor = (uintptr_t)dmGuiDDF::LayoutChanged::m_DDFDescriptor;
-        message->m_DataSize = sizeof(dmGuiDDF::LayoutChanged);
-        dmGuiDDF::LayoutChanged* message_data = (dmGuiDDF::LayoutChanged*)message->m_Data;
-        message_data->m_Id = layout_id;
-        message_data->m_PreviousId = current_layout_id;
-        DispatchMessage(scene, message);
+        SendLayoutChangedMessage(scene, layout_id, current_layout_id);
     }
 
     static bool GetDisplayProfileDescForGui(const dmGui::HScene scene, dmhash_t layout_id, uint32_t* out_width, uint32_t* out_height)
