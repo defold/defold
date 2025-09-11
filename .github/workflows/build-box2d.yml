@@ -37,50 +37,12 @@ jobs:
           ./scripts/build.py install_waf
           cd external/box2d
           
-          BASE_CFLAGS="${CFLAGS:-}"
-          BASE_CXXFLAGS="${CXXFLAGS:-}"
-          
           waf distclean || true
-          CFLAGS="$BASE_CFLAGS" CXXFLAGS="$BASE_CXXFLAGS" \
           PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
           waf install
-          
-          PKG="build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz"
-          if [ ! -f "$PKG" ]; then
-            echo "Package not found at $PKG"; ls -l build/Box2D || true; exit 1
-          fi
-          
-          workdir="$(mktemp -d)"
-          tar -xzf "$PKG" -C "$workdir"
-          LIBDIR="$(find "$workdir" -type f -name 'libbox2d.a' -printf '%h\n' | head -n1)"
-          if [ -z "$LIBDIR" ]; then
-            echo "Could not find libbox2d.a inside extracted package"; exit 1
-          fi
-          
-          waf distclean || true
-          CFLAGS="$BASE_CFLAGS -DBOX2D_DISABLE_SIMD" \
-          CXXFLAGS="$BASE_CXXFLAGS -DBOX2D_DISABLE_SIMD" \
-          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
-          waf install
-          
-          NOSIMD_LIB_PATH="$(find . -type f -name 'libbox2d.a' | head -n1)"
-          if [ -z "$NOSIMD_LIB_PATH" ]; then
-            echo "Failed to locate libbox2d.a from NO-SIMD build"; exit 1
-          fi
-          
-          cp "$NOSIMD_LIB_PATH" "$LIBDIR/libbox2d_nosimd.a"
-          
-          (cd "$workdir" && tar -czf "$OLDPWD/$PKG" .)
           
           echo "Final package includes:"
-          tar -tzf "$PKG" | grep -E 'libbox2d(_nosimd)?\.a' || true
-
-      - name: Check artifact existence
-        run: |
-          if [ ! -f external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz ]; then
-            echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
-            ls -lh external/box2d/build/Box2D || echo "Directory missing"
-          fi
+          tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results (common)
         uses: actions/upload-artifact@v4
@@ -127,48 +89,12 @@ jobs:
           ./scripts/build.py install_waf
           cd external/box2d
           
-          BASE_CFLAGS="${CFLAGS:-}"
-          BASE_CXXFLAGS="${CXXFLAGS:-}"
           waf distclean || true
-          CFLAGS="$BASE_CFLAGS" CXXFLAGS="$BASE_CXXFLAGS" \
           PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
           waf install
-          
-          PKG="build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz"
-          if [ ! -f "$PKG" ]; then
-            echo "Package not found at $PKG"; ls -l build/Box2D || true; exit 1
-          fi
-          
-          workdir="$(mktemp -d)"
-          tar -xzf "$PKG" -C "$workdir"
-          LIBDIR="$(find "$workdir" -type f -name 'libbox2d.a' -printf '%h\n' | head -n1)"
-          if [ -z "$LIBDIR" ]; then
-            echo "Could not find libbox2d.a inside extracted package"; exit 1
-          fi
-          
-          waf distclean || true
-          CFLAGS="$BASE_CFLAGS -DBOX2D_DISABLE_SIMD" \
-          CXXFLAGS="$BASE_CXXFLAGS -DBOX2D_DISABLE_SIMD" \
-          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
-          waf install
-          
-          NOSIMD_LIB_PATH="$(find . -type f -name 'libbox2d.a' | head -n1)"
-          if [ -z "$NOSIMD_LIB_PATH" ]; then
-            echo "Failed to locate libbox2d.a from NO-SIMD build"; exit 1
-          fi
-          
-          cp "$NOSIMD_LIB_PATH" "$LIBDIR/libbox2d_nosimd.a"
-          (cd "$workdir" && tar -czf "$OLDPWD/$PKG" .)
           
           echo "Final package includes:"
-          tar -tzf "$PKG" | grep -E 'libbox2d(_nosimd)?\.a' || true
-
-      - name: Check artifact existence
-        run: |
-          if [ ! -f external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz ]; then
-            echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
-            ls -lh external/box2d/build/Box2D || echo "Directory missing"
-          fi
+          tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results (platform-specific)
         uses: actions/upload-artifact@v4
@@ -207,52 +133,12 @@ jobs:
           ./scripts/build.py install_waf
           cd external/box2d
           
-          BASE_CFLAGS="${CFLAGS:-}"
-          BASE_CXXFLAGS="${CXXFLAGS:-}"
-          
           waf distclean || true
-          CFLAGS="$BASE_CFLAGS" CXXFLAGS="$BASE_CXXFLAGS" \
           PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
           waf install
-          
-          PKG="build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz"
-          if [ ! -f "$PKG" ]; then
-            echo "Package not found at $PKG"; ls -l build/Box2D || true; exit 1
-          fi
-          
-          workdir="$(mktemp -d)"
-          tar -xzf "$PKG" -C "$workdir"
-          
-          LIBFILE="$(find "$workdir" -type f -name 'libbox2d.a' | head -n1)"
-          if [ -z "${LIBFILE:-}" ]; then
-            echo "Could not find libbox2d.a inside extracted package"; exit 1
-          fi
-          LIBDIR="$(dirname "$LIBFILE")"
-          
-          waf distclean || true
-          CFLAGS="$BASE_CFLAGS -DBOX2D_DISABLE_SIMD" \
-          CXXFLAGS="$BASE_CXXFLAGS -DBOX2D_DISABLE_SIMD" \
-          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
-          waf install
-          
-          NOSIMD_LIB_PATH="$(find . -type f -name 'libbox2d.a' | head -n1)"
-          if [ -z "${NOSIMD_LIB_PATH:-}" ]; then
-            echo "Failed to locate libbox2d.a from NO-SIMD build"; exit 1
-          fi
-          
-          cp "$NOSIMD_LIB_PATH" "$LIBDIR/libbox2d_nosimd.a"
-          
-          (cd "$workdir" && tar -czf "$OLDPWD/$PKG" .)
           
           echo "Final package includes:"
-          tar -tzf "$PKG" | grep -E 'libbox2d(_nosimd)?\.a' || true
-
-      - name: Check artifact existence
-        run: |
-          if [ ! -f external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz ]; then
-            echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
-            ls -lh external/box2d/build/Box2D || echo "Directory missing"
-          fi
+          tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results (platform-specific)
         uses: actions/upload-artifact@v4
@@ -298,54 +184,12 @@ jobs:
           python ./scripts/build.py install_waf
           cd external/box2d
           
-          # Preserve any preexisting flags (safe under set -u)
-          BASE_CFLAGS="${CFLAGS:-}"
-          BASE_CXXFLAGS="${CXXFLAGS:-}"
-          
           waf distclean || true
-          CFLAGS="$BASE_CFLAGS" CXXFLAGS="$BASE_CXXFLAGS" \
           PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
           waf install
-          
-          PKG="build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz"
-          if [ ! -f "$PKG" ]; then
-            echo "Package not found at $PKG"; ls -l build/Box2D || true; exit 1
-          fi
-          
-          workdir="$(mktemp -d)"
-          tar -xzf "$PKG" -C "$workdir"
-          
-          LIBFILE="$(find "$workdir" -type f -name 'libbox2d.lib' | head -n1)"
-          if [ -z "${LIBFILE:-}" ]; then
-            echo "Could not find libbox2d.a inside extracted package"; exit 1
-          fi
-          LIBDIR="$(dirname "$LIBFILE")"
-          
-          waf distclean || true
-          CFLAGS="$BASE_CFLAGS -DBOX2D_DISABLE_SIMD" \
-          CXXFLAGS="$BASE_CXXFLAGS -DBOX2D_DISABLE_SIMD" \
-          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
-          waf install
-          
-          NOSIMD_LIB_PATH="$(find . -type f -name 'libbox2d.lib' | head -n1)"
-          if [ -z "${NOSIMD_LIB_PATH:-}" ]; then
-            echo "Failed to locate libbox2d.lib from NO-SIMD build"; exit 1
-          fi
-          
-          cp "$NOSIMD_LIB_PATH" "$LIBDIR/libbox2d_nosimd.lib"
-          
-          (cd "$workdir" && tar -czf "$OLDPWD/$PKG" .)
           
           echo "Final package includes:"
-          tar -tzf "$PKG" | grep -E 'libbox2d(_nosimd)?\.lib' || true
-
-      - name: Check artifact existence
-        run: |
-          if [ ! -f external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz ]; then
-            echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
-            ls -lh external/box2d/build/Box2D || echo "Directory missing"
-          fi
-        shell: bash
+          tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.lib' || true
 
       - name: Archive results (platform-specific)
         uses: actions/upload-artifact@v4
@@ -384,52 +228,12 @@ jobs:
           ./scripts/build.py install_waf
           cd external/box2d
           
-          BASE_CFLAGS="${CFLAGS:-}"
-          BASE_CXXFLAGS="${CXXFLAGS:-}"
-          
           waf distclean || true
-          CFLAGS="$BASE_CFLAGS" CXXFLAGS="$BASE_CXXFLAGS" \
           PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
           waf install
-          
-          PKG="build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz"
-          if [ ! -f "$PKG" ]; then
-            echo "Package not found at $PKG"; ls -l build/Box2D || true; exit 1
-          fi
-          
-          workdir="$(mktemp -d)"
-          tar -xzf "$PKG" -C "$workdir"
-          
-          LIBFILE="$(find "$workdir" -type f -name 'libbox2d.a' | head -n1)"
-          if [ -z "${LIBFILE:-}" ]; then
-            echo "Could not find libbox2d.a inside extracted package"; exit 1
-          fi
-          LIBDIR="$(dirname "$LIBFILE")"
-          
-          waf distclean || true
-          CFLAGS="$BASE_CFLAGS -DBOX2D_DISABLE_SIMD" \
-          CXXFLAGS="$BASE_CXXFLAGS -DBOX2D_DISABLE_SIMD" \
-          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }}
-          waf install
-          
-          NOSIMD_LIB_PATH="$(find . -type f -name 'libbox2d.a' | head -n1)"
-          if [ -z "${NOSIMD_LIB_PATH:-}" ]; then
-            echo "Failed to locate libbox2d.a from NO-SIMD build"; exit 1
-          fi
-          
-          cp "$NOSIMD_LIB_PATH" "$LIBDIR/libbox2d_nosimd.a"
-          
-          (cd "$workdir" && tar -czf "$OLDPWD/$PKG" .)
           
           echo "Final package includes:"
-          tar -tzf "$PKG" | grep -E 'libbox2d(_nosimd)?\.a' || true
-
-      - name: Check artifact existence
-        run: |
-          if [ ! -f external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz ]; then
-            echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
-            ls -lh external/box2d/build/Box2D || echo "Directory missing"
-          fi
+          tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results (platform-specific)
         uses: actions/upload-artifact@v4
@@ -484,65 +288,26 @@ jobs:
           ./scripts/build.py install_waf
           cd external/box2d
           
-          BASE_CC="${CC:-}"
-          BASE_CXX="${CXX:-}"
-          BASE_CFLAGS="${CFLAGS:-}"
-          BASE_CXXFLAGS="${CXXFLAGS:-}"
-          
-          if [[ -z "${BASE_CC}" || -z "${BASE_CXX}" ]]; then
-            if [[ "${{ matrix.platform }}" == "arm64-android" ]]; then
-              BASE_CC="aarch64-linux-android21-clang"
-              BASE_CXX="aarch64-linux-android21-clang++"
-            else
-              BASE_CC="armv7a-linux-androideabi21-clang"
-              BASE_CXX="armv7a-linux-androideabi21-clang++"
-              BASE_ARCH_FLAGS="-march=armv7-a -mfloat-abi=softfp -marm"
-              BASE_CFLAGS="${BASE_CFLAGS:+$BASE_CFLAGS }$BASE_ARCH_FLAGS"
-              BASE_CXXFLAGS="${BASE_CXXFLAGS:+$BASE_CXXFLAGS }$BASE_ARCH_FLAGS"
-            fi
-          fi
-          
-          if [[ "${{ matrix.platform }}" == "armv7-android" ]]; then
-            # strip any previous -mfpu=… to avoid overrides
-            BASE_CFLAGS="$(echo "$BASE_CFLAGS" | sed 's/-mfpu=[^ ]*//g')"
-            BASE_CXXFLAGS="$(echo "$BASE_CXXFLAGS" | sed 's/-mfpu=[^ ]*//g')"
-            SIMD_CFLAGS="$BASE_CFLAGS -mfpu=neon"
-            SIMD_CXXFLAGS="$BASE_CXXFLAGS -mfpu=neon"
+          # Set up Android-specific compilers and flags
+          if [[ "${{ matrix.platform }}" == "arm64-android" ]]; then
+            export CC="aarch64-linux-android21-clang"
+            export CXX="aarch64-linux-android21-clang++"
           else
-            SIMD_CFLAGS="$BASE_CFLAGS"
-            SIMD_CXXFLAGS="$BASE_CXXFLAGS"
+            export CC="armv7a-linux-androideabi21-clang"
+            export CXX="armv7a-linux-androideabi21-clang++"
+            export CFLAGS="${CFLAGS:-} -march=armv7-a -mfloat-abi=softfp -marm"
+            export CXXFLAGS="${CXXFLAGS:-} -march=armv7-a -mfloat-abi=softfp -marm"
           fi
           
           echo "=== Using NDK at: $ANDROID_NDK_ROOT ==="
-          $BASE_CC --version
+          $CC --version
           
           waf distclean || true
-          CC="$BASE_CC" CXX="$BASE_CXX" \
-          CFLAGS="$SIMD_CFLAGS" CXXFLAGS="$SIMD_CXXFLAGS" \
           PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }} -v
           waf -v install
           
-          PKG="build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz"
-          [ -f "$PKG" ] || { echo "Package not found at $PKG"; exit 1; }
-          
-          workdir="$(mktemp -d)"
-          tar -xzf "$PKG" -C "$workdir"
-          LIBDIR="$(find "$workdir" -type f -name 'libbox2d.a' -printf '%h\n' | head -n1)"
-          [ -n "$LIBDIR" ] || { echo "Could not locate libbox2d.a in package"; exit 1; }
-          
-          waf distclean || true
-          CC="$BASE_CC" CXX="$BASE_CXX" \
-          CFLAGS="$BASE_CFLAGS -DBOX2D_DISABLE_SIMD" \
-          CXXFLAGS="$BASE_CXXFLAGS -DBOX2D_DISABLE_SIMD" \
-          PREFIX="$DYNAMO_HOME" waf configure --platform=${{ matrix.platform }} -v
-          waf -v install
-          
-          NOSIMD_LIB="$(find . -type f -name 'libbox2d.a' | head -n1)"
-          [ -n "$NOSIMD_LIB" ] || { echo "NO_SIMD lib not found"; exit 1; }
-          cp "$NOSIMD_LIB" "$LIBDIR/libbox2d_nosimd.a"
-          
-          (cd "$workdir" && tar -czf "$OLDPWD/$PKG" .)
-          echo "Final package includes:" && tar -tzf "$PKG" | grep -E 'libbox2d(_nosimd)?\.a' || true
+          echo "Final package includes:"
+          tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results
         uses: actions/upload-artifact@v4
@@ -589,50 +354,24 @@ jobs:
           ./scripts/build.py install_waf
           cd external/box2d
           
+          # For web builds, we need to handle SIMD flags differently
+          # The wscript will build both versions, but we need to set the right base flags
+          if [[ "${{ matrix.platform }}" == "js-web" ]]; then
+            # JS doesn't support SIMD, so base flags should disable it
+            export CFLAGS="-DBOX2D_DISABLE_SIMD"
+            export CXXFLAGS="$CFLAGS"
+          else
+            # WASM supports SIMD, so base flags should enable it
+            export CFLAGS="-matomics -mbulk-memory -msimd128 -msse2"
+            export CXXFLAGS="$CFLAGS"
+          fi
+          
           waf distclean || true
-          export CFLAGS="-DBOX2D_DISABLE_SIMD"
-          export CXXFLAGS="$CFLAGS"
-          CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" CC="$CC" CXX="$CXX" PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
+          PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
           waf install
-          
-          mkdir -p _stash
-          NOSIMD_LIB_PATH="$(find . -type f -name 'libbox2d.a' | head -n1)"
-          if [ -z "$NOSIMD_LIB_PATH" ]; then
-            echo "Failed to locate libbox2d.a from NO-SIMD build"; exit 1
-          fi
-          cp "$NOSIMD_LIB_PATH" _stash/libbox2d_nosimd.a
-          
-          waf distclean || true
-          export CFLAGS="-matomics -mbulk-memory -msimd128 -msse2"
-          export CXXFLAGS="$CFLAGS"
-          CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" CC="$CC" CXX="$CXX" PREFIX=$DYNAMO_HOME waf configure --platform=${{ matrix.platform }}
-          waf install
-          
-          PKG="build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz"
-          if [ ! -f "$PKG" ]; then
-            echo "Package not found at $PKG"; ls -l build/Box2D || true; exit 1
-          fi
-          
-          workdir="$(mktemp -d)"
-          tar -xzf "$PKG" -C "$workdir"
-          
-          LIBDIR="$(find "$workdir" -type f -name 'libbox2d.a' -printf '%h\n' | head -n1)"
-          if [ -z "$LIBDIR" ]; then
-            echo "Could not find libbox2d.a inside extracted package"; exit 1
-          fi
-          cp _stash/libbox2d_nosimd.a "$LIBDIR/"
-          
-          (cd "$workdir" && tar -czf "$OLDPWD/$PKG" .)
           
           echo "Final package includes:"
-          tar -tzf "$PKG" | grep -E 'libbox2d(_nosimd)?\.a' || true
-
-      - name: Check artifact existence
-        run: |
-          if [ ! -f external/box2d/build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz ]; then
-            echo "Artifact not found. Listing contents of external/box2d/build/Box2D:"
-            ls -lh external/box2d/build/Box2D || echo "Directory missing"
-          fi
+          tar -tzf "build/Box2D/box2d-${{ env.BOX2D_VERSION }}-${{ matrix.platform }}.tar.gz" | grep -E 'libbox2d(_nosimd)?\.a' || true
 
       - name: Archive results (platform-specific)
         uses: actions/upload-artifact@v4
