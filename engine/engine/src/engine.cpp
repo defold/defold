@@ -930,8 +930,12 @@ namespace dmEngine
 #if !defined(DM_RELEASE)
         instance_index = dmConfigFile::GetInt(engine->m_Config, "project.instance_index", 0);
 #endif
-        int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
-        if (write_log) {
+        int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0); // Deprecated
+        int write_log_file = dmConfigFile::GetInt(engine->m_Config, "project.write_log_file", 0);
+        // for backward compatibility if write_log_file is 0, but write_log is 1
+        write_log_file = write_log_file == 0 ? write_log : write_log_file;
+        // 0 - no logs, 1 - debug only, 2 - always
+        if (write_log_file + dLib::IsDebugMode() >= 2) {
             uint32_t count = 0;
             char* log_paths[3];
 
