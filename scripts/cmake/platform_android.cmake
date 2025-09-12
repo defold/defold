@@ -1,13 +1,5 @@
 message("platform_android.cmake:")
 
-# Derive target arch
-if(TARGET_PLATFORM MATCHES "^arm64-")
-    # Use canonical name "aarch64" for 64-bit ARM
-    set(_DEFOLD_ANDROID_ARCH "aarch64")
-else()
-    set(_DEFOLD_ANDROID_ARCH "armv7")
-endif()
-
 # Try to resolve NDK root and sysroot
 set(_DEFOLD_ANDROID_NDK "${ANDROID_NDK}")
 if(NOT _DEFOLD_ANDROID_NDK AND DEFINED CMAKE_ANDROID_NDK)
@@ -28,7 +20,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fomit-frame-pointer")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-strict-aliasing")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funwind-tables")
 
-if(_DEFOLD_ANDROID_ARCH STREQUAL "aarch64")
+if(TARGET_PLATFORM MATCHES "arm64-android")
     add_compile_definitions(__aarch64__)
     add_compile_options(-march=armv8-a)
 else()
@@ -38,11 +30,6 @@ else()
     )
     add_compile_options(-march=armv7-a -mfloat-abi=softfp -fvisibility=hidden)
 endif()
-
-# # Add sysroot to compile and link if available
-# if(_DEFOLD_SYSROOT)
-#     add_compile_options(-isysroot=${_DEFOLD_SYSROOT})
-# endif()
 
 # Add NDK helper include paths if available
 if(_DEFOLD_ANDROID_NDK)
@@ -63,11 +50,7 @@ set(_DEFOLD_ANDROID_LINK_OPTS
     -static-libstdc++
 )
 
-# if(_DEFOLD_SYSROOT)
-#     list(APPEND _DEFOLD_ANDROID_LINK_OPTS -isysroot=${_DEFOLD_SYSROOT})
-# endif()
-
-if(_DEFOLD_ANDROID_ARCH STREQUAL "aarch64")
+if(TARGET_PLATFORM MATCHES "arm64-android")
     list(APPEND _DEFOLD_ANDROID_LINK_OPTS -Wl,-z,max-page-size=16384)
 else()
     list(APPEND _DEFOLD_ANDROID_LINK_OPTS -Wl,--fix-cortex-a8)

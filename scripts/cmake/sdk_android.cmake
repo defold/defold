@@ -57,46 +57,31 @@ if(EXISTS "${_ANDROID_TOOLCHAIN_FILE}")
     endif()
     # Hint the NDK root
     set(ANDROID_NDK "${_ANDROID_NDK_ROOT}" CACHE PATH "Android NDK root" FORCE)
-
-    # Some CMake/NDK versions also key off CMAKE_SYSTEM_VERSION
-    if(NOT DEFINED CMAKE_SYSTEM_VERSION)
-        if(TARGET_PLATFORM MATCHES "armv7-android")
-            set(CMAKE_SYSTEM_VERSION 19 CACHE STRING "Android API level (system version)" FORCE)
-        elseif(TARGET_PLATFORM MATCHES "arm64-android")
-            set(CMAKE_SYSTEM_VERSION 21 CACHE STRING "Android API level (system version)" FORCE)
-        endif()
-    endif()
-
-    # Select default Android API level per target if not provided
-    # armv7-android -> API 19, arm64-android -> API 21
-    if(NOT DEFINED ANDROID_PLATFORM)
-        set(ANDROID_PLATFORM "android-${CMAKE_SYSTEM_VERSION}" CACHE STRING "Android API level" FORCE)
-    endif()
-
-    # Map Defold TARGET_PLATFORM to Android ABI name if not explicitly set
-    if(NOT DEFINED ANDROID_ABI)
-        if(TARGET_PLATFORM MATCHES "armv7-android")
-            set(ANDROID_ABI "armeabi-v7a" CACHE STRING "Android ABI" FORCE)
-        elseif(TARGET_PLATFORM MATCHES "arm64-android")
-            set(ANDROID_ABI "arm64-v8a" CACHE STRING "Android ABI" FORCE)
-        endif()
-    endif()
-
-    # For arm64-android, ensure Clang uses aarch64-linux-android21 target triple
-    if(TARGET_PLATFORM MATCHES "arm64-android")
-        set(CMAKE_C_COMPILER_TARGET   "aarch64-linux-android${CMAKE_SYSTEM_VERSION}" CACHE STRING "Clang target triple" FORCE)
-        set(CMAKE_CXX_COMPILER_TARGET "aarch64-linux-android${CMAKE_SYSTEM_VERSION}" CACHE STRING "Clang target triple" FORCE)
-    endif()
-
-    # For armv7-android, ensure Clang uses aarch64-linux-android21 target triple
-    if(TARGET_PLATFORM MATCHES "armv7-android")
-        set(CMAKE_C_COMPILER_TARGET   "armv7-linux-androidi${CMAKE_SYSTEM_VERSION}" CACHE STRING "Clang target triple" FORCE)
-        set(CMAKE_CXX_COMPILER_TARGET "armv7-linux-androidi${CMAKE_SYSTEM_VERSION}" CACHE STRING "Clang target triple" FORCE)
-    endif()
 endif()
 
 if (NOT CMAKE_TOOLCHAIN_FILE)
     message(FATAL "Failed to find android.toolchain.cmake")
 endif()
 
+
+if(TARGET_PLATFORM MATCHES "arm64-android")
+    # For arm64-android, ensure Clang uses aarch64-linux-android21 target triple
+    set(ANDROID_ABI "arm64-v8a" CACHE STRING "Android ABI" FORCE)
+    set(ANDROID_NATIVE_API_LEVEL 21 CACHE STRING "Android API Level" FORCE)
+    set(ANDROID_TOOLCHAIN "aarch64-linux-android${ANDROID_NATIVE_API_LEVEL}-clang" CACHE STRING "Android Toolchain" FORCE)
+
+else(TARGET_PLATFORM MATCHES "armv7-android")
+    # For armv7-android, ensure Clang uses aarch64-linux-android21 target triple
+    set(ANDROID_ABI "armeabi-v7a" CACHE STRING "Android ABI" FORCE)
+    set(ANDROID_NATIVE_API_LEVEL 19 CACHE STRING "Android API Level" FORCE)
+    set(ANDROID_TOOLCHAIN "armv7-linux-androidi${ANDROID_NATIVE_API_LEVEL}-clang" CACHE STRING "Android Toolchain" FORCE)
+
+endif()
+
+message(STATUS "ANDROID_ABI: ${ANDROID_ABI}")
+message(STATUS "ANDROID_NATIVE_API_LEVEL: ${ANDROID_NATIVE_API_LEVEL}")
+message(STATUS "ANDROID_TOOLCHAIN: ${ANDROID_TOOLCHAIN}")
+
+# the NDK toolchain uses cmake 3.6
+set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "" FORCE)
 include(${CMAKE_TOOLCHAIN_FILE})
