@@ -60,6 +60,7 @@ namespace dmResourceProviderFile
     {
         char mountpath[DMPATH_MAX_PATH];
         dmSnPrintf(mountpath, sizeof(mountpath), "%s%s%s", uri->m_Location, uri->m_Path, path);
+
         if (dmSys::RESULT_OK != dmSys::ResolveMountFileName(buffer, buffer_len, mountpath))
         {
             // on some platforms, performing operations on non existing files will halt the engine

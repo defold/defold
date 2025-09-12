@@ -652,8 +652,6 @@ Result LoadResourceToBufferLocked(HFactory factory, const char* path, const char
 
     uint32_t file_size; // The full size of the resources
     dmResource::Result r = dmResourceMounts::GetResourceSize(factory->m_Mounts, normalized_path_hash, normalized_path, &file_size);
-
-printf("MAWE: LoadResourceToBufferLocked: %s  sz: %u  r: %d\n", normalized_path, file_size, r);
     if (r == dmResource::RESULT_OK)
     {
         *resource_size = file_size;
@@ -1108,9 +1106,6 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
     void* buffer;
     uint32_t buffer_size;
     uint32_t _resource_size;
-
-printf("MAWE: GetRaw: %s\n", canonical_path);
-
     Result result = LoadResource(factory, canonical_path, name, RESOURCE_INVALID_PRELOAD_SIZE, &buffer, &buffer_size, &_resource_size);
 
     if (result == RESULT_OK) {

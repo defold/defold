@@ -676,7 +676,6 @@ union SaveLoadBuffer
 
         HContext context = dmScript::GetScriptContext(L);
 
-printf("MAWE: filename: %s\n", filename);
         void* resource;
         uint32_t resource_size;
         dmResource::Result r = dmResource::GetRaw(context->m_ResourceFactory, filename, &resource, &resource_size);
