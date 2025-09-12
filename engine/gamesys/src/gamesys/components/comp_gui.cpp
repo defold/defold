@@ -658,8 +658,29 @@ namespace dmGameSystem
         SetNode(scene, n, (const dmGuiDDF::NodeDesc*) node_desc);
     }
 
+    static void SendLayoutChangedMessage(const dmGui::HScene scene, dmhash_t layout_id, dmhash_t previous_layout_id)
+    {
+        char buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
+        dmMessage::Message* message = (dmMessage::Message*)buf;
+        memset(message, 0, sizeof(dmMessage::Message));
+        message->m_Sender = dmMessage::URL();
+        message->m_Receiver = dmMessage::URL();
+        message->m_Id = dmHashString64("layout_changed");
+        message->m_Descriptor = (uintptr_t)dmGuiDDF::LayoutChanged::m_DDFDescriptor;
+        message->m_DataSize = sizeof(dmGuiDDF::LayoutChanged);
+        dmGuiDDF::LayoutChanged* message_data = (dmGuiDDF::LayoutChanged*)message->m_Data;
+        message_data->m_Id = layout_id;
+        message_data->m_PreviousId = previous_layout_id;
+        DispatchMessage(scene, message);
+    }
+
     static void OnWindowResizeCallback(const dmGui::HScene scene, uint32_t width, uint32_t height)
     {
+        dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
+        if (!dmRender::GetAutoLayoutSelection(display_profiles))
+        {
+            return;
+        }
         dmArray<dmhash_t> scene_layouts;
         uint16_t layout_count = dmGui::GetLayoutCount(scene);
         scene_layouts.SetCapacity(layout_count);
@@ -675,7 +696,6 @@ namespace dmGameSystem
             scene_layouts.Push(id);
         }
 
-        dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
         dmhash_t current_layout_id = GetLayout(scene);
         dmhash_t layout_id = dmRender::GetOptimalDisplayProfile(display_profiles, width, height, dmGui::GetDisplayDpi(scene), &scene_layouts);
         if(layout_id != current_layout_id)
@@ -686,19 +706,59 @@ namespace dmGameSystem
             dmGui::SetLayout(scene, layout_id, SetNodeCallback);
 
             // Notify the scene script. The callback originates from the dmGraphics::SetWindowSize firing the callback.
-            char buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
-            dmMessage::Message* message = (dmMessage::Message*)buf;
-            memset(message, 0, sizeof(dmMessage::Message));
-            message->m_Sender = dmMessage::URL();
-            message->m_Receiver = dmMessage::URL();
-            message->m_Id = dmHashString64("layout_changed");
-            message->m_Descriptor = (uintptr_t)dmGuiDDF::LayoutChanged::m_DDFDescriptor;
-            message->m_DataSize = sizeof(dmGuiDDF::LayoutChanged);
-            dmGuiDDF::LayoutChanged* message_data = (dmGuiDDF::LayoutChanged*)message->m_Data;
-            message_data->m_Id = layout_id;
-            message_data->m_PreviousId = current_layout_id;
-            DispatchMessage(scene, message);
+            SendLayoutChangedMessage(scene, layout_id, current_layout_id);
         }
+    }
+
+    static void ApplyLayoutFromScript(const dmGui::HScene scene, dmhash_t layout_id)
+    {
+        dmhash_t current_layout_id = GetLayout(scene);
+        if (current_layout_id == layout_id)
+            return;
+
+        // Verify that the layout exists in the scene
+        bool has_layout = false;
+        uint16_t layout_count = dmGui::GetLayoutCount(scene);
+        for (uint16_t i = 0; i < layout_count; ++i)
+        {
+            dmhash_t id;
+            if (dmGui::GetLayoutId(scene, i, id) == dmGui::RESULT_OK && id == layout_id)
+            {
+                has_layout = true;
+                break;
+            }
+        }
+        if (!has_layout)
+        {
+            dmLogError("Attempting to apply non-existent layout '%s'", dmHashReverseSafe64(layout_id));
+            return;
+        }
+
+        dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
+        dmRender::DisplayProfileDesc profile_desc;
+        if (dmRender::GetDisplayProfileDesc(display_profiles, layout_id, profile_desc) == dmRender::RESULT_OK)
+        {
+            dmGui::SetSceneResolution(scene, profile_desc.m_Width, profile_desc.m_Height);
+        }
+
+        dmGui::SetLayout(scene, layout_id, SetNodeCallback);
+
+        SendLayoutChangedMessage(scene, layout_id, current_layout_id);
+    }
+
+    static bool GetDisplayProfileDescForGui(const dmGui::HScene scene, dmhash_t layout_id, uint32_t* out_width, uint32_t* out_height)
+    {
+        dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
+        if (!display_profiles)
+            return false;
+        dmRender::DisplayProfileDesc desc;
+        if (dmRender::GetDisplayProfileDesc(display_profiles, layout_id, desc) == dmRender::RESULT_OK)
+        {
+            *out_width = desc.m_Width;
+            *out_height = desc.m_Height;
+            return true;
+        }
+        return false;
     }
 
     static void* GetSceneResourceByHash(void* ctx, dmGui::HScene scene, dmhash_t name_hash, dmhash_t suffix_with_dot)
@@ -904,6 +964,12 @@ namespace dmGameSystem
             }
 
             // we might have any resolution starting the scene, so let's set the best alternative layout directly
+            dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles)dmGui::GetDisplayProfiles(scene);
+            if (!dmRender::GetAutoLayoutSelection(display_profiles))
+            {
+                // Skip auto layout selection when disabled
+                return result;
+            }
             dmArray<dmhash_t> scene_layouts;
             scene_layouts.SetCapacity(layouts_count+1);
             for(uint16_t i = 0; i < layouts_count+1; ++i)
@@ -920,7 +986,6 @@ namespace dmGameSystem
 
             uint32_t display_width, display_height;
             dmGui::GetPhysicalResolution(scene, display_width, display_height);
-            dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles)dmGui::GetDisplayProfiles(scene);
             dmhash_t layout_id = dmRender::GetOptimalDisplayProfile(display_profiles, display_width, display_height, 0, &scene_layouts);
             if(layout_id != dmGui::DEFAULT_LAYOUT)
             {
@@ -984,6 +1049,8 @@ namespace dmGameSystem
         scene_params.m_DestroyRenderConstantsCallback = DestroyRenderConstantsCallback;
         scene_params.m_CloneRenderConstantsCallback = CloneRenderConstantsCallback;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
+        scene_params.m_ApplyLayoutCallback    = &ApplyLayoutFromScript;
+        scene_params.m_GetDisplayProfileDescCallback = &GetDisplayProfileDescForGui;
 
         scene_params.m_NewTextureResourceCallback    = &NewTextureResourceCallback;
         scene_params.m_DeleteTextureResourceCallback = &DeleteTextureResourceCallback;

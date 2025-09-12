@@ -31,7 +31,7 @@
            [java.io Closeable File FilterInputStream IOException InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
-           [java.util.zip ZipEntry ZipFile ZipInputStream]
+           [java.util.zip ZipEntry ZipFile]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
 (set! *warn-on-reflection* true)
@@ -131,11 +131,6 @@
   ;; opening, you must also make sure the resource exists.
   (and (openable-resource? value)
        (true? (:editor-openable (resource-type value)))))
-
-(defn has-view-type? [resource view-type]
-  {:pre [(keyword? view-type)]}
-  (boolean (some #(= view-type (:id %))
-                 (:view-types (resource-type resource)))))
 
 (defn- ->unix-seps ^String [^String path]
   (FilenameUtils/separatorsToUnix path))
@@ -467,6 +462,9 @@
         (make-writer [_ _] (throw (Exception. "Zip resources are read-only")))
         Closeable
         (close [_] (.close zip-file))))))
+
+(defn zip-resource? [x]
+  (instance? ZipResource x))
 
 (core/register-record-type! ZipResource)
 

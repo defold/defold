@@ -33,7 +33,7 @@ jobs:
       matrix:
         platform: [win32, x86_64-win32]
 
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
@@ -189,7 +189,7 @@ jobs:
     strategy:
       matrix:
         platform: [arm64-nx64]
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 60
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
@@ -215,7 +215,7 @@ jobs:
     strategy:
       matrix:
         platform: [x86_64-ps4, x86_64-ps5]
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 60
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },

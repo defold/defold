@@ -776,6 +776,7 @@ namespace dmGraphics
 
         bufferOut->m_MemorySize = (size_t) vk_buffer_memory_req.size;
         bufferOut->m_Destroyed  = 0;
+        bufferOut->m_Handle.m_LastUsedFrame = 0xff; // not used
 
         return VK_SUCCESS;
 bail:
@@ -873,7 +874,6 @@ bail:
         else if (tex_type == TEXTURE_TYPE_2D_ARRAY)
         {
             assert(imageLayers > 0);
-            vk_image_create_info.flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
             vk_view_type = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
         }
         else if (tex_type == TEXTURE_TYPE_3D || tex_type == TEXTURE_TYPE_IMAGE_3D || tex_type == TEXTURE_TYPE_TEXTURE_3D)
@@ -1268,7 +1268,10 @@ bail:
 
         vk_input_assembly.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
         vk_input_assembly.topology               = vk_primitive_type;
-        vk_input_assembly.primitiveRestartEnable = VK_TRUE;
+        // Only enable restart for strip topologies
+        vk_input_assembly.primitiveRestartEnable =
+            (vk_primitive_type == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP ||
+             vk_primitive_type == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP) ? VK_TRUE : VK_FALSE;
 
         VkViewport vk_viewport;
         memset(&vk_viewport, 0, sizeof(vk_viewport));
@@ -1558,6 +1561,7 @@ bail:
     void DestroyLogicalDevice(LogicalDevice* device)
     {
         vkDestroyCommandPool(device->m_Device, device->m_CommandPool, 0);
+        vkDestroyCommandPool(device->m_Device, device->m_CommandPoolWorker, 0);
         vkDestroyDevice(device->m_Device, 0);
         memset(device, 0, sizeof(*device));
     }

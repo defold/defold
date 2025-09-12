@@ -23,7 +23,6 @@
             [editor.lua-completion :as lua-completion]
             [editor.protobuf :as protobuf]
             [internal.util :as util]
-            [util.coll :refer [pair]]
             [util.eduction :as e])
   (:import [com.dynamo.scriptdoc.proto ScriptDoc$Document]
            [java.net URI]
@@ -230,52 +229,8 @@
 (defn lua-module->build-path [module]
   (str (lua-module->path module) "c"))
 
-(defn- make-completion-info-completions [vars functions module-alias]
-  (eduction
-    cat
-    [(eduction
-       (map (fn [var-name]
-              [[] (code-completion/make var-name :type :variable)]))
-       vars)
-     (eduction
-       (map (fn [[qualified-name {:keys [params]}]]
-              (let [name-parts (string/split qualified-name #"\.")
-                    ns-path (pop name-parts)
-                    ns-path (if (and module-alias (pos? (count ns-path)))
-                              (assoc ns-path 0 module-alias)
-                              ns-path)
-                    name (peek name-parts)]
-                [ns-path (code-completion/make
-                           name
-                           :type :function
-                           :display-string (str name "(" (string/join ", " params) ")")
-                           :insert (str name
-                                        "("
-                                        (->> params
-                                             (map-indexed #(format "${%s:%s}" (inc %1) %2))
-                                             (string/join ", "))
-                                        ")"))])))
-       functions)]))
-
-(defn- make-ast-completions [local-completion-info required-completion-infos]
-  (make-completion-map
-    (eduction
-      cat
-      [(make-completion-info-completions
-         (set/union (:vars local-completion-info) (:local-vars local-completion-info))
-         (merge (:functions local-completion-info) (:local-functions local-completion-info))
-         nil)
-       (let [module->completion-info (into {} (map (juxt :module identity)) required-completion-infos)]
-         (eduction
-           (mapcat (fn [[alias module]]
-                     (let [completion-info (module->completion-info module)]
-                       (make-completion-info-completions (:vars completion-info)
-                                                         (:functions completion-info)
-                                                         alias))))
-           (:requires local-completion-info)))])))
-
 (defn combine-completions
-  [local-completion-info required-completion-infos script-intelligence-completions]
+  [script-intelligence-completions]
   (merge-with (fn [dest new]
                 (let [taken-display-strings (into #{} (map :display-string) dest)]
                   (into dest
@@ -284,8 +239,7 @@
                         new)))
               defold-docs
               std-libs-docs
-              script-intelligence-completions
-              (make-ast-completions local-completion-info required-completion-infos)))
+              script-intelligence-completions))
 
 (def editor-completions
   (->> (ext-docs/editor-script-docs)

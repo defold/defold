@@ -136,7 +136,7 @@
     :extensions {:type :object
                  :properties
                  {:build-server {:type :string
-                                 :ui {:prompt connection-properties/defold-build-server-url}}
+                                 :ui {:prompt (connection-properties/defold-build-server-url)}}
                   :build-server-username {:type :string}
                   :build-server-password {:type :password}
                   :build-server-headers {:type :string

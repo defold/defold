@@ -255,7 +255,7 @@ namespace dmGameObject
     Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity)
     {
         assert(regist != 0x0);
-        if(capacity >= INVALID_INSTANCE_INDEX - 1 || capacity == 0)
+        if (capacity >= INVALID_INSTANCE_INDEX || capacity == 0)
             return RESULT_INVALID_OPERATION;
         regist->m_DefaultCollectionCapacity = capacity;
         return RESULT_OK;
@@ -506,7 +506,7 @@ namespace dmGameObject
 
     HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances, HCollectionDesc collection_desc)
     {
-        if (max_instances > INVALID_INSTANCE_INDEX)
+        if (max_instances >= INVALID_INSTANCE_INDEX)
         {
             dmLogError("max_instances must be less or equal to %d", INVALID_INSTANCE_INDEX - 1);
             return 0;
