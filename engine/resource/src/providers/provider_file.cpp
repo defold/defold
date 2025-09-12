@@ -60,8 +60,6 @@ namespace dmResourceProviderFile
     {
         char mountpath[DMPATH_MAX_PATH];
         dmSnPrintf(mountpath, sizeof(mountpath), "%s%s%s", uri->m_Location, uri->m_Path, path);
-
-printf("MAWE:  ResolveFilePath: %s\n", mountpath);
         if (dmSys::RESULT_OK != dmSys::ResolveMountFileName(buffer, buffer_len, mountpath))
         {
             // on some platforms, performing operations on non existing files will halt the engine
@@ -87,7 +85,6 @@ printf("MAWE:  ResolveFilePath: %s\n", mountpath);
         FileProviderContext* archive = (FileProviderContext*)_archive;
         (void)path_hash;
 
-printf("MAWE: GetFileSize: %s\n", path);
         char path_buffer[DMPATH_MAX_PATH];
         const char* resolved_path = ResolveFilePath(&archive->m_BaseUri, path, path_buffer, sizeof(path_buffer));
         if (!resolved_path) {
@@ -95,8 +92,6 @@ printf("MAWE: GetFileSize: %s\n", path);
         }
 
         dmSys::Result r = dmSys::ResourceSize(resolved_path, file_size);
-
-printf("MAWE: GetFileSize: %s  %u\n", path, *file_size);
         return SysResultToProviderResult(r);
     }
 
