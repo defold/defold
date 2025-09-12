@@ -85,8 +85,8 @@ namespace dmGameObject
         dmArray<void*> m_PropertyResources;
     };
 
-    // Invalid instance index. Implies that maximum number of instances is 32766 (ie 0x7fff - 1)
-    const uint32_t INVALID_INSTANCE_INDEX = 0x7fff;
+    // Invalid instance index. Implies that maximum number of instances is 65534 (i.e. 0xffff - 1)
+    const uint32_t INVALID_INSTANCE_INDEX = 0xffff;
 
     // NOTE: Actual size of Instance is sizeof(Instance) + sizeof(uintptr_t) * m_UserDataCount
     struct Instance
@@ -146,22 +146,23 @@ namespace dmGameObject
         uint16_t        m_Bone : 1;
         // If this is a generated instance, i.e. if the instance id is uniquely generated
         uint16_t        m_Generated : 1;
+        // Used for deferred deletion
+        uint16_t        m_ToBeDeleted : 1;
+        // Used for deferred add-to-update
+        uint16_t        m_ToBeAdded : 1;
         // Padding
-        uint16_t        m_Pad : 5;
+        uint16_t        m_Pad : 3;
 
         // Index to parent
         uint16_t        m_Parent : 16;
 
         // Index to Collection::m_Instances
-        uint16_t        m_Index : 15;
-        // Used for deferred deletion
-        uint16_t        m_ToBeDeleted : 1;
+        uint16_t        m_Index : 16;
 
         // Index to Collection::m_LevelIndex. Index is relative to current level (m_Depth), eg first object in level L always has level-index 0
         // Level-index is used to reorder Collection::m_LevelIndex entries in O(1). Given an instance we need to find where the
         // instance index is located in Collection::m_LevelIndex
-        uint16_t        m_LevelIndex : 15;
-        uint16_t        m_Pad2 : 1;
+        uint16_t        m_LevelIndex : 16;
 
         // Index to next instance to delete or INVALID_INSTANCE_INDEX
         uint16_t        m_NextToDelete : 16;
@@ -170,12 +171,10 @@ namespace dmGameObject
         uint16_t        m_NextToAdd;
 
         // Next sibling index. Index to Collection::m_Instances
-        uint16_t        m_SiblingIndex : 15;
-        uint16_t        m_ToBeAdded : 1;
+        uint16_t        m_SiblingIndex : 16;
 
         // First child index. Index to Collection::m_Instances
-        uint16_t        m_FirstChildIndex : 15;
-        uint16_t        m_Pad4 : 1;
+        uint16_t        m_FirstChildIndex : 16;
 
         uint32_t        m_ComponentInstanceUserDataCount;
         uintptr_t       m_ComponentInstanceUserData[0];
