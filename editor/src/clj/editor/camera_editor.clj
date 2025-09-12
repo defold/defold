@@ -63,31 +63,31 @@
               :clear protobuf-forms-util/clear-form-op}
    :navigation false
    :sections [{:title "Camera"
-               :fields (cond-> [{:path [:aspect-ratio]
-                                 :label "Aspect Ratio"
-                                 :type :number}
-                                {:path [:fov]
-                                 :label "FOV"
-                                 :type :number}
-                                {:path [:near-z]
-                                 :label "Near-Z"
-                                 :type :number}
-                                {:path [:far-z]
-                                 :label "Far-Z"
-                                 :type :number}
-                                {:path [:auto-aspect-ratio]
-                                 :label "Auto Aspect Ratio"
-                                 :type :boolean}
-                                {:path [:orthographic-projection]
-                                 :label "Orthographic Projection"
-                                 :type :boolean}]
-                               {:path [:orthographic-zoom-mode]
-                                :label "Orthographic Zoom Mode"
-                                :type :choicebox
-                                :options (sort-by first (protobuf-forms/make-enum-options Camera$OrthoZoomMode))}
-                               {:path [:orthographic-zoom]
-                                :label "Orthographic Zoom"
-                                :type :number})}]
+               :fields [{:path [:aspect-ratio]
+                         :label "Aspect Ratio"
+                         :type :number}
+                        {:path [:fov]
+                         :label "FOV"
+                         :type :number}
+                        {:path [:near-z]
+                         :label "Near-Z"
+                         :type :number}
+                        {:path [:far-z]
+                         :label "Far-Z"
+                         :type :number}
+                        {:path [:auto-aspect-ratio]
+                         :label "Auto Aspect Ratio"
+                         :type :boolean}
+                        {:path [:orthographic-projection]
+                         :label "Orthographic Projection"
+                         :type :boolean}
+                        {:path [:orthographic-zoom-mode]
+                         :label "Orthographic Zoom Mode"
+                         :type :choicebox
+                         :options (sort-by first (protobuf-forms/make-enum-options Camera$OrthoZoomMode))}
+                        {:path [:orthographic-zoom]
+                         :label "Orthographic Zoom"
+                         :type :number}]}]
    :values {[:aspect-ratio] aspect-ratio
             [:fov] fov
             [:near-z] near-z
