@@ -17,6 +17,16 @@ option java_outer_classname = "Camera";
  * @language Lua
  */
 
+// NOTE: Enum values must correspond to the enum values in dmRender::OrthoZoomMode
+// Don't forget to change engine/render/src/render/render.h if you change here
+// Orthographic camera zoom modes
+enum OrthoZoomMode
+{
+    ORTHO_ZOOM_MODE_FIXED        = 0[(displayName) = "Fixed"]; // Use orthographic_zoom as-is
+    ORTHO_ZOOM_MODE_AUTO_FIT     = 1[(displayName) = "Auto Fit"]; // Fit original display area (fit)
+    ORTHO_ZOOM_MODE_AUTO_COVER   = 2[(displayName) = "Auto Cover"]; // Fill original display area (cover)
+}
+
 message CameraDesc
 {
     required float  aspect_ratio            = 1;
@@ -26,6 +36,7 @@ message CameraDesc
     optional uint32 auto_aspect_ratio       = 5 [default = 0];
     optional uint32 orthographic_projection = 6 [default = 0];
     optional float  orthographic_zoom       = 7 [default = 1.0];
+    optional OrthoZoomMode orthographic_zoom_mode  = 8 [default = ORTHO_ZOOM_MODE_FIXED];
 }
 
 /*# sets camera properties
@@ -41,6 +52,7 @@ message CameraDesc
  * @param far_z [type:number] position of the far clipping plane (distance from camera along relative z)
  * @param orthographic_projection [type:boolean] set to use an orthographic projection
  * @param orthographic_zoom [type:number] zoom level when the camera is using an orthographic projection
+ * @param orthographic_zoom_mode [type:number] orthographic zoom behavior when orthographic_projection is enabled
  * @examples
  *
  * In the examples, it is assumed that the instance of the script has a camera-component with id "camera".
@@ -57,6 +69,7 @@ message SetCamera
     required float  far_z                   = 4;
     optional uint32 orthographic_projection = 5 [default = 0];
     optional float  orthographic_zoom       = 6 [default = 1.0];
+    optional OrthoZoomMode orthographic_zoom_mode  = 7 [default = ORTHO_ZOOM_MODE_FIXED];
 }
 
 /** DEPRECATED! makes the receiving camera become the active camera
