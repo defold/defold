@@ -310,7 +310,7 @@ static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t 
 static dmhash_t GetCanonicalPathHash(const char* path)
 {
     char canonical_path[dmResource::RESOURCE_PATH_MAX];
-    uint32_t path_len  = dmResource::GetCanonicalPath(path, canonical_path);
+    uint32_t path_len  = dmResource::GetCanonicalPath(path, canonical_path, sizeof(canonical_path));
     return dmHashBuffer64(canonical_path, path_len);
 }
 
@@ -1253,7 +1253,7 @@ static int CreateTextureAsync(lua_State* L)
 static int ReleaseResource(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
-    dmhash_t path_hash                      = dmScript::CheckHashOrString(L, 1);
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
     HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
     if (!rd) {
         return luaL_error(L, "Could not release resource: %s", dmHashReverseSafe64(path_hash));

@@ -114,7 +114,6 @@ namespace dmResource
     Result LoadResourceToBufferLocked(HFactory factory, const char* path, const char* original_name, uint32_t offset, uint32_t size, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer);
 
     Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, HResourceDescriptor descriptor);
-    uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf);
 
     HResourceType FindResourceType(HFactory factory, const char* extension);
     uint32_t GetRefCount(HFactory factory, void* resource);

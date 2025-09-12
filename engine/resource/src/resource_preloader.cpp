@@ -260,7 +260,7 @@ namespace dmResource
         // create a request so we can get a proper error code for the resource in the request
 
         char canonical_path[RESOURCE_PATH_MAX];
-        uint32_t canonical_path_len = dmResource::GetCanonicalPath(name, canonical_path);
+        uint32_t canonical_path_len = dmResource::GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
         out_path_descriptor.m_CanonicalPathHash = dmHashBuffer64(canonical_path, canonical_path_len);
 
         DM_SPINLOCK_SCOPED_LOCK(preloader->m_SyncedDataSpinlock)
