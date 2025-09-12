@@ -55,7 +55,14 @@ if(BUILD_TESTS)
     testmain
   )
 
-  add_test(NAME hid_unit_tests COMMAND test_hid)
+  # Convenience target to run tests with stdout passthrough
+  # This runs the test binaries directly so all output is visible in the console.
+  add_custom_target(run_tests
+    COMMAND $<TARGET_FILE:test_hid>
+    DEPENDS test_hid
+    USES_TERMINAL
+    COMMENT "Running HID unit tests (stdout)"
+  )
 endif()
 
 # Optional interactive test app (creates a tiny window and logs input)
