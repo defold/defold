@@ -935,7 +935,8 @@ namespace dmEngine
         // for backward compatibility if write_log_file is 0, but write_log is 1
         write_log_file = write_log_file == 0 ? write_log : write_log_file;
         // 0 - no logs, 1 - debug only, 2 - always
-        if (write_log_file + dLib::IsDebugMode() >= 2) {
+        if ((write_log_file == 2) || (write_log_file == 1 && dLib::IsDebugMode()))
+        {
             uint32_t count = 0;
             char* log_paths[3];
 
