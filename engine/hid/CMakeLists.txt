@@ -86,23 +86,23 @@ if(BUILD_TESTS)
   )
 
   if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
-    target_link_libraries(test_app_hid PRIVATE
-      dmglfw EGL GLESv1_CM GLESv2
-    )
-  else()
-    target_link_libraries(test_app_hid PRIVATE
-      glfw3
-    )
-  endif()
+    target_link_libraries(test_app_hid PRIVATE dmglfw EGL GLESv1_CM GLESv2)
 
-  # Platform link hints (adjust if needed)
-  if(APPLE)
-    target_link_libraries(test_app_hid PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo" "-framework OpenGL")
-  elseif(WIN32)
-    target_link_libraries(test_app_hid PRIVATE user32 gdi32 shell32)
-  elseif(UNIX)
+  elseif (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
+    target_link_libraries(test_app_hid PRIVATE dmglfw "-framework IOKit" "-framework CoreVideo" "-framework OpenGLES" "-framework QuartzCore")
+
+  elseif (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
+    target_link_libraries(test_app_hid PRIVATE glfw3 "-framework Cocoa" "-framework IOKit" "-framework CoreVideo" "-framework OpenGL")
+
+  elseif (TARGET_PLATFORM MATCHES "x86_64-win32|win32")
+    target_link_libraries(test_app_hid PRIVATE glfw3 user32 gdi32 shell32)
+
+  elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
     find_package(Threads REQUIRED)
-    target_link_libraries(test_app_hid PRIVATE Threads::Threads dl)
+    target_link_libraries(test_app_hid PRIVATE glfw3 Threads::Threads dl)
+
+  else()
+    target_link_libraries(test_app_hid PRIVATE dmglfw)
   endif()
 endif()
 
@@ -138,3 +138,4 @@ install(TARGETS hid hid_null
 
 # Install public headers
 install(FILES "${HID_SRC_DIR}/hid.h" DESTINATION include/hid)
+install(FILES "${HID_SRC_DIR}/dmsdk/hid/hid.h" DESTINATION include/dmsdk/hid)
