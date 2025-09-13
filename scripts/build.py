@@ -324,6 +324,8 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform font graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
+CMAKE_SUPPORT = ['hid']
+
 EXTERNAL_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
 
 def get_host_platform():
@@ -1375,22 +1377,59 @@ class Configuration(object):
 # <- Gen source files
 # ------------------------------------------------------------
 
-    def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, prefix):
+    def _build_engine_cmd_waf(self, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, prefix):
         prefix = prefix and prefix or self.dynamo_home
         commands = "build install"
         if not self.incremental:
             commands = "distclean configure " + commands
         return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, commands)
 
-    def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
-        self.build_tracker.start_component(lib, platform)
+    def _build_engine_lib_waf(self, args, lib, platform, skip_tests, directory):
         skip_build_tests = []
         if skip_tests and '--skip-build-tests' not in self.waf_options:
             skip_build_tests.append('--skip-tests')
             skip_build_tests.append('--skip-build-tests')
-        cwd = join(self.defold_root, '%s/%s' % (dir, lib))
+        cwd = join(self.defold_root, '%s/%s' % (directory, lib))
         plf_args = ['--platform=%s' % platform]
         run.env_command(self._form_env(), args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
+
+    def _build_engine_lib_cmake(self, lib, platform, directory):
+        libdir = join(directory, lib)
+        builddir = join(libdir, 'build')
+
+        supports_tests = self._can_run_tests()
+
+        if not self.incremental:
+            self._remove_tree(builddir) # distclean
+
+        if not os.path.exists(builddir):
+            os.makedirs(builddir)
+
+        env = self._form_env()
+        build_type = 'Release'
+
+        is_verbose = ('-v' in self.waf_options) or ('--verbose' in self.waf_options)
+        verbose = '-v' if is_verbose else ''
+        test = '' if (self.skip_tests or not supports_tests) else 'test'
+        build_test = 'build_test'
+        if '--skip-build-tests' in self.waf_options:
+            build_test = ''
+        install = 'install'
+
+        cmake_configure_args = f"cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE={build_type} -DTARGET_PLATFORM={platform}".split()
+        run.env_command(self._form_env(), cmake_configure_args, cwd = libdir)
+
+        ninja_build_args = f"ninja all {build_test} {test} {install} {verbose}".split()
+        run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
+
+
+    def _build_engine_lib(self, args, lib, platform, skip_tests = False, directory = 'engine'):
+        self.build_tracker.start_component(lib, platform)
+        if lib in CMAKE_SUPPORT:
+            self._build_engine_lib_cmake(lib, platform, directory)
+        else:
+            self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
+
         self.build_tracker.end_component(lib, platform)
 
 # For now gradle right in
@@ -1439,7 +1478,7 @@ class Configuration(object):
         os.environ['DM_BOB_ROOTFOLDER'] = tempfile.mkdtemp(prefix='bob-light-')
         self._log("env DM_BOB_ROOTFOLDER=" + os.environ['DM_BOB_ROOTFOLDER'])
 
-        cmd = self._build_engine_cmd(**self._get_build_flags())
+        cmd = self._build_engine_cmd_waf(**self._get_build_flags())
         args = cmd.split()
         host = self.host
         # Make sure we build these for the host platform for the toolchain (bob light)
@@ -1462,7 +1501,7 @@ class Configuration(object):
                 continue
             self._build_engine_lib(args, lib, target_platform)
 
-        self._build_engine_lib(args, 'extender', target_platform, dir = 'share')
+        self._build_engine_lib(args, 'extender', target_platform, directory = 'share')
         if not self.skip_docs:
             self.build_docs()
         if not self.skip_builtins:
@@ -1486,10 +1525,10 @@ class Configuration(object):
     def build_external(self):
         flags = self._get_build_flags()
         flags['prefix'] = join(self.defold_root, 'packages')
-        cmd = self._build_engine_cmd(**flags)
+        cmd = self._build_engine_cmd_waf(**flags)
         args = cmd.split() + ['package']
         for lib in EXTERNAL_LIBS:
-            self._build_engine_lib(args, lib, platform=self.target_platform, dir='external')
+            self._build_engine_lib(args, lib, platform=self.target_platform, directory='external')
 
     def archive_bob(self):
         sha1 = self._git_sha1()

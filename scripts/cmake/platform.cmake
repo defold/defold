@@ -40,10 +40,23 @@ add_compile_definitions(
   GOOGLE_PROTOBUF_NO_RTTI
 )
 
+set(CMAKE_CXX_FLAGS_RELEASE "") # remove -DNDEBUG and -O3
+
 #**************************************************************************
 # Common flags
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+if(MSVC)
+  # Disable RTTI; don't force /EH to avoid changing exception model globally
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /GR-")
+
+  if (CMAKE_BUILD_TYPE MATCHES "Release")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /O2")
+  else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Od")
+  endif()
+
+else()
+
   # Apply per-language flags using separate generator expressions per option
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
@@ -53,21 +66,13 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -flto")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+  # for ninja to output colors
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color")
 
   if (CMAKE_BUILD_TYPE MATCHES "Release")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
   else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
-  endif()
-
-elseif(MSVC)
-  # Disable RTTI; don't force /EH to avoid changing exception model globally
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /GR-")
-
-  if (CMAKE_BUILD_TYPE MATCHES "Release")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /O2")
-  else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Od")
   endif()
 
 endif()

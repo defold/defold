@@ -42,10 +42,11 @@ target_include_directories(hid_null PUBLIC "${HID_SRC_DIR}")
 # ===================== Tests =====================
 
 if(BUILD_TESTS)
-  enable_testing()
-
   # test_hid uses jc_test and links against Defold support libs
   add_executable(test_hid "${HID_SRC_DIR}/test/test_hid.cpp")
+
+  # Do not build test executables by default (optional via explicit target)
+  set_target_properties(test_hid PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
   target_link_libraries(test_hid PRIVATE
     dlib
@@ -55,14 +56,6 @@ if(BUILD_TESTS)
     testmain
   )
 
-  # Convenience target to run tests with stdout passthrough
-  # This runs the test binaries directly so all output is visible in the console.
-  add_custom_target(run_tests
-    COMMAND $<TARGET_FILE:test_hid>
-    DEPENDS test_hid
-    USES_TERMINAL
-    COMMENT "Running HID unit tests (stdout)"
-  )
 endif()
 
 # Optional interactive test app (creates a tiny window and logs input)
@@ -80,6 +73,9 @@ if(BUILD_TESTS)
     "${HID_SRC_DIR}/test/test_app_hid.cpp"
     "${_exported_symbols_cpp}"
   )
+
+  # Optional app should not be part of the default build
+  set_target_properties(test_app_hid PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
   target_link_libraries(test_app_hid PRIVATE
     dlib
@@ -108,6 +104,27 @@ if(BUILD_TESTS)
     find_package(Threads REQUIRED)
     target_link_libraries(test_app_hid PRIVATE Threads::Threads dl)
   endif()
+endif()
+
+if(BUILD_TESTS)
+
+  # Group target to build all executables together
+  add_custom_target(build_test
+    DEPENDS test_hid test_app_hid
+    COMMENT "Building tests"
+  )
+  set_target_properties(build_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
+
+  # Convenience target to run tests with stdout passthrough
+  # This runs the test binaries directly so all output is visible in the console.
+  add_custom_target(test
+    COMMAND $<TARGET_FILE:test_hid>
+    DEPENDS build_test
+    USES_TERMINAL
+    COMMENT "Running unit tests"
+  )
+  set_target_properties(test PROPERTIES EXCLUDE_FROM_ALL TRUE)
+
 endif()
 
 # ===================== Install =====================
