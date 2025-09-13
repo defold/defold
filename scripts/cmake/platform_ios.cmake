@@ -7,6 +7,9 @@ else()
   set(_DEFOLD_TARGET_ARCH "x86_64")
 endif()
 
+# Ensure CMake uses the derived arch (overrides host default when needed)
+set(CMAKE_OSX_ARCHITECTURES "${_DEFOLD_TARGET_ARCH}" CACHE STRING "Defold target arch" FORCE)
+
 # Minimum iOS version: prefer CMAKE_OSX_DEPLOYMENT_TARGET if set
 set(_DEFOLD_IPHONEOS_MIN "${CMAKE_OSX_DEPLOYMENT_TARGET}")
 if(NOT _DEFOLD_IPHONEOS_MIN)
@@ -20,6 +23,10 @@ add_compile_definitions(
 
 if(_DEFOLD_TARGET_ARCH STREQUAL "x86_64")
   add_compile_definitions(DM_PLATFORM_IOS_SIMULATOR IOS_SIMULATOR)
+  # Guard: Simulator builds must use an iPhoneSimulator SDK
+  if(DEFINED CMAKE_OSX_SYSROOT AND NOT CMAKE_OSX_SYSROOT MATCHES ".*iPhoneSimulator.*\.sdk/?$")
+    message(FATAL_ERROR "TARGET_PLATFORM=x86_64-ios requires iPhoneSimulator SDK; found: ${CMAKE_OSX_SYSROOT}")
+  endif()
 endif()
 
 # Common iOS compile options
