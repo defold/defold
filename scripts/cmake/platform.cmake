@@ -1,19 +1,12 @@
 message("platform.cmake:")
 
-# Best-effort platform triple inference (can be overridden with -DTARGET_PLATFORM=...)
-set(TARGET_PLATFORM "" CACHE STRING "Defold platform triple (e.g. x86_64-macos, arm64-macos, x86_64-linux, x86_64-win32)")
+# Detect host OS/arch and compute HOST_PLATFORM
+include(platform_host)
+
+# Best-effort platform inference (can be overridden with -DTARGET_PLATFORM=...)
+set(TARGET_PLATFORM "" CACHE STRING "Defold platform tuple (e.g. x86_64-macos, arm64-macos, x86_64-linux, x86_64-win32)")
 if(NOT TARGET_PLATFORM)
-  if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)$")
-      set(TARGET_PLATFORM "arm64-macos")
-    else()
-      set(TARGET_PLATFORM "x86_64-macos")
-    endif()
-  elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    set(TARGET_PLATFORM "x86_64-linux")
-  elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    set(TARGET_PLATFORM "x86_64-win32")
-  endif()
+  set(TARGET_PLATFORM "${HOST_PLATFORM}")
 endif()
 
 if(NOT TARGET_PLATFORM)
@@ -34,13 +27,20 @@ endif()
 
 #**************************************************************************
 # Common defines
+
+set(CMAKE_CXX_FLAGS_RELEASE "") # remove -DNDEBUG and -O3
+
 add_compile_definitions(
   __STDC_LIMIT_MACROS
   DDF_EXPOSE_DESCRIPTORS
   GOOGLE_PROTOBUF_NO_RTTI
 )
 
-set(CMAKE_CXX_FLAGS_RELEASE "") # remove -DNDEBUG and -O3
+if (TARGET_PLATFORM MATCHES "^arm64|^x86_64")
+    add_compile_definitions(DM_PLATFORM_64BIT)
+else()
+    add_compile_definitions(DM_PLATFORM_32BIT)
+endif()
 
 #**************************************************************************
 # Common flags
@@ -82,9 +82,9 @@ include(sdk)
 
 if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
     include(platform_macos)
-endif()
-
-if (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
+elseif (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
+    include(platform_ios)
+elseif (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
     include(platform_android)
 endif()
 
