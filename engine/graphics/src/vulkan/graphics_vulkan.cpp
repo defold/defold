@@ -3746,24 +3746,6 @@ bail:
         g_VulkanContext->m_AssetHandleContainer.Release(texture);
     }
 
-    static inline uint32_t GetOffsetFromMipmap(VulkanTexture* texture, uint8_t mipmap)
-    {
-        uint8_t bitspp  = GetTextureFormatBitsPerPixel(texture->m_GraphicsFormat);
-        uint32_t width  = texture->m_Width;
-        uint32_t height = texture->m_Height;
-        uint32_t offset = 0;
-
-        for (uint32_t i = 0; i < mipmap; ++i)
-        {
-            offset += width * height * bitspp;
-            width  /= 2;
-            height /= 2;
-        }
-
-        offset /= 8;
-        return offset;
-    }
-
     static void CopyToTextureLayerWithtStageBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, VkBufferImageCopy* copy_regions, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t layer_count, uint32_t slice_size)
     {
         for (int i = 0; i < layer_count; ++i)
@@ -3887,174 +3869,16 @@ bail:
             layer_count,
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
-        SubmitAndWait(
+        SubmitTextureUpload(
             context->m_LogicalDevice.m_Device,
             context->m_LogicalDevice.m_GraphicsQueue,
             vk_command_buffer,
             context->m_LogicalDevice.m_CommandPool,
             texture_out);
 
+        // We cannot do this any longer, we need to keep the stage buffer around until the texture upload is complete (signalled by fence)
         DestroyResourceDeferred(context, &stage_buffer);
     }
-
-    /*
-    static void CopyToTexture(VulkanContext* context, const TextureParams& params,
-        bool use_stage_buffer, uint32_t tex_data_size, void* tex_data_ptr, VulkanTexture* texture_out)
-    {
-        DM_PROFILE(__FUNCTION__);
-
-        VkDevice vk_device = context->m_LogicalDevice.m_Device;
-        uint32_t layer_count = texture_out->m_LayerCount;
-        assert(layer_count > 0);
-
-        uint32_t slice_size = tex_data_size / layer_count;
-
-<<<<<<< HEAD
-    #ifdef __MACH__
-        if (slice_size < 8 && layer_count > 1) {
-            return; // Metal validation quirk workaround
-=======
-        #ifdef __MACH__
-            // Note: There is an annoying validation issue on osx for layered compressed data that causes a validation error
-            //       due to misalignment of the data when using a stage buffer. The offsets in the stage buffer needs to be
-            //       8 byte aligned but for compressed data that is not the case for the lowest mipmaps.
-            //       This might need some more investigation, but for now we don't want a crash at least...
-            if (slice_size < 8 && layer_count > 1)
-            {
-                return;
-            }
-        #endif
-
-            // Create one-time commandbuffer to carry the copy command
-            VkCommandBuffer vk_command_buffer;
-            CreateCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
-            VkCommandBufferBeginInfo vk_command_buffer_begin_info;
-            memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
-
-            vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-            vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-            VkResult res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
-            CHECK_VK_ERROR(res);
-
-            VkSubmitInfo vk_submit_info;
-            memset(&vk_submit_info, 0, sizeof(vk_submit_info));
-            vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            vk_submit_info.commandBufferCount = 1;
-            vk_submit_info.pCommandBuffers    = &vk_command_buffer;
-
-            // Transition image to transfer dst for the mipmap level we are uploading
-            res = TransitionImageLayout(vk_device,
-                context->m_LogicalDevice.m_CommandPool,
-                context->m_LogicalDevice.m_GraphicsQueue,
-                textureOut,
-                VK_IMAGE_ASPECT_COLOR_BIT,
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                params.m_MipMap,
-                layer_count);
-            CHECK_VK_ERROR(res);
-
-            DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-
-            res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, vk_device, texDataSize,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
-            CHECK_VK_ERROR(res);
-
-            res = WriteToDeviceBuffer(vk_device, texDataSize, 0, texDataPtr, &stage_buffer);
-            CHECK_VK_ERROR(res);
-
-            // NOTE: We should check max layer count in the device properties!
-            VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[layer_count];
-            
-            CopyToTextureLayerWithtStageBuffer(context, vk_command_buffer, vk_copy_regions, &stage_buffer, textureOut, params, layer_count, slice_size);
-
-            res = vkEndCommandBuffer(vk_command_buffer);
-            CHECK_VK_ERROR(res);
-
-            res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
-            CHECK_VK_ERROR(res);
-
-            vkQueueWaitIdle(context->m_LogicalDevice.m_GraphicsQueue);
-
-            res = TransitionImageLayout(vk_device,
-                context->m_LogicalDevice.m_CommandPool,
-                context->m_LogicalDevice.m_GraphicsQueue,
-                textureOut,
-                VK_IMAGE_ASPECT_COLOR_BIT,
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                params.m_MipMap,
-                layer_count);
-            CHECK_VK_ERROR(res);
-
-            DestroyResourceDeferred(context, &stage_buffer);
-
-            vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
-
-            delete[] vk_copy_regions;
->>>>>>> dev
-        }
-    #endif
-
-        // Always allocate a temporary command buffer for the copy, even during a frame
-        VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
-
-        // Stage buffer path
-        DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-        VkResult res = CreateDeviceBuffer(
-            context->m_PhysicalDevice.m_Device,
-            vk_device,
-            tex_data_size,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            &stage_buffer);
-        CHECK_VK_ERROR(res);
-
-        res = WriteToDeviceBuffer(vk_device, tex_data_size, 0, tex_data_ptr, &stage_buffer);
-        CHECK_VK_ERROR(res);
-
-        TransitionImageLayoutWithCmdBuffer(
-            vk_command_buffer,
-            texture_out,
-            VK_IMAGE_ASPECT_COLOR_BIT,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            params.m_MipMap,
-            layer_count,
-            VK_PIPELINE_STAGE_TRANSFER_BIT);
-
-        // Copy regions on the stack
-        dmArray<VkBufferImageCopy> copy_regions;
-        copy_regions.SetCapacity(layer_count);
-        copy_regions.SetSize(layer_count);
-
-        CopyToTextureLayerWithtStageBuffer(
-            vk_command_buffer,
-            copy_regions.Begin(),
-            &stage_buffer,
-            texture_out,
-            params,
-            layer_count,
-            slice_size);
-
-        vkCmdCopyBufferToImage(
-            vk_command_buffer,
-            stage_buffer.m_Handle.m_Buffer,
-            texture_out->m_Handle.m_Image,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            layer_count,
-            copy_regions.Begin());
-
-        TransitionImageLayoutWithCmdBuffer(
-            vk_command_buffer,
-            texture_out,
-            VK_IMAGE_ASPECT_COLOR_BIT,
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            params.m_MipMap,
-            layer_count,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-
-        SubmitAndWait(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, context->m_LogicalDevice.m_CommandPool, texture_out);
-
-        DestroyResourceDeferred(context->m_MainResourcesToDestroy[context->m_SwapChain->m_ImageIndex], &stage_buffer);
-    }
-    */
 
     static void VulkanSetTextureInternal(VulkanTexture* texture, const TextureParams& params)
     {
@@ -4363,11 +4187,12 @@ bail:
 
             TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
 
-            VkResult res = SubmitAndWait(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, cmd_buffer, context->m_LogicalDevice.m_CommandPoolWorker, tex);
+            VkResult res = SubmitTextureUpload(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, cmd_buffer, context->m_LogicalDevice.m_CommandPoolWorker, tex);
             CHECK_VK_ERROR(res);
 
             if (!is_memoryless)
             {
+                // I think this might need to be fixed as well
                 DestroyResourceDeferred(context, &stage_buffer);
 
                 if (format_orig == TEXTURE_FORMAT_RGB)

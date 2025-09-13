@@ -651,7 +651,7 @@ namespace dmGraphics
         return cmd_buffer;
     }
 
-    VkResult SubmitAndWait(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkCommandPool cmd_pool, VulkanTexture* textureOut)
+    VkResult SubmitTextureUpload(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkCommandPool cmd_pool, VulkanTexture* textureOut)
     {
         DM_PROFILE(__FUNCTION__);
 
@@ -682,9 +682,6 @@ namespace dmGraphics
             vkDestroyFence(vk_device, textureOut->m_SubmitFence, NULL);
         }
         textureOut->m_SubmitFence = fence;
-
-        //res = vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
-        //vkDestroyFence(vk_device, fence, NULL);
 
         vkFreeCommandBuffers(vk_device, cmd_pool, 1, &cmd);
         return res;
@@ -776,7 +773,7 @@ namespace dmGraphics
 
         bufferOut->m_MemorySize = (size_t) vk_buffer_memory_req.size;
         bufferOut->m_Destroyed  = 0;
-        bufferOut->m_Handle.m_LastUsedFrame = 0xff; // not used
+        // bufferOut->m_Handle.m_LastUsedFrame = 0xff; // not used
 
         return VK_SUCCESS;
 bail:
