@@ -86,6 +86,8 @@ elseif (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
     include(platform_ios)
 elseif (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
     include(platform_android)
+elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
+    include(platform_linux)
 endif()
 
 # message(STATUS "CFLAGS: ${CMAKE_C_FLAGS}")

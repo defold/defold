@@ -512,7 +512,7 @@ def default_flags(self):
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
 
-        self.env.append_value('LINKFLAGS', [f'--target={clang_arch}'])
+        self.env.append_value('LINKFLAGS', [f'--target={clang_arch}', '-fuse-ld=lld'])
 
     elif TargetOS.MACOS == target_os:
         sys_root = self.sdkinfo[build_util.get_target_platform()]['path']
