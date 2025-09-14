@@ -1,5 +1,12 @@
 message("functions.cmake:")
 
+# Remember where the Defold CMake modules live (scripts/cmake)
+# This is evaluated when this file is included, before any toolchain
+# can override CMAKE_MODULE_PATH. Functions can then rely on it.
+if(NOT DEFINED DEFOLD_CMAKE_DIR)
+    set(DEFOLD_CMAKE_DIR "${CMAKE_CURRENT_LIST_DIR}" CACHE INTERNAL "Defold CMake modules dir")
+endif()
+
 include(functions_graphics)
 include(functions_platform)
 
@@ -37,10 +44,18 @@ function(defold_create_exported_symbols_file OUT_PATH SYMBOL_LIST)
     set(DM_EXPORTED_SYMBOL_DECLS "${_decls}")
     set(DM_EXPORTED_SYMBOL_CALLS "${_calls}")
 
-    # Locate the template in CMAKE_MODULE_PATH
-    find_file(_DEFOLD_EXPORTED_TPL "exported_symbols.in.cpp" PATHS ${CMAKE_MODULE_PATH} NO_DEFAULT_PATH)
+    # Locate the template robustly. Prefer the scripts/cmake folder (where
+    # this module lives), since toolchains may override CMAKE_MODULE_PATH.
+    set(_DEFOLD_EXPORTED_TPL "")
+    set(_tpl_candidate "${DEFOLD_CMAKE_DIR}/exported_symbols.in.cpp")
+    if(EXISTS "${_tpl_candidate}")
+        set(_DEFOLD_EXPORTED_TPL "${_tpl_candidate}")
+    else()
+        # Fall back to CMAKE_MODULE_PATH and default search paths
+        find_file(_DEFOLD_EXPORTED_TPL "exported_symbols.in.cpp" HINTS ${CMAKE_MODULE_PATH})
+    endif()
     if(NOT _DEFOLD_EXPORTED_TPL)
-        message(FATAL_ERROR "Could not find exported_symbols.in.cpp in CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
+        message(FATAL_ERROR "Could not find exported_symbols.in.cpp. Looked in ${CMAKE_CURRENT_LIST_DIR} and CMAKE_MODULE_PATH=${CMAKE_MODULE_PATH}")
     endif()
 
     # Ensure output directory exists
