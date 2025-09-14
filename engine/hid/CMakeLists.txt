@@ -144,7 +144,7 @@ install(FILES "${HID_SRC_DIR}/hid.h" DESTINATION include/hid)
 
 # Install dmsdk headers for HID with folder structure preserved
 install(DIRECTORY "${HID_SRC_DIR}/dmsdk/"
-                DESTINATION include/dmsdk
+                DESTINATION sdk/include/dmsdk
                 FILES_MATCHING
                 PATTERN "*.h"
                 PATTERN "*.hpp")
