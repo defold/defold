@@ -1,5 +1,4 @@
-extern "C" void @HID_ADAPTER_SYMBOL@();
+@DM_EXPORTED_SYMBOL_DECLS@
 extern "C" void dmExportedSymbols() {
-    @HID_ADAPTER_SYMBOL@();
+@DM_EXPORTED_SYMBOL_CALLS@
 }
-

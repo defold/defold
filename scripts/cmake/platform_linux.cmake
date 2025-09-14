@@ -22,5 +22,6 @@ add_compile_options(
 # Link options
 add_link_options(
   --target=${_DEFOLD_CLANG_TRIPLE}
+  -fuse-ld=lld
 )
 
