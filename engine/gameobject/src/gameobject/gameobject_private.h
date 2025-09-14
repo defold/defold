@@ -307,6 +307,7 @@ namespace dmGameObject
     bool CreateComponents(Collection* collection, HInstance instance);
     void Delete(Collection* collection, HInstance instance, bool recursive);
     void UpdateTransforms(Collection* collection);
+    void UpdateTransformsForInstance(Collection* collection, Instance* instance);
     void DeleteCollection(Collection* collection);
     bool IsCollectionInitialized(Collection* collection);
     Result AttachCollection(Collection* collection, const char* name, dmResource::HFactory factory, HRegister regist, HCollection hcollection);
