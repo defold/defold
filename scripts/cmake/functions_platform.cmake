@@ -8,7 +8,7 @@ message("functions_platform.cmake:")
 #   defold_target_link_platform(<target> <platform> [SCOPE <PRIVATE|PUBLIC|INTERFACE>])
 #
 # Selection rules:
-# - Web targets -> platform_null
+# - Web targets -> platform
 # - GLFW3 desktop targets (macOS, Linux, Win32, Nx64):
 #     - If WITH_VULKAN=ON OR platform in {arm64-macos,x86_64-macos,arm64-nx64}
 #       -> platform_vulkan
@@ -28,9 +28,9 @@ function(defold_target_link_platform target platform)
         message(FATAL_ERROR "functions_platform: platform argument is required")
     endif()
 
-    # Web platforms map to platform_null
+    # Web platforms map to platform
     if(platform STREQUAL "js-web" OR platform STREQUAL "wasm-web" OR platform STREQUAL "wasm_pthread-web")
-        set(_plat_lib platform_null)
+        set(_plat_lib platform)
     else()
         # Platforms using GLFW 3 (same set as waf's platform_glfw_version == 3)
         set(_glfw3_platforms "x86_64-macos;arm64-macos;x86_64-win32;x86_64-linux;arm64-linux;arm64-nx64")
@@ -55,4 +55,3 @@ function(defold_target_link_platform target platform)
 
     target_link_libraries(${target} ${DPL_SCOPE} ${_plat_lib})
 endfunction()
-
