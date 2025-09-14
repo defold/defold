@@ -1,40 +1,86 @@
 message("sdk_android.cmake:")
 
-# Detect packaged Android NDK in ${DEFOLD_SDK_ROOT}/ext/SDKs and set toolchain file
-
-if(NOT DEFINED DEFOLD_SDK_ROOT)
-    message(DEBUG "sdk_android: DEFOLD_SDK_ROOT not set; skipping packaged Android NDK detection")
-    return()
-endif()
-
-set(_SDKS_DIR "${DEFOLD_SDK_ROOT}/ext/SDKs")
-if(NOT EXISTS "${_SDKS_DIR}")
-    message(DEBUG "sdk_android: SDKs directory not found: ${_SDKS_DIR}")
-    return()
-endif()
-
-# Common locations across NDK versions
-set(_NDK_TOOLCHAIN_CANDIDATES
-    "${_SDKS_DIR}/android-ndk-*/build/cmake/android.toolchain.cmake"
-    "${_SDKS_DIR}/android-ndk-*/android.toolchain.cmake"
-)
+# Detect Android NDK toolchain from (in order):
+# 1) Packaged NDK under ${DEFOLD_SDK_ROOT}/ext/SDKs
+# 2) Local Android SDK (Android Studio) via ANDROID_SDK_ROOT / ANDROID_HOME
+# 3) Well-known default SDK locations on host OS
 
 set(_ANDROID_TOOLCHAINS "")
-foreach(_pat IN LISTS _NDK_TOOLCHAIN_CANDIDATES)
-    file(GLOB _matches ${_pat})
-    if(_matches)
-        list(APPEND _ANDROID_TOOLCHAINS ${_matches})
-    endif()
-endforeach()
 
-if(NOT _ANDROID_TOOLCHAINS)
-    message(DEBUG "sdk_android: No packaged Android NDK toolchain found in ${_SDKS_DIR}")
-    return()
+# 1) Packaged NDK under DEFOLD_SDK_ROOT
+if(DEFINED DEFOLD_SDK_ROOT)
+    set(_SDKS_DIR "${DEFOLD_SDK_ROOT}/ext/SDKs")
+    if(EXISTS "${_SDKS_DIR}")
+        set(_NDK_TOOLCHAIN_CANDIDATES
+            "${_SDKS_DIR}/android-ndk-*/build/cmake/android.toolchain.cmake"
+            "${_SDKS_DIR}/android-ndk-*/android.toolchain.cmake"
+        )
+        foreach(_pat IN LISTS _NDK_TOOLCHAIN_CANDIDATES)
+            file(GLOB _matches ${_pat})
+            if(_matches)
+                list(APPEND _ANDROID_TOOLCHAINS ${_matches})
+            endif()
+        endforeach()
+        if(NOT _ANDROID_TOOLCHAINS)
+            message(DEBUG "sdk_android: No packaged Android NDK toolchain found in ${_SDKS_DIR}")
+        endif()
+    else()
+        message(DEBUG "sdk_android: SDKs directory not found: ${_SDKS_DIR}")
+    endif()
+else()
+    message(DEBUG "sdk_android: DEFOLD_SDK_ROOT not set; skipping packaged NDK detection")
 endif()
 
-list(SORT _ANDROID_TOOLCHAINS)
-list(REVERSE _ANDROID_TOOLCHAINS)
-list(GET _ANDROID_TOOLCHAINS 0 _ANDROID_TOOLCHAIN_FILE)
+# Helper: add toolchains from an Android SDK path
+function(_defold_android_sdk_add_toolchains SDK_PATH)
+    if(NOT EXISTS "${SDK_PATH}")
+        return()
+    endif()
+    file(GLOB _ndk_roots
+        "${SDK_PATH}/ndk/*"
+        "${SDK_PATH}/ndk-bundle"
+    )
+    foreach(_ndk IN LISTS _ndk_roots)
+        if(EXISTS "${_ndk}/build/cmake/android.toolchain.cmake")
+            list(APPEND _ANDROID_TOOLCHAINS "${_ndk}/build/cmake/android.toolchain.cmake")
+        elseif(EXISTS "${_ndk}/android.toolchain.cmake")
+            list(APPEND _ANDROID_TOOLCHAINS "${_ndk}/android.toolchain.cmake")
+        endif()
+    endforeach()
+    set(_ANDROID_TOOLCHAINS "${_ANDROID_TOOLCHAINS}" PARENT_SCOPE)
+endfunction()
+
+# 2) Local Android SDK via env vars
+if(NOT _ANDROID_TOOLCHAINS)
+    if(DEFINED ENV{ANDROID_SDK_ROOT})
+        _defold_android_sdk_add_toolchains("$ENV{ANDROID_SDK_ROOT}")
+    elseif(DEFINED ENV{ANDROID_HOME})
+        _defold_android_sdk_add_toolchains("$ENV{ANDROID_HOME}")
+    endif()
+endif()
+
+# 3) Well-known default SDK roots
+if(NOT _ANDROID_TOOLCHAINS)
+    if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+        _defold_android_sdk_add_toolchains("$ENV{HOME}/Library/Android/sdk")
+    elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+        _defold_android_sdk_add_toolchains("$ENV{HOME}/Android/Sdk")
+    elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+        if(DEFINED ENV{LOCALAPPDATA})
+            _defold_android_sdk_add_toolchains("$ENV{LOCALAPPDATA}/Android/Sdk")
+        endif()
+        if(DEFINED ENV{APPDATA})
+            _defold_android_sdk_add_toolchains("$ENV{APPDATA}/Android/Sdk")
+        endif()
+    endif()
+endif()
+
+# Pick the most recent toolchain file
+if(_ANDROID_TOOLCHAINS)
+    list(SORT _ANDROID_TOOLCHAINS)
+    list(REVERSE _ANDROID_TOOLCHAINS)
+    list(GET _ANDROID_TOOLCHAINS 0 _ANDROID_TOOLCHAIN_FILE)
+endif()
 
 if(EXISTS "${_ANDROID_TOOLCHAIN_FILE}")
     get_filename_component(_toolchain_dir "${_ANDROID_TOOLCHAIN_FILE}" DIRECTORY)
@@ -48,19 +94,19 @@ if(EXISTS "${_ANDROID_TOOLCHAIN_FILE}")
         set(_ANDROID_NDK_ROOT "${_ndk_grandparent}")
     endif()
 
-    message(STATUS "sdk_android: Using packaged Android NDK: ${_ANDROID_NDK_ROOT}")
+    if(_SDKS_DIR AND _ANDROID_TOOLCHAIN_FILE MATCHES "^${_SDKS_DIR}.*")
+        message(STATUS "sdk_android: Using packaged Android NDK: ${_ANDROID_NDK_ROOT}")
+    else()
+        message(STATUS "sdk_android: Using local Android SDK NDK: ${_ANDROID_NDK_ROOT}")
+    endif()
     message(STATUS "sdk_android: Toolchain file: ${_ANDROID_TOOLCHAIN_FILE}")
 
-    # Set toolchain before project(); users can still override on the command line
     if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
         set(CMAKE_TOOLCHAIN_FILE "${_ANDROID_TOOLCHAIN_FILE}" CACHE FILEPATH "Android NDK toolchain file" FORCE)
     endif()
-    # Hint the NDK root
     set(ANDROID_NDK "${_ANDROID_NDK_ROOT}" CACHE PATH "Android NDK root" FORCE)
-endif()
-
-if (NOT CMAKE_TOOLCHAIN_FILE)
-    message(FATAL "Failed to find android.toolchain.cmake")
+else()
+    message(FATAL_ERROR "sdk_android: Failed to find android.toolchain.cmake in packaged or local Android SDKs")
 endif()
 
 
