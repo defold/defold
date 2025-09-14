@@ -31,7 +31,6 @@ endif()
 
 # Common iOS compile options
 add_compile_options(
-  -arch ${_DEFOLD_TARGET_ARCH}
   -miphoneos-version-min=${_DEFOLD_IPHONEOS_MIN}
 )
 
@@ -52,7 +51,6 @@ add_compile_options(
 
 # Link options (mirrors waf_dynamo for iOS)
 set(_DEFOLD_LINK_OPTS
-  -arch ${_DEFOLD_TARGET_ARCH}
   -stdlib=libc++
   -miphoneos-version-min=${_DEFOLD_IPHONEOS_MIN}
   -dead_strip

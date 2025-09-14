@@ -7,6 +7,9 @@ else()
   set(_DEFOLD_TARGET_ARCH "x86_64")
 endif()
 
+# Ensure CMake uses the derived arch (overrides host default when needed)
+set(CMAKE_OSX_ARCHITECTURES "${_DEFOLD_TARGET_ARCH}" CACHE STRING "Defold target arch" FORCE)
+
 # Since it's a cmake feature, let's check it first if it's overridden
 set(_DEFOLD_MACOS_MIN "${CMAKE_OSX_DEPLOYMENT_TARGET}")
 if(NOT _DEFOLD_MACOS_MIN)
