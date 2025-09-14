@@ -22,6 +22,9 @@ include(features)
 # platform specific includes, lib paths, defines etc...
 include(platform)
 
+#include helper functions
+include(functions)
+
 # Common paths
 set(DEFOLD_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/include")
 set(DEFOLD_EXT_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/ext/include")
