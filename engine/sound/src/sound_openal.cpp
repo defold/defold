@@ -14,8 +14,6 @@
 
 #include <stdint.h>
 #include <dlib/array.h>
-#include <dlib/atomic.h>
-#include <dlib/condition_variable.h>
 #include <dlib/hashtable.h>
 #include <dlib/index_pool.h>
 #include <dlib/log.h>
@@ -25,12 +23,17 @@
 #include <dlib/time.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/profile.h>
-#include <dmsdk/dlib/thread.h>
 
 #include "sound.h"
 #include "sound_codec.h"
 #include "sound_private.h"
 #include "sound_dsp.h"
+
+#if DM_SOUND_WASM_SUPPORT_THREADS
+#include <dmsdk/dlib/thread.h>
+#include <dlib/atomic.h>
+#include <dlib/condition_variable.h>
+#endif
 
 #include <math.h>
 
@@ -77,21 +80,6 @@
 namespace dmSound
 {
     using namespace dmVMath;
-
-    // Since using threads is optional, we want to make it easy to switch on/off the mutex behavior
-    struct OptionalScopedMutexLock
-    {
-        OptionalScopedMutexLock(dmMutex::HMutex mutex) : m_Mutex(mutex) {
-            if (m_Mutex)
-                dmMutex::Lock(m_Mutex);
-        }
-        ~OptionalScopedMutexLock() {
-            if (m_Mutex)
-                dmMutex::Unlock(m_Mutex);
-        }
-        dmMutex::HMutex m_Mutex;
-    };
-    #define DM_MUTEX_OPTIONAL_SCOPED_LOCK(mutex) OptionalScopedMutexLock SCOPED_LOCK_PASTE2(lock, __LINE__)(mutex);
 
     struct SoundDataCallbacks
     {
@@ -150,11 +138,12 @@ namespace dmSound
         dmSoundCodec::HCodecContext   m_CodecContext;
 
         dmMutex::HMutex          m_Mutex;
+#if DM_SOUND_WASM_SUPPORT_THREADS
         dmConditionVariable::HConditionVariable m_CondVar;
         dmThread::Thread        m_Thread;
         int32_atomic_t          m_IsRunning;
         int32_atomic_t          m_Status;
-
+#endif
         ALCcontext*             m_AlContext;
         ALCdevice*              m_AlDevice;
 
@@ -189,7 +178,7 @@ namespace dmSound
         ALenum                  m_Eos;
         ALenum                  m_DirectStreamingFormat[SOUND_DATA_TYPE_MAX];
 
-        Result initOpenal() {
+        Result InitOpenal() {
             m_AlDevice = alcOpenDevice(nullptr);
             if (!m_AlDevice) {
                 dmLogError("couldn't open OpenAL default device");
@@ -214,7 +203,7 @@ namespace dmSound
             return RESULT_OK;
         }
 
-        Result finalizeOpenal() {
+        Result FinalizeOpenal() {
             alDeleteSources(m_Sources.Capacity(), m_Sources.Begin());
             checkForAlErrors("alDeleteSources");
             alDeleteBuffers(m_Buffers.Size(), m_Buffers.Begin());
@@ -292,7 +281,7 @@ namespace dmSound
         uint32_t max_instances = args->m_MaxInstances;
         uint32_t max_buffers = args->m_MaxBuffers;
 
-        Result r = sound->initOpenal();
+        Result r = sound->InitOpenal();
         if (r != RESULT_OK) {
             return r;
         }
@@ -415,7 +404,7 @@ namespace dmSound
         return r;
     }
 
-    #if SOUND_WASM_SUPPORT_THREADS
+    #if DM_SOUND_WASM_SUPPORT_THREADS
     static Result UpdateInternal(SoundSystem* sound);
 
     static void SoundThreadEmscriptenCallback(void *ctx)
@@ -448,7 +437,7 @@ namespace dmSound
             emscripten_set_main_loop_arg(SoundThreadEmscriptenCallback, sound, 1000 / 16, 1);   // roughly '60fps'
 
             dmMutex::Lock(sound->m_Mutex);
-            result = sound->finalizeOpenal();
+            result = sound->FinalizeOpenal();
         }
 
         dmAtomicStore32(&sound->m_Status, (int)result);
@@ -505,10 +494,10 @@ namespace dmSound
         dmAtomicStore32(&sound->m_Status, (int)RESULT_NOTHING_TO_PLAY);
 
         sound->m_Mutex = 0;
-        sound->m_CondVar = 0;
+#if DM_SOUND_WASM_SUPPORT_THREADS
         sound->m_Thread = 0;
+        sound->m_CondVar = 0;
 
-#if SOUND_WASM_SUPPORT_THREADS
         if (params->m_UseThread) {
             dmLogInfo("sound updates on worker thread");
 
@@ -542,9 +531,10 @@ namespace dmSound
 
         dmAtomicStore32(&sound->m_IsRunning, 0);
 
+#if DM_SOUND_WASM_SUPPORT_THREADS
         Result result;
         if (sound->m_Thread == 0) {
-            result = sound->finalizeOpenal();
+            result = sound->FinalizeOpenal();
             if (result != RESULT_OK) {
                 return result;
             }
@@ -554,6 +544,12 @@ namespace dmSound
             dmConditionVariable::Delete(sound->m_CondVar);
             result = (Result)dmAtomicGet32(&sound->m_Status);
         }
+#else
+        result = sound->FinalizeOpenal();
+        if (result != RESULT_OK) {
+            return result;
+        }
+#endif
 
         PlatformFinalize();
 
@@ -815,9 +811,7 @@ namespace dmSound
                 if (sound->m_InstancesActive[i] == sound_instance->m_Index) {
                     if (i < last) {
                         // swap to end of array so we can pop
-                        uint16_t tmp = sound->m_InstancesActive[last];
-                        sound->m_InstancesActive[last] = sound_instance->m_Index;
-                        sound->m_InstancesActive[i] = tmp;
+                        sound->m_InstancesActive.EraseSwap(i);
                     }
                     sound->m_InstancesActive.Pop();
                     sound_instance->m_SoundDataIndex = 0xffff;
@@ -1271,7 +1265,11 @@ namespace dmSound
     {
         DM_PROFILE("Sound");
         SoundSystem* sound = g_SoundSystem;
+#if DM_SOUND_WASM_SUPPORT_THREADS
         if (!sound || sound->m_Thread != 0)
+#else
+        if (!sound)
+#endif
             return RESULT_OK;
 
         return UpdateInternal(sound);

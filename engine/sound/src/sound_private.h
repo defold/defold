@@ -20,7 +20,7 @@
 
 #if defined(__EMSCRIPTEN__) && !defined(DM_NO_THREAD_SUPPORT)
 #include <emscripten.h>
-#define SOUND_WASM_SUPPORT_THREADS 1
+#define DM_SOUND_WASM_SUPPORT_THREADS 1
 #endif
 
 namespace dmSound
