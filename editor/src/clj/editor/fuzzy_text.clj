@@ -63,26 +63,6 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn- set-matching-index-bits-in-bit-set!
-  "Sets bits in the supplied bit-set to true at each index where the specified
-  code point is found in the string."
-  [bits ^String string ^long ch ^long from-index]
-  (loop [from-index (int from-index)]
-    (let [index (.indexOf string ch from-index)]
-      (when-not (neg? index)
-        (bit-set/set-bit! bits index)
-        (recur (inc index))))))
-
-(defn- case-insensitive-character-indices
-  "Returns a bit-set of the indices where the specified code point exists in the
-  string. Both upper- and lower-case matches are included."
-  [^String string ^long upper-ch ^long lower-ch ^long from-index]
-  (let [bits (bit-set/of-capacity (.length string))]
-    (assert (not (Character/isWhitespace upper-ch)))
-    (set-matching-index-bits-in-bit-set! bits string upper-ch from-index)
-    (set-matching-index-bits-in-bit-set! bits string lower-ch from-index)
-    bits))
-
 (defn- every-character-is-letter-or-digit?
   "Returns true if every code point within the specified half-open range
   represent either a letter or digit."
@@ -191,45 +171,28 @@
       match-a
       match-b)))
 
-;; TODO: REMOVE!
-(def stuff (atom []))
-(def ^AtomicInteger watchdog-atomic (AtomicInteger. 0))
-
-(defn- visualize-pattern-index [^long pattern-index pattern-chs]
-  (let [length (count pattern-chs)
-        sb (StringBuilder.)]
-    (loop [index 0]
-      (when (< index length)
-        (let [is-match (= pattern-index index)]
-          (when is-match
-            (.append sb \[))
-          (.appendCodePoint sb (int (nth pattern-chs index)))
-          (when is-match
-            (.append sb \]))
-          (recur (inc index)))))
-    (pair pattern-index (.toString sb))))
-
-(defn- visualize-matching-indices [matching-indices ^String string]
-  (let [length (.length string)
-        sb (StringBuilder.)]
-    (loop [index 0]
-      (when (< index length)
-        (let [is-match (bit-set/bit matching-indices index)]
-          (when is-match
-            (.append sb \[))
-          (.appendCodePoint sb (.codePointAt string index))
-          (when is-match
-            (.append sb \]))
-          (recur (inc index)))))
-    (if (bit-set/empty? matching-indices)
-      []
-      (conj (bit-set/into [] matching-indices)
-            (.toString sb)))))
+(defn- set-matching-index-bits-in-bit-set!
+  "Sets bits in the supplied bit-set to true at each index where the specified
+  code point is found in the string."
+  [bits ^String string ^long ch ^long from-index]
+  (loop [from-index (int from-index)]
+    (let [index (.indexOf string ch from-index)]
+      (when-not (neg? index)
+        (bit-set/set-bit! bits index)
+        (recur (inc index))))))
 
 (defn- match-impl
+  "Performs a fuzzy text match against a string.
+  Returns a two-element vector of [score, matching-indices], or nil if the
+  pattern is empty or there is no match. Lower scores are better. The
+  matching-indices will be a bit-set containing the character indices where
+  either the upper-pattern-chs or the lower-pattern-chs matched the pattern.
+  These are expected to be equal-length sequences of non-whitespace code points.
+  A bit-set of pattern-break-indices should denote the indices between
+  characters where we should expect a run of non-matching characters. The
+  from-index is an index into the pattern-chs vectors and can be used to
+  control where matching begins in the input."
   [upper-pattern-chs lower-pattern-chs pattern-break-indices ^String string from-index]
-  (reset! stuff [])
-  (.set watchdog-atomic 0)
   (let [pattern-length (count upper-pattern-chs)
         string-length (.length string)]
     (assert (= pattern-length (count lower-pattern-chs)))
@@ -240,26 +203,19 @@
             best-matching-indices (bit-set/of-capacity string-length)
             candidate-matching-indices (bit-set/of-capacity string-length)
             search-start-indices (int-array pattern-length 0)
+            watchdog-atomic (AtomicInteger. 0)
 
             per-character-indices
             (mapv (fn [^long upper-ch ^long lower-ch]
-                    (case-insensitive-character-indices string upper-ch lower-ch from-index))
+                    (let [bits (bit-set/of-capacity (.length string))]
+                      (assert (not (Character/isWhitespace upper-ch)))
+                      (set-matching-index-bits-in-bit-set! bits string upper-ch from-index)
+                      (set-matching-index-bits-in-bit-set! bits string lower-ch from-index)
+                      bits))
                   upper-pattern-chs
                   lower-pattern-chs)]
 
-        (loop [tick-index-in-pattern (int 0)
-               ingress "Begin."]
-          (swap!
-            stuff conj
-            {:ingress ingress
-             :tick-index-in-pattern (visualize-pattern-index tick-index-in-pattern lower-pattern-chs)
-             :best-score (.get best-score-atomic)
-             :best-matching-indices (visualize-matching-indices best-matching-indices string)
-             :candidate-matching-indices (visualize-matching-indices candidate-matching-indices string)
-             :search-start-indices (into [] search-start-indices)})
-          (when (< 100000 (.incrementAndGet watchdog-atomic))
-            (throw (ex-info "Watchdog tripped."
-                            {:tick-index-in-pattern tick-index-in-pattern})))
+        (loop [tick-index-in-pattern (int 0)]
           (cond
             (= pattern-length tick-index-in-pattern)
             ;; We have a fully formed candidate.
@@ -275,18 +231,17 @@
                   (.set best-score-atomic candidate-score)
                   (bit-set/assign! best-matching-indices candidate-matching-indices)
                   (bit-set/clear-bit! candidate-matching-indices last-matched-index-in-string)
-                  (recur pending-tick-index-in-pattern
-                         "We're the new best match."))
+                  (recur pending-tick-index-in-pattern))
 
                 ;; We're no better than the previous best match.
                 (let [last-matched-index-in-string (bit-set/last-set-bit candidate-matching-indices)
                       pending-tick-index-in-pattern (dec tick-index-in-pattern)]
                   (bit-set/clear-bit! candidate-matching-indices last-matched-index-in-string)
-                  (recur pending-tick-index-in-pattern
-                         "We're no better than the previous best match."))))
+                  (recur pending-tick-index-in-pattern))))
 
-            (neg? tick-index-in-pattern)
-            ;; We've checked every permutation. We're done.
+            (or (neg? tick-index-in-pattern)
+                (< 10000000 (.incrementAndGet watchdog-atomic)))
+            ;; We've checked every permutation, or we've taken too long. Return.
             (when-not (bit-set/empty? best-matching-indices)
               (let [best-score (.get best-score-atomic)]
                 (pair best-score best-matching-indices)))
@@ -312,8 +267,7 @@
                   (when-not (neg? last-matched-index-in-string)
                     (bit-set/clear-bit! candidate-matching-indices last-matched-index-in-string))
                   (aset search-start-indices tick-index-in-pattern (int 0)) ; Not necessary, but leaving the original value can be confusing while debugging.
-                  (recur pending-tick-index-in-pattern
-                         "Backtrack by popping the last matched index from the candidate and moving the tick-index back one step."))
+                  (recur pending-tick-index-in-pattern))
 
                 ;; We matched a character.
                 (let [next-search-start-index (inc matching-index-in-string)
@@ -324,8 +278,7 @@
                     (let [is-pattern-break (bit-set/bit pattern-break-indices pending-tick-index-in-pattern)
                           pending-next-search-start-index (cond-> next-search-start-index is-pattern-break inc)]
                       (aset search-start-indices pending-tick-index-in-pattern pending-next-search-start-index)))
-                  (recur pending-tick-index-in-pattern
-                         "We matched a character."))))))))))
+                  (recur pending-tick-index-in-pattern))))))))))
 
 (defn prepare-pattern
   "Given a pattern string, returns a trimmed and case-agnostic prepared-pattern
@@ -439,25 +392,3 @@
                          (conj runs [false (peek run) matching-index])
                          runs)
                        [true matching-index (inc matching-index)])))))))
-
-(comment
-  ["XM" "X0mM000000"]
-  ["GDA" "GdDA"]
-  ["0 0" "0"]
-  [" " "0"]
-  ["J E" "J0eE"]
-  ["M C" "0mM0C"])
-
-(defn check! []
-  (let [[needle haystack] ["M C" "0mM0C"]
-        [upper-pattern-chs lower-pattern-chs pattern-break-indices] (prepare-pattern needle)
-        from-index 0]
-    (match-impl upper-pattern-chs lower-pattern-chs pattern-break-indices haystack from-index)))
-
-(comment
-  (do
-    (try
-      (check!)
-      (catch Exception e
-        (prn (ex-message e))))
-    @stuff))
