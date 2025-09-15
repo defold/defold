@@ -110,6 +110,13 @@ namespace dmRender
         CONTEXT_RESTORED = 1
     };
 
+    enum SortOrder
+    {
+        SORT_BACK_TO_FRONT = 0,
+        SORT_FRONT_TO_BACK = 1,
+        SORT_NONE          = 2,
+    };
+
     struct Predicate
     {
         static const uint32_t MAX_TAG_COUNT = 32;
@@ -201,7 +208,7 @@ namespace dmRender
 
     // Takes the contents of the render list, sorts by view and inserts all the objects in the
     // render list, unless they already are in place from a previous call.
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options);
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order);
 
     Result Draw(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
     Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options);

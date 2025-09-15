@@ -517,7 +517,7 @@ namespace dmRender
     }
 
     // Compute new sort values for everything that matches tag_mask
-    static void MakeSortBuffer(HRenderContext context, uint32_t tag_count, dmhash_t* tags)
+    static void MakeSortBuffer(HRenderContext context, uint32_t tag_count, dmhash_t* tags, SortOrder sort_order)
     {
         DM_PROFILE("MakeSortBuffer");
 
@@ -607,7 +607,16 @@ namespace dmRender
                 if (entry->m_MajorOrder == RENDER_ORDER_WORLD)
                 {
                     const float z = sort_values[idx].m_ZW;
-                    sort_values[idx].m_Order = (uint32_t) (0xfffff8 - 0xfffff0 * rc * (z - minZW));
+                    if (sort_order == SORT_FRONT_TO_BACK)
+                    {
+                        // Near-to-far
+                        sort_values[idx].m_Order = (uint32_t) (0x000008 + 0xfffff0 * rc * (z - minZW));
+                    }
+                    else
+                    {
+                        // Default: far-to-near
+                        sort_values[idx].m_Order = (uint32_t) (0xfffff8 - 0xfffff0 * rc * (z - minZW));
+                    }
                 }
                 else
                 {
@@ -855,7 +864,7 @@ namespace dmRender
         }
     }
 
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options)
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order)
     {
         DM_PROFILE("DrawRenderList");
 
@@ -921,16 +930,19 @@ namespace dmRender
             }
         }
 
-        MakeSortBuffer(context, predicate?predicate->m_TagCount:0, predicate?predicate->m_Tags:0);
+        MakeSortBuffer(context, predicate?predicate->m_TagCount:0, predicate?predicate->m_Tags:0, sort_order);
 
         if (context->m_RenderListSortBuffer.Empty())
             return RESULT_OK;
 
         {
-            DM_PROFILE("DrawRenderList_SORT");
-            RenderListSorter sort;
-            sort.values = context->m_RenderListSortValues.Begin();
-            std::stable_sort(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.End(), sort);
+            if (sort_order != SORT_NONE)
+            {
+                DM_PROFILE("DrawRenderList_SORT");
+                RenderListSorter sort;
+                sort.values = context->m_RenderListSortValues.Begin();
+                std::stable_sort(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.End(), sort);
+            }
         }
 
         // Construct render objects
@@ -1218,7 +1230,7 @@ namespace dmRender
         if (!context->m_DebugRenderer.m_RenderContext) {
             return RESULT_INVALID_CONTEXT;
         }
-        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_options);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_options, SORT_BACK_TO_FRONT);
     }
 
     Result DrawDebug2d(HRenderContext context) // Deprecated
@@ -1226,7 +1238,7 @@ namespace dmRender
         if (!context->m_DebugRenderer.m_RenderContext) {
             return RESULT_INVALID_CONTEXT;
         }
-        return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0, 0);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0, 0, SORT_BACK_TO_FRONT);
     }
 
     HPredicate NewPredicate()

@@ -416,7 +416,7 @@ TEST_F(dmRenderTest, TestRenderListDraw)
     dmRender::RenderListSubmit(m_Context, out, out + n);
     dmRender::RenderListEnd(m_Context);
 
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
     ASSERT_EQ(ctx.m_BeginCalls, 1);
     ASSERT_GT(ctx.m_BatchCalls, 1);
@@ -544,7 +544,7 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
 
     dmRender::RenderListSubmit(m_Context, out, out + 1);
     dmRender::RenderListEnd(m_Context);
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
     dmGraphics::PipelineState ps_after = dmGraphics::GetPipelineState(m_GraphicsContext);
 
@@ -701,7 +701,7 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     dmRender::RenderListSubmit(m_Context, out, out + 1);
     dmRender::RenderListEnd(m_Context);
 
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
     // we bind test_texture_0 to unit 0, but that binding will be overwritten by the name hash binding
     // since the "texture_sampler_1" sampler is bound to unit 0
@@ -716,7 +716,7 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
 
     // we should allow binding the same texture to multiple logical units
     SetTextureBindingByHash(m_Context, texture_sampler_2_hash, test_texture_1);
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
     ASSERT_EQ(m_Context->m_TextureBindTable[1].m_Texture, test_texture_1);
     ASSERT_EQ(m_Context->m_TextureBindTable[2].m_Texture, test_texture_1);
@@ -730,7 +730,7 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     // Bind another texture after, to make sure we can bind something after an array and all the unit offsets should be valid
     SetTextureBindingByHash(m_Context, texture_sampler_4_hash, test_texture_0);
 
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
     dmGraphics::Texture* tex_array = dmGraphics::GetAssetFromContainer<dmGraphics::Texture>(null_context->m_AssetHandleContainer, test_texture_array);
     ASSERT_EQ(m_Context->m_TextureBindTable[3].m_Texture, test_texture_array);
@@ -751,7 +751,7 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
 
     // Drawing should trim the texture bind table based on where the last valid texture was found
     // which will set the table to zero in this case
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
     ASSERT_EQ(0, m_Context->m_TextureBindTable.Size());
 
     // table is [t0, 0, 0, t0];
@@ -764,7 +764,7 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     SetTextureBindingByUnit(m_Context, 3, 0);
 
     // Draw should trim the array to [t0]
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
     ASSERT_EQ(1, m_Context->m_TextureBindTable.Size());
     ASSERT_EQ(test_texture_0, m_Context->m_TextureBindTable[0].m_Texture);
 
@@ -1011,7 +1011,7 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
     {
         dmRender::RenderListSubmit(m_Context, out, out + 1);
         dmRender::RenderListEnd(m_Context);
-        dmRender::DrawRenderList(m_Context, 0, 0, 0);
+        dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
         dmGraphics::GetTextureFilters(m_GraphicsContext, 0, gfx_min_filter_active, gfx_mag_filter_active);
         ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST, gfx_min_filter_active);
@@ -1031,7 +1031,7 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
     {
         dmRender::RenderListSubmit(m_Context, out, out + 1);
         dmRender::RenderListEnd(m_Context);
-        dmRender::DrawRenderList(m_Context, 0, 0, 0);
+        dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
         dmGraphics::GetTextureFilters(m_GraphicsContext, 0, gfx_min_filter_active, gfx_mag_filter_active);
         ASSERT_EQ(gfx_min_filter_default, gfx_min_filter_active);
@@ -1197,11 +1197,11 @@ TEST_F(dmRenderTest, TestRenderListCulling)
             dmRender::FrustumOptions frustum_options;
             frustum_options.m_Matrix = *frustum_matrices[c];
             frustum_options.m_NumPlanes = dmRender::FRUSTUM_PLANES_SIDES;
-            dmRender::DrawRenderList(m_Context, 0, 0, &frustum_options);
+            dmRender::DrawRenderList(m_Context, 0, 0, &frustum_options, dmRender::SORT_BACK_TO_FRONT);
         }
         else
         {
-            dmRender::DrawRenderList(m_Context, 0, 0, 0);
+            dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
         }
 
         ASSERT_EQ(ctx.m_BeginCalls, 2);
@@ -1296,7 +1296,7 @@ TEST_F(dmRenderTest, TestRenderListOrder)
     }
     dmRender::RenderListSubmit(m_Context, out, out + n);
     dmRender::RenderListEnd(m_Context);
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
     ASSERT_EQ(ctx.m_BeginCalls, 1);
     ASSERT_EQ(ctx.m_BatchCalls, 1);
     ASSERT_EQ(ctx.m_EntriesRendered, 1);
@@ -1322,7 +1322,7 @@ TEST_F(dmRenderTest, TestRenderListOrder)
     }
     dmRender::RenderListSubmit(m_Context, out, out + n);
     dmRender::RenderListEnd(m_Context);
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
     ASSERT_EQ(ctx.m_BeginCalls, 1);
     ASSERT_EQ(ctx.m_BatchCalls, 2);
     ASSERT_EQ(ctx.m_EntriesRendered, 2);
@@ -1349,9 +1349,155 @@ TEST_F(dmRenderTest, TestRenderListDebug)
     dmRender::Square2d(m_Context, 0, 0, 100, 100, Vector4(0,0,0,0));
     dmRender::RenderListEnd(m_Context);
 
-    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
     dmRender::DrawDebug2d(m_Context);
     dmRender::DrawDebug3d(m_Context, 0);
+}
+
+struct TestSortFrontToBackCtx
+{
+    int   m_BeginCalls;
+    int   m_BatchCalls;
+    int   m_EndCalls;
+    float m_LastZ;
+    int   m_Count;
+};
+
+static void TestSortFrontToBackDispatch(dmRender::RenderListDispatchParams const & params)
+{
+    TestSortFrontToBackCtx* ctx = (TestSortFrontToBackCtx*) params.m_UserData;
+    switch (params.m_Operation)
+    {
+        case dmRender::RENDER_LIST_OPERATION_BEGIN:
+            ctx->m_BeginCalls++;
+            break;
+        case dmRender::RENDER_LIST_OPERATION_BATCH:
+        {
+            ctx->m_BatchCalls++;
+            for (uint32_t* i = params.m_Begin; i != params.m_End; ++i)
+            {
+                const dmRender::RenderListEntry& e = params.m_Buf[*i];
+                if (e.m_MajorOrder == dmRender::RENDER_ORDER_WORLD)
+                {
+                    if (ctx->m_Count > 0)
+                    {
+                        // For FRONT_TO_BACK we expect decreasing world z (relative to the default back-to-front tests)
+                        ASSERT_LT(e.m_WorldPosition.getZ(), ctx->m_LastZ);
+                    }
+                    ctx->m_LastZ = e.m_WorldPosition.getZ();
+                    ctx->m_Count++;
+                }
+            }
+        } break;
+        default:
+            ctx->m_EndCalls++;
+            break;
+    }
+}
+
+TEST_F(dmRenderTest, TestRenderListSortFrontToBack)
+{
+    // Ensure FRONT_TO_BACK produces the inverse ordering compared to the existing back-to-front behavior
+    TestSortFrontToBackCtx ctx = {};
+    ctx.m_LastZ = 0.0f;
+
+    dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, 0.1f, 1.0f);
+    dmRender::SetViewMatrix(m_Context, view);
+    dmRender::SetProjectionMatrix(m_Context, proj);
+
+    dmRender::RenderListBegin(m_Context);
+    uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestSortFrontToBackDispatch, 0, &ctx);
+
+    const uint32_t n = 5;
+    const uint32_t orders[n] = { 2, 5, 1, 4, 3 }; // unsorted insertion order
+
+    dmRender::RenderListEntry* out = dmRender::RenderListAlloc(m_Context, n);
+    for (uint32_t i = 0; i < n; ++i)
+    {
+        dmRender::RenderListEntry& e = out[i];
+        e.m_WorldPosition = Point3(0, 0, (float)orders[i]);
+        e.m_MajorOrder    = dmRender::RENDER_ORDER_WORLD;
+        e.m_MinorOrder    = 0;
+        e.m_TagListKey    = 0;
+        e.m_Order         = orders[i];
+        e.m_BatchKey      = 0;
+        e.m_Dispatch      = dispatch;
+        e.m_UserData      = 0;
+    }
+    dmRender::RenderListSubmit(m_Context, out, out + n);
+    dmRender::RenderListEnd(m_Context);
+
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK);
+
+    ASSERT_EQ(ctx.m_BeginCalls, 1);
+    ASSERT_EQ(ctx.m_BatchCalls, 1);
+    ASSERT_EQ(ctx.m_EndCalls, 1);
+    ASSERT_EQ(ctx.m_Count, (int)n);
+}
+
+struct TestSortNoneCtx
+{
+    const uint32_t* m_Expected;
+    uint32_t        m_Count;
+    uint32_t        m_Index;
+};
+
+static void TestSortNoneDispatch(dmRender::RenderListDispatchParams const & params)
+{
+    TestSortNoneCtx* ctx = (TestSortNoneCtx*) params.m_UserData;
+    if (params.m_Operation != dmRender::RENDER_LIST_OPERATION_BATCH)
+        return;
+
+    for (uint32_t* i = params.m_Begin; i != params.m_End; ++i)
+    {
+        const dmRender::RenderListEntry& e = params.m_Buf[*i];
+        if (e.m_MajorOrder != dmRender::RENDER_ORDER_WORLD)
+            continue;
+        ASSERT_LT(ctx->m_Index, ctx->m_Count);
+        ASSERT_EQ((uint32_t)e.m_WorldPosition.getZ(), ctx->m_Expected[ctx->m_Index]);
+        ctx->m_Index++;
+    }
+}
+
+TEST_F(dmRenderTest, TestRenderListSortNoneUsesInsertionOrder)
+{
+    // With SORT_NONE we should iterate entries in insertion order
+    const uint32_t expected[] = { 7, 1, 5, 3, 9 };
+
+    TestSortNoneCtx ctx = {};
+    ctx.m_Expected = expected;
+    ctx.m_Count    = DM_ARRAY_SIZE(expected);
+    ctx.m_Index    = 0;
+
+    dmVMath::Matrix4 view = dmVMath::Matrix4::identity();
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, WIDTH, 0.0f, HEIGHT, 0.1f, 1.0f);
+    dmRender::SetViewMatrix(m_Context, view);
+    dmRender::SetProjectionMatrix(m_Context, proj);
+
+    dmRender::RenderListBegin(m_Context);
+    uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestSortNoneDispatch, 0, &ctx);
+
+    dmRender::RenderListEntry* out = dmRender::RenderListAlloc(m_Context, ctx.m_Count);
+    for (uint32_t i = 0; i < ctx.m_Count; ++i)
+    {
+        dmRender::RenderListEntry& e = out[i];
+        e.m_WorldPosition = Point3(0, 0, (float)expected[i]);
+        e.m_MajorOrder    = dmRender::RENDER_ORDER_WORLD;
+        e.m_MinorOrder    = 0;
+        e.m_TagListKey    = 0;
+        e.m_Order         = expected[i];
+        e.m_BatchKey      = 0;
+        e.m_Dispatch      = dispatch;
+        e.m_UserData      = 0;
+    }
+
+    dmRender::RenderListSubmit(m_Context, out, out + ctx.m_Count);
+    dmRender::RenderListEnd(m_Context);
+
+    dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE);
+
+    ASSERT_EQ(ctx.m_Index, ctx.m_Count);
 }
 
 static float Metric(const char* text, int n, bool measure_trailing_space)
