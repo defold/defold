@@ -420,109 +420,92 @@ namespace dmGraphics
         return vk_count_bits[dmMath::Min<uint8_t>(sample_count_index_requested, sample_count_index_max)];
     }
 
+    struct LayoutTransitionInfo {
+        VkAccessFlags accessMask;
+        VkPipelineStageFlags stageMask;
+    };
+
+    static LayoutTransitionInfo GetAccessMaskAndStage(VkImageLayout layout)
+    {
+        switch (layout)
+        {
+            case VK_IMAGE_LAYOUT_UNDEFINED:
+                return { 0, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
+
+            case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+                return { VK_ACCESS_SHADER_READ_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT };
+
+            case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+                return { VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
+
+            case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+                return { VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
+
+            case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+                return { VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+
+            case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+                return { VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                         VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT };
+
+            case VK_IMAGE_LAYOUT_GENERAL:
+                return { VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }; // conservative
+
+            default:
+                assert(false && "Unsupported VkImageLayout in GetAccessMaskAndStage");
+                // Fallback: allow everything, conservative but safe
+                return { 0, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT };
+        }
+    }
+
     void TransitionImageLayoutWithCmdBuffer(
-        VkCommandBuffer vk_command_buffer,
-        VulkanTexture* texture,
-        VkImageAspectFlags vk_image_aspect,
-        VkImageLayout vk_to_layout,
-        uint32_t base_mip_level,
-        uint32_t layer_count,
-        VkPipelineStageFlags vk_next_stage)
+            VkCommandBuffer vk_command_buffer,
+            VulkanTexture* texture,
+            VkImageAspectFlags vk_image_aspect,
+            VkImageLayout new_layout,
+            uint32_t base_mip_level,
+            uint32_t layer_count)
     {
         DM_PROFILE(__FUNCTION__);
 
-        VkImageLayout vk_from_layout = texture->m_ImageLayout[base_mip_level];
-        if (vk_from_layout == vk_to_layout)
-        {
+        VkImageLayout old_layout = texture->m_ImageLayout[base_mip_level];
+        if (old_layout == new_layout)
             return;
-        }
 
-        VkImageMemoryBarrier vk_memory_barrier = {};
-        vk_memory_barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        vk_memory_barrier.oldLayout                       = vk_from_layout;
-        vk_memory_barrier.newLayout                       = vk_to_layout;
-        vk_memory_barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        vk_memory_barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        vk_memory_barrier.image                           = texture->m_Handle.m_Image;
-        vk_memory_barrier.subresourceRange.aspectMask     = vk_image_aspect;
-        vk_memory_barrier.subresourceRange.baseMipLevel   = base_mip_level;
-        vk_memory_barrier.subresourceRange.levelCount     = 1;
-        vk_memory_barrier.subresourceRange.baseArrayLayer = 0;
-        vk_memory_barrier.subresourceRange.layerCount     = layer_count;
+        LayoutTransitionInfo src = GetAccessMaskAndStage(old_layout);
+        LayoutTransitionInfo dst = GetAccessMaskAndStage(new_layout);
 
-        VkPipelineStageFlags vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        VkPipelineStageFlags vk_destination_stage = vk_next_stage;
-
-        // ---- Source stage / access ----
-        if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            vk_source_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            vk_source_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            vk_source_stage = vk_next_stage;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_GENERAL)
-        {
-            vk_memory_barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-            vk_source_stage = vk_next_stage;
-        }
-
-        // ---- Destination stage / access ----
-        if (vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-        {
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        }
-        else if (vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
-        {
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        }
-        else if (vk_to_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-        {
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            vk_destination_stage = vk_next_stage;
-        }
-        else if (vk_to_layout == VK_IMAGE_LAYOUT_GENERAL)
-        {
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-            vk_destination_stage = vk_next_stage;
-        }
-        else if (vk_to_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
-        {
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        }
-        else if (vk_to_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-        {
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        }
+        VkImageMemoryBarrier barrier{};
+        barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout                       = old_layout;
+        barrier.newLayout                       = new_layout;
+        barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image                           = texture->m_Handle.m_Image;
+        barrier.subresourceRange.aspectMask     = vk_image_aspect;
+        barrier.subresourceRange.baseMipLevel   = base_mip_level;
+        barrier.subresourceRange.levelCount     = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount     = layer_count;
+        barrier.srcAccessMask                   = src.accessMask;
+        barrier.dstAccessMask                   = dst.accessMask;
 
         vkCmdPipelineBarrier(
             vk_command_buffer,
-            vk_source_stage,
-            vk_destination_stage,
-            VK_DEPENDENCY_BY_REGION_BIT,
-            0, NULL,
-            0, NULL,
-            1, &vk_memory_barrier
+            src.stageMask,
+            dst.stageMask,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &barrier
         );
 
-        texture->m_ImageLayout[base_mip_level] = vk_to_layout;
+        texture->m_ImageLayout[base_mip_level] = new_layout;
     }
 
     VkResult TransitionImageLayout(VkDevice vk_device,
@@ -538,7 +521,14 @@ namespace dmGraphics
 
         TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
-        SubmitAndWait(vk_device, vk_queue, vk_command_buffer, vk_command_pool, texture);
+        VkFence fence;
+        VkResult res = SubtmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, vk_command_pool, &fence);
+
+        // Wait for the copy command to finish
+        vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
+
+        vkFreeCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
+        vkDestroyFence(vk_device, fence, NULL);
 
         return VK_SUCCESS;
     }
@@ -651,7 +641,7 @@ namespace dmGraphics
         return cmd_buffer;
     }
 
-    VkResult SubmitTextureUpload(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkCommandPool cmd_pool, VulkanTexture* textureOut)
+    VkResult SubtmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkCommandPool cmd_pool, VkFence* fence_out)
     {
         DM_PROFILE(__FUNCTION__);
 
@@ -676,14 +666,8 @@ namespace dmGraphics
             return res;
         }
 
-        // Replace the existing fence with a new one
-        if (textureOut->m_SubmitFence != VK_NULL_HANDLE)
-        {
-            vkDestroyFence(vk_device, textureOut->m_SubmitFence, NULL);
-        }
-        textureOut->m_SubmitFence = fence;
+        *fence_out = fence;
 
-        vkFreeCommandBuffers(vk_device, cmd_pool, 1, &cmd);
         return res;
     }
 
