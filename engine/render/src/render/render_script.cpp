@@ -2001,16 +2001,19 @@ namespace dmRender
      */
 
     /*#
+     * Depth sort far-to-near (default; good for transparent passes).
      * @name render.SORT_BACK_TO_FRONT
      * @constant
      */
 
     /*#
+     * Depth sort near-to-far (good for opaque passes to reduce overdraw).
      * @name render.SORT_FRONT_TO_BACK
      * @constant
      */
 
     /*#
+     * No per-call sorting; draw entries in insertion order.
      * @name render.SORT_NONE
      * @constant
      */
