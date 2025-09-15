@@ -126,12 +126,6 @@ namespace dmGraphics
         FACE_TYPE_FRONT_AND_BACK = 2,
     };
 
-    enum TextureStatusFlags
-    {
-        TEXTURE_STATUS_OK               = 0,
-        TEXTURE_STATUS_DATA_PENDING     = (1 << 0), // Currently waiting for the upload to be done
-    };
-
     enum ContextFeature
     {
         CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,

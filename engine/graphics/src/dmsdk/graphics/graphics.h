@@ -280,6 +280,19 @@ namespace dmGraphics
     };
 
     /*#
+     * Texture data upload status flags
+     * @enum
+     * @name TextureStatusFlags
+     * @member TEXTURE_STATUS_OK            Texture updated and ready-to-use
+     * @member TEXTURE_STATUS_DATA_PENDING  Data upload to the texture is in progress
+     */
+    enum TextureStatusFlags
+    {
+        TEXTURE_STATUS_OK               = 0,
+        TEXTURE_STATUS_DATA_PENDING     = (1 << 0)
+    };
+
+    /*#
      * Get the attachment texture from a render target. Returns zero if no such attachment texture exists.
      * @name GetRenderTargetAttachment
      * @param render_target [type:dmGraphics::HRenderTarget] the render target
