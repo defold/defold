@@ -3218,7 +3218,7 @@ namespace dmRender
 #undef REGISTER_FRUSTUM_PLANES_CONSTANT
 
 #define REGISTER_SORT_ORDER_CONSTANT(name)\
-        lua_pushnumber(L, (lua_Number) dmRender::##name); \
+        lua_pushnumber(L, (lua_Number) dmRender::name); \
         lua_setfield(L, -2, #name);
 
         REGISTER_SORT_ORDER_CONSTANT(SORT_BACK_TO_FRONT);
