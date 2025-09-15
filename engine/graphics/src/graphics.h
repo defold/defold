@@ -94,38 +94,6 @@ namespace dmGraphics
         ASSET_TYPE_RENDER_TARGET = 2,
     };
 
-    // buffer clear types, each value is guaranteed to be separate bits
-    enum BufferType
-    {
-        BUFFER_TYPE_COLOR0_BIT  = 0x01,
-        BUFFER_TYPE_COLOR1_BIT  = 0x02,
-        BUFFER_TYPE_COLOR2_BIT  = 0x04,
-        BUFFER_TYPE_COLOR3_BIT  = 0x08,
-        BUFFER_TYPE_DEPTH_BIT   = 0x10,
-        BUFFER_TYPE_STENCIL_BIT = 0x20,
-    };
-
-    // render states
-    enum State
-    {
-        STATE_DEPTH_TEST           = 0,
-        STATE_SCISSOR_TEST         = 1,
-        STATE_STENCIL_TEST         = 2,
-        STATE_ALPHA_TEST           = 3,
-        STATE_BLEND                = 4,
-        STATE_CULL_FACE            = 5,
-        STATE_POLYGON_OFFSET_FILL  = 6,
-        STATE_ALPHA_TEST_SUPPORTED = 7,
-    };
-
-    // Face type
-    enum FaceType
-    {
-        FACE_TYPE_FRONT          = 0,
-        FACE_TYPE_BACK           = 1,
-        FACE_TYPE_FRONT_AND_BACK = 2,
-    };
-
     enum ContextFeature
     {
         CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
@@ -142,23 +110,6 @@ namespace dmGraphics
     {
         BufferType m_AttachmentToBufferType[MAX_ATTACHMENT_COUNT];
         AttachmentToBufferType();
-    };
-
-    struct RenderTargetCreationParams
-    {
-        TextureCreationParams m_ColorBufferCreationParams[MAX_BUFFER_COLOR_ATTACHMENTS];
-        TextureCreationParams m_DepthBufferCreationParams;
-        TextureCreationParams m_StencilBufferCreationParams;
-        TextureParams         m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
-        TextureParams         m_DepthBufferParams;
-        TextureParams         m_StencilBufferParams;
-        AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
-        AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
-        float                 m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
-        // TODO: Depth/Stencil
-
-        uint8_t               m_DepthTexture   : 1;
-        uint8_t               m_StencilTexture : 1;
     };
 
     // Parameters structure for NewContext
@@ -179,45 +130,6 @@ namespace dmGraphics
         uint8_t               m_RenderDocSupport : 1;           // Vulkan only
         uint8_t               m_UseValidationLayers : 1;        // Vulkan only
         uint8_t               : 4;
-    };
-
-    struct PipelineState
-    {
-        uint64_t m_WriteColorMask           : 4;
-        uint64_t m_WriteDepth               : 1;
-        uint64_t m_PrimtiveType             : 3;
-        // Depth Test
-        uint64_t m_DepthTestEnabled         : 1;
-        uint64_t m_DepthTestFunc            : 3;
-        // Stencil Test
-        uint64_t m_StencilEnabled           : 1;
-
-        // Front
-        uint64_t m_StencilFrontOpFail       : 3;
-        uint64_t m_StencilFrontOpPass       : 3;
-        uint64_t m_StencilFrontOpDepthFail  : 3;
-        uint64_t m_StencilFrontTestFunc     : 3;
-
-        // Back
-        uint64_t m_StencilBackOpFail        : 3;
-        uint64_t m_StencilBackOpPass        : 3;
-        uint64_t m_StencilBackOpDepthFail   : 3;
-        uint64_t m_StencilBackTestFunc      : 3;
-
-        uint64_t m_StencilWriteMask         : 8;
-        uint64_t m_StencilCompareMask       : 8;
-        uint64_t m_StencilReference         : 8;
-        // Blending
-        uint64_t m_BlendEnabled             : 1;
-        uint64_t m_BlendSrcFactor           : 4;
-        uint64_t m_BlendDstFactor           : 4;
-        // Culling
-        uint64_t m_CullFaceEnabled          : 1;
-        uint64_t m_CullFaceType             : 2;
-        // Face winding
-        uint64_t m_FaceWinding              : 1;
-        // Polygon offset
-        uint64_t m_PolygonOffsetFillEnabled : 1;
     };
 
     struct VertexAttributeInfo
@@ -393,36 +305,6 @@ namespace dmGraphics
     uint32_t GetDisplayDpi(HContext context);
 
     /**
-     * Returns the specified width of the opened window, which might differ from the actual window width.
-     *
-     * @param context Graphics context handle
-     * @return Specified width of the window. If no window is opened, 0 is always returned.
-     */
-    uint32_t GetWidth(HContext context);
-
-    /**
-     * Returns the specified height of the opened window, which might differ from the actual window width.
-     *
-     * @param context Graphics context handle
-     * @return Specified height of the window. If no window is opened, 0 is always returned.
-     */
-    uint32_t GetHeight(HContext context);
-
-    /**
-     * Return the width of the opened window, if any.
-     * @param context Graphics context handle
-     * @return Width of the window. If no window is opened, 0 is always returned.
-     */
-    uint32_t GetWindowWidth(HContext context);
-
-    /**
-     * Return the height of the opened window, if any.
-     * @param context Graphics context handle
-     * @return Height of the window. If no window is opened, 0 is always returned.
-     */
-    uint32_t GetWindowHeight(HContext context);
-
-    /**
      * Set the size of the opened window, if any. If no window is opened, this function does nothing. If successfull,
      * the WindowResizeCallback will be called, if any was supplied when the window was opened.
      * @param context Graphics context handle
@@ -439,13 +321,6 @@ namespace dmGraphics
      * @param height New height of the window
      */
     void ResizeWindow(HContext context, uint32_t width, uint32_t height);
-
-    /**
-     * Get the scale factor of the display.
-     * The display scale factor is usally 1.0 but will for instance be 2.0 on a macOS Retina display.
-     * @return Scale factor
-     */
-    float GetDisplayScaleFactor(HContext context);
 
     /**
      * Return the default texture filtering modes.
@@ -538,32 +413,12 @@ namespace dmGraphics
     void SetSampler(HContext context, HUniformLocation location, int32_t unit);
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
-    void EnableState(HContext context, State state);
-    void DisableState(HContext context, State state);
-    void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
-    void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha);
-    void SetDepthMask(HContext context, bool mask);
-    void SetDepthFunc(HContext context, CompareFunc func);
-    void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
-    void SetStencilMask(HContext context, uint32_t mask);
-    void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask);
-    void SetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask);
-    void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass);
-    void SetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass);
-    void SetCullFace(HContext context, FaceType face_type);
     void SetFaceWinding(HContext context, FaceWinding face_winding);
     void SetPolygonOffset(HContext context, float factor, float units);
 
-    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params);
-    void          DeleteRenderTarget(HRenderTarget render_target);
-    void          SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
-    HTexture      GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
-    void          GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
-    void          SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
     uint32_t      GetBufferTypeIndex(BufferType buffer_type);
     BufferType    GetBufferTypeFromIndex(uint32_t index);
     const char*   GetBufferTypeLiteral(BufferType buffer_type);
-    PipelineState GetPipelineState(HContext context);
     bool          IsContextFeatureSupported(HContext context, ContextFeature feature);
 
     TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
