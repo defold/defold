@@ -928,13 +928,15 @@ namespace dmRender
             }
         }
 
-        MakeSortBuffer(context, predicate?predicate->m_TagCount:0, predicate?predicate->m_Tags:0, sort_order);
+        SortOrder effective_sort_order = (sort_order == SORT_UNSPECIFIED) ? SORT_BACK_TO_FRONT : sort_order;
+
+        MakeSortBuffer(context, predicate?predicate->m_TagCount:0, predicate?predicate->m_Tags:0, effective_sort_order);
 
         if (context->m_RenderListSortBuffer.Empty())
             return RESULT_OK;
 
         {
-            if (sort_order != SORT_NONE)
+            if (effective_sort_order != SORT_NONE)
             {
                 DM_PROFILE("DrawRenderList_SORT");
                 RenderListSorter sort;

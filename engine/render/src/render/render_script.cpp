@@ -1740,7 +1740,7 @@ namespace dmRender
      * : [type:constant_buffer] optional constants to use while rendering
      *
      * `sort_order`
-     * : [type:int] How to sort draw order for world-ordered entries. Default is render.SORT_BACK_TO_FRONT.
+     * : [type:int] How to sort draw order for world-ordered entries. Default uses the renderer's preferred world sorting (back-to-front).
      *
      * @examples
      *
@@ -1795,7 +1795,7 @@ namespace dmRender
         dmVMath::Matrix4* frustum_matrix = 0;
         dmRender::FrustumPlanes frustum_num_planes = dmRender::FRUSTUM_PLANES_SIDES;
         HNamedConstantBuffer constant_buffer = 0;
-        dmRender::SortOrder sort_order = dmRender::SORT_BACK_TO_FRONT;
+        dmRender::SortOrder sort_order = dmRender::SORT_UNSPECIFIED;
 
         if (lua_istable(L, 2))
         {

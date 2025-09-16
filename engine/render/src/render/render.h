@@ -112,9 +112,10 @@ namespace dmRender
 
     enum SortOrder
     {
-        SORT_BACK_TO_FRONT = 0,
-        SORT_FRONT_TO_BACK = 1,
-        SORT_NONE          = 2,
+        SORT_UNSPECIFIED   = 0,
+        SORT_BACK_TO_FRONT = 1,
+        SORT_FRONT_TO_BACK = 2,
+        SORT_NONE          = 3
     };
 
     struct Predicate
