@@ -587,6 +587,13 @@ namespace dmRender
         if (maxZW > minZW)
             rc = 1.0f / (maxZW - minZW);
 
+        const uint32_t ORDER_SCALE_MASK = 0xfffff0;
+        const uint32_t ORDER_BASE_FRONT = 0x000008;
+        const uint32_t ORDER_BASE_BACK = 0xfffff8;
+        const bool front_to_back = (sort_order == SORT_FRONT_TO_BACK);
+        const float order_multiplier = (front_to_back ? 1.0f : -1.0f) * ORDER_SCALE_MASK * rc;
+        const float order_bias = (front_to_back ? ORDER_BASE_FRONT : ORDER_BASE_BACK) - order_multiplier * minZW;
+
         for( uint32_t i = 0; i < num_ranges; ++i)
         {
             const RenderListRange& range = ranges[i];
@@ -607,16 +614,7 @@ namespace dmRender
                 if (entry->m_MajorOrder == RENDER_ORDER_WORLD)
                 {
                     const float z = sort_values[idx].m_ZW;
-                    if (sort_order == SORT_FRONT_TO_BACK)
-                    {
-                        // Near-to-far
-                        sort_values[idx].m_Order = (uint32_t) (0x000008 + 0xfffff0 * rc * (z - minZW));
-                    }
-                    else
-                    {
-                        // Default: far-to-near
-                        sort_values[idx].m_Order = (uint32_t) (0xfffff8 - 0xfffff0 * rc * (z - minZW));
-                    }
+                    sort_values[idx].m_Order = (uint32_t) (order_bias + order_multiplier * z);
                 }
                 else
                 {
