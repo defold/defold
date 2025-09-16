@@ -57,7 +57,7 @@
     camera-mesh-lines-v4))
 
 (g/defnk produce-form-data
-  [_node-id aspect-ratio fov near-z far-z auto-aspect-ratio orthographic-projection orthographic-zoom orthographic-zoom-mode]
+  [_node-id aspect-ratio fov near-z far-z auto-aspect-ratio orthographic-projection orthographic-zoom orthographic-mode]
   {:form-ops {:user-data {:node-id _node-id}
               :set protobuf-forms-util/set-form-op
               :clear protobuf-forms-util/clear-form-op}
@@ -81,7 +81,7 @@
                         {:path [:orthographic-projection]
                          :label "Orthographic Projection"
                          :type :boolean}
-                        {:path [:orthographic-zoom-mode]
+                        {:path [:orthographic-mode]
                          :label "Orthographic Zoom Mode"
                          :type :choicebox
                          :options (sort-by first (protobuf-forms/make-enum-options Camera$OrthoZoomMode))}
@@ -95,10 +95,10 @@
             [:auto-aspect-ratio] auto-aspect-ratio
             [:orthographic-projection] orthographic-projection
             [:orthographic-zoom] orthographic-zoom
-            [:orthographic-zoom-mode] orthographic-zoom-mode}})
+            [:orthographic-mode] orthographic-mode}})
 
 (g/defnk produce-save-value
-  [aspect-ratio fov near-z far-z auto-aspect-ratio orthographic-projection orthographic-zoom orthographic-zoom-mode]
+  [aspect-ratio fov near-z far-z auto-aspect-ratio orthographic-projection orthographic-zoom orthographic-mode]
   (protobuf/make-map-without-defaults Camera$CameraDesc
     :aspect-ratio aspect-ratio
     :fov fov
@@ -107,7 +107,7 @@
     :auto-aspect-ratio (protobuf/boolean->int auto-aspect-ratio)
     :orthographic-projection (protobuf/boolean->int orthographic-projection)
     :orthographic-zoom orthographic-zoom
-    :orthographic-zoom-mode orthographic-zoom-mode))
+    :orthographic-mode orthographic-mode))
 
 (defn build-camera
   [resource dep-resources user-data]
@@ -285,7 +285,7 @@
     auto-aspect-ratio (protobuf/int->boolean :auto-aspect-ratio)
     orthographic-projection (protobuf/int->boolean :orthographic-projection)
     orthographic-zoom :orthographic-zoom
-    orthographic-zoom-mode :orthographic-zoom-mode))
+    orthographic-mode :orthographic-mode))
 
 (g/defnode CameraNode
   (inherits resource-node/ResourceNode)
@@ -296,11 +296,11 @@
   (property far-z g/Num) ; Required protobuf field.
   (property auto-aspect-ratio g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :auto-aspect-ratio))))
   (property orthographic-projection g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :orthographic-projection))))
-  (property orthographic-zoom-mode g/Keyword (default (protobuf/default Camera$CameraDesc :orthographic-zoom-mode))
+  (property orthographic-mode g/Keyword (default (protobuf/default Camera$CameraDesc :orthographic-mode))
             (dynamic read-only? (g/fnk [orthographic-projection] (not orthographic-projection)))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Camera$OrthoZoomMode))))
   (property orthographic-zoom g/Num (default (protobuf/default Camera$CameraDesc :orthographic-zoom))
-            (dynamic read-only? (g/fnk [orthographic-projection orthographic-zoom-mode] (not (and orthographic-projection (= orthographic-zoom-mode :ortho-zoom-mode-fixed))))))
+            (dynamic read-only? (g/fnk [orthographic-projection orthographic-mode] (not (and orthographic-projection (= orthographic-mode :ortho-mode-fixed))))))
 
   (output form-data g/Any produce-form-data)
 
