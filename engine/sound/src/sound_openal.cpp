@@ -141,9 +141,9 @@ namespace dmSound
 #if DM_SOUND_WASM_SUPPORT_THREADS
         dmConditionVariable::HConditionVariable m_CondVar;
         dmThread::Thread        m_Thread;
+#endif
         int32_atomic_t          m_IsRunning;
         int32_atomic_t          m_Status;
-#endif
         ALCcontext*             m_AlContext;
         ALCdevice*              m_AlDevice;
 
