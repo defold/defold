@@ -155,6 +155,15 @@ namespace dmRender
         uint32_t                        m_MaxDebugVertexCount;
     };
 
+    // NOTE: These enum values are duplicated in gamesys camera DDF (camera_ddf.proto)
+    // Don't forget to change dmGamesysDDF::OrthoZoomMode if you change here
+    enum OrthoZoomMode
+    {
+        ORTHO_MODE_FIXED        = 0,
+        ORTHO_MODE_AUTO_FIT     = 1,
+        ORTHO_MODE_AUTO_COVER   = 2,
+    };
+
     struct RenderCameraData
     {
         dmVMath::Vector4 m_Viewport;
@@ -163,8 +172,10 @@ namespace dmRender
         float            m_NearZ;
         float            m_FarZ;
         float            m_OrthographicZoom;
+        // These bitfields are packed into a single byte
         uint8_t          m_AutoAspectRatio        : 1;
         uint8_t          m_OrthographicProjection : 1;
+        uint8_t          m_OrthographicMode   : 2; // dmRender::OrthoZoomMode
     };
 
     struct MaterialProgramAttributeInfo
