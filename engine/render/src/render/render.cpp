@@ -1031,7 +1031,7 @@ namespace dmRender
             {
                 dmGraphics::HTexture texture = render_context_textures[i];
 
-                uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
+                uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(context, texture);
                 for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                 {
                     dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
@@ -1059,7 +1059,7 @@ namespace dmRender
             if (render_context_textures[i])
             {
                 dmGraphics::HTexture texture = render_context_textures[i];
-                uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
+                uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(context, texture);
                 for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                 {
                     dmGraphics::DisableTexture(context, next_texture_unit, texture);
@@ -1145,7 +1145,7 @@ namespace dmRender
 
                 if (texture)
                 {
-                    uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
+                    uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(context, texture);
                     for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                     {
                         HSampler sampler = GetProgramSampler(material->m_Samplers, next_texture_unit);
@@ -1197,7 +1197,7 @@ namespace dmRender
                     texture = render_context_textures[i];
                 if (texture)
                 {
-                    for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
+                    for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(context, texture); ++sub_handle)
                     {
                         dmGraphics::DisableTexture(context, next_texture_unit, texture);
                         next_texture_unit++;

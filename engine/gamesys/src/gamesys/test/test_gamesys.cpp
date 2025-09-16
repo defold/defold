@@ -217,8 +217,8 @@ TEST_F(ResourceTest, TestReloadTextureSet)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, texture_set_path_a, (void**) &resource));
     ASSERT_NE((void*)0, resource);
 
-    uint32_t original_width  = dmGraphics::GetOriginalTextureWidth(resource->m_Texture->m_Texture);
-    uint32_t original_height = dmGraphics::GetOriginalTextureHeight(resource->m_Texture->m_Texture);
+    uint32_t original_width  = dmGraphics::GetOriginalTextureWidth(m_GraphicsContext, resource->m_Texture->m_Texture);
+    uint32_t original_height = dmGraphics::GetOriginalTextureHeight(m_GraphicsContext, resource->m_Texture->m_Texture);
 
     // Swap compiled resources to simulate an atlas update
     ASSERT_TRUE(CopyResource(texture_set_path_a, texture_set_path_tmp));
@@ -228,8 +228,8 @@ TEST_F(ResourceTest, TestReloadTextureSet)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, texture_set_path_a, 0));
 
     // If the load truly was successful, we should have a new width/height for the internal image
-    ASSERT_NE(original_width,dmGraphics::GetOriginalTextureWidth(resource->m_Texture->m_Texture));
-    ASSERT_NE(original_height,dmGraphics::GetOriginalTextureHeight(resource->m_Texture->m_Texture));
+    ASSERT_NE(original_width,dmGraphics::GetOriginalTextureWidth(m_GraphicsContext, resource->m_Texture->m_Texture));
+    ASSERT_NE(original_height,dmGraphics::GetOriginalTextureHeight(m_GraphicsContext, resource->m_Texture->m_Texture));
 
     dmResource::Release(m_Factory, (void**) resource);
 }
@@ -273,12 +273,12 @@ TEST_F(ResourceTest, TestRenderPrototypeResources)
     dmGraphics::HTexture attachment_0 = dmGraphics::GetRenderTargetTexture(rt->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
     dmGraphics::HTexture attachment_1 = dmGraphics::GetRenderTargetTexture(rt->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR1_BIT);
 
-    ASSERT_EQ(128, dmGraphics::GetTextureWidth(attachment_0));
-    ASSERT_EQ(128, dmGraphics::GetTextureHeight(attachment_0));
-    ASSERT_EQ(128, dmGraphics::GetTextureWidth(attachment_1));
-    ASSERT_EQ(128, dmGraphics::GetTextureHeight(attachment_1));
-    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(attachment_0));
-    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(attachment_1));
+    ASSERT_EQ(128, dmGraphics::GetTextureWidth(m_GraphicsContext, attachment_0));
+    ASSERT_EQ(128, dmGraphics::GetTextureHeight(m_GraphicsContext, attachment_0));
+    ASSERT_EQ(128, dmGraphics::GetTextureWidth(m_GraphicsContext, attachment_1));
+    ASSERT_EQ(128, dmGraphics::GetTextureHeight(m_GraphicsContext, attachment_1));
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(m_GraphicsContext, attachment_0));
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(m_GraphicsContext, attachment_1));
 
     dmResource::Release(m_Factory, (void**) render_prototype);
 }
@@ -394,8 +394,8 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
 
     dmGameSystem::TextureResource* texture_res;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_compressed.texturec", (void**) &texture_res));
-    ASSERT_EQ(32, dmGraphics::GetTextureWidth(texture_res->m_Texture));
-    ASSERT_EQ(32, dmGraphics::GetTextureHeight(texture_res->m_Texture));
+    ASSERT_EQ(32, dmGraphics::GetTextureWidth(m_GraphicsContext,texture_res->m_Texture));
+    ASSERT_EQ(32, dmGraphics::GetTextureHeight(m_GraphicsContext,texture_res->m_Texture));
 
     // Release the dmResource::Get call above
     dmResource::Release(m_Factory, texture_res);
@@ -407,8 +407,8 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
 
     // res_texture will make an empty texture here if the test "worked", i.e coulnd't create a valid transcoded texture
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_compressed_fail.texturec", (void**) &texture_res));
-    ASSERT_EQ(1, dmGraphics::GetTextureWidth(texture_res->m_Texture));
-    ASSERT_EQ(1, dmGraphics::GetTextureHeight(texture_res->m_Texture));
+    ASSERT_EQ(1, dmGraphics::GetTextureWidth(m_GraphicsContext, texture_res->m_Texture));
+    ASSERT_EQ(1, dmGraphics::GetTextureHeight(m_GraphicsContext, texture_res->m_Texture));
 
     // Release the dmResource::Get call again
     dmResource::Release(m_Factory, texture_res);
@@ -578,8 +578,8 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.t.texturesetc", (void**) &texture_set_res));
 
     dmGraphics::HTexture backing_texture = texture_set_res->m_Texture->m_Texture;
-    ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 64);
-    ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 64);
+    ASSERT_EQ(dmGraphics::GetTextureWidth(m_GraphicsContext, backing_texture), 64);
+    ASSERT_EQ(dmGraphics::GetTextureHeight(m_GraphicsContext, backing_texture), 64);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Test 1: Update a sub-region of the texture
@@ -592,8 +592,8 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     //      -> set_texture.script::test_success_resize
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 256);
-    ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 256);
+    ASSERT_EQ(dmGraphics::GetTextureWidth(m_GraphicsContext, backing_texture), 256);
+    ASSERT_EQ(dmGraphics::GetTextureHeight(m_GraphicsContext, backing_texture), 256);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Test 3: Try doing a region update, but outside the texture boundaries, which should fail
@@ -612,8 +612,8 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     //      -> set_texture.script::test_success_compressed
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 32);
-    ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 32);
+    ASSERT_EQ(dmGraphics::GetTextureWidth(m_GraphicsContext, backing_texture), 32);
+    ASSERT_EQ(dmGraphics::GetTextureHeight(m_GraphicsContext, backing_texture), 32);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Test 6: Set texture with mipmaps

@@ -636,7 +636,7 @@ namespace dmGraphics
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_PVRTC_4BPPV1);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_ETC1);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ETC2);
-            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ASTC_4x4);
+            DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_ASTC_4X4);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGB_BC1);
             DM_TEXTURE_FORMAT_TO_STR_CASE(RGBA_BC3);
             DM_TEXTURE_FORMAT_TO_STR_CASE(R_BC4);
@@ -900,7 +900,7 @@ namespace dmGraphics
         if (IsFormatRGBA(format))
         {
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_BC7);
-            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4);
+            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4X4);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2);
             if (width == height) {
                 TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
@@ -1779,53 +1779,53 @@ namespace dmGraphics
     {
         return g_functions.m_NewTexture(context, params);
     }
-    void DeleteTexture(HTexture t)
+    void DeleteTexture(HContext context, HTexture t)
     {
-        g_functions.m_DeleteTexture(t);
+        g_functions.m_DeleteTexture(context, t);
     }
-    void SetTexture(HTexture texture, const TextureParams& params)
+    void SetTexture(HContext context, HTexture texture, const TextureParams& params)
     {
-        g_functions.m_SetTexture(texture, params);
+        g_functions.m_SetTexture(context, texture, params);
     }
-    void SetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
+    void SetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
-        g_functions.m_SetTextureAsync(texture, params, callback, user_data);
+        g_functions.m_SetTextureAsync(context, texture, params, callback, user_data);
     }
-    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    void SetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
-        g_functions.m_SetTextureParams(texture, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
+        g_functions.m_SetTextureParams(context, texture, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
-    uint32_t GetTextureResourceSize(HTexture texture)
+    uint32_t GetTextureResourceSize(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureResourceSize(texture);
+        return g_functions.m_GetTextureResourceSize(context, texture);
     }
-    uint16_t GetTextureWidth(HTexture texture)
+    uint16_t GetTextureWidth(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureWidth(texture);
+        return g_functions.m_GetTextureWidth(context, texture);
     }
-    uint16_t GetTextureHeight(HTexture texture)
+    uint16_t GetTextureHeight(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureHeight(texture);
+        return g_functions.m_GetTextureHeight(context, texture);
     }
-    uint16_t GetTextureDepth(HTexture texture)
+    uint16_t GetTextureDepth(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureDepth(texture);
+        return g_functions.m_GetTextureDepth(context, texture);
     }
-    uint16_t GetOriginalTextureWidth(HTexture texture)
+    uint16_t GetOriginalTextureWidth(HContext context, HTexture texture)
     {
-        return g_functions.m_GetOriginalTextureWidth(texture);
+        return g_functions.m_GetOriginalTextureWidth(context, texture);
     }
-    uint16_t GetOriginalTextureHeight(HTexture texture)
+    uint16_t GetOriginalTextureHeight(HContext context, HTexture texture)
     {
-        return g_functions.m_GetOriginalTextureHeight(texture);
+        return g_functions.m_GetOriginalTextureHeight(context, texture);
     }
-    uint8_t GetTextureMipmapCount(HTexture texture)
+    uint8_t GetTextureMipmapCount(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureMipmapCount(texture);
+        return g_functions.m_GetTextureMipmapCount(context, texture);
     }
-    TextureType GetTextureType(HTexture texture)
+    TextureType GetTextureType(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureType(texture);
+        return g_functions.m_GetTextureType(context, texture);
     }
     void EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
@@ -1839,9 +1839,9 @@ namespace dmGraphics
     {
         return g_functions.m_GetMaxTextureSize(context);
     }
-    uint32_t GetTextureStatusFlags(HTexture texture)
+    uint32_t GetTextureStatusFlags(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureStatusFlags(texture);
+        return g_functions.m_GetTextureStatusFlags(context, texture);
     }
     void ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
@@ -1880,13 +1880,13 @@ namespace dmGraphics
     {
         return g_functions.m_GetPipelineState(context);
     }
-    uint8_t GetNumTextureHandles(HTexture texture)
+    uint8_t GetNumTextureHandles(HContext context, HTexture texture)
     {
-        return g_functions.m_GetNumTextureHandles(texture);
+        return g_functions.m_GetNumTextureHandles(context, texture);
     }
-    uint32_t GetTextureUsageHintFlags(HTexture texture)
+    uint32_t GetTextureUsageHintFlags(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureUsageHintFlags(texture);
+        return g_functions.m_GetTextureUsageHintFlags(context, texture);
     }
     uint8_t GetTexturePageCount(HTexture texture)
     {

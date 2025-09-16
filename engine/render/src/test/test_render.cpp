@@ -606,7 +606,7 @@ static dmGraphics::HTexture MakeDummyTexture(dmGraphics::HContext context, uint3
     params.m_MagFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
 
     dmGraphics::HTexture texture = dmGraphics::NewTexture(context, creation_params);
-    dmGraphics::SetTexture(texture, params);
+    dmGraphics::SetTexture(context, texture, params);
     return texture;
 }
 
@@ -786,16 +786,16 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     ASSERT_EQ(0, CountSamplersInTextureBindTable(m_Context, texture_sampler_1_hash));
     ASSERT_EQ(1, CountSamplersInTextureBindTable(m_Context, texture_sampler_2_hash));
 
-    dmGraphics::DeleteTexture(test_texture_0);
-    dmGraphics::DeleteTexture(test_texture_1);
-    dmGraphics::DeleteTexture(test_texture_array);
+    dmGraphics::DeleteTexture(m_GraphicsContext, test_texture_0);
+    dmGraphics::DeleteTexture(m_GraphicsContext, test_texture_1);
+    dmGraphics::DeleteTexture(m_GraphicsContext, test_texture_array);
 
     for (int i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
     {
-        dmGraphics::DeleteTexture(textures[i]);
+        dmGraphics::DeleteTexture(m_GraphicsContext, textures[i]);
     }
 
-    dmGraphics::DeleteTexture(test_texture_0);
+    dmGraphics::DeleteTexture(m_GraphicsContext, test_texture_0);
 
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
     dmRender::DeleteMaterial(m_Context, material);
@@ -953,7 +953,7 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
     params.m_Format    = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     params.m_MinFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
     params.m_MagFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
-    dmGraphics::SetTexture(texture, params);
+    dmGraphics::SetTexture(m_GraphicsContext, texture, params);
 
     ASSERT_TRUE(dmRender::SetMaterialSampler(material,
         dmHashString64("texture_sampler_1"), 0,
@@ -1050,7 +1050,7 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
     dmRender::DeleteMaterial(m_Context, material_no_samplers);
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 
-    dmGraphics::DeleteTexture(texture);
+    dmGraphics::DeleteTexture(m_GraphicsContext, texture);
     dmGraphics::DeleteVertexBuffer(vx_buffer);
     dmGraphics::DeleteVertexDeclaration(vx_decl);
 }

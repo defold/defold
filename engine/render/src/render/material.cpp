@@ -719,9 +719,9 @@ namespace dmRender
         return tag_count > 0; // don't render anything with no matches at all
     }
 
-    bool GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit)
+    bool GetCanBindTexture(dmGraphics::HContext context, dmGraphics::HTexture texture, HSampler sampler, uint32_t unit)
     {
-        dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture);
+        dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(context, texture);
         Sampler* s = (Sampler*) sampler;
 
         if (s == 0x0)
@@ -740,7 +740,7 @@ namespace dmRender
             return false;
         }
 
-        uint8_t num_sub_handles = dmGraphics::GetNumTextureHandles(texture);
+        uint8_t num_sub_handles = dmGraphics::GetNumTextureHandles(context, texture);
         if (num_sub_handles > s->m_UnitValueCount)
         {
             dmLogError("Unable to bind array texture with %d handles to a sampler with %d bind slots",

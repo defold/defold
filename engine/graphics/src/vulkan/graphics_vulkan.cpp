@@ -3508,6 +3508,7 @@ bail:
 
     static void VulkanDeleteRenderTarget(HRenderTarget render_target)
     {
+        HContext context = (HContext)g_VulkanContext;
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_VulkanContext->m_AssetHandleContainer, render_target);
         g_VulkanContext->m_AssetHandleContainer.Release(render_target);
 
@@ -3515,13 +3516,13 @@ bail:
         {
             if (rt->m_TextureColor[i])
             {
-                DeleteTexture(rt->m_TextureColor[i]);
+                DeleteTexture(context, rt->m_TextureColor[i]);
             }
         }
 
         if (rt->m_TextureDepthStencil)
         {
-            DeleteTexture(rt->m_TextureDepthStencil);
+            DeleteTexture(context, rt->m_TextureDepthStencil);
         }
 
         DestroyRenderTarget(g_VulkanContext, rt);
@@ -3722,7 +3723,7 @@ bail:
         delete texture;
     }
 
-    static void VulkanDeleteTexture(HTexture texture)
+    static void VulkanDeleteTexture(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanDeleteTextureInternal(GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture));
@@ -4139,7 +4140,7 @@ bail:
         DestroyPhysicalDevice(&context->m_PhysicalDevice);
     }
 
-    static void VulkanSetTexture(HTexture texture, const TextureParams& params)
+    static void VulkanSetTexture(HContext context, HTexture texture, const TextureParams& params)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
@@ -4376,7 +4377,7 @@ bail:
         }
     }
 
-    static void VulkanSetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
+    static void VulkanSetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
         if (g_VulkanContext->m_AsyncProcessingSupport)
         {
@@ -4432,7 +4433,7 @@ bail:
         }
     }
 
-    static void VulkanSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    static void VulkanSetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
@@ -4440,7 +4441,7 @@ bail:
     }
 
     // NOTE: Currently over estimates the resource usage for compressed formats!
-    static uint32_t VulkanGetTextureResourceSize(HTexture texture)
+    static uint32_t VulkanGetTextureResourceSize(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
@@ -4462,56 +4463,56 @@ bail:
         return size_total + sizeof(VulkanTexture);
     }
 
-    static uint16_t VulkanGetTextureWidth(HTexture texture)
+    static uint16_t VulkanGetTextureWidth(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         return tex ? tex->m_Width : 0;
     }
 
-    static uint16_t VulkanGetTextureHeight(HTexture texture)
+    static uint16_t VulkanGetTextureHeight(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         return tex ? tex->m_Height : 0;
     }
 
-    static uint16_t VulkanGetOriginalTextureWidth(HTexture texture)
+    static uint16_t VulkanGetOriginalTextureWidth(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         return tex ? tex->m_OriginalWidth : 0;
     }
 
-    static uint16_t VulkanGetOriginalTextureHeight(HTexture texture)
+    static uint16_t VulkanGetOriginalTextureHeight(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         return tex ? tex->m_OriginalHeight : 0;
     }
 
-    static uint16_t VulkanGetTextureDepth(HTexture texture)
+    static uint16_t VulkanGetTextureDepth(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         return tex ? tex->m_Depth : 0;
     }
 
-    static uint8_t VulkanGetTextureMipmapCount(HTexture texture)
+    static uint8_t VulkanGetTextureMipmapCount(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         return tex ? tex->m_MipMapCount : 0;
     }
 
-    static TextureType VulkanGetTextureType(HTexture texture)
+    static TextureType VulkanGetTextureType(HContext contex, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         return tex ? tex->m_Type : TEXTURE_TYPE_2D;
     }
 
-    static uint32_t VulkanGetTextureUsageHintFlags(HTexture texture)
+    static uint32_t VulkanGetTextureUsageHintFlags(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
@@ -4531,7 +4532,7 @@ bail:
         return HANDLE_RESULT_NOT_AVAILABLE;
     }
 
-    static uint8_t VulkanGetNumTextureHandles(HTexture texture)
+    static uint8_t VulkanGetNumTextureHandles(HContext context, HTexture texture)
     {
         return 1;
     }
@@ -4553,7 +4554,7 @@ bail:
         return g_VulkanContext->m_PhysicalDevice.m_Properties.limits.maxImageDimension2D;
     }
 
-    static uint32_t VulkanGetTextureStatusFlags(HTexture texture)
+    static uint32_t VulkanGetTextureStatusFlags(HContext context, HTexture texture)
     {
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
@@ -4717,6 +4718,56 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         return context->m_CurrentSwapchainTexture;
     }
+
+    VkDevice VulkanGetDevice(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_LogicalDevice.m_Device;
+    }
+
+    VkPhysicalDevice VulkanGetPhysicalDevice(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_PhysicalDevice.m_Device;
+    }
+
+    VkInstance VulkanGetInstance(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_Instance;
+    }
+
+    uint16_t VulkanGetGraphicsQueueFamily(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_SwapChain->m_QueueFamily.m_GraphicsQueueIx;
+    }
+
+    VkQueue VulkanGetGraphicsQueue(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_LogicalDevice.m_GraphicsQueue;
+
+    }
+
+    VkRenderPass VulkanGetRenderPass(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_MainRenderPass;
+    }
+
+    VkCommandBuffer VulkanGetCurrentFrameCommandBuffer(HContext _context)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        return context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex];
+    }
+
+    bool VulkanCreateDescriptorPool(VkDevice vk_device, uint16_t max_descriptors, VkDescriptorPool* vk_descriptor_pool_out)
+    {
+        VkResult res = CreateDescriptorPool(vk_device, max_descriptors, vk_descriptor_pool_out);
+        return res == VK_SUCCESS;
+    }
+
 
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
     {

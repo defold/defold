@@ -1289,7 +1289,7 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidTexture)
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
     ASSERT_EQ(m_Context->m_TextureBindTable[unit].m_Texture, texture);
 
-    dmGraphics::DeleteTexture(texture);
+    dmGraphics::DeleteTexture(m_Context, texture);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);

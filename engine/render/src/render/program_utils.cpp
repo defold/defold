@@ -159,7 +159,7 @@ namespace dmRender
         if (s->m_Location != -1)
         {
             dmGraphics::SetSampler(graphics_context, s->m_Location, unit);
-            dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
+            dmGraphics::SetTextureParams(graphics_context, texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
         }
     }
 
