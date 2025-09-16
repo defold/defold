@@ -16,6 +16,12 @@ def configure(conf):
     conf.env.SIMD_CFLAGS, conf.env.SIMD_CXXFLAGS = [], []
     conf.env.NOSIMD_CFLAGS, conf.env.NOSIMD_CXXFLAGS = [], []
 
+    if plat in ('win32', 'x86_64-win32'):
+        conf.env.STLIB_ST = 'lib%s.lib'
+        conf.env.cstlib_PATTERN = 'lib%s.lib'
+        conf.env.cxxstlib_PATTERN = 'lib%s.lib'
+        conf.env.append_unique('CFLAGS', ['/std:c11'])
+
     if plat == 'armv7-android':
         conf.env.SIMD_CFLAGS += ['-mfpu=neon']
         conf.env.SIMD_CXXFLAGS += ['-mfpu=neon']
