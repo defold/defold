@@ -278,7 +278,7 @@ PACKAGES_EMSCRIPTEN=[
     "protobuf-3.20.1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "wagyu-37",
+    "wagyu-39",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
