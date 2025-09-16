@@ -159,9 +159,9 @@ namespace dmRender
     // Don't forget to change dmGamesysDDF::OrthoZoomMode if you change here
     enum OrthoZoomMode
     {
-        ORTHO_ZOOM_MODE_FIXED        = 0,
-        ORTHO_ZOOM_MODE_AUTO_FIT     = 1,
-        ORTHO_ZOOM_MODE_AUTO_COVER   = 2,
+        ORTHO_MODE_FIXED        = 0,
+        ORTHO_MODE_AUTO_FIT     = 1,
+        ORTHO_MODE_AUTO_COVER   = 2,
     };
 
     struct RenderCameraData
@@ -175,7 +175,7 @@ namespace dmRender
         // These bitfields are packed into a single byte
         uint8_t          m_AutoAspectRatio        : 1;
         uint8_t          m_OrthographicProjection : 1;
-        uint8_t          m_OrthographicZoomMode   : 2; // dmRender::OrthoZoomMode
+        uint8_t          m_OrthographicMode   : 2; // dmRender::OrthoZoomMode
     };
 
     struct MaterialProgramAttributeInfo

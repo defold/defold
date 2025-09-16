@@ -163,7 +163,7 @@ namespace dmGameSystem
         camera_data.m_AutoAspectRatio          = cam_resource->m_DDF->m_AutoAspectRatio != 0;
         camera_data.m_OrthographicProjection   = cam_resource->m_DDF->m_OrthographicProjection != 0;
         camera_data.m_OrthographicZoom         = cam_resource->m_DDF->m_OrthographicZoom;
-        camera_data.m_OrthographicZoomMode     = (uint8_t) cam_resource->m_DDF->m_OrthographicZoomMode;
+        camera_data.m_OrthographicMode     = (uint8_t) cam_resource->m_DDF->m_OrthographicMode;
 
         dmMessage::URL camera_url = CameraToURL(&camera);
         SetRenderCameraURL(render_context, camera.m_RenderCamera, &camera_url);
@@ -284,7 +284,7 @@ namespace dmGameSystem
             camera_data.m_FarZ                   = ddf->m_FarZ;
             camera_data.m_OrthographicProjection = ddf->m_OrthographicProjection;
             camera_data.m_OrthographicZoom       = ddf->m_OrthographicZoom;
-            camera_data.m_OrthographicZoomMode   = (uint8_t) ddf->m_OrthographicZoomMode;
+            camera_data.m_OrthographicMode   = (uint8_t) ddf->m_OrthographicMode;
 
             dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
         }
@@ -319,7 +319,7 @@ namespace dmGameSystem
         camera_data.m_AutoAspectRatio          = cam_resource->m_DDF->m_AutoAspectRatio != 0;
         camera_data.m_OrthographicProjection   = cam_resource->m_DDF->m_OrthographicProjection != 0;
         camera_data.m_OrthographicZoom         = cam_resource->m_DDF->m_OrthographicZoom;
-        camera_data.m_OrthographicZoomMode     = (uint8_t) cam_resource->m_DDF->m_OrthographicZoomMode;
+        camera_data.m_OrthographicMode     = (uint8_t) cam_resource->m_DDF->m_OrthographicMode;
 
         dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
         CompCameraUpdateViewProjection(camera, render_context);

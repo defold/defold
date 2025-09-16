@@ -31,7 +31,7 @@ namespace dmRender
 
         memset(&camera->m_Data, 0, sizeof(camera->m_Data));
         camera->m_Data.m_Viewport = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
-        camera->m_Data.m_OrthographicZoomMode = ORTHO_ZOOM_MODE_FIXED;
+        camera->m_Data.m_OrthographicMode = ORTHO_MODE_FIXED;
 
         return camera->m_Handle;
     }
@@ -139,16 +139,16 @@ namespace dmRender
             }
 
             // Compute auto zoom if requested
-            if (c->m_Data.m_OrthographicZoomMode == ORTHO_ZOOM_MODE_AUTO_FIT || c->m_Data.m_OrthographicZoomMode == ORTHO_ZOOM_MODE_AUTO_COVER)
+            if (c->m_Data.m_OrthographicMode == ORTHO_MODE_AUTO_FIT || c->m_Data.m_OrthographicMode == ORTHO_MODE_AUTO_COVER)
             {
                 float zx = width / (display_scale * proj_width);
                 float zy = height / (display_scale * proj_height);
 
-                if (c->m_Data.m_OrthographicZoomMode == ORTHO_ZOOM_MODE_AUTO_FIT)
+                if (c->m_Data.m_OrthographicMode == ORTHO_MODE_AUTO_FIT)
                 {
                     zoom = (zx < zy) ? zx : zy;
                 }
-                else if (c->m_Data.m_OrthographicZoomMode == ORTHO_ZOOM_MODE_AUTO_COVER)
+                else if (c->m_Data.m_OrthographicMode == ORTHO_MODE_AUTO_COVER)
                 {
                     zoom = (zx > zy) ? zx : zy;
                 }
