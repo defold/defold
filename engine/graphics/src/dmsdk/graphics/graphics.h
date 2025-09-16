@@ -295,11 +295,12 @@ namespace dmGraphics
     /*#
      * Get the attachment texture from a render target. Returns zero if no such attachment texture exists.
      * @name GetRenderTargetAttachment
+     * @param context [type:dmGraphics::HContext] Graphics context
      * @param render_target [type:dmGraphics::HRenderTarget] the render target
      * @param attachment_type [type:dmGraphics::RenderTargetAttachment] the attachment to get
      * @return attachment [type:dmGraphics::HTexture] the attachment texture
      */
-    HTexture GetRenderTargetAttachment(HRenderTarget render_target, RenderTargetAttachment attachment_type);
+    HTexture GetRenderTargetAttachment(HContext context, HRenderTarget render_target, RenderTargetAttachment attachment_type);
 
     /*#
      * Get the native graphics API texture object from an engine texture handle. This depends on the graphics backend and is not

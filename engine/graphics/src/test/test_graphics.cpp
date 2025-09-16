@@ -1704,13 +1704,13 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
     dmGraphics::SetRenderTarget(m_Context, target, 0);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
-    dmGraphics::HTexture texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_DEPTH);
+    dmGraphics::HTexture texture = dmGraphics::GetRenderTargetAttachment(m_Context, target, dmGraphics::ATTACHMENT_DEPTH);
     ASSERT_EQ((dmGraphics::HTexture)0x0, texture);
 
-    texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_STENCIL);
+    texture = dmGraphics::GetRenderTargetAttachment(m_Context, target, dmGraphics::ATTACHMENT_STENCIL);
     ASSERT_EQ((dmGraphics::HTexture)0x0, texture);
 
-    texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_COLOR);
+    texture = dmGraphics::GetRenderTargetAttachment(m_Context, target, dmGraphics::ATTACHMENT_COLOR);
     ASSERT_NE((dmGraphics::HTexture)0x0, texture);
 
     char* texture_data = 0x0;
