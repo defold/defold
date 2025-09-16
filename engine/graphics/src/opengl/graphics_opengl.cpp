@@ -1662,6 +1662,7 @@ static void LogFrameBufferError(GLenum status)
 #if defined(ANDROID)
         dmPlatform::AndroidBeginFrame(((OpenGLContext*) context)->m_Window);
 #endif
+        glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
     }
 
     static void OpenGLFlip(HContext _context)
@@ -3499,6 +3500,11 @@ static void LogFrameBufferError(GLenum status)
         g_Context->m_AssetHandleContainer.Release(render_target);
 
         delete rt;
+    }
+
+    uint32_t OpenGLGetDefaultFramebufferId(HContext context)
+    {
+        return dmPlatform::OpenGLGetDefaultFramebufferId();
     }
 
     static void OpenGLSetRenderTarget(HContext _context, HRenderTarget render_target, uint32_t transient_buffer_types)
