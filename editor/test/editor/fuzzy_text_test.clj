@@ -165,6 +165,10 @@
     (is (< (score "at" "abstract_tree")
            (score "at" "abstract_syntax_tree")))))
 
+(deftest empty-prepared-pattern?-test
+  (is (true? (fuzzy-text/empty-prepared-pattern? (fuzzy-text/prepare-pattern ""))))
+  (is (false? (fuzzy-text/empty-prepared-pattern? (fuzzy-text/prepare-pattern "a")))))
+
 (deftest runs-test
   (are [length matching-indices expected]
     (is (= expected (fuzzy-text/runs length (bit-set/from matching-indices))))
@@ -285,7 +289,20 @@
      :indices (bit-set/into (vector-of :int) matching-indices)
      :score score}))
 
-(deftest problematic-cases-test
+;; -----------------------------------------------------------------------------
+
+(deftest turkish-capital-i-test
+  (is (= [0 (bit-set/of 0)] (match "İ" "İ")))
+  (is (= [0 (bit-set/of 0)] (match "İ" "i"))))
+
+(deftest no-freeze-test
+  (let [needle "MYVARLONG"
+        haystack "yyyZhniZzzzZbarAnmrAgneBlryCaveDroeGkerGrjuGuruGgnaHinaHrbeHariHadnKanaKooaLntaLmylMayrOlmaTuleTiahTtbiTopoBiarBsnaCrehCihtErmhKgnoMrmyMmagOrnuRhniScrySaahTiiiYtrsDhtoGlatIdhuBonaHglgTbgaTtrpCbmiLbniLamsOwahSelaTragUiguBtpoCgalGrahKulaToepXolySgnfTilaBxusXookNgahPxnhPiraCmahCilaKcpeLicyLidyLkclOgnjRruaSdnuSiiaVtsvAumaBpygEimrAilhPitrPavaJihtKusiLietMbraShkrOrmaSanaLtvaTktaBharBdnaMmkaCcreMoreMdrlPdrhSaroSrkaTssaBbhgAlpuDablEnarGjohKdniSaniLjhaMinaMdneMidoMoorMtabNbraNmrePgnmHmlaPcuaPplhPddiShriTaraWmohAwulHrtaHtluMgnuHwngSmldAskhBcraMegsOgnaTaweNmnoGuhsNoyoSbnaZrgoDgnoGghoRakaMfdeMogoSdgoSmylEdnaNpnmHohcWsrhCkaiDstiKizeYnmpCrguOasnTotoThtiVhtmZiwaKmgaN"
+        [score matching-indices] (match needle haystack)]
+    (is (= 129 score))
+    (is (= (bit-set/of 17 26 29 50 56 75 87 113 128) matching-indices))))
+
+(deftest past-failures-test
   (doseq [[needle haystack]
           [["XM" "X0mM000000"]
            ["GDA" "GdDA"]

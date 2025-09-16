@@ -17,6 +17,11 @@
             [clojure.test :refer :all]
             [util.coll :refer [pair]]))
 
+;; Reference implementation of the fuzzy text matching algorithm. This
+;; implementation was used in the past but turned out to be too slow and memory
+;; hungry in some real-world scenarios. We now use it as ground truth for the
+;; tests covering the new algorithm.
+
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 

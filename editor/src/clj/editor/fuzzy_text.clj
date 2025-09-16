@@ -15,7 +15,7 @@
 (ns editor.fuzzy-text
   (:require [clojure.string :as string]
             [util.bit-set :as bit-set]
-            [util.coll :refer [pair]])
+            [util.coll :as coll :refer [pair]])
   (:import [java.util.concurrent.atomic AtomicInteger]))
 
 ;; Sublime Text-style fuzzy text matching.
@@ -203,7 +203,6 @@
             best-matching-indices (bit-set/of-capacity string-length)
             candidate-matching-indices (bit-set/of-capacity string-length)
             search-start-indices (int-array pattern-length 0)
-            watchdog-atomic (AtomicInteger. 0)
 
             per-character-indices
             (mapv (fn [^long upper-ch ^long lower-ch]
@@ -215,39 +214,36 @@
                   upper-pattern-chs
                   lower-pattern-chs)]
 
-        (loop [tick-index-in-pattern (int 0)]
+        (loop [iteration (int 0)
+               tick-index-in-pattern (int 0)]
           (cond
             (= pattern-length tick-index-in-pattern)
             ;; We have a fully formed candidate.
-            (let [candidate-score (score string from-index candidate-matching-indices)
+            (let [last-matched-index-in-string (bit-set/last-set-bit candidate-matching-indices)
+                  pending-tick-index-in-pattern (dec tick-index-in-pattern)
+                  candidate-score (score string from-index candidate-matching-indices)
                   best-score (.get best-score-atomic)]
-              (if (< candidate-score best-score)
+              (when (< candidate-score best-score)
                 ;; We're the new best match.
                 ;; Register it, but keep searching for a better match at the
                 ;; final position. Yes, the one we found is the closest, but a
                 ;; later match after a word boundary could score even better.
-                (let [last-matched-index-in-string (bit-set/last-set-bit candidate-matching-indices)
-                      pending-tick-index-in-pattern (dec tick-index-in-pattern)]
-                  (.set best-score-atomic candidate-score)
-                  (bit-set/assign! best-matching-indices candidate-matching-indices)
-                  (bit-set/clear-bit! candidate-matching-indices last-matched-index-in-string)
-                  (recur pending-tick-index-in-pattern))
-
-                ;; We're no better than the previous best match.
-                (let [last-matched-index-in-string (bit-set/last-set-bit candidate-matching-indices)
-                      pending-tick-index-in-pattern (dec tick-index-in-pattern)]
-                  (bit-set/clear-bit! candidate-matching-indices last-matched-index-in-string)
-                  (recur pending-tick-index-in-pattern))))
+                (.set best-score-atomic candidate-score)
+                (bit-set/assign! best-matching-indices candidate-matching-indices))
+              (bit-set/clear-bit! candidate-matching-indices last-matched-index-in-string)
+              (recur (inc iteration)
+                     pending-tick-index-in-pattern))
 
             (or (neg? tick-index-in-pattern)
-                (< 10000000 (.incrementAndGet watchdog-atomic)))
-            ;; We've checked every permutation, or we've taken too long. Return.
+                (< 1000000 iteration))
+            ;; We've checked every permutation, or we've taken too long.
+            ;; Return the best result we have.
             (when-not (bit-set/empty? best-matching-indices)
               (let [best-score (.get best-score-atomic)]
                 (pair best-score best-matching-indices)))
 
             :else
-            ;; Still matching...
+            ;; We're still matching.
             ;; When the pattern contains whitespace, we expect a run of
             ;; non-matching characters between the two separated phrases. When
             ;; preparing the pattern, we remove whitespace characters and
@@ -262,23 +258,25 @@
                 ;; This is a dead branch.
                 ;; Backtrack by popping the last matched index from the
                 ;; candidate and moving the tick-index back one step.
-                (let [last-matched-index-in-string (bit-set/last-set-bit candidate-matching-indices)
-                      pending-tick-index-in-pattern (dec tick-index-in-pattern)]
+                (let [pending-tick-index-in-pattern (dec tick-index-in-pattern)
+                      last-matched-index-in-string (bit-set/last-set-bit candidate-matching-indices)]
                   (when-not (neg? last-matched-index-in-string)
                     (bit-set/clear-bit! candidate-matching-indices last-matched-index-in-string))
                   (aset search-start-indices tick-index-in-pattern (int 0)) ; Not necessary, but leaving the original value can be confusing while debugging.
-                  (recur pending-tick-index-in-pattern))
+                  (recur (inc iteration)
+                         pending-tick-index-in-pattern))
 
                 ;; We matched a character.
-                (let [next-search-start-index (inc matching-index-in-string)
-                      pending-tick-index-in-pattern (inc tick-index-in-pattern)]
+                (let [pending-tick-index-in-pattern (inc tick-index-in-pattern)
+                      next-search-start-index (inc matching-index-in-string)]
                   (bit-set/set-bit! candidate-matching-indices matching-index-in-string)
                   (aset search-start-indices tick-index-in-pattern next-search-start-index)
                   (when (not= pattern-length pending-tick-index-in-pattern)
                     (let [is-pattern-break (bit-set/bit pattern-break-indices pending-tick-index-in-pattern)
                           pending-next-search-start-index (cond-> next-search-start-index is-pattern-break inc)]
                       (aset search-start-indices pending-tick-index-in-pattern pending-next-search-start-index)))
-                  (recur pending-tick-index-in-pattern))))))))))
+                  (recur (inc iteration)
+                         pending-tick-index-in-pattern))))))))))
 
 (defn prepare-pattern
   "Given a pattern string, returns a trimmed and case-agnostic prepared-pattern
@@ -320,8 +318,8 @@
 (defn empty-prepared-pattern?
   "Returns true if the supplied prepared-pattern is empty."
   [prepared-pattern]
-  (let [^String upper-pattern (key prepared-pattern)]
-    (.isEmpty upper-pattern)))
+  (let [upper-pattern-chs (first prepared-pattern)]
+    (coll/empty? upper-pattern-chs)))
 
 (defn match
   "Performs a fuzzy text match against a string using the prepared-pattern.
