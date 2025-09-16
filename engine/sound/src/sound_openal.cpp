@@ -19,6 +19,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/mutex.h>
+#include <dlib/atomic.h>
 #include <dlib/profile.h>
 #include <dlib/time.h>
 #include <dmsdk/dlib/vmath.h>
@@ -31,7 +32,6 @@
 
 #if DM_SOUND_WASM_SUPPORT_THREADS
 #include <dmsdk/dlib/thread.h>
-#include <dlib/atomic.h>
 #include <dlib/condition_variable.h>
 #endif
 
@@ -531,8 +531,8 @@ namespace dmSound
 
         dmAtomicStore32(&sound->m_IsRunning, 0);
 
-#if DM_SOUND_WASM_SUPPORT_THREADS
         Result result;
+#if DM_SOUND_WASM_SUPPORT_THREADS
         if (sound->m_Thread == 0) {
             result = sound->FinalizeOpenal();
             if (result != RESULT_OK) {
