@@ -1628,16 +1628,16 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     data_size = sizeof(uint32_t) * width * height;
     data = new char[data_size];
     memset(data, 1, data_size);
-    dmGraphics::SetRenderTargetSize(target, width, height);
+    dmGraphics::SetRenderTargetSize(m_Context, target, width, height);
 
     uint32_t target_width, target_height;
-    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
+    GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
-    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_DEPTH_BIT, target_width, target_height);
+    GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
-    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_STENCIL_BIT, target_width, target_height);
+    GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_STENCIL_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
 
@@ -1646,7 +1646,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     delete [] data;
 
     dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
-    dmGraphics::DeleteRenderTarget(target);
+    dmGraphics::DeleteRenderTarget(m_Context, target);
 
     // Test multiple color attachments
     params.m_ColorBufferParams[1].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
@@ -1665,7 +1665,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     width = WIDTH;
     height = HEIGHT;
 
-    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
+    GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
 
@@ -1688,7 +1688,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     delete [] data_color2;
 
     dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
-    dmGraphics::DeleteRenderTarget(target);
+    dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
 TEST_F(dmGraphicsTest, TestGetRTAttachment)
@@ -1728,7 +1728,7 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
     delete [] data;
 
     dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
-    dmGraphics::DeleteRenderTarget(target);
+    dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
 TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
@@ -1748,7 +1748,7 @@ TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
 
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, depth_value, stencil_value);
 
-    dmGraphics::HTexture depth_texture = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
+    dmGraphics::HTexture depth_texture = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
     ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, depth_texture));
     {
         float* texture_data = 0x0;
@@ -1762,7 +1762,7 @@ TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
         }
     }
 
-    dmGraphics::HTexture stencil_texture = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_STENCIL_BIT);
+    dmGraphics::HTexture stencil_texture = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_STENCIL_BIT);
     ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, stencil_texture));
     {
         uint32_t* texture_data = 0x0;
@@ -1776,7 +1776,7 @@ TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
     }
 
     dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
-    dmGraphics::DeleteRenderTarget(target);
+    dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
 TEST_F(dmGraphicsTest, TestMasks)
@@ -1989,16 +1989,16 @@ TEST_F(dmGraphicsTest, TestGraphicsHandles)
 
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, target));
 
-        dmGraphics::HTexture color0 = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+        dmGraphics::HTexture color0 = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, color0));
 
-        dmGraphics::HTexture color1 = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_COLOR1_BIT);
+        dmGraphics::HTexture color1 = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR1_BIT);
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, color1));
 
-        dmGraphics::HTexture color2_not_exist = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_COLOR2_BIT);
+        dmGraphics::HTexture color2_not_exist = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR2_BIT);
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, color2_not_exist));
 
-        dmGraphics::DeleteRenderTarget(target);
+        dmGraphics::DeleteRenderTarget(m_Context, target);
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, target));
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, color0));
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, color1));

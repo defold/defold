@@ -3480,7 +3480,7 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static void OpenGLDeleteRenderTarget(HRenderTarget render_target)
+    static void OpenGLDeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
         OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);
 
@@ -3590,7 +3590,7 @@ static void LogFrameBufferError(GLenum status)
         return 0;
     }
 
-    static HTexture OpenGLGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
+    static HTexture OpenGLGetRenderTargetTexture(HContext context, HRenderTarget render_target, BufferType buffer_type)
     {
         OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);
 
@@ -3613,7 +3613,7 @@ static void LogFrameBufferError(GLenum status)
         return 0;
     }
 
-    static void OpenGLGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
+    static void OpenGLGetRenderTargetSize(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
         OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);
         TextureParams* params = 0;
@@ -3645,7 +3645,7 @@ static void LogFrameBufferError(GLenum status)
         height = params->m_Height;
     }
 
-    static void OpenGLSetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
+    static void OpenGLSetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);
 
@@ -3662,7 +3662,7 @@ static void LogFrameBufferError(GLenum status)
         rt->m_StencilAttachment.m_Params.m_Width       = width;
         rt->m_StencilAttachment.m_Params.m_Height      = height;
 
-        ApplyRenderTargetAttachments((HContext)g_Context, rt, true);
+        ApplyRenderTargetAttachments(context, rt, true);
     }
 
     static bool OpenGLIsTextureFormatSupported(HContext _context, TextureFormat format)
@@ -4768,13 +4768,13 @@ static void LogFrameBufferError(GLenum status)
         context->m_PipelineState.m_WriteColorMask = write_mask;
     }
 
-    static void OpenGLSetDepthMask(HContext context, bool mask)
+    static void OpenGLSetDepthMask(HContext context, bool enable_mask)
     {
         assert(context);
-        glDepthMask(mask);
+        glDepthMask(enable_mask);
         CHECK_GL_ERROR;
 
-        ((OpenGLContext*) context)->m_PipelineState.m_WriteDepth = mask;
+        ((OpenGLContext*) context)->m_PipelineState.m_WriteDepth = enable_mask;
     }
 
     static GLenum GetOpenGLCompareFunc(CompareFunc func)

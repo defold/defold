@@ -313,9 +313,9 @@ namespace dmGraphics
         return g_AttachmentToBufferType.m_AttachmentToBufferType[attachment];
     }
 
-    HTexture GetRenderTargetAttachment(HRenderTarget render_target, RenderTargetAttachment attachment)
+    HTexture GetRenderTargetAttachment(HContext context, HRenderTarget render_target, RenderTargetAttachment attachment)
     {
-        return GetRenderTargetTexture(render_target, GetAttachmentBufferType(attachment));
+        return GetRenderTargetTexture(context, render_target, GetAttachmentBufferType(attachment));
     }
 
     static ShaderDesc::Shader* HasShader(ShaderDesc* shader_desc, ShaderDesc::ShaderType shader_type)
@@ -1703,9 +1703,9 @@ namespace dmGraphics
     {
         g_functions.m_SetColorMask(context, red, green, blue, alpha);
     }
-    void SetDepthMask(HContext context, bool mask)
+    void SetDepthMask(HContext context, bool enable_mask)
     {
-        g_functions.m_SetDepthMask(context, mask);
+        g_functions.m_SetDepthMask(context, enable_mask);
     }
     void SetDepthFunc(HContext context, CompareFunc func)
     {
@@ -1751,25 +1751,25 @@ namespace dmGraphics
     {
         return g_functions.m_NewRenderTarget(context, buffer_type_flags, params);
     }
-    void DeleteRenderTarget(HRenderTarget render_target)
+    void DeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
-        g_functions.m_DeleteRenderTarget(render_target);
+        g_functions.m_DeleteRenderTarget(context, render_target);
     }
     void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
     {
         g_functions.m_SetRenderTarget(context, render_target, transient_buffer_types);
     }
-    HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
+    HTexture GetRenderTargetTexture(HContext context, HRenderTarget render_target, BufferType buffer_type)
     {
-        return g_functions.m_GetRenderTargetTexture(render_target, buffer_type);
+        return g_functions.m_GetRenderTargetTexture(context, render_target, buffer_type);
     }
-    void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
+    void GetRenderTargetSize(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
-        g_functions.m_GetRenderTargetSize(render_target, buffer_type, width, height);
+        g_functions.m_GetRenderTargetSize(context, render_target, buffer_type, width, height);
     }
-    void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
+    void SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
-        g_functions.m_SetRenderTargetSize(render_target, width, height);
+        g_functions.m_SetRenderTargetSize(context, render_target, width, height);
     }
     bool IsTextureFormatSupported(HContext context, TextureFormat format)
     {

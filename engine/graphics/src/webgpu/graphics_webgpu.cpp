@@ -3172,7 +3172,7 @@ static void WebGPUDestroyRenderTarget(WebGPURenderTarget *rt)
     delete rt;
 }
 
-static void WebGPUDeleteRenderTarget(HRenderTarget _rt)
+static void WebGPUDeleteRenderTarget(HContext context, HRenderTarget _rt)
 {
     TRACE_CALL;
     WebGPURenderTarget* rt = GetAssetFromContainer<WebGPURenderTarget>(g_WebGPUContext->m_AssetHandleContainer, _rt);
@@ -3191,7 +3191,7 @@ static void WebGPUSetRenderTarget(HContext _context, HRenderTarget _rt, uint32_t
     context->m_CurrentRenderTarget = rt ? rt : context->m_MainRenderTarget;
 }
 
-static HTexture WebGPUGetRenderTargetTexture(HRenderTarget _rt, BufferType buffer_type)
+static HTexture WebGPUGetRenderTargetTexture(HContext context, HRenderTarget _rt, BufferType buffer_type)
 {
     TRACE_CALL;
     WebGPURenderTarget* rt = GetAssetFromContainer<WebGPURenderTarget>(g_WebGPUContext->m_AssetHandleContainer, _rt);
@@ -3202,7 +3202,7 @@ static HTexture WebGPUGetRenderTargetTexture(HRenderTarget _rt, BufferType buffe
     return NULL;
 }
 
-static void WebGPUGetRenderTargetSize(HRenderTarget _rt, BufferType buffer_type, uint32_t& width, uint32_t& height)
+static void WebGPUGetRenderTargetSize(HContext context, HRenderTarget _rt, BufferType buffer_type, uint32_t& width, uint32_t& height)
 {
     TRACE_CALL;
     WebGPURenderTarget* rt = GetAssetFromContainer<WebGPURenderTarget>(g_WebGPUContext->m_AssetHandleContainer, _rt);
@@ -3210,7 +3210,7 @@ static void WebGPUGetRenderTargetSize(HRenderTarget _rt, BufferType buffer_type,
     height                 = rt->m_Height;
 }
 
-static void WebGPUSetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
+static void WebGPUSetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
 {
     TRACE_CALL;
     assert(false);
@@ -3254,11 +3254,11 @@ static void WebGPUSetColorMask(HContext _context, bool red, bool green, bool blu
         context->m_CurrentPipelineState.m_WriteColorMask |= DM_GRAPHICS_STATE_WRITE_A;
 }
 
-static void WebGPUSetDepthMask(HContext context, bool mask)
+static void WebGPUSetDepthMask(HContext context, bool enable_mask)
 {
     TRACE_CALL;
     assert(context);
-    ((WebGPUContext*)context)->m_CurrentPipelineState.m_WriteDepth = mask;
+    ((WebGPUContext*)context)->m_CurrentPipelineState.m_WriteDepth = enable_mask;
 }
 
 static void WebGPUSetDepthFunc(HContext context, CompareFunc func)

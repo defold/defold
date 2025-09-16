@@ -1414,7 +1414,7 @@ TEST_F(dmRenderScriptTest, TestRenderTargetResource)
 
     ClearRenderScriptInstanceRenderResources(render_script_instance);
 
-    dmGraphics::DeleteRenderTarget(rt);
+    dmGraphics::DeleteRenderTarget(m_GraphicsContext, rt);
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
@@ -1554,7 +1554,7 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
     params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
 
     dmGraphics::HRenderTarget rt = dmGraphics::NewRenderTarget(m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params);
-    dmGraphics::HTexture tex = dmGraphics::GetRenderTargetTexture(rt, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+    dmGraphics::HTexture tex = dmGraphics::GetRenderTargetTexture(m_GraphicsContext, rt, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
 
     dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "valid_rt", rt, dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET);
     dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "invalid_rt", 0x1337, dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET);
@@ -1621,7 +1621,7 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
 
     ClearRenderScriptInstanceRenderResources(render_script_instance);
 
-    dmGraphics::DeleteRenderTarget(rt);
+    dmGraphics::DeleteRenderTarget(m_GraphicsContext, rt);
     dmRender::DeleteMaterial(m_Context, material);
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 
