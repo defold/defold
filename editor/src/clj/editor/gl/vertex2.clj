@@ -105,11 +105,11 @@
 
 (defn wrap-buf
   ^ByteBuffer [^bytes byte-array]
-  (buffers/wrap-byte-array byte-array :byte-order/little-endian))
+  (buffers/wrap-byte-array byte-array :byte-order/native))
 
 (defn make-buf
   ^ByteBuffer [byte-capacity]
-  (buffers/new-byte-buffer byte-capacity :byte-order/little-endian))
+  (buffers/new-byte-buffer byte-capacity :byte-order/native))
 
 (defn make-vertex-buffer
   [vertex-description usage ^long vertex-capacity]

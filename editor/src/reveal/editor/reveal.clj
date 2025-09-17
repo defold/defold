@@ -22,6 +22,7 @@
             [clojure.main :as m]
             [clojure.string :as str]
             [dynamo.graph :as g]
+            [editor.buffers :as buffers]
             [editor.code.data]
             [editor.gl.vertex2]
             [editor.math :as math]
@@ -340,6 +341,47 @@
                                       {:fx/type r/value-view
                                        :v-box/vgrow :always
                                        :value state}]})})})))
+
+(defn- bytes-to-primitive-vec [^bytes bytes byte-order data-type]
+  (let [primitive-type (buffers/primitive-type-kw data-type)]
+    (-> (buffers/wrap-byte-array bytes byte-order)
+        (buffers/as-typed-buffer primitive-type)
+        (buffers/reducible)
+        (coll/transfer (vector-of primitive-type)))))
+
+(defn- bytes-to-primitive-vec-action [value byte-order primitive-type]
+  (when (bytes? value)
+    #(bytes-to-primitive-vec value byte-order primitive-type)))
+
+(r/defaction ::bytes:to-big-endian-shorts [x]
+  (bytes-to-primitive-vec-action x :byte-order/big-endian :short))
+
+(r/defaction ::bytes:to-big-endian-ints [x]
+  (bytes-to-primitive-vec-action x :byte-order/big-endian :int))
+
+(r/defaction ::bytes:to-big-endian-longs [x]
+  (bytes-to-primitive-vec-action x :byte-order/big-endian :long))
+
+(r/defaction ::bytes:to-big-endian-floats [x]
+  (bytes-to-primitive-vec-action x :byte-order/big-endian :float))
+
+(r/defaction ::bytes:to-big-endian-doubles [x]
+  (bytes-to-primitive-vec-action x :byte-order/big-endian :double))
+
+(r/defaction ::bytes:to-little-endian-shorts [x]
+  (bytes-to-primitive-vec-action x :byte-order/little-endian :short))
+
+(r/defaction ::bytes:to-little-endian-ints [x]
+  (bytes-to-primitive-vec-action x :byte-order/little-endian :int))
+
+(r/defaction ::bytes:to-little-endian-longs [x]
+  (bytes-to-primitive-vec-action x :byte-order/little-endian :long))
+
+(r/defaction ::bytes:to-little-endian-floats [x]
+  (bytes-to-primitive-vec-action x :byte-order/little-endian :float))
+
+(r/defaction ::bytes:to-little-endian-doubles [x]
+  (bytes-to-primitive-vec-action x :byte-order/little-endian :double))
 
 (r/defstream VertexBuffer [^VertexBuffer vertex-buffer]
   (let [vertex-description (.vertex-description vertex-buffer)

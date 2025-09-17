@@ -344,7 +344,7 @@ the `do-gl` macro from `editor.gl`."
   ([capacity layout vx-size set-fn get-fn]
    (let [buffer-starts (buffer-starts capacity layout)
          byte-size (* capacity vx-size)
-         storage (b/new-byte-buffer byte-size :byte-order/little-endian)
+         storage (b/new-byte-buffer byte-size :byte-order/native)
          slices (b/slice storage buffer-starts)]
      (TransientVertexBuffer.
        layout
