@@ -23,6 +23,7 @@
             [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.code.data]
+            [editor.gl.vertex2]
             [editor.math :as math]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -35,6 +36,7 @@
   (:import [clojure.core.async.impl.channels ManyToManyChannel]
            [clojure.lang IRef]
            [editor.code.data Cursor CursorRange]
+           [editor.gl.vertex2 VertexBuffer]
            [editor.resource FileResource ZipResource]
            [editor.workspace BuildResource]
            [internal.graph.types Arc Endpoint]
@@ -338,6 +340,24 @@
                                       {:fx/type r/value-view
                                        :v-box/vgrow :always
                                        :value state}]})})})))
+
+(r/defstream VertexBuffer [^VertexBuffer vertex-buffer]
+  (let [vertex-description (.vertex-description vertex-buffer)
+        usage (.usage vertex-buffer)
+        buf (.buf vertex-buffer)
+        buf-items-per-vertex (.buf-items-per-vertex vertex-buffer)
+        version (.version vertex-buffer)]
+    (r/type-tagged
+      'vtx/VertexBuffer {:fill :object}
+      (r/horizontal
+        (r/raw-string "{" {:fill :object})
+        (r/entries
+          {:usage usage
+           :version version
+           :buf-items-per-vertex buf-items-per-vertex
+           :buf buf
+           :vertex-description vertex-description})
+        (r/raw-string "}" {:fill :object})))))
 
 (defn- vecmath-matrix-sf [matrix]
   (let [row-col-strs (math/vecmath-matrix-pprint-strings matrix)]

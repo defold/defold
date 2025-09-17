@@ -246,7 +246,7 @@
     (when (< attribute-index attribute-count)
       (let [location (+ base-location attribute-index)]
         (gl-disable-vertex-attrib-array gl location)
-        (recur (inc location))))))
+        (recur (inc attribute-index))))))
 
 (defn clear-attributes!
   [^GL2 gl ^long base-location ^long attribute-count]
@@ -254,7 +254,7 @@
     (when (< attribute-index attribute-count)
       (let [location (+ base-location attribute-index)]
         (.glVertexAttrib1f gl location 0.0) ; Sets components to [0.0 0.0 0.0 1.0].
-        (recur (inc location))))))
+        (recur (inc attribute-index))))))
 
 (defn set-attribute-1bv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (let [x (float (aget value-array offset))]

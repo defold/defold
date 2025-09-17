@@ -408,17 +408,21 @@
         (gl/unbind gl t render-args)))))
 
 (defn- render-mesh-opaque [^GL2 gl render-args renderables]
-  ;; TODO(instancing): Work-in-progress.
-  (let [{:keys [attribute-bindings index-buffer shader]} (:user-data (first renderables))
+  (let [{:keys [attribute-bindings index-buffer shader textures]} (:user-data (first renderables))
         index-type (gl.buffer/gl-data-type index-buffer)
         index-count (gl.buffer/vertex-count index-buffer)]
     (gl/with-gl-bindings gl render-args [shader attribute-bindings index-buffer]
+      (doseq [[name t] textures]
+        (gl/bind gl t render-args)
+        (shader/set-samplers-by-name shader gl name (:texture-units t)))
       (gl/gl-disable gl GL/GL_BLEND)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)
       (gl/gl-draw-elements gl GL/GL_TRIANGLES index-type 0 index-count)
       (gl/gl-disable gl GL/GL_CULL_FACE)
-      (gl/gl-enable gl GL/GL_BLEND))))
+      (gl/gl-enable gl GL/GL_BLEND)
+      (doseq [[_name t] textures]
+        (gl/unbind gl t render-args)))))
 
 (defn- old-render-mesh-opaque [^GL2 gl render-args renderables]
   (let [renderable (first renderables)]
@@ -583,7 +587,8 @@
                             (attribute/make-buffer-binding attribute-buffer shader-location))
                           attribute-buffers
                           shader-locations)))))
-             (sort-by :base-location))
+             (sort-by :base-location)
+             (vec))
 
         user-data
         {:mesh-renderable-data renderable-data

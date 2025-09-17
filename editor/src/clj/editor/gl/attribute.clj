@@ -286,12 +286,10 @@
 
   GlBind
   (bind [_this gl render-args]
-    (gl/bind gl attribute-buffer-lifecycle render-args)
     (gl.buffer/assign-attribute! attribute-buffer-lifecycle gl base-location))
 
-  (unbind [_this gl render-args]
-    (gl.buffer/clear-attribute! attribute-buffer-lifecycle gl base-location)
-    (gl/unbind gl attribute-buffer-lifecycle render-args)))
+  (unbind [_this gl _render-args]
+    (gl.buffer/clear-attribute! attribute-buffer-lifecycle gl base-location)))
 
 (defn make-buffer-binding
   ^AttributeBufferBinding [attribute-buffer-lifecycle ^long base-location]

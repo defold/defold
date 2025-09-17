@@ -1354,18 +1354,19 @@
           tool-user-data (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
           play-mode (g/node-value view-id :play-mode evaluation-context)
           active-updatables (g/node-value view-id :active-updatables evaluation-context)
+          has-active-updatables (not (coll/empty? active-updatables))
           updatable-states (g/node-value view-id :updatable-states evaluation-context)
-          new-updatable-states (if (seq active-updatables)
+          new-updatable-states (if has-active-updatables
                                  (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables dt))
                                  updatable-states)
           renderables (g/node-value view-id :all-renderables evaluation-context)
           last-renderables (ui/user-data image-view ::last-renderables)
           last-frame-version (ui/user-data image-view ::last-frame-version)
           frame-version (cond-> (or last-frame-version 0)
-                          (or (nil? last-renderables)
-                              (not (identical? last-renderables renderables))
-                              (and (= :playing play-mode) (seq active-updatables)))
-                          inc)]
+                                (or (nil? last-renderables)
+                                    (not (identical? last-renderables renderables))
+                                    (and has-active-updatables (= :playing play-mode)))
+                                inc)]
       (when (seq action-queue)
         (g/set-property! view-id :input-action-queue []))
       (profiler/profile "input-dispatch" -1
@@ -1374,12 +1375,11 @@
             (dispatch-input input-handlers action tool-user-data))
           (when (some #(#{:mouse-pressed :mouse-released} (:type %)) action-queue)
             (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
-      (when (seq active-updatables)
+      (when has-active-updatables
         (g/set-property! view-id :updatable-states new-updatable-states))
       (profiler/profile "render" -1
-        (gl/with-drawable-as-current drawable
-          (if (= last-frame-version frame-version)
-            (reset! async-copy-state-atom (scene-async/finish-image! @async-copy-state-atom gl))
+        (when (not= last-frame-version frame-version)
+          (gl/with-drawable-as-current drawable
             (let [viewport (g/node-value view-id :viewport evaluation-context)
                   pass->render-args (g/node-value view-id :pass->render-args evaluation-context)]
               (scene-cache/process-pending-deletions! gl)

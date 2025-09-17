@@ -326,11 +326,11 @@
         [expanded-attributes expanded-attribute-locations] (expand-attributes+locations attributes attribute-locations)]
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
     (assign-attributes! gl expanded-attributes expanded-attribute-locations)
+    (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)
     expanded-attribute-locations))
 
 (defn- unbind-vertex-buffer-with-shader! [^GL2 gl expanded-attribute-locations]
-  (clear-attributes! gl expanded-attribute-locations)
-  (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0))
+  (clear-attributes! gl expanded-attribute-locations))
 
 (defn- bind-index-buffer! [^GL2 gl request-id ^IntBuffer index-buffer]
   ;; TODO: Feed in actual version. Perhaps deftype IndexBuffer with IntBuffer + version?

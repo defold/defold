@@ -88,18 +88,26 @@
   (let [gl-target (.-gl-target gl-buffer-data)]
     (gl/gl-bind-buffer gl gl-target 0)))
 
+(declare ^:private bind-buffer! ^:private unbind-buffer!)
+
 (defonce/record BufferLifecycle
   [request-id
    ^GlBufferData gl-buffer-data
    ^ElementType buffer-element-type]
 
   GlBind
-  (bind [_this gl _render-args]
-    (bind-gl-buffer! gl request-id gl-buffer-data)
-    nil)
+  (bind [this gl _render-args]
+    (bind-buffer! gl this))
 
-  (unbind [_this gl _render-args]
-    (unbind-gl-buffer! gl gl-buffer-data)))
+  (unbind [this gl _render-args]
+    (unbind-buffer! gl this)))
+
+(defn- bind-buffer! [^GL2 gl ^BufferLifecycle buffer-lifecycle]
+  (bind-gl-buffer! gl (.-request-id buffer-lifecycle) (.-gl-buffer-data buffer-lifecycle))
+  nil)
+
+(defn- unbind-buffer! [^GL2 gl ^BufferLifecycle buffer-lifecycle]
+  (unbind-gl-buffer! gl (.-gl-buffer-data buffer-lifecycle)))
 
 (defn- make-buffer
   ^BufferLifecycle [request-id ^Buffer data ^ElementType buffer-element-type target usage]
@@ -164,27 +172,28 @@
 
 (defn assign-attribute!
   [^BufferLifecycle buffer-lifecycle ^GL2 gl ^long base-location]
-  ;; Note: Assumes both the BufferLifecycle and the ShaderLifecycle are bound.
   (let [buffer-element-type ^ElementType (.-buffer-element-type buffer-lifecycle)
         vector-type (.-vector-type buffer-element-type)
         data-type (.-data-type buffer-element-type)
         normalize (.-normalize buffer-element-type)
-        items-per-vertex (types/vector-type-component-count vector-type)
+        component-count (types/vector-type-component-count vector-type)
         item-gl-type (data-type->gl-type data-type)
         item-byte-size (types/data-type-byte-size data-type)
-        vertex-byte-size (* items-per-vertex item-byte-size)
+        slot-byte-size (* component-count item-byte-size)
         row-column-count (types/vector-type-row-column-count vector-type)]
+    (bind-buffer! gl buffer-lifecycle)
     (if (neg? row-column-count)
       (do
         (gl/gl-enable-vertex-attrib-array gl base-location)
-        (gl/gl-vertex-attrib-pointer gl base-location items-per-vertex item-gl-type normalize vertex-byte-size 0))
+        (gl/gl-vertex-attrib-pointer gl base-location component-count item-gl-type normalize slot-byte-size 0))
       (loop [column-index 0]
         (when (< column-index row-column-count)
           (let [location (+ base-location column-index)
                 byte-offset (* column-index row-column-count item-byte-size)]
             (gl/gl-enable-vertex-attrib-array gl location)
-            (gl/gl-vertex-attrib-pointer gl location row-column-count item-gl-type normalize vertex-byte-size byte-offset)
-            (recur (inc column-index))))))))
+            (gl/gl-vertex-attrib-pointer gl location row-column-count item-gl-type normalize slot-byte-size byte-offset)
+            (recur (inc column-index))))))
+    (unbind-buffer! gl buffer-lifecycle)))
 
 (defn clear-attribute!
   [^BufferLifecycle buffer-lifecycle ^GL2 gl ^long base-location]
@@ -203,6 +212,7 @@
     (assert (buffers/flipped? data) "data buffer must be flipped before use")
     (gl/gl-bind-buffer gl gl-target gl-buffer)
     (gl/gl-buffer-data gl gl-target data-byte-size data gl-usage)
+    (gl/gl-bind-buffer gl gl-target 0)
     gl-buffer))
 
 (defn- create-gl-buffer!
