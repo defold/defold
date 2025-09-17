@@ -318,7 +318,7 @@ namespace dmRender
         delete material;
     }
 
-    void ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro)
+    void ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* render_object)
     {
         dmGraphics::HContext graphics_context    = dmRender::GetGraphicsContext(render_context);
         const dmArray<RenderConstant>& constants = material->m_Constants;
@@ -332,7 +332,7 @@ namespace dmRender
             dmGraphics::HUniformLocation location        = GetConstantLocation(constant);
             dmRenderDDF::MaterialDesc::ConstantType type = GetConstantType(constant);
             dmGraphics::ShaderDesc::Language language    = dmGraphics::GetProgramLanguage(dmRender::GetMaterialProgram(material));
-            SetProgramConstant(render_context, graphics_context, ro->m_WorldTransform, ro->m_TextureTransform, language, type, program, location, constant);
+            SetProgramConstant(render_context, graphics_context, render_object->m_WorldTransform, render_object->m_TextureTransform, language, type, program, location, constant);
         }
     }
 

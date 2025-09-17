@@ -1104,9 +1104,8 @@ namespace dmGraphics
         return StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
-    static void NullDeleteRenderTarget(HRenderTarget render_target)
+    static void NullDeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
-        HContext context = (HContext)g_NullContext;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_NullContext->m_AssetHandleContainer, render_target);
 
@@ -1151,7 +1150,7 @@ namespace dmGraphics
         }
     }
 
-    static HTexture NullGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
+    static HTexture NullGetRenderTargetTexture(HContext context, HRenderTarget render_target, BufferType buffer_type)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_NullContext->m_AssetHandleContainer, render_target);
@@ -1171,7 +1170,7 @@ namespace dmGraphics
         return 0;
     }
 
-    static void NullGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
+    static void NullGetRenderTargetSize(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         RenderTarget* rt      = GetAssetFromContainer<RenderTarget>(g_NullContext->m_AssetHandleContainer, render_target);
@@ -1200,7 +1199,7 @@ namespace dmGraphics
         height = params->m_Height;
     }
 
-    static void NullSetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
+    static void NullSetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_AssetContainerMutex);
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_NullContext->m_AssetHandleContainer, render_target);
@@ -1591,10 +1590,10 @@ namespace dmGraphics
         ((NullContext*) context)->m_PipelineState.m_WriteColorMask = write_mask;
     }
 
-    static void NullSetDepthMask(HContext context, bool mask)
+    static void NullSetDepthMask(HContext context, bool enable_mask)
     {
         assert(context);
-        ((NullContext*) context)->m_PipelineState.m_WriteDepth = mask;
+        ((NullContext*) context)->m_PipelineState.m_WriteDepth = enable_mask;
     }
 
     static void NullSetDepthFunc(HContext context, CompareFunc func)

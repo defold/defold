@@ -1093,9 +1093,14 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # third-party headers
-            for d in ['ext/include/vulkan']:
+            for d in ['ext/include/vulkan', 'ext/include/vk_video']:
                 protodir = os.path.join(self.dynamo_home, d)
                 paths = _findfiles(protodir, ('.h','.hpp', '.hxx', '.idl'))
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            for d in ['ext/include/glfw']:
+                protodir = os.path.join(self.dynamo_home, d)
+                paths = _findfiles(protodir, ('glfw3.h','glfw3native.h'))
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # C# files

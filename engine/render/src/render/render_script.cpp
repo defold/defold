@@ -1135,7 +1135,7 @@ namespace dmRender
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-        dmGraphics::DeleteRenderTarget(render_target);
+        dmGraphics::DeleteRenderTarget(i->m_RenderContext->m_GraphicsContext, render_target);
         return 0;
     }
 
@@ -1351,7 +1351,7 @@ namespace dmRender
         dmGraphics::HRenderTarget render_target = CheckRenderTarget(L, 1, i);
         uint32_t width = luaL_checkinteger(L, 2);
         uint32_t height = luaL_checkinteger(L, 3);
-        dmGraphics::SetRenderTargetSize(render_target, width, height);
+        dmGraphics::SetRenderTargetSize(i->m_RenderContext->m_GraphicsContext, render_target, width, height);
         return 0;
     }
 
@@ -1493,7 +1493,7 @@ namespace dmRender
                 buffer_type = CheckBufferType(L, 3);
             }
 
-            texture = dmGraphics::GetRenderTargetTexture(asset_handle, buffer_type);
+            texture = dmGraphics::GetRenderTargetTexture(i->m_RenderContext->m_GraphicsContext, asset_handle, buffer_type);
 
             if (texture == 0)
             {
@@ -1598,7 +1598,7 @@ namespace dmRender
         dmGraphics::BufferType buffer_type = CheckBufferType(L, 2);
 
         uint32_t width, height;
-        dmGraphics::GetRenderTargetSize(render_target, buffer_type, width, height);
+        dmGraphics::GetRenderTargetSize(i->m_RenderContext->m_GraphicsContext, render_target, buffer_type, width, height);
         lua_pushnumber(L, width);
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -1635,7 +1635,7 @@ namespace dmRender
         dmGraphics::HRenderTarget render_target = CheckRenderTarget(L, 1, i);
         dmGraphics::BufferType buffer_type = CheckBufferType(L, 2);
         uint32_t width, height;
-        dmGraphics::GetRenderTargetSize(render_target, buffer_type, width, height);
+        dmGraphics::GetRenderTargetSize(i->m_RenderContext->m_GraphicsContext, render_target, buffer_type, width, height);
         lua_pushnumber(L, height);
         assert(top + 1 == lua_gettop(L));
         return 1;

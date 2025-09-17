@@ -2766,7 +2766,7 @@ namespace dmGraphics
         return StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
-    static void DX12DeleteRenderTarget(HRenderTarget render_target)
+    static void DX12DeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
     }
 
@@ -2778,7 +2778,7 @@ namespace dmGraphics
         BeginRenderPass(context, render_target != 0x0 ? render_target : context->m_MainRenderTarget);
     }
 
-    static HTexture DX12GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
+    static HTexture DX12GetRenderTargetTexture(HContext context, HRenderTarget render_target, BufferType buffer_type)
     {
         DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(g_DX12Context->m_AssetHandleContainer, render_target);
 
@@ -2793,7 +2793,7 @@ namespace dmGraphics
         return 0;
     }
 
-    static void DX12GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
+    static void DX12GetRenderTargetSize(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
         DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(g_DX12Context->m_AssetHandleContainer, render_target);
         TextureParams* params = 0;
@@ -2817,7 +2817,7 @@ namespace dmGraphics
         height = params->m_Height;
     }
 
-    static void DX12SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
+    static void DX12SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
     }
 
@@ -3189,9 +3189,9 @@ namespace dmGraphics
         g_DX12Context->m_PipelineState.m_WriteColorMask = write_mask;
     }
 
-    static void DX12SetDepthMask(HContext context, bool mask)
+    static void DX12SetDepthMask(HContext context, bool enable_mask)
     {
-        g_DX12Context->m_PipelineState.m_WriteDepth = mask;
+        g_DX12Context->m_PipelineState.m_WriteDepth = enable_mask;
     }
 
     static void DX12SetDepthFunc(HContext context, CompareFunc func)

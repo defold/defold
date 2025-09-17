@@ -3079,9 +3079,9 @@ bail:
         g_VulkanContext->m_PipelineState.m_WriteColorMask = write_mask;
     }
 
-    static void VulkanSetDepthMask(HContext context, bool mask)
+    static void VulkanSetDepthMask(HContext context, bool enable_mask)
     {
-        g_VulkanContext->m_PipelineState.m_WriteDepth = mask;
+        g_VulkanContext->m_PipelineState.m_WriteDepth = enable_mask;
     }
 
     static void VulkanSetDepthFunc(HContext context, CompareFunc func)
@@ -3506,9 +3506,8 @@ bail:
         return StoreAssetInContainer(g_VulkanContext->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
-    static void VulkanDeleteRenderTarget(HRenderTarget render_target)
+    static void VulkanDeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
-        HContext context = (HContext)g_VulkanContext;
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_VulkanContext->m_AssetHandleContainer, render_target);
         g_VulkanContext->m_AssetHandleContainer.Release(render_target);
 
@@ -3538,7 +3537,7 @@ bail:
         BeginRenderPass(context, render_target != 0x0 ? render_target : context->m_MainRenderTarget);
     }
 
-    static HTexture VulkanGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
+    static HTexture VulkanGetRenderTargetTexture(HContext context, HRenderTarget render_target, BufferType buffer_type)
     {
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_VulkanContext->m_AssetHandleContainer, render_target);
 
@@ -3553,7 +3552,7 @@ bail:
         return 0;
     }
 
-    static void VulkanGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
+    static void VulkanGetRenderTargetSize(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_VulkanContext->m_AssetHandleContainer, render_target);
         TextureParams* params = 0;
@@ -3577,7 +3576,7 @@ bail:
         height = params->m_Height;
     }
 
-    static void VulkanSetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
+    static void VulkanSetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         RenderTarget* rt = GetAssetFromContainer<RenderTarget>(g_VulkanContext->m_AssetHandleContainer, render_target);
 

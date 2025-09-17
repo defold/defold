@@ -295,11 +295,12 @@ namespace dmGraphics
     /*#
      * Get the attachment texture from a render target. Returns zero if no such attachment texture exists.
      * @name GetRenderTargetAttachment
+     * @param context [type:dmGraphics::HContext] Graphics context
      * @param render_target [type:dmGraphics::HRenderTarget] the render target
      * @param attachment_type [type:dmGraphics::RenderTargetAttachment] the attachment to get
      * @return attachment [type:dmGraphics::HTexture] the attachment texture
      */
-    HTexture GetRenderTargetAttachment(HRenderTarget render_target, RenderTargetAttachment attachment_type);
+    HTexture GetRenderTargetAttachment(HContext context, HRenderTarget render_target, RenderTargetAttachment attachment_type);
 
     /*#
      * Get the native graphics API texture object from an engine texture handle. This depends on the graphics backend and is not
@@ -347,6 +348,14 @@ namespace dmGraphics
     {
         FACE_WINDING_CCW = 0,
         FACE_WINDING_CW  = 1,
+    };
+
+    // Face type
+    enum FaceType
+    {
+        FACE_TYPE_FRONT          = 0,
+        FACE_TYPE_BACK           = 1,
+        FACE_TYPE_FRONT_AND_BACK = 2,
     };
 
     /*#
@@ -640,6 +649,69 @@ namespace dmGraphics
         TEXTURE_WRAP_REPEAT          = 3,
     };
 
+    // render states
+    enum State
+    {
+        STATE_DEPTH_TEST           = 0,
+        STATE_SCISSOR_TEST         = 1,
+        STATE_STENCIL_TEST         = 2,
+        STATE_ALPHA_TEST           = 3,
+        STATE_BLEND                = 4,
+        STATE_CULL_FACE            = 5,
+        STATE_POLYGON_OFFSET_FILL  = 6,
+        STATE_ALPHA_TEST_SUPPORTED = 7,
+    };
+
+    // buffer clear types, each value is guaranteed to be separate bits
+    enum BufferType
+    {
+        BUFFER_TYPE_COLOR0_BIT  = 0x01,
+        BUFFER_TYPE_COLOR1_BIT  = 0x02,
+        BUFFER_TYPE_COLOR2_BIT  = 0x04,
+        BUFFER_TYPE_COLOR3_BIT  = 0x08,
+        BUFFER_TYPE_DEPTH_BIT   = 0x10,
+        BUFFER_TYPE_STENCIL_BIT = 0x20,
+    };
+
+    struct PipelineState
+    {
+        uint64_t m_WriteColorMask           : 4;
+        uint64_t m_WriteDepth               : 1;
+        uint64_t m_PrimtiveType             : 3;
+        // Depth Test
+        uint64_t m_DepthTestEnabled         : 1;
+        uint64_t m_DepthTestFunc            : 3;
+        // Stencil Test
+        uint64_t m_StencilEnabled           : 1;
+
+        // Front
+        uint64_t m_StencilFrontOpFail       : 3;
+        uint64_t m_StencilFrontOpPass       : 3;
+        uint64_t m_StencilFrontOpDepthFail  : 3;
+        uint64_t m_StencilFrontTestFunc     : 3;
+
+        // Back
+        uint64_t m_StencilBackOpFail        : 3;
+        uint64_t m_StencilBackOpPass        : 3;
+        uint64_t m_StencilBackOpDepthFail   : 3;
+        uint64_t m_StencilBackTestFunc      : 3;
+
+        uint64_t m_StencilWriteMask         : 8;
+        uint64_t m_StencilCompareMask       : 8;
+        uint64_t m_StencilReference         : 8;
+        // Blending
+        uint64_t m_BlendEnabled             : 1;
+        uint64_t m_BlendSrcFactor           : 4;
+        uint64_t m_BlendDstFactor           : 4;
+        // Culling
+        uint64_t m_CullFaceEnabled          : 1;
+        uint64_t m_CullFaceType             : 2;
+        // Face winding
+        uint64_t m_FaceWinding              : 1;
+        // Polygon offset
+        uint64_t m_PolygonOffsetFillEnabled : 1;
+    };
+
     /*#
      * Texture creation parameters.
      *
@@ -756,6 +828,23 @@ namespace dmGraphics
         uint8_t  m_LayerCount; // For array texture, this is page count
         uint8_t  m_MipMap    : 7;
         uint8_t  m_SubUpdate : 1;
+    };
+
+    struct RenderTargetCreationParams
+    {
+        TextureCreationParams m_ColorBufferCreationParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureCreationParams m_DepthBufferCreationParams;
+        TextureCreationParams m_StencilBufferCreationParams;
+        TextureParams         m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureParams         m_DepthBufferParams;
+        TextureParams         m_StencilBufferParams;
+        AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        float                 m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
+        // TODO: Depth/Stencil
+
+        uint8_t               m_DepthTexture   : 1;
+        uint8_t               m_StencilTexture : 1;
     };
 
     /*#
@@ -1219,12 +1308,225 @@ namespace dmGraphics
     const char* GetTextureFormatLiteral(TextureFormat format);
 
     /*#
-     * Get maximum supported size in pixelsof non-array texture
+     * Get maximum supported size in pixels of non-array texture
      * @name GetMaxTextureSize
      * @param context [type:dmGraphics::HContext] Graphics context
      * @return max_texture_size [type:uint32_t] Maximum texture size supported by GPU
      */
     uint32_t GetMaxTextureSize(HContext context);
+
+    /*#
+     * Return the width of the opened window, if any.
+     * @name GetWindowWidth
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @return window_width [type:uint32_t] Width of the window. If no window is opened, 0 is always returned
+     */
+    uint32_t GetWindowWidth(HContext context);
+
+    /*#
+     * Return the height of the opened window, if any.
+     * @name GetWindowHeight
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @return window_height [type:uint32_t] Height of the window. If no window is opened, 0 is always returned
+     */
+    uint32_t GetWindowHeight(HContext context);
+
+    /*#
+     * Returns the specified width of the opened window, which might differ from the actual window width.
+     * @name GetWidth
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @return width [type:uint32_t] Specified width of the window. If no window is opened, 0 is always returned.
+     */
+    uint32_t GetWidth(HContext context);
+
+    /*#
+     * Returns the specified height of the opened window, which might differ from the actual window width.
+     * @name GetHeight
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @return height [type:uint32_t] Specified height of the window. If no window is opened, 0 is always returned.
+     */
+    uint32_t GetHeight(HContext context);
+
+    /*#
+     * @name SetStencilMask
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param mask [type: uint32_t]
+     */
+    void SetStencilMask(HContext context, uint32_t mask);
+
+    /*#
+     * @name SetStencilFunc
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param func [type:dmGraphics::CompareFunc]
+     * @param ref [type:uint32_t]
+     * @param mask [type:uint32_t]
+     */
+    void SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask);
+
+    /*#
+     * @name SetStencilFuncSeparate
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param face_type [type:dmGraphics::FaceType]
+     * @param func [type:dmGraphics::CompareFunc]
+     * @param ref [type:uint32_t]
+     * @param mask [type:uint32_t]
+     */
+    void SetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask);
+
+    /*#
+     * @name SetStencilOp
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param sfail [type:dmGraphics::StencilOp]
+     * @param dpfail [type:dmGraphics::StencilOp]
+     * @param dppass [type:dmGraphics::StencilOp]
+     */
+    void SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass);
+
+    /*#
+     * @name SetStencilOpSeparate
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param face_type [type:dmGraphics::FaceType]
+     * @param sfail [type:dmGraphics::StencilOp]
+     * @param dpfail [type:dmGraphics::StencilOp]
+     * @param dppass [type:dmGraphics::StencilOp]
+     */
+    void SetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass);
+
+    /*#
+     * @name EnableState
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param state [type:dmGraphics::State] Render state
+     */
+    void EnableState(HContext context, State state);
+
+    /*#
+     * @name DisableState
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param state [type:dmGraphics::State] Render state
+     */
+    void DisableState(HContext context, State state);
+
+    /*#
+     * @name SetBlendFunc
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param source_factor [type:gmGraphics::BlendFactor]
+     * @param destination_factor [type:dmGraphics::BlendFactor]
+     */
+    void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
+
+    /*#
+     * @name SetColorMask
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param red [type:bool]
+     * @param green [type:bool]
+     * @param blue [type:bool]
+     * @param alpha [type:bool]
+     */
+    void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha);
+
+    /*#
+     * @name SetDepthMask
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param enable_mask [type:bool]
+     */
+    void SetDepthMask(HContext context, bool enable_mask);
+
+    /*#
+     * @name SetDepthFunc
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param func [type:dmGraphics::CompareFunc]
+     */
+    void SetDepthFunc(HContext context, CompareFunc func);
+
+    /*#
+     * @name GetInstalledContext
+     * @return context [type:dmGraphics::HContext] Installed graphics context
+     */
+    HContext GetInstalledContext();
+
+    /*#
+     * @name NewRenderTarget
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param buffer_type_flags [type:uint32_t]
+     * @param params [type:dmGraphics::const RenderTargetCreationParams]
+     * @return render_target [type:dmGraphics::HRenderTarget] Newly created render target
+     */
+    HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params);
+
+    /*#
+     * @name DeleteRenderTarget
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param render_target [type:dmGraphics::HRenderTarget]
+     */
+    void DeleteRenderTarget(HContext context, HRenderTarget render_target);
+
+    /*#
+     * @name SetRenderTarget
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param render_target [type:dmGraphics::HRenderTarget]
+     * @param transient_buffer_types [type:uint32_t]
+     */
+    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
+
+    /*#
+     * @name GetRenderTargetTexture
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param render_target [type:dmGraphics::HRenderTarget]
+     * @param buffer_type [type:dmGraphics::BufferType]
+     * @return render_target_texture [type:dmGraphics::HTexture]
+     */
+    HTexture GetRenderTargetTexture(HContext context, HRenderTarget render_target, BufferType buffer_type);
+
+    /*#
+     * @name GetRenderTargetSize
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param render_target [type:dmGraphics::HRenderTarget]
+     * @param buffer_type [type:dmGraphics::BufferType]
+     * @param width [type:uint32_t&]
+     * @param height [type:uint32_t&]
+     */
+    void GetRenderTargetSize(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
+
+    /*#
+     * @name SetRenderTargetSize
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param render_target [type:dmGraphics::HRenderTarget]
+     * @param width [type:uint32_t]
+     * @param height [type:uint32_t]
+     */
+    void SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height);
+
+    /*#
+     * @name GetPipelineState
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @return pipeline_state [type:dmGraphics::PipelineState]
+     */
+    PipelineState GetPipelineState(HContext context);
+
+    /*#
+     * @name SetCullFace
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param face_type [type:dmGraphics::FaceType]
+     */
+    void SetCullFace(HContext context, FaceType face_type);
+
+    /*#
+     * @name RepackRGBToRGBA
+     * @param num_pixels [type:uint32_t]
+     * @param rgb [type:uint8_t*]
+     * @param rgba [type:uint8_t*]
+     */
+    void RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
+
+    /*#
+     * Get the scale factor of the display.
+     * The display scale factor is usally 1.0 but will for instance be 2.0 on a macOS Retina display.
+     * @name GetDisplayScaleFactor
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @return scale_factor [type:float] Display scale factor
+     */
+    float GetDisplayScaleFactor(HContext context);
+
 }
 
 #endif // DMSDK_GRAPHICS_H
