@@ -30,6 +30,7 @@ namespace dmSound
         SOUND_DATA_TYPE_WAV        = 0,
         SOUND_DATA_TYPE_OGG_VORBIS = 1,
         SOUND_DATA_TYPE_OPUS = 2,
+        SOUND_DATA_TYPE_MAX = 3
     };
 
     enum Parameter
@@ -163,6 +164,12 @@ namespace dmSound
     // Platform dependent
     bool IsMusicPlaying();
     bool IsAudioInterrupted();
+
+    struct DecoderOutputSettings {
+        bool m_UseNormalizedFloatRange;     //!< if true, decoders must deliver any float data in [-1..1] range, otherwise: [-32768, 32767]
+        bool m_UseInterleaved;              //!< if true, decoders must deliver data with interleaved channels, otherwise: they can choose
+    };
+    void GetDecoderOutputSettings(DecoderOutputSettings* settings);
 
     void OnWindowFocus(bool focus);
 }

@@ -6,7 +6,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    source      = 'sound_codec.cpp sound_decoder.cpp sound.cpp'.split()
+    source      = 'sound_codec.cpp sound_decoder.cpp'.split()
     source_null = 'devices/device_null.cpp sound_null.cpp'.split()
 
     decoder_wav     = ['decoders/decoder_wav.cpp']
@@ -27,6 +27,11 @@ def build(bld):
         source += ['sound_ps4.cpp']
     else:
         source += ['sound_generic.cpp']
+
+    source_openal = source.copy()
+    source_openal += ['sound_openal.cpp', 'devices/device_openal.cpp']
+
+    source += ['sound.cpp']
 
     if 'android' in bld.env.PLATFORM:
         source += ['devices/device_opensl.cpp']
@@ -79,6 +84,12 @@ def build(bld):
                       defines  = defines,
                       target   = 'sound',
                       source   = source)
+
+    sound = bld.stlib(features = 'c cxx ddf',
+                      includes = '. %s' % include,
+                      defines  = defines,
+                      target   = 'sound_openal',
+                      source   = source_openal)
 
     simd_flags = []
 
