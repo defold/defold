@@ -1098,10 +1098,10 @@ class Configuration(object):
                 paths = _findfiles(protodir, ('.h','.hpp', '.hxx', '.idl'))
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-            for d in ['ext/include/glfw']:
-                protodir = os.path.join(self.dynamo_home, d)
-                paths = _findfiles(protodir, ('glfw3.h','glfw3native.h'))
-                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            self._add_files_to_zip(zip, [
+                os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3.h'),
+                os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3native.h')
+            ], self.dynamo_home, topfolder)
 
             # C# files
             for d in ['sdk/cs']:
