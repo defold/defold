@@ -13,14 +13,15 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns leiningen.local-jars
-  (:require [clojure.java.io :as io]
+  (:require [cemerick.pomegranate.aether :as aether]
+            [clojure.java.io :as io]
             [clojure.java.shell :as shell]
             [clojure.string :as string]
-            [cemerick.pomegranate.aether :as aether]
             [leiningen.core.main :as main]
             [leiningen.util.http-cache :as http-cache])
-  (:import (java.io File)
-           (java.nio.file Paths)))
+  (:import [java.io File]
+           [java.nio.file CopyOption FileSystems FileVisitOption Files LinkOption Path StandardCopyOption]
+           [java.nio.file.attribute FileAttribute]))
 
 (defn dynamo-home [] (get (System/getenv) "DYNAMO_HOME"))
 
@@ -29,6 +30,67 @@
     :group-id "com.defold.lib"
     :jar-file "../com.dynamo.cr/com.dynamo.cr.bob/lib/openmali.jar"
     :version "1.0"}])
+
+;;           baseline: 14_663_227
+;; no icu data at all:  3_206_748
+;;         end result:  4_859_556
+
+(defn- clean-icu4j-data
+  ^Path [icu4j-config]
+  (let [{:keys [version]} icu4j-config
+        jar (Files/createTempFile "" "-icu4j.jar" (into-array FileAttribute []))]
+    (.deleteOnExit (.toFile jar))
+    (with-open [fs (FileSystems/newFileSystem
+                     (Files/copy
+                       (-> (format "https://repo1.maven.org/maven2/com/ibm/icu/icu4j/%s/icu4j-%s.jar" version version)
+                           http-cache/download
+                           .toPath)
+                       jar
+                       (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING])))]
+      (run!
+        #(Files/delete %)
+        (->> fs
+             (.getRootDirectories)
+             (eduction
+               (mapcat #(.toList (Files/walk % (into-array FileVisitOption []))))
+               (remove #(Files/isDirectory % (into-array LinkOption [])))
+               (filter (fn [^Path p]
+                         (let [p (str p)]
+                           (or                              ;; break iter (identifies word boundaries)
+                             (.startsWith p "/com/ibm/icu/impl/data/icudata/brkitr")
+                             ;; transliteration
+                             (.startsWith p "/com/ibm/icu/impl/data/icudata/translit")
+                             ;; collation (language-specific string sorting)
+                             (.startsWith p "/com/ibm/icu/impl/data/icudata/coll")
+                             ;; time units / measure units
+                             (.startsWith p "/com/ibm/icu/impl/data/icudata/unit")
+                             (= p "/com/ibm/icu/impl/data/icudata/units.res")
+                             ;; lang data (needed?)
+                             (.startsWith p "/com/ibm/icu/impl/data/icudata/lang/")
+                             ;; time zone data
+                             (.startsWith p "/com/ibm/icu/impl/data/icudata/zone")
+                             (= p "/com/ibm/icu/impl/data/icudata/zoneinfo64.res")
+                             (= p "/com/ibm/icu/impl/data/icudata/windowsZones.res")
+                             (= p "/com/ibm/icu/impl/data/icudata/metaZones.res")
+                             (= p "/com/ibm/icu/impl/data/icudata/timezoneTypes.res")
+                             ;; currency data
+                             (.startsWith p "/com/ibm/icu/impl/data/icudata/curr")
+                             (= p "/com/ibm/icu/impl/ICUCurrencyDisplayInfoProvider.class")
+                             ;; number formatting data
+                             (.startsWith p "/com/ibm/icu/impl/data/icudata/rbnf")
+                             (= p "/com/ibm/icu/text/NumberFormatServiceShim.class")
+                             ;; region display names
+                             (.startsWith p "/com/ibm/icu/impl/data/icudata/region")
+                             ;; unicode character names
+                             (= p "/com/ibm/icu/impl/data/icudata/unames.icu")
+                             #_(= p "/com/ibm/icu/impl/data/icudata/supplementalData.res")
+                             ;; unicode normalization data
+                             (.endsWith p ".nrm")
+                             ;; unicode "string preparation"
+                             (.endsWith p ".spp"))))))))
+      #_(println (Files/size jar)))
+    (println (Files/size jar))
+    jar))
 
 (defn- git-sha1 []
   (-> (shell/sh "git" "rev-parse" "HEAD")
@@ -46,11 +108,16 @@
   [project & [git-sha]]
   (let [sha (or git-sha (:engine project))
         archive-domain (get project :archive-domain)
-        jar-decls (conj jar-decls {:artifact-id "bob"
-                                   :group-id "com.defold.lib"
-                                   :jar-file (.getAbsolutePath (bob-artifact-file archive-domain sha))
-                                   :version "1.0"})]
+        jar-decls (conj jar-decls
+                        {:artifact-id "bob"
+                         :group-id "com.defold.lib"
+                         :jar-file (.getAbsolutePath (bob-artifact-file archive-domain sha))
+                         :version "1.0"}
+                        {:artifact-id "icu4j"
+                         :group-id "com.defold.lib"
+                         :version "1.0"
+                         :jar-file (str (clean-icu4j-data (:icu4j project)))})]
     (doseq [{:keys [group-id artifact-id version jar-file]} (sort-by :jar-file jar-decls)]
-      (main/info (format "Installing %s" jar-file))
+      (main/info (format "Installing %s as [%s \"%s\"]" jar-file (symbol group-id artifact-id) version))
       (aether/install-artifacts
         :files {[(symbol group-id artifact-id) version] jar-file}))))

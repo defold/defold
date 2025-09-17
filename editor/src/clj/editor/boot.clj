@@ -22,6 +22,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.gl :as gl]
             [editor.keymap :as keymap]
+            [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -54,7 +55,7 @@
       (apply core-load-lib-fn prefix lib options))))
 
 (defn- open-project-with-progress-dialog
-  [namespace-loader user-prefs cli-options project updater newly-created?]
+  [namespace-loader user-prefs localization cli-options project updater newly-created?]
   (dialogs/make-load-project-dialog
     (fn [render-progress!]
       (let [namespace-progress (progress/make "Loading editor" 2867) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
@@ -76,17 +77,17 @@
         (log/info :message "Finished loading editor namespaces." :namespace-counter @namespace-counter)
 
         ;; Initialize the system and load the project.
-        (let [system-config (apply (var-get (ns-resolve 'editor.shared-editor-settings 'load-project-system-config)) [project-dir])]
-          (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-systems!)) [project-prefs])
-          (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project!)) [system-config])
-          (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project!)) [project-file project-prefs cli-options render-project-progress! updater newly-created?]))))))
+        (let [system-config ((resolve `editor.shared-editor-settings/load-project-system-config) project-dir)]
+          ((resolve `editor.boot-open-project/initialize-systems!) project-prefs)
+          ((resolve `editor.boot-open-project/initialize-project!) system-config)
+          ((resolve `editor.boot-open-project/open-project!) project-file project-prefs localization cli-options render-project-progress! updater newly-created?))))))
 
 (defn- select-project-from-welcome
-  [namespace-loader prefs cli-options updater]
+  [namespace-loader prefs localization cli-options updater]
   (ui/run-later
-    (welcome/show-welcome-dialog! prefs updater
+    (welcome/show-welcome-dialog! prefs localization updater
                                   (fn [project newly-created?]
-                                    (open-project-with-progress-dialog namespace-loader prefs cli-options project updater newly-created?)))))
+                                    (open-project-with-progress-dialog namespace-loader prefs localization cli-options project updater newly-created?)))))
 
 (defn notify-user
   [ex-map sentry-id-promise]
@@ -134,6 +135,7 @@
                   (prefs/global prefs-path)
                   (doto (prefs/global) prefs/migrate-global-prefs!))
                 keymap/migrate-from-file!)
+        localization (localization/make-editor prefs)
         updater (updater/start!)
         analytics-url (get connection-properties :analytics-url)
         analytics-send-interval 300]
@@ -146,8 +148,8 @@
             game-project-file (io/file game-project-path)]
         (if (and game-project-path
                  (.exists game-project-file))
-          (open-project-with-progress-dialog namespace-loader prefs cli-options (.getAbsolutePath game-project-file) updater false)
-          (select-project-from-welcome namespace-loader prefs cli-options updater)))
+          (open-project-with-progress-dialog namespace-loader prefs localization cli-options (.getAbsolutePath game-project-file) updater false)
+          (select-project-from-welcome namespace-loader prefs localization cli-options updater)))
       (catch Throwable t
         (log/error :exception t)
         (stack/print-stack-trace t)

@@ -175,6 +175,9 @@
              {:dimensions {:type :any}
               :split-positions {:type :any}
               :hidden-panes {:type :set :item {:type :keyword}}
+              :locale {:type :string
+                       :default "en"
+                       :ui {:label "Editor Language"}}
               :keymap {:type :object-of
                        :key {:type :keyword} ;; command
                        :val {:type :object

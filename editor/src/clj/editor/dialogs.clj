@@ -35,6 +35,7 @@
             [editor.field-expression :as field-expression]
             [editor.fxui :as fxui]
             [editor.github :as github]
+            [editor.localization :as localization]
             [editor.os :as os]
             [editor.progress :as progress]
             [editor.ui :as ui]
@@ -211,6 +212,7 @@
 (def indent-with-bullet (partial str indented-bullet))
 
 (defn make-info-dialog
+  ;; TODO should require localization
   "Shows a dialog with selectable text content and blocks current thread until
   user closes it.
 
@@ -302,51 +304,51 @@
     (when result
       (ui/open-url "https://www.defold.com/"))))
 
-(defn make-download-update-or-restart-dialog [^Stage owner]
+(defn make-download-update-or-restart-dialog [^Stage owner localization]
   (make-confirmation-dialog
-    {:title "Install Update?"
+    {:title (localization (localization/message "updater.download-or-restart-dialog.title"))
      :icon :icon/circle-info
      :size :large
      :owner owner
      :header {:fx/type fx.v-box/lifecycle
               :children [{:fx/type fxui/legacy-label
                           :variant :header
-                          :text "Update is ready, but there is even newer version available"}
+                          :text (localization (localization/message "updater.download-or-restart-dialog.newer-version-available"))}
                          {:fx/type fxui/legacy-label
-                          :text "You can install downloaded update or download newer one"}]}
-     :buttons [{:text "Not Now"
+                          :text (localization (localization/message "updater.download-or-restart-dialog.install-or-download"))}]}
+     :buttons [{:text (localization (localization/message "updater.dialog.button.not-now"))
                 :cancel-button true
                 :result :cancel}
-               {:text "Install and Restart"
+               {:text (localization (localization/message "updater.dialog.button.install-and-restart"))
                 :result :restart}
-               {:text "Download Newer Version"
+               {:text (localization (localization/message "updater.dialog.button.download-newer-version"))
                 :result :download}]}))
 
-(defn make-platform-no-longer-supported-dialog [^Stage owner]
+(defn make-platform-no-longer-supported-dialog [^Stage owner localization]
   (make-confirmation-dialog
-    {:title "Platform not supported"
+    {:title (localization (localization/message "updater.platform-not-supported-dialog.title"))
      :icon :icon/circle-sad
      :owner owner
      :header {:fx/type fx.v-box/lifecycle
               :children [{:fx/type fxui/legacy-label
                           :variant :header
-                          :text "Updates are no longer provided for this platform"}
+                          :text (localization (localization/message "updater.platform-not-supported-dialog.updates-no-longer-provided"))}
                          {:fx/type fxui/legacy-label
-                          :text "Supported platforms are 64-bit Linux, macOS and Windows"}]}
-     :buttons [{:text "Close"
+                          :text (localization (localization/message "updater.platform-not-supported-dialog.supported-platforms"))}]}
+     :buttons [{:text (localization (localization/message "dialog.button.close"))
                 :cancel-button true
                 :default-button true}]}))
 
-(defn make-download-update-dialog [^Stage owner]
+(defn make-download-update-dialog [^Stage owner localization]
   (make-confirmation-dialog
-    {:title "Download Update?"
-     :header "A newer version of Defold is available!"
+    {:title (localization (localization/message "updater.download-dialog.title"))
+     :header (localization (localization/message "updater.download-dialog.newer-version-available"))
      :icon :icon/circle-happy
      :owner owner
-     :buttons [{:text "Not Now"
+     :buttons [{:text (localization (localization/message "updater.dialog.button.not-now"))
                 :cancel-button true
                 :result false}
-               {:text "Download Update"
+               {:text (localization (localization/message "updater.dialog.button.download"))
                 :default-button true
                 :result true}]}))
 
@@ -819,7 +821,7 @@
 (defn- sanitize-common [name]
   (-> name
       (string/replace #"[/\\]" "") ; strip path separators
-      (string/replace #"[\"']" "") ; strip quotes
+      (string/replace #"[\"'«»]" "") ; strip quotes
       (string/replace #"[<>:|?*]" "") ; Additional Windows forbidden characters
       string/trim))
 

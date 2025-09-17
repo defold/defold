@@ -73,10 +73,6 @@
 
 (def the-root (atom nil))
 
-;; invoked to control the timing of when the namespaces load
-(defn load-namespaces []
-  (println "loaded namespaces"))
-
 (defn initialize-systems! [prefs]
   (code-view/initialize! prefs))
 
@@ -110,7 +106,7 @@
   (app-view/remove-invalid-tabs! tab-panes open-views)
   (changes-view/refresh! changes-view))
 
-(defn- init-pending-update-indicator! [^Stage stage link project changes-view updater]
+(defn- init-pending-update-indicator! [^Stage stage link project changes-view updater localization]
   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
         render-save-progress! (app-view/make-render-task-progress :save-all)
         render-download-progress! (app-view/make-render-task-progress :download-update)
@@ -127,7 +123,7 @@
                                      (ui.updater/install-and-restart! stage updater)
                                      (do (ui/enable-ui!)
                                          (changes-view/refresh! changes-view))))))]
-    (ui.updater/init! stage link updater install-and-restart! render-download-progress!)))
+    (ui.updater/init! stage link updater install-and-restart! render-download-progress! localization)))
 
 (defn- show-tracked-internal-files-warning! []
   (dialogs/make-info-dialog
@@ -149,7 +145,7 @@
     MouseEvent/MOUSE_PRESSED
     MouseEvent/MOUSE_RELEASED})
 
-(defn- load-stage! [workspace project prefs project-path cli-options updater newly-created?]
+(defn- load-stage! [workspace project prefs localization project-path cli-options updater newly-created?]
   (let [^StackPane root (ui/load-fxml "editor.fxml")
         stage (ui/make-stage)
         scene (Scene. root)]
@@ -241,7 +237,7 @@
 
       (when updater
         (let [update-link (.lookup root "#update-link")]
-          (init-pending-update-indicator! stage update-link project changes-view updater)))
+          (init-pending-update-indicator! stage update-link project changes-view updater localization)))
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (os/is-mac-os?)
@@ -383,7 +379,7 @@
     root))
 
 (defn open-project!
-  [^File game-project-file prefs cli-options render-progress! updater newly-created?]
+  [^File game-project-file prefs localization cli-options render-progress! updater newly-created?]
   (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
         build-settings (workspace/make-build-settings prefs)
         workspace-config (shared-editor-settings/load-project-workspace-config project-path)
@@ -393,6 +389,6 @@
         project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
     (ui/run-now
       (icons/initialize! workspace)
-      (load-stage! workspace project prefs project-path cli-options updater newly-created?))
+      (load-stage! workspace project prefs localization project-path cli-options updater newly-created?))
     (g/reset-undo! *project-graph*)
     (log/info :message "project loaded")))

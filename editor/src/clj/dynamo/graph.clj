@@ -963,11 +963,16 @@
 
 (def fake-system (is/make-system {:cache-size 0}))
 
+(defn make-auto-or-fake-evaluation-context []
+  (let [real-system @*the-system*]
+    (if (some? real-system)
+      (is/default-evaluation-context real-system)
+      (assoc (is/default-evaluation-context fake-system) :fake true))))
+
 (defmacro with-auto-or-fake-evaluation-context [ec & body]
-  `(let [real-system# @*the-system*
-         ~ec (is/default-evaluation-context (or real-system# fake-system))
+  `(let [~ec (make-auto-or-fake-evaluation-context)
          result# (do ~@body)]
-     (when (some? real-system#)
+     (when-not (:fake ~ec)
        (update-cache-from-evaluation-context! ~ec))
      result#))
 
