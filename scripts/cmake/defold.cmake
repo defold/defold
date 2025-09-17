@@ -16,6 +16,9 @@ endif()
 message(STATUS "DEFOLD_HOME: ${DEFOLD_HOME}")
 message(STATUS "DEFOLD_SDK_ROOT: ${DEFOLD_SDK_ROOT}")
 
+# verify our list of tools (e.g. java, ninja etc)
+include(tools)
+
 # list of toggleable features
 include(features)
 
