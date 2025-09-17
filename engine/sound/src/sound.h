@@ -160,6 +160,10 @@ namespace dmSound
     Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const dmVMath::Vector4& value);
     Result GetParameter(HSoundInstance sound_instance, Parameter parameter, dmVMath::Vector4& value);
 
+    // Set initial playback offset before playing; only applied to the initial playback
+    Result SetStartFrame(HSoundInstance sound_instance, uint32_t start_frame);
+    Result SetStartTime(HSoundInstance sound_instance, float start_time_seconds);
+
     // Platform dependent
     bool IsMusicPlaying();
     bool IsAudioInterrupted();
