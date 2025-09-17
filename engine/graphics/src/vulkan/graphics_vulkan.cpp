@@ -145,6 +145,12 @@ namespace dmGraphics
     static inline void TouchResource(VulkanContext* context, T* resource)
     {
         resource->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+
+        if (resource->GetType() == RESOURCE_TYPE_TEXTURE)
+        {
+            VulkanTexture* texture = (VulkanTexture*) resource;
+            TouchResource(context, &texture->m_DeviceBuffer);
+        }
     }
 
     template <typename T>
@@ -3915,14 +3921,6 @@ bail:
             layer_count,
             slice_size);
 
-        vkCmdCopyBufferToImage(
-            vk_command_buffer,
-            stage_buffer.m_Handle.m_Buffer,
-            texture_out->m_Handle.m_Image,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            layer_count,
-            copy_regions.Begin());
-
         TransitionImageLayoutWithCmdBuffer(
             vk_command_buffer,
             texture_out,
@@ -3953,9 +3951,6 @@ bail:
         pending_upload->m_ResourcesCount               = 2;
 
         texture_out->m_PendingUpload = DestroyFenceResourcesDeferred(context, pending_upload);
-
-        // TMP!
-        vkQueueWaitIdle(context->m_LogicalDevice.m_GraphicsQueue);
     }
 
     static void VulkanSetTextureInternal(VulkanTexture* texture, const TextureParams& params)
