@@ -866,7 +866,7 @@ namespace dmGraphics
         SynchronizeDevice(vk_device);
     }
 
-    static void DestroyResourceToDestroy(VulkanContext* context, ResourceToDestroy* resource)
+    static void DestroyResourceImmediatedly(VulkanContext* context, ResourceToDestroy* resource)
     {
         switch(resource->m_ResourceType)
         {
@@ -900,34 +900,41 @@ namespace dmGraphics
         {
             for (uint32_t i = 0; i < resource_list->Size(); ++i)
             {
-                DestroyResourceToDestroy(context, &resource_list->Begin()[i]);
+                DestroyResourceImmediatedly(context, &resource_list->Begin()[i]);
             }
 
             resource_list->SetSize(0);
         }
     }
 
+    // Expects the fence lock to be held
+    // Note: fence_resources ptr is no longer valid after this call!
+    static void DestroyFenceResourcesImmediately(VulkanContext* context, HOpaqueHandle fence_resource_handle, FenceResourcesToDestroy* fence_resources)
+    {
+        vkDestroyFence(context->m_LogicalDevice.m_Device, fence_resources->m_Fence, NULL);
+
+        for (int j = 0; j < fence_resources->m_ResourcesCount; ++j)
+        {
+            DestroyResourceImmediatedly(context, &fence_resources->m_Resources[j]);
+        }
+
+        context->m_FenceResourcesToDestroy.Release(fence_resource_handle);
+
+        delete fence_resources;
+    }
+
     void FlushFenceResourcesToDestroy(VulkanContext* context)
     {
-        uint32_t num_fence_resources = context->m_FenceResourcesToDestroy.Size();
+        ScopedLock lock(context->m_FenceResourcesToDestroyMutex);
+
+        uint32_t num_fence_resources = context->m_FenceResourcesToDestroy.Capacity();
+
         for (int i = 0; i < num_fence_resources; ++i)
         {
-            if (context->m_FenceResourcesToDestroy[i].m_Fence != VK_NULL_HANDLE)
+            FenceResourcesToDestroy* fence_resources = context->m_FenceResourcesToDestroy.GetByIndex(i);
+            if (fence_resources && vkGetFenceStatus(context->m_LogicalDevice.m_Device, fence_resources->m_Fence) == VK_SUCCESS)
             {
-                VkResult res = vkGetFenceStatus(context->m_LogicalDevice.m_Device, context->m_FenceResourcesToDestroy[i].m_Fence);
-
-                if (res == VK_SUCCESS)
-                {
-                    vkDestroyFence(context->m_LogicalDevice.m_Device, context->m_FenceResourcesToDestroy[i].m_Fence, NULL);
-
-                    for (int j = 0; j < context->m_FenceResourcesToDestroy[i].m_ResourcesCount; ++j)
-                    {
-                        DestroyResourceToDestroy(context, &context->m_FenceResourcesToDestroy[i].m_Resources[j]);
-                    }
-
-                    // Reset entry
-                    memset(&context->m_FenceResourcesToDestroy[i], 0, sizeof(FenceResourcesToDestroy));
-                }
+                DestroyFenceResourcesImmediately(context, context->m_FenceResourcesToDestroy.IndexToHandle(i), fence_resources);
             }
         }
     }
@@ -1230,12 +1237,14 @@ namespace dmGraphics
 
         context->m_PipelineCache.SetCapacity(32,64);
         context->m_TextureSamplers.SetCapacity(4);
+        context->m_FenceResourcesToDestroy.Allocate(8);
 
         context->m_AsyncProcessingSupport = context->m_JobThread != 0x0 && dmThread::PlatformHasThreadSupport();
         if (context->m_AsyncProcessingSupport)
         {
             InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
             context->m_AssetHandleContainerMutex = dmMutex::New();
+            context->m_FenceResourcesToDestroyMutex = dmMutex::New();
         }
 
         // Create framebuffers, default renderpass etc.
@@ -1425,7 +1434,7 @@ bail:
             FlushResourcesToDestroy(context, context->m_MainResourcesToDestroy[frameInFlight]);
         }
 
-        if (context->m_FenceResourcesToDestroy.Size() > 0)
+        if (context->m_FenceResourcesToDestroy.Capacity() > 0)
         {
             FlushFenceResourcesToDestroy(context);
         }
@@ -2103,12 +2112,21 @@ bail:
             texture = GetDefaultTexture(context, binding->m_Type.m_ShaderType);
         }
 
-        if (texture->m_PendingUploadIndex != 0xffff)
+        if (texture->m_PendingUpload != INVALID_OPAQUE_HANDLE)
         {
-            // We need the texture now, so we wait on the fence until it completes
-            const FenceResourcesToDestroy& pending_upload = context->m_FenceResourcesToDestroy[texture->m_PendingUploadIndex];
-            vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &pending_upload.m_Fence, VK_TRUE, UINT64_MAX);
-            texture->m_PendingUploadIndex = 0xffff;
+            ScopedLock lock(context->m_FenceResourcesToDestroyMutex);
+            FenceResourcesToDestroy* pending_upload = context->m_FenceResourcesToDestroy.Get(texture->m_PendingUpload);
+
+            // We need this resource now, so we have to wait for the fence to trigger
+            if (pending_upload)
+            {
+                vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &pending_upload->m_Fence, VK_TRUE, UINT64_MAX);
+
+                // It's now safe to release the resources held by the fence
+                DestroyFenceResourcesImmediately(context, texture->m_PendingUpload, pending_upload);
+            }
+
+            texture->m_PendingUpload = INVALID_OPAQUE_HANDLE;
         }
 
         TouchResource(context, texture);
@@ -3728,17 +3746,17 @@ bail:
         }
     #endif
 
-        tex->m_Type               = params.m_Type;
-        tex->m_Width              = params.m_Width;
-        tex->m_Height             = params.m_Height;
-        tex->m_Depth              = dmMath::Max((uint16_t)1, params.m_Depth);
-        tex->m_LayerCount         = dmMath::Max((uint8_t)1, params.m_LayerCount);
-        tex->m_MipMapCount        = params.m_MipMapCount;
-        tex->m_UsageFlags         = GetVulkanUsageFromHints(params.m_UsageHintBits);
-        tex->m_UsageHintFlags     = params.m_UsageHintBits;
-        tex->m_PageCount          = params.m_LayerCount;
-        tex->m_DataState          = 0;
-        tex->m_PendingUploadIndex = 0xffff;
+        tex->m_Type           = params.m_Type;
+        tex->m_Width          = params.m_Width;
+        tex->m_Height         = params.m_Height;
+        tex->m_Depth          = dmMath::Max((uint16_t)1, params.m_Depth);
+        tex->m_LayerCount     = dmMath::Max((uint8_t)1, params.m_LayerCount);
+        tex->m_MipMapCount    = params.m_MipMapCount;
+        tex->m_UsageFlags     = GetVulkanUsageFromHints(params.m_UsageHintBits);
+        tex->m_UsageHintFlags = params.m_UsageHintBits;
+        tex->m_PageCount      = params.m_LayerCount;
+        tex->m_DataState      = 0;
+        tex->m_PendingUpload  = INVALID_OPAQUE_HANDLE;
 
         for (int i = 0; i < DM_ARRAY_SIZE(tex->m_ImageLayout); ++i)
         {
@@ -3825,44 +3843,15 @@ bail:
         delete[] vk_copy_regions;
     }
 
-    static uint16_t GetPendingUploadIndex(VulkanContext* context)
+    static inline HOpaqueHandle DestroyFenceResourcesDeferred(VulkanContext* context, FenceResourcesToDestroy* fence_resources)
     {
-        /*
-        if (context->m_FenceResourcesToDestroy.Full())
-        {
-            context->m_FenceResourcesToDestroy.OffsetCapacity(16);
-        }
-
-        uint16_t ix = context->m_FenceResourcesToDestroy.Size();
-
-        FenceResourcesToDestroy fence_resources = {};
-        context->m_FenceResourcesToDestroy.Push(fence_resources);
-
-        return ix;
-        */
-    }
-
-    static uint16_t DestroyFenceResourcesDeferred(VulkanContext* context, FenceResourcesToDestroy fence_resources)
-    {
-        uint32_t num_frame_resources = context->m_FenceResourcesToDestroy.Size();
-
-        for (int i = 0; i < num_frame_resources; ++i)
-        {
-            if (context->m_FenceResourcesToDestroy[i].m_Fence == VK_NULL_HANDLE)
-            {
-                context->m_FenceResourcesToDestroy[i] = fence_resources;
-                return i;
-            }
-        }
+        ScopedLock lock(context->m_FenceResourcesToDestroyMutex);
 
         if (context->m_FenceResourcesToDestroy.Full())
         {
-            context->m_FenceResourcesToDestroy.OffsetCapacity(16);
+            context->m_FenceResourcesToDestroy.Allocate(8);
         }
-
-        uint16_t ix = context->m_FenceResourcesToDestroy.Size();
-        context->m_FenceResourcesToDestroy.Push(fence_resources);
-        return ix;
+        return context->m_FenceResourcesToDestroy.Put(fence_resources);
     }
 
     static void CopyToTexture(VulkanContext* context, const TextureParams& params,
@@ -3955,18 +3944,18 @@ bail:
         cmd_buffer.m_Handle.m_CommandBuffer = vk_command_buffer;
         cmd_buffer.m_Handle.m_CommandPool   = context->m_LogicalDevice.m_CommandPool;
 
-        FenceResourcesToDestroy pending_upload        = {};
-        pending_upload.m_Fence                        = submit_fence;
-        pending_upload.m_Resources[0].m_DeviceBuffer  = stage_buffer.m_Handle;
-        pending_upload.m_Resources[0].m_ResourceType  = RESOURCE_TYPE_DEVICE_BUFFER;
-        pending_upload.m_Resources[1].m_CommandBuffer = cmd_buffer.m_Handle;
-        pending_upload.m_Resources[1].m_ResourceType  = RESOURCE_TYPE_COMMAND_BUFFER;
-        pending_upload.m_ResourcesCount               = 2;
+        FenceResourcesToDestroy* pending_upload        = new FenceResourcesToDestroy();
+        pending_upload->m_Fence                        = submit_fence;
+        pending_upload->m_Resources[0].m_DeviceBuffer  = stage_buffer.m_Handle;
+        pending_upload->m_Resources[0].m_ResourceType  = RESOURCE_TYPE_DEVICE_BUFFER;
+        pending_upload->m_Resources[1].m_CommandBuffer = cmd_buffer.m_Handle;
+        pending_upload->m_Resources[1].m_ResourceType  = RESOURCE_TYPE_COMMAND_BUFFER;
+        pending_upload->m_ResourcesCount               = 2;
 
-        texture_out->m_PendingUploadIndex = DestroyFenceResourcesDeferred(context, pending_upload);
+        texture_out->m_PendingUpload = DestroyFenceResourcesDeferred(context, pending_upload);
 
-        // We cannot do this any longer, we need to keep the stage buffer around until the texture upload is complete (signalled by fence)
-        // DestroyResourceDeferred(context, &stage_buffer);
+        // TMP!
+        vkQueueWaitIdle(context->m_LogicalDevice.m_GraphicsQueue);
     }
 
     static void VulkanSetTextureInternal(VulkanTexture* texture, const TextureParams& params)
@@ -4192,6 +4181,8 @@ bail:
             FlushResourcesToDestroy(context, context->m_MainResourcesToDestroy[i]);
         }
 
+        FlushFenceResourcesToDestroy(context);
+
         for (size_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; i++) {
             FrameResource& frame_resource = context->m_FrameResources[i];
             vkDestroySemaphore(vk_device, frame_resource.m_RenderFinished, 0);
@@ -4286,15 +4277,15 @@ bail:
                 cmd_buffer_wrapper.m_Handle.m_CommandBuffer = cmd_buffer;
                 cmd_buffer_wrapper.m_Handle.m_CommandPool   = context->m_LogicalDevice.m_CommandPoolWorker;
 
-                FenceResourcesToDestroy pending_upload        = {};
-                pending_upload.m_Fence                        = fence;
-                pending_upload.m_Resources[0].m_DeviceBuffer  = stage_buffer.m_Handle;
-                pending_upload.m_Resources[0].m_ResourceType  = RESOURCE_TYPE_DEVICE_BUFFER;
-                pending_upload.m_Resources[1].m_CommandBuffer = cmd_buffer_wrapper.m_Handle;
-                pending_upload.m_Resources[1].m_ResourceType  = RESOURCE_TYPE_COMMAND_BUFFER;
-                pending_upload.m_ResourcesCount               = 2;
+                FenceResourcesToDestroy* pending_upload        = new FenceResourcesToDestroy();
+                pending_upload->m_Fence                        = fence;
+                pending_upload->m_Resources[0].m_DeviceBuffer  = stage_buffer.m_Handle;
+                pending_upload->m_Resources[0].m_ResourceType  = RESOURCE_TYPE_DEVICE_BUFFER;
+                pending_upload->m_Resources[1].m_CommandBuffer = cmd_buffer_wrapper.m_Handle;
+                pending_upload->m_Resources[1].m_ResourceType  = RESOURCE_TYPE_COMMAND_BUFFER;
+                pending_upload->m_ResourcesCount               = 2;
 
-                tex->m_PendingUploadIndex = DestroyFenceResourcesDeferred(context, pending_upload);
+                tex->m_PendingUpload = DestroyFenceResourcesDeferred(context, pending_upload);
 
                 // I think this might need to be fixed as well
                 // DestroyResourceDeferred(context, &stage_buffer);

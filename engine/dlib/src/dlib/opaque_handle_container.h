@@ -105,6 +105,8 @@ public:
      */
     T* GetByIndex(uint32_t index);
 
+    HOpaqueHandle IndexToHandle(uint32_t index);
+
     /*# container put
      *
      * Adds a reference to an object to the list and returns an opaque handle to that object. If the container
@@ -239,10 +241,17 @@ T* dmOpaqueHandleContainer<T>::Get(HOpaqueHandle handle)
 }
 
 template <typename T>
-T* dmOpaqueHandleContainer<T>::GetByIndex(uint32_t i)
+T* dmOpaqueHandleContainer<T>::GetByIndex(uint32_t index)
 {
-    assert(i < m_Capacity);
-    return m_Objects[i];
+    assert(index < m_Capacity);
+    return m_Objects[index];
+}
+
+template <typename T>
+HOpaqueHandle dmOpaqueHandleContainer<T>::IndexToHandle(uint32_t index)
+{
+    assert(index < m_Capacity);
+    return m_ObjectVersions[index] << 16 | index;
 }
 
 template <typename T>

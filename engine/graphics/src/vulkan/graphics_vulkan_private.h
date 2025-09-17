@@ -92,13 +92,13 @@ namespace dmGraphics
         VkImageUsageFlags m_UsageFlags;
         DeviceBuffer      m_DeviceBuffer;
         int32_atomic_t    m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
+        HOpaqueHandle     m_PendingUpload;
         uint16_t          m_Width;
         uint16_t          m_Height;
         uint16_t          m_Depth;
         uint16_t          m_OriginalWidth;
         uint16_t          m_OriginalHeight;
         uint16_t          m_OriginalDepth;
-        uint16_t          m_PendingUploadIndex;
         uint16_t          m_MipMapCount         : 5;
         uint16_t          m_TextureSamplerIndex : 10;
         uint32_t          m_Destroyed           : 1;
@@ -404,8 +404,11 @@ namespace dmGraphics
         SetTextureAsyncState               m_SetTextureAsyncState;
         dmMutex::HMutex                    m_AssetHandleContainerMutex;
 
+        // Per-fence resources
+        dmOpaqueHandleContainer<FenceResourcesToDestroy> m_FenceResourcesToDestroy;
+        dmMutex::HMutex                                  m_FenceResourcesToDestroyMutex;
+
         // Main device rendering constructs
-        dmArray<FenceResourcesToDestroy> m_FenceResourcesToDestroy;
         dmArray<VkFramebuffer>          m_MainFrameBuffers; // One per swap chain image
         VkCommandBuffer                 m_MainCommandBuffers[DM_MAX_FRAMES_IN_FLIGHT];
         VkCommandBuffer                 m_MainCommandBufferUploadHelper;
