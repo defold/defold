@@ -1543,6 +1543,32 @@ bail:
     #endif
     }
 
+    static inline bool FormatHasDepth(VkFormat fmt)
+    {
+        switch (fmt) {
+            case VK_FORMAT_D16_UNORM:
+            case VK_FORMAT_X8_D24_UNORM_PACK32:
+            case VK_FORMAT_D32_SFLOAT:
+            case VK_FORMAT_D16_UNORM_S8_UINT:
+            case VK_FORMAT_D24_UNORM_S8_UINT:
+            case VK_FORMAT_D32_SFLOAT_S8_UINT:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    static inline bool FormatHasStencil(VkFormat fmt) {
+        switch (fmt) {
+            case VK_FORMAT_S8_UINT:
+            case VK_FORMAT_D16_UNORM_S8_UINT:
+            case VK_FORMAT_D24_UNORM_S8_UINT:
+            case VK_FORMAT_D32_SFLOAT_S8_UINT:
+                return true;
+            default:
+                return false;
+        }
+    }
 
     static void VulkanClear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
@@ -1599,21 +1625,36 @@ bail:
         // Clear depth / stencil
         if (has_depth_stencil_texture && clear_depth_stencil)
         {
+            VkFormat depth_stencil_format;
+
+            if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+            {
+                depth_stencil_format = context->m_MainTextureDepthStencil.m_Format;
+            }
+            else
+            {
+                depth_stencil_format = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, current_rt->m_TextureDepthStencil)->m_Format;
+            }
+
             VkImageAspectFlags vk_aspect = 0;
-            if (flags & BUFFER_TYPE_DEPTH_BIT)
+
+            if ((flags & BUFFER_TYPE_DEPTH_BIT) && FormatHasDepth(depth_stencil_format))
             {
                 vk_aspect |= VK_IMAGE_ASPECT_DEPTH_BIT;
             }
 
-            if (flags & BUFFER_TYPE_STENCIL_BIT)
+            if ((flags & BUFFER_TYPE_STENCIL_BIT) && FormatHasStencil(depth_stencil_format))
             {
                 vk_aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
             }
 
-            VkClearAttachment& vk_depth_attachment              = vk_clear_attachments[attachment_count++];
-            vk_depth_attachment.aspectMask                      = vk_aspect;
-            vk_depth_attachment.clearValue.depthStencil.stencil = stencil;
-            vk_depth_attachment.clearValue.depthStencil.depth   = depth;
+            if (vk_aspect != 0)
+            {
+                VkClearAttachment& vk_depth_attachment = vk_clear_attachments[attachment_count++];
+                vk_depth_attachment.aspectMask = vk_aspect;
+                vk_depth_attachment.clearValue.depthStencil.stencil = stencil;
+                vk_depth_attachment.clearValue.depthStencil.depth   = depth;
+            }
         }
 
         vkCmdClearAttachments(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight],
@@ -4112,6 +4153,8 @@ bail:
                 VK_IMAGE_ASPECT_COLOR_BIT,
                 texture);
             CHECK_VK_ERROR(res);
+
+            dmLogInfo("CreateTexture: 0x%llx, 0x%llx", texture->m_Handle.m_Image, texture->m_DeviceBuffer.m_Handle.m_Memory);
         }
 
         if (!memoryless)
@@ -4268,22 +4311,11 @@ bail:
 
             if (!is_memoryless)
             {
-                VulkanCommandBuffer cmd_buffer_wrapper;
-                cmd_buffer_wrapper.m_Handle.m_CommandBuffer = cmd_buffer;
-                cmd_buffer_wrapper.m_Handle.m_CommandPool   = context->m_LogicalDevice.m_CommandPoolWorker;
-
-                FenceResourcesToDestroy* pending_upload        = new FenceResourcesToDestroy();
-                pending_upload->m_Fence                        = fence;
-                pending_upload->m_Resources[0].m_DeviceBuffer  = stage_buffer.m_Handle;
-                pending_upload->m_Resources[0].m_ResourceType  = RESOURCE_TYPE_DEVICE_BUFFER;
-                pending_upload->m_Resources[1].m_CommandBuffer = cmd_buffer_wrapper.m_Handle;
-                pending_upload->m_Resources[1].m_ResourceType  = RESOURCE_TYPE_COMMAND_BUFFER;
-                pending_upload->m_ResourcesCount               = 2;
-
-                tex->m_PendingUpload = DestroyFenceResourcesDeferred(context, pending_upload);
-
-                // I think this might need to be fixed as well
-                // DestroyResourceDeferred(context, &stage_buffer);
+                // We wait for the fence here so we don't keep a bunch of large buffers around.
+                // Waiting for the fence should be fine here anyway, since we have commited the work on a different queue than the "main" graphics queue
+                vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
+                DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &stage_buffer.m_Handle);
+                vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker, 1, &cmd_buffer);
 
                 if (format_orig == TEXTURE_FORMAT_RGB)
                 {
