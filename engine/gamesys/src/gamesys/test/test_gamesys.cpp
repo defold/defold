@@ -1527,7 +1527,7 @@ TEST_F(GuiTest, TextureResources)
     dmGameObject::Render(m_Collection);
 
     dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
 
     uint32_t component_type_index        = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("guic"));
     dmGameSystem::GuiWorld* gui_world    = (dmGameSystem::GuiWorld*) dmGameObject::GetWorld(m_Collection, component_type_index);
@@ -1610,7 +1610,7 @@ TEST_F(GuiTest, MaxDynamictextures)
     dmGameObject::Render(m_Collection);
 
     dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
 
     ASSERT_EQ(0, scene->m_DynamicTextures.Size());
 
@@ -1640,7 +1640,7 @@ TEST_F(ResourceTest, ScriptSetFonts)
         dmGameObject::Render(m_Collection);
 
         dmRender::RenderListEnd(m_RenderContext);
-        dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+        dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
     }
 
     dmResource::Release(m_Factory, font1);
@@ -2475,7 +2475,7 @@ TEST_P(DrawCountTest, DrawCount)
     dmGameObject::Render(m_Collection);
 
     dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
 
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -2531,7 +2531,7 @@ TEST_P(BoxRenderTest, BoxRender)
     dmGameObject::Render(m_Collection);
 
     dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
 
     ASSERT_EQ(world->m_ClientVertexBuffer.Size(), (uint32_t)p.m_ExpectedVerticesCount);
 
@@ -2944,7 +2944,7 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     const uint8_t num_draws = 4;
     for (int i = 0; i < num_draws; ++i)
     {
-        dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+        dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
     }
 
     // Vertex format for /misc/dispatch_buffers_test/vs_format_a.vp:
@@ -3208,7 +3208,7 @@ TEST_F(ComponentTest, DispatchBuffersInstancingTest)
     dmRender::RenderListBegin(m_RenderContext);
     dmGameObject::Render(m_Collection);
     dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
 
     struct vs_format_a
     {
@@ -5694,7 +5694,7 @@ TEST_F(ModelTest, PbrProperties)
     dmGameObject::Render(m_Collection);
 
     dmRender::RenderListEnd(m_RenderContext);
-    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
 
     uint32_t component_type;
     dmGameObject::HComponent component;

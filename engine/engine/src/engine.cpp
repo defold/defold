@@ -1967,7 +1967,7 @@ bail:
                                             (float)((engine->m_ClearColor>>16)&0xFF),
                                             (float)((engine->m_ClearColor>>24)&0xFF),
                                             1.0f, 0);
-                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0);
+                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
                     }
                 }
 

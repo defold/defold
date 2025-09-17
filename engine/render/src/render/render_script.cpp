@@ -1739,6 +1739,9 @@ namespace dmRender
      * `constants`
      * : [type:constant_buffer] optional constants to use while rendering
      *
+     * `sort_order`
+     * : [type:int] How to sort draw order for world-ordered entries. Default uses the renderer's preferred world sorting (back-to-front).
+     *
      * @examples
      *
      * ```lua
@@ -1792,6 +1795,7 @@ namespace dmRender
         dmVMath::Matrix4* frustum_matrix = 0;
         dmRender::FrustumPlanes frustum_num_planes = dmRender::FRUSTUM_PLANES_SIDES;
         HNamedConstantBuffer constant_buffer = 0;
+        dmRender::SortOrder sort_order = dmRender::SORT_UNSPECIFIED;
 
         if (lua_istable(L, 2))
         {
@@ -1808,6 +1812,13 @@ namespace dmRender
 
             lua_getfield(L, -1, "constants");
             constant_buffer = lua_isnil(L, -1) ? 0 : *RenderScriptConstantBuffer_Check(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "sort_order");
+            if (!lua_isnil(L, -1))
+            {
+                sort_order = (dmRender::SortOrder) luaL_checkinteger(L, -1);
+            }
             lua_pop(L, 1);
 
             lua_pop(L, 1);
@@ -1828,7 +1839,7 @@ namespace dmRender
             frustum_options->m_NumPlanes = frustum_num_planes;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_options)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_options, (uint64_t) sort_order)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1986,6 +1997,24 @@ namespace dmRender
 
     /*#
      * @name render.FRUSTUM_PLANES_ALL
+     * @constant
+     */
+
+    /*#
+     * Depth sort far-to-near (default; good for transparent passes).
+     * @name render.SORT_BACK_TO_FRONT
+     * @constant
+     */
+
+    /*#
+     * Depth sort near-to-far (good for opaque passes to reduce overdraw).
+     * @name render.SORT_FRONT_TO_BACK
+     * @constant
+     */
+
+    /*#
+     * No per-call sorting; draw entries in insertion order.
+     * @name render.SORT_NONE
      * @constant
      */
 
@@ -3190,6 +3219,16 @@ namespace dmRender
         REGISTER_FRUSTUM_PLANES_CONSTANT(ALL);
 
 #undef REGISTER_FRUSTUM_PLANES_CONSTANT
+
+#define REGISTER_SORT_ORDER_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmRender::name); \
+        lua_setfield(L, -2, #name);
+
+        REGISTER_SORT_ORDER_CONSTANT(SORT_BACK_TO_FRONT);
+        REGISTER_SORT_ORDER_CONSTANT(SORT_FRONT_TO_BACK);
+        REGISTER_SORT_ORDER_CONSTANT(SORT_NONE);
+
+#undef REGISTER_SORT_ORDER_CONSTANT
 
         // Flags (only flag here currently, so no need for an enum)
         lua_pushnumber(L, RENDER_SCRIPT_FLAG_TEXTURE_BIT);
