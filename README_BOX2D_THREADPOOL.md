@@ -13,7 +13,7 @@ Build Bob in order to pick up the new engine
 
 Run bob to build the defold project, and bundle it:
 ```shell
-bob --platform=wasm_pthread-web --architectures=wasm_pthread-web  --archive resolve build bundle
+java -jar ./tmp/dynamo_home/share/java/bob.jar --platform=wasm_pthread-web --architectures=wasm_pthread-web --archive resolve build bundle
 ```
 
 Create a Python script to serve the files with the necessary headers for CORS and COOP/COEP. This is needed for pthread support.
