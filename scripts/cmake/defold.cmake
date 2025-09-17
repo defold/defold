@@ -2,6 +2,12 @@ message("defold.cmake:")
 
 get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 
+# Ensure this directory (scripts/cmake) is on CMAKE_MODULE_PATH once
+list(FIND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}" _defold_cmake_idx)
+if(_defold_cmake_idx EQUAL -1)
+  list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
+endif()
+
 set(DEFOLD_SDK_ROOT "$ENV{DYNAMO_HOME}" CACHE PATH "Path to Defold SDK (e.g. defold/tmp/dynamo_home)")
 if(NOT DEFOLD_SDK_ROOT)
   if(EXISTS "${DEFOLD_HOME}/tmp/dynamo_home")

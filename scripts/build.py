@@ -324,7 +324,7 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform font graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-CMAKE_SUPPORT = ['hid']
+CMAKE_SUPPORT = ['hid', 'input']
 
 EXTERNAL_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
 

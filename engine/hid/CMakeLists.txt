@@ -1,9 +1,8 @@
 # Minimum CMake version and project
 cmake_minimum_required(VERSION 3.16)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/cmake")
+include(../../scripts/cmake/defold.cmake)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(defold)
 
 project(defold_hid LANGUAGES C CXX)
 

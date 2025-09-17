@@ -9,6 +9,7 @@ endif()
 
 include(functions_graphics)
 include(functions_platform)
+include(functions_glfw)
 
 # Create a C++ file implementing dmExportedSymbols() that calls a list of
 # exported C symbols provided via the CMake list.
