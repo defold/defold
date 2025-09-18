@@ -14,7 +14,6 @@
 
 #include <dlib/math.h>
 #include <dlib/log.h>
-#include <dlib/profile.h>
 
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
@@ -471,8 +470,6 @@ namespace dmGraphics
             uint32_t base_mip_level,
             uint32_t layer_count)
     {
-        DM_PROFILE(__FUNCTION__);
-
         VkImageLayout old_layout = texture->m_ImageLayout[base_mip_level];
         if (old_layout == new_layout)
             return;
@@ -643,8 +640,6 @@ namespace dmGraphics
 
     VkResult SubtmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkFence* fence_out)
     {
-        DM_PROFILE(__FUNCTION__);
-
         VkResult res = vkEndCommandBuffer(cmd);
         if (res != VK_SUCCESS)
         {
