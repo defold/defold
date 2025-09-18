@@ -1671,9 +1671,7 @@ namespace dmGameSystem
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
-        {
         // Note: We update all sprites, even though they might be disabled, or not added to update
-        {
         for (uint32_t i = 0; i < n; ++i)
         {
             SpriteComponent* c = &components[i];
