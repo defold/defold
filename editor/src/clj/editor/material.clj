@@ -35,7 +35,8 @@
             [util.coll :as coll :refer [pair]]
             [util.murmur :as murmur]
             [util.num :as num])
-  (:import [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
+  (:import [com.dynamo.bob.pipeline MaterialBuilder]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -123,19 +124,25 @@
                          (format "'%s' attribute uses normalize with float data type"
                                  name)))]))
 
-(g/defnk produce-build-targets [_node-id attribute-infos base-pb-msg fragment-program fragment-shader-source-info max-page-count resource vertex-program vertex-shader-source-info]
+(defn- build-target-pbr-params [shader-reflection]
+  (when-some [pbr-parameters-proto (MaterialBuilder/makePbrParametersProtoMessage shader-reflection)]
+    (protobuf/pb->map-without-defaults pbr-parameters-proto)))
+
+(g/defnk produce-build-targets [_node-id attribute-infos base-pb-msg fragment-program fragment-shader-source-info max-page-count exclude-gles-sm100 resource vertex-program vertex-shader-source-info]
   (or (g/flatten-errors
         (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
         (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
         (mapcat #(attribute-info->error-values % _node-id :attributes) attribute-infos))
-      (let [shader-desc-build-target (shader-compilation/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count)
+      (let [shader-desc-build-target (shader-compilation/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count exclude-gles-sm100)
             build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count)
             build-target-attributes (build-target-attributes attribute-infos)
+            build-target-pbr-params (build-target-pbr-params (:shader-reflection shader-desc-build-target))
             dep-build-targets [shader-desc-build-target]
             material-desc-with-build-resources (assoc base-pb-msg
                                                  :program (:resource shader-desc-build-target)
                                                  :samplers build-target-samplers
-                                                 :attributes build-target-attributes)]
+                                                 :attributes build-target-attributes
+                                                 :pbr-parameters build-target-pbr-params)]
         [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
@@ -442,7 +449,7 @@
 
 (defn- set-form-op [{:keys [node-id] :as user-data} [property] value]
   (let [processed-value (set-form-value-fn property value user-data)]
-    (g/set-property! node-id property processed-value)))
+    (g/set-property node-id property processed-value)))
 
 (g/defnk produce-form-data [_node-id name attributes vertex-program fragment-program vertex-constants fragment-constants max-page-count ^:raw samplers tags vertex-space :as args]
   (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
@@ -581,6 +588,7 @@
   (input vertex-shader-source-info g/Any)
   (input fragment-resource resource/Resource)
   (input fragment-shader-source-info g/Any)
+  (input exclude-gles-sm100 g/Any)
 
   (output base-pb-msg g/Any produce-base-pb-msg)
 
@@ -600,6 +608,7 @@
         attributes->editable-attributes #(mapv attribute->editable-attribute %)]
     (concat
       (g/connect project :default-sampler-filter-modes self :default-sampler-filter-modes)
+      (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
       (gu/set-properties-from-pb-map self Material$MaterialDesc material-desc
         vertex-program (resolve-resource :vertex-program)
         fragment-program (resolve-resource :fragment-program)

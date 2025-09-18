@@ -26,8 +26,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -40,7 +40,7 @@ public class ZipPublisher extends Publisher {
     private String projectRoot = null;
     private String filename = null;
     private ZipOutputStream zipOutputStream;
-    private Set<String> zipEntries =  new HashSet<>();
+    private Set<String> zipEntries = ConcurrentHashMap.newKeySet();
 
     public ZipPublisher(String projectRoot, PublisherSettings settings) {
         super(settings);
@@ -121,10 +121,8 @@ public class ZipPublisher extends Publisher {
         final String archiveEntryName = entry.getName();
         final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
         entries.put(archiveEntryName, entry);
-        synchronized (zipEntries) {
-            if (!zipEntries.add(zipEntryName)) {
-                return;
-            }
+        if (!zipEntries.add(zipEntryName)) {
+            return;
         }
         try {
             ZipEntry currentEntry = new ZipEntry(zipEntryName);
@@ -147,10 +145,9 @@ public class ZipPublisher extends Publisher {
         final String archiveEntryName = entry.getName();
         final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
         entries.put(archiveEntryName, entry);
-        synchronized (zipEntries) {
-            if (!zipEntries.add(zipEntryName)) {
-                return;
-            }
+        if (!zipEntries.add(zipEntryName)) {
+            entry.setDuplicatedDataBlob(true);
+            return;
         }
         try {
             ZipEntry currentEntry = new ZipEntry(zipEntryName);

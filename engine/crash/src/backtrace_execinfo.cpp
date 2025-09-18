@@ -55,20 +55,22 @@ namespace dmCrash
         fflush(stdout);
         fflush(stderr);
 
-        g_AppState.m_PtrCount = backtrace(g_AppState.m_Ptr, AppState::PTRS_MAX);
-        g_AppState.m_Signum = signo;
+        AppState* state = GetAppState();
 
-        char** stacktrace = backtrace_symbols(g_AppState.m_Ptr, g_AppState.m_PtrCount);
+        state->m_PtrCount = backtrace(state->m_Ptr, AppState::PTRS_MAX);
+        state->m_Signum = signo;
+
+        char** stacktrace = backtrace_symbols(state->m_Ptr, state->m_PtrCount);
         uint32_t offset = 0;
-        for (uint32_t i = 0; i < g_AppState.m_PtrCount; ++i)
+        for (uint32_t i = 0; i < state->m_PtrCount; ++i)
         {
             // Write each symbol on a separate line, just like
             // backgrace_symbols_fd would do.
             uint32_t stacktrace_length = strnlen(stacktrace[i], dmCrash::AppState::EXTRA_MAX - 1);
             if ((offset + stacktrace_length) < (dmCrash::AppState::EXTRA_MAX - 1))
             {
-                memcpy(g_AppState.m_Extra + offset, stacktrace[i], stacktrace_length);
-                g_AppState.m_Extra[offset + stacktrace_length] = '\n';
+                memcpy(state->m_Extra + offset, stacktrace[i], stacktrace_length);
+                state->m_Extra[offset + stacktrace_length] = '\n';
                 offset += stacktrace_length + 1;
             }
             else
@@ -82,13 +84,13 @@ namespace dmCrash
 
         if (g_CrashExtraInfoCallback)
         {
-            int extra_len = strlen(g_AppState.m_Extra);
-            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, g_AppState.m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
+            int extra_len = strlen(state->m_Extra);
+            g_CrashExtraInfoCallback(g_CrashExtraInfoCallbackCtx, state->m_Extra + extra_len, dmCrash::AppState::EXTRA_MAX - extra_len - 1);
         }
 
-        WriteCrash(g_FilePath, &g_AppState);
+        WriteCrash(GetFilePath(), state);
 
-        LogCallstack(g_AppState.m_Extra);
+        LogCallstack(state->m_Extra);
     }
 
     void WriteDump()

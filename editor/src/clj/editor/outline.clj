@@ -342,10 +342,14 @@
                (conj node-outline-keys (str prefix count))))
       node-outline-keys)))
 
-(defn taken-node-outline-keys [parent-outline-node]
-  (into #{}
-        (keep :node-outline-key)
-        (:children (g/node-value parent-outline-node :node-outline))))
+(defn taken-node-outline-keys
+  ([parent-outline-node]
+   (g/with-auto-evaluation-context evaluation-context
+     (taken-node-outline-keys parent-outline-node evaluation-context)))
+  ([parent-outline-node evaluation-context]
+   (into #{}
+         (keep :node-outline-key)
+         (:children (g/node-value parent-outline-node :node-outline evaluation-context)))))
 
 (defn next-node-outline-key [template-node-outline-key taken-node-outline-keys]
   ;; Contrary to resolve-id, we want to return the next id following the highest

@@ -28,7 +28,6 @@ namespace dmEngine
      * @document
      * @name Engine
      * @namespace dmEngine
-     * @path engine/dlib/src/dmsdk/engine/extension.h
      * @language C++
      */
 

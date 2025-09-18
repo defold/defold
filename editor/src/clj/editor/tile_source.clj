@@ -540,7 +540,7 @@
             metrics (texture-set-gen/calculate-tile-metrics image-size properties collision-size)]
         (when metrics
           (merge properties metrics)))
-      (g/error-fatal "tile data could not be generated due to invalid values")))
+      (g/->error _node-id :image :fatal image-resource "tile data could not be generated due to invalid values")))
 
 (defn- check-anim-error [tile-count anim-data]
   (let [node-id (:node-id anim-data)
@@ -552,23 +552,22 @@
       (keep (fn [[prop-kw f]]
               (validation/prop-error :fatal node-id prop-kw f (get anim prop-kw) (properties/keyword->name prop-kw)))))))
 
-(defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id tile-source-attributes image-resource animation-ddfs collision-groups convex-hulls]}]
+(defn- generate-texture-set-data [{:keys [digest-ignored/error-node-id layout-result tile-source-attributes image-resource animation-ddfs collision-groups convex-hulls]}]
   (let [buffered-image (resource-io/with-error-translation image-resource error-node-id :image
                          (image-util/read-image image-resource))]
     (if (g/error? buffered-image)
       buffered-image
-      (texture-set-gen/tile-source->texture-set-data tile-source-attributes buffered-image convex-hulls collision-groups animation-ddfs))))
+      (texture-set-gen/tile-source->texture-set-data layout-result tile-source-attributes buffered-image convex-hulls collision-groups animation-ddfs))))
 
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
 
-(defn- generate-packed-image [{:keys [digest-ignored/error-node-id texture-set-data-generator image-resource tile-source-attributes]}]
-  (let [texture-set-data (call-generator texture-set-data-generator)
-        buffered-image (resource-io/with-error-translation image-resource error-node-id :image
+(defn- generate-packed-image [{:keys [digest-ignored/error-node-id layout-result image-resource tile-source-attributes]}]
+  (let [buffered-image (resource-io/with-error-translation image-resource error-node-id :image
                          (image-util/read-image image-resource))]
     (if (g/error? buffered-image)
       buffered-image
-      (texture-set-gen/layout-tile-source (:layout texture-set-data) buffered-image tile-source-attributes))))
+      (texture-set-gen/layout-tile-source layout-result buffered-image tile-source-attributes))))
 
 (g/defnode TileSourceNode
   (inherits resource-node/ResourceNode)
@@ -645,7 +644,9 @@
   (output tile-source-attributes g/Any :cached produce-tile-source-attributes)
   (output tile->collision-group-node g/Any :cached produce-tile->collision-group-node)
 
-  (output texture-set-data-generator g/Any (g/fnk [_node-id image-resource tile-source-attributes animation-data collision-groups convex-hulls tile-count :as args]
+  (output layout-result g/Any :cached (g/fnk [tile-source-attributes] (texture-set-gen/calculate-layout-result tile-source-attributes)))
+
+  (output texture-set-data-generator g/Any (g/fnk [_node-id layout-result image-resource tile-source-attributes animation-data collision-groups convex-hulls tile-count :as args]
                                              (or (when-let [errors (not-empty (mapcat #(check-anim-error tile-count %) animation-data))]
                                                    (g/error-aggregate errors))
                                                  (let [animation-ddfs (mapv :ddf-message animation-data)]
@@ -661,7 +662,7 @@
   (output uv-transforms g/Any (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
   (output texture-page-count g/Int (g/constantly 0)) ; We do not use pages. Built as TYPE_2D, not TYPE_2D_ARRAY.
 
-  (output packed-image-generator g/Any (g/fnk [_node-id texture-set-data-generator image-resource tile-source-attributes]
+  (output packed-image-generator g/Any (g/fnk [_node-id layout-result image-resource tile-source-attributes]
                                          (let [packed-image-sha1 (digestable/sha1-hash
                                                                    {:image-sha1 (resource/resource->path-inclusive-sha1-hex image-resource)
                                                                     :tile-source-attributes tile-source-attributes
@@ -669,7 +670,7 @@
                                            {:f generate-packed-image
                                             :sha1 packed-image-sha1
                                             :args {:digest-ignored/error-node-id _node-id
-                                                   :texture-set-data-generator texture-set-data-generator
+                                                   :layout-result layout-result
                                                    :image-resource image-resource
                                                    :tile-source-attributes tile-source-attributes}})))
 
@@ -729,24 +730,6 @@
                   (when (< h total-h)
                     (g/error-fatal (format "the total height ('Tile Height' + 'Tile Margin') is greater than the 'Image' height (%d vs %d)"
                                            total-h h)))))))))
-
-(defn- get-nodes-by-type [child-node-type]
-  (fn get-children-nodes-by-type [node evaluation-context]
-    (let [basis (:basis evaluation-context)]
-      (coll/transfer (g/explicit-arcs-by-target basis node :nodes) []
-        (map gt/source-id)
-        (filter #(= child-node-type (g/node-type* basis %)))))))
-
-(attachment/register!
-  TileSourceNode :animations
-  :add {:node-type TileAnimationNode :tx-attach-fn attach-animation-node}
-  :get (get-nodes-by-type TileAnimationNode))
-
-(attachment/register!
-  TileSourceNode :collision-groups
-  :add {:node-type CollisionGroupNode :tx-attach-fn attach-collision-group-node}
-  :get (get-nodes-by-type CollisionGroupNode))
-
 
 ;;--------------------------------------------------------------------
 ;; tool
@@ -989,7 +972,7 @@
       (g/connect project :build-settings self :build-settings)
       (g/connect project :collision-groups-data self :collision-groups-data)
       (g/connect project :texture-profiles self :texture-profiles)
-      (g/set-property self
+      (g/set-properties self
         :original-convex-hulls (make-convex-hulls tile-set)
         :tile->collision-group-node (make-tile->collision-group-node-map tile-set collision-group-nodes-tx-data))
       (gu/set-properties-from-pb-map self Tile$TileSet tile-set
@@ -1048,14 +1031,23 @@
     ((:action user-data) (selection->tile-source selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext ["tilesource" "tileset"]
-    :label "Tile Source"
-    :build-ext "t.texturesetc"
-    :node-type TileSourceNode
-    :ddf-type Tile$TileSet
-    :load-fn load-tile-source
-    :icon tile-source-icon
-    :icon-class :design
-    :view-types [:scene :text]
-    :view-opts {:scene {:tool-controller ToolController}}))
+  (concat
+    (attachment/register
+      workspace TileSourceNode :animations
+      :add {TileAnimationNode attach-animation-node}
+      :get (attachment/nodes-by-type-getter TileAnimationNode))
+    (attachment/register
+      workspace TileSourceNode :collision-groups
+      :add {CollisionGroupNode attach-collision-group-node}
+      :get (attachment/nodes-by-type-getter CollisionGroupNode))
+    (resource-node/register-ddf-resource-type workspace
+      :ext ["tilesource" "tileset"]
+      :label "Tile Source"
+      :build-ext "t.texturesetc"
+      :node-type TileSourceNode
+      :ddf-type Tile$TileSet
+      :load-fn load-tile-source
+      :icon tile-source-icon
+      :icon-class :design
+      :view-types [:scene :text]
+      :view-opts {:scene {:tool-controller ToolController}})))

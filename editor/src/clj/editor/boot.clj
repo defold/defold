@@ -54,7 +54,7 @@
       (apply core-load-lib-fn prefix lib options))))
 
 (defn- open-project-with-progress-dialog
-  [namespace-loader user-prefs project updater newly-created?]
+  [namespace-loader user-prefs cli-options project updater newly-created?]
   (dialogs/make-load-project-dialog
     (fn [render-progress!]
       (let [namespace-progress (progress/make "Loading editor" 2867) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
@@ -79,14 +79,14 @@
         (let [system-config (apply (var-get (ns-resolve 'editor.shared-editor-settings 'load-project-system-config)) [project-dir])]
           (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-systems!)) [project-prefs])
           (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project!)) [system-config])
-          (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project!)) [project-file project-prefs render-project-progress! updater newly-created?]))))))
+          (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project!)) [project-file project-prefs cli-options render-project-progress! updater newly-created?]))))))
 
 (defn- select-project-from-welcome
-  [namespace-loader prefs updater]
+  [namespace-loader prefs cli-options updater]
   (ui/run-later
     (welcome/show-welcome-dialog! prefs updater
                                   (fn [project newly-created?]
-                                    (open-project-with-progress-dialog namespace-loader prefs project updater newly-created?)))))
+                                    (open-project-with-progress-dialog namespace-loader prefs cli-options project updater newly-created?)))))
 
 (defn notify-user
   [ex-map sentry-id-promise]
@@ -111,7 +111,8 @@
 
 (def cli-options
   ;; Path to preference file, mainly used for testing
-  [["-prefs" "--preferences PATH" "Path to preferences file"]])
+  [["-prefs" "--preferences PATH" "Path to preferences file"]
+   ["-p" "--port PORT" "Editor server port" :default 0 :parse-fn ^[String] Long/valueOf]])
 
 ;; Entry point from java EditorApplication is in editor.bootloader/main, which calls this function.
 (defn main [args namespace-loader]
@@ -127,8 +128,9 @@
 
   (let [args (Arrays/asList args)
         opts (cli/parse-opts args cli-options)
+        cli-options (:options opts)
         prefs (doto
-                (if-let [prefs-path (get-in opts [:options :preferences])]
+                (if-let [prefs-path (:preferences cli-options)]
                   (prefs/global prefs-path)
                   (doto (prefs/global) prefs/migrate-global-prefs!))
                 keymap/migrate-from-file!)
@@ -144,8 +146,8 @@
             game-project-file (io/file game-project-path)]
         (if (and game-project-path
                  (.exists game-project-file))
-          (open-project-with-progress-dialog namespace-loader prefs (.getAbsolutePath game-project-file) updater false)
-          (select-project-from-welcome namespace-loader prefs updater)))
+          (open-project-with-progress-dialog namespace-loader prefs cli-options (.getAbsolutePath game-project-file) updater false)
+          (select-project-from-welcome namespace-loader prefs cli-options updater)))
       (catch Throwable t
         (log/error :exception t)
         (stack/print-stack-trace t)

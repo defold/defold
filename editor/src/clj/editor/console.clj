@@ -110,6 +110,7 @@
   (reset! console-stream stream)
   (clear-console!))
 
+;; Start a background thread that continuously reads lines from log-stream and calls sink-fn for each line.
 (defn start-log-pump! [log-stream sink-fn]
   (doto (Thread. (fn []
                    (try
@@ -760,7 +761,7 @@
     ;; Configure canvas.
     (doto canvas
       (.setFocusTraversable true)
-      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (view/handle-key-pressed! view-node event false)))
+      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (view/handle-key-pressed! view-node prefs event false)))
       (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (view/handle-mouse-moved! view-node prefs event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (view/handle-mouse-pressed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (view/handle-mouse-moved! view-node prefs event)))

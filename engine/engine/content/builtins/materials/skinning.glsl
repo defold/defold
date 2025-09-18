@@ -16,14 +16,25 @@ vec2 get_bone_uv(vec2 cache_size, int index)
 // Retrieve a bone matrix from the pose matrix cache
 mat4 get_bone_matrix(int bone_index)
 {
-    int pose_matrix_index = bone_index * 4 + int(animation_data.x);
+    int pose_matrix_index = bone_index * 3 + int(animation_data.x);
     vec2 cache_size       = animation_data.zw;
+
+    // Read the 3 columns from the texture (we store only first 3 columns)
+    vec4 col0 = texture(pose_matrix_cache, get_bone_uv(cache_size, pose_matrix_index + 0));
+    vec4 col1 = texture(pose_matrix_cache, get_bone_uv(cache_size, pose_matrix_index + 1));
+    vec4 col2 = texture(pose_matrix_cache, get_bone_uv(cache_size, pose_matrix_index + 2));
+
+    // Reconstruct the 4x4 matrix by using the translation stored in W components
     return mat4(
-        texture(pose_matrix_cache, get_bone_uv(cache_size, pose_matrix_index + 0)),
-        texture(pose_matrix_cache, get_bone_uv(cache_size, pose_matrix_index + 1)),
-        texture(pose_matrix_cache, get_bone_uv(cache_size, pose_matrix_index + 2)),
-        texture(pose_matrix_cache, get_bone_uv(cache_size, pose_matrix_index + 3))
+        vec4(col0.xyz, 0.0),  // First column: rotation/scale
+        vec4(col1.xyz, 0.0),  // Second column: rotation/scale
+        vec4(col2.xyz, 0.0),  // Third column: rotation/scale
+        vec4(col0.w, col1.w, col2.w, 1.0)  // Fourth column: translation + (0,0,0,1)
     );
+}
+
+vec4 apply_skin(mat4 bone_matrix, float weight, vec4 base_pos) {
+    return weight * (bone_matrix * base_pos);
 }
 
 vec4 get_skinned_position(vec4 local_position)
@@ -34,12 +45,12 @@ vec4 get_skinned_position(vec4 local_position)
 #else
     vec4 skinned_position = vec4(0.0);
     if (animation_data.y > 0.0) {
-        for (int i = 0; i < 4; i++)
-        {
-            int bone_index    = int(bone_indices[i]);
-            mat4 bone_matrix  = get_bone_matrix(bone_index);
-            skinned_position += bone_weights[i] * (bone_matrix * vec4(position.xyz, 1.0));
-        }
+        vec4 base_pos = vec4(position.xyz, 1.0);
+        // Manually unrolled loop for compatibility with WebGL1 and OpenGL ES 2.0.
+        skinned_position += apply_skin(get_bone_matrix(int(bone_indices.x)), bone_weights.x, base_pos);
+        skinned_position += apply_skin(get_bone_matrix(int(bone_indices.y)), bone_weights.y, base_pos);
+        skinned_position += apply_skin(get_bone_matrix(int(bone_indices.z)), bone_weights.z, base_pos);
+        skinned_position += apply_skin(get_bone_matrix(int(bone_indices.w)), bone_weights.w, base_pos);
     }
     else
     {
@@ -48,5 +59,4 @@ vec4 get_skinned_position(vec4 local_position)
     return skinned_position;
 #endif
 }
-
 #endif

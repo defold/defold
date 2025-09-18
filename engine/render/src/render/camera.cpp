@@ -31,6 +31,7 @@ namespace dmRender
 
         memset(&camera->m_Data, 0, sizeof(camera->m_Data));
         camera->m_Data.m_Viewport = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+        camera->m_Data.m_OrthographicMode = ORTHO_MODE_FIXED;
 
         return camera->m_Handle;
     }
@@ -81,6 +82,23 @@ namespace dmRender
         }
     }
 
+    float GetRenderCameraEffectiveAspectRatio(HRenderContext render_context, HRenderCamera camera)
+    {
+        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+
+        if (c->m_Data.m_AutoAspectRatio)
+        {
+            dmGraphics::HContext graphics_context = GetGraphicsContext(render_context);
+            float width = (float) dmGraphics::GetWindowWidth(graphics_context);
+            float height = (float) dmGraphics::GetWindowHeight(graphics_context);
+            return width / height;
+        }
+        else
+        {
+            return c->m_Data.m_AspectRatio;
+        }
+    }
+
     void UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation)
     {
         RenderCamera* c = render_context->m_RenderCameras.Get(camera);
@@ -102,7 +120,45 @@ namespace dmRender
         if (c->m_Data.m_OrthographicProjection)
         {
             float display_scale = dmGraphics::GetDisplayScaleFactor(graphics_context);
+
+            // Determine zoom
             float zoom = c->m_Data.m_OrthographicZoom;
+
+            // Project (reference) size from game.project
+            float proj_width = (float) dmGraphics::GetWidth(graphics_context);
+            float proj_height = (float) dmGraphics::GetHeight(graphics_context);
+
+            // Fallbacks to avoid division by zero
+            if (proj_width <= 0.0f)
+            {
+            	proj_width = 1.0f;
+            }
+            if (proj_height <= 0.0f)
+            {
+            	proj_height = 1.0f;
+            }
+
+            // Compute auto zoom if requested
+            if (c->m_Data.m_OrthographicMode == ORTHO_MODE_AUTO_FIT || c->m_Data.m_OrthographicMode == ORTHO_MODE_AUTO_COVER)
+            {
+                float zx = width / (display_scale * proj_width);
+                float zy = height / (display_scale * proj_height);
+
+                if (c->m_Data.m_OrthographicMode == ORTHO_MODE_AUTO_FIT)
+                {
+                    zoom = (zx < zy) ? zx : zy;
+                }
+                else if (c->m_Data.m_OrthographicMode == ORTHO_MODE_AUTO_COVER)
+                {
+                    zoom = (zx > zy) ? zx : zy;
+                }
+
+                if (zoom <= 0.0f)
+                {
+                    zoom = 1.0f;
+                }
+            }
+
             float zoomed_width = width / display_scale / zoom;
             float zoomed_height = height / display_scale / zoom;
 

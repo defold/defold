@@ -35,19 +35,22 @@ namespace dmSys
 {
     Result GetApplicationPath(char* path_out, uint32_t path_len)
     {
-        assert(path_len > 0);
-        NSBundle* mainBundle = [NSBundle mainBundle];
-        if (mainBundle == NULL)
+        @autoreleasepool
         {
-            return RESULT_FAULT;
+            assert(path_len > 0);
+            NSBundle* mainBundle = [NSBundle mainBundle];
+            if (mainBundle == NULL)
+            {
+                return RESULT_FAULT;
+            }
+            const char *bundle_path = [[mainBundle bundlePath] UTF8String];
+            if (dmStrlCpy(path_out, bundle_path, path_len) >= path_len)
+            {
+                path_out[0] = 0;
+                return RESULT_INVAL;
+            }
+            return RESULT_OK;
         }
-        const char *bundle_path = [[mainBundle bundlePath] UTF8String];
-        if (dmStrlCpy(path_out, bundle_path, path_len) >= path_len)
-        {
-            path_out[0] = 0;
-            return RESULT_INVAL;
-        }
-        return RESULT_OK;
     }
 
     Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
@@ -57,39 +60,42 @@ namespace dmSys
 
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
-        assert(path_len > 0);
-        NSFileManager* shared_fm = [NSFileManager defaultManager];
-        NSArray* urls = [shared_fm URLsForDirectory:NSApplicationSupportDirectory
-                                          inDomains:NSUserDomainMask];
-
-        if ([urls count] > 0)
+        @autoreleasepool
         {
-            NSURL* app_support_dir = [urls objectAtIndex:0];
-            dmStrlCpy(path, [[app_support_dir path] UTF8String], path_len);
+            assert(path_len > 0);
+            NSFileManager* shared_fm = [NSFileManager defaultManager];
+            NSArray* urls = [shared_fm URLsForDirectory:NSApplicationSupportDirectory
+                                              inDomains:NSUserDomainMask];
 
-            path[path_len-1] = '\0';
-
-            if (dmStrlCat(path, "/", path_len) >= path_len)
-                return RESULT_INVAL;
-            if (dmStrlCat(path, application_name, path_len) >= path_len)
-                return RESULT_INVAL;
-
-            NSString* ns_path = [NSString stringWithUTF8String: path];
-            Result r;
-            if ([shared_fm createDirectoryAtPath: ns_path withIntermediateDirectories: TRUE attributes: nil error: nil] == YES)
+            if ([urls count] > 0)
             {
-                r = RESULT_OK;
+                NSURL* app_support_dir = [urls objectAtIndex:0];
+                dmStrlCpy(path, [[app_support_dir path] UTF8String], path_len);
+
+                path[path_len-1] = '\0';
+
+                if (dmStrlCat(path, "/", path_len) >= path_len)
+                    return RESULT_INVAL;
+                if (dmStrlCat(path, application_name, path_len) >= path_len)
+                    return RESULT_INVAL;
+
+                NSString* ns_path = [NSString stringWithUTF8String: path];
+                Result r;
+                if ([shared_fm createDirectoryAtPath: ns_path withIntermediateDirectories: TRUE attributes: nil error: nil] == YES)
+                {
+                    r = RESULT_OK;
+                }
+                else
+                {
+                    r = RESULT_UNKNOWN;
+                }
+                return r;
             }
             else
             {
-                r = RESULT_UNKNOWN;
+                dmLogError("Unable to locate NSApplicationSupportDirectory");
+                return RESULT_UNKNOWN;
             }
-            return r;
-        }
-        else
-        {
-            dmLogError("Unable to locate NSApplicationSupportDirectory");
-            return RESULT_UNKNOWN;
         }
     }
 

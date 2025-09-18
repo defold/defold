@@ -201,6 +201,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         }
 
         model.setDefaultAnimation(modelDescBuilder.getDefaultAnimation());
+        model.setCreateGoBones(modelDescBuilder.getCreateGoBones());
 
         out = new ByteArrayOutputStream(64 * 1024);
         model.build().writeTo(out);

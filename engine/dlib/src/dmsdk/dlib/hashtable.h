@@ -26,7 +26,6 @@
  *
  * @document
  * @name Hashtable
- * @path engine/dlib/src/dmsdk/dlib/hashtable.h
  * @language C++
  */
 
@@ -36,6 +35,8 @@
  * @note The key type needs to support == and % operators
  * @type class
  * @name dmHashTable
+ * @tparam KEY
+ * @tparam T
  */
 template <typename KEY, typename T>
 class dmHashTable
@@ -71,9 +72,9 @@ public:
      * Creates a hashtable array with user allocated memory.
      * @note User allocated arrays can not change capacity.
      * @name dmHashTable
-     * @param user_allocated Pointer to user allocated continous data-block ((table_size*sizeof(uint32_t)) + (capacity*sizeof(dmHashTable::Entry))
-     * @param table_size Hashtable size, ie number of buckets. table_size < 0xffffffff
-     * @param capacity Capacity. capacity < 0xffffffff
+     * @param user_allocated [type:void*] Pointer to user allocated continous data-block ((table_size*sizeof(uint32_t)) + (capacity*sizeof(dmHashTable::Entry))
+     * @param table_size [type:uint32_t] Hashtable size, ie number of buckets. table_size < 0xffffffff
+     * @param capacity [type:uint32_t] Capacity. capacity < 0xffffffff
      */
     dmHashTable(void *user_allocated, uint32_t table_size, uint32_t capacity)
     {
@@ -148,8 +149,8 @@ public:
     /*#
      * Set hashtable capacity. New capacity must be greater or equal to current capacity
      * @name SetCapacity
-     * @param table_size Hashtable size, ie number of buckets. table_size < 0xffffffff
-     * @param capacity Capacity. capacity < 0xffffffff
+     * @param table_size [type:uint32_t] Hashtable size, ie number of buckets. table_size < 0xffffffff
+     * @param capacity [type:uint32_t] Capacity. capacity < 0xffffffff
      */
     void SetCapacity(uint32_t table_size, uint32_t capacity)
     {
@@ -188,7 +189,7 @@ public:
     /**
      * Set hashtable capacity. New capacity must be greater or equal to current capacity
      * @name SetCapacity
-     * @param capacity Capacity. capacity < 0xffffffff
+     * @param capacity [type:uint32_t] Capacity. capacity < 0xffffffff
      */
     void SetCapacity(uint32_t capacity)
     {
@@ -248,7 +249,7 @@ public:
     /*#
      * Put key/value pair in hash table. NOTE: The method will "assert" if the hashtable is full.
      * @name Put
-     * @param key [type: Key] Key
+     * @param key [type: KEY] Key
      * @param value [type: const T&] Value
      */
     void Put(KEY key, const T& value)
@@ -298,7 +299,7 @@ public:
     /*#
      * Get pointer to value from key
      * @name Get
-     * @param key [type: Key] Key
+     * @param key [type: KEY] Key
      * @return value [type: T*] Pointer to value. NULL if the key/value pair doesn't exist.
      */
     T* Get(KEY key)
@@ -319,7 +320,7 @@ public:
     /**
      * Get pointer to value from key. "const" version.
      * @name Get
-     * @param key [type: Key] Key
+     * @param key [type: KEY] Key
      * @return value [type: const T*] Pointer to value. NULL if the key/value pair doesn't exist.
      */
     const T* Get(KEY key) const
@@ -352,7 +353,7 @@ public:
     /*#
      * Remove key/value pair.
      * @name Erase
-     * @param key [type: Key] Key to remove
+     * @param key [type: KEY] Key to remove
      * @note Only valid if key exists in table
      */
     void Erase(KEY key)
@@ -396,8 +397,9 @@ public:
     /*#
      * Iterate over all entries in table
      * @name Iterate
-     * @param call_back Call-back called for every entry
-     * @param context Context
+     * @tparam CONTEXT
+     * @param call_back [type:void*] Call-back called for every entry
+     * @param context [type:CONTEXT*] Context
      */
     template <typename CONTEXT>
     void Iterate(void (*call_back)(CONTEXT *context, const KEY* key, T* value), CONTEXT* context) const

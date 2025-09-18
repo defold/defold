@@ -248,26 +248,33 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
     }
 
     @Override
-    public byte[] crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws CompileExceptionError, IOException {
+    public Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws CompileExceptionError, IOException {
         ShaderModuleLegacy module = getShaderModule(shaderType);
         if (module == null) {
             throw new CompileExceptionError("No module found for " + shaderType);
         }
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
-            return module.spirvResult.source;
+            Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
+            result.data = module.spirvResult.source;
+            return result;
         } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
-            String result = compileSPIRVToWGSL(module.desc.resourcePath, module.spirvResult.source, this.pipelineName);
-            return result.getBytes();
+            String compileResult = compileSPIRVToWGSL(module.desc.resourcePath, module.spirvResult.source, this.pipelineName);
+
+            Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
+            result.data = compileResult.getBytes();
+            return result;
         } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL) {
-            Shaderc.ShaderCompileResult result = this.generateCrossCompiledShader(shaderType, shaderLanguage, 50);
+            Shaderc.ShaderCompileResult result = this.generateCrossCompiledShader(shaderType, shaderLanguage, this.ShaderLanguageToVersion(ShaderDesc.Language.LANGUAGE_HLSL));
             if (result.data == null) {
                 throw new CompileExceptionError("Cannot cross-compile shader of type: " + shaderType + ", to language: " + shaderLanguage + ", reason: " + result.lastError);
             }
-            return result.data;
+            return result;
         } else if (CanBeCrossCompiled(shaderLanguage)) {
-            String result = ShaderUtil.Common.compileGLSL(module.desc.source, shaderType, shaderLanguage, false, false, this.options.splitTextureSamplers);
-            return result.getBytes();
+            String compileResult = ShaderUtil.Common.compileGLSL(module.desc.source, shaderType, shaderLanguage, false, false, this.options.splitTextureSamplers);
+            Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
+            result.data = compileResult.getBytes();
+            return result;
         }
 
         throw new CompileExceptionError("Unsupported shader language: " + shaderLanguage);

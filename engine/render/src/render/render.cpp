@@ -39,6 +39,21 @@ namespace dmRender
 
     const char* RENDER_SOCKET_NAME = "@render";
 
+    // Declararions are in render.h
+    const dmhash_t VERTEX_STREAM_POSITION        = dmHashString64("position");
+    const dmhash_t VERTEX_STREAM_NORMAL          = dmHashString64("normal");
+    const dmhash_t VERTEX_STREAM_TANGENT         = dmHashString64("tangent");
+    const dmhash_t VERTEX_STREAM_COLOR           = dmHashString64("color");
+    const dmhash_t VERTEX_STREAM_TEXCOORD0       = dmHashString64("texcoord0");
+    const dmhash_t VERTEX_STREAM_TEXCOORD1       = dmHashString64("texcoord1");
+    const dmhash_t VERTEX_STREAM_PAGE_INDEX      = dmHashString64("page_index");
+    const dmhash_t VERTEX_STREAM_WORLD_MATRIX    = dmHashString64("mtx_world");
+    const dmhash_t VERTEX_STREAM_NORMAL_MATRIX   = dmHashString64("mtx_normal");
+    const dmhash_t VERTEX_STREAM_BONE_WEIGHTS    = dmHashString64("bone_weights");
+    const dmhash_t VERTEX_STREAM_BONE_INDICES    = dmHashString64("bone_indices");
+    const dmhash_t VERTEX_STREAM_ANIMATION_DATA  = dmHashString64("animation_data");
+    const dmhash_t SAMPLER_POSE_MATRIX_CACHE     = dmHashString64("pose_matrix_cache");
+
     StencilTestParams::StencilTestParams() {
         Init();
     }
@@ -134,9 +149,11 @@ namespace dmRender
 
         context->m_IsRenderPaused = 0;
 
+        // TODO: This should be a "context property" or something similar.
         dmGraphics::AdapterFamily installed_adapter_family = dmGraphics::GetInstalledAdapterFamily();
         if (installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VULKAN ||
             installed_adapter_family == dmGraphics::ADAPTER_FAMILY_WEBGPU ||
+            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_DIRECTX ||
             installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VENDOR)
         {
             context->m_MultiBufferingRequired = 1;
@@ -500,7 +517,7 @@ namespace dmRender
     }
 
     // Compute new sort values for everything that matches tag_mask
-    static void MakeSortBuffer(HRenderContext context, uint32_t tag_count, dmhash_t* tags)
+    static void MakeSortBuffer(HRenderContext context, uint32_t tag_count, dmhash_t* tags, SortOrder sort_order)
     {
         DM_PROFILE("MakeSortBuffer");
 
@@ -570,6 +587,13 @@ namespace dmRender
         if (maxZW > minZW)
             rc = 1.0f / (maxZW - minZW);
 
+        const uint32_t ORDER_SCALE_MASK = 0xfffff0;
+        const uint32_t ORDER_BASE_FRONT = 0x000008;
+        const uint32_t ORDER_BASE_BACK = 0xfffff8;
+        const bool front_to_back = (sort_order == SORT_FRONT_TO_BACK);
+        const float order_multiplier = (front_to_back ? 1.0f : -1.0f) * ORDER_SCALE_MASK * rc;
+        const float order_bias = (front_to_back ? ORDER_BASE_FRONT : ORDER_BASE_BACK) - order_multiplier * minZW;
+
         for( uint32_t i = 0; i < num_ranges; ++i)
         {
             const RenderListRange& range = ranges[i];
@@ -590,7 +614,7 @@ namespace dmRender
                 if (entry->m_MajorOrder == RENDER_ORDER_WORLD)
                 {
                     const float z = sort_values[idx].m_ZW;
-                    sort_values[idx].m_Order = (uint32_t) (0xfffff8 - 0xfffff0 * rc * (z - minZW));
+                    sort_values[idx].m_Order = (uint32_t) (order_bias + order_multiplier * z);
                 }
                 else
                 {
@@ -838,7 +862,7 @@ namespace dmRender
         }
     }
 
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options)
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order)
     {
         DM_PROFILE("DrawRenderList");
 
@@ -904,16 +928,21 @@ namespace dmRender
             }
         }
 
-        MakeSortBuffer(context, predicate?predicate->m_TagCount:0, predicate?predicate->m_Tags:0);
+        SortOrder effective_sort_order = (sort_order == SORT_UNSPECIFIED) ? SORT_BACK_TO_FRONT : sort_order;
+
+        MakeSortBuffer(context, predicate?predicate->m_TagCount:0, predicate?predicate->m_Tags:0, effective_sort_order);
 
         if (context->m_RenderListSortBuffer.Empty())
             return RESULT_OK;
 
         {
-            DM_PROFILE("DrawRenderList_SORT");
-            RenderListSorter sort;
-            sort.values = context->m_RenderListSortValues.Begin();
-            std::stable_sort(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.End(), sort);
+            if (effective_sort_order != SORT_NONE)
+            {
+                DM_PROFILE("DrawRenderList_SORT");
+                RenderListSorter sort;
+                sort.values = context->m_RenderListSortValues.Begin();
+                std::stable_sort(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.End(), sort);
+            }
         }
 
         // Construct render objects
@@ -1015,7 +1044,7 @@ namespace dmRender
             {
                 dmGraphics::HTexture texture = render_context_textures[i];
 
-                uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
+                uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(context, texture);
                 for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                 {
                     dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
@@ -1043,7 +1072,7 @@ namespace dmRender
             if (render_context_textures[i])
             {
                 dmGraphics::HTexture texture = render_context_textures[i];
-                uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
+                uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(context, texture);
                 for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                 {
                     dmGraphics::DisableTexture(context, next_texture_unit, texture);
@@ -1061,7 +1090,9 @@ namespace dmRender
     Result Draw(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
     {
         if (render_context == 0x0)
+        {
             return RESULT_INVALID_CONTEXT;
+        }
 
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
         dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT] = {};
@@ -1127,7 +1158,7 @@ namespace dmRender
 
                 if (texture)
                 {
-                    uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
+                    uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(context, texture);
                     for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                     {
                         HSampler sampler = GetProgramSampler(material->m_Samplers, next_texture_unit);
@@ -1179,7 +1210,7 @@ namespace dmRender
                     texture = render_context_textures[i];
                 if (texture)
                 {
-                    for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
+                    for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(context, texture); ++sub_handle)
                     {
                         dmGraphics::DisableTexture(context, next_texture_unit, texture);
                         next_texture_unit++;
@@ -1200,7 +1231,7 @@ namespace dmRender
         if (!context->m_DebugRenderer.m_RenderContext) {
             return RESULT_INVALID_CONTEXT;
         }
-        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_options);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_options, SORT_BACK_TO_FRONT);
     }
 
     Result DrawDebug2d(HRenderContext context) // Deprecated
@@ -1208,7 +1239,7 @@ namespace dmRender
         if (!context->m_DebugRenderer.m_RenderContext) {
             return RESULT_INVALID_CONTEXT;
         }
-        return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0, 0);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0, 0, SORT_BACK_TO_FRONT);
     }
 
     HPredicate NewPredicate()

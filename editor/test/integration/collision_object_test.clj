@@ -101,7 +101,7 @@
       (testing "Capsule Shape"
         (doseq [original-value [(float 10.0) (double 10.0)]]
           (with-open [_ (test-util/make-graph-reverter project-graph)]
-            (g/set-property! capsule-shape :diameter original-value :height original-value)
+            (g/set-properties! capsule-shape :diameter original-value :height original-value)
             (test-util/manip-scale! capsule-shape [2.0 2.0 2.0])
             (test-util/ensure-number-type-preserving! original-value (g/node-value capsule-shape :diameter))
             (test-util/ensure-number-type-preserving! original-value (g/node-value capsule-shape :height))))))))

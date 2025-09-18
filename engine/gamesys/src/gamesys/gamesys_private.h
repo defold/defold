@@ -30,42 +30,60 @@ namespace dmScript
 
 namespace dmGameSystem
 {
-#define EXT_CONSTANTS(prefix, ext)\
-    static const char* prefix##_EXT = ext;\
-    static const dmhash_t prefix##_EXT_HASH = dmHashString64(ext);\
 
-    EXT_CONSTANTS(COLLECTION_FACTORY, "collectionfactoryc")
-    EXT_CONSTANTS(COLLISION_OBJECT, "collisionobjectc")
-    EXT_CONSTANTS(FACTORY, "factoryc")
-    EXT_CONSTANTS(FONT, "fontc")
-    EXT_CONSTANTS(MATERIAL, "materialc")
-    EXT_CONSTANTS(BUFFER, "bufferc")
-    EXT_CONSTANTS(MODEL, "modelc")
-    EXT_CONSTANTS(TEXTURE, "texturec")
-    EXT_CONSTANTS(TEXTURE_SET, "texturesetc")
-    EXT_CONSTANTS(TILE_MAP, "tilemapc")
-    EXT_CONSTANTS(RENDER_TARGET, "render_targetc")
-    EXT_CONSTANTS(COLLECTION_PROXY, "collectionproxyc")
+// keep only declarations to deduplicate symbols in binary
+#define DECLARE_EXT_CONSTANTS(prefix)                   \
+    extern const char* prefix##_EXT;                    \
+    extern const dmhash_t prefix##_EXT_HASH;
 
-#undef EXT_CONSTANTS
+    // Declarations (see definitions in gamesys.cpp)
+    DECLARE_EXT_CONSTANTS(COLLECTION_FACTORY)
+    DECLARE_EXT_CONSTANTS(COLLISION_OBJECT)
+    DECLARE_EXT_CONSTANTS(FACTORY)
+    DECLARE_EXT_CONSTANTS(FONT)
+    DECLARE_EXT_CONSTANTS(MATERIAL)
+    DECLARE_EXT_CONSTANTS(BUFFER)
+    DECLARE_EXT_CONSTANTS(MODEL)
+    DECLARE_EXT_CONSTANTS(TEXTURE)
+    DECLARE_EXT_CONSTANTS(TEXTURE_SET)
+    DECLARE_EXT_CONSTANTS(TILE_MAP)
+    DECLARE_EXT_CONSTANTS(RENDER_TARGET)
+    DECLARE_EXT_CONSTANTS(COLLECTION_PROXY)
 
-    static const dmhash_t PROP_FONT = dmHashString64("font");
-    static const dmhash_t PROP_FONTS = dmHashString64("fonts");
-    static const dmhash_t PROP_IMAGE = dmHashString64("image");
-    static const dmhash_t PROP_MATERIAL = dmHashString64("material");
-    static const dmhash_t PROP_MATERIALS = dmHashString64("materials");
-    static const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {
-        dmHashString64("texture0"),
-        dmHashString64("texture1"),
-        dmHashString64("texture2"),
-        dmHashString64("texture3"),
-        dmHashString64("texture4"),
-        dmHashString64("texture5"),
-        dmHashString64("texture6"),
-        dmHashString64("texture7")
-    };
-    static const dmhash_t PROP_TEXTURES = dmHashString64("textures");
-    static const dmhash_t PROP_TILE_SOURCE = dmHashString64("tile_source");
+#undef DECLARE_EXT_CONSTANTS
+
+    extern const dmhash_t PROP_FONT;
+    extern const dmhash_t PROP_FONTS;
+    extern const dmhash_t PROP_IMAGE;
+    extern const dmhash_t PROP_MATERIAL;
+    extern const dmhash_t PROP_MATERIALS;
+    extern const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+    extern const dmhash_t PROP_TEXTURES;
+    extern const dmhash_t PROP_TILE_SOURCE;
+
+    extern const dmhash_t PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR;
+    extern const dmhash_t PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR;
+    extern const dmhash_t PBR_METALLIC_ROUGHNESS_TEXTURES;
+    extern const dmhash_t PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR;
+    extern const dmhash_t PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR;
+    extern const dmhash_t PBR_SPECULAR_GLOSSINESS_TEXTURES;
+    extern const dmhash_t PBR_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR;
+    extern const dmhash_t PBR_CLEAR_COAT_TEXTURES;
+    extern const dmhash_t PBR_TRANSMISSION_TRANSMISSION_FACTOR;
+    extern const dmhash_t PBR_TRANSMISSION_TEXTURES;
+    extern const dmhash_t PBR_IOR_IOR_FACTOR;
+    extern const dmhash_t PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR;
+    extern const dmhash_t PBR_SPECULAR_TEXTURES;
+    extern const dmhash_t PBR_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR;
+    extern const dmhash_t PBR_VOLUME_ATTENUATION_DISTANCE;
+    extern const dmhash_t PBR_VOLUME_TEXTURES;
+    extern const dmhash_t PBR_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR;
+    extern const dmhash_t PBR_SHEEN_TEXTURES;
+    extern const dmhash_t PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH;
+    extern const dmhash_t PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX;
+    extern const dmhash_t PBR_IRIDESCENCE_TEXTURES;
+    extern const dmhash_t PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT;
+    extern const dmhash_t PBR_COMMON_TEXTURES;
 
     static const dmGraphics::TextureFormat BIND_POSE_CACHE_TEXTURE_FORMAT = dmGraphics::TEXTURE_FORMAT_RGBA32F;
 
@@ -150,10 +168,10 @@ namespace dmGameSystem
         uint16_t                                  m_Width;
         uint16_t                                  m_Height;
         uint16_t                                  m_Depth;
-        uint16_t                                  m_LayerCount;
         uint16_t                                  m_MaxMipMaps;
         uint16_t                                  m_TextureBpp;
         uint16_t                                  m_UsageFlags;
+        uint8_t                                   m_LayerCount;
     };
 
     struct SetTextureResourceParams
@@ -182,7 +200,6 @@ namespace dmGameSystem
     void FillTextureResourceBuffer(const dmGraphics::TextureImage* texture_image, dmArray<uint8_t>& texture_resource_buffer);
     dmResource::Result CreateTextureResource(dmResource::HFactory factory, const CreateTextureResourceParams& create_params, void** resource_out);
     dmResource::Result SetTextureResource(dmResource::HFactory factory, const SetTextureResourceParams& params);
-    dmResource::Result ReleaseDynamicResource(dmResource::HFactory factory, dmGameObject::HCollection collection, dmhash_t path_hash);
 }
 
 #endif // DM_GAMESYS_PRIVER_H

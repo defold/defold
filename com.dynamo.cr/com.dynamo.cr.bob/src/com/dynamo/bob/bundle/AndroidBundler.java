@@ -370,12 +370,12 @@ public class AndroidBundler implements IBundler {
     * Get a list of dex files to include in the aab
     */
     private static ArrayList<File> getClassesDex(Project project) throws IOException {
-        ArrayList<File> classesDex = new ArrayList<File>();
+        ArrayList<File> classesDex = new ArrayList<>();
+        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
 
         final String extenderExeDir = project.getBinaryOutputDirectory();
         for (Platform architecture : getArchitectures(project)) {
-            List<File> bundleExe = ExtenderUtil.getNativeExtensionEngineBinaries(project, architecture);
-            if (bundleExe == null) {
+            if (!hasExtensions) {
                 if (classesDex.isEmpty()) {
                     classesDex.add(new File(Bob.getPath("lib/classes.dex")));
                 }
@@ -606,7 +606,7 @@ public class AndroidBundler implements IBundler {
                     continue;
                 }
                 // files starting with "assets/" and "lib/" should be copied as-is to their respective dirs
-                // other files should be copied to the to the root/ dir
+                // other files should be copied to the root/ dir
                 File file = null;
                 if (filename.startsWith(assetsPath) || filename.startsWith(libPath)) {
                     file = new File(baseDir, filename);
@@ -701,6 +701,7 @@ public class AndroidBundler implements IBundler {
     /**
     * Build the app bundle using bundletool
     * https://developer.android.com/studio/build/building-cmdline#build_your_app_bundle_using_bundletool
+    * https://github.com/google/bundletool/blob/master/src/main/proto/config.proto
     */
     private static File createBundle(Project project, File outDir, File baseZip, ICanceled canceled) throws CompileExceptionError {
         logger.info("Creating Android Application Bundle");
@@ -770,8 +771,8 @@ public class AndroidBundler implements IBundler {
     * Copy debug symbols
     */
     private static void copySymbols(Project project, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        final boolean has_symbols = project.hasOption("with-symbols");
-        if (!has_symbols) {
+        final boolean hasSymbols = project.hasOption("with-symbols");
+        if (!hasSymbols) {
             return;
         }
         File symbolsDir = new File(outDir, getBinaryNameFromProject(project) + ".apk.symbols");

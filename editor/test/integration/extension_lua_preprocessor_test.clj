@@ -67,23 +67,23 @@
             expected-built-lines-before-preprocessing
             ["local system = require 'system'"
              ""
-             "--#IF DEBUG"
-             "    local utils = require 'debug-utils'"
-             "--#ENDIF"
              ""
-             "--#IF RELEASE"
+             "    local utils = require 'debug-utils'"
+             ""
+             ""
+             ""
              "    local utils = require 'release-utils'"
-             "--#ENDIF"
+             ""
              ""
              "                                                          "
              ""
-             "--#IF DEBUG"
-             "                                                                                  "
-             "--#ENDIF"
              ""
-             "--#IF RELEASE"
+             "                                                                                  "
+             ""
+             ""
+             ""
              "                                                                                      "
-             "--#ENDIF"]
+             ""]
 
             ;; The expected output with the Lua preprocessor plugin. Since the
             ;; go.property declarations are stripped out regardless, only the
@@ -91,23 +91,23 @@
             expected-built-lines-after-preprocessing
             ["local system = require 'system'"
              ""
-             "--#IF DEBUG"
-             "    local utils = require 'debug-utils'"
-             "--#ENDIF"
              ""
-             "--#IF RELEASE"
+             "    local utils = require 'debug-utils'"
+             ""
+             ""
+             ""
              "                                         "
-             "--#ENDIF"
+             ""
              ""
              "                                                          "
              ""
-             "--#IF DEBUG"
-             "                                                                                  "
-             "--#ENDIF"
              ""
-             "--#IF RELEASE"
+             "                                                                                  "
+             ""
+             ""
+             ""
              "                                                                                      "
-             "--#ENDIF"]
+             ""]
 
             script (tu/make-code-resource-node! project "/script.script" script-lines)]
 

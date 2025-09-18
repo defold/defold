@@ -8,29 +8,55 @@
   -fx-border-color: -df-component-darker;
   -fx-border-width: 1;
   -fx-text-fill: -df-text;
+  >.icon-graphic {
+    -fx-background-color: -df-text;
+  }
+
   &:hover {
     -fx-background-color: -df-component-lighter;
     -fx-text-fill: -df-text-selected;
+    >.icon-graphic {
+      -fx-background-color: -df-text-selected;
+    }
   }
   &:armed {
     -fx-background-color: -df-component-light;
     -fx-text-fill: -df-text-selected;
+    >.icon-graphic {
+      -fx-background-color: -df-text-selected;
+    }
   }
   &.low-prio {
+    -fx-font-weight: normal;
     -fx-background-color: -df-component-darker;
     -fx-border-color: -df-background-lighter;
     -fx-text-fill: -df-text-dark;
-    -fx-font-weight: normal;
+    >.icon-graphic {
+      -fx-background-color: -df-text-dark;
+    }
   }
   &.low-prio:hover {
-      -fx-background-color: -df-component-light;
-      -fx-text-fill: -df-text;
+    -fx-background-color: -df-component-light;
+    -fx-text-fill: -df-text;
+    >.icon-graphic {
+      -fx-background-color: -df-text;
+    }
   }
   &.low-prio:armed {
-      -fx-background-color: -df-component-dark;
-      -fx-border-color: -df-text-dark;
-      -fx-text-fill: -df-text;
+    -fx-background-color: -df-component-dark;
+    -fx-border-color: -df-text-dark;
+    -fx-text-fill: -df-text;
+    >.icon-graphic {
+      -fx-background-color: -df-text;
+    }
   }
+}
+
+.button-icon {
+  @extend .button;
+  -fx-padding: 0;
+  -fx-min-width: 0;
+  -fx-min-height: 0;
 }
 
 .button-small {
@@ -43,25 +69,6 @@
   @extend .button;
   -fx-padding: 10px 25px;
   -fx-min-width: 200px;
-}
-
-.clear-button {
-  -fx-background-radius: 0;
-  -fx-border-radius: 0;
-  -fx-background-color: -df-component-dark;
-  -fx-padding: 0;
-  -fx-min-width: 27px;
-  -fx-max-width: 27px;
-  -fx-min-height: 27px;
-  -fx-max-height: 27px;
-  -fx-border-width: 0;
-  -fx-text-fill: -df-text;
-  &:hover {
-      -fx-background-color: -df-component-lighter !important;
-  }
-  &:armed {
-      -fx-background-color: -df-component-light !important;
-  }
 }
 
 .toggle-button, .embedded-properties-button {

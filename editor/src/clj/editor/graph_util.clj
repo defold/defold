@@ -26,6 +26,7 @@
             [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (def ^:dynamic *check-pb-field-names* in/*check-schemas*)
 
@@ -33,7 +34,7 @@
   `(g/fnk [~field] ~field))
 
 (defn array-subst-remove-errors [arr]
-  (vec (remove g/error? arr)))
+  (filterv (complement g/error?) arr))
 
 (defn explicit-outputs
   ([node-id]
@@ -49,6 +50,32 @@
     (for [[source-output-label target-output-label] connections
           :when (contains? existing-source-output-labels source-output-label)]
       (g/connect source-node-id source-output-label target-node-id target-output-label))))
+
+(defn node-qualifier-label
+  "Given a node-id, returns a string that identifies the node for the user.
+  Typically, this will be the URL that uniquely identifies the node inside its
+  owner resource, or the id that the user has specified for the node. Returns
+  nil if there is no suitable qualifier for the given node."
+  ([node-id]
+   (g/with-auto-evaluation-context evaluation-context
+     (node-qualifier-label node-id evaluation-context)))
+  ([node-id {:keys [basis] :as evaluation-context}]
+   (when-some [node (g/node-by-id-at basis node-id)]
+     (let [node-type (g/node-type node)]
+       (or (when (in/behavior node-type :url)
+             (let [value (in/node-value node :url evaluation-context)]
+               (when (and (string? value)
+                          (coll/not-empty value))
+                 ;; Convert urls to a more readable representation.
+                 ;;   "#book_script" -> "book_script"
+                 ;;   "/referenced_book#book_script" -> "referenced_book/book_script"
+                 (-> value
+                     (subs 1)
+                     (string/replace "#" "/")))))
+           (when (in/behavior node-type :id)
+             (let [value (in/node-value node :id evaluation-context)]
+               (when (string? value)
+                 (coll/not-empty value)))))))))
 
 (defn node-debug-label
   ([node-id]
@@ -71,14 +98,12 @@
 
                :else
                (resource/proj-path resource))))
+         (node-qualifier-label node-id evaluation-context)
          (when (in/inherits? node-type outline/OutlineNode)
            (coll/not-empty (:label (g/maybe-node-value node-id :node-outline evaluation-context))))
          (let [name (g/maybe-node-value node-id :name evaluation-context)]
            (when (string? name)
              (coll/not-empty name)))
-         (let [id (g/maybe-node-value node-id :id evaluation-context)]
-           (when (string? id)
-             (coll/not-empty id)))
          (str (name (:k node-type)) \# node-id)))))
 
 (defn node-debug-label-path

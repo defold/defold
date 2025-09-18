@@ -62,6 +62,7 @@ version = 1.1
 publisher = Defold Foundation
 developer = Defold Foundation
 write_log = 1
+write_log_file = 1
 minimum_log_level = 2
 compress_archive = 1
 custom_resources = /referenced/custom
@@ -207,6 +208,7 @@ texture_profiles = /checked.texture_profiles
 verify_graphics_calls = 0
 opengl_version_hint = 33
 opengl_core_profile_hint = 1
+memory_size = 512
 
 [iap]
 auto_finish_transactions = 0
@@ -239,9 +241,15 @@ trigger_overlap_capacity = 8
 velocity_threshold = 0.9
 max_fixed_timesteps = 3
 
+[box2d]
+velocity_iterations = 1
+position_iterations = 2
+sub_step_count = 3
+
 [profiler]
 track_cpu = 1
 sleep_between_server_updates = 10
+performance_timeline_enabled = 0
 enabled = 1
 
 [render]
@@ -259,6 +267,7 @@ uri = http://localhost:1234/save-data-project
 include_dirs = library
 
 [liveupdate]
+enabled = 1
 settings = /liveupdate.settings
 mount_on_start = 0
 
@@ -268,4 +277,10 @@ app_manifest = /checked.appmanifest
 [game_specific]
 player_name = Player One
 player_health = 120
+
+[shader]
+exclude_gles_sm100 = 0
+
+[font]
+runtime_generation = 1
 

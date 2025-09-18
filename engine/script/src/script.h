@@ -57,6 +57,7 @@ namespace dmScript
     extern const char META_TABLE_GET_USER_DATA[];
     extern const char META_TABLE_IS_VALID[];
     extern const char META_GET_INSTANCE_DATA_TABLE_REF[];
+    extern const char META_GET_UNIQUE_SCRIPT_ID[];
 
     /**
      * Implementor should return a Ref to the instance context table.
@@ -149,10 +150,9 @@ namespace dmScript
      * Implementations of this callback are expected to resolve the path given the user data.
      * @param resolve_user_data user data passed to the callback
      * @param path
-     * @param path_size
      * @return hashed resolved path
      */
-    typedef dmhash_t (*ResolvePathCallback)(uintptr_t resolve_user_data, const char* path, uint32_t path_size);
+    typedef dmhash_t (*ResolvePathCallback)(uintptr_t resolve_user_data, const char* path);
 
     /**
      * Callback used to retrieve url
@@ -505,6 +505,17 @@ namespace dmScript
      *  [-1] value
     */
     void GetScriptWorldContextValue(HScriptWorld script_world);
+
+    /**
+     * Generate a new unique script ID.
+     *
+     * This function is responsible for producing a unique 32-bit identifier
+     * that can be used to uniquely identify a script instance during its lifetime.
+     * The returned ID is guaranteed to never be INVALID_SCRIPT_ID.
+     *
+     * @return a unique non-zero uint32_t script identifier
+     */
+    uint32_t GenerateUniqueScriptId();
 
     /**
      * Retrieve the Lua traceback from the current context

@@ -28,30 +28,32 @@
 #endif
 
 /*# SDK Thread API documentation
- * [file:<dmsdk/dlib/thread.h>]
  *
  * Thread functions.
  *
  * @document
  * @name Thread
  * @namespace dmThread
- * @path engine/dlib/src/dmsdk/dlib/thread.h
  * @language C++
  */
 
 namespace dmThread
 {
+    /*#
+     * @typedef
+     * @name ThreadStart
+     */
     typedef void (*ThreadStart)(void*);
 
     /*# create a new thread
      * Create a new named thread
      * @note thread name currently not supported on win32
-     * @name dmThread::New
-     * @param thread_start Thread entry function
-     * @param stack_size Stack size
-     * @param arg Thread argument
-     * @param name Thread name
-     * @return Thread handle
+     * @name New
+     * @param thread_start [type:ThreadStart] Thread entry function
+     * @param stack_size [type:uint32_t] Stack size
+     * @param arg [type:void*] Thread argument
+     * @param name [type:const char*] Thread name
+     * @return thread [type:dmThread::Thread] Thread handle
      * @examples
      *
      * Create a thread
@@ -101,8 +103,8 @@ namespace dmThread
      * Join thread. Waits for the thread specified by thread to terminate.  If
      * that thread has already terminated, then Join() returns immediately.  The
      * thread specified by thread must be joinable (see Detach()).
-     * @name dmThread::Join
-     * @param thread Thread to join
+     * @name Join
+     * @param thread [type:dmThread::Thread] Thread to join
      */
     void Join(Thread thread);
 
@@ -111,52 +113,52 @@ namespace dmThread
      * Detach thread. When a detached thread terminates, its resources are
      * automatically released back to the system without the need for another
      * thread to join with the terminated thread.
-     * @name dmThread::Detach
-     * @param thread Thread to detach
+     * @name Detach
+     * @param thread [type:dmThread::Thread] Thread to detach
      */
     void Detach(Thread thread);
 
     /*# allocate thread local storage key
      * Allocate thread local storage key
-     * @name dmThread::AllocTls
-     * @return Key
+     * @name AllocTls
+     * @return key [type:dmThread::TlsKey] Key
      */
     TlsKey AllocTls();
 
     /*# free thread local storage key
      * Free thread local storage key
-     * @name dmThread::FreeTls
-     * @param key Key
+     * @name FreeTls
+     * @param key [type:dmThread::TlsKey] Key
      */
     void FreeTls(TlsKey key);
 
     /*# set thread specific data
      * Set thread specific data
-     * @name dmThread::SetTlsValue
-     * @param key Key
-     * @param value Value
+     * @name SetTlsValue
+     * @param key [type:dmThread::TlsKey] Key
+     * @param value [type:void*] Value
      */
     void SetTlsValue(TlsKey key, void* value);
 
     /*# get thread specific data
      * Get thread specific data
-     * @name dmThread::GetTlsValue
-     * @param key Key
+     * @name GetTlsValue
+     * @param key [type:dmThread::TlsKey] Key
      */
     void* GetTlsValue(TlsKey key);
 
     /*# gets the current thread
      * Gets the current thread
-     * @name dmThread::GetCurrentThread
-     * @return the current thread
+     * @name GetCurrentThread
+     * @return thread [type:dmThread::Thread] the current thread
      */
     Thread GetCurrentThread();
 
     /*# sets the current thread name
      * Sets the current thread name
-     * @name dmThread::SetThreadName
-     * @param thread the thread
-     * @param name the thread name
+     * @name SetThreadName
+     * @param thread [type:dmThread::Thread] the thread
+     * @param name [type:const char*] the thread name
      * @note The thread argument is unused on Darwin (uses current thread)
      */
     void SetThreadName(Thread thread, const char* name);

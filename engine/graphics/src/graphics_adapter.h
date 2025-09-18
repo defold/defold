@@ -103,7 +103,7 @@ namespace dmGraphics
     typedef void (*DisableStateFn)(HContext context, State state);
     typedef void (*SetBlendFuncFn)(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
     typedef void (*SetColorMaskFn)(HContext context, bool red, bool green, bool blue, bool alpha);
-    typedef void (*SetDepthMaskFn)(HContext context, bool mask);
+    typedef void (*SetDepthMaskFn)(HContext context, bool enable_mask);
     typedef void (*SetDepthFuncFn)(HContext context, CompareFunc func);
     typedef void (*SetScissorFn)(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
     typedef void (*SetStencilMaskFn)(HContext context, uint32_t mask);
@@ -115,37 +115,38 @@ namespace dmGraphics
     typedef void (*SetFaceWindingFn)(HContext context, FaceWinding face_winding);
     typedef void (*SetPolygonOffsetFn)(HContext context, float factor, float units);
     typedef HRenderTarget (*NewRenderTargetFn)(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params);
-    typedef void (*DeleteRenderTargetFn)(HRenderTarget render_target);
+    typedef void (*DeleteRenderTargetFn)(HContext context, HRenderTarget render_target);
     typedef void (*SetRenderTargetFn)(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
-    typedef HTexture (*GetRenderTargetTextureFn)(HRenderTarget render_target, BufferType buffer_type);
-    typedef void (*GetRenderTargetSizeFn)(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
-    typedef void (*SetRenderTargetSizeFn)(HRenderTarget render_target, uint32_t width, uint32_t height);
+    typedef HTexture (*GetRenderTargetTextureFn)(HContext context, HRenderTarget render_target, BufferType buffer_type);
+    typedef void (*GetRenderTargetSizeFn)(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
+    typedef void (*SetRenderTargetSizeFn)(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height);
     typedef bool (*IsTextureFormatSupportedFn)(HContext context, TextureFormat format);
     typedef HTexture (*NewTextureFn)(HContext context, const TextureCreationParams& params);
-    typedef void (*DeleteTextureFn)(HTexture t);
-    typedef void (*SetTextureFn)(HTexture texture, const TextureParams& params);
-    typedef void (*SetTextureAsyncFn)(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
-    typedef void (*SetTextureParamsFn)(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
-    typedef uint32_t (*GetTextureResourceSizeFn)(HTexture texture);
-    typedef uint16_t (*GetTextureWidthFn)(HTexture texture);
-    typedef uint16_t (*GetTextureHeightFn)(HTexture texture);
-    typedef uint16_t (*GetOriginalTextureWidthFn)(HTexture texture);
-    typedef uint16_t (*GetOriginalTextureHeightFn)(HTexture texture);
-    typedef uint16_t (*GetTextureDepthFn)(HTexture texture);
-    typedef uint8_t (*GetTextureMipmapCountFn)(HTexture texture);
-    typedef TextureType (*GetTextureTypeFn)(HTexture texture);
+    typedef void (*DeleteTextureFn)(HContext context, HTexture t);
+    typedef void (*SetTextureFn)(HContext context, HTexture texture, const TextureParams& params);
+    typedef void (*SetTextureAsyncFn)(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
+    typedef void (*SetTextureParamsFn)(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
+    typedef uint32_t (*GetTextureResourceSizeFn)(HContext context, HTexture texture);
+    typedef uint16_t (*GetTextureWidthFn)(HContext context, HTexture texture);
+    typedef uint16_t (*GetTextureHeightFn)(HContext context, HTexture texture);
+    typedef uint16_t (*GetOriginalTextureWidthFn)(HContext context, HTexture texture);
+    typedef uint16_t (*GetOriginalTextureHeightFn)(HContext context, HTexture texture);
+    typedef uint16_t (*GetTextureDepthFn)(HContext context, HTexture texture);
+    typedef uint8_t (*GetTextureMipmapCountFn)(HContext context, HTexture texture);
+    typedef TextureType (*GetTextureTypeFn)(HContext context, HTexture texture);
     typedef void (*EnableTextureFn)(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
     typedef void (*DisableTextureFn)(HContext context, uint32_t unit, HTexture texture);
     typedef uint32_t (*GetMaxTextureSizeFn)(HContext context);
-    typedef uint32_t (*GetTextureStatusFlagsFn)(HTexture texture);
+    typedef uint32_t (*GetTextureStatusFlagsFn)(HContext context, HTexture texture);
     typedef void (*ReadPixelsFn)(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size);
     typedef void (*RunApplicationLoopFn)(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running);
     typedef HandleResult (*GetTextureHandleFn)(HTexture texture, void** out_handle);
     typedef bool (*IsExtensionSupportedFn)(HContext context, const char* extension);
     typedef uint32_t (*GetNumSupportedExtensionsFn)(HContext context);
     typedef const char* (*GetSupportedExtensionFn)(HContext context, uint32_t index);
-    typedef uint8_t (*GetNumTextureHandlesFn)(HTexture texture);
-    typedef uint32_t (*GetTextureUsageHintFlagsFn)(HTexture texture);
+    typedef uint8_t (*GetNumTextureHandlesFn)(HContext context, HTexture texture);
+    typedef uint32_t (*GetTextureUsageHintFlagsFn)(HContext context, HTexture texture);
+    typedef uint8_t (*GetTexturePageCountFn)(HTexture texture);
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
     typedef void (*InvalidateGraphicsHandlesFn)(HContext context);
@@ -249,6 +250,7 @@ namespace dmGraphics
         GetSupportedExtensionFn m_GetSupportedExtension;
         GetNumTextureHandlesFn m_GetNumTextureHandles;
         GetTextureUsageHintFlagsFn m_GetTextureUsageHintFlags;
+        GetTexturePageCountFn m_GetTexturePageCount;
         GetPipelineStateFn m_GetPipelineState;
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
         IsAssetHandleValidFn m_IsAssetHandleValid;
@@ -355,6 +357,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetSupportedExtension); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetNumTextureHandles); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureUsageHintFlags); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTexturePageCount); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetPipelineState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsContextFeatureSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid); \

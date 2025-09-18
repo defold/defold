@@ -1693,13 +1693,12 @@ namespace dmGameSystem
         dmRender::AddToRender(render_context, &ro);
     }
 
-    static void UpdateTransform(SpriteComponent* component, bool scale_along_z, bool sub_pixels)
+    static void UpdateTransform(SpriteComponent* component, bool sub_pixels)
     {
         Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(component->m_Position, component->m_Rotation, 1.0f));
         Matrix4 world = dmGameObject::GetWorldMatrix(component->m_Instance);
         Vector3 size( component->m_Size.getX() * component->m_Scale.getX(), component->m_Size.getY() * component->m_Scale.getY(), 1);
-        Matrix4 w = scale_along_z ? world * local : dmTransform::MulNoScaleZ(world, local);
-        w = dmVMath::AppendScale(w, size);
+        Matrix4 w = dmVMath::AppendScale(world * local, size);
         if (!sub_pixels)
         {
             Vector4 position = w.getCol3();
@@ -1903,7 +1902,6 @@ namespace dmGameSystem
             return dmGameObject::UPDATE_RESULT_OK;
 
         SpriteComponent* c = &components[0];
-        bool scale_along_z = dmGameObject::ScaleAlongZ(dmGameObject::GetCollection(c->m_Instance));
         bool sub_pixels = sprite_context->m_Subpixels;
 
         for (uint32_t i = 0; i < n; ++i)
@@ -1911,7 +1909,7 @@ namespace dmGameSystem
             SpriteComponent* component = &components[i];
             if (!component->m_Enabled || !component->m_AddedToUpdate)
                 continue;
-            UpdateTransform(component, scale_along_z, sub_pixels);
+            UpdateTransform(component, sub_pixels);
             // we need to consider the full scale here
             // I.e. we want the length of the diagonal C, where C = X + Y
             float radius_sq = dmVMath::LengthSqr((component->m_World.getCol(0).getXYZ() + component->m_World.getCol(1).getXYZ()) * 0.5f);
@@ -2489,12 +2487,13 @@ namespace dmGameSystem
                     type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4;
                     break;
                 case 2:
-                    {
-                        // Since the size is baked into the matrix, we divide by it here
-                        Vector3 size( component->m_Size.getX() * component->m_Scale.getX(), component->m_Size.getY() * component->m_Scale.getY(), 1);
-                        value = Vector4(dmVMath::DivPerElem(transform.GetScale(), size));
-                    }
+                {
+                    Matrix4 parent_world = dmGameObject::GetWorldMatrix(component->m_Instance);
+                    Vector3 parent_scale = dmTransform::ToTransform(parent_world).GetScale();
+                    Vector3 world_scale = dmVMath::MulPerElem(parent_scale, component->m_Scale);
+                    value = Vector4(world_scale);
                     break;
+                }
                 case 3:
                     // the size is baked into this matrix as the scale
                     value = Vector4(transform.GetScale());

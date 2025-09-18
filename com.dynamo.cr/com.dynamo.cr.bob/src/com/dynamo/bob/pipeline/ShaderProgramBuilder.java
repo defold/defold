@@ -42,7 +42,7 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 @BuilderParams(name="ShaderProgram", inExts= {".shbundle", ".shbundlec"}, outExt=".spc",
         // See configurePreBuildProjectOptions in Project.java
         paramsForSignature = {"platform", "output-spirv", "output-wgsl", "output-hlsl", "output-glsles100",
-        "output-glsles300", "output-glsl120", "output-glsl330", "output-glsl430"})
+        "output-glsles300", "output-glsl120", "output-glsl330", "output-glsl430", "exclude-gles-sm100"})
 public class ShaderProgramBuilder extends Builder {
 
     static public class ShaderBuildResult {
@@ -130,6 +130,7 @@ public class ShaderProgramBuilder extends Builder {
             this.modulesDescs.get(i).source = this.modulePreprocessors.get(i).getCompiledSource();
         }
 
+        compileOptions.excludeGlesSm100 = getExcludeGlesSm100Flag();
         if (getOutputHlslFlag()) {
             addUniqueShaderLanguage(ShaderDesc.Language.LANGUAGE_HLSL);
         }
@@ -170,17 +171,18 @@ public class ShaderProgramBuilder extends Builder {
         task.output(0).setContent(shaderDescBuildResult.shaderDesc.toByteArray());
     }
 
-    private boolean getOutputShaderFlag(String projectOption, String projectProperty) {
+    private boolean getOutputShaderFlag(String projectOption) {
         // See configurePreBuildProjectOptions in Project.java
         return this.project.option(projectOption, "false").equals("true");
     }
 
-    private boolean getOutputSpirvFlag() { return getOutputShaderFlag("output-spirv", "output_spirv"); }
-    private boolean getOutputHlslFlag() { return getOutputShaderFlag("output-hlsl", "output_hlsl"); }
-    private boolean getOutputWGSLFlag() { return getOutputShaderFlag("output-wgsl", "output_wgsl"); }
-    private boolean getOutputGLSLFlag() { return getOutputShaderFlag("output-glsl", "output_glsl"); }
-    private boolean getOutputGLSLESFlag(int version) { return getOutputShaderFlag("output-glsles" + version, "output_glsl_es" + version); }
-    private boolean getOutputGLSLFlag(int version) { return getOutputShaderFlag("output-glsl" + version, "output_glsl" + version); }
+    private boolean getOutputSpirvFlag() { return getOutputShaderFlag("output-spirv"); }
+    private boolean getOutputHlslFlag() { return getOutputShaderFlag("output-hlsl"); }
+    private boolean getOutputWGSLFlag() { return getOutputShaderFlag("output-wgsl"); }
+    private boolean getOutputGLSLFlag() { return getOutputShaderFlag("output-glsl"); }
+    private boolean getOutputGLSLESFlag(int version) { return getOutputShaderFlag("output-glsles" + version); }
+    private boolean getOutputGLSLFlag(int version) { return getOutputShaderFlag("output-glsl" + version); }
+    private boolean getExcludeGlesSm100Flag() { return getOutputShaderFlag("exclude-gles-sm100"); }
 
     static public ShaderDescBuildResult buildResultsToShaderDescBuildResults(ShaderCompileResult shaderCompileresult) throws CompileExceptionError {
         ShaderDescBuildResult shaderDescBuildResult = new ShaderDescBuildResult();
@@ -503,11 +505,22 @@ public class ShaderProgramBuilder extends Builder {
         }
     }
 
-    static public ShaderDesc.Shader.Builder makeShaderBuilder(byte[] source, ShaderDesc.Language language, ShaderDesc.ShaderType type) {
+    static public ShaderDesc.Shader.Builder makeShaderBuilder(Shaderc.ShaderCompileResult result, ShaderDesc.Language language, ShaderDesc.ShaderType type) {
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(language);
         builder.setShaderType(type);
-        builder.setSource(ByteString.copyFrom(source));
+        builder.setSource(ByteString.copyFrom(result.data));
+
+        if (result.hLSLResourceMappings != null) {
+            for (Shaderc.HLSLResourceMapping mapping : result.hLSLResourceMappings) {
+                ShaderDesc.HLSLResourceMapping.Builder hlslResourceMappingBuilder = ShaderDesc.HLSLResourceMapping.newBuilder();
+                hlslResourceMappingBuilder.setNameHash(mapping.nameHash);
+                hlslResourceMappingBuilder.setBinding(mapping.shaderResourceBinding);
+                hlslResourceMappingBuilder.setSet(mapping.shaderResourceSet);
+                builder.addHlslResourceMapping(hlslResourceMappingBuilder);
+            }
+        }
+
         return builder;
     }
 

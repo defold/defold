@@ -23,7 +23,7 @@ void dmEngineService::Delete(dmEngineService::HEngineService)
 {
 }
 
-void dmEngineService::Update(dmEngineService::HEngineService, dmProfile::HProfile)
+void dmEngineService::Update(dmEngineService::HEngineService, HProfile)
 {
 }
 

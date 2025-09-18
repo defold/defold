@@ -23,7 +23,6 @@
  *
  * @document
  * @name ObjectPool
- * @path engine/dlib/src/dmsdk/dlib/object_pool.h
  * @language C++
  */
 
@@ -38,6 +37,7 @@
  *
  * @struct
  * @name dmObjectPool
+ * @tparam T
  */
 template <typename T>
 class dmObjectPool
@@ -60,7 +60,6 @@ public:
     /*#
      * Constructor
      * @name dmObjectPool
-     * @param capacity
      */
     dmObjectPool()
     {

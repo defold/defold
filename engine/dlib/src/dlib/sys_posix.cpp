@@ -167,6 +167,86 @@ namespace dmSys
 
 #elif defined(_WIN32)
 
+    static const wchar_t* SkipSlashesW(const wchar_t* path)
+    {
+        while (*path && (*path == L'/' || *path == L'\\'))
+        {
+            ++path;
+        }
+        return path;
+    }
+
+    // Is a path contains unicode characters, we need to make it 8.3 in order to properly use char* functions
+    static bool MakePath_8_3(const wchar_t* wpath, wchar_t* out)
+    {
+        wchar_t tmp[MAX_PATH] = { 0 };
+        dmPath::NormalizeW(wpath, tmp, MAX_PATH);
+        out[0] = L'\0';
+
+        int has_drive = 0;
+        wchar_t* cursor = tmp;
+        while (*cursor != L'\0')
+        {
+            if (!has_drive)
+            {
+                cursor = wcschr(cursor, L':');
+                if (!cursor)
+                {
+                    dmLogError("Failed to find drive in path: '%ls'\n", wpath);
+                    return false;
+                }
+                has_drive = 1;
+                cursor++; // Skip past the ':'"
+
+                // Copy the drive "C:"
+                wchar_t c = *cursor;
+                *cursor = L'\0';
+                wcscpy(out, tmp);
+
+                *cursor = c;
+                cursor = (wchar_t*)SkipSlashesW(cursor+1);
+                continue;
+            }
+
+            wchar_t* sep = wcschr(cursor, L'\\');
+            if (!sep)
+                sep = wcschr(cursor, L'/');
+
+            // Temporarily null terminate the string
+            if (sep)
+                *sep = L'\0';
+
+            // Create a version of the previously parsed path, and the latest (untransformed) directory name
+            wchar_t testpath[MAX_PATH] = { 0 };
+            wcscpy(testpath, out); // The previously path with 8.3 names
+            wcscat(testpath, L"/");
+            wcscat(testpath, cursor); // The last folder to test
+
+            WIN32_FIND_DATAW fd{0};
+            HANDLE h = FindFirstFileW( tmp, &fd );
+            if (h == INVALID_HANDLE_VALUE)
+            {
+                dmLogError("FindFirstFileW failed\n");
+                return false;
+            }
+
+            wcscat(out, L"/");
+            if (fd.cAlternateFileName[0] == L'\0')
+                wcscat(out, fd.cFileName);
+            else
+                wcscat(out, fd.cAlternateFileName);
+
+            if (sep)
+                *sep = L'/';
+            else
+                break;
+
+            cursor = sep + 1;
+        }
+
+        return true;
+    }
+
     Result GetApplicationSavePath(const char* application_name, char* path, uint32_t path_len)
     {
         return GetApplicationSupportPath(application_name, path, path_len);
@@ -174,20 +254,37 @@ namespace dmSys
 
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
-        char tmp_path[MAX_PATH];
+        wchar_t tmp_wpath[MAX_PATH];
 
-        if(SUCCEEDED(SHGetFolderPathA(NULL,
+        if(SUCCEEDED(SHGetFolderPathW(NULL,
                                      CSIDL_APPDATA | CSIDL_FLAG_CREATE,
                                      NULL,
                                      0,
-                                     tmp_path)))
+                                     tmp_wpath)))
         {
+            // Make any unicode directories into 8.3 format if necessary
+            wchar_t short_path[MAX_PATH];
+            MakePath_8_3(tmp_wpath, short_path);
+
+            int wlength = (int)wcslen(short_path);
+            int size_needed = WideCharToMultiByte(CP_UTF8, 0, short_path, wlength, NULL, 0, NULL, NULL);
+            if (size_needed == 0)
+            {
+                dmLogError("Failed converting wchar_t -> char\n");
+                return RESULT_UNKNOWN;
+            }
+
+            char* tmp_path = (char*)_alloca(size_needed + 1);
+            WideCharToMultiByte(CP_UTF8, 0, short_path, wlength, tmp_path, size_needed, NULL, NULL);
+            tmp_path[size_needed] = 0;
+
             if (dmStrlCpy(path, tmp_path, path_len) >= path_len)
                 return RESULT_INVAL;
-            if (dmStrlCat(path, "\\", path_len) >= path_len)
+            if (dmStrlCat(path, "/", path_len) >= path_len)
                 return RESULT_INVAL;
             if (dmStrlCat(path, application_name, path_len) >= path_len)
                 return RESULT_INVAL;
+
             Result r =  Mkdir(path, 0755);
             if (r == RESULT_EXIST)
                 return RESULT_OK;
@@ -232,7 +329,7 @@ namespace dmSys
     Result OpenURL(const char* url, const char* target)
     {
         intptr_t ret = (intptr_t) ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
-        if (ret == 32)
+        if (ret > 32)
         {
             return RESULT_OK;
         }
@@ -653,40 +750,45 @@ namespace dmSys
 #endif
     }
 
-#if (defined(__linux__) && !defined(__ANDROID__)) || defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__)
+    void GetSystemInfo(SystemInfo* info)
+    {
+        memset(info, 0, sizeof(*info));
+
+        dmStrlCpy(info->m_SystemName, "HTML5", sizeof(info->m_SystemName));
+
+        const char* default_lang = "en_US";
+        info->m_UserAgent = dmSysGetUserAgent(); // transfer ownership to SystemInfo struct
+        const char* const lang = dmSysGetUserPreferredLanguage(default_lang);
+        FillLanguageTerritory(lang, info);
+        FillTimeZone(info);
+
+        free((void*)lang);
+    }
+
+    void GetSecureInfo(SystemInfo* info)
+    {
+    }
+
+#elif defined(__linux__) && !defined(__ANDROID__)
     void GetSystemInfo(SystemInfo* info)
     {
         memset(info, 0, sizeof(*info));
         struct utsname uts;
-#if !defined(__EMSCRIPTEN__)
         uname(&uts);
-#endif
 
-#if defined(__EMSCRIPTEN__)
-        dmStrlCpy(info->m_SystemName, "HTML5", sizeof(info->m_SystemName));
-#else
         dmStrlCpy(info->m_SystemName, "Linux", sizeof(info->m_SystemName));
-#endif
         dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
-        info->m_DeviceModel[0] = '\0';
 
         const char* default_lang = "en_US";
-#if defined(__EMSCRIPTEN__)
-        info->m_UserAgent = dmSysGetUserAgent(); // transfer ownership to SystemInfo struct
-        const char* const lang = dmSysGetUserPreferredLanguage(default_lang);
-#else
         const char* lang = getenv("LANG");
-        if (!lang) {
+        if (!lang)
+        {
             dmLogWarning("Variable LANG not set");
             lang = default_lang;
         }
-#endif
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
-
-#if defined(__EMSCRIPTEN__)
-        free((void*)lang);
-#endif
     }
 
     void GetSecureInfo(SystemInfo* info)
@@ -875,8 +977,13 @@ namespace dmSys
             return true;
         }
 #endif
+#ifdef _WIN32
+        struct _stat64 file_stat;
+        return _stat64(path, &file_stat) == 0;
+#else
         struct stat file_stat;
         return stat(path, &file_stat) == 0;
+#endif
     }
 
     Result ResourceSize(const char* path, uint32_t* resource_size)
@@ -892,8 +999,13 @@ namespace dmSys
             return RESULT_OK;
         }
 #endif
+#ifdef _WIN32
+        struct _stat64 file_stat;
+        if (_stat64(path, &file_stat) == 0) {
+#else
         struct stat file_stat;
         if (stat(path, &file_stat) == 0) {
+#endif
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
@@ -928,8 +1040,13 @@ namespace dmSys
             return RESULT_OK;
         }
 #endif
+#ifdef _WIN32
+        struct _stat64 file_stat;
+        if (_stat64(path, &file_stat) == 0) {
+#else
         struct stat file_stat;
         if (stat(path, &file_stat) == 0) {
+#endif
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
@@ -972,8 +1089,13 @@ namespace dmSys
             return RESULT_OK;
         }
 #endif
+#ifdef _WIN32
+        struct _stat64 file_stat;
+        if (_stat64(path, &file_stat) == 0) {
+#else
         struct stat file_stat;
         if (stat(path, &file_stat) == 0) {
+#endif
             if (!S_ISREG(file_stat.st_mode)) {
                 return RESULT_NOENT;
             }
@@ -1030,8 +1152,13 @@ namespace dmSys
 
     Result IsDir(const char* path)
     {
+#ifdef _WIN32
+        struct _stat64 path_stat;
+        int ret = _stat64(path, &path_stat);
+#else
         struct stat path_stat;
         int ret = stat(path, &path_stat);
+#endif
         if (ret != 0)
             return ErrnoToResult(errno);
         return path_stat.st_mode & S_IFDIR ? RESULT_OK : RESULT_UNKNOWN;
@@ -1039,8 +1166,13 @@ namespace dmSys
 
     bool Exists(const char* path)
     {
+#ifdef _WIN32
+        struct _stat64 path_stat;
+        int ret = _stat64(path, &path_stat);
+#else
         struct stat path_stat;
         int ret = stat(path, &path_stat);
+#endif
         return ret == 0;
     }
 
@@ -1066,8 +1198,13 @@ namespace dmSys
             char abs_path[1024];
             dmSnPrintf(abs_path, sizeof(abs_path), "%s/%s", dirpath, entry->d_name);
 
+#ifdef _WIN32
+            struct _stat64 path_stat;
+            _stat64(abs_path, &path_stat);
+#else
             struct stat path_stat;
             stat(abs_path, &path_stat);
+#endif
 
             bool isdir = S_ISDIR(path_stat.st_mode);
 
@@ -1116,8 +1253,13 @@ namespace dmSys
 
     Result Stat(const char* path, StatInfo* stat_info)
     {
+#ifdef _WIN32
+        struct _stat64 info;
+        int ret = _stat64(path, &info);
+#else
         struct stat info;
         int ret = stat(path, &info);
+#endif
         if (ret != 0)
             return RESULT_NOENT;
         stat_info->m_Size = (uint64_t)info.st_size;

@@ -70,7 +70,6 @@ static inline void AddShaderResource(dmGraphics::ShaderDesc* desc, const char* n
     dmGraphics::ShaderDesc::ResourceBinding* res = *data + *count;
     memset(res, 0, sizeof(dmGraphics::ShaderDesc::ResourceBinding));
 
-    *count++;
     res->m_Name                     = name;
     res->m_NameHash                 = dmHashString64(name);
     res->m_Binding                  = binding;

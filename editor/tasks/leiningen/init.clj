@@ -61,13 +61,14 @@
   [user_domain]
   (let [default_domain "d.defold.com"
         env_domain (System/getenv "DM_ARCHIVE_DOMAIN")]
-        (or user_domain env_domain default_domain)))
+    (or user_domain env_domain default_domain)))
 
 (def init-tasks
   [["clean"]
    ["local-jars"]
    ; ["builtins"] builtins is in bob which we install in `local-jars` step
    ["ref-doc"]
+   ["project-templates"]
    ["protobuf"]
    ["sass" "once"]
    ["pack"]])

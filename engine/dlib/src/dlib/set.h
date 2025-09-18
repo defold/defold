@@ -39,7 +39,6 @@
  * @document
  * @name Set
  * @namespace dmSet
- * @path engine/dlib/src/dlib/set.h
  * @language C++
  */
 
@@ -50,7 +49,7 @@
  *
  * @class
  * @name dmSet
- * @tparam T [type:typename T] Contained type, must obey memcpy semantics and support operator<
+ * @tparam T Contained type, must obey memcpy semantics and support operator<
  */
 template <typename T>
 class dmSet

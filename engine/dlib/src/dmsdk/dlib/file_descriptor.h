@@ -30,7 +30,6 @@
  * @document
  * @name FileDescriptor
  * @namespace dmFileDescriptor
- * @path engine/dlib/src/dmsdk/dlib/file_descriptor.h
  * @language C++
  */
 namespace dmFileDescriptor
@@ -63,8 +62,8 @@ namespace dmFileDescriptor
     /*#
      * Clear event from poller.
      * @name PollerClearEvent
-     * @param poller [type:Poller*] Poller
-     * @param event [type:PollEvent] Event to clear
+     * @param poller [type:dmFileDescriptor::Poller*] Poller
+     * @param event [type:dmFileDescriptor::PollEvent] Event to clear
      * @param fd [type:int] File descriptor to clear
      * @return [type:void]
      */
@@ -73,8 +72,8 @@ namespace dmFileDescriptor
     /*#
      * Set file descriptor event to poll for
      * @name PollerSetEvent
-     * @param poller [type:Poller*] Poller
-     * @param event [type:PollEvent] Event to set
+     * @param poller [type:dmFileDescriptor::Poller*] Poller
+     * @param event [type:dmFileDescriptor::PollEvent] Event to set
      * @param fd [type:int] File descriptor to clear
      * @return [type:void]
      */
@@ -83,8 +82,8 @@ namespace dmFileDescriptor
     /*#
      * Check if event exists for file descriptor
      * @name PollerHasEvent
-     * @param poller [type:Poller*] Poller
-     * @param event [type:PollEvent] Event to check
+     * @param poller [type:dmFileDescriptor::Poller*] Poller
+     * @param event [type:dmFileDescriptor::PollEvent] Event to check
      * @param fd [type:int] File descriptor to clear
      * @return [type:bool] True if event exists.
      */
@@ -93,7 +92,7 @@ namespace dmFileDescriptor
     /*#
      * Reset poller.
      * @name PollerReset
-     * @param spoller [type:Poller*] Poller
+     * @param spoller [type:dmFileDescriptor::Poller*] Poller
      * @return [type:void]
      */
     void PollerReset(Poller* poller);
@@ -101,9 +100,9 @@ namespace dmFileDescriptor
     /*#
      * Wait for event
      * @name Wait
-     * @param poller [type:Poller*] Poller
+     * @param poller [type:dmFileDescriptor::Poller*] Poller
      * @param timeout [type:int] Timeout. For blocking pass -1. (milliseconds)
-     * @return [type:Result] Non-negative value on success, 0 on timeout and
+     * @return [type:int] Non-negative value on success, 0 on timeout and
      * -1 on error with errno set to indicate the error
      */
     int Wait(Poller* poller, int timeout);

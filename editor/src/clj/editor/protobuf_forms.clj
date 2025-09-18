@@ -25,10 +25,10 @@
 (set! *warn-on-reflection* true)
 
 (defn- clear-form-op [{:keys [node-id]} path]
-  (g/update-property! node-id :pb util/dissoc-in path))
+  (g/update-property node-id :pb util/dissoc-in path))
 
 (defn- set-form-op [{:keys [node-id]} path value]
-  (g/update-property! node-id :pb assoc-in path value))
+  (g/update-property node-id :pb assoc-in path value))
 
 (defn- longest-prefix-size [enum-values]
   (case (count enum-values)
@@ -155,7 +155,7 @@
   (let [old-pb (g/node-value node-id :pb)
         old-form-pb (gamepad-pb->form-pb old-pb)
         upd-form-pb (assoc-in old-form-pb path value)]
-    (g/set-property! node-id :pb (form-pb->gamepad-pb upd-form-pb))))
+    (g/set-property node-id :pb (form-pb->gamepad-pb upd-form-pb))))
 
 (defmethod protobuf-form-data Input$GamepadMaps [node-id pb _def]
   (let [gamepad-values (butlast (protobuf/enum-values Input$Gamepad)) ; skip MAX_GAMEPAD_COUNT

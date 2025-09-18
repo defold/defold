@@ -36,6 +36,12 @@ namespace dmGameSystem
     const char* PHYSICS_USE_FIXED_TIMESTEP          = "physics.use_fixed_timestep";
     /// Config key for using max updates during a single step
     const char* PHYSICS_MAX_FIXED_TIMESTEPS         = "physics.max_fixed_timesteps";
+    /// Config key for Box2D 2.2 velocity iterations
+    const char* BOX2D_VELOCITY_ITERATIONS            = "box2d.velocity_iterations";
+    /// Config key for Box2D 2.2 position iterations  
+    const char* BOX2D_POSITION_ITERATIONS            = "box2d.position_iterations";
+    /// Config key for Box2D 3.x sub-step count
+    const char* BOX2D_SUB_STEP_COUNT                 = "box2d.sub_step_count";
 
     dmGameObject::CreateResult CompCollisionObjectNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -552,8 +558,8 @@ namespace dmGameSystem
 
         bool event_supported_a = SupportsEvent(component_a, EVENT_MASK_TRIGGER);
         bool event_supported_b = SupportsEvent(component_b, EVENT_MASK_TRIGGER);
-        if (!event_supported_a && event_supported_a == event_supported_b)
-            return; // Neither supported this event
+        if (!event_supported_a && !event_supported_b)
+            return; // We early out because neither supported this event
 
         dmGameObject::HInstance instance_a = component_a->m_Instance;
         dmGameObject::HInstance instance_b = component_b->m_Instance;
@@ -615,8 +621,8 @@ namespace dmGameSystem
 
             bool event_supported_a = SupportsEvent(component_a, EVENT_MASK_COLLISION);
             bool event_supported_b = SupportsEvent(component_b, EVENT_MASK_COLLISION);
-            if (!event_supported_a && event_supported_a == event_supported_b)
-                return false; // Neither supported this event
+            if (!event_supported_a && !event_supported_b)
+                return true; // We early out because neither supported this event
 
             cud->m_Count += 1;
 
@@ -688,8 +694,8 @@ namespace dmGameSystem
 
             bool event_supported_a = SupportsEvent(component_a, EVENT_MASK_CONTACT);
             bool event_supported_b = SupportsEvent(component_b, EVENT_MASK_CONTACT);
-            if (!event_supported_a && event_supported_a == event_supported_b)
-                return false; // Neither supported this event
+            if (!event_supported_a && !event_supported_b)
+                return true; // We early out because neither supported this event
 
             cud->m_Count += 1;
 

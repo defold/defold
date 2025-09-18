@@ -21,10 +21,10 @@
            [com.dynamo.bob.font BMFont BMFont$Char DistanceFieldGenerator Fontc]
            [com.dynamo.render.proto Font$FontDesc]
            [com.google.protobuf ByteString]
-           [java.awt BasicStroke Canvas Color Composite CompositeContext Font FontMetrics Graphics2D RenderingHints Shape Transparency]
+           [java.awt BasicStroke Canvas Color Composite CompositeContext Font FontMetrics Graphics Graphics2D RenderingHints Shape Transparency]
            [java.awt.color ColorSpace]
            [java.awt.font FontRenderContext GlyphVector]
-           [java.awt.geom AffineTransform FlatteningPathIterator PathIterator Rectangle2D]
+           [java.awt.geom AffineTransform FlatteningPathIterator PathIterator Rectangle2D Area]
            [java.awt.image BufferedImage ComponentColorModel ConvolveOp DataBuffer DataBufferByte Kernel Raster WritableRaster]
            [java.io FileNotFoundException IOException InputStream]
            [java.nio.file Paths]
@@ -86,7 +86,7 @@
                            (reductions + 0 (map :glyph-data-size glyph-extents)))]
     glyph-extents))
 
-(defrecord Glyph [character width advance left-bearing ascent descent glyph-cell-wh glyph-data-offset glyph-data-size]
+(defrecord Glyph [character width image-width advance left-bearing ascent descent glyph-cell-wh glyph-data-offset glyph-data-size]
   IDigestable
   (digest [_ w]
     (doto w
@@ -94,6 +94,8 @@
       (.write (str character))
       (.write " ")
       (.write (str width))
+      (.write " ")
+      (.write (str image-width))
       (.write " ")
       (.write (str advance))
       (.write " ")
@@ -115,12 +117,14 @@
 (defn- make-ddf-glyphs [semi-glyphs glyph-extents padding]
   (mapv
     (fn [glyph glyph-extents]
-      (let [wh (:glyph-wh glyph-extents)]
+      (let [wh (:glyph-wh glyph-extents)
+            width (if (positive-wh? wh)
+                    (:width (:image-wh glyph-extents))
+                    (:width wh))]
         (->Glyph
           #_character (:character glyph)
-          #_width (if (positive-wh? wh)
-                    (:width (:image-wh glyph-extents))
-                    (:width wh))
+          #_width width
+          #_image-width width
           #_advance (:advance glyph)
           #_left-bearing (:left-bearing glyph)
           #_ascent (+ ^int (:ascent glyph) ^int padding)
@@ -166,7 +170,8 @@
                          :character (.id c)
                          :advance (double (.xadvance c))
                          :left-bearing (double (.xoffset c))
-                         :width (.width c)}))]
+                         :width (.width c)
+                         :image-width (.width c)}))]
     (when-not (seq semi-glyphs)
       (throw (ex-info "No character glyphs were included! Maybe turn on 'all_chars'?" {})))
     semi-glyphs))
@@ -210,6 +215,8 @@
 (defn- get-font-map-props [font-desc]
   {:material (str (:material font-desc) "c")
    :size (:size font-desc)
+   :all-chars (:all-chars font-desc)
+   :characters (:characters font-desc)
    :antialias (:antialias font-desc)
    :shadow-x (:shadow-x font-desc)
    :shadow-y (:shadow-y font-desc)
@@ -444,13 +451,15 @@
   (let [glyph-vector (.createGlyphVector font (font-render-context antialias) (Character/toChars codepoint))
         visual-bounds (.. glyph-vector getOutline getBounds)
         metrics (.getGlyphMetrics glyph-vector 0)
-        left-bearing (double (.getLSB metrics))]
+        left-bearing (double (.getLSB metrics))
+        width (+ (.getWidth visual-bounds) (if (not= left-bearing 0.0) 1 0))]
     {:ascent (int (Math/ceil (- (.getMinY visual-bounds))))
      :descent (int (Math/ceil (.getMaxY visual-bounds)))
      :character codepoint
      :advance (double (Math/round (.getAdvance metrics)))
      :left-bearing (Math/floor left-bearing)
-     :width (+ (.getWidth visual-bounds) (if (not= left-bearing 0.0) 1 0))
+     :width width
+     :image-width width
      :vector glyph-vector}))
 
 (defn- ttf-semi-glyphs [font-desc ^Font font antialias]
@@ -605,7 +614,10 @@
         ^int channel-count channel-count
         ^int shadow-blur shadow-blur
         {^int width :width ^int height :height} (pad-wh padding (glyph-wh glyph))
-        ^Shape glyph-outline (.getGlyphOutline glyph-vector 0)
+        ;; Normalize the outline by boolean-unioning overlapping contours to avoid
+        ;; internal edges contributing to the distance field (fixes artifacts for
+        ;; glyphs composed of multiple vector shapes; see issue #6577)
+        ^Shape glyph-outline (let [area (Area. (.getGlyphOutline glyph-vector 0))] area)
         ^PathIterator outline-iterator (FlatteningPathIterator. (.getPathIterator glyph-outline identity-transform) 0.1)
         segment-points (double-array 6 0.0)]
 

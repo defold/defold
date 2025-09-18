@@ -21,6 +21,8 @@
             [util.digest :as digest])
   (:import [clojure.lang Named]
            [com.defold.util IDigestable]
+           [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
+           [com.dynamo.graphics.proto Graphics$ShaderDesc]
            [java.io BufferedWriter OutputStreamWriter Writer]))
 
 (set! *warn-on-reflection* true)
@@ -212,6 +214,14 @@
   java.util.List
   (digest! [value writer opts]
     (digest-sequence! "[" value "]" writer opts))
+
+  TextureSetGenerator$LayoutResult
+  (digest! [value writer opts]
+    (digest-tagged! 'LayoutResult (str value) writer opts))
+
+  Graphics$ShaderDesc
+  (digest! [value writer opts]
+    (digest-tagged! 'ShaderDesc (str value) writer opts))
 
   Class
   (digest! [value writer opts]

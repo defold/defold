@@ -77,7 +77,7 @@
   (testing "simple update"
     (ts/with-clean-system
       (let [[resource] (ts/tx-nodes (g/make-node world Resource :marker (int 0)))
-            tx-result  (g/transact (it/update-property resource :marker safe+ [42]))]
+            tx-result  (g/transact (it/update-property resource :marker safe+ [42] nil))]
         (is (= :ok (:status tx-result)))
         (is (= 42 (g/node-value resource :marker))))))
 
@@ -195,7 +195,7 @@
       (is (some #{real-id} (map gt/endpoint-node-id outputs-modified)))
       (is (= #{:_declared-properties :_properties :_overridden-properties :_node-id :_output-jammers :self-dependent :a-property :ordinary}
              (into #{} (map gt/endpoint-label) outputs-modified)))
-      (let [tx-data          [(it/update-property real-id :a-property (constantly "new-value") [])]
+      (let [tx-data          [(it/update-property real-id :a-property (constantly "new-value") [] nil)]
             tx-result        (g/transact tx-data)
             outputs-modified (:outputs-modified tx-result)]
         (is (some #{real-id} (map gt/endpoint-node-id outputs-modified)))

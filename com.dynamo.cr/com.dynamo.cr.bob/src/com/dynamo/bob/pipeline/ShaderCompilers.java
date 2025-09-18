@@ -34,7 +34,7 @@ public class ShaderCompilers {
             this.platform = platform;
         }
 
-        private Set<ShaderDesc.Language> getPlatformShaderLanguages(boolean isComputeType, boolean outputSpirv, boolean outputWGLS, boolean outputHLSL, boolean outputGLSL) {
+        private Set<ShaderDesc.Language> getPlatformShaderLanguages(boolean isComputeType, boolean outputSpirv, boolean outputWGLS, boolean outputHLSL, boolean outputGLSL, CompileOptions compileOptions) {
             Set<ShaderDesc.Language> shaderLanguages = new LinkedHashSet<>();
 
             boolean spirvSupported = true;
@@ -64,7 +64,9 @@ public class ShaderCompilers {
             if (platform == Platform.Arm64Linux) {
                 if (!isComputeType) {
                     shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-                    shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                    if (!compileOptions.excludeGlesSm100) {
+                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                    }
                 }
             }
             else
@@ -79,7 +81,9 @@ public class ShaderCompilers {
                 platform == Platform.Arm64Android) {
                     if (!isComputeType) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                        if (!compileOptions.excludeGlesSm100) {
+                            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                        }
                     }
             }
             else
@@ -88,7 +92,9 @@ public class ShaderCompilers {
                 platform == Platform.WasmPthreadWeb) {
                     if (!isComputeType) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                        if (!compileOptions.excludeGlesSm100) {
+                            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                        }
                     }
                     if (outputWGLS)
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
@@ -158,7 +164,7 @@ public class ShaderCompilers {
 
             validateModules(shaderModules);
 
-            Set<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(isComputeType, outputSpirv, outputWGSL, outputHLSL, outputGlsl);
+            Set<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(isComputeType, outputSpirv, outputWGSL, outputHLSL, outputGlsl, compileOptions);
             assert shaderLanguages != null;
 
             // Used for tests, merge in potentially unsupported languages here.
@@ -173,16 +179,16 @@ public class ShaderCompilers {
                 for (ShaderCompilePipeline.ShaderModuleDesc shaderModule : shaderModules) {
 
                     boolean variantTextureArray = false;
-                    byte[] crossCompileResult = pipeline.crossCompile(shaderModule.type, shaderLanguage);
+                    Shaderc.ShaderCompileResult crossCompileResult = pipeline.crossCompile(shaderModule.type, shaderLanguage);
 
                     if (!shaderTypeKeys.containsKey(shaderModule.type)) {
                         shaderTypeKeys.put(shaderModule.type, true);
                     }
 
                     if (arrayTextureFallbackRequired) {
-                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(crossCompileResult), compileOptions.maxPageCount);
+                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(crossCompileResult.data), compileOptions.maxPageCount);
                         if (variantCompileResult != null && variantCompileResult.arraySamplers.length > 0) {
-                            crossCompileResult = variantCompileResult.source.getBytes();
+                            crossCompileResult.data = variantCompileResult.source.getBytes();
                             variantTextureArray = true;
                         }
                     }

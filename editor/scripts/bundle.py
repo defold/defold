@@ -656,7 +656,7 @@ Commands:
 
     parser.add_option('--launcher', dest='launcher',
                       default = None,
-                      help = 'Specific local launcher to use when creating the bundle. Useful when testing.')
+                      help = 'Specific local launcher to use when creating the bundle, e.g. "../engine/tools/build/src/launcher/launcher". Useful when testing.')
 
     parser.add_option('--skip-tests', dest='skip_tests',
                       action = 'store_true',

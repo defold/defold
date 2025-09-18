@@ -78,7 +78,7 @@ namespace dmGameObject
     /**
      * Set default capacity of collections in this register. This does not affect existing collections.
      * @param regist Register
-     * @param capacity Default capacity of collections in this register (0-32766).
+     * @param capacity Default capacity of collections in this register (0-65534).
      * @return RESULT_OK on success or RESULT_INVALID_OPERATION if max_count is not within range
      */
     Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity);
@@ -122,14 +122,20 @@ namespace dmGameObject
     void ReleaseInstanceIndex(uint32_t index, HCollection collection);
 
     /**
-     * Used for mapping instance ids from a collection definition to newly spawned instances
+     * Spawns a new game object instance.
+     * @param collection Collection to spawn into
+     * @param proto Prototype
+     * @param prototype_name Name of the prototype
+     * @param id Identifier for the new instance, must be unique within the collection
+     * @param property_container Properties that should be set on the new instance
+     * @param position Position
+     * @param rotation Rotation
+     * @param scale Scale
+     * @param out_instance Output parameter for the new instance
+     * @return RESULT_OK on success
      */
-    typedef dmHashTable<dmhash_t, dmhash_t> InstanceIdMap;
-
-    /**
-     * Contains property buffers for game objects to be spawned
-     */
-    typedef dmHashTable<dmhash_t, HPropertyContainer> InstancePropertyBuffers;
+    Result Spawn(HCollection collection, HPrototype proto, const char *prototype_name, dmhash_t id, 
+                        HPropertyContainer property_container, const Point3& position, const Quat& rotation, const Vector3& scale, HInstance* out_instance);
 
     /**
      * Spawns a collection into an existing one, from a collection definition resource. Script properties
@@ -138,16 +144,18 @@ namespace dmGameObject
      *
      * @param collection Gameobject collection to spawn into
      * @param collection_desc Description data of collections
-     * @param property_buffers Serialized property buffers hashtable (key: game object identifier, value: property buffer)
+     * @param id_prefix Identifier prefix, must start with a forward slash (/) and must be unique within the collection. Pass nullptr to use the default identifier (e.g. /collection1, /collection2 etc.).
+     * @param property_containers Serialized property buffers hashtable (key: game object identifier, value: property buffer)
      * @param position Position for the root object
      * @param rotation Rotation for the root object
      * @param scale Scale of the root object
      * @param instances Hash table to be filled with instance identifier mapping.
-     * return true on success
+     * @return RESULT_OK on success
      */
-    bool SpawnFromCollection(HCollection collection, HCollectionDesc collection_desc, InstancePropertyBuffers *property_buffers,
+    Result SpawnFromCollection(HCollection collection, HCollectionDesc collection_desc, const char* id_prefix, 
+                             InstancePropertyContainers *property_containers,
                              const Point3& position, const Quat& rotation, const Vector3& scale,
-                             InstanceIdMap *instances);
+                             InstanceIdMap *out_instances);
 
     /**
      * Delete all gameobject instances in the collection
@@ -165,17 +173,6 @@ namespace dmGameObject
     Result SetIdentifier(HCollection collection, HInstance instance, const char* identifier);
 
     /**
-     * Get absolute identifier relative to #instance. The returned identifier is the
-     * representation of the qualified name, i.e. the path from root-collection to the sub-collection which the #instance belongs to.
-     * Example: if #instance is part of a sub-collection in the root-collection named "sub" and id == "a" the returned identifier represents the path "sub.a"
-     * @param instance Instance to absolute identifier to
-     * @param id Identifier relative to #instance
-     * @param id_size Lenght of the id
-     * @return Absolute identifier
-     */
-    dmhash_t GetAbsoluteIdentifier(HInstance instance, const char* id, uint32_t id_size);
-
-    /**
      * Get component index from component identifier. This function has complexity O(n), where n is the number of components of the instance.
      * @param instance Instance
      * @param component_id Component id
@@ -183,13 +180,6 @@ namespace dmGameObject
      * @return RESULT_OK if the comopnent was found
      */
     Result GetComponentIndex(HInstance instance, dmhash_t component_id, uint16_t* component_index);
-
-    /**
-     * Returns whether the scale of the supplied instance should be applied along Z or not.
-     * @param instance Instance
-     * @return if the scale should be applied along Z
-     */
-    bool ScaleAlongZ(HInstance instance);
 
     /**
      * Initializes all game object instances in the supplied collection.
@@ -267,27 +257,11 @@ namespace dmGameObject
     HRegister GetRegister(HCollection collection);
 
     /**
-     * Retrieve a collection from the socket name hash
-     * @param regist The register bound to the specified collection
-     * @param socket_name The name of the socket
-     * @return The game object collection if successful. 0 otherwise.
-     */
-    // Used by comp_collision_object.cpp to do cold lookups of urls
-    HCollection GetCollectionByHash(HRegister regist, dmhash_t socket_name);
-
-    /**
      * Retrieve the frame message socket for the specified collection.
      * @param collection Collection handle
      * @return The frame message socket of the specified collection
      */
     dmMessage::HSocket GetFrameMessageSocket(HCollection collection);
-
-    /**
-     * Returns whether the scale of the instances in a collection should be applied along Z or not.
-     * @param collection Collection
-     * @return if the scale should be applied along Z
-     */
-    bool ScaleAlongZ(HCollection collection);
 
     /**
      * Get instance hierarchical depth
@@ -377,13 +351,6 @@ namespace dmGameObject
      * Allows for updating transforms an extra time
      */
     void UpdateTransforms(HCollection hcollection);
-
-    /**
-     * Adds a reference to a dynamically created resource into the collection.
-     * If the resource is not released before the collection is being destroyed,
-     * the collection will automatically free the resource.
-     */
-    void AddDynamicResourceHash(HCollection collection, dmhash_t resource_hash);
 
     /**
      * Remove the reference to a dynamically created resource. This implies

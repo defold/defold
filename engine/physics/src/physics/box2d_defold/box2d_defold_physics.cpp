@@ -472,7 +472,7 @@ namespace dmPhysics
         {
             DM_PROFILE("StepSimulation");
             world->m_ContactListener.SetStepWorldContext(&step_context);
-            world->m_World.Step(dt, 10, 10);
+            world->m_World.Step(dt, step_context.m_Box2DVelocityIterations, step_context.m_Box2DPositionIterations);
             float inv_scale = world->m_Context->m_InvScale;
             // Update transforms of dynamic bodies
             if (world->m_SetWorldTransformCallback)

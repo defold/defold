@@ -55,6 +55,7 @@ namespace dmGraphics
         uint16_t          m_OriginalHeight;
         uint16_t          m_MipMapCount;
         uint8_t           m_UsageHintFlags;
+        uint8_t           m_PageCount; // page count of texture array
     };
 
     struct OpenGLRenderTargetAttachment

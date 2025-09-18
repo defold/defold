@@ -13,8 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
-  (:refer-clojure :exclude [bounded-count empty? mapcat merge merge-with not-empty some])
-  (:import [clojure.lang Cons IEditableCollection MapEntry]
+  (:refer-clojure :exclude [any? bounded-count empty? every? mapcat merge merge-with not-any? not-empty not-every? some update-vals])
+  (:import [clojure.core Eduction]
+           [clojure.lang Cons Cycle IEditableCollection LazySeq MapEntry Repeat]
            [java.util ArrayList]))
 
 (set! *warn-on-reflection* true)
@@ -27,6 +28,11 @@
   collection specified as the second argument, using a transducer composed of
   the remaining arguments. Returns the resulting collection. Supplying :eduction
   as the destination returns an eduction instead."
+  ([from to]
+   (case to
+     :eduction `(->Eduction identity ~from)
+     `(into ~to
+            ~from)))
   ([from to xform]
    (case to
      :eduction `(->Eduction ~xform ~from)
@@ -189,6 +195,28 @@
     nil
     coll))
 
+(definline lazy?
+  "Returns true if the supplied value is a lazily evaluated collection. Lazy
+  sequences might be infinite or may retain references to large objects that
+  prevent them from being garbage-collected. Does not check if elements in the
+  collection are themselves lazily-evaluated."
+  [value]
+  `(condp identical? (class ~value)
+     LazySeq true
+     Eduction true
+     Repeat true
+     Cycle true
+     false))
+
+(defn eager-seqable?
+  "Returns true if the supplied value is seqable and eagerly evaluated. Useful
+  in places where you want a keep around a reference to a seqable object without
+  realizing it into a concrete collection. Note that this function will return
+  true for nil, since it is a valid seqable value."
+  [value]
+  (and (not (lazy? value))
+       (seqable? value)))
+
 (defonce conj-set (fnil conj #{}))
 
 (defonce conj-vector (fnil conj []))
@@ -196,6 +224,77 @@
 (defonce into-set (fnil into #{}))
 
 (defonce into-vector (fnil into []))
+
+(defn update-vals
+  "Like core.update-vals, but retains the type of the input map or record. Also
+  accepts additional arguments to f. Preserves metadata. If coll is nil, returns
+  nil without calling f."
+  [coll f & args]
+  (when coll
+    (let [use-transient (supports-transient? coll)
+          rf (if use-transient
+               (if (empty? args)
+                 #(assoc! %1 %2 (f %3))
+                 #(assoc! %1 %2 (apply f %3 args)))
+               (if (empty? args)
+                 #(assoc %1 %2 (f %3))
+                 #(assoc %1 %2 (apply f %3 args))))
+          init (if (record? coll)
+                 coll
+                 (cond-> (empty coll)
+                         use-transient transient))]
+      (with-meta (cond-> (reduce-kv rf init coll)
+                         use-transient persistent!)
+                 (meta coll)))))
+
+(defn update-vals-kv
+  "Like core.update-vals, but calls f with both the key and the value of each
+  map entry. Also retains the type of the input map or record and accepts
+  additional arguments to f. Preserves metadata. If coll is nil, returns nil
+  without calling f."
+  [coll f & args]
+  (when coll
+    (let [use-transient (supports-transient? coll)
+          rf (if use-transient
+               (if (empty? args)
+                 #(assoc! %1 %2 (f %2 %3))
+                 #(assoc! %1 %2 (apply f %2 %3 args)))
+               (if (empty? args)
+                 #(assoc %1 %2 (f %2 %3))
+                 #(assoc %1 %2 (apply f %2 %3 args))))
+          init (if (record? coll)
+                 coll
+                 (cond-> (empty coll)
+                         use-transient transient))]
+      (with-meta (cond-> (reduce-kv rf init coll)
+                         use-transient persistent!)
+                 (meta coll)))))
+
+(defn map-vals
+  "Applies f to all values in the supplied associative collection. Returns a new
+  associative collection of the same type with all the same keys, but the values
+  being the results of applying f to each previous value. Preserves metadata. If
+  coll is nil, returns nil without calling f."
+  ([f]
+   (map (fn [entry]
+          (pair (key entry)
+                (f (val entry))))))
+  ([f coll]
+   (update-vals coll f)))
+
+(defn map-vals-kv
+  "Calls f with the key and value of each element in the supplied associative
+  collection. Returns a new associative collection of the same type with all the
+  same keys, but the values being the results of applying f to each previous key
+  and value. Preserves metadata. If coll is nil, returns nil without calling f."
+  ([f]
+   (map (fn [entry]
+          (let [k (key entry)
+                v (val entry)]
+            (pair k
+                  (f k v))))))
+  ([f coll]
+   (update-vals-kv coll f)))
 
 (defn pair-map-by
   "Returns a hash-map where the keys are the result of applying the supplied
@@ -607,14 +706,54 @@
        (sequential? input) (reduce (preserving-reduced xf) result input)
        :else (rf result input)))))
 
+(defn tree-xf
+  "Like clojure.core/tree-seq, but transducer"
+  [branch? children]
+  (fn [rf]
+    (fn xf
+      ([] (rf))
+      ([result] (rf result))
+      ([result input]
+       (let [result (rf result input)]
+         (if (or (reduced? result) (not (branch? input)))
+           result
+           (reduce (preserving-reduced xf) result (children input))))))))
+
 (defn some
-  "Like clojure.core/some, but uses reduce instead of lazy sequences"
+  "Like clojure.core/some, but uses reduce instead of lazy sequences."
   [pred coll]
   (reduce (fn [_ v]
             (when-let [ret (pred v)]
               (reduced ret)))
           nil
           coll))
+
+(defn any?
+  "Returns whether any item in the supplied collection matches the predicate. Do
+  not confuse with clojure.core/any?, which takes a single argument and always
+  returns true."
+  [pred coll]
+  (boolean (some pred coll)))
+
+(defn not-any?
+  "Like clojure.core/not-any?, but uses reduce instead of lazy sequences."
+  [pred coll]
+  (not (some pred coll)))
+
+(defn every?
+  "Like clojure.core/every?, but uses reduce instead of lazy sequences."
+  [pred coll]
+  (reduce (fn [result item]
+            (if (pred item)
+              result
+              (reduced false)))
+          true
+          coll))
+
+(defn not-every?
+  "Like clojure.core/not-every?, but uses reduce instead of lazy sequences."
+  [pred coll]
+  (not (every? pred coll)))
 
 (defn str-rf
   "Reducing function for string concatenation, useful for transduce context"
