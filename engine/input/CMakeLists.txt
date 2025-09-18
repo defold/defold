@@ -13,13 +13,13 @@ add_compile_definitions(DLIB_LOG_DOMAIN="INPUT")
 # Sources
 set(INPUT_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
 
-defold_protoc_gen_cpp("${CMAKE_CURRENT_BINARY_DIR}/input_ddf.pb.cc"
+defold_protoc_gen_cpp("${CMAKE_CURRENT_BINARY_DIR}/input/input_ddf.pb.cc"
                           "${CMAKE_CURRENT_SOURCE_DIR}/proto/input/input_ddf.proto"
                           INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
 
 add_library(input STATIC
     "${INPUT_SRC_DIR}/input.cpp"
-    "${CMAKE_CURRENT_BINARY_DIR}/input_ddf.pb.cc"
+    "${CMAKE_CURRENT_BINARY_DIR}/input/input_ddf.pb.cc"
 )
 
 target_include_directories(input PUBLIC "${INPUT_SRC_DIR}")
@@ -35,6 +35,8 @@ endif()
 if(BUILD_TESTS)
     add_executable(test_input "${INPUT_SRC_DIR}/test/test_input.cpp")
     set_target_properties(test_input PROPERTIES EXCLUDE_FROM_ALL TRUE)
+
+    target_include_directories(input PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
 
     target_link_libraries(test_input PRIVATE
         dlib
@@ -88,3 +90,4 @@ install(TARGETS input
 
 # Install public headers
 install(FILES "${INPUT_SRC_DIR}/input.h" DESTINATION include/input)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/input/input_ddf.h" DESTINATION include/input)
