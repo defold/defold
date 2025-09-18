@@ -1113,9 +1113,8 @@ namespace dmSound
         uint64_t total_bytes = start_frame * (uint64_t)GetSkipStrideBytes(info);
         while (total_bytes > 0)
         {
-            uint32_t chunk = (uint32_t)dmMath::Min<uint64_t>(total_bytes, 1ULL << 30);
             uint32_t skipped = 0;
-            dmSoundCodec::Result r = dmSoundCodec::Skip(g_SoundSystem->m_CodecContext, sound_instance->m_Decoder, chunk, &skipped);
+            dmSoundCodec::Result r = dmSoundCodec::Skip(g_SoundSystem->m_CodecContext, sound_instance->m_Decoder, total_bytes, &skipped);
             if (r == dmSoundCodec::RESULT_END_OF_STREAM)
             {
                 break;
@@ -1151,10 +1150,7 @@ namespace dmSound
 
         dmSoundCodec::Info info;
         dmSoundCodec::GetInfo(g_SoundSystem->m_CodecContext, sound_instance->m_Decoder, &info);
-        double frames_d = (double)start_time_seconds * (double)info.m_Rate;
-        if (frames_d <= 0.0)
-            return RESULT_OK;
-        uint64_t start_frame = (uint64_t)dmMath::Max(0.0, frames_d);
+        uint64_t start_frame = (uint64_t)((double)start_time_seconds * (double)info.m_Rate);
         return SkipToStartFrameNoLock(sound_instance, start_frame);
     }
 
