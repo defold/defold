@@ -13,6 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.bit-set-test
+  (:refer-clojure :exclude [bit-test])
   (:require [clojure.test :refer :all]
             [util.bit-set :as bit-set])
   (:import [java.util BitSet]))
@@ -113,12 +114,30 @@
   (is (not= (bit-set/of) (bit-set/of 0)))
   (is (not= (bit-set/of 0) (bit-set/of 1))))
 
+(deftest assign!-test
+  (doseq [source [(bit-set/of)
+                  (bit-set/of 0)
+                  (bit-set/from (range 1 5))]
+          target [(bit-set/of)
+                  (bit-set/of 10)
+                  (bit-set/from (range 3 8))]]
+    (is (identical? target (bit-set/assign! target source)))
+    (is (= source target))))
+
 (deftest cardinality-test
   (is (= 0 (bit-set/cardinality (bit-set/of))))
   (is (= 1 (bit-set/cardinality (bit-set/of 0))))
   (is (= 2 (bit-set/cardinality (bit-set/of 0 1))))
   (is (= 4 (bit-set/cardinality (bit-set/of 1 3 5 7))))
   (is (= 100 (bit-set/cardinality (bit-set/from (range 100))))))
+
+(deftest bit-test
+  (is (false? (bit-set/bit (bit-set/of) 0)))
+  (is (true? (bit-set/bit (bit-set/of 0) 0)))
+  (is (false? (bit-set/bit (bit-set/of 0) 1)))
+  (is (false? (bit-set/bit (bit-set/of 1) 0)))
+  (is (true? (bit-set/bit (bit-set/of 1) 1)))
+  (is (thrown? IndexOutOfBoundsException (bit-set/bit (bit-set/of 0) -1))))
 
 (deftest set-bit-test
   (letfn [(check! [expected-values original index]
@@ -252,6 +271,32 @@
   (is (seq? (bit-set/seq (bit-set/of 0))))
   (is (= [0] (bit-set/seq (bit-set/of 0))))
   (is (= [2 3 4] (bit-set/seq (bit-set/of 2 3 4)))))
+
+(deftest reduce-test
+  (testing "Without init."
+    (is (= (reduce + (range 1 5))
+           (bit-set/reduce + (bit-set/from (range 1 5)))))
+    (is (= (reduce * (range 1 5))
+           (bit-set/reduce * (bit-set/from (range 1 5))))))
+
+  (testing "With init."
+    (is (= (reduce + 10 (range 1 5))
+           (bit-set/reduce + 10 (bit-set/from (range 1 5)))))
+    (is (= (reduce * 10 (range 1 5))
+           (bit-set/reduce * 10 (bit-set/from (range 1 5)))))))
+
+(deftest transduce-test
+  (testing "Without init."
+    (is (= (transduce (filter odd?) + (range 1 5))
+           (bit-set/transduce (filter odd?) + (bit-set/from (range 1 5)))))
+    (is (= (transduce (filter odd?) * (range 1 5))
+           (bit-set/transduce (filter odd?) * (bit-set/from (range 1 5))))))
+
+  (testing "With init."
+    (is (= (transduce (filter odd?) + 10 (range 1 5))
+           (bit-set/transduce (filter odd?) + 10 (bit-set/from (range 1 5)))))
+    (is (= (transduce (filter odd?) * 10 (range 1 5))
+           (bit-set/transduce (filter odd?) * 10 (bit-set/from (range 1 5)))))))
 
 (deftest into-test
   (testing "bit-set into vector."

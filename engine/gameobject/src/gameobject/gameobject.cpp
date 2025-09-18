@@ -2552,6 +2552,43 @@ namespace dmGameObject
         UpdateTransforms(hcollection->m_Collection);
     }
 
+    void UpdateTransformsForInstance(Collection* collection, Instance* instance)
+    {
+        DM_PROFILE("UpdateTransformsForInstance");
+
+        // Build ancestor chain from root to the target instance
+        Instance* chain[MAX_HIERARCHICAL_DEPTH];
+        uint32_t  count = 0;
+
+        Instance* n = instance;
+        while (n && count < MAX_HIERARCHICAL_DEPTH)
+        {
+            chain[count++] = n;
+            if (n->m_Parent == INVALID_INSTANCE_INDEX)
+                break;
+            n = collection->m_Instances[n->m_Parent];
+        }
+
+        // Reverse iterate: parent first, then child, ... , target
+        for (int32_t i = (int32_t)count - 1; i >= 0; --i)
+        {
+            Instance* cur = chain[i];
+            CheckEuler(cur);
+
+            Matrix4 own = dmTransform::ToMatrix4(cur->m_Transform);
+            if (cur->m_Parent == INVALID_INSTANCE_INDEX)
+            {
+                collection->m_WorldTransforms[cur->m_Index] = own;
+            }
+            else
+            {
+                Matrix4& parent_world = collection->m_WorldTransforms[cur->m_Parent];
+                collection->m_WorldTransforms[cur->m_Index] = parent_world * own;
+            }
+        }
+        // Note: Do not modify collection->m_DirtyTransforms here; other branches remain stale.
+    }
+
     static bool Update(Collection* collection, const UpdateContext* update_context)
     {
         DM_PROFILE("Update");
