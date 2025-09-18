@@ -913,7 +913,6 @@ namespace dmGraphics
         }
     }
 
-    // Expects the fence lock to be held
     // Note: fence_resources ptr is no longer valid after this call!
     static void DestroyFenceResourcesImmediately(VulkanContext* context, HOpaqueHandle fence_resource_handle, FenceResourcesToDestroy* fence_resources)
     {
@@ -931,8 +930,6 @@ namespace dmGraphics
 
     void FlushFenceResourcesToDestroy(VulkanContext* context)
     {
-        ScopedLock lock(context->m_FenceResourcesToDestroyMutex);
-
         uint32_t num_fence_resources = context->m_FenceResourcesToDestroy.Capacity();
 
         for (int i = 0; i < num_fence_resources; ++i)
@@ -1250,7 +1247,6 @@ namespace dmGraphics
         {
             InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
             context->m_AssetHandleContainerMutex = dmMutex::New();
-            context->m_FenceResourcesToDestroyMutex = dmMutex::New();
         }
 
         // Create framebuffers, default renderpass etc.
@@ -2161,10 +2157,10 @@ bail:
 
         if (texture->m_PendingUpload != INVALID_OPAQUE_HANDLE)
         {
-            ScopedLock lock(context->m_FenceResourcesToDestroyMutex);
             FenceResourcesToDestroy* pending_upload = context->m_FenceResourcesToDestroy.Get(texture->m_PendingUpload);
 
-            // We need this resource now, so we have to wait for the fence to trigger
+            // We need this resource now, so we have to wait for the fence to trigger.
+            // If pending_upload is NULL, the request has already been satisfied so we don't have to do anything.
             if (pending_upload)
             {
                 vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &pending_upload->m_Fence, VK_TRUE, UINT64_MAX);
@@ -3892,8 +3888,6 @@ bail:
 
     static inline HOpaqueHandle DestroyFenceResourcesDeferred(VulkanContext* context, FenceResourcesToDestroy* fence_resources)
     {
-        ScopedLock lock(context->m_FenceResourcesToDestroyMutex);
-
         if (context->m_FenceResourcesToDestroy.Full())
         {
             context->m_FenceResourcesToDestroy.Allocate(8);
@@ -4153,8 +4147,6 @@ bail:
                 VK_IMAGE_ASPECT_COLOR_BIT,
                 texture);
             CHECK_VK_ERROR(res);
-
-            // dmLogInfo("CreateTexture: 0x%llx, 0x%llx", texture->m_Handle.m_Image, texture->m_DeviceBuffer.m_Handle.m_Memory);
         }
 
         if (!memoryless)
@@ -4314,6 +4306,7 @@ bail:
                 // We wait for the fence here so we don't keep a bunch of large buffers around.
                 // Waiting for the fence should be fine here anyway, since we have commited the work on a different queue than the "main" graphics queue
                 vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
+                vkDestroyFence(context->m_LogicalDevice.m_Device, fence, NULL);
                 DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &stage_buffer.m_Handle);
                 vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker, 1, &cmd_buffer);
 

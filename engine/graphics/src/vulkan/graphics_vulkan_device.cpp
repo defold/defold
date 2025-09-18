@@ -663,6 +663,8 @@ namespace dmGraphics
         res = vkQueueSubmit(queue, 1, &submit_info, fence);
         if (res != VK_SUCCESS)
         {
+            dmLogError("SubtmitCommandBuffer: vkQueueSubmit failed!");
+
             return res;
         }
 

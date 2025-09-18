@@ -406,7 +406,6 @@ namespace dmGraphics
 
         // Per-fence resources
         dmOpaqueHandleContainer<FenceResourcesToDestroy> m_FenceResourcesToDestroy;
-        dmMutex::HMutex                                  m_FenceResourcesToDestroyMutex;
 
         // Main device rendering constructs
         dmArray<VkFramebuffer>          m_MainFrameBuffers; // One per swap chain image
