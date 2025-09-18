@@ -18,6 +18,7 @@ pom.xml.asc
 /resources/dialogs.css
 /resources/editor.css
 /resources/splash.css
+/resources/template-projects
 /editor2.*.log
 /log.txt
 /.project
@@ -29,3 +30,4 @@ pom.xml.asc
 /.lsp
 /.portal
 /defunload-issues.txt
+/src/antlr

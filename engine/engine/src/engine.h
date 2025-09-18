@@ -23,12 +23,12 @@ namespace dmEngine
 
     uint16_t GetHttpPort(HEngine engine);
 
-	enum UpdateResult
-	{
-	    RESULT_OK       =  0,
-	    RESULT_REBOOT   =  1,
-	    RESULT_EXIT     = -1,
-	};
+    enum UpdateResult
+    {
+        RESULT_OK       =  0,
+        RESULT_REBOOT   =  1,
+        RESULT_EXIT     = -1,
+    };
 };
 
 // called once per process: init -> (create -> update -> destroy -> if reboot: goto create) -> finalize

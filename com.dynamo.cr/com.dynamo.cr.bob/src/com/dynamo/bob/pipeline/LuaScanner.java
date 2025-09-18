@@ -14,58 +14,103 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Objects;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
+import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
+import com.dynamo.bob.pipeline.antlr.lua.LuaLexer;
+import com.dynamo.bob.pipeline.antlr.lua.LuaParser;
+import com.dynamo.bob.pipeline.antlr.lua.LuaParserBaseListener;
+import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.gameobject.proto.GameObject.PropertyType;
+import org.antlr.v4.runtime.BaseErrorListener;
+import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.Recognizer;
+import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.TokenStreamRewriter;
+import org.antlr.v4.runtime.tree.ErrorNode;
+import org.antlr.v4.runtime.tree.ParseTreeWalker;
+import org.antlr.v4.runtime.tree.TerminalNode;
 
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
+import java.io.IOException;
+import java.io.Reader;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
-import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
-import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.gameobject.proto.GameObject.PropertyType;
-import com.dynamo.bob.pipeline.antlr.lua.LuaParser;
-import com.dynamo.bob.pipeline.antlr.lua.LuaLexer;
-import com.dynamo.bob.pipeline.antlr.lua.LuaParserBaseListener;
+public class LuaScanner {
 
-import org.antlr.v4.runtime.CommonTokenStream;
-import org.antlr.v4.runtime.tree.ParseTreeWalker;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.ParserRuleContext;
-import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.tree.TerminalNode;
-import org.antlr.v4.runtime.TokenStreamRewriter;
+    /**
+     * @param message     error message
+     * @param startLine   error start line, 0-indexed
+     * @param startColumn error start column, 0-indexed
+     * @param endLine     error end line, 0-indexed
+     * @param endColumn   error end column, 0-indexed
+     */
+    public record ParseError(String message,
+                             int startLine,
+                             int startColumn,
+                             int endLine,
+                             int endColumn) {
+    }
 
-public class LuaScanner extends LuaParserBaseListener {
+    /**
+     * @param success    if compilation succeeded and all properties are valid
+     * @param errors     syntax errors and go.property declaration errors
+     * @param modules    distinct list of dependencies
+     * @param properties list of properties
+     * @param code       result code
+     */
+    public record Result(boolean success,
+                         List<ParseError> errors,
+                         List<String> modules,
+                         List<Property> properties,
+                         String code) {
+    }
 
-    public class LuaScannerException extends Exception {
-        private final String errorMessage;
-        private final int lineNumber;
+    /**
+     * @param status       always set
+     * @param startLine    always set, 0-indexed
+     * @param startColumn  always set, 0-indexed
+     * @param endLine      always set, 0-indexed
+     * @param endColumn    always set, 0-indexed
+     * @param name         set if status != {@code INVALID_ARGS}
+     * @param type         set if status == {@code OK}
+     * @param value        set if status == {@code OK}
+     * @param resourceKind set if property is a resource, resource kind, e.g. material, atlas etc.
+     */
+    public record Property(Status status,
+                           int startLine,
+                           int startColumn,
+                           int endLine,
+                           int endColumn,
+                           String name,
+                           PropertyType type,
+                           Object value,
+                           String resourceKind) {
 
-        public LuaScannerException(String errorMessage, int lineNumber) {
-            super(String.format("Error: %s at line: %d", errorMessage, lineNumber));
-            this.errorMessage = errorMessage;
-            this.lineNumber = lineNumber;
+        public enum Status {
+            OK,
+            INVALID_ARGS,
+            INVALID_VALUE,
+            INVALID_LOCATION
         }
 
-        public String getErrorMessage() {
-            return errorMessage;
-        }
-
-        public int getLineNumber() {
-            return lineNumber;
+        public boolean isResource() {
+            return resourceKind != null;
         }
     }
 
-    private static final Logger LOGGER = Logger.getLogger(LuaScanner.class.getName());
 
     /**
      * This list of Lua libraries represent the Lua standard libraries as well
@@ -76,8 +121,7 @@ public class LuaScanner extends LuaParserBaseListener {
      * calls the build will fail since bob will be looking for a corresponding
      * .lua module file
      */
-    private static final Set<String> LUA_LIBRARIES = new HashSet<String>(Arrays.asList(
-         new String[] {
+    private static final Set<String> LUA_LIBRARIES = Set.of(
             "coroutine",
             "package",
             "string",
@@ -90,231 +134,302 @@ public class LuaScanner extends LuaParserBaseListener {
             "bit",              // LuaJIT+Lua addon
             "ffi",              // LuaJIT
             "jit"               // LuaJIT
-        }
-    ));
+    );
 
-    private static final Set<String> LIFECYCLE_FUNCTIONS = new HashSet<String>(Arrays.asList(
-        new String[] {
+
+    private static final Set<String> LIFECYCLE_FUNCTIONS = Set.of(
             "init",
             "final",
             "update",
             "fixed_update",
             "on_message",
             "on_input",
-            "on_reload"
-        }
-    ));
+            "on_reload");
 
-    private static final Map<Integer, String> QUOTES = new HashMap<Integer, String>() {{
-        put(LuaParser.NORMALSTRING, "\"");
-        put(LuaParser.CHARSTRING, "'");
-    }};
-
-    private CommonTokenStream tokenStream = null;
-    private TokenStreamRewriter rewriter;
-
-    private final List<String> modules = new ArrayList<String>();
-    private final List<Property> properties = new ArrayList<Property>();
-    public final List<LuaScannerException> exceptions = new ArrayList<>();
-
-    private boolean isDebug;
-
-    public void setDebug() {
-        isDebug = true;
+    public static Result parse(String code) {
+        return parse(code, false);
     }
 
-    public static class Property {
-        public enum Status {
-            OK,
-            INVALID_ARGS,
-            INVALID_VALUE
-        }
-
-        /// Set if status != INVALID_ARGS
-        public String name;
-        /// Set if status == OK
-        public PropertyType type;
-        /// Set if status == OK
-        public Object value;
-        /// Always set
-        public int line;
-        /// Always set
-        public Status status;
-        /// Set if property is a resource, need to distinguish between
-        /// regular hashes and properties for validation
-        public boolean isResource;
-
-        public Property(int line) {
-            this.line = line;
-        }
+    public static Result parse(String code, boolean isDebug) {
+        return parse(CharStreams.fromString(code), isDebug, DEFAULT_RESOURCE_KIND_PREDICATE);
     }
 
-    public static class FunctionDescriptor {
-
-        public String functionName;
-        public String objectName;
-
-        public FunctionDescriptor(LuaParser.VariableContext variableCtx) {
-            // simple function call, like `require()`
-            String varName = null;
-            if(variableCtx.getClass() == LuaParser.NamedvariableContext.class) {
-                varName = ((LuaParser.NamedvariableContext)variableCtx).NAME().getText();
-            }
-
-            // indexed function call, like `_G.require()` or `go.property()` where 
-            // `objectName` is `go` and `indexName` is `property`
-            String indexName = null;
-            if(variableCtx.getClass() == LuaParser.IndexContext.class) {
-                LuaParser.IndexContext indexVariableCtx = (LuaParser.IndexContext)variableCtx;
-                TerminalNode nameNode = indexVariableCtx.NAME();
-                if (nameNode != null) {
-                    indexName = nameNode.getText();
-                }
-                objectName = indexVariableCtx.variable().getText();
-            }
-            functionName = (indexName == null) ?  varName : indexName;
-        }
-
-        public boolean is(String name, String objName) {
-            return Objects.equals(name, functionName) && Objects.equals(objName, objectName);
-        }
-
-        public boolean isObject(String objName) {
-            return Objects.equals(objName, objectName);
-        }
-
-        public boolean isName(String fnName) {
-            return Objects.equals(fnName, functionName);
-        }
+    public static Result parse(String code, boolean isDebug, Predicate<String> resourceKindPredicate) throws IOException {
+        return parse(CharStreams.fromString(code), isDebug, resourceKindPredicate);
     }
 
-    public LuaScanner() {}
+    public static Result parse(Reader reader, boolean isDebug, Predicate<String> resourceKindPredicate) throws IOException {
+        return parse(CharStreams.fromReader(reader), isDebug, resourceKindPredicate);
+    }
 
-    /**
-     * Parse a string containing Lua code. This will detect and strip
-     * require() and go.property() calls
-     * @param str Lua code to parse
-     * @return Parsed string
-     */
-    public String parse(String str)  {
+    public static Result parse(CharStream charStream, boolean isDebug, Predicate<String> resourceKindPredicate) {
         TimeProfiler.start("Parse");
-        modules.clear();
-        properties.clear();
+
+        var errors = new ArrayList<ParseError>();
+        var errorListener = new ErrorListener(errors);
+        // Using LinkedHashSet keeps insertion order while giving O(1) look‑ups
+        var modules = new LinkedHashSet<String>();
+        var properties = new ArrayList<Property>();
 
         // set up the lexer and parser
         // walk the generated parse tree from the
         // first Lua chunk
+        var lexer = new LuaLexer(charStream);
+        lexer.removeErrorListeners();
+        lexer.addErrorListener(errorListener);
+        var tokenStream = new CommonTokenStream(lexer);
+        var rewriter = new TokenStreamRewriter(tokenStream);
 
-        LuaLexer lexer = new LuaLexer(CharStreams.fromString(str));
-        tokenStream = new CommonTokenStream(lexer);
-        rewriter = new TokenStreamRewriter(tokenStream);
-        
         // Remove comments in rewriter
         tokenStream.fill();
         for (Token token : tokenStream.getTokens()) {
-             if (token.getChannel() == LuaLexer.COMMENTS) {
+            if (token.getChannel() == LuaLexer.COMMENTS) {
                 int type = token.getType();
                 if (type == LuaLexer.LINE_COMMENT) {
-                    // Single line comment
-                    rewriter.replace(token, System.lineSeparator());
-                }
-                else if (type == LuaLexer.COMMENT) {
+                    // Single line comment (might end with \n)
+                    rewriter.replace(token, token.getText().endsWith("\n") ? System.lineSeparator() : "");
+                } else if (type == LuaLexer.COMMENT) {
                     // Multiline comment
-                    rewriter.replace(token, System.lineSeparator().repeat(token.getText().split("\r\n|\r|\n").length - 1));
+                    if (isDebug) {
+                        rewriter.replace(token, NON_LINE_BREAKS.matcher(token.getText()).replaceAll(" "));
+                    } else {
+                        rewriter.replace(token, System.lineSeparator().repeat(token.getText().split("\r\n|\r|\n").length - 1));
+                    }
                 }
-             }
+            }
         }
 
         // parse code
-        LuaParser parser = new LuaParser(tokenStream);
-        ParseTreeWalker walker = new ParseTreeWalker();
-        walker.walk(this, parser.chunk());
-        String resultText = rewriter.getText();
+        var parser = new LuaParser(tokenStream);
+        parser.removeErrorListeners();
+        parser.addErrorListener(errorListener);
+        new ParseTreeWalker().walk(new ScannerListener(modules, tokenStream, errors, properties, rewriter, isDebug, resourceKindPredicate), parser.chunk());
+        String resultCode = rewriter.getText();
+
+        var result = new Result(errors.isEmpty(), errors, List.copyOf(modules), properties, resultCode);
         TimeProfiler.stop();
-        // return the parsed string
-        return resultText;
+        return result;
     }
 
-    /**
-     * Get the parsed Lua code
-     * @return The parsed Lua code
-     */
-    public String getParsedLua() {
-        return rewriter.getText();
+    private static class ErrorListener extends BaseErrorListener {
+        private final List<ParseError> errors;
+
+        public ErrorListener(List<ParseError> errors) {
+            this.errors = errors;
+        }
+
+        @Override
+        public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line, int charPositionInLine, String msg, RecognitionException e) {
+            var length = offendingSymbol instanceof Token token ? token.getText().length() : 1;
+            errors.add(new ParseError(msg, line - 1, charPositionInLine, line - 1, charPositionInLine + length));
+        }
     }
 
-    /**
-     * Get a list of all Lua modules found by a call to parse().
-     * @return List of Lua modules
-     */
-    public List<String> getModules() {
-        return modules;
+    private LuaScanner() {
     }
 
-    /**
-     * Get a list of all script properties found by a call to parse().
-     * @return List of script properties
-     */
-    public List<Property> getProperties() {
-        return properties;
+    private static final Predicate<String> DEFAULT_RESOURCE_KIND_PREDICATE = resourceKind -> true;
+
+    private static final Pattern NON_LINE_BREAKS = Pattern.compile("[^\r\n]");
+
+    private static class ScannerListener extends LuaParserBaseListener {
+
+        private final LinkedHashSet<String> modules;
+        private final CommonTokenStream tokenStream;
+        private final ArrayList<ParseError> errors;
+        private final ArrayList<Property> properties;
+        private final TokenStreamRewriter rewriter;
+        private final boolean isDebug;
+        private final Predicate<String> resourceKindPredicate;
+
+        // These vars are modified during the walk
+        int nestingDepth = 0;
+        boolean encounteredError = false;
+
+        public ScannerListener(LinkedHashSet<String> modules, CommonTokenStream tokenStream, ArrayList<ParseError> errors, ArrayList<Property> properties, TokenStreamRewriter rewriter, boolean isDebug, Predicate<String> resourceKindPredicate) {
+            this.modules = modules;
+            this.tokenStream = tokenStream;
+            this.errors = errors;
+            this.properties = properties;
+            this.rewriter = rewriter;
+            this.isDebug = isDebug;
+            this.resourceKindPredicate = resourceKindPredicate;
+        }
+
+        /**
+         * Callback from ANTLR when a function call is entered. We use this to grab all
+         * require() calls and all go.property() calls.
+         */
+        @Override
+        public void enterFunctioncall(LuaParser.FunctioncallContext ctx) {
+            if (encounteredError) {
+                return;
+            }
+            var varCtx = ctx.variable();
+            var fnDesc = functionDescriptor(varCtx);
+
+            if (fnDesc.functionName == null) {
+                return;
+            }
+
+            if (fnDesc.is("require", null) || fnDesc.is("require", "_G")) {
+                String module = getFirstStringArg(ctx.nameAndArgs().args());
+                // ignore Lua+LuaJIT standard libraries + Defold additions such as LuaSocket
+                if (module != null && !LUA_LIBRARIES.contains(module)) {
+                    modules.add(module);      // LinkedHashSet prevents duplicates in O(1)
+                }
+            } else if (fnDesc.is("property", "go")) {
+                var argsCtx = ctx.nameAndArgs().args();
+                ParserRuleContext paramsContext = argsCtx;
+                var propertyName = getFirstStringArg(argsCtx);
+                var tokens = getTokens(tokenStream, ctx, Token.DEFAULT_CHANNEL);
+                var startLine = tokens.getFirst().getLine() - 1;
+                var startColumn = tokens.getFirst().getCharPositionInLine();
+                var endLine = tokens.getLast().getLine() - 1;
+                var endColumn = tokens.getLast().getCharPositionInLine() + tokens.getLast().getText().length();
+
+                Property property;
+                if (propertyName == null || propertyName.isEmpty()) {
+                    property = new Property(Status.INVALID_ARGS, startLine, startColumn, endLine, endColumn, null, null, null, null);
+                    errors.add(new ParseError("invalid go.property args", startLine, startColumn, endLine, endColumn));
+                } else {
+                    var parseResult = parsePropertyValue(tokenStream, argsCtx, resourceKindPredicate);
+                    switch (parseResult) {
+                        case InvalidValue invalidValue -> {
+                            property = new Property(Status.INVALID_VALUE, startLine, startColumn, endLine, endColumn, propertyName, null, null, null);
+                            errors.add(new ParseError(invalidValue.message, startLine, startColumn, endLine, endColumn));
+                        }
+                        case Success success -> {
+                            paramsContext = success.resultContext;
+                            // Only allow go.property as a standalone top‑level statement
+                            // Top-level statements have nesting depth 4: chunk -> block -> stat -> variable
+                            if (nestingDepth != 4) {
+                                property = new Property(Status.INVALID_LOCATION, startLine, startColumn, endLine, endColumn, propertyName, success.type, success.value, success.resourceKind);
+                                errors.add(new ParseError("go.property declaration should be a top-level statement", startLine, startColumn, endLine, endColumn));
+                            } else {
+                                property = new Property(Status.OK, startLine, startColumn, endLine, endColumn, propertyName, success.type, success.value, success.resourceKind);
+                            }
+                        }
+                    }
+                }
+                properties.add(property);
+
+                // strip property from code
+                // keep tokens for hash() in debug build
+                // see https://github.com/defold/defold/issues/7422
+                if (isDebug && !property.isResource() && property.type == PropertyType.PROPERTY_TYPE_HASH) {
+                    tokens.removeAll(getTokens(tokenStream, paramsContext));
+                }
+                removeTokens(rewriter, tokens, isDebug);
+            }
+        }
+
+        /**
+         * Callback from ANTLR when a function is entered. We use this to grab and remove
+         * all empty lifecycle functions.
+         */
+        @Override
+        public void enterFunctionstat(LuaParser.FunctionstatContext ctx) {
+            LuaParser.FuncnameContext funcNameCtx = ctx.funcname();
+            TerminalNode funcName = funcNameCtx.NAME(1);
+            TerminalNode objName = null;
+            if (funcName == null) {
+                funcName = funcNameCtx.NAME(0);
+                if (funcName == null) {
+                    return;
+                }
+            } else {
+                objName = funcNameCtx.NAME(0);
+            }
+            if (objName == null || objName.getText().equals("_G")) {
+                if (LIFECYCLE_FUNCTIONS.contains(funcName.getText())) {
+                    LuaParser.BlockContext blockCtx = ctx.funcbody().block();
+                    if (blockCtx != null && blockCtx.stat().isEmpty() && blockCtx.retstat() == null) {
+                        List<Token> tokens = getTokens(tokenStream, ctx, Token.DEFAULT_CHANNEL);
+                        removeTokens(rewriter, tokens, isDebug);
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void enterEveryRule(ParserRuleContext ctx) {
+            nestingDepth++;
+        }
+
+        @Override
+        public void exitEveryRule(ParserRuleContext ctx) {
+            nestingDepth--;
+        }
+
+        @Override
+        public void visitErrorNode(ErrorNode node) {
+            encounteredError = true;
+        }
     }
 
     // get all tokens spanning a context and belonging to a specific channel
-    private List<Token> getTokens(ParserRuleContext ctx, int channel) {
-        List<Token> tokens = getTokens(ctx);
+    private static List<Token> getTokens(CommonTokenStream tokenStream, ParserRuleContext ctx, int channel) {
+        List<Token> tokens = getTokens(tokenStream, ctx);
         if (tokens == null) {
-            return new ArrayList<Token>();
+            return new ArrayList<>();
         }
         return tokens.stream().filter(t -> t.getChannel() == channel).collect(Collectors.toList());
     }
 
     // get all tokens spanning a context
-    private List<Token> getTokens(ParserRuleContext ctx) {
+    private static List<Token> getTokens(CommonTokenStream tokenStream, ParserRuleContext ctx) {
         Token startToken = ctx.getStart();
         Token stopToken = ctx.getStop();
         return tokenStream.getTokens(startToken.getTokenIndex(), stopToken.getTokenIndex());
     }
 
     // replace the token with an empty string
-    private void removeToken(Token token) {
-        rewriter.delete(token);
-    }
-
-    private void removeTokens(List<Token> tokens) {
+    private static void removeTokens(TokenStreamRewriter rewriter, List<Token> tokens, boolean isDebug) {
         for (Token token : tokens) {
-            removeToken(token);
+            removeToken(rewriter, token, isDebug);
+        }
+        int lastTokenIndex = tokens.getLast().getTokenIndex();
+        int nextTokenIndex = lastTokenIndex + 1;
+        Token token = rewriter.getTokenStream().get(nextTokenIndex);
+        while (token != null && token.getType() == LuaLexer.WS) {
+            token = rewriter.getTokenStream().get(token.getTokenIndex() + 1);
+        }
+
+        // We use this to remove semicolon statements in the end of line;
+        // The semicolon may cause problems if it is at the end of a go.property call
+        // as it will be removed after it has been parsed.
+        if (token != null && token.getType() == LuaLexer.SEMICOLON) {
+            removeToken(rewriter, token, isDebug);
         }
     }
 
-    private void removeTokens(List<Token> tokens, boolean shouldRemoveSemicolonAfter) {
-        int lastTokenIndex = tokens.get(tokens.size() - 1).getTokenIndex();
-        removeTokens(tokens);
-        if (shouldRemoveSemicolonAfter) {
-            int nextTokenIndex = lastTokenIndex + 1;
-            Token token = rewriter.getTokenStream().get(nextTokenIndex);
-             /**
-             * We use this to remove semicolon statements in the end of line;
-             * The semicolon may cause problems if it is at the end of a go.property call
-             * as it will be removed after it has been parsed.
-             */
-            if (token != null && token.getType() == LuaLexer.SEMICOLON) {
-                removeToken(token);
-            }
+    private static void removeToken(TokenStreamRewriter rewriter, Token token, boolean isDebug) {
+        if (isDebug) {
+            rewriter.replace(token, " ".repeat(token.getText().length()));
+        } else {
+            rewriter.delete(token);
         }
     }
 
-    // returns first function argument only if it's a string, otherwise null
-    private String getFirstStringArg(LuaParser.ArgsContext argsCtx) {
+    private static final Map<Integer, String> QUOTES = Map.of(
+            LuaParser.NORMALSTRING, "\"",
+            LuaParser.CHARSTRING, "'"
+    );
+
+    // returns a string literal argument, or fallback if no arguments were provided, or null if the first argument
+    // is not a string literal
+    private static String getFirstStringLiteralArg(LuaParser.ArgsContext argsCtx, String fallback) {
         if (argsCtx == null) {
-            return null;
+            return fallback;
         }
         ParserRuleContext firstCtx = argsCtx.getRuleContext(ParserRuleContext.class, 0);
         if (firstCtx == null) {
-            return null;
+            return fallback;
         }
 
         if (firstCtx.getRuleIndex() == LuaParser.RULE_explist) {
-            firstCtx = ((LuaParser.ExplistContext)firstCtx).exp(0).getRuleContext(ParserRuleContext.class, 0);
+            firstCtx = ((LuaParser.ExplistContext) firstCtx).exp(0).getRuleContext(ParserRuleContext.class, 0);
         }
         if (firstCtx.getRuleIndex() != LuaParser.RULE_lstring) {
             return null;
@@ -323,7 +438,12 @@ public class LuaScanner extends LuaParserBaseListener {
         return initialToken.getText().replace(QUOTES.getOrDefault(initialToken.getType(), ""), "");
     }
 
-    private List<String> getAllStringArgs(LuaParser.ArgsContext argsCtx) {
+    // returns first function argument only if it's a string, otherwise null
+    private static String getFirstStringArg(LuaParser.ArgsContext argsCtx) {
+        return getFirstStringLiteralArg(argsCtx, null);
+    }
+
+    private static List<String> getAllStringArgs(LuaParser.ArgsContext argsCtx) {
         if (argsCtx == null) {
             return null;
         }
@@ -353,8 +473,7 @@ public class LuaScanner extends LuaParserBaseListener {
                         String firstString = getFirstStringArg(fnCtx.nameAndArgs().args());
                         stringArgs.add(firstString);
                     }
-                }
-                else {
+                } else {
                     stringArgs.add(null);
                 }
             }
@@ -363,227 +482,195 @@ public class LuaScanner extends LuaParserBaseListener {
         return stringArgs;
     }
 
-    // returns boolean if parsing successfull and fill double[] with parsed values with needed length.
-    private boolean getNumArgs(LuaParser.ArgsContext argsCtx, double[] resultArgs) {
+    // returns boolean if parsing successful and fill double[] with parsed values with needed length.
+    private static boolean getNumArgs(LuaParser.ArgsContext argsCtx, double[] resultArgs) {
         LuaParser.ExplistContext expListCtx = argsCtx.explist();
         // no values for example vmath.vector3()
         if (expListCtx != null) {
             List<LuaParser.ExpContext> args = expListCtx.exp();
             int count = 0;
-            for(LuaParser.ExpContext val : args) {
+            for (LuaParser.ExpContext val : args) {
                 LuaParser.NumberContext num = val.number();
                 LuaParser.ExpContext exp = val.exp(0);
                 int firstTokenType = val.getStart().getType();
                 if (num != null || (exp != null && exp.number() != null && firstTokenType == LuaParser.MINUS)) {
                     resultArgs[count] = Double.parseDouble(val.getText());
                     count++;
-                }
-                else {
+                } else {
                     // the value isn't a number
                     return false;
                 }
-                
+
             }
             // one value for example vmath.vector3(1), is valid, and all the values should be filled
             if (count == 1) {
-                for (int i = count; i < resultArgs.length; i ++) {
-                   resultArgs[i] = resultArgs[0]; 
+                for (int i = count; i < resultArgs.length; i++) {
+                    resultArgs[i] = resultArgs[0];
                 }
-            }
-            else if (count != resultArgs.length) {
-                return false;
+            } else {
+                return count == resultArgs.length;
             }
         }
         return true;
     }
 
-    /**
-     * Callback from ANTLR when a function call is entered. We use this to grab all
-     * require() calls and all go.property() calls.
-     */
-    @Override
-    public void enterFunctioncall(LuaParser.FunctioncallContext ctx) {
-        LuaParser.VariableContext varCtx = ctx.variable();
-        FunctionDescriptor fnDesc = new FunctionDescriptor(varCtx);
-
-        if (fnDesc.functionName == null) {
-            return;
+    private record FunctionDescriptor(String objectName, String functionName) {
+        public boolean is(String functionName, String objectName) {
+            return Objects.equals(functionName, this.functionName) && Objects.equals(objectName, this.objectName);
         }
 
-        if (fnDesc.is("require", null) || fnDesc.is("require", "_G")) {
-            String module = getFirstStringArg(ctx.nameAndArgs().args());
-            // ignore Lua+LuaJIT standard libraries + Defold additions such as LuaSocket
-            // and also don't add the same module twice
-            if (module != null && !LUA_LIBRARIES.contains(module) && !modules.contains(module)) {
-                modules.add(module);
-            }
+        public boolean isObject(String objectName) {
+            return Objects.equals(objectName, this.objectName);
         }
-        else if (fnDesc.is("property", "go")) {
-            ParserRuleContext paramsContext;
-            LuaParser.ArgsContext argsCtx = ctx.nameAndArgs().args();
-            paramsContext = argsCtx;
-            String firstArg = getFirstStringArg(argsCtx);
-            List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
-            Property property = new Property(tokens.get(0).getLine() - 1);
-            property.name = firstArg;
-            if (firstArg == null) {
-                property.status = Status.INVALID_ARGS;
-            } else {
-                try {
-                    paramsContext = parsePropertyValue(argsCtx, property);
-                } catch (LuaScannerException e) {
-                    exceptions.add(e);
-                }
-                if (paramsContext != null) {
-                    property.status = Status.OK;
-                } else {
-                    property.status = Status.INVALID_VALUE;
-                }
-            }
-            properties.add(property);
 
-            // strip property from code
-            // keep tokens for hash() in debug build
-            // see https://github.com/defold/defold/issues/7422
-            if (isDebug && !property.isResource && property.type == PropertyType.PROPERTY_TYPE_HASH) {
-                tokens.removeAll(getTokens(paramsContext));
-            }
-            removeTokens(tokens, true);
+        public boolean isName(String functionName) {
+            return Objects.equals(functionName, this.functionName);
         }
     }
 
-    /**
-     * Callback from ANTLR when a function is entered. We use this to grab and remove
-     * all empty lifecycle functions. 
-     */
-    @Override
-    public void enterFunctionstat(LuaParser.FunctionstatContext ctx) {
-        TerminalNode funcName = ctx.funcname().NAME(1);
-        TerminalNode objName = null;
-        if (funcName == null) {
-            funcName = ctx.funcname().NAME(0);
+    private static FunctionDescriptor functionDescriptor(LuaParser.VariableContext variableCtx) {
+        // simple function call, like `require()`
+        String varName = null;
+        if (variableCtx instanceof LuaParser.NamedvariableContext) {
+            varName = ((LuaParser.NamedvariableContext) variableCtx).NAME().getText();
         }
-        else {
-            objName = ctx.funcname().NAME(0);
-        }
-        if (objName == null || objName.getText().equals("_G")) {
-            for(String name: LIFECYCLE_FUNCTIONS) {
-                if (funcName.getText().equals(name)) {
-                    LuaParser.BlockContext blockCtx = ctx.funcbody().block();
-                    if (blockCtx.stat().isEmpty() && blockCtx.retstat() == null) {
-                        List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
-                        removeTokens(tokens);
-                    }
-                }
+
+        // indexed function call, like `_G.require()` or `go.property()` where
+        // `objectName` is `go` and `indexName` is `property`
+        String indexName = null;
+        String objectName = null;
+        if (variableCtx instanceof LuaParser.IndexContext) {
+            LuaParser.IndexContext indexVariableCtx = (LuaParser.IndexContext) variableCtx;
+            TerminalNode nameNode = indexVariableCtx.NAME();
+            if (nameNode != null) {
+                indexName = nameNode.getText();
             }
+            objectName = indexVariableCtx.variable().getText();
+        }
+        var functionName = (indexName == null) ? varName : indexName;
+        return new FunctionDescriptor(objectName, functionName);
+    }
+
+    private sealed interface ParsePropertyResult permits InvalidValue, Success {
+    }
+
+    private record InvalidValue(String message) implements ParsePropertyResult {
+    }
+
+    private record Success(ParserRuleContext resultContext,
+                           PropertyType type,
+                           Object value,
+                           String resourceKind) implements ParsePropertyResult {
+        public Success(ParserRuleContext resultContext, PropertyType type, Object value) {
+            this(resultContext, type, value, null);
         }
     }
 
-    private ParserRuleContext parsePropertyValue(LuaParser.ArgsContext argsCtx, Property property) throws LuaScannerException {
-        ParserRuleContext resultContext = null;
-        List<LuaParser.ExpContext> expCtxList = ((LuaParser.ExplistContext)argsCtx.getRuleContext(ParserRuleContext.class, 0)).exp();
-        // go.property(name, vaule) should have a value and only one value
+    private static ParsePropertyResult parsePropertyValue(CommonTokenStream tokenStream, LuaParser.ArgsContext argsCtx, Predicate<String> resourceKindPredicate) {
+        List<LuaParser.ExpContext> expCtxList = ((LuaParser.ExplistContext) argsCtx.getRuleContext(ParserRuleContext.class, 0)).exp();
+        // go.property(name, value) should have a value and only one value
         if (expCtxList.size() == 2) {
             LuaParser.ExpContext expCtx = expCtxList.get(1);
             Token initialToken = expCtx.getStart();
             int type = initialToken.getType();
             // for negative numbers we should take token #2
             if (type == LuaParser.MINUS) {
-                List<Token> tokens = getTokens(expCtx, Token.DEFAULT_CHANNEL);
+                List<Token> tokens = getTokens(tokenStream, expCtx, Token.DEFAULT_CHANNEL);
                 if (tokens.size() > 1) {
                     initialToken = tokens.get(1);
                     type = initialToken.getType();
                 }
             }
             if (type == LuaParser.INT || type == LuaParser.HEX || type == LuaParser.FLOAT || type == LuaParser.HEX_FLOAT) {
-                property.type = PropertyType.PROPERTY_TYPE_NUMBER;
-                property.value = Double.parseDouble(expCtx.getText());
-                resultContext = expCtx;
+                return new Success(expCtx, PropertyType.PROPERTY_TYPE_NUMBER, Double.parseDouble(expCtx.getText()));
             } else if (type == LuaParser.FALSE || type == LuaParser.TRUE) {
-                property.type = PropertyType.PROPERTY_TYPE_BOOLEAN;
-                property.value = Boolean.parseBoolean(initialToken.getText());
-                resultContext = expCtx;
+                return new Success(expCtx, PropertyType.PROPERTY_TYPE_BOOLEAN, Boolean.parseBoolean(initialToken.getText()));
             } else if (type == LuaParser.NAME) {
                 LuaParser.VariableContext varCtx = expCtx.variable();
                 // function expected
-                if (!(varCtx instanceof LuaParser.FunctioncallContext)) {
-                    return expCtx;
+                if (!(varCtx instanceof LuaParser.FunctioncallContext ctx)) {
+                    return new InvalidValue("expecting a function");
                 }
-                LuaParser.FunctioncallContext ctx = (LuaParser.FunctioncallContext)varCtx;
-                FunctionDescriptor fnDesc = new FunctionDescriptor(ctx.variable());
+                FunctionDescriptor fnDesc = functionDescriptor(ctx.variable());
                 if (fnDesc.functionName == null) {
-                    return null;
+                    return new InvalidValue("expecting named function");
                 }
-                if (fnDesc.isObject("vmath")){
-                     if (fnDesc.isName("vector3")) {
+                if (fnDesc.isObject("vmath")) {
+                    if (fnDesc.isName("vector3")) {
                         Vector3d v = new Vector3d();
                         double[] resultArgs = new double[3];
-                        resultContext = getNumArgs(ctx.nameAndArgs().args(), resultArgs) ? ctx : null;
-                        v.set(resultArgs);
-                        property.value = v;
-                        property.type = PropertyType.PROPERTY_TYPE_VECTOR3;
+                        if (getNumArgs(ctx.nameAndArgs().args(), resultArgs)) {
+                            v.set(resultArgs);
+                            return new Success(ctx, PropertyType.PROPERTY_TYPE_VECTOR3, v);
+                        } else {
+                            return new InvalidValue("invalid vmath.vector3() arguments");
+                        }
                     } else if (fnDesc.isName("vector4")) {
                         Vector4d v = new Vector4d();
                         double[] resultArgs = new double[4];
-                        resultContext = getNumArgs(ctx.nameAndArgs().args(), resultArgs) ? ctx : null;
-                        v.set(resultArgs);
-                        property.value = v;
-                        property.type = PropertyType.PROPERTY_TYPE_VECTOR4;
+                        if (getNumArgs(ctx.nameAndArgs().args(), resultArgs)) {
+                            v.set(resultArgs);
+                            return new Success(ctx, PropertyType.PROPERTY_TYPE_VECTOR4, v);
+                        } else {
+                            return new InvalidValue("invalid vmath.vector4() arguments");
+                        }
                     } else if (fnDesc.isName("quat")) {
                         Quat4d q = new Quat4d();
                         double[] resultArgs = new double[4];
-                        resultContext = getNumArgs(ctx.nameAndArgs().args(), resultArgs) ? ctx : null;
-                        q.set(resultArgs);
-                        property.value = q;
-                        property.type = PropertyType.PROPERTY_TYPE_QUAT;
-                    }
-                }
-                else {
-                    if (fnDesc.isObject("resource")) {
-                        property.type = PropertyType.PROPERTY_TYPE_HASH;
-                        property.isResource = true;
-                        resultContext = ctx;
-                        String firstStrArg = getFirstStringArg(ctx.nameAndArgs().args());
-                        property.value = firstStrArg == null ? "" : firstStrArg;
-                    }
-                    else if (fnDesc.is("hash", null) || fnDesc.is("hash", "_G")) {
-                        property.type = PropertyType.PROPERTY_TYPE_HASH;
-                        String firstStrArg = getFirstStringArg(ctx.nameAndArgs().args());
-                        // hash(arg) requires an argument
-                        if (firstStrArg != null) {
-                            resultContext = ctx;
+                        if (getNumArgs(ctx.nameAndArgs().args(), resultArgs)) {
+                            q.set(resultArgs);
+                            return new Success(ctx, PropertyType.PROPERTY_TYPE_QUAT, q);
+                        } else {
+                            return new InvalidValue("invalid vmath.quat() arguments");
                         }
-                        property.value = firstStrArg == null ? "" : firstStrArg;
+                    } else {
+                        return new InvalidValue("unexpected vmath function");
                     }
-                    else if (fnDesc.is("url", "msg")) {
-                        property.type = PropertyType.PROPERTY_TYPE_URL;
-                        resultContext = ctx;
-                        List<String> allArgs = getAllStringArgs(ctx.nameAndArgs().args());
-                        try {
-                            property.value = concatenateUrl(allArgs);
-                        } catch (Exception e) {
-                            throw new LuaScannerException(e.getMessage(), ctx.start.getLine());
+                } else if (fnDesc.isObject("resource")) {
+                    var firstStrArg = getFirstStringLiteralArg(ctx.nameAndArgs().args(), "");
+                    if (firstStrArg == null) {
+                        return new InvalidValue("expected a string literal resource argument");
+                    }
+                    String resourceKind = fnDesc.functionName;
+                    if (resourceKindPredicate.test(resourceKind)) {
+                        return new Success(ctx, PropertyType.PROPERTY_TYPE_HASH, firstStrArg, resourceKind);
+                    } else {
+                        return new InvalidValue("invalid resource kind: " + resourceKind);
+                    }
+                } else if (fnDesc.is("hash", null) || fnDesc.is("hash", "_G")) {
+                    var firstStrArg = getFirstStringArg(ctx.nameAndArgs().args());
+                    if (firstStrArg != null) {
+                        return new Success(ctx, PropertyType.PROPERTY_TYPE_HASH, firstStrArg);
+                    } else {
+                        return new InvalidValue("hash requires an argument");
+                    }
+                } else if (fnDesc.is("url", "msg")) {
+                    List<String> allArgs = getAllStringArgs(ctx.nameAndArgs().args());
+                    String result;
+                    if (allArgs == null || allArgs.isEmpty()) {
+                        result = "";
+                    } else {
+                        if (allArgs.contains(null)) {
+                            return new InvalidValue("`nil` can't be used in `go.property(msg.url(_))`");
+                        }
+                        if (allArgs.size() == 1) {
+                            result = allArgs.get(0);
+                        } else {
+                            if (allArgs.size() != 3) {
+                                return new InvalidValue("The URL may have only one or three strings in it");
+                            }
+                            result = allArgs.get(0) + ":" + allArgs.get(1) + "#" + allArgs.get(2);
                         }
                     }
+                    return new Success(ctx, PropertyType.PROPERTY_TYPE_URL, result);
+                } else {
+                    return new InvalidValue("unexpected function");
                 }
+            } else {
+                return new InvalidValue("unexpected argument");
             }
+        } else {
+            return new InvalidValue("2 arguments expected");
         }
-        return resultContext;
-    }
-
-    public static String concatenateUrl(List<String> allArgs) throws Exception {
-        if (allArgs == null || allArgs.size() == 0) {
-            return "";
-        }
-        if (allArgs.contains(null)) {
-            throw new Exception("`nil` can't be used in `go.property(msg.url(_))`");
-        }
-        if (allArgs.size() == 1) {
-            return allArgs.get(0);
-        }
-        if (allArgs.size() != 3) {
-            throw new Exception("The URL may have only one or three strings in it");
-        }
-        return allArgs.get(0) + ":" + allArgs.get(1) + "#" + allArgs.get(2);
     }
 }

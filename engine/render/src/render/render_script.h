@@ -63,6 +63,7 @@ namespace dmRender
         HRenderScript                 m_RenderScript;
         dmScript::ScriptWorld*        m_ScriptWorld;
         uint32_t                      m_PredicateCount;
+        uint32_t                      m_UniqueScriptId;
         int                           m_InstanceReference;
         int                           m_RenderScriptDataReference;
         int                           m_ContextTableReference;

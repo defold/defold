@@ -18,7 +18,6 @@
 #include <dmsdk/graphics/graphics.h>
 
 /*# Graphics API documentation
- * [file:<dmsdk/graphics/graphics_opengl.h>]
  *
  * Graphics OpenGL API
  *
@@ -38,6 +37,14 @@ namespace dmGraphics
      * @return id [type: uint32_t] the OpenGL render target id
      */
 	uint32_t OpenGLGetRenderTargetId(HContext context, HRenderTarget render_target);
+
+    /*#
+     * Get the default framebuffer ID
+     * @name OpenGLGetDefaultFramebufferId
+     * @param context [type: dmGraphics::HContext] the OpenGL context
+     * @return framebuffer [type: uint32_t] the framebuffer id
+     */
+    uint32_t OpenGLGetDefaultFramebufferId(HContext context);
 }
 
 #endif

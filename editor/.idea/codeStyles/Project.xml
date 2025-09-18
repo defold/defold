@@ -20,7 +20,10 @@
           <entry key="dynamo.graph/make-nodes" value="-1" />
           <entry key="dynamo.graph/override" value="-1" />
           <entry key="dynamo.graph/precluding-errors" value="-1" />
+          <entry key="dynamo.graph/set-properties" value="-1" />
+          <entry key="dynamo.graph/set-properties!" value="-1" />
           <entry key="dynamo.graph/set-property" value="-1" />
+          <entry key="dynamo.graph/set-property!" value="-1" />
           <entry key="dynamo.graph/transact" value="-1" />
           <entry key="dynamo.graph/tx-cached-value!" value="-1" />
           <entry key="dynamo.graph/with-auto-evaluation-context" value="-1" />
@@ -85,6 +88,7 @@
           <entry key="integration.gui-test/with-visible-layout!" value="-1" />
           <entry key="integration.test-util/set-code-editor-lines" value="-1" />
           <entry key="integration.test-util/set-code-editor-lines!" value="-1" />
+          <entry key="integration.test-util/with-changes-reverted" value="-1" />
           <entry key="integration.test-util/with-loaded-project" value="-1" />
           <entry key="integration.test-util/with-logged-calls" value="-1" />
           <entry key="integration.test-util/with-prop" value="-1" />
@@ -93,6 +97,7 @@
           <entry key="integration.test-util/write-file-resource!" value="-1" />
           <entry key="org.httpkit.server/with-channel" value="-1" />
           <entry key="support.test-support/with-clean-system" value="-1" />
+          <entry key="util.bit-set/transfer" value="-1" />
           <entry key="util.coll/assoc-in-ex" value="-1" />
           <entry key="util.coll/transfer" value="-1" />
           <entry key="util.debug-util/log-time" value="-1" />
@@ -101,6 +106,7 @@
           <entry key="util.debug-util/metrics-time" value="-1" />
           <entry key="util.profiler/profile" value="-1" />
           <entry key="vlaaad.reveal/defaction" value="-1" />
+          <entry key="vlaaad.reveal/defstream" value="-1" />
         </map>
       </option>
     </ClojureCodeStyleSettings>

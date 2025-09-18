@@ -228,14 +228,14 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(new Quat4d(0, 1, 0, 0), inst.getRotation(), epsilon);
         Assert.assertEquals(0.25, inst.getScale3().getX(), epsilon);
         Assert.assertEquals(0.25, inst.getScale3().getY(), epsilon);
-        Assert.assertEquals(0.5, inst.getScale3().getZ(), epsilon);
+        Assert.assertEquals(0.25, inst.getScale3().getZ(), epsilon);
 
         inst = instances.get("/sub/sub_sub/test");
-        assertEquals(new Point3d(0.5, 0, -0.5), inst.getPosition(), epsilon);
+        assertEquals(new Point3d(0.75, 0, -0.5), inst.getPosition(), epsilon);
         assertEquals(new Quat4d(0, sq2, 0, -sq2), inst.getRotation(), epsilon);
         Assert.assertEquals(0.125, inst.getScale3().getX(), epsilon);
         Assert.assertEquals(0.125, inst.getScale3().getY(), epsilon);
-        Assert.assertEquals(0.5, inst.getScale3().getZ(), epsilon);
+        Assert.assertEquals(0.125, inst.getScale3().getZ(), epsilon);
 
         inst = instances.get("/sub/sub_sub/test_child");
         assertEquals(new Point3d(1, 0, 0), inst.getPosition(), epsilon);
@@ -245,11 +245,11 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals(0.5, inst.getScale3().getZ(), epsilon);
 
         inst = instances.get("/sub/sub_sub/test_embed");
-        assertEquals(new Point3d(0.5, 0, -0.5), inst.getPosition(), epsilon);
+        assertEquals(new Point3d(0.75, 0, -0.5), inst.getPosition(), epsilon);
         assertEquals(new Quat4d(0, sq2, 0, -sq2), inst.getRotation(), epsilon);
         Assert.assertEquals(0.125, inst.getScale3().getX(), epsilon);
         Assert.assertEquals(0.125, inst.getScale3().getY(), epsilon);
-        Assert.assertEquals(0.5, inst.getScale3().getZ(), epsilon);
+        Assert.assertEquals(0.125, inst.getScale3().getZ(), epsilon);
 
         inst = instances.get("/sub/sub_sub/test_embed_child");
         assertEquals(new Point3d(1, 0, 0), inst.getPosition(), epsilon);
@@ -308,7 +308,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(new Quat4d(0, 1, 0, 0), inst.getRotation(), epsilon);
         Assert.assertEquals(0.25, inst.getScale3().getX(), epsilon);
         Assert.assertEquals(0.25, inst.getScale3().getY(), epsilon);
-        Assert.assertEquals(0.5, inst.getScale3().getZ(), epsilon);
+        Assert.assertEquals(0.25, inst.getScale3().getZ(), epsilon);
         Assert.assertEquals("/sub/child", inst.getChildren(0));
 
         inst = instances.get("/sub/child");

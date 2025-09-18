@@ -139,8 +139,8 @@ Links:
 }
 
 #status-pane #progress-hbox #progress-cancel-button {
-    -fx-background-color: -df-background-dark;
-    -cross-color: -df-text;
+    -fx-background-color: -df-background;
+    -cross-color: -df-background-lighter;
     -fx-background-radius: 50%;
     -fx-border-width: 0;
     -fx-padding: 0;
@@ -150,11 +150,11 @@ Links:
     -fx-max-height: 16px;
     -fx-content-display: center;
     &:hover {
-        -fx-background-color: -df-component-lighter;
-        -cross-color: -df-text-selected;
+        -fx-background-color: -df-background-lighter;
+        -cross-color: -df-text;
     }
     &:armed {
-        -fx-background-color: -df-background-light;
+        -fx-background-color: -df-background-lighter;
         -cross-color: -df-text-selected;
     }
 }

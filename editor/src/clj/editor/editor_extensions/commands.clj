@@ -24,7 +24,8 @@
             [editor.handler :as handler]
             [editor.lsp.async :as lsp.async]
             [editor.outline :as outline]
-            [editor.resource :as resource]))
+            [editor.resource :as resource]
+            [editor.scene :as scene]))
 
 (set! *warn-on-reflection* true)
 
@@ -84,6 +85,13 @@
                                     (node-ids->lua-selection q))]
                (cont assoc :selection res))))
 
+(defmethod gen-selection-query :scene [q acc _]
+  (gen-query acc [env cont]
+             (when-let [res (some-> (:selection env)
+                                    (handler/adapt-every scene/SceneNode)
+                                    (node-ids->lua-selection q))]
+               (cont assoc :selection res))))
+
 (defn- compile-query [q project]
   (reduce-kv
     (fn [acc k v]
@@ -100,12 +108,12 @@
   (coerce/hash-map
     :req {:label coerce/string
           :locations (coerce/vector-of
-                       (coerce/enum "Assets" "Bundle" "Debug" "Edit" "Outline" "Project" "View")
+                       (coerce/enum "Assets" "Bundle" "Debug" "Edit" "Outline" "Project" "Scene" "View")
                        :distinct true
                        :min-count 1)}
     :opt {:query (coerce/hash-map
                    :opt {:selection (coerce/hash-map
-                                      :req {:type (coerce/enum :resource :outline)
+                                      :req {:type (coerce/enum :resource :outline :scene)
                                             :cardinality (coerce/enum :one :many)})
                          :argument (coerce/const true)})
           :id prefs-docs/serializable-keyword-coercer
@@ -137,6 +145,7 @@
                              "Edit" :global
                              "Outline" :outline
                              "Project" :global
+                             "Scene" :global
                              "View" :global})
                        locations)
         locations (into #{}
@@ -146,6 +155,7 @@
                               "Edit" :editor.app-view/edit-end
                               "Outline" :editor.outline-view/context-menu-end
                               "Project" ::project/project-end
+                              "Scene" :editor.scene-selection/context-menu-end
                               "View" :editor.app-view/view-end})
                         locations)]
     (cond-> {:contexts contexts

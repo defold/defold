@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <float.h>
 #include <dlib/webserver.h>
 #include <dlib/message.h>
 #include <dlib/dstrings.h>
@@ -527,7 +528,7 @@ namespace dmEngineService
         char                 m_InfoJson[sizeof(INFO_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
         char                 m_StateJson[sizeof(STATE_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
 
-        dmProfile::HProfile  m_Profile;
+        HProfile             m_Profile;
     };
 
     HEngineService New(uint16_t port)
@@ -555,7 +556,7 @@ namespace dmEngineService
         delete engine_service;
     }
 
-    void Update(HEngineService engine_service, dmProfile::HProfile profile)
+    void Update(HEngineService engine_service, HProfile profile)
     {
         DM_PROFILE("Service");
         engine_service->m_Profile = profile;
@@ -804,6 +805,34 @@ namespace dmEngineService
             dmWebServer::Send(request, buf, sizeof(buf));
     }
 
+    static void SendJsonEscapedText(dmWebServer::Request* request, const char* text)
+    {
+        SendText(request, "\"");
+        for (const char* p = text; *p; ++p)
+        {
+            switch (*p)
+            {
+                case '\"': SendText(request, "\\\""); break;
+                case '\\': SendText(request, "\\\\"); break;
+                case '\n': SendText(request, "\\n"); break;
+                case '\r': SendText(request, "\\r"); break;
+                case '\t': SendText(request, "\\t"); break;
+                default:
+                {
+                    char buf[2] = {*p, 0};
+                    SendText(request, buf);
+                    break;
+                }
+            }
+        }
+        SendText(request, "\"");
+    }
+
+    static float JsonSafeFloat(float f)
+    {
+        return isfinite(f) ? f : FLT_MAX;
+    }
+
     static void OutputJsonProperty(dmGameObject::SceneNodeProperty* property, dmWebServer::Request* request, int indent)
     {
         SendIndent(request, indent);
@@ -825,13 +854,22 @@ namespace dmEngineService
                     dmSnPrintf(buffer, sizeof(buffer), "\"0x%016llX\"", (unsigned long long)property->m_Value.m_Hash);
             }
             break;
-        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_NUMBER: dmSnPrintf(buffer, sizeof(buffer), "%f", property->m_Value.m_Number); break;
+        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_NUMBER: dmSnPrintf(buffer, sizeof(buffer), "%f", JsonSafeFloat(property->m_Value.m_Number)); break;
         case dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN: dmSnPrintf(buffer, sizeof(buffer), "%d", property->m_Value.m_Bool?1:0); break;
-        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR3: dmSnPrintf(buffer, sizeof(buffer), "[%f, %f, %f]", property->m_Value.m_V4[0], property->m_Value.m_V4[1], property->m_Value.m_V4[2]); break;
-        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4: dmSnPrintf(buffer, sizeof(buffer), "[%f, %f, %f, %f]", property->m_Value.m_V4[0], property->m_Value.m_V4[1], property->m_Value.m_V4[2], property->m_Value.m_V4[3]); break;
-        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_QUAT: dmSnPrintf(buffer, sizeof(buffer), "[%f, %f, %f, %f]", property->m_Value.m_V4[0], property->m_Value.m_V4[1], property->m_Value.m_V4[2], property->m_Value.m_V4[3]); break;
+        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR3: dmSnPrintf(buffer, sizeof(buffer), "[%f, %f, %f]",
+            JsonSafeFloat(property->m_Value.m_V4[0]),
+            JsonSafeFloat(property->m_Value.m_V4[1]),
+            JsonSafeFloat(property->m_Value.m_V4[2]));
+            break;
+        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4:
+        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_QUAT: dmSnPrintf(buffer, sizeof(buffer), "[%f, %f, %f, %f]",
+            JsonSafeFloat(property->m_Value.m_V4[0]),
+            JsonSafeFloat(property->m_Value.m_V4[1]),
+            JsonSafeFloat(property->m_Value.m_V4[2]),
+            JsonSafeFloat(property->m_Value.m_V4[3]));
+            break;
         case dmGameObject::SCENE_NODE_PROPERTY_TYPE_URL: dmSnPrintf(buffer, sizeof(buffer), "\"%s\"", property->m_Value.m_URL); break;
-        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_TEXT: SendText(request, "\""); SendText(request, property->m_Value.m_Text); SendText(request, "\""); break;
+        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_TEXT: SendJsonEscapedText(request, property->m_Value.m_Text); break;
         default: break;
         }
 

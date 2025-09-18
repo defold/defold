@@ -36,6 +36,7 @@
             [editor.game-object :as game-object]
             [editor.game-object-non-editable :as game-object-non-editable]
             [editor.game-project :as game-project]
+            [editor.game-properties :as game-properties]
             [editor.gui :as gui]
             [editor.html :as html]
             [editor.image :as image]
@@ -80,6 +81,7 @@
       (game-object/register-resource-types workspace)
       (game-object-non-editable/register-resource-types workspace)
       (game-project/register-resource-types workspace)
+      (game-properties/register-resource-types workspace)
       (gui/register-resource-types workspace)
       (html/register-resource-types workspace)
       (image/register-resource-types workspace)

@@ -112,6 +112,15 @@ namespace dmEngine
 
     dmEngineService::HEngineService g_EngineService = 0;
 
+    static ExtensionAppExitCode GetAppExitStatusFromAction(int action)
+    {
+        switch(action) {
+        case dmEngine::RunResult::REBOOT:   return EXTENSION_APP_EXIT_CODE_REBOOT;
+        case dmEngine::RunResult::EXIT:     return EXTENSION_APP_EXIT_CODE_EXIT;
+        default:                            return EXTENSION_APP_EXIT_CODE_NONE;
+        }
+    }
+
     struct ScopedExtensionAppParams
     {
         ExtensionAppParams m_AppParams;
@@ -119,6 +128,7 @@ namespace dmEngine
         {
             ExtensionAppParamsInitialize(&m_AppParams);
             m_AppParams.m_ConfigFile = engine->m_Config;
+            m_AppParams.m_ExitStatus = GetAppExitStatusFromAction(engine->m_RunResult.m_Action);
             ExtensionAppParamsSetContext(&m_AppParams, "config", engine->m_Config);
             dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
             ExtensionAppParamsSetContext(&m_AppParams, "webserver", webserver);
@@ -158,6 +168,9 @@ namespace dmEngine
             ExtensionParamsSetContext(&m_Params, "render", engine->m_RenderContext);
             if (engine->m_HttpCache)
                 ExtensionParamsSetContext(&m_Params, "http_cache", engine->m_HttpCache);
+
+            if (engine->m_JobThreadContext)
+                ExtensionParamsSetContext(&m_Params, "job_thread", engine->m_JobThreadContext);
         }
         ~ScopedExtensionParams()
         {
@@ -699,6 +712,9 @@ namespace dmEngine
         physics->m_MaxContactPointCount = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
         physics->m_UseFixedTimestep = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_USE_FIXED_TIMESTEP, 1) ? 1 : 0;
         physics->m_MaxFixedTimesteps = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_MAX_FIXED_TIMESTEPS, 2);
+        physics->m_Box2DVelocityIterations = dmConfigFile::GetInt(config, dmGameSystem::BOX2D_VELOCITY_ITERATIONS, 10);
+        physics->m_Box2DPositionIterations = dmConfigFile::GetInt(config, dmGameSystem::BOX2D_POSITION_ITERATIONS, 10);
+        physics->m_Box2DSubStepCount = dmConfigFile::GetInt(config, dmGameSystem::BOX2D_SUB_STEP_COUNT, 4);
         // TODO: Should move inside the ifdef release? Is this usable without the debug callbacks?
         physics->m_Debug = (bool) dmConfigFile::GetInt(config, "physics.debug", 0);
     }
@@ -914,8 +930,13 @@ namespace dmEngine
 #if !defined(DM_RELEASE)
         instance_index = dmConfigFile::GetInt(engine->m_Config, "project.instance_index", 0);
 #endif
-        int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
-        if (write_log) {
+        int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0); // Deprecated
+        int write_log_file = dmConfigFile::GetInt(engine->m_Config, "project.write_log_file", 0);
+        // for backward compatibility if write_log_file is 0, but write_log is 1
+        write_log_file = write_log_file == 0 ? write_log : write_log_file;
+        // 0 - no logs, 1 - debug only, 2 - always
+        if ((write_log_file == 2) || (write_log_file == 1 && dLib::IsDebugMode()))
+        {
             uint32_t count = 0;
             char* log_paths[3];
 
@@ -1073,8 +1094,7 @@ namespace dmEngine
 #endif
 
         engine->m_FixedUpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "engine.fixed_update_frequency", 60);
-        engine->m_MaxTimeStep = dmConfigFile::GetFloat(engine->m_Config, "engine.max_time_step", 0.5);
-
+        engine->m_MaxTimeStep = dmConfigFile::GetFloat(engine->m_Config, "engine.max_time_step", 1.0f / 30);
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
 
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0));
@@ -1408,6 +1428,7 @@ namespace dmEngine
             engine->m_ResourceTypeContexts.Put(dmHashString64("gui_scriptc"), engine->m_GuiScriptContext);
             engine->m_ResourceTypeContexts.Put(dmHashString64("guic"), engine->m_GuiContext);
         }
+        engine->m_ResourceTypeContexts.Put(dmHashString64("fontc"), engine->m_RenderContext);
 
         fact_result = dmResource::RegisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         if (fact_result != dmResource::RESULT_OK)
@@ -1438,12 +1459,18 @@ namespace dmEngine
 #if !defined(DM_RELEASE)
         {
             const char* init_script = dmConfigFile::GetString(engine->m_Config, "bootstrap.debug_init_script", 0);
-            if (init_script) {
+            if (init_script && init_script[0] != 0)
+            {
+                dmLogWarning("Using bootstrap.debug_init_script='%s'", init_script);
                 char* tmp = strdup(init_script);
                 char* iter = 0;
                 char* filename = dmStrTok(tmp, ",", &iter);
                 do
                 {
+                    if (!filename || strlen(filename) == 0) {
+                        continue;
+                    }
+                    
                     // We need the size, in order to send it as a proper LuaModule message
                     void* data;
                     uint32_t datasize;
@@ -1733,6 +1760,13 @@ bail:
         return memcount;
     }
 
+    static void Exit(HEngine engine, int32_t code)
+    {
+        engine->m_Alive = false;
+        engine->m_RunResult.m_ExitCode = code;
+        engine->m_RunResult.m_Action = dmEngine::RunResult::EXIT;
+    }
+
     static void StepFrame(HEngine engine, float dt)
     {
         uint64_t frame_start = dmTime::GetMonotonicTime();
@@ -1770,7 +1804,7 @@ bail:
             }
         }
 
-        dmProfile::HProfile profile = dmProfile::BeginFrame();
+        HProfile profile = ProfileFrameBegin();
         {
             DM_PROFILE("Frame");
 
@@ -1792,12 +1826,18 @@ bail:
                         // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
                         // might have entered background at this point and OpenGL calls are not permitted and will
                         // crash the application
-                        dmProfile::EndFrame(profile);
+                        ProfileFrameEnd(profile);
                         return;
                     }
                 }
-
-                dmJobThread::Update(engine->m_JobThreadContext);
+#if defined(DM_HAS_THREADS)
+                uint64_t jobthread_max_time_us = 0;
+#else
+                // Dictates max time the job thread may take.
+                // Note that it will always process at least one item if available
+                uint64_t jobthread_max_time_us = 3 * 1000;
+#endif
+                dmJobThread::Update(engine->m_JobThreadContext, jobthread_max_time_us);
 
                 {
                     DM_PROFILE("Extension");
@@ -1844,8 +1884,6 @@ bail:
                     }
                 }
 
-                dmSound::Update();
-
                 bool esc_pressed = false;
                 if (engine->m_QuitOnEsc)
                 {
@@ -1857,7 +1895,7 @@ bail:
 
                 if (esc_pressed || !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_OPENED))
                 {
-                    engine->m_Alive = false;
+                    Exit(engine, 0);
                     return;
                 }
 
@@ -1888,6 +1926,8 @@ bail:
                 update_context.m_FixedUpdateFrequency = engine->m_FixedUpdateFrequency;
                 update_context.m_AccumFrameTime = engine->m_AccumFrameTime;
                 dmGameObject::Update(engine->m_MainCollection, &update_context);
+
+                dmSound::Update();
 
                 // Don't render while iconified
                 if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED)
@@ -1927,7 +1967,7 @@ bail:
                                             (float)((engine->m_ClearColor>>16)&0xFF),
                                             (float)((engine->m_ClearColor>>24)&0xFF),
                                             1.0f, 0);
-                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0);
+                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
                     }
                 }
 
@@ -2019,7 +2059,7 @@ bail:
                 }
             }
         }
-        dmProfile::EndFrame(profile);
+        ProfileFrameEnd(profile);
 
         ++engine->m_Stats.m_FrameCount;
         engine->m_Stats.m_TotalTime += dt;
@@ -2095,13 +2135,6 @@ bail:
     {
         HEngine engine = (HEngine)context;
         return engine->m_Alive;
-    }
-
-    static void Exit(HEngine engine, int32_t code)
-    {
-        engine->m_Alive = false;
-        engine->m_RunResult.m_ExitCode = code;
-        engine->m_RunResult.m_Action = dmEngine::RunResult::EXIT;
     }
 
     static void Reboot(HEngine engine, dmSystemDDF::Reboot* reboot)
@@ -2346,13 +2379,16 @@ bail:
 
 void dmEngineInitialize()
 {
+#if DM_RELEASE
+    dLib::SetDebugMode(false);
+#endif
+
+    if (dLib::IsDebugMode())
+        ProfileInitialize();
     dmEngine::PlatformInitialize();
 
     dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
 
-#if DM_RELEASE
-    dLib::SetDebugMode(false);
-#endif
     dmHashEnableReverseHash(dLib::IsDebugMode());
 
     dmCrash::Init(dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
@@ -2383,6 +2419,9 @@ void dmEngineFinalize()
     dmSocket::Finalize();
 
     dmEngine::PlatformFinalize();
+
+    if (dLib::IsDebugMode())
+        ProfileFinalize();
 }
 
 const char* ParseArgOneOperand(const char* arg_str, int argc, char *argv[])
@@ -2429,7 +2468,6 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
 void dmEngineDestroy(dmEngine::HEngine engine)
 {
     engine->m_RunResult.Free();
-
     Delete(engine);
 }
 

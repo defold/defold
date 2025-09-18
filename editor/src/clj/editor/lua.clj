@@ -23,7 +23,6 @@
             [editor.lua-completion :as lua-completion]
             [editor.protobuf :as protobuf]
             [internal.util :as util]
-            [util.coll :refer [pair]]
             [util.eduction :as e])
   (:import [com.dynamo.scriptdoc.proto ScriptDoc$Document]
            [java.net URI]
@@ -32,27 +31,44 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private docs
-  ["lua_base.doc_h" "lua_coroutine.doc_h" "lua_debug.doc_h"
-   "lua_io.doc_h" "lua_math.doc_h" "lua_os.doc_h" "lua_package.doc_h"
-   "lua_string.doc_h" "lua_table.doc_h"
-   "luasocket-luasocket.doc_h"
-   "gameobject_script.cpp"
+  ["gameobject_script.cpp"
    "gui_script.cpp"
+   "lua_base.doc_h"
+   "lua_coroutine.doc_h"
+   "lua_debug.doc_h"
+   "lua_io.doc_h"
+   "lua_math.doc_h"
+   "lua_os.doc_h"
+   "lua_package.doc_h"
+   "lua_string.doc_h"
+   "lua_table.doc_h"
+   "luasocket-luasocket.doc_h"
    "profiler.cpp"
+   "proto-gameobject-gameobject_ddf.proto"
+   "proto-gamesys-camera_ddf.proto"
+   "proto-gamesys-gui_ddf.proto"
+   "proto-gamesys-label_ddf.proto"
+   "proto-gamesys-model_ddf.proto"
+   "proto-gamesys-physics_ddf.proto"
+   "proto-gamesys-sprite_ddf.proto"
+   "proto-render-render_ddf.proto"
    "render-render_script.cpp"
+   "render-render_script_camera.cpp"
+   "script-sys_ddf.proto"
    "script.cpp"
    "script_bitop.cpp"
    "script_crash.cpp"
    "script_graphics.cpp"
+   "script_hash.cpp"
    "script_html5_js.cpp"
    "script_json.cpp"
    "script_liveupdate.h"
    "script_msg.cpp"
    "script_sys.cpp"
    "script_timer.cpp"
+   "script_types.cpp"
    "script_vmath.cpp"
    "script_zlib.cpp"
-   "script_types.cpp"
    "scripts-box2d-script_box2d.cpp"
    "scripts-box2d-script_box2d_body.cpp"
    "scripts-script_buffer.cpp"
@@ -69,15 +85,15 @@
    "scripts-script_resource.cpp"
    "scripts-script_sound.cpp"
    "scripts-script_sprite.cpp"
+   "scripts-script_sys_gamesys.cpp"
    "scripts-script_tilemap.cpp"
-   "scripts-script_window.cpp"
-   ])
+   "scripts-script_window.cpp"])
 
 (defn- sdoc-path [doc]
   (format "doc/%s_doc.sdoc" doc))
 
 (defn- load-sdoc [doc-name]
-  (:elements (protobuf/read-map-with-defaults ScriptDoc$Document (io/resource (sdoc-path doc-name)))))
+  (protobuf/read-map-with-defaults ScriptDoc$Document (io/resource (sdoc-path doc-name))))
 
 (defn make-completion-map
   "Make a completion map from reducible of ns path + completion tuples
@@ -124,15 +140,20 @@
   (make-completion-map
     (eduction
       (mapcat (fn [doc-name]
-                (eduction
-                  (map #(pair doc-name %))
-                  (load-sdoc doc-name))))
-      (map (fn [[doc-name raw-element]]
+                (let [sdoc (load-sdoc doc-name)
+                      raw-info (:info sdoc)
+                      raw-elements (:elements sdoc)]
+                  (eduction
+                    (remove #(= :typedef (:type %)))
+                    (map #(vector doc-name raw-info %))
+                    raw-elements))))
+      (map (fn [[doc-name raw-info raw-element]]
              (let [raw-name (:name raw-element)
                    name-parts (string/split raw-name #"\.")
                    ns-path (pop name-parts)
                    {:keys [type parameters] :as el} (assoc raw-element :name (peek name-parts))
-                   base-url (URI. (str "https://defold.com/ref/" doc-name))
+                   raw-namespace (:namespace raw-info)
+                   base-url (URI. (str "https://defold.com/ref/" raw-namespace "-lua"))
                    site-url (str "#"
                                  (string/replace
                                    (str
@@ -167,7 +188,7 @@
 (def base-globals
   (into #{"coroutine" "package" "string" "table" "math" "io" "file" "os" "debug"}
         (map :name)
-        (load-sdoc "lua_base.doc_h")))
+        (:elements (load-sdoc "lua_base.doc_h"))))
 
 (defn extract-globals-from-completions [completions]
   (into #{}
@@ -208,52 +229,8 @@
 (defn lua-module->build-path [module]
   (str (lua-module->path module) "c"))
 
-(defn- make-completion-info-completions [vars functions module-alias]
-  (eduction
-    cat
-    [(eduction
-       (map (fn [var-name]
-              [[] (code-completion/make var-name :type :variable)]))
-       vars)
-     (eduction
-       (map (fn [[qualified-name {:keys [params]}]]
-              (let [name-parts (string/split qualified-name #"\.")
-                    ns-path (pop name-parts)
-                    ns-path (if (and module-alias (pos? (count ns-path)))
-                              (assoc ns-path 0 module-alias)
-                              ns-path)
-                    name (peek name-parts)]
-                [ns-path (code-completion/make
-                           name
-                           :type :function
-                           :display-string (str name "(" (string/join ", " params) ")")
-                           :insert (str name
-                                        "("
-                                        (->> params
-                                             (map-indexed #(format "${%s:%s}" (inc %1) %2))
-                                             (string/join ", "))
-                                        ")"))])))
-       functions)]))
-
-(defn- make-ast-completions [local-completion-info required-completion-infos]
-  (make-completion-map
-    (eduction
-      cat
-      [(make-completion-info-completions
-         (set/union (:vars local-completion-info) (:local-vars local-completion-info))
-         (merge (:functions local-completion-info) (:local-functions local-completion-info))
-         nil)
-       (let [module->completion-info (into {} (map (juxt :module identity)) required-completion-infos)]
-         (eduction
-           (mapcat (fn [[alias module]]
-                     (let [completion-info (module->completion-info module)]
-                       (make-completion-info-completions (:vars completion-info)
-                                                         (:functions completion-info)
-                                                         alias))))
-           (:requires local-completion-info)))])))
-
 (defn combine-completions
-  [local-completion-info required-completion-infos script-intelligence-completions]
+  [script-intelligence-completions]
   (merge-with (fn [dest new]
                 (let [taken-display-strings (into #{} (map :display-string) dest)]
                   (into dest
@@ -262,8 +239,7 @@
                         new)))
               defold-docs
               std-libs-docs
-              script-intelligence-completions
-              (make-ast-completions local-completion-info required-completion-infos)))
+              script-intelligence-completions))
 
 (def editor-completions
   (->> (ext-docs/editor-script-docs)

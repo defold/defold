@@ -258,7 +258,7 @@ namespace dmGui
     {
         Scene* scene = (Scene*)lua_touserdata(L, 1);
         const char* path = luaL_checkstring(L, 2);
-        dmScript::PushHash(L, scene->m_Context->m_ResolvePathCallback(scene, path, strlen(path)));
+        dmScript::PushHash(L, scene->m_Context->m_ResolvePathCallback(scene, path));
         return 1;
     }
 
@@ -291,6 +291,13 @@ namespace dmGui
         return 1;
     }
 
+    static int GuiScriptGetUniqueScriptId(lua_State* L)
+    {
+        Scene* inst = (Scene*)lua_touserdata(L, 1);
+        lua_pushinteger(L, (lua_Integer)inst->m_UniqueScriptId);
+        return 1;
+    }
+
     static const luaL_reg GuiScriptInstance_methods[] =
     {
         {0,0}
@@ -306,6 +313,7 @@ namespace dmGui
         {dmScript::META_TABLE_IS_VALID,                 GuiScriptInstanceIsValid},
         {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, GuiScriptGetInstanceContextTableRef},
         {dmScript::META_GET_INSTANCE_DATA_TABLE_REF,    GuiScriptGetInstanceDataTableRef},
+        {dmScript::META_GET_UNIQUE_SCRIPT_ID,           GuiScriptGetUniqueScriptId},
         {0, 0}
     };
 
@@ -563,7 +571,7 @@ namespace dmGui
      * - `gui.TYPE_PARTICLEFX`
      * - `gui.TYPE_CUSTOM`
      * 
-     * @return subtype [type:integer|nil] id of the custom type
+     * @return subtype [type:number|nil] id of the custom type
      */
     static int LuaGetType(lua_State* L)
     {
@@ -671,7 +679,7 @@ namespace dmGui
      * @param node [type:node] node to get the property for
      * @param property [type:string|hash|constant] the property to retrieve 
      * @param [options] [type:table] optional options table (only applicable for material constants)
-     * - `index` [type:integer] index into array property (1 based)
+     * - `index` [type:number] index into array property (1 based)
      *
      * @examples
      *
@@ -810,9 +818,9 @@ namespace dmGui
      * @name gui.set
      * @param node [type:node|url] node to set the property for, or msg.url() to the gui itself
      * @param property [type:string|hash|constant] the property to set 
-     * @param value [type:number|vector4|vector3|quat] the property to set
+     * @param value [type:number|vector4|vector3|quaternion] the property to set
      * @param [options] [type:table] optional options table (only applicable for material constants)
-     * - `index` [type:integer] index into array property (1 based)
+     * - `index` [type:number] index into array property (1 based)
      * - `key` [type:hash] name of internal property
      *
      * @examples
@@ -1126,238 +1134,238 @@ namespace dmGui
     /*# once forward
      *
      * @name gui.PLAYBACK_ONCE_FORWARD
-     * @variable
+     * @constant
      */
     /*# once backward
      *
      * @name gui.PLAYBACK_ONCE_BACKWARD
-     * @variable
+     * @constant
      */
     /*# once forward and then backward
      *
      * @name gui.PLAYBACK_ONCE_PINGPONG
-     * @variable
+     * @constant
      */
     /*# loop forward
      *
      * @name gui.PLAYBACK_LOOP_FORWARD
-     * @variable
+     * @constant
      */
     /*# loop backward
      *
      * @name gui.PLAYBACK_LOOP_BACKWARD
-     * @variable
+     * @constant
      */
     /*# ping pong loop
      *
      * @name gui.PLAYBACK_LOOP_PINGPONG
-     * @variable
+     * @constant
      */
 
     /*# linear interpolation
      *
      * @name gui.EASING_LINEAR
-     * @variable
+     * @constant
      */
     /*# in-quadratic
      *
      * @name gui.EASING_INQUAD
-     * @variable
+     * @constant
      */
     /*# out-quadratic
      *
      * @name gui.EASING_OUTQUAD
-     * @variable
+     * @constant
      */
     /*# in-out-quadratic
      *
      * @name gui.EASING_INOUTQUAD
-     * @variable
+     * @constant
      */
     /*# out-in-quadratic
      *
      * @name gui.EASING_OUTINQUAD
-     * @variable
+     * @constant
      */
     /*# in-cubic
      *
      * @name gui.EASING_INCUBIC
-     * @variable
+     * @constant
      */
     /*# out-cubic
      *
      * @name gui.EASING_OUTCUBIC
-     * @variable
+     * @constant
      */
     /*# in-out-cubic
      *
      * @name gui.EASING_INOUTCUBIC
-     * @variable
+     * @constant
      */
     /*# out-in-cubic
      *
      * @name gui.EASING_OUTINCUBIC
-     * @variable
+     * @constant
      */
     /*# in-quartic
      *
      * @name gui.EASING_INQUART
-     * @variable
+     * @constant
      */
     /*# out-quartic
      *
      * @name gui.EASING_OUTQUART
-     * @variable
+     * @constant
      */
     /*# in-out-quartic
      *
      * @name gui.EASING_INOUTQUART
-     * @variable
+     * @constant
      */
     /*# out-in-quartic
      *
      * @name gui.EASING_OUTINQUART
-     * @variable
+     * @constant
      */
     /*# in-quintic
      *
      * @name gui.EASING_INQUINT
-     * @variable
+     * @constant
      */
     /*# out-quintic
      *
      * @name gui.EASING_OUTQUINT
-     * @variable
+     * @constant
      */
     /*# in-out-quintic
      *
      * @name gui.EASING_INOUTQUINT
-     * @variable
+     * @constant
      */
     /*# out-in-quintic
      *
      * @name gui.EASING_OUTINQUINT
-     * @variable
+     * @constant
      */
     /*# in-sine
      *
      * @name gui.EASING_INSINE
-     * @variable
+     * @constant
      */
     /*# out-sine
      *
      * @name gui.EASING_OUTSINE
-     * @variable
+     * @constant
      */
     /*# in-out-sine
      *
      * @name gui.EASING_INOUTSINE
-     * @variable
+     * @constant
      */
     /*# out-in-sine
      *
      * @name gui.EASING_OUTINSINE
-     * @variable
+     * @constant
      */
     /*# in-exponential
      *
      * @name gui.EASING_INEXPO
-     * @variable
+     * @constant
      */
     /*# out-exponential
      *
      * @name gui.EASING_OUTEXPO
-     * @variable
+     * @constant
      */
     /*# in-out-exponential
      *
      * @name gui.EASING_INOUTEXPO
-     * @variable
+     * @constant
      */
     /*# out-in-exponential
      *
      * @name gui.EASING_OUTINEXPO
-     * @variable
+     * @constant
      */
     /*# in-circlic
      *
      * @name gui.EASING_INCIRC
-     * @variable
+     * @constant
      */
     /*# out-circlic
      *
      * @name gui.EASING_OUTCIRC
-     * @variable
+     * @constant
      */
     /*# in-out-circlic
      *
      * @name gui.EASING_INOUTCIRC
-     * @variable
+     * @constant
      */
     /*# out-in-circlic
      *
      * @name gui.EASING_OUTINCIRC
-     * @variable
+     * @constant
      */
     /*# in-elastic
      *
      * @name gui.EASING_INELASTIC
-     * @variable
+     * @constant
      */
     /*# out-elastic
      *
      * @name gui.EASING_OUTELASTIC
-     * @variable
+     * @constant
      */
     /*# in-out-elastic
      *
      * @name gui.EASING_INOUTELASTIC
-     * @variable
+     * @constant
      */
     /*# out-in-elastic
      *
      * @name gui.EASING_OUTINELASTIC
-     * @variable
+     * @constant
      */
     /*# in-back
      *
      * @name gui.EASING_INBACK
-     * @variable
+     * @constant
      */
     /*# out-back
      *
      * @name gui.EASING_OUTBACK
-     * @variable
+     * @constant
      */
     /*# in-out-back
      *
      * @name gui.EASING_INOUTBACK
-     * @variable
+     * @constant
      */
     /*# out-in-back
      *
      * @name gui.EASING_OUTINBACK
-     * @variable
+     * @constant
      */
     /*# in-bounce
      *
      * @name gui.EASING_INBOUNCE
-     * @variable
+     * @constant
      */
     /*# out-bounce
      *
      * @name gui.EASING_OUTBOUNCE
-     * @variable
+     * @constant
      */
     /*# in-out-bounce
      *
      * @name gui.EASING_INOUTBOUNCE
-     * @variable
+     * @constant
      */
     /*# out-in-bounce
      *
      * @name gui.EASING_OUTINBOUNCE
-     * @variable
+     * @constant
      */
 
     /*# animates a node property
@@ -2598,6 +2606,93 @@ namespace dmGui
 
         dmScript::PushHash(L, dmGui::GetLayout(scene));
         assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# sets the scene layout
+     *
+     * Applies a named layout on the GUI scene. This re-applies per-layout node descriptors
+     * and, if a matching Display Profile exists, updates the scene resolution. Emits
+     * the "layout_changed" message to the scene script when the layout actually changes.
+     *
+     * @name gui.set_layout
+     * @param layout [type:string|hash] the layout id to apply
+     * @return [type:boolean] true if the layout exists in the scene and was applied, false otherwise
+     */
+    static int LuaSetLayout(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        dmhash_t layout_id = dmScript::CheckHashOrString(L, 1);
+
+        // Verify existence
+        bool has_layout = false;
+        uint16_t layout_count = dmGui::GetLayoutCount(scene);
+        for (uint16_t i = 0; i < layout_count; ++i)
+        {
+            dmhash_t id;
+            if (dmGui::GetLayoutId(scene, i, id) == dmGui::RESULT_OK && id == layout_id)
+            {
+                has_layout = true;
+                break;
+            }
+        }
+
+        if (!has_layout)
+        {
+            lua_pushboolean(L, 0);
+            return 1;
+        }
+
+        if (!scene->m_ApplyLayoutCallback)
+        {
+            return DM_LUA_ERROR("gui.set_layout is unavailable in this context");
+        }
+
+        scene->m_ApplyLayoutCallback(scene, layout_id);
+        lua_pushboolean(L, 1);
+        return 1;
+    }
+
+    /*# returns available layouts with sizes
+     *
+     * Returns a table mapping each layout id hash to a vector3(width, height, 0). For the default layout,
+     * the current scene resolution is returned. If a layout name is not present in the Display Profiles (or when
+     * no display profiles are assigned), the width/height pair is 0.
+     *
+     * @name gui.get_layouts
+     * @return [type:table] layout_id_hash -> vmath.vector3(width, height, 0)
+     */
+    static int LuaGetLayouts(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        lua_newtable(L);
+
+        uint16_t layout_count = dmGui::GetLayoutCount(scene);
+        for (uint16_t i = 0; i < layout_count; ++i)
+        {
+            dmhash_t id;
+            if (dmGui::GetLayoutId(scene, i, id) != dmGui::RESULT_OK)
+                continue;
+
+            uint32_t w = 0, h = 0;
+            if (id == dmGui::DEFAULT_LAYOUT)
+            {
+                dmGui::GetSceneResolution(scene, w, h);
+            }
+            else if (scene->m_GetDisplayProfileDescCallback)
+            {
+                scene->m_GetDisplayProfileDescCallback(scene, id, &w, &h);
+            }
+
+            dmScript::PushHash(L, id);
+            dmScript::PushVector3(L, dmVMath::Vector3((float)w, (float)h, 0.0f));
+            lua_settable(L, -3);
+        }
+
         return 1;
     }
 
@@ -3967,25 +4062,25 @@ namespace dmGui
     /*# default keyboard
      *
      * @name gui.KEYBOARD_TYPE_DEFAULT
-     * @variable
+     * @constant
      */
 
     /*# number input keyboard
      *
      * @name gui.KEYBOARD_TYPE_NUMBER_PAD
-     * @variable
+     * @constant
      */
 
     /*# email keyboard
      *
      * @name gui.KEYBOARD_TYPE_EMAIL
-     * @variable
+     * @constant
      */
 
     /*# password keyboard
      *
      * @name gui.KEYBOARD_TYPE_PASSWORD
-     * @variable
+     * @constant
      */
 
     /*# shows the on-display keyboard if available [icon:ios] [icon:android]
@@ -4936,6 +5031,8 @@ namespace dmGui
         {"get_layer",        LuaGetLayer},
         {"set_layer",        LuaSetLayer},
         {"get_layout",        LuaGetLayout},
+        {"set_layout",        LuaSetLayout},
+        {"get_layouts",       LuaGetLayouts},
         {"get_text_metrics",LuaGetTextMetrics},
         {"get_text_metrics_from_node",LuaGetTextMetricsFromNode},
         {"get_xanchor",     LuaGetXAnchor},
@@ -5015,288 +5112,288 @@ namespace dmGui
     /*# position property
      *
      * @name gui.PROP_POSITION
-     * @variable
+     * @constant
      */
 
     /*# rotation property
      *
      * @name gui.PROP_ROTATION
-     * @variable
+     * @constant
      */
 
     /*# euler property
      *
      * @name gui.PROP_EULER
-     * @variable
+     * @constant
      */
 
     /*# scale property
      *
      * @name gui.PROP_SCALE
-     * @variable
+     * @constant
      */
 
     /*# color property
      *
      * @name gui.PROP_COLOR
-     * @variable
+     * @constant
      */
 
     /*# outline color property
      *
      * @name gui.PROP_OUTLINE
-     * @variable
+     * @constant
      */
 
     /*# shadow color property
      *
      * @name gui.PROP_SHADOW
-     * @variable
+     * @constant
      */
 
     /*# size property
      *
      * @name gui.PROP_SIZE
-     * @variable
+     * @constant
      */
 
     /*# fill_angle property
      *
      * @name gui.PROP_FILL_ANGLE
-     * @variable
+     * @constant
      */
 
     /*# inner_radius property
      *
      * @name gui.PROP_INNER_RADIUS
-     * @variable
+     * @constant
      */
 
     /*# leading property
      *
      * @name gui.PROP_LEADING
-     * @variable
+     * @constant
      */
 
     /*# tracking property
      *
      * @name gui.PROP_TRACKING
-     * @variable
+     * @constant
      */
 
     /*# slice9 property
      *
      * @name gui.PROP_SLICE9
-     * @variable
+     * @constant
      */
 
     /*# alpha blending
      *
      * @name gui.BLEND_ALPHA
-     * @variable
+     * @constant
      */
 
     /*# additive blending
      *
      * @name gui.BLEND_ADD
-     * @variable
+     * @constant
      */
 
     /*# additive alpha blending
      *
      * @name gui.BLEND_ADD_ALPHA
-     * @variable
+     * @constant
      */
 
     /*# multiply blending
      *
      * @name gui.BLEND_MULT
-     * @variable
+     * @constant
      */
 
     /*# screen blending
      *
      * @name gui.BLEND_SCREEN
-     * @variable
+     * @constant
      */
 
     /*# clipping mode none
      *
      * @name gui.CLIPPING_MODE_NONE
-     * @variable
+     * @constant
      */
 
     /*# clipping mode stencil
      *
      * @name gui.CLIPPING_MODE_STENCIL
-     * @variable
+     * @constant
      */
 
     /*# left x-anchor
      *
      * @name gui.ANCHOR_LEFT
-     * @variable
+     * @constant
      */
 
     /*# right x-anchor
      *
      * @name gui.ANCHOR_RIGHT
-     * @variable
+     * @constant
      */
 
     /*# top y-anchor
      *
      * @name gui.ANCHOR_TOP
-     * @variable
+     * @constant
      */
 
     /*# bottom y-anchor
      *
      * @name gui.ANCHOR_BOTTOM
-     * @variable
+     * @constant
      */
 
     /*# no anchor
      *
      * @name gui.ANCHOR_NONE
-     * @variable
+     * @constant
      */
 
     /*# center pivot
      *
      * @name gui.PIVOT_CENTER
-     * @variable
+     * @constant
      */
     /*# north pivot
      *
      * @name gui.PIVOT_N
-     * @variable
+     * @constant
      */
     /*# north-east pivot
      *
      * @name gui.PIVOT_NE
-     * @variable
+     * @constant
      */
     /*# east pivot
      *
      * @name gui.PIVOT_E
-     * @variable
+     * @constant
      */
     /*# south-east pivot
      *
      * @name gui.PIVOT_SE
-     * @variable
+     * @constant
      */
     /*# south pivot
      *
      * @name gui.PIVOT_S
-     * @variable
+     * @constant
      */
     /*# south-west pivot
      *
      * @name gui.PIVOT_SW
-     * @variable
+     * @constant
      */
     /*# west pivot
      *
      * @name gui.PIVOT_W
-     * @variable
+     * @constant
      */
     /*# north-west pivot
      *
      * @name gui.PIVOT_NW
-     * @variable
+     * @constant
      */
 
     /*# box type
      *
      * @name gui.TYPE_BOX
-     * @variable
+     * @constant
      */
     /*# text type
      *
      * @name gui.TYPE_TEXT
-     * @variable
+     * @constant
      */
     /*# pie type
      *
      * @name gui.TYPE_PIE
-     * @variable
+     * @constant
      */
     /*# particlefx type
      *
      * @name gui.TYPE_PARTICLEFX
-     * @variable
+     * @constant
      */
     /*# custom type
      *
      * @name gui.TYPE_CUSTOM
-     * @variable
+     * @constant
      */
 
     /*# fit adjust mode
      * Adjust mode is used when the screen resolution differs from the project settings.
      * The fit mode ensures that the entire node is visible in the adjusted gui scene.
      * @name gui.ADJUST_FIT
-     * @variable
+     * @constant
      */
 
     /*# zoom adjust mode
      * Adjust mode is used when the screen resolution differs from the project settings.
      * The zoom mode ensures that the node fills its entire area and might make the node exceed it.
      * @name gui.ADJUST_ZOOM
-     * @variable
+     * @constant
      */
 
     /*# stretch adjust mode
      * Adjust mode is used when the screen resolution differs from the project settings.
      * The stretch mode ensures that the node is displayed as is in the adjusted gui scene, which might scale it non-uniformally.
      * @name gui.ADJUST_STRETCH
-     * @variable
+     * @constant
      */
 
     /*# elliptical pie node bounds
      * @name gui.PIEBOUNDS_ELLIPSE
-     * @variable
+     * @constant
      */
 
     /*# rectangular pie node bounds
      * @name gui.PIEBOUNDS_RECTANGLE
-     * @variable
+     * @constant
      */
 
 
     /*# manual size mode
      * The size of the node is determined by the size set in the editor, the constructor or by gui.set_size()
      * @name gui.SIZE_MODE_MANUAL
-     * @variable
+     * @constant
      */
 
     /*# automatic size mode
      * The size of the node is determined by the currently assigned texture.
      * @name gui.SIZE_MODE_AUTO
-     * @variable
+     * @constant
      */
 
 
     /*# texture already exists
      * The texture id already exists when trying to use gui.new_texture().
      * @name gui.RESULT_TEXTURE_ALREADY_EXISTS
-     * @variable
+     * @constant
      */
 
     /*# out of resource
      * The system is out of resources, for instance when trying to create a new
      * texture using gui.new_texture().
      * @name gui.RESULT_OUT_OF_RESOURCES
-     * @variable
+     * @constant
      */
 
     /*# data error
      * The provided data is not in the expected format or is in some other way
      * incorrect, for instance the image data provided to gui.new_texture().
      * @name gui.RESULT_DATA_ERROR
-     * @variable
+     * @constant
      */
 
     lua_State* InitializeScript(dmScript::HContext script_context)
@@ -5533,7 +5630,7 @@ namespace dmGui
      * to set the initial state of the script and gui scene.
      *
      * @name init
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * ```lua
@@ -5551,7 +5648,7 @@ namespace dmGui
      * from this function since the gui component is about to be destroyed.
      *
      * @name final
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * ```lua
@@ -5567,7 +5664,7 @@ namespace dmGui
      * It can be used to perform any kind of gui related tasks, e.g. animating nodes.
      *
      * @name update
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param dt [type:number] the time-step of the frame update
      * @examples
      *
@@ -5620,7 +5717,7 @@ namespace dmGui
      * See the [ref:update] function for examples on how to use this callback-function.
      *
      * @name on_message
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param message_id [type:hash] id of the received message
      * @param message [type:table] a table containing the message data
      */
@@ -5699,7 +5796,7 @@ namespace dmGui
      * `acc_z`     | Accelerometer z value (if present).
      *
      * @name on_input
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
      * @param action [type:table] a table containing the input data, see above for a description
      * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
@@ -5725,7 +5822,7 @@ namespace dmGui
      * </p>
      *
      * @name on_reload
-     * @param self [type:object] reference to the script state to be used for storing data
+     * @param self [type:userdata] reference to the script state to be used for storing data
      * @examples
      *
      * ```lua

@@ -571,6 +571,7 @@ static float CheckTableNumber(lua_State* L, int index, const char* name, float d
 static inline bool IsTextureFormatSupported(dmGraphics::TextureType type)
 {
     return type == dmGraphics::TEXTURE_TYPE_2D ||
+           type == dmGraphics::TEXTURE_TYPE_2D_ARRAY ||
            type == dmGraphics::TEXTURE_TYPE_3D ||
            type == dmGraphics::TEXTURE_TYPE_CUBE_MAP ||
            type == dmGraphics::TEXTURE_TYPE_IMAGE_2D ||
@@ -602,11 +603,11 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     int depth                        = CheckTableInteger(L, 2, "depth", 1);
     uint32_t max_mipmaps             = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
     uint32_t usage_flags             = (uint32_t) CheckTableInteger(L, 2, "flags", dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE);
-    uint32_t layer_count             = 1; // TODO
+    uint8_t page_count               = (uint8_t) CheckTableInteger(L, 2, "page_count", 1);
 
-    if (width < 1 || height < 1 || depth < 1)
+    if (width < 1 || height < 1 || depth < 1 || page_count < 1)
     {
-        return luaL_error(L, "Unable to create texture, width, height and depth must be larger than 0");
+        return luaL_error(L, "Unable to create texture, width, height, depth and page count must be larger than 0");
     }
 
     if (!IsTextureFormatSupported(type))
@@ -669,7 +670,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     params->m_Width           = width;
     params->m_Height          = height;
     params->m_Depth           = depth;
-    params->m_LayerCount      = layer_count;
+    params->m_LayerCount      = page_count;
     params->m_MaxMipMaps      = max_mipmaps;
     params->m_Type            = type;
     params->m_Format          = format;
@@ -689,7 +690,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
     SetTextureAsyncRequest* request = (SetTextureAsyncRequest*) user_data;
 
     // Swap out the texture
-    dmGraphics::DeleteTexture(request->m_TextureResource->m_Texture);
+    dmGraphics::DeleteTexture(g_ResourceModule.m_GraphicsContext, request->m_TextureResource->m_Texture);
     request->m_TextureResource->m_Texture = texture;
 
     if (dmScript::IsCallbackValid(request->m_CallbackInfo))
@@ -777,7 +778,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
  * - `graphics.TEXTURE_FORMAT_RGB_ETC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_ETC2`
- * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4X4`
  * - `graphics.TEXTURE_FORMAT_RGB_BC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_BC3`
  * - `graphics.TEXTURE_FORMAT_R_BC4`
@@ -899,6 +900,20 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *     msg.post("@render:", "add_textures", { t_volume })
  * end
  * ```
+ *
+ *
+ * @examples
+ * How to create 512x512 texture array with 5 pages.
+ *
+ * ```lua
+ * 		local new_tex = resource.create_texture("/runtime/example_array.texturec", {
+ * 			type = graphics.TEXTURE_TYPE_2D_ARRAY,
+ * 			width = 512,
+ * 			height = 512,
+ * 			page_count = 5,
+ * 			format = graphics.TEXTURE_FORMAT_RGB,
+ * 		})
+ * ```
  */
 static int CreateTexture(lua_State* L)
 {
@@ -915,6 +930,7 @@ static int CreateTexture(lua_State* L)
         return ReportPathError(L, res, create_params.m_PathHash);
     }
 
+    dmGameObject::AddDynamicResourceHash(create_params.m_Collection, create_params.m_PathHash);
     dmScript::PushHash(L, create_params.m_PathHash);
     assert((top+1) == lua_gettop(L));
     return 1;
@@ -970,7 +986,7 @@ static int CreateTexture(lua_State* L)
  * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
  * - `graphics.TEXTURE_FORMAT_RGB_ETC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_ETC2`
- * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4X4`
  * - `graphics.TEXTURE_FORMAT_RGB_BC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_BC3`
  * - `graphics.TEXTURE_FORMAT_R_BC4`
@@ -1011,8 +1027,10 @@ static int CreateTexture(lua_State* L)
  * - `COMPRESSION_TYPE_BASIS_UASTC`
  *
  * @param buffer [type:buffer] optional buffer of precreated pixel data
+ * @param callback [type:function] callback function when texture is created (self, request_id, resource)
  *
- * @return request_id [type:handle] The request id for the async request.
+ * @return path [type:hash] The path to the texture resource.
+ * @return request_id [type:number] The request id for the async request.
  *
  * [icon:attention] 3D Textures are currently only supported on OpenGL and Vulkan adapters. To check if your device supports 3D textures, use:
  *
@@ -1214,7 +1232,7 @@ static int CreateTextureAsync(lua_State* L)
     }
 
     // Execute the upload, the upload buffer should now be locked by this request
-    dmGraphics::SetTextureAsync(texture_dst, texture_params, HandleRequestCompleted, request);
+    dmGraphics::SetTextureAsync(g_ResourceModule.m_GraphicsContext, texture_dst, texture_params, HandleRequestCompleted, request);
 
     dmScript::PushHash(L, create_params.m_PathHash);
     lua_pushnumber(L, request_handle);
@@ -1236,13 +1254,14 @@ static int ReleaseResource(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
     dmhash_t path_hash                      = dmScript::CheckHashOrString(L, 1);
+    HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
+    if (!rd) {
+        return luaL_error(L, "Could not release resource: %s", dmHashReverseSafe64(path_hash));
+    }
     dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
-
-    if (ReleaseDynamicResource(g_ResourceModule.m_Factory, collection, path_hash) != dmResource::RESULT_OK)
-    {
-        return DM_LUA_ERROR("Could not release resource: %s", dmHashReverseSafe64(path_hash));
-    }
+    dmGameObject::RemoveDynamicResourceHash(collection, path_hash);
+    dmResource::Release(g_ResourceModule.m_Factory, dmResource::GetResource(rd));
     return 0;
 }
 
@@ -1283,7 +1302,7 @@ static int ReleaseResource(lua_State* L)
  * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
  * - `graphics.TEXTURE_FORMAT_RGB_ETC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_ETC2`
- * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4X4`
  * - `graphics.TEXTURE_FORMAT_RGB_BC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_BC3`
  * - `graphics.TEXTURE_FORMAT_R_BC4`
@@ -1314,6 +1333,9 @@ static int ReleaseResource(lua_State* L)
  *
  * `z`
  * : [type:number] optional z offset of the texture (in pixels). Only applies to 3D textures
+ *
+ * `page`
+ * : [type:number] optional slice of the array texture. Only applies to 2D texture arrays. Zero-based
  *
  * `mipmap`
  * : [type:number] optional mipmap to upload the data to
@@ -1445,6 +1467,25 @@ static int ReleaseResource(lua_State* L)
  *     -- use the "resource.create_texture" function.
  *     resource.set_texture("/my_3d_texture.texturec", t_args, tbuffer)
  * end
+ *
+ *
+ * @examples
+ * Update texture 2nd array page with loaded texture from png
+ *
+ * ```lua
+ * 	-- new_tex is resource handle of texture which was created via resource.create_resource
+ *	local tex_path = "/bundle_resources/page_02.png"
+ *	local data = sys.load_resource(tex_path)
+ *	local buf = image.load_buffer(data)
+ *	resource.set_texture(new_tex, {
+ *		type = graphics.TEXTURE_TYPE_2D_ARRAY,
+ *		width = buf.width,
+ *		height = buf.height,
+ *		page = 1,
+ *		format = graphics.TEXTURE_FORMAT_RGB
+ *	}, buf.buffer)
+ *	go.set("#mesh", "texture0", new_tex)
+ * ```
  */
 static int SetTexture(lua_State* L)
 {
@@ -1461,6 +1502,7 @@ static int SetTexture(lua_State* L)
     uint32_t height                  = (uint32_t) CheckTableInteger(L, 2, "height");
     uint32_t depth                   = (uint32_t) CheckTableInteger(L, 2, "depth", 1);
     uint32_t mipmap                  = (uint32_t) CheckTableInteger(L, 2, "mipmap", 0);
+    int32_t page                     = (int32_t)  CheckTableInteger(L, 2, "page", DEFAULT_INT_NOT_SET);
     int32_t x                        = (int32_t)  CheckTableInteger(L, 2, "x", DEFAULT_INT_NOT_SET);
     int32_t y                        = (int32_t)  CheckTableInteger(L, 2, "y", DEFAULT_INT_NOT_SET);
     int32_t z                        = (int32_t)  CheckTableInteger(L, 2, "z", DEFAULT_INT_NOT_SET);
@@ -1470,7 +1512,6 @@ static int SetTexture(lua_State* L)
         return luaL_error(L, "Unable to set texture, unsupported texture format '%s'.", dmGraphics::GetTextureFormatLiteral(format));
     }
 
-    // TODO: Texture arrays
     if (!IsTextureFormatSupported(type))
     {
         return luaL_error(L, "Unable to set texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
@@ -1483,10 +1524,11 @@ static int SetTexture(lua_State* L)
 
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
 
-    bool sub_update = x != DEFAULT_INT_NOT_SET || y != DEFAULT_INT_NOT_SET || z != DEFAULT_INT_NOT_SET;
+    bool sub_update = x != DEFAULT_INT_NOT_SET || y != DEFAULT_INT_NOT_SET || z != DEFAULT_INT_NOT_SET || page != DEFAULT_INT_NOT_SET;
     x               = dmMath::Max(0, x);
     y               = dmMath::Max(0, y);
     z               = dmMath::Max(0, z);
+    page            = dmMath::Max(0, page);
 
     dmScript::LuaHBuffer* lua_buffer = dmScript::CheckBuffer(L, 3);
     dmBuffer::HBuffer buffer_handle  = dmGameSystem::UnpackLuaBuffer(lua_buffer);
@@ -1508,6 +1550,7 @@ static int SetTexture(lua_State* L)
     params.m_X                      = x;
     params.m_Y                      = y;
     params.m_Z                      = z;
+    params.m_Slice                  = page;
     params.m_MipMap                 = mipmap;
     params.m_SubUpdate              = sub_update;
 
@@ -1528,26 +1571,29 @@ static int SetTexture(lua_State* L)
  *
  * @name resource.get_texture_info
  *
- * @param path [type:hash|string|handle] The path to the resource or a texture handle
+ * @param path [type:hash|string|number] The path to the resource or a texture handle
  * @return table [type:table] A table containing info about the texture:
  *
  * `handle`
- * : [type:handle] the opaque handle to the texture resource
+ * : [type:number] the opaque handle to the texture resource
  *
  * `width`
- * : [type:integer] width of the texture
+ * : [type:number] width of the texture
  *
  * `height`
- * : [type:integer] height of the texture
+ * : [type:number] height of the texture
  *
  * `depth`
- * : [type:integer] depth of the texture (i.e 1 for a 2D texture, 6 for a cube map, number of slices for an array texture and the actual depth of a 3D texture)
+ * : [type:number] depth of the texture (i.e 1 for a 2D texture, 6 for a cube map, the actual depth of a 3D texture)
+ *
+ * `page_count`
+ * : [type:number] number of pages of the texture array. For 2D texture value is 1. For cube map - 6
  *
  * `mipmaps`
- * : [type:integer] number of mipmaps of the texture
+ * : [type:number] number of mipmaps of the texture
  *
  * `flags`
- * : [type:integer] usage hints of the texture.
+ * : [type:number] usage hints of the texture.
  *
  * `type`
  * : [type:number] The texture type. Supported values:
@@ -1582,6 +1628,7 @@ static int SetTexture(lua_State* L)
  *     --      height = 128,
  *     --      depth = 1
  *     --      mipmaps = 1,
+ *     --      page_count = 1,
  *     --      type = graphics.TEXTURE_TYPE_2D,
  *     --      flags = graphics.TEXTURE_USAGE_FLAG_SAMPLE
  *     -- }
@@ -1603,12 +1650,13 @@ static int SetTexture(lua_State* L)
 
 static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
 {
-    uint32_t texture_width               = dmGraphics::GetTextureWidth(texture_handle);
-    uint32_t texture_height              = dmGraphics::GetTextureHeight(texture_handle);
-    uint32_t texture_depth               = dmGraphics::GetTextureDepth(texture_handle);
-    uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(texture_handle);
-    dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture_handle);
-    uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(texture_handle);
+    uint32_t texture_width               = dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture_handle);
+    uint32_t texture_height              = dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture_handle);
+    uint32_t texture_depth               = dmGraphics::GetTextureDepth(g_ResourceModule.m_GraphicsContext, texture_handle);
+    uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(g_ResourceModule.m_GraphicsContext, texture_handle);
+    dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(g_ResourceModule.m_GraphicsContext, texture_handle);
+    uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(g_ResourceModule.m_GraphicsContext, texture_handle);
+    uint8_t  page_count                  = dmGraphics::GetTexturePageCount(texture_handle);
 
     lua_pushnumber(L, texture_handle);
     lua_setfield(L, -2, "handle");
@@ -1627,6 +1675,9 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
 
     lua_pushinteger(L, texture_flags);
     lua_setfield(L, -2, "flags");
+
+    lua_pushinteger(L, page_count);
+    lua_setfield(L, -2, "page_count");
 
     // JG: We use depth to indicate the sides of a cube map, but the actual texture depth is 1,
     //     since it's not a 3D texture. This is a technicality that should't matter for now at least.
@@ -1684,29 +1735,26 @@ static int GetTextureInfo(lua_State* L)
  *
  * @name resource.get_render_target_info
  *
- * @param path [type:hash|string|handle] The path to the resource or a render target handle
+ * @param path [type:hash|string|number] The path to the resource or a render target handle
  * @return table [type:table] A table containing info about the render target:
  *
  * `handle`
- * : [type:handle] the opaque handle to the texture resource
+ * : [type:number] the opaque handle to the texture resource
  *
  * 'attachments'
  * : [type:table] a table of attachments, where each attachment contains the following entries:
  *
- * `handle`
- * : [type:handle] the opaque handle to the texture resource
- *
  * `width`
- * : [type:integer] width of the texture
+ * : [type:number] width of the texture
  *
  * `height`
- * : [type:integer] height of the texture
+ * : [type:number] height of the texture
  *
  * `depth`
- * : [type:integer] depth of the texture (i.e 1 for a 2D texture and 6 for a cube map)
+ * : [type:number] depth of the texture (i.e 1 for a 2D texture and 6 for a cube map)
  *
  * `mipmaps`
- * : [type:integer] number of mipmaps of the texture
+ * : [type:number] number of mipmaps of the texture
  *
  * `type`
  * : [type:number] The texture type. Supported values:
@@ -1806,7 +1854,7 @@ static int GetRenderTargetInfo(lua_State* L)
     for (int i = 0; i < DM_ARRAY_SIZE(color_buffer_flags); ++i)
     {
         dmGraphics::BufferType buffer_type = color_buffer_flags[i];
-        dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(rt_handle, buffer_type);
+        dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(g_ResourceModule.m_GraphicsContext, rt_handle, buffer_type);
         if (t)
         {
             lua_pushinteger(L, (lua_Integer) (attachment_count+1));
@@ -2049,8 +2097,8 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
     texture_set_ddf->m_Texture     = 0;
     texture_set_ddf->m_TextureHash = texture_path_hash;
 
-    float tex_width            = dmGraphics::GetTextureWidth(texture);
-    float tex_height           = dmGraphics::GetTextureHeight(texture);
+    float tex_width            = dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture);
+    float tex_height           = dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture);
     uint32_t frame_index_count = 0;
 
     texture_set_ddf->m_Geometries.m_Data  = new dmGameSystemDDF::SpriteGeometry[num_geometries];
@@ -2107,12 +2155,16 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
             float pivot_x = CheckFieldValue<float>(L, -1, "pivot_x", 0.5f);
             float pivot_y = CheckFieldValue<float>(L, -1, "pivot_y", 0.5f);
 
+            // rotation flag for atlas packing - affects UV coordinate generation
+            bool rotated = CheckFieldValue<bool>(L, -1, "rotated", false);
+
             lua_pop(L, 1);
             // End of lua table interaction
 
             // default SpriteGeometry pivot is (0,0) which is middle of image.
             geometry.m_PivotX =        pivot_x - 0.5f;
             geometry.m_PivotY = 1.0f - pivot_y - 0.5f;
+            geometry.m_Rotated = rotated;
 
             // Legacy, we should have required the user to specify width/height from the start
             if (geo_width == 0 || geo_height == 0)
@@ -2162,19 +2214,38 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
 
             // From texture_set_ddf.proto:
             // For unrotated quads, the order is: [(minU,maxV),(minU,minV),(maxU,minV),(maxU,maxV)]
+            // For rotated quads, the order is: [(minU,minV),(maxU,minV),(maxU,maxV),(minU,maxV)]
             // Note that we need to invert the V coordinates here to account for the texture coordinate space
-            // NOTE: We could perhaps do it in the loop above by swapping the V min and max coordinates
-            geometry_scratch_cursor[0] = min_uv_u;
-            geometry_scratch_cursor[1] = 1.0 - max_uv_v;
+            if (rotated)
+            {
+                // Rotated quad UV pattern
+                geometry_scratch_cursor[0] = min_uv_u;
+                geometry_scratch_cursor[1] = 1.0 - min_uv_v;
 
-            geometry_scratch_cursor[2] = min_uv_u;
-            geometry_scratch_cursor[3] = 1.0 - min_uv_v;
+                geometry_scratch_cursor[2] = max_uv_u;
+                geometry_scratch_cursor[3] = 1.0 - min_uv_v;
 
-            geometry_scratch_cursor[4] = max_uv_u;
-            geometry_scratch_cursor[5] = 1.0 - min_uv_v;
+                geometry_scratch_cursor[4] = max_uv_u;
+                geometry_scratch_cursor[5] = 1.0 - max_uv_v;
 
-            geometry_scratch_cursor[6] = max_uv_u;
-            geometry_scratch_cursor[7] = 1.0 - max_uv_v;
+                geometry_scratch_cursor[6] = min_uv_u;
+                geometry_scratch_cursor[7] = 1.0 - max_uv_v;
+            }
+            else
+            {
+                // Unrotated quad UV pattern
+                geometry_scratch_cursor[0] = min_uv_u;
+                geometry_scratch_cursor[1] = 1.0 - max_uv_v;
+
+                geometry_scratch_cursor[2] = min_uv_u;
+                geometry_scratch_cursor[3] = 1.0 - min_uv_v;
+
+                geometry_scratch_cursor[4] = max_uv_u;
+                geometry_scratch_cursor[5] = 1.0 - min_uv_v;
+
+                geometry_scratch_cursor[6] = max_uv_u;
+                geometry_scratch_cursor[7] = 1.0 - max_uv_v;
+            }
 
             geometry_scratch_cursor += 8;
             frame_index_count++;
@@ -2323,22 +2394,22 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * : [type:string] the id of the animation, used in e.g sprite.play_animation
  *
  * * `width`
- * : [type:integer] the width of the animation
+ * : [type:number] the width of the animation
  *
  * * `height`
- * : [type:integer] the height of the animation
+ * : [type:number] the height of the animation
  *
  * * `frame_start`
- * : [type:integer] index to the first geometry of the animation. Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
+ * : [type:number] index to the first geometry of the animation. Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
  *
  * * `frame_end`
- * : [type:integer] index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
+ * : [type:number] index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
  *
  * * `playback`
  * : [type:constant] optional playback mode of the animation, the default value is [ref:go.PLAYBACK_ONCE_FORWARD]
  *
  * * `fps`
- * : [type:integer] optional fps of the animation, the default value is 30
+ * : [type:number] optional fps of the animation, the default value is 30
  *
  * * `flip_vertical`
  * : [type:boolean] optional flip the animation vertically, the default value is false
@@ -2363,6 +2434,9 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  *
  * * `pivot_y`
  * : [type:number] The pivot y value of the image in unit coords. (0,0) is upper left corner, (1,1) is bottom right. Default is 0.5.
+ *
+ * * `rotated`
+ * : [type:boolean] Whether the image is rotated 90 degrees counter-clockwise in the atlas. This affects UV coordinate generation for proper rendering. Default is false.
  *
  * * `vertices`
  * : [type:table] a list of the vertices in image space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
@@ -2412,8 +2486,8 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  *                 id = 'idle0',
  *                 width = 128,
  *                 height = 128,
- *                 pivot_x = 64,
- *                 pivot_y = 64,
+ *                 pivot_x = 0.5,
+ *                 pivot_y = 0.5,
  *                 vertices  = {
  *                     0,   0,
  *                     0,   128,
@@ -2525,22 +2599,22 @@ static int CreateAtlas(lua_State* L)
  * : [type:string] the id of the animation, used in e.g sprite.play_animation
  *
  * * `width`
- * : [type:integer] the width of the animation
+ * : [type:number] the width of the animation
  *
  * * `height`
- * : [type:integer] the height of the animation
+ * : [type:number] the height of the animation
  *
  * * `frame_start`
- * : [type:integer] index to the first geometry of the animation. Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
+ * : [type:number] index to the first geometry of the animation. Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
  *
  * * `frame_end`
- * : [type:integer] index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
+ * : [type:number] index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
  *
  * * `playback`
  * : [type:constant] optional playback mode of the animation, the default value is [ref:go.PLAYBACK_ONCE_FORWARD]
  *
  * * `fps`
- * : [type:integer] optional fps of the animation, the default value is 30
+ * : [type:number] optional fps of the animation, the default value is 30
  *
  * * `flip_vertical`
  * : [type:boolean] optional flip the animation vertically, the default value is false
@@ -2690,8 +2764,8 @@ static int GetAtlas(lua_State* L)
     dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
     assert(texture_set);
 
-    float tex_width  = (float) dmGraphics::GetTextureWidth(texture_set_res->m_Texture->m_Texture);
-    float tex_height = (float) dmGraphics::GetTextureHeight(texture_set_res->m_Texture->m_Texture);
+    float tex_width  = (float) dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture_set_res->m_Texture->m_Texture);
+    float tex_height = (float) dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture_set_res->m_Texture->m_Texture);
 
     #define SET_LUA_TABLE_FIELD(set_fn, key, val) \
         set_fn(L, val); \
@@ -2770,6 +2844,7 @@ static int GetAtlas(lua_State* L)
                 // Transform back to image space (0,0) is top left corner, (1,1) is bottom right
                 SET_LUA_TABLE_FIELD(lua_pushnumber, "pivot_x",          geom.m_PivotX + 0.5);
                 SET_LUA_TABLE_FIELD(lua_pushnumber, "pivot_y",  1.0f - (geom.m_PivotY + 0.5f));
+                SET_LUA_TABLE_FIELD(lua_pushboolean, "rotated",  geom.m_Rotated);
 
                 lua_pushliteral(L, "vertices");
                 lua_newtable(L);
@@ -3402,7 +3477,7 @@ static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metr
  * @param [options] [type:table] A table containing parameters for the text. Supported entries:
  *
  * `width`
- * : [type:integer] The width of the text field. Not used if `line_break` is false.
+ * : [type:number] The width of the text field. Not used if `line_break` is false.
  *
  * `leading`
  * : [type:number] The leading (default 1.0)
@@ -3542,7 +3617,7 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_ETC1);
 
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_ETC2);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_ASTC_4x4);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_ASTC_4X4);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_BC1);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_BC3);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R_BC4);

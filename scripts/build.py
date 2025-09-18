@@ -35,6 +35,7 @@ from glob import glob
 from threading import Thread, Event
 from queue import Queue
 from configparser import ConfigParser
+from BuildTimeTracker import BuildTimeTracker
 
 BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'x86_64-macos', 'arm64-macos',
@@ -101,7 +102,6 @@ def get_target_platforms():
 
 PACKAGES_ALL=[
     "protobuf-3.20.1",
-    "waf-2.0.3",
     "junit-4.6",
     "jsign-4.2",
     "protobuf-java-3.20.1",
@@ -116,7 +116,7 @@ PACKAGES_ALL=[
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
     "jctest-0.10.2",
     "vulkan-v1.4.307",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -131,7 +131,7 @@ PACKAGES_IOS_X86_64=[
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -142,7 +142,7 @@ PACKAGES_IOS_64=[
     "bullet-2.77",
     "moltenvk-1474891",
     "glfw-2.7.1",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -161,7 +161,7 @@ PACKAGES_MACOS_X86_64=[
     "glfw-3.4",
     "tint-22b958",
     "astcenc-8b0aa01",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -179,7 +179,7 @@ PACKAGES_MACOS_ARM64=[
     "glfw-3.4",
     "tint-22b958",
     "astcenc-8b0aa01",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -190,7 +190,7 @@ PACKAGES_WIN32=[
     "bullet-2.77",
     "vulkan-v1.4.307",
     "glfw-3.4",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -209,7 +209,7 @@ PACKAGES_WIN32_64=[
     "tint-22b958",
     "astcenc-8b0aa01",
     "directx-headers-1.611.0",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -227,7 +227,7 @@ PACKAGES_LINUX_X86_64=[
     "tint-7bd151a780",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "astcenc-8b0aa01",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -244,7 +244,7 @@ PACKAGES_LINUX_ARM64=[
     "glfw-3.4",
     "tint-7bd151a780",
     "astcenc-8b0aa01",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -256,7 +256,7 @@ PACKAGES_ANDROID=[
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
@@ -269,7 +269,7 @@ PACKAGES_ANDROID_64=[
     "tremolo-b0cb4d1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "box2d-3.0.0",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
@@ -278,7 +278,8 @@ PACKAGES_EMSCRIPTEN=[
     "protobuf-3.20.1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "box2d-3.0.0",
+    "wagyu-39",
+    "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
 
@@ -320,7 +321,7 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
+ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform font graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
 EXTERNAL_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
@@ -504,6 +505,7 @@ class Configuration(object):
         self.gcloud_certfile = gcloud_certfile
         self.gcloud_keyfile = gcloud_keyfile
         self.verbose = verbose
+        self.build_tracker = BuildTimeTracker(logger=self._log)
 
         if self.github_token is None:
             self.github_token = os.environ.get("GITHUB_TOKEN")
@@ -630,6 +632,13 @@ class Configuration(object):
             print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
             sys.exit(1)
 
+    def install_waf(self):
+        def make_package_path(root, platform, package):
+            return join(root, 'packages', package) + '-%s.tar.gz' % platform
+        print("Installing waf")
+        waf_package = "waf-2.0.3"
+        waf_path = make_package_path(self.defold_root, 'common', waf_package)
+        self._extract_tgz(waf_path, self.ext)
 
     def install_ext(self):
         def make_package_path(root, platform, package):
@@ -637,6 +646,8 @@ class Configuration(object):
 
         def make_package_paths(root, platform, packages):
             return [make_package_path(root, platform, package) for package in packages]
+
+        self.install_waf()
 
         print("Installing common packages")
         for p in PACKAGES_ALL:
@@ -699,7 +710,7 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml', 'rangehttpserver'])
+        run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml', 'rangehttpserver', 'pystache'])
         for whl in glob(join(self.defold_root, 'packages', '*.whl')):
             self._log('Installing %s' % basename(whl))
             run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', join(self.ext, 'lib', 'python'), whl])
@@ -762,6 +773,11 @@ class Configuration(object):
         if self.verbose:
             print("SDK info:")
             pprint.pprint(self.sdk_info)
+
+
+        result = sdk.test_sdk(target_platform, self.sdk_info, verbose = self.verbose)
+        if not result:
+            self.fatal("Failed sdk check")
 
     def verify_sdk(self):
         was_verbose = self.verbose
@@ -1036,6 +1052,22 @@ class Configuration(object):
                 defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
                 self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
 
+            # the port scripts contain the necessary files, only need to include them once
+            if platform in ['wasm-web']:
+                wagyu_port_files = []
+                for root, dirs, files in os.walk(os.path.join(self.dynamo_home, 'ext/wagyu-port')):
+                    for f in files:
+                        _, ext = os.path.splitext(f)
+                        if ext in ('.pyc',):
+                            continue
+                        path = os.path.join(root, f)
+                        wagyu_port_files.append(path)
+
+                if not wagyu_port_files:
+                    raise Exception("Failed to find wagyu-port folder")
+
+                self._add_files_to_zip(zip, wagyu_port_files, self.dynamo_home, topfolder)
+
             if platform in ['js-web']:
                 # JavaScript files
                 # js-web-pre-x files
@@ -1059,6 +1091,17 @@ class Configuration(object):
                 protodir = os.path.join(self.dynamo_home, d)
                 paths = _findfiles(protodir, ('.proto',))
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            # third-party headers
+            for d in ['ext/include/vulkan', 'ext/include/vk_video']:
+                protodir = os.path.join(self.dynamo_home, d)
+                paths = _findfiles(protodir, ('.h','.hpp', '.hxx', '.idl'))
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            self._add_files_to_zip(zip, [
+                os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3.h'),
+                os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3native.h')
+            ], self.dynamo_home, topfolder)
 
             # C# files
             for d in ['sdk/cs']:
@@ -1351,7 +1394,7 @@ class Configuration(object):
         return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, commands)
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
-        self._log('Building %s for %s' % (lib, platform))
+        self.build_tracker.start_component(lib, platform)
         skip_build_tests = []
         if skip_tests and '--skip-build-tests' not in self.waf_options:
             skip_build_tests.append('--skip-tests')
@@ -1359,6 +1402,7 @@ class Configuration(object):
         cwd = join(self.defold_root, '%s/%s' % (dir, lib))
         plf_args = ['--platform=%s' % platform]
         run.env_command(self._form_env(), args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
+        self.build_tracker.end_component(lib, platform)
 
 # For now gradle right in
 # - 'com.dynamo.cr/com.dynamo.cr.bob'
@@ -1372,7 +1416,7 @@ class Configuration(object):
             return join('.', 'gradlew')
 
     def build_bob_light(self):
-        self._log('Building bob light')
+        self.build_tracker.start_component('bob_light', self.host)
 
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         # common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
@@ -1396,6 +1440,7 @@ class Configuration(object):
         s = run.command(" ".join([gradle, '-Pkeep-bob-uncompressed', 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
         if self.verbose:
         	print (s)
+        self.build_tracker.end_component('bob_light', self.host)
 
     def build_engine(self):
         self.check_sdk()
@@ -1847,7 +1892,10 @@ class Configuration(object):
 
         args = [SHELL, '-l']
 
-        process = subprocess.Popen(args, env=self._form_env(), shell=True)
+        if os.path.exists("/nix"):
+            args = ["nix-shell", os.path.join("scripts", "nix", "shell.nix"), "--run", " ".join(args)]
+
+        process = subprocess.Popen(args, env=self._form_env())
         try:
             output = process.communicate()[0]
         except KeyboardInterrupt as e:
@@ -2446,7 +2494,7 @@ class Configuration(object):
                     _threads[i].join()
                     self._log('Uploaded #%d %s -> %s' % (i + 1, path, url))
 
-                
+
                 if len(list(mp.parts.all())) == chunkcount:
                     try:
                         parts = []
@@ -2555,6 +2603,7 @@ Commands:
 distclean        - Removes the DYNAMO_HOME folder
 install_ext      - Install external packages
 install_sdk      - Install sdk
+install_waf      - Install waf
 sync_archive     - Sync engine artifacts from S3
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
@@ -2789,11 +2838,13 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
         if not f:
             parser.error('Unknown command %s' % cmd)
         else:
-            start = time.time()
-            print("Running '%s'" % cmd)
+            c.build_tracker.start_command(cmd)
             f()
             c.wait_uploads()
-            duration = (time.time() - start)
-            print("'%s' completed in %.2f s" % (cmd, duration))
+            c.build_tracker.end_command(cmd)
+
+    # Print and save build time summary
+    c.build_tracker.print_summary()
+    c.build_tracker.save_times()
 
     print('Done')

@@ -269,14 +269,15 @@
   (mapv (fn [ctx] (get-in ctx [:env :selection])) (handler/eval-contexts ctxs all-selections?)))
 
 (deftest contexts
-  (let [global (handler/->context :global {:selection [0]} nil {} {})]
-    (is (= [0] (eval-selection [global] true))))
-  (let [global (handler/->context :global {} (StaticSelection. [0]) {} {})]
-    (is (= [0] (eval-selection [global] true)))
-    (let [local (handler/->context :local {} (StaticSelection. [1]) {} {})]
-      (is (= [[1] [1] [0]] (eval-selections [local global] true))))
-    (let [local (handler/->context :local {} (StaticSelection. [1]) {} {})]
-      (is (= [[1] [1]] (eval-selections [local global] false))))))
+  (with-clean-system
+    (let [global (handler/->context :global {:selection [0]} nil {} {})]
+      (is (= [0] (eval-selection [global] true))))
+    (let [global (handler/->context :global {} (StaticSelection. [0]) {} {})]
+      (is (= [0] (eval-selection [global] true)))
+      (let [local (handler/->context :local {} (StaticSelection. [1]) {} {})]
+        (is (= [[1] [1] [0]] (eval-selections [local global] true))))
+      (let [local (handler/->context :local {} (StaticSelection. [1]) {} {})]
+        (is (= [[1] [1]] (eval-selections [local global] false)))))))
 
 (g/defnode ImposterStringNode
   (input source g/NodeID)

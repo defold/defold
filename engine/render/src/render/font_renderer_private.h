@@ -39,36 +39,8 @@ namespace dmRender
     struct FontMap
     {
         FontMap()
-        : m_Mutex(0)
-        , m_UserData(0)
-        , m_Texture(0)
-        , m_Material(0)
-        , m_NameHash(0)
-        , m_GetGlyph(0)
-        , m_GetGlyphData(0)
-        , m_GetFontMetrics(0)
-        , m_ShadowX(0.0f)
-        , m_ShadowY(0.0f)
-        , m_MaxAscent(0.0f)
-        , m_MaxDescent(0.0f)
-        , m_CellTempData(0)
-        , m_Cache(0)
-        , m_CacheIndices(0)
-        , m_CacheCursor(0)
-        , m_CacheWidth(0)
-        , m_CacheHeight(0)
-        , m_CacheCellWidth(0)
-        , m_CacheCellHeight(0)
-        , m_CacheCellMaxAscent(0)
-        , m_CacheColumns(0)
-        , m_CacheRows(0)
-        , m_CacheCellCount(0)
-        , m_CacheCellPadding(0)
-        , m_LayerMask(FACE)
-        , m_IsMonospaced(0)
-        , m_IsCacheSizeDirty(0)
-        , m_Padding(0)
         {
+            memset(this, 0, sizeof(*this));
         }
 
         ~FontMap()
@@ -82,7 +54,7 @@ namespace dmRender
             free(m_CellTempData);
             m_CellTempData = 0;
 
-            dmGraphics::DeleteTexture(m_Texture);
+            dmGraphics::DeleteTexture(m_GraphicsContext, m_Texture);
         }
 
         dmMutex::HMutex         m_Mutex;
@@ -102,7 +74,6 @@ namespace dmRender
         float                   m_MaxAscent;
         float                   m_MaxDescent;
         float                   m_SdfSpread;
-        float                   m_SdfOffset;
         float                   m_SdfOutline;
         float                   m_SdfShadow;
         float                   m_Alpha;
@@ -120,20 +91,24 @@ namespace dmRender
         dmGraphics::TextureFilter m_MinFilter;
         dmGraphics::TextureFilter m_MagFilter;
 
-        uint32_t                m_CacheWidth;           // In texels
-        uint32_t                m_CacheHeight;          // In texels
-        uint32_t                m_CacheCellWidth;       // In texels
-        uint32_t                m_CacheCellHeight;      // In texels
-        uint32_t                m_CacheCellMaxAscent;   // In texels
-        uint32_t                m_CacheColumns;         // Number of cells in horizontal direction
-        uint32_t                m_CacheRows;            // Number of cells in horizontal direction
-        uint32_t                m_CacheCellCount;       // Number of cells in total
-        uint8_t                 m_CacheChannels;        // Number of channels
+        uint16_t                m_CacheMaxWidth;        // In texels
+        uint16_t                m_CacheMaxHeight;       // In texels
+        uint16_t                m_CacheWidth;           // In texels
+        uint16_t                m_CacheHeight;          // In texels
+        uint16_t                m_CacheCellWidth;       // In texels
+        uint16_t                m_CacheCellHeight;      // In texels
+        uint16_t                m_CacheCellMaxAscent;   // In texels
+        uint16_t                m_CacheColumns;         // Number of cells in horizontal direction
+        uint16_t                m_CacheRows;            // Number of cells in horizontal direction
+        uint16_t                m_CacheCellCount;       // Number of cells in total
         uint8_t                 m_CacheCellPadding;
         uint8_t                 m_LayerMask;
+        uint8_t                 m_Padding;              // The padding of the cell
         uint8_t                 m_IsMonospaced:1;
         uint8_t                 m_IsCacheSizeDirty:1;   // if the glyph cell size has changed, or if the layout needs to be recalculated
-        uint8_t                 m_Padding:6;            // The padding of the cell
+        uint8_t                 m_DynamicCacheSize:1;
+        uint8_t                 m_IsCacheSizeTooSmall:1;
+        uint8_t                 m_CacheChannels:2;      // Number of channels
     };
 
     ///////////////////////////////////////////////////////////////////////////////

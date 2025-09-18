@@ -44,6 +44,7 @@
             [editor.keymap :as keymap]
             [editor.lsp :as lsp]
             [editor.markdown :as markdown]
+            [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
             [editor.os :as os]
             [editor.prefs :as prefs]
@@ -1612,19 +1613,28 @@
     target-row             1-indexed row in the document"
   [resource-node canvas-repaint-info target-row]
   (let [{:keys [grammar lines]} canvas-repaint-info
+        invalidated-rows (:invalidated-rows canvas-repaint-info)
+        ;; Read-only views don't have invalidated rows at all: we detect changes
+        ;; in them by comparing lines hashes. When they change, we refresh the
+        ;; syntax from the start.
+        read-only-view (nil? invalidated-rows)
+        lines-hash (when read-only-view (hash lines))
         syntax-info
-        (vary-meta
-          (if (nil? grammar)
-            []
-            (if-some [prev-syntax-info (g/user-data resource-node :syntax-info)]
-              (let [invalidated-syntax-info
-                    (if-some [invalidated-row (invalidated-row (:invalidated-rows (meta prev-syntax-info))
-                                                               (:invalidated-rows canvas-repaint-info))]
-                      (data/invalidate-syntax-info prev-syntax-info invalidated-row (count lines))
-                      prev-syntax-info)]
-                (data/ensure-syntax-info invalidated-syntax-info target-row lines grammar))
-              (data/ensure-syntax-info [] target-row lines grammar)))
-          assoc :invalidated-rows (:invalidated-rows canvas-repaint-info))]
+        (-> (if (nil? grammar)
+              []
+              (if-some [prev-syntax-info (g/user-data resource-node :syntax-info)]
+                (let [invalidated-syntax-info
+                      (if-some [invalidated-row (if read-only-view
+                                                  (when-not (= lines-hash (:lines-hash (meta prev-syntax-info)))
+                                                    0)
+                                                  (invalidated-row (:invalidated-rows (meta prev-syntax-info))
+                                                                   invalidated-rows))]
+                        (data/invalidate-syntax-info prev-syntax-info invalidated-row (count lines))
+                        prev-syntax-info)]
+                  (data/ensure-syntax-info invalidated-syntax-info target-row lines grammar))
+                (data/ensure-syntax-info [] target-row lines grammar)))
+            (vary-meta assoc :invalidated-rows invalidated-rows)
+            (cond-> read-only-view (vary-meta assoc :lines-hash lines-hash)))]
     (g/user-data! resource-node :syntax-info syntax-info)
     syntax-info))
 
@@ -1675,9 +1685,12 @@
     (and (get-property view-node :completions-showing evaluation-context)
          (pos? (count (get-property view-node :completions-combined evaluation-context))))))
 
-(defn- hover-visible? [view-node]
-  (g/with-auto-evaluation-context evaluation-context
-    (some? (get-property view-node :hover-showing-regions evaluation-context))))
+(defn- hover-visible?
+  ([view-node]
+   (g/with-auto-evaluation-context evaluation-context
+     (hover-visible? view-node evaluation-context)))
+  ([view-node evaluation-context]
+   (some? (get-property view-node :hover-showing-regions evaluation-context))))
 
 (defn- selected-suggestion [view-node]
   (g/with-auto-evaluation-context evaluation-context
@@ -2013,8 +2026,10 @@
                  :children [{:fx/type fx.stack-pane/lifecycle
                              :min-width completion-type-icon-size
                              :max-width completion-type-icon-size
-                             :children [{:fx/type completion-type-icon
-                                         :type (:type completion)}]}
+                             :children (if-let [type (:type completion)]
+                                         [{:fx/type completion-type-icon
+                                           :type type}]
+                                         [])}
                             (fuzzy-choices/make-matched-text-flow-cljfx
                               text matching-indices
                               :deprecated (contains? (:tags completion) :deprecated))]}
@@ -2269,7 +2284,7 @@
                                    (get-property view-node :layout)
                                    move-type)))
 
-(defn delete! [view-node delete-type]
+(defn delete! [view-node prefs delete-type]
   (let [cursor-ranges (get-property view-node :cursor-ranges)
         cursor-ranges-empty (every? data/cursor-range-empty? cursor-ranges)
         single-character-backspace (and cursor-ranges-empty (= :delete-before delete-type))
@@ -2284,6 +2299,7 @@
       (g/with-auto-evaluation-context evaluation-context
         (data/delete (get-property view-node :lines evaluation-context)
                      (get-property view-node :grammar evaluation-context)
+                     (prefs/get prefs [:code :auto-closing-parens])
                      (get-current-syntax-info (get-property view-node :resource-node evaluation-context))
                      cursor-ranges
                      (get-property view-node :regions evaluation-context)
@@ -2374,7 +2390,7 @@
 
 ;; -----------------------------------------------------------------------------
 
-(defn- insert-text! [view-node typed]
+(defn- insert-text! [view-node prefs typed]
   (let [undo-grouping (if (= "\r" typed) :newline :typing)
         selected-suggestion (selected-suggestion view-node)
         grammar (get-property view-node :grammar)
@@ -2382,9 +2398,7 @@
         (cond
           (and selected-suggestion
                (or (= "\r" typed)
-                   (let [commit-characters (or (:commit-characters selected-suggestion)
-                                               (get-in grammar [:commit-characters (:type selected-suggestion)]))]
-                     (contains? commit-characters typed))))
+                   (contains? (:commit-characters selected-suggestion) typed)))
           (let [insertion (code-completion/insertion selected-suggestion)]
             (do (accept-suggestion! view-node insertion)
                 [;; insert-typed
@@ -2422,6 +2436,7 @@
                 (data/key-typed (get-property view-node :indent-level-pattern evaluation-context)
                                 (get-property view-node :indent-string evaluation-context)
                                 grammar
+                                (prefs/get prefs [:code :auto-closing-parens])
                                 ;; NOTE: don't move :lines and :cursor-ranges
                                 ;; to the let above the
                                 ;; [insert-typed show-suggestion] binding:
@@ -2437,7 +2452,7 @@
           (show-suggestions! view-node :typed typed)
           (hide-suggestions! view-node))))))
 
-(defn handle-key-pressed! [view-node ^KeyEvent event editable]
+(defn handle-key-pressed! [view-node prefs ^KeyEvent event editable]
   ;; Only handle bare key events that cannot be bound to handlers here.
   (when-not (or (.isAltDown event)
                 (.isMetaDown event)
@@ -2452,11 +2467,11 @@
                   KeyCode/UP    (move! view-node :navigation :up)
                   KeyCode/DOWN  (move! view-node :navigation :down)
                   KeyCode/ENTER (when editable
-                                  (insert-text! view-node "\r"))
+                                  (insert-text! view-node prefs "\r"))
                   ::unhandled))
       (.consume event))))
 
-(defn handle-key-typed! [view-node ^KeyEvent event]
+(defn handle-key-typed! [view-node prefs ^KeyEvent event]
   (.consume event)
   (let [character (.getCharacter event)]
     (when (and (keymap/typable? event)
@@ -2468,7 +2483,7 @@
                (pos? (.length character))
                (> (int (.charAt character 0)) 0x1f)
                (not= (int (.charAt character 0)) 0x7f))
-      (insert-text! view-node character))))
+      (insert-text! view-node prefs character))))
 
 (defn- refresh-mouse-cursor! [view-node ^MouseEvent event]
   (let [hovered-element (get-property view-node :hovered-element)
@@ -2493,31 +2508,43 @@
 
                  :else
                  javafx.scene.Cursor/DEFAULT)]
-    ;; The cursor refresh appears buggy at the moment.
-    ;; Calling setCursor with DISAPPEAR before setting the cursor forces it to refresh.
-    (when (not= cursor (.getCursor node))
-      (.setCursor node javafx.scene.Cursor/DISAPPEAR)
-      (.setCursor node cursor))))
+    (ui/set-cursor node cursor)))
+
+(handler/register-menu! ::code-context-menu
+  [{:command :edit.cut :label "Cut"}
+   {:command :edit.copy :label "Copy"}
+   {:command :edit.paste :label "Paste"}
+   {:command :code.select-all :label "Select All"}
+   (menu-items/separator-with-id :editor.app-view/edit-end)])
 
 (defn handle-mouse-pressed! [view-node ^MouseEvent event]
-  (.consume event)
-  (.requestFocus ^Node (.getTarget event))
-  (refresh-mouse-cursor! view-node event)
-  (hide-hover! view-node)
-  (hide-suggestions! view-node)
-  (set-properties! view-node (if (< 1 (.getClickCount event)) :selection :navigation)
-                   (data/mouse-pressed (get-property view-node :lines)
-                                       (get-property view-node :cursor-ranges)
-                                       (get-property view-node :regions)
-                                       (get-property view-node :layout)
-                                       (get-property view-node :minimap-layout)
-                                       (mouse-button event)
-                                       (.getClickCount event)
-                                       (.getX event)
-                                       (.getY event)
-                                       (.isAltDown event)
-                                       (.isShiftDown event)
-                                       (.isShortcutDown event))))
+  (let [^Node target (.getTarget event)
+        scene ^Scene (.getScene target)
+        button (mouse-button event)
+        layout ^LayoutInfo (get-property view-node :layout)]
+    (.consume event)
+    (.requestFocus target)
+    (refresh-mouse-cursor! view-node event)
+    (hide-hover! view-node)
+    (hide-suggestions! view-node)
+    (set-properties! view-node (if (< 1 (.getClickCount event)) :selection :navigation)
+                     (data/mouse-pressed (get-property view-node :lines)
+                                         (get-property view-node :cursor-ranges)
+                                         (get-property view-node :regions)
+                                         layout
+                                         (get-property view-node :minimap-layout)
+                                         button
+                                         (.getClickCount event)
+                                         (.getX event)
+                                         (.getY event)
+                                         (.isAltDown event)
+                                         (.isShiftDown event)
+                                         (.isShortcutDown event)))
+
+    (when (and (= button :secondary)
+               (not (data/in-gutter? layout (.getX event))))
+      (let [context-menu (ui/init-context-menu! ::code-context-menu scene)]
+        (.show context-menu target (.getScreenX event) (.getScreenY event))))))
 
 (defn- on-hover-response [view-node request-cursor hover-lsp-regions]
   (ui/run-later
@@ -2551,7 +2578,8 @@
      (schedule-hover-refresh! view-node evaluation-context)))
   ([view-node evaluation-context]
    (some-> (g/node-value view-node :hover-request evaluation-context) ui/cancel)
-   {:hover-request (ui/->future 0.2 #(refresh-hover-state! view-node))}))
+   (let [delay (if (hover-visible? view-node evaluation-context) 0.2 1.0)]
+     {:hover-request (ui/->future delay #(refresh-hover-state! view-node))})))
 
 (defn- request-lsp-hover! [view-node lsp resource-node new-hover-cursor evaluation-context]
   (let [old-hover-cursor (get-property view-node :hover-cursor evaluation-context)
@@ -2631,7 +2659,7 @@
         (data/mouse-exited (get-property view-node :gesture-start evaluation-context)
                            (get-property view-node :hovered-element evaluation-context))
         (when-not (get-property view-node :hover-mouse-over-popup evaluation-context)
-          (assoc (schedule-hover-refresh! view-node) :hover-cursor nil))))))
+          (assoc (schedule-hover-refresh! view-node evaluation-context) :hover-cursor nil))))))
 
 (defn handle-scroll! [view-node zoom-on-scroll ^ScrollEvent event]
   (.consume event)
@@ -2713,7 +2741,7 @@
 
 (handler/defhandler :code.delete-next-char :code-view
   (active? [editable] editable)
-  (run [view-node] (delete! view-node :delete-after)))
+  (run [view-node prefs] (delete! view-node prefs :delete-after)))
 
 (handler/defhandler :code.toggle-comment :code-view
   (active? [editable view-node evaluation-context]
@@ -2723,15 +2751,15 @@
 
 (handler/defhandler :code.delete-previous-char :code-view
   (active? [editable] editable)
-  (run [view-node] (delete! view-node :delete-before)))
+  (run [view-node prefs] (delete! view-node prefs :delete-before)))
 
 (handler/defhandler :code.delete-previous-word :code-view
   (active? [editable] editable)
-  (run [view-node] (delete! view-node :delete-word-before)))
+  (run [view-node prefs] (delete! view-node prefs :delete-word-before)))
 
 (handler/defhandler :code.delete-next-word :code-view
   (active? [editable] editable)
-  (run [view-node] (delete! view-node :delete-word-after)))
+  (run [view-node prefs] (delete! view-node prefs :delete-word-after)))
 
 (handler/defhandler :debugger.toggle-breakpoint :code-view
   (run [view-node]
@@ -2744,7 +2772,7 @@
                                                   regions
                                                   breakpoint-rows)))))
 
-(handler/defhandler :code.rename :code-view
+(handler/defhandler :edit.rename :code-view
   (active? [editable] editable)
   (run [view-node]
     (g/with-auto-evaluation-context evaluation-context
@@ -3325,7 +3353,7 @@
    {:command :code.select-next-occurrence :label "Select Next Occurrence"}
    {:command :code.split-selection-into-lines :label "Split Selection Into Lines"}
    {:label :separator}
-   {:command :code.rename :label "Rename"}
+   {:command :edit.rename :label "Rename"}
    {:command :code.goto-definition :label "Go to Definition"}
    {:command :code.show-references :label "Find References"}
    {:label :separator}
@@ -3468,13 +3496,6 @@
           :max-width 350.0
           :max-height max-popup-height}]}]}}))
 
-(defn- advance-user-data-component! [view-node key desc]
-  (let [component (g/user-data view-node key)]
-    (cond
-      (and component desc) (g/user-data! view-node key (fx/advance-component component desc))
-      component (do (fx/delete-component component) (g/user-data! view-node key nil))
-      desc (g/user-data! view-node key (fx/create-component desc)))))
-
 (defn repaint-view! [view-node elapsed-time {:keys [cursor-visible editable] :as _opts}]
   (assert (boolean? cursor-visible))
 
@@ -3517,7 +3538,7 @@
     (when editable
       (g/with-auto-evaluation-context evaluation-context
         ;; Show rename popup if appropriate
-        (advance-user-data-component!
+        (fxui/advance-user-data-component!
           view-node :rename-popup
           (when (g/node-value view-node :rename-cursor-range evaluation-context)
             (g/node-value view-node :rename-view evaluation-context)))
@@ -3766,12 +3787,12 @@
                        (= "¨" (.getCharacter new-event)))
           (.handle handler event))))))
 
-(defn handle-input-method-changed! [view-node ^InputMethodEvent e]
+(defn handle-input-method-changed! [view-node prefs ^InputMethodEvent e]
   (let [x (.getCommitted e)]
     (when-not (.isEmpty x)
-      (insert-text! view-node ({"≃" "~="} x x)))))
+      (insert-text! view-node prefs ({"≃" "~="} x x)))))
 
-(defn- setup-input-method-requests! [^Canvas canvas view-node]
+(defn- setup-input-method-requests! [^Canvas canvas view-node prefs]
   (when (os/is-linux?)
     (doto canvas
       (.setInputMethodRequests
@@ -3782,7 +3803,7 @@
           (getSelectedText [_this] "")))
       (.setOnInputMethodTextChanged
         (ui/event-handler e
-          (handle-input-method-changed! view-node e))))))
+          (handle-input-method-changed! view-node prefs e))))))
 
 (defn- consume-breakpoint-popup-events [^Event e]
   (when-not (and (instance? KeyEvent e)
@@ -3956,6 +3977,7 @@
                      :find-bar find-bar
                      :replace-bar replace-bar
                      :view-node view-node
+                     :prefs prefs
                      :open-resource-fn open-resource-fn}]
 
     ;; Canvas stretches to fit view, and updates properties in view node.
@@ -3968,7 +3990,7 @@
     (doto canvas
       (.setFocusTraversable true)
       (.setCursor javafx.scene.Cursor/TEXT)
-      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (handle-key-pressed! view-node event editable)))
+      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (handle-key-pressed! view-node prefs event editable)))
       (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (handle-mouse-moved! view-node prefs event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-mouse-pressed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node prefs event)))
@@ -3978,9 +4000,9 @@
 
     (when editable
       (doto canvas
-        (setup-input-method-requests! view-node)
+        (setup-input-method-requests! view-node prefs)
         (.addEventHandler KeyEvent/KEY_TYPED (wrap-disallow-diaeresis-after-tilde
-                                               (ui/event-handler event (handle-key-typed! view-node event))))))
+                                               (ui/event-handler event (handle-key-typed! view-node prefs event))))))
 
     (ui/context! grid :code-view-tools context-env nil)
 

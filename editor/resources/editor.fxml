@@ -70,7 +70,7 @@
                   <items>
                     <AnchorPane prefHeight="160.0" prefWidth="100.0">
                       <children>
-                        <SplitPane id="center-split" dividerPositions="0.5746666666666667" layoutX="24.0" layoutY="398.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                        <SplitPane id="center-split" dividerPositions="0.5746666666666667" layoutX="24.0" layoutY="398.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" minWidth="100.0">
                           <items>
                             <AnchorPane prefHeight="100.0" prefWidth="160.0">
                               <children>

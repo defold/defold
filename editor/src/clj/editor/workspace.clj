@@ -27,6 +27,7 @@ ordinary paths."
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
@@ -331,7 +332,6 @@ ordinary paths."
                        :language (when textual (or language "plaintext"))
                        :editable editable
                        :editor-openable (some? (some editor-openable-view-type? view-types))
-                       :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
                        :load-fn load-fn
                        :dependencies-fn dependencies-fn
@@ -357,11 +357,11 @@ ordinary paths."
                                                      (not (false? auto-connect-save-data?)))}
         resource-types-by-ext (if (string? ext)
                                 (let [ext (string/lower-case ext)]
-                                  {ext (assoc resource-type :ext ext)})
+                                  {ext (assoc resource-type :ext ext :build-ext (or build-ext (str ext "c")))})
                                 (into {}
                                       (map (fn [ext]
                                              (let [ext (string/lower-case ext)]
-                                               (pair ext (assoc resource-type :ext ext)))))
+                                               (pair ext (assoc resource-type :ext ext :build-ext (or build-ext (str ext "c")))))))
                                       ext))]
     (concat
       (g/update-property workspace :resource-types editable-resource-type-map-update-fn resource-types-by-ext)
@@ -494,34 +494,46 @@ ordinary paths."
 (def ^:private default-user-resource-path "/templates/default.")
 (def ^:private java-resource-path "templates/template.")
 
-(defn- get-template-resource [workspace resource-type]
+(defn- get-template-resource [workspace resource-type evaluation-context]
   (when resource-type
     (let [resource-path (:template resource-type)
           ext (:ext resource-type)]
       (or
         ;; default user resource
-        (find-resource workspace (str default-user-resource-path ext))
+        (find-resource workspace (str default-user-resource-path ext) evaluation-context)
         ;; editor resource provided from extensions
-        (when resource-path (find-resource workspace resource-path))
+        (when resource-path (find-resource workspace resource-path evaluation-context))
         ;; java resource
         (io/resource (str java-resource-path ext))))))
 
-(defn has-template? [workspace resource-type]
-  (let [resource (get-template-resource workspace resource-type)]
-    (not= resource nil)))
+(defn has-template?
+  ([workspace resource-type]
+   (g/with-auto-evaluation-context evaluation-context
+     (has-template? workspace resource-type evaluation-context)))
+  ([workspace resource-type evaluation-context]
+   (some? (get-template-resource workspace resource-type evaluation-context))))
 
-(defn template [workspace resource-type]
-  (when-let [resource (get-template-resource workspace resource-type)]
-    (let [{:keys [read-fn write-fn]} resource-type]
-      (if (and read-fn write-fn)
-        ;; Sanitize the template.
-        (write-fn
-          (with-open [reader (io/reader resource)]
-            (read-fn reader)))
+(defn template
+  ([workspace resource-type]
+   (g/with-auto-evaluation-context evaluation-context
+     (template workspace resource-type evaluation-context)))
+  ([workspace resource-type evaluation-context]
+   (when-let [resource (get-template-resource workspace resource-type evaluation-context)]
+     (let [{:keys [read-fn write-fn]} resource-type]
+       (if (and read-fn write-fn)
+         ;; Sanitize the template.
+         (write-fn
+           (with-open [reader (io/reader resource)]
+             (read-fn reader)))
 
-        ;; Just read the file as-is.
-        (with-open [reader (io/reader resource)]
-          (slurp reader))))))
+         ;; Just read the file as-is.
+         (with-open [reader (io/reader resource)]
+           (slurp reader)))))))
+
+(defn replace-template-name
+  ^String [^String template ^String name]
+  (let [escaped-name (protobuf/escape-string name)]
+    (string/replace template "{{NAME}}" escaped-name)))
 
 (defn- update-dependency-notifications! [workspace lib-states]
   (let [{:keys [error missing]} (->> lib-states
@@ -564,8 +576,12 @@ ordinary paths."
   (update-dependency-notifications! workspace lib-states)
   lib-states)
 
-(defn dependencies [workspace]
-  (g/node-value workspace :dependency-uris))
+(defn dependencies
+  ([workspace]
+   (g/with-auto-evaluation-context evaluation-context
+     (dependencies workspace evaluation-context)))
+  ([workspace evaluation-context]
+   (g/node-value workspace :dependency-uris evaluation-context)))
 
 (defn dependencies-reachable? [dependencies]
   (let [hosts (into #{} (map url/strip-path) dependencies)]
@@ -748,7 +764,8 @@ ordinary paths."
               (into #{}
                     (comp
                       (filter #(= :collision (:type %)))
-                      (mapcat :collisions))
+                      (mapcat :collisions)
+                      (filter #(re-matches #"^/[^/]*$" (key %))))
                     errors))
             (collision-notification-id [resource-path]
               [::resource-collision-notification resource-path])]
@@ -895,6 +912,7 @@ ordinary paths."
   (property editable-proj-path? g/Any)
   (property unloaded-proj-path? g/Any)
   (property resource-kind-extensions g/Any (default {:atlas ["atlas" "tilesource"]}))
+  (property node-attachments g/Any (default {}))
 
   (input code-preprocessors g/NodeID :cascade-delete)
   (input notifications g/NodeID :cascade-delete)
@@ -904,6 +922,10 @@ ordinary paths."
   (output resource-list g/Any :cached produce-resource-list)
   (output resource-map g/Any :cached produce-resource-map))
 
+(defn node-attachments [basis workspace]
+  (g/raw-property-value basis workspace :node-attachments))
+
+;; SDK api
 (defn register-resource-kind-extension [workspace resource-kind extension]
   (g/update-property
     workspace :resource-kind-extensions

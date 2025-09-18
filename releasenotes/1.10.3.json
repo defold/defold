@@ -1,0 +1,731 @@
+{
+    "issues": [
+        {
+            "author": "smagnuso",
+            "body": "In game one can enable the performance timeline if desired",
+            "closed_issues": [
+                10811
+            ],
+            "duplicate": false,
+            "issue_number": 10811,
+            "labels": [
+                "bug",
+                "html5",
+                "profiler"
+            ],
+            "mergecommit": "7ecb2d55092207ae6286840b429c47b9326392ca",
+            "pr_number": 10820,
+            "referencecommits": [],
+            "title": "Make the browser performance timeline optional and default it to off",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10820"
+        },
+        {
+            "author": "sprocketc",
+            "body": "Display tile attributes error on the scene view, instead of throwing an exception.",
+            "closed_issues": [
+                10832
+            ],
+            "duplicate": false,
+            "issue_number": 10832,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "f67bee0c27efb45a1698e5e398f6828676d20385",
+            "pr_number": 10851,
+            "referencecommits": [],
+            "title": "Display tile attributes error on scene",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10851"
+        },
+        {
+            "author": "AGulev",
+            "body": "",
+            "closed_issues": [
+                10829
+            ],
+            "duplicate": false,
+            "issue_number": 10829,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "d78b60294d006461e7e8025e9b3851a9abf89772",
+            "pr_number": 10839,
+            "referencecommits": [],
+            "title": "Fixed issue where `drag handle` interrupted the Tab key from moving to the next field",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10839"
+        },
+        {
+            "author": "britzl",
+            "body": "Added `viewport-fit=cover` to the `viewport` meta tag in index.html for web builds. This setting will make sure the viewport is scaled to fill the device display, even when the device has a camera notch or similar.\r\n\r\n\u26a0\ufe0f Keep in mind that not all device displays are rectangular. A display may have a notch, hole or rounded corners. Ensure that important content doesn\u2019t end up outside the display.",
+            "closed_issues": [
+                10598
+            ],
+            "duplicate": false,
+            "issue_number": 10598,
+            "labels": [
+                "task",
+                "engine",
+                "html5",
+                "quick win?"
+            ],
+            "mergecommit": "5cc9d022f6e4adb6d5ae535791733f66083c2f78",
+            "pr_number": 10794,
+            "referencecommits": [],
+            "title": "Make sure the viewport is scaled to fill the device display",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10794"
+        },
+        {
+            "author": "AGulev",
+            "body": "Now, all the textures that were set to a `GUI` component from outside are internally considered dynamic GUI textures in the engine.\r\n\r\n\u26a0\ufe0f Pay attention: if you set textures into the GUI this way, you may need to increase `Max Dynamic Textures` (default is 128) in the GUI component.",
+            "closed_issues": [
+                10472
+            ],
+            "duplicate": false,
+            "issue_number": 10472,
+            "labels": [
+                "feature request",
+                "engine",
+                "gui"
+            ],
+            "mergecommit": "5dca3cac7a72ac9afca389950ab3a7d4f47a2d54",
+            "pr_number": 10823,
+            "referencecommits": [],
+            "title": "The textures that were set using `go.set()/gui.set()` for the GUI component are internally used as dynamic textures.",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10823"
+        },
+        {
+            "author": "AGulev",
+            "body": "Make sure that the profiler shows the correct scope and property names after the engine reboot.",
+            "closed_issues": [
+                10671
+            ],
+            "duplicate": false,
+            "issue_number": 10671,
+            "labels": [
+                "bug",
+                "engine",
+                "profiler",
+                "reboot"
+            ],
+            "mergecommit": "8820d53bd1e83b1a089f69d70b0f5cddcafc3746",
+            "pr_number": 10752,
+            "referencecommits": [],
+            "title": "Fix issue where profiler doesn't work after reboot",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10752"
+        },
+        {
+            "author": "britzl",
+            "body": "When using `sys.load()` to read from a corrupt file or from a file which wasn't created using `sys.save()` the engine would treat the file as using the legacy save file format from more than 11 years ago. This fallback to loading legacy format files would actually mostly result in engine crashes on corrupt files and cause more problems than it solved. The engine will now ignore such files and throw a Lua error.",
+            "closed_issues": [
+                10765
+            ],
+            "duplicate": false,
+            "issue_number": 10765,
+            "labels": [
+                "bug",
+                "engine",
+                "breaking change"
+            ],
+            "mergecommit": "0c7177dc631d6819dc629dba941952ce8ab4d307",
+            "pr_number": 10776,
+            "referencecommits": [],
+            "title": "Fix crashes in `sys.load()` when trying to load corrupt files",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/10776"
+        },
+        {
+            "author": "deurell",
+            "body": "Fix for non-finite floats and unescaped strings generating invalid JSON output in scene graph dumps.",
+            "closed_issues": [
+                10691,
+                10690
+            ],
+            "duplicate": false,
+            "issue_number": 10691,
+            "labels": [
+                "bug",
+                "engine",
+                "quick win?"
+            ],
+            "mergecommit": "027491c8d5dbe0b592a7d41f348056f902c78113",
+            "pr_number": 10767,
+            "referencecommits": [],
+            "title": "Sanitize float values and escape strings for valid JSON output in scene graph dump",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10767"
+        },
+        {
+            "author": "deurell",
+            "body": "Fix for non-finite floats and unescaped strings generating invalid JSON output in scene graph dumps.",
+            "closed_issues": [
+                10690
+            ],
+            "duplicate": true,
+            "issue_number": 10690,
+            "labels": [
+                "bug",
+                "engine",
+                "quick win?"
+            ],
+            "mergecommit": "027491c8d5dbe0b592a7d41f348056f902c78113",
+            "pr_number": 10767,
+            "referencecommits": [],
+            "title": "Sanitize float values and escape strings for valid JSON output in scene graph dump",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10767"
+        },
+        {
+            "author": "sprocketc",
+            "body": "![Screenshot From 2025-06-02 18-49-18](https://github.com/user-attachments/assets/22f489cf-698c-4485-bb8f-887a0afc45ab)",
+            "closed_issues": [
+                8304,
+                8304
+            ],
+            "duplicate": false,
+            "issue_number": 8304,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "2f0c5de4c8dd4ca3afd3dcf26fac5ef788c1866a",
+            "pr_number": 10768,
+            "referencecommits": [],
+            "title": "Introduce code view context menu",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10768"
+        },
+        {
+            "author": "AGulev",
+            "body": "If the window resolution has been set in the Editor, it will be applied again when the engine is restarted from the Editor using Build To Target.",
+            "closed_issues": [
+                10670
+            ],
+            "duplicate": false,
+            "issue_number": 10670,
+            "labels": [
+                "bug",
+                "engine",
+                "quick win?",
+                "reboot",
+                "editor"
+            ],
+            "mergecommit": "a562970c7fea4e059faf1f57ca704625fa1090ab",
+            "pr_number": 10759,
+            "referencecommits": [],
+            "title": "Fix issue where rebuilding the game from the Editor doesn't keep the simulated resolution",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10759"
+        },
+        {
+            "author": "sprocketc",
+            "body": "![Screenshot From 2025-06-02 18-49-18](https://github.com/user-attachments/assets/22f489cf-698c-4485-bb8f-887a0afc45ab)",
+            "closed_issues": [
+                8304
+            ],
+            "duplicate": true,
+            "issue_number": 8304,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "2f0c5de4c8dd4ca3afd3dcf26fac5ef788c1866a",
+            "pr_number": 10768,
+            "referencecommits": [],
+            "title": "Introduce code view context menu",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10768"
+        },
+        {
+            "author": "britzl",
+            "body": "The default value for max time step was set to 0.5 seconds. Under normal use the engine will have a much lower time step and very rarely exceed 0.5 seconds, but when the game returns from an iconified state it is almost guaranteed to happen. The problem when this happens is that a value of 0.5 will be much too high and have a negative impact on physics simulations and other calculations where a lower time step is expected. This change sets the default value to 0.03333 seconds (ie 30 frames per second).",
+            "closed_issues": [
+                10708
+            ],
+            "duplicate": false,
+            "issue_number": 10708,
+            "labels": [
+                "task",
+                "editor",
+                "bob",
+                "physics"
+            ],
+            "mergecommit": "f1954a376c690e8f0567cfeab6ec0482bd62ead0",
+            "pr_number": 10777,
+            "referencecommits": [],
+            "title": "Adjusted default max time step of the engine to 1/30 of a second",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10777"
+        },
+        {
+            "author": "AGulev",
+            "body": "",
+            "closed_issues": [
+                10770,
+                8815,
+                10595
+            ],
+            "duplicate": false,
+            "issue_number": 10770,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "21176d8970a6c30298f731ef03ce6723a74555b9",
+            "pr_number": 10780,
+            "referencecommits": [],
+            "title": "Fix StackOverflow issue when pasting a too long string in the Editor",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10780"
+        },
+        {
+            "author": "AGulev",
+            "body": "",
+            "closed_issues": [
+                8815
+            ],
+            "duplicate": true,
+            "issue_number": 8815,
+            "labels": [
+                "bug",
+                "editor",
+                "text-editor",
+                "quick win?"
+            ],
+            "mergecommit": "21176d8970a6c30298f731ef03ce6723a74555b9",
+            "pr_number": 10780,
+            "referencecommits": [],
+            "title": "Fix StackOverflow issue when pasting a too long string in the Editor",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10780"
+        },
+        {
+            "author": "AGulev",
+            "body": "",
+            "closed_issues": [
+                10595
+            ],
+            "duplicate": true,
+            "issue_number": 10595,
+            "labels": [
+                "bug",
+                "editor",
+                "text-editor",
+                "quick win?"
+            ],
+            "mergecommit": "21176d8970a6c30298f731ef03ce6723a74555b9",
+            "pr_number": 10780,
+            "referencecommits": [],
+            "title": "Fix StackOverflow issue when pasting a too long string in the Editor",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10780"
+        },
+        {
+            "author": "britzl",
+            "body": "Tentative fix for broken RTRIGGER mapping on Linux since upgrade to GLFW3. Removed GAMEPAD_MODIFIER_NEGATE.",
+            "closed_issues": [
+                10174
+            ],
+            "duplicate": false,
+            "issue_number": 10174,
+            "labels": [
+                "bug",
+                "engine",
+                "input"
+            ],
+            "mergecommit": "cb0bf0678ffc64d814ae5cc30ebfe881e10de53f",
+            "pr_number": 10586,
+            "referencecommits": [],
+            "title": "Removed modifier from RTRIGGER on Linux",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10586"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now it's possible to edit particlefx resources in the GUI using editor scripts, e.g.:\r\n```lua\r\neditor.transact({\r\n    editor.tx.add(\"/main.gui\", \"particlefxs\", {\r\n        particlefx = \"/confetti.particlefx\"\r\n    })\r\n})\r\n```",
+            "closed_issues": [
+                10790
+            ],
+            "duplicate": false,
+            "issue_number": 10790,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "bbe295921dd19851c2bf2667dab31791774287ad",
+            "pr_number": 10790,
+            "referencecommits": [],
+            "title": "Edit GUI particlefx resources using editor scripts",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10790"
+        },
+        {
+            "author": "vlaaad",
+            "body": "It is now possible to edit collision shapes using editor scripts! To support this, we added new `\"shapes\"` node list property to collision objects. For example, adding a new shape is done like this:\r\n```lua\r\neditor.transact({\r\n    editor.tx.add(\"/hero.collisionobject\", \"shapes\", {\r\n        type = \"shape-type-box\" -- or \"shape-type-sphere\", \"shape-type-capsule\"\r\n    })\r\n})\r\n```\r\n\r\nTo create a new collision shape, it is necessary to specify the type of the shape. The available types are:\r\n- `shape-type-box` - box shape with `dimensions` property\r\n- `shape-type-sphere` - sphere shape with `diameter` property\r\n- `shape-type-capsule` - capsule shape with `diameter` and `height` properties",
+            "closed_issues": [
+                10733
+            ],
+            "duplicate": false,
+            "issue_number": 10733,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "c85549fa8f34778f8b0cea4d247bab14b591600b",
+            "pr_number": 10733,
+            "referencecommits": [
+                "2565ab066f0d51b4db93fd835610742f0892555e"
+            ],
+            "title": "Edit collision shapes using editor scripts",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10733"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now it's possible to edit GUI layers using editor scripts, e.g.:\r\n```lua\r\neditor.transact({\r\n    editor.tx.add(\"/main.gui\", \"layers\", {name = \"foreground\"}),\r\n    editor.tx.add(\"/main.gui\", \"layers\", {name = \"background\"})\r\n})\r\n```\r\nAdditionally, it's possible to reorder layers:\r\n```lua\r\nlocal fg, bg = table.unpack(editor.get(\"/main.gui\", \"layers\"))\r\neditor.transact({\r\n    editor.tx.reorder(\"/main.gui\", \"layers\", {bg, fg})\r\n})\r\n```",
+            "closed_issues": [
+                10774
+            ],
+            "duplicate": false,
+            "issue_number": 10774,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "339442e1fa08eb794074521e17b7b27b842a1fb7",
+            "pr_number": 10774,
+            "referencecommits": [],
+            "title": "Edit GUI layers using editor scripts",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10774"
+        },
+        {
+            "author": "aglitchman",
+            "body": "Fixed a bug where disabling `Generate Collision Events` or `Generate Contact Events` in a collision object could cause collision physics messages to stop being sent in 3D physics for objects where this was not disabled.",
+            "closed_issues": [
+                10796
+            ],
+            "duplicate": false,
+            "issue_number": 10796,
+            "labels": [
+                "bug",
+                "engine",
+                "physics"
+            ],
+            "mergecommit": "e17b7378b5d6d77bc25966c8f1bc07bd276432cf",
+            "pr_number": 10797,
+            "referencecommits": [],
+            "title": "Collision physics messages should be still sent when collision events are disabled in only one of the collision objects",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10797"
+        },
+        {
+            "author": "deurell",
+            "body": "Fix false positive physics overflow warning logs when physics.max_collision/physics.max_contacts are set to 0",
+            "closed_issues": [
+                10872
+            ],
+            "duplicate": false,
+            "issue_number": 10872,
+            "labels": [
+                "bug",
+                "engine",
+                "physics"
+            ],
+            "mergecommit": "c35161db28dd1802660e89da6a63281e1d941899",
+            "pr_number": 10876,
+            "referencecommits": [],
+            "title": "Fix false positive physics overflow warning logs when physics.max_collision/physics.max_contacts are set to 0",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10876"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now you can edit a list of GUI layouts using editor scripts, e.g.:\r\n```lua\r\neditor.transact({\r\n    editor.tx.add(\"/main.gui\", layouts, {name = \"Landscape\"}),\r\n    editor.tx.add(\"/main.gui\", layouts, {name = \"Portrait\"})\r\n})\r\n```",
+            "closed_issues": [
+                10810
+            ],
+            "duplicate": false,
+            "issue_number": 10810,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "39dc0634693d8bee3dff2592e30e6d74d3ab1f5e",
+            "pr_number": 10810,
+            "referencecommits": [],
+            "title": "Edit GUI layouts using editor scripts",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10810"
+        },
+        {
+            "author": "vlaaad",
+            "body": "You can now edit GUI fonts using editor scripts, e.g.:\r\n```lua\r\neditor.transact({\r\n    editor.tx.add(\"/main.gui\", \"fonts\", {\r\n        name = \"font\",\r\n        font = \"/main.font\"\r\n    })\r\n})\r\n```",
+            "closed_issues": [
+                10801
+            ],
+            "duplicate": false,
+            "issue_number": 10801,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "ec040a739fd0bac6b38d19a876a103030df29379",
+            "pr_number": 10801,
+            "referencecommits": [],
+            "title": "Edit GUI fonts using editor scripts",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10801"
+        },
+        {
+            "author": "aglitchman",
+            "body": "The `sys.get_sys_info()` function may have returned junk in the `system_version` field for the web platform because it used an uninitialised structure as a source of data.",
+            "closed_issues": [
+                10815
+            ],
+            "duplicate": false,
+            "issue_number": 10815,
+            "labels": [
+                "bug"
+            ],
+            "mergecommit": "78a6cd65d313ae8e090d8f1feb84d14bb2bd48a5",
+            "pr_number": 10817,
+            "referencecommits": [],
+            "title": "Fix sys.get_sys_info() returning junk `system_version` on web platform",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10817"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "Fixed vanilla engine symbols downloading for Android. Added linker flag to generate build uuid for Android",
+            "closed_issues": [
+                7461
+            ],
+            "duplicate": false,
+            "issue_number": 7461,
+            "labels": [
+                "bug",
+                "engine",
+                "bob",
+                "android"
+            ],
+            "mergecommit": "c00e5ccce60eaf5023b7a49325ca5ee9afc2d0e9",
+            "pr_number": 10807,
+            "referencecommits": [],
+            "title": "Fixed Android debug symbols for vanilla engine",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10807"
+        },
+        {
+            "author": "sprocketc",
+            "body": "",
+            "closed_issues": [
+                10822
+            ],
+            "duplicate": false,
+            "issue_number": 10822,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "dec4d117023c274e134152a5f65d15dca0783981",
+            "pr_number": 10824,
+            "referencecommits": [],
+            "title": "Add collections and game objects to root on drop",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10824"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixes issue where two identical resources would be written into the `arcd` archive because they have different paths in the project.  \r\nFrom now on, only one data blob will be written into the archive, and all duplicates will reference this single data blob from the manifest (and `arci`) file.\r\n\r\nAll the duplicates are still shown in the build report but with a size of 0.  \r\nAlso, the compressed size in the build report now includes alignment paddings for each file, which makes the `arcd` archive size equal to the total bytes shown in the report.",
+            "closed_issues": [
+                10650
+            ],
+            "duplicate": false,
+            "issue_number": 10650,
+            "labels": [
+                "bug",
+                "bob",
+                "pipeline"
+            ],
+            "mergecommit": "5e8a3152b58d49a0b08e4c913957282df2c919bf",
+            "pr_number": 10841,
+            "referencecommits": [],
+            "title": "Deduplicate resource data blobs in the ARCD archive.",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10841"
+        },
+        {
+            "author": "aglitchman",
+            "body": "The gamepad code has been updated in GLFW for web for the latest version of Emscripten.",
+            "closed_issues": [
+                10846
+            ],
+            "duplicate": false,
+            "issue_number": 10846,
+            "labels": [],
+            "mergecommit": "0d2a43dcfadc6ab03f3abba09848c9a85a3de4f2",
+            "pr_number": 10848,
+            "referencecommits": [],
+            "title": "Update GLFW gamepad functions for the latest version of Emscripten",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10848"
+        },
+        {
+            "author": "britzl",
+            "body": "The engine may crash on startup on windows (possibly also Linux) when detecting connected gamepads.",
+            "closed_issues": [
+                10735
+            ],
+            "duplicate": false,
+            "issue_number": 10735,
+            "labels": [
+                "bug",
+                "engine",
+                "input",
+                "glfw"
+            ],
+            "mergecommit": "ba64b1a2eec750b43607ddc5fac556f25ddff7a3",
+            "pr_number": 10803,
+            "referencecommits": [],
+            "title": "Improved gamepad detection on engine startup",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10803"
+        },
+        {
+            "author": "Gert-Jan",
+            "body": "Moved GetCollectionByHash() to dmsdk to allow for URLs to be turned into HCollection/HInstance/HComponent.",
+            "closed_issues": [
+                10788
+            ],
+            "duplicate": false,
+            "issue_number": 10788,
+            "labels": [
+                "engine",
+                "dmsdk"
+            ],
+            "mergecommit": "c2ccceef41c5eef1c8a1d45f15bd5093f0571c73",
+            "pr_number": 10788,
+            "referencecommits": [],
+            "title": "Moved GetCollectionByHash() to dmsdk.",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10788"
+        },
+        {
+            "author": "Gert-Jan",
+            "body": "Added `dmScript:: PropertyContainerCreateFromLua()` to `dmsdk/gameobject/script.h`",
+            "closed_issues": [
+                10800
+            ],
+            "duplicate": false,
+            "issue_number": 10800,
+            "labels": [
+                "engine",
+                "dmsdk"
+            ],
+            "mergecommit": "7c9f7be1aee32444b982371876b496a41aead161",
+            "pr_number": 10800,
+            "referencecommits": [],
+            "title": "Moved PropertyContainerCreateFromLua() to dmsdk",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10800"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed a crash that happened only in the HTML5 build when an HTTP request was used with `{ report_progress = true }`.",
+            "closed_issues": [
+                10223
+            ],
+            "duplicate": false,
+            "issue_number": 10223,
+            "labels": [
+                "bug",
+                "engine"
+            ],
+            "mergecommit": "540d8651bed27f234cb79bae0b3ea5f36ef9dc01",
+            "pr_number": 10860,
+            "referencecommits": [],
+            "title": "Fix crash in HTML5 build when using HTTP request with the progress flag ON",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10860"
+        },
+        {
+            "author": "Gert-Jan",
+            "body": "Allows native extensions to have better control over URLs in the lua state.",
+            "closed_issues": [
+                7220
+            ],
+            "duplicate": false,
+            "issue_number": 7220,
+            "labels": [
+                "feature request",
+                "engine",
+                "dmsdk"
+            ],
+            "mergecommit": "3d211419cdb303a950150f4df5d5e7789d58e56b",
+            "pr_number": 10784,
+            "referencecommits": [],
+            "title": "Added IsURL(), ToURL(), PushURL() and 2 variants of CheckURL() to dmsdk.",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10784"
+        },
+        {
+            "author": "HalfstarDev",
+            "body": "",
+            "closed_issues": [
+                10870
+            ],
+            "duplicate": false,
+            "issue_number": 10870,
+            "labels": [],
+            "mergecommit": "c30093f05176f6584b1a59d871992f297faec241",
+            "pr_number": 10871,
+            "referencecommits": [],
+            "title": "Fix example for resource.create_atlas()",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10871"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now you can edit GUI nodes using editor scripts, e.g.:\r\n```lua\r\neditor.transact({\r\n    editor.tx.add(\"/main.gui\", \"nodes\", {\r\n        type = \"gui-node-type-box\",\r\n        position = {20, 20, 20}\r\n    }),\r\n    editor.tx.add(\"/main.gui\", \"nodes\", {\r\n        type = \"gui-node-type-template\",\r\n        template = \"/button.gui\"\r\n    }),\r\n})\r\n```\r\n\r\nIf the GUI file defines layouts, you can get and set the values from layouts using `layout:property` syntax, e.g.:\r\n```lua\r\nlocal node = editor.get(\"/main.gui\", \"nodes\")[1]\r\n\r\n-- GET:\r\nlocal position = editor.get(node, \"position\")\r\npprint(position) -- {20, 20, 20}\r\nlocal landscape_position = editor.get(node, \"Landscape:position\")\r\npprint(landscape_position) -- {20, 20, 20}\r\n\r\n-- SET:\r\neditor.transact({\r\n    editor.tx.set(node, \"Landscape:position\", {30, 30, 30})\r\n})\r\npprint(editor.get(node, \"Landscape:position\")) -- {30, 30, 30}\r\n```\r\n\r\nLayout properties that were set can be reset to their default values using `editor.tx.reset`:\r\n```lua\r\nprint(editor.can_reset(node, \"Landscape:position\")) -- true\r\neditor.transact({\r\n    editor.tx.reset(node, \"Landscape:position\")\r\n})\r\n```\r\nTemplate nodes can be read, but not edited: you can only set the properties of the template node tree:\r\n```lua\r\nlocal template = editor.get(\"/main.gui\", \"nodes\")[2]\r\nprint(editor.can_add(template, \"nodes\")) -- false\r\nlocal node_in_template = editor.get(template, \"nodes\")[1]\r\neditor.transact({\r\n    editor.tx.set(node_in_template, \"text\", \"Button text\")\r\n})\r\nprint(editor.can_reset(node_in_template, \"text\")) -- true (overrides a value in the template)\r\n```",
+            "closed_issues": [
+                10858
+            ],
+            "duplicate": false,
+            "issue_number": 10858,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "94d18bd2a0be73e9e9faf79f2264429785de0886",
+            "pr_number": 10858,
+            "referencecommits": [],
+            "title": "Edit GUI nodes using editor scripts",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10858"
+        },
+        {
+            "author": "britzl",
+            "body": "If the engine fails to get the name of a connected gamepad a default name will be used to avoid a crash on Windows.",
+            "closed_issues": [
+                10856
+            ],
+            "duplicate": false,
+            "issue_number": 10856,
+            "labels": [
+                "bug",
+                "engine",
+                "input",
+                "glfw"
+            ],
+            "mergecommit": "79349a9dd5ca46646ef1d69f26dc56c22757bfdb",
+            "pr_number": 10877,
+            "referencecommits": [],
+            "title": "Improved gamepad connect handling",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/10877"
+        }
+    ],
+    "timestamp": 1750757249.7038279,
+    "version": "1.10.3"
+}

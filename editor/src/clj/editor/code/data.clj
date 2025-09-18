@@ -1911,7 +1911,11 @@
               (assoc :regions regions')))))
 
 (defn- begins-indentation? [grammar ^String line]
-  (and (some? line) (some? (some-> grammar :indent :begin (re-find line)))))
+  (when (some? line)
+    (let [begin? (:begin (:indent grammar))]
+      (cond
+        (fn? begin?) (begin? line)
+        :else (re-find begin? line)))))
 
 (defn- ends-indentation? [grammar ^String line]
   (and (some? line) (some? (some-> grammar :indent :end (re-find line)))))
@@ -2281,10 +2285,10 @@
             (empty? clean-lines)
             (assoc :invalidated-row 0))))
 
-(defn delete-character-before-cursor [lines grammar syntax-info cursor-range]
+(defn delete-character-before-cursor [lines grammar auto-closing-parens syntax-info cursor-range]
   (let [cursor (adjust-cursor lines (CursorRange->Cursor cursor-range))]
     (or
-      (when-let [{:keys [characters exclude-scopes open-scopes]} (:auto-insert grammar)]
+      (when-let [{:keys [characters exclude-scopes open-scopes]} (when auto-closing-parens (:auto-insert grammar))]
         ;; auto-remove closing parens only across a single line
         (let [row (.-row cursor)
               ^String line (lines row)
@@ -2312,17 +2316,17 @@
                    [""]]))))))
       [(->CursorRange cursor (cursor-left lines cursor)) [""]])))
 
-(defn delete-word-before-cursor [lines _grammar _syntax-info cursor-range]
+(defn delete-word-before-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
         to (cursor-prev-word lines from)]
     [(->CursorRange from to) [""]]))
 
-(defn delete-character-after-cursor [lines _grammar _syntax-info cursor-range]
+(defn delete-character-after-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
         to (cursor-right lines from)]
     [(->CursorRange from to) [""]]))
 
-(defn delete-word-after-cursor [lines _grammar _syntax-info cursor-range]
+(defn delete-word-after-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
         to (cursor-next-word lines from)]
     [(->CursorRange from to) [""]]))
@@ -2493,13 +2497,14 @@
               cursor-ranges)))
         (frame-cursor layout))))
 
-(defn key-typed [indent-level-pattern indent-string grammar lines cursor-ranges regions layout syntax-info ^String typed]
+(defn key-typed [indent-level-pattern indent-string grammar auto-closing-parens lines cursor-ranges regions layout syntax-info ^String typed]
   (case typed
     "\r" ; Enter or Return.
     (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout "\n")
 
     (when (not-any? #(Character/isISOControl ^char %) typed)
-      (if (and (= 1 (.length typed))
+      (if (and auto-closing-parens
+               (= 1 (.length typed))
                (contains? grammar :auto-insert))
         (key-type-with-auto-insert indent-level-pattern indent-string grammar lines cursor-ranges regions layout syntax-info typed)
         (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed)))))
@@ -2603,7 +2608,7 @@
                                   :from-doc-x (x->doc-x layout x)
                                   :from-doc-y (y->doc-y layout y))}))
 
-(defn- in-gutter? [^LayoutInfo layout x]
+(defn in-gutter? [^LayoutInfo layout x]
   (and (< ^double x (.x ^Rect (.canvas layout)))
        (> ^double x (+ (.x ^Rect (.line-numbers layout)) (.w ^Rect (.line-numbers layout))))))
 
@@ -2693,7 +2698,14 @@
     (cond
       (in-gutter? layout x)
       (when-let [clicked-row (y->existing-row layout lines y)]
-        (edit-breakpoint lines regions clicked-row)))
+        (edit-breakpoint lines regions clicked-row))
+
+      (not (some-> (.minimap layout) (rect-contains? x y)))
+      (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))]
+        ;; Move cursor when we are outside of the current selection.
+        (when-not (some #(cursor-range-contains? % mouse-cursor) cursor-ranges)
+          {:cursor-ranges [(Cursor->CursorRange mouse-cursor)]})))
+
     :back
     nil
     :forward
@@ -2908,13 +2920,13 @@
   (or (can-paste-plain-text? clipboard)
       (can-paste-multi-selection? clipboard cursor-ranges)))
 
-(defn delete [lines grammar syntax-info cursor-ranges regions ^LayoutInfo layout delete-fn]
+(defn delete [lines grammar auto-closing-parens syntax-info cursor-ranges regions ^LayoutInfo layout delete-fn]
   (-> (if (every? cursor-range-empty? cursor-ranges)
-        (let [syntax-info (if (:auto-insert grammar)
+        (let [syntax-info (if (and auto-closing-parens (:auto-insert grammar))
                             (let [max-row (long (transduce (map #(-> % cursor-range-end .-row)) max 0 cursor-ranges))]
                               (ensure-syntax-info syntax-info (inc max-row) lines grammar))
                             syntax-info)]
-          (splice lines regions (map (partial delete-fn lines grammar syntax-info) cursor-ranges)))
+          (splice lines regions (map (partial delete-fn lines grammar auto-closing-parens syntax-info) cursor-ranges)))
         (splice lines regions (map (partial delete-range lines) cursor-ranges)))
       (frame-cursor layout)))
 

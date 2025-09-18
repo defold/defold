@@ -20,6 +20,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
+            [util.array :as array]
             [util.eduction :as e])
   (:import [com.dynamo.bob.pipeline ShaderProgramBuilder$ShaderDescBuildResult ShaderProgramBuilderEditor]
            [com.dynamo.bob.pipeline.shader ShaderCompilePipeline$ShaderModuleDesc]
@@ -30,13 +31,19 @@
 
 (def built-pb-class Graphics$ShaderDesc)
 
-(defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" pb-shader-languages-with-spirv
-  (into-array
-    Graphics$ShaderDesc$Language
-    (map shader-gen/shader-language->pb-shader-language
-         ;; TODO: WGSL support (:language-wgsl)
-         ;; TODO(question): Does the order matter?
-         [:language-glsl-sm330 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv])))
+(defn- pb-shader-languages [shader-languages]
+  (array/from-type Graphics$ShaderDesc$Language (mapv shader-gen/shader-language->pb-shader-language shader-languages)))
+
+(def ^:private default-shader-languages
+  ;; TODO: WGSL support (:language-wgsl)
+  ;; TODO(question): Does the order matter?
+  [:language-glsl-sm330 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv])
+
+(defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" pb-default-shader-languages
+  (pb-shader-languages default-shader-languages))
+
+(defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" pb-shader-languages-without-gles-sm100
+  (pb-shader-languages (e/remove #(= :language-gles-sm100 %) default-shader-languages)))
 
 (defn- make-shader-module-desc
   ^ShaderCompilePipeline$ShaderModuleDesc [^String resource-proj-path ^String shader-source]
@@ -51,34 +58,25 @@
     (set! (. shader-module-desc type) pb-shader-type)
     shader-module-desc))
 
-(defn- make-shader-desc-with-variants
-  ^ShaderProgramBuilder$ShaderDescBuildResult [build-resource shader-module-descs max-page-count]
-  {:pre [(workspace/build-resource? build-resource)]}
-  (let [build-resource-path (resource/path build-resource)
-        shader-module-descs-array (into-array ShaderCompilePipeline$ShaderModuleDesc shader-module-descs)]
-    (ShaderProgramBuilderEditor/makeShaderDescWithVariants build-resource-path shader-module-descs-array pb-shader-languages-with-spirv (int max-page-count))))
-
 (defn- error-string->error-value [^String error-string]
   (g/error-fatal (string/trim error-string)))
 
 (defn- build-shader [build-resource _dep-resources user-data]
-  (let [max-page-count (:max-page-count user-data)
-        shader-module-descs (e/map (fn [{:keys [proj-path shader-source]}]
-                                     (make-shader-module-desc proj-path shader-source))
-                                   (:shader-infos user-data))
-        shader-desc-build-result (make-shader-desc-with-variants build-resource shader-module-descs max-page-count)
-        compile-warning-messages (.buildWarnings shader-desc-build-result)
+  {:pre [(workspace/build-resource? build-resource)]}
+  (let [{:keys [^Graphics$ShaderDesc shader-desc compile-warning-messages]} user-data
         compile-error-values (mapv error-string->error-value compile-warning-messages)]
     (g/precluding-errors compile-error-values
       {:resource build-resource
-       :content (protobuf/pb->bytes (.-shaderDesc shader-desc-build-result))})))
+       :content (protobuf/pb->bytes shader-desc)})))
 
-(defn make-shader-build-target [node-id shader-source-infos max-page-count]
+(defn make-shader-build-target [node-id shader-source-infos max-page-count exclude-gles-sm100]
   {:pre [(g/node-id? node-id)
          (vector? shader-source-infos)
          (pos? (count shader-source-infos))
          (integer? max-page-count)]}
   (let [workspace (resource/workspace (:resource (first shader-source-infos)))
+
+        build-resource (workspace/make-placeholder-build-resource workspace "sp")
 
         shader-infos
         (mapv (fn [{:keys [resource shader-source]}]
@@ -87,11 +85,23 @@
                        (pos? (count shader-source))]}
                 {:proj-path (resource/proj-path resource)
                  :shader-source shader-source})
-              shader-source-infos)]
+              shader-source-infos)
 
+        shader-module-descs (e/map (fn [{:keys [proj-path shader-source]}]
+                                     (make-shader-module-desc proj-path shader-source))
+                                   shader-infos)
+        build-resource-path (resource/path build-resource)
+        shader-module-descs-array (into-array ShaderCompilePipeline$ShaderModuleDesc shader-module-descs)
+        pb-shader-languages (if exclude-gles-sm100
+                              pb-shader-languages-without-gles-sm100
+                              pb-default-shader-languages)
+
+        shader-desc-build-result (ShaderProgramBuilderEditor/makeShaderDescWithVariants build-resource-path shader-module-descs-array pb-shader-languages (int max-page-count))
+        shader-desc (.-shaderDesc shader-desc-build-result)]
     (bt/with-content-hash
       {:node-id node-id
-       :resource (workspace/make-placeholder-build-resource workspace "sp")
+       :resource build-resource
+       :shader-reflection (when shader-desc (.getReflection shader-desc))
        :build-fn build-shader
-       :user-data {:max-page-count max-page-count
-                   :shader-infos shader-infos}})))
+       :user-data {:shader-desc shader-desc
+                   :compile-warning-messages (.buildWarnings shader-desc-build-result)}})))

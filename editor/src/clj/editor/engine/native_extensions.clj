@@ -150,7 +150,7 @@
   (^String [prefs project evaluation-context]
    (or (not-empty (string/trim (prefs/get prefs [:extensions :build-server]))) ;; always trim because `prefs/get` does not return nil
        (not-empty (some-> (shared-editor-settings/get-setting project ["extensions" "build_server"] evaluation-context) string/trim)) ;; use `some->` because `get-setting` may return nil
-       connection-properties/defold-build-server-url)))
+       (connection-properties/defold-build-server-url))))
 
 (defn get-build-server-headers
   "Returns a (possibly empty) vector of header strings"
@@ -270,8 +270,7 @@
          :extender-platform extender-platform}
         (let [extender-client (ExtenderClient. url cache-directory)
               destination-file (fs/create-temp-file! (str "build_" sdk-version) ".zip")
-              log-file (fs/create-temp-file! (str "build_" sdk-version) ".txt")
-              async true]
+              log-file (fs/create-temp-file! (str "build_" sdk-version) ".txt")]
           (try
             (when-let [^String auth (or
                                       (and (not (string/blank? username))
@@ -281,7 +280,7 @@
               (.setHeader extender-client "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes auth StandardCharsets/UTF_8)))))
             (when (pos? (count headers))
               (.setHeaders extender-client headers))
-            (.build extender-client extender-platform sdk-version extender-resources destination-file log-file async)
+            (.build extender-client extender-platform sdk-version extender-resources destination-file log-file)
             {:id {:type :custom :version cache-key}
              :engine-archive destination-file
              :extender-platform extender-platform}

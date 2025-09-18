@@ -159,7 +159,7 @@ namespace dmRender
         if (s->m_Location != -1)
         {
             dmGraphics::SetSampler(graphics_context, s->m_Location, unit);
-            dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
+            dmGraphics::SetTextureParams(graphics_context, texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
         }
     }
 
@@ -328,7 +328,9 @@ namespace dmRender
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
             {
-                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV || program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL)
+                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
+                    program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL ||
+                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL)
                 {
                     Matrix4 ndc_matrix = Matrix4::identity();
                     ndc_matrix.setElem(2, 2, 0.5f );
@@ -361,7 +363,9 @@ namespace dmRender
             {
                 // Vulkan NDC is [0..1] for z, so we must transform
                 // the projection before setting the constant.
-                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV || program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL)
+                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
+                    program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL ||
+                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL)
                 {
                     Matrix4 ndc_matrix = Matrix4::identity();
                     ndc_matrix.setElem(2, 2, 0.5f );
@@ -398,7 +402,9 @@ namespace dmRender
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ:
             {
-                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV || program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL)
+                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
+                    program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL ||
+                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL)
                 {
                     Matrix4 ndc_matrix = Matrix4::identity();
                     ndc_matrix.setElem(2, 2, 0.5f );

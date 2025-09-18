@@ -22,7 +22,8 @@
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource-node :as resource-node]
             [editor.validation :as validation]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.fn :as fn])
   (:import [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
            [com.dynamo.render.proto RenderTarget$RenderTargetDesc RenderTarget$RenderTargetDesc$ColorAttachment RenderTarget$RenderTargetDesc$DepthStencilAttachment]))
 
@@ -173,7 +174,7 @@
 (defn- sanitize-render-target [render-target-desc]
   {:pre [(map? render-target-desc)]} ; RenderTarget$RenderTargetDesc in map format.
   (-> render-target-desc
-      (update :depth-stencil-attachment #(or % default-pb-depth-stencil-attachment))))
+      (update :depth-stencil-attachment fn/or default-pb-depth-stencil-attachment)))
 
 (defn register-resource-types
   [workspace]

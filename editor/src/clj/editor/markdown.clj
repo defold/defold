@@ -14,32 +14,43 @@
 
 (ns editor.markdown
   (:require [cljfx.api :as fx]
+            [cljfx.fx.button :as fx.button]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.grid-pane :as fx.grid-pane]
             [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.svg-path :as fx.svg-path]
             [cljfx.fx.text :as fx.text]
             [cljfx.fx.text-flow :as fx.text-flow]
+            [cljfx.fx.titled-pane :as fx.titled-pane]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.defold-project :as project]
             [editor.fxui :as fxui]
-            [editor.html-view :as html-view]
+            [editor.resource :as resource]
             [editor.ui :as ui]
+            [editor.util :as util]
             [editor.workspace :as workspace]
+            [util.coll :as coll]
             [util.fn :as fn])
-  (:import [java.net URI]
-           [javafx.scene.control ScrollPane]
+  (:import [com.defold.control ResizableImageView]
+           [java.net URI URISyntaxException URLDecoder]
+           [javafx.scene.control ContextMenu MenuItem ScrollPane]
+           [javafx.scene.input Clipboard ClipboardContent MouseButton MouseEvent]
            [org.commonmark.ext.autolink AutolinkExtension]
+           [org.commonmark.ext.front.matter YamlFrontMatterExtension]
+           [org.commonmark.ext.gfm.tables TablesExtension]
+           [org.commonmark.ext.heading.anchor HeadingAnchorExtension]
            [org.commonmark.internal CustomHtmlBlockParser$Factory]
            [org.commonmark.parser Parser]
            [org.commonmark.renderer.html HtmlRenderer]
@@ -48,6 +59,7 @@
            [org.jsoup.nodes Element Node TextNode]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn- child-nodes [node]
   (when (instance? Element node)
@@ -60,29 +72,94 @@
   (when (instance? Element node)
     (.attr ^Element node name)))
 
-(defn- open-link! [^URI base-url project ^String url _event]
-  (when-let [^URI resolved-url (try
-                                 (if base-url (.resolve base-url url) (URI. url))
-                                 (catch Exception _ nil))]
-    (case (.getScheme resolved-url)
-      "defold"
-      (html-view/dispatch-url! project resolved-url)
 
-      "file"
-      (if-let [resource (g/with-auto-evaluation-context evaluation-context
-                          (let [basis (:basis evaluation-context)
-                                workspace (project/workspace project evaluation-context)]
-                            (when-let [proj-path (workspace/as-proj-path basis workspace resolved-url)]
-                              (workspace/find-resource workspace proj-path))))]
-        (ui/execute-command (ui/contexts (ui/main-scene)) :file.open resource)
-        (ui/open-url resolved-url))
+(defn- query-params->map
+  [params]
+  (when (not (string/blank? params))
+    (into {}
+          (map (fn [param]
+                 (let [[k ^String v] (string/split param #"=")]
+                   [(keyword k) (URLDecoder/decode v "UTF-8")])))
+          (string/split params #"&"))))
 
-      (ui/open-url resolved-url))))
+(defmulti url->command URI/.getHost)
+
+(defmethod url->command "open" [^URI uri]
+  (let [params (query-params->map (.getQuery uri))
+        proj-path (:path params)]
+    {:command   :file.open
+     :user-data proj-path}))
+
+(defmethod url->command "add-dependency" [^URI uri]
+  (let [params (query-params->map (.getQuery uri))
+        dep-url (:url params)]
+    {:command   :private/add-dependency
+     :user-data {:dep-url dep-url}}))
+
+(defmethod url->command :default [^URI uri]
+  {:command (keyword (.getHost uri))})
+
+(defn- open-link! [^URI base-url base-resource project ^String url ^MouseEvent event]
+  (condp = (.getButton event)
+    MouseButton/PRIMARY
+    (when-let [^URI resolved-url (try
+                                   (if base-url (.resolve base-url url) (URI. url))
+                                   (catch Exception _ nil))]
+      (let [scheme (.getScheme resolved-url)]
+        (case (.getScheme resolved-url)
+          "defold"
+          (when-some [{:keys [command user-data]} (url->command resolved-url)]
+            (ui/execute-command (ui/contexts (ui/main-scene)) command user-data))
+
+          "file"
+          (if-let [resource (g/with-auto-evaluation-context evaluation-context
+                              (let [basis (:basis evaluation-context)
+                                    workspace (project/workspace project evaluation-context)]
+                                (when-let [proj-path (workspace/as-proj-path basis workspace resolved-url)]
+                                  (workspace/find-resource workspace proj-path))))]
+            (ui/execute-command (ui/contexts (ui/main-scene)) :file.open resource)
+            (ui/open-url resolved-url))
+
+          (if (or scheme (.getAuthority resolved-url))
+            (ui/open-url resolved-url)
+            (if-let [path (coll/not-empty (.getPath resolved-url))]
+              (when base-resource
+                (let [resource (workspace/resolve-resource base-resource path)]
+                  (when (resource/exists? resource)
+                    (ui/execute-command (ui/contexts (ui/main-scene)) :file.open resource))))
+              (when-let [fragment (coll/not-empty (.getFragment resolved-url))]
+                (let [^ScrollPane scroll-pane (ui/closest-node-of-type ScrollPane (.getTarget event))
+                      content (.getContent scroll-pane)]
+                  (when-let [node (.lookup content (str "#" fragment))]
+                    (let [content (.getContent scroll-pane)
+                          scrollable-height (- (.getHeight (.getBoundsInLocal content))
+                                               (.getHeight (.getViewportBounds scroll-pane)))]
+                      (when (pos? scrollable-height)
+                        (.setVvalue
+                          scroll-pane
+                          (-> (/ (.getMinY (.sceneToLocal content (.localToScene node (.getBoundsInLocal node))))
+                                 scrollable-height)
+                              (max 0.0)
+                              (min 1.0)))))))))))))
+
+    MouseButton/SECONDARY
+    (doto (ContextMenu.)
+      (-> .getItems (.add (doto (MenuItem. "Copy Link")
+                            (.setOnAction (fn [_]
+                                            (.setContent
+                                              (Clipboard/getSystemClipboard)
+                                              (doto (ClipboardContent.)
+                                                (.putString url))))))))
+      (.show (.getWindow (.getScene ^javafx.scene.Node (.getTarget event)))
+             (.getScreenX event)
+             (.getScreenY event)))
+
+    nil))
 
 (defn- text-view
   ([ctx]
    (-> ctx
-       (dissoc :paragraph :base-url :project)
+       (dissoc :paragraph :base-url :project :base-resource)
        (assoc :fx/type fx.text/lifecycle)))
   ([text ctx]
    (text-view (assoc ctx :text text))))
@@ -168,12 +245,12 @@
 (defn- add-separator
   "Add separator after text-flow-children vector; if there is already a
   separator, keep the highest separator"
-  [{:keys [content] :as acc} n]
-  (let [separator (when-let [end (or (peek content) ##Inf)]
+  [{:keys [content] :as acc} ^long n]
+  (let [separator (when-let [end (or (peek content) Long/MAX_VALUE)]
                     (when (number? end) end))]
     (cond
       (not separator) (assoc acc :content (conj content n) :whitespace-prefix nil)
-      (< separator n) (assoc acc :content (assoc content (dec (count content)) n) :whitespace-prefix nil)
+      (< (long separator) n) (assoc acc :content (assoc content (dec (count content)) n) :whitespace-prefix nil)
       :else acc)))
 
 (defn- with-separators
@@ -216,11 +293,42 @@
       {:fx/type fx.v-box/lifecycle
        :children lis})))
 
-(defn- code-block-view [node ctx]
+(defn- ordered-list-view [^Element node ctx]
+  (let [start (long (or (parse-long (.attr node "start")) 1))
+        lis (into []
+                  (comp
+                    (filter #(= "li" (tag-name %)))
+                    (keep-indexed #(indent-with-text-view (str "\u00A0\u00A0" (+ (long %1) start) ".\u00A0") ctx
+                                                          (children-section-view %2 ctx))))
+                  (child-nodes node))]
+    (when (pos? (count lis))
+      {:fx/type fx.v-box/lifecycle
+       :children lis})))
+
+(def ^:private copy-icon
+  {:fx/type fx.svg-path/lifecycle
+   :style-class "md-code-block-icon"
+   ;; chrome-restore icon by Microsoft (CC BY 4.0)
+   ;; https://github.com/microsoft/vscode-icons
+   :content "M3.00024 5V14H12.0002V5H3.00024ZM11.0002 13H4.00024V6H11.0002V13Z M5.00024 5H6.00024V4H13.0002V11H12.0002V12H14.0002V5V3H12.0002H5.00024V5Z"})
+
+(defn- code-block-view [^Element node ctx]
   (when-let [view (children-section-view node (-> ctx (style "code") (assoc :paragraph false)))]
-    {:fx/type fx.v-box/lifecycle
+    {:fx/type fx.stack-pane/lifecycle
      :style-class "md-code-block"
-     :children [view]}))
+     :children [view
+                {:fx/type fx.v-box/lifecycle
+                 :style-class "md-code-block-hover"
+                 :alignment :top-right
+                 :children [{:fx/type fx.button/lifecycle
+                             :style-class "md-code-block-button"
+                             :graphic copy-icon
+                             :text "Copy"
+                             :on-action (fn [_]
+                                          (.setContent
+                                            (Clipboard/getSystemClipboard)
+                                            (doto (ClipboardContent.)
+                                              (.putString (.text node)))))}]}]}))
 
 (defn- icon-view [icon]
   {:fx/type fx.region/lifecycle
@@ -267,7 +375,7 @@
                                      (when (pos? (count row-views))
                                        row-views))))
                            (map-indexed
-                             (fn [row views]
+                             (fn [^long row views]
                                (mapv #(assoc % :grid-pane/row (+ content-row-offset row)) views))))
                          (.select node "table>tbody>tr"))]
     (when (pos? (count rows-views))
@@ -280,10 +388,63 @@
          :hgap 4
          :children views}))))
 
+(def ^:private ext-with-image-view-props
+  (fx/make-ext-with-props fx.image-view/props))
+
+(defn- image-view [^Element node ctx]
+  (or
+    (let [src (coll/not-empty (.attr node "src"))]
+      (when-let [^URI uri (when src
+                            (try (URI. src) (catch URISyntaxException _)))]
+        (when-let [image (if (or (.getAuthority uri) (.getScheme uri))
+                           {:url src :background-loading true}
+                           (when-let [base-resource (:base-resource ctx)]
+                             (let [resource (workspace/resolve-resource base-resource (.getPath uri))]
+                               (when (resource/exists? resource)
+                                 {:is (io/input-stream resource)
+                                  :background-loading true}))))]
+          {:fx/type ext-with-image-view-props
+           :desc {:fx/type fx/ext-instance-factory
+                  :create ResizableImageView/new}
+           :props {:image image}})))
+    {:fx/type fx.region/lifecycle}))
+
+(defn- kbd-view [^Element node ctx]
+  (when-let [view (children-section-view node (-> ctx (style "code")))]
+    {:fx/type fx.v-box/lifecycle
+     :style-class "md-kbd"
+     :children [view]}))
+
+(defn- blockquote-view [node ctx]
+  (when-let [view (children-section-view node ctx)]
+    {:fx/type fx.h-box/lifecycle
+     :children [{:fx/type fx.region/lifecycle
+                 :style-class "md-blockquote"}
+                {:fx/type fx.h-box/lifecycle
+                 :padding 5
+                 :children [view]}]}))
+
+(defn- details-view [^Element node ctx]
+  (when-let [view (children-section-view node ctx)]
+    {:fx/type fx.titled-pane/lifecycle
+     :style-class "md-titled-pane"
+     :animated false
+     :expanded false
+     :graphic (children-section-view
+                (or (.selectFirst node ">summary")
+                    (.append (Element. "p") "Details"))
+                ctx)
+     :content view}))
+
 (declare layout-section-node)
 
 (defn- layout-children [acc node ctx]
   (reduce #(layout-section-node %1 %2 ctx) acc (child-nodes node)))
+
+(defn- id [ctx ^Element node]
+  (if-let [id (coll/not-empty (.id node))]
+    (assoc ctx :id id)
+    ctx))
 
 (defn- layout-section-node [acc node ctx]
   (let [tag (tag-name node)]
@@ -295,17 +456,20 @@
       "div" (with-separators acc 0 0 layout-children node ctx)
       ("strong" "em" "small" "code" "sub" "sup") (layout-children acc node (style ctx tag))
       "super" (layout-children acc node (style ctx "sup"))
+      "b" (layout-children acc node (style ctx "strong"))
+      "i" (layout-children acc node (style ctx "em"))
       ("dl" "dt") (with-separators acc 0 0 layout-children node ctx)
       "dd" (with-separators acc 0 0 add-view (indent-view
                                                {:fx/type fx.region/lifecycle :min-width 25 :max-height 0}
                                                (children-section-view node ctx)))
+      "blockquote" (with-separators acc 3 0 add-view (blockquote-view node ctx))
       "table" (with-separators acc 2 1 add-view (table-view node ctx))
-      "h1" (with-separators acc 6 4 layout-children node (style ctx tag))
-      "h2" (with-separators acc 5 3 layout-children node (style ctx tag))
-      "h3" (with-separators acc 4 2 layout-children node (style ctx tag))
-      "h4" (with-separators acc 3 1 layout-children node (style ctx tag))
-      "h5" (with-separators acc 2 1 layout-children node (style ctx tag))
-      "h6" (with-separators acc 1 1 layout-children node (style ctx tag))
+      "h1" (with-separators acc 6 4 layout-children node (id (style ctx tag) node))
+      "h2" (with-separators acc 5 3 layout-children node (id (style ctx tag) node))
+      "h3" (with-separators acc 4 2 layout-children node (id (style ctx tag) node))
+      "h4" (with-separators acc 3 1 layout-children node (id (style ctx tag) node))
+      "h5" (with-separators acc 2 1 layout-children node (id (style ctx tag) node))
+      "h6" (with-separators acc 1 1 layout-children node (id (style ctx tag) node))
       "a" (layout-children
             acc
             node
@@ -313,7 +477,9 @@
               (-> ctx
                   (style tag)
                   (cond-> (pos? (count href))
-                          (assoc :on-mouse-clicked (fn/partial #'open-link! (:base-url ctx) (:project ctx) href))))))
+                          (assoc :on-mouse-clicked (fn/partial #'open-link! (:base-url ctx) (:base-resource ctx) (:project ctx) href))))))
+      "kbd" (add-view acc (kbd-view node ctx))
+      "img" (with-separators acc 3 1 add-view (image-view node ctx))
       "span" (let [class (attr node "class")]
                (case class
                  ("icon-alert" "icon-attention" "icon-android" "icon-html5"
@@ -333,9 +499,11 @@
 
                  (layout-children acc node ctx)))
       "pre" (with-separators acc 1 1 add-view (code-block-view node ctx))
-      "ul" (with-separators acc 0 0 add-view (unordered-list-view node ctx))
+      "ul" (with-separators acc 3 0 add-view (unordered-list-view node ctx))
+      "ol" (with-separators acc 3 0 add-view (ordered-list-view node ctx))
       "hr" (with-separators acc 3 3 add-view {:fx/type fx.region/lifecycle :style-class "md-hr"})
-      "head" acc
+      "details" (with-separators acc 0 0 add-view (details-view node ctx))
+      ("#comment" "head" "summary") acc
       (-> acc
           (add-text (str "<" tag ">") (style ctx "error"))
           (layout-children node ctx)
@@ -349,7 +517,7 @@
                        (keep (fn [text-flow-children-or-separator]
                                (cond
                                  (number? text-flow-children-or-separator)
-                                 (when (pos? text-flow-children-or-separator)
+                                 (when (pos? (long text-flow-children-or-separator))
                                    {:fx/type fx.region/lifecycle
                                     :style-class (str "md-separator-" text-flow-children-or-separator)})
 
@@ -376,15 +544,46 @@
                         (.setPrefViewportHeight pane (.prefHeight (.getContent pane) max-width)))))
                   fx.lifecycle/scalar)}))
 
-(defn view
-  "Cljfx component that defines a markdown viewer
+(defn html-view
+  "Cljfx component that defines HTML viewer
 
   Supported props:
-    :content     required, markdown string
-    :project     required, project node id (for opening urls with defold scheme)
-    :base-url    optional, URI used for resolving relative urls in links
+    :html             required, HTML string
+    :project          required, project node id (for opening urls with the
+                      defold scheme)
+    :base-url         optional, URI used for resolving relative urls in links
+    :base-resource    optional, Resource used for resolving relative urls
+    :root-props
     ...the rest of ScrollPane lifecycle props"
-  [{:keys [content base-url project max-width pref-viewport-height] :as props}]
+  [{:keys [html base-url base-resource project max-width pref-viewport-height] :as props}]
+  (let [html-ast (Jsoup/parseBodyFragment html)
+        view (or (when-let [view (children-section-view
+                                   html-ast
+                                   {:paragraph true :base-url base-url :project project :base-resource base-resource})]
+                   (-> (:root-props props {})
+                       (into view)
+                       (fxui/add-style-classes "md-root")))
+                 {:fx/type fx.region/lifecycle})
+        scroll-pane-view (-> props
+                             (dissoc :html :base-url :base-resource :project :root-props)
+                             (util/provide-defaults :fit-to-width true
+                                                    :hbar-policy :never)
+                             (fxui/add-style-classes "md-scroll-pane")
+                             (assoc :fx/type fx.scroll-pane/lifecycle
+                                    :content view))]
+    (if (and max-width (not pref-viewport-height))
+      {:fx/type ext-with-pref-height-defining-max-width
+       :props {:max-width [html max-width]}
+       :desc scroll-pane-view}
+      scroll-pane-view)))
+
+(def ^:private extensions
+  [(AutolinkExtension/create)
+   (TablesExtension/create)
+   (YamlFrontMatterExtension/create)
+   (HeadingAnchorExtension/create)])
+
+(defn- markdown->html [content]
   (let [doc (-> (Parser/builder)
                 ;; We need to use Custom HTML block parser to support Defold's
                 ;; code highlight which uses <div><pre>...</pre></div>. Built-in
@@ -401,35 +600,23 @@
                 ;; Our custom HTML block parser fixes the issue by treating
                 ;; <div> tags the same way it treats <pre>.
                 (.customBlockParserFactory (CustomHtmlBlockParser$Factory.))
-                (.extensions [(AutolinkExtension/create)])
+                (.extensions extensions)
                 (.build)
-                (.parse content))
-        html-string (.render (.build (HtmlRenderer/builder)) doc)
-        html-ast (Jsoup/parseBodyFragment html-string)
-        view (or (some-> (children-section-view
-                           html-ast
-                           {:paragraph true :base-url base-url :project project})
-                         (assoc :style-class "md-root"))
-                 {:fx/type fx.region/lifecycle})
-        scroll-pane-view (-> props
-                             (dissoc :content :base-url :project)
-                             (fxui/provide-defaults :fit-to-width true
-                                                    :hbar-policy :never)
-                             (assoc :fx/type fx.scroll-pane/lifecycle
-                                    :style-class "md-scroll-pane"
-                                    :content view))]
-    (if (and max-width (not pref-viewport-height))
-      {:fx/type ext-with-pref-height-defining-max-width
-       :props {:max-width [html-string max-width]}
-       :desc scroll-pane-view}
-      scroll-pane-view)))
+                (.parse content))]
+    (.render (.build (.extensions (HtmlRenderer/builder) extensions)) doc)))
 
-(defn markdown->html
-  [markdown]
-  (let [parser (.build (Parser/builder))
-        doc (.parse parser markdown)
-        renderer (.build (.softbreak (HtmlRenderer/builder) " "))]
-    (.render renderer doc)))
+(defn view
+  "Cljfx component that defines a markdown viewer
+
+  Supported props:
+    :content          required, markdown string
+    :project          required, project node id (for opening urls with the
+                      defold scheme)
+    :base-url         optional, URI used for resolving relative urls in links
+    :base-resource    optional, Resource used for resolving relative urls
+    ...the rest of ScrollPane lifecycle props"
+  [{:keys [content] :as props}]
+  (-> props (dissoc :content) (assoc :fx/type html-view :html (markdown->html content))))
 
 (g/defnode MarkdownNode
   (inherits r/CodeEditorResourceNode)

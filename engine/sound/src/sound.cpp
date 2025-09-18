@@ -233,22 +233,6 @@ namespace dmSound
         float* GetDecoderBufferBase(uint8_t channel) const { assert(channel < SOUND_MAX_DECODE_CHANNELS); return (float*)((uintptr_t)m_DecoderOutput[channel] + SOUND_MAX_HISTORY * sizeof(float)); }
     };
 
-    // Since using threads is optional, we want to make it easy to switch on/off the mutex behavior
-    struct OptionalScopedMutexLock
-    {
-        OptionalScopedMutexLock(dmMutex::HMutex mutex) : m_Mutex(mutex) {
-            if (m_Mutex)
-                dmMutex::Lock(m_Mutex);
-        }
-        ~OptionalScopedMutexLock() {
-            if (m_Mutex)
-                dmMutex::Unlock(m_Mutex);
-        }
-
-        dmMutex::HMutex m_Mutex;
-    };
-    #define DM_MUTEX_OPTIONAL_SCOPED_LOCK(mutex) OptionalScopedMutexLock SCOPED_LOCK_PASTE2(lock, __LINE__)(mutex);
-
     SoundSystem* g_SoundSystem = 0;
 
     DeviceType* g_FirstDevice = 0;
@@ -762,7 +746,13 @@ namespace dmSound
 
             dmSoundCodec::Result r = dmSoundCodec::NewDecoder(ss->m_CodecContext, codec_format, sound_data, &decoder);
             if (r != dmSoundCodec::RESULT_OK) {
-                dmLogError("Failed to decode sound %s: (%d)", dmHashReverseSafe64(sound_data->m_NameHash), r);
+                if (r == dmSoundCodec::RESULT_UNSUPPORTED) {
+                    const char* name = dmHashReverseSafe64(sound_data->m_NameHash);
+                    const char* format_str = dmSoundCodec::FormatToString(codec_format);
+                    dmLogError("Sound '%s' uses %s, but no decoder was found. Ensure the codec is included in your App Manifest.", name, format_str);
+                } else {
+                    dmLogError("Failed to decode sound %s: (%d)", dmHashReverseSafe64(sound_data->m_NameHash), r);
+                }
                 return RESULT_INVALID_STREAM_DATA;
             }
 
@@ -1063,7 +1053,7 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    static inline void GetPanScale(float pan, float* left_scale, float* right_scale)
+    void GetPanScale(float pan, float* left_scale, float* right_scale)
     {
         // Constant power panning: https://www.cs.cmu.edu/~music/icm-online/readings/panlaws/index.html
         const float theta = pan * M_PI_2;
@@ -1215,11 +1205,10 @@ namespace dmSound
                 assert(info->m_Channels == 2);
 
                 float rs, ls;
-                GetPanScale(dmMath::Max(0.0f, instance->m_Pan.m_Current - 0.5f), &ls, &rs);
+                GetPanScale(instance->m_Pan.m_Current, &ls, &rs);
                 instance->m_ScaleL[0].Set(ls * gain, reset);
-                instance->m_ScaleR[0].Set(rs * gain, reset);
-                GetPanScale(dmMath::Min(instance->m_Pan.m_Current + 0.5f, 1.0f), &ls, &rs);
-                instance->m_ScaleL[1].Set(ls * gain, reset);
+                instance->m_ScaleR[0].Set(0.0f, reset);
+                instance->m_ScaleL[1].Set(0.0f, reset);
                 instance->m_ScaleR[1].Set(rs * gain, reset);
             }
         }
@@ -1310,6 +1299,10 @@ namespace dmSound
 
         // Compute how many input samples we will need to produce the requested output samples
         uint64_t delta = (uint64_t)(((float)(info.m_Rate << RESAMPLE_FRACTION_BITS) / sound->m_MixRate) * instance->m_Speed);
+        if (delta == 0) {
+            // very low speed settings can get the delta to be zero due to precision limits - we skip the mixing as resulting rates are also (alsmost) inaudibly low as a result
+            return;
+        }
         uint32_t mixed_instance_frame_count = (uint32_t)((instance->m_FrameFraction + mix_context->m_FrameCount * delta + ((1UL << RESAMPLE_FRACTION_BITS) - 1)) >> RESAMPLE_FRACTION_BITS) + SOUND_MAX_FUTURE;
 
         // Compute initial amount of samples in temp buffer once we restore per instance state prior to actual mixing

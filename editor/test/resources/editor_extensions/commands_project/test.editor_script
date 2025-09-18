@@ -28,6 +28,23 @@ function M.get_commands()
                     { action = "set", node_id = node, property = "playback_rate", value = playback_rate + 1.5 }
                 }
             end
+        },
+        {
+            label = command_label,
+            locations = {"Scene"},
+            query = {selection = {type = "scene", cardinality = "one"}},
+            active = function(opts)
+                local node = opts.selection
+                return editor.can_get(node, "scale") 
+                and editor.can_set(node, "scale")
+            end,
+            run = function (opts)
+                local node = opts.selection
+                local scale = editor.get(node, "scale")
+                return {
+                    { action = "set", node_id = node, property = "scale", value = {2, 2, 2} }
+                }
+            end
         }
     }
 end

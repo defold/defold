@@ -26,7 +26,6 @@
  * @document
  * @name Android
  * @namespace dmAndroid
- * @path engine/dlib/src/dmsdk/dlib/android.h
  * @language C++
  */
 
@@ -165,7 +164,7 @@ typedef void (*OnActivityResult)(JNIEnv* env, jobject activity, int32_t request_
  *
  * @note [icon:android] Only available on Android
  * @name RegisterOnActivityResultListener
- * @param [type:dmAndroid::OnActivityResult] listener
+ * @param listener [type:dmAndroid::OnActivityResult]
  */
 void RegisterOnActivityResultListener(OnActivityResult listener);
 
@@ -175,7 +174,7 @@ void RegisterOnActivityResultListener(OnActivityResult listener);
  *
  * @note [icon:android] Only available on Android
  * @name UnregisterOnActivityResultListener
- * @param [type:dmAndroid::OnActivityResult] listener
+ * @param listener [type:dmAndroid::OnActivityResult]
  */
 void UnregisterOnActivityResultListener(OnActivityResult listener);
 
@@ -197,7 +196,7 @@ typedef void (*OnActivityCreate)(JNIEnv* env, jobject activity);
  *
  * @note [icon:android] Only available on Android
  * @name RegisterOnActivityCreateListener
- * @param [type:dmAndroid::OnActivityCreate] listener
+ * @param listener [type:dmAndroid::OnActivityCreate]
  */
 void RegisterOnActivityCreateListener(OnActivityCreate listener);
 
@@ -207,7 +206,7 @@ void RegisterOnActivityCreateListener(OnActivityCreate listener);
  *
  * @note [icon:android] Only available on Android
  * @name UnregisterOnActivityCreateListener
- * @param [type:dmAndroid::OnActivityCreate] listener
+ * @param listener [type:dmAndroid::OnActivityCreate]
  */
 void UnregisterOnActivityCreateListener(OnActivityCreate listener);
 

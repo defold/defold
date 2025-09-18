@@ -62,6 +62,21 @@ message MaterialDesc
         FILTER_MODE_MAG_DEFAULT = 2;
     }
 
+    message PbrParameters
+    {
+        optional bool has_parameters          = 1;
+        optional bool has_metallic_roughness  = 2;
+        optional bool has_specular_glossiness = 3;
+        optional bool has_clearcoat           = 4;
+        optional bool has_transmission        = 5;
+        optional bool has_ior                 = 6;
+        optional bool has_specular            = 7;
+        optional bool has_volume              = 8;
+        optional bool has_sheen               = 9;
+        optional bool has_emissive_strength   = 10;
+        optional bool has_iridescence         = 11;
+    }
+
     message Sampler
     {
         required string name              = 1; // uniform name
@@ -87,4 +102,5 @@ message MaterialDesc
     optional uint32 max_page_count                 = 10 [default = 0];
     repeated dmGraphics.VertexAttribute attributes = 11;
     optional string program                        = 12 [(resource)=true, (runtime_only)=true];
+    optional PbrParameters pbr_parameters          = 13 [(runtime_only)=true];
 }

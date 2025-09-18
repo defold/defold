@@ -40,7 +40,8 @@
                              :doc "Resource path (starting with <code>/</code>)"}
         transaction-step-param {:name "tx"
                                 :types ["transaction_step"]
-                                :doc "A transaction step"}]
+                                :doc "A transaction step"}
+        boolean-ret-param {:name "value" :types ["boolean"] :doc ""}]
     (vec
       (e/concat
         [{:name "editor"
@@ -56,24 +57,28 @@
          {:name "editor.can_get"
           :type :function
           :parameters [node-param property-param]
-          :returnvalues [{:name "value"
-                          :types ["boolean"]
-                          :doc ""}]
+          :returnvalues [boolean-ret-param]
           :description "Check if you can get this property so `editor.get()` won't throw an error"}
          {:name "editor.can_add"
           :type :function
           :parameters [node-param property-param]
-          :returnvalues [{:name "value"
-                          :types ["boolean"]
-                          :doc ""}]
+          :returnvalues [boolean-ret-param]
           :description "Check if `editor.tx.add()` (as well as `editor.tx.clear()` and `editor.tx.remove()`) transaction with this property won't throw an error"}
          {:name "editor.can_set"
           :type :function
           :parameters [node-param property-param]
-          :returnvalues [{:name "value"
-                          :types ["boolean"]
-                          :doc ""}]
+          :returnvalues [boolean-ret-param]
           :description "Check if `editor.tx.set()` transaction with this property won't throw an error"}
+         {:name "editor.can_reorder"
+          :type :function
+          :parameters [node-param property-param]
+          :returnvalues [boolean-ret-param]
+          :description "Check if `editor.tx.reorder()` transaction with this property won't throw an error"}
+         {:name "editor.can_reset"
+          :type :function
+          :parameters [node-param property-param]
+          :returnvalues [boolean-ret-param]
+          :description "Check if `editor.tx.reset()` transaction with this property won't throw an error"}
          {:name "editor.command"
           :type :function
           :description "Create an editor command"
@@ -158,6 +163,39 @@ editor.command({
           :parameters [resource-path-param]
           :description "Create a directory if it does not exist, and all non-existent parent directories.\n\nThrows an error if the directory can't be created."
           :examples "```\neditor.create_directory(\"/assets/gen\")\n```"}
+         {:name "editor.create_resources"
+          :type :function
+          :parameters [{:name "resources"
+                        :types ["string[]"]
+                        :doc (str "Array of resource paths (strings starting with <code>/</code>) or resource definitions, lua tables with the following keys:"
+                                  (lua-completion/args-doc-html
+                                    [{:name "1"
+                                      :types ["string"]
+                                      :doc "required, resource path (starting with <code>/</code>)"}
+                                     {:name "2"
+                                      :types ["string"]
+                                      :doc "optional, created resource content"}]))}]
+          :description "Create resources (including non-existent parent directories).\n\nThrows an error if any of the provided resource paths already exist"
+          :examples "Create a single resource from template:
+```
+editor.create_resources({
+  \"/npc.go\"
+})
+```
+Create multiple resources:
+```
+editor.create_resources({
+  \"/npc.go\",
+  \"/levels/1.collection\",
+  \"/levels/2.collection\",
+})
+```
+Create a resource with custom content:
+```
+editor.create_resources({
+  {\"/npc.script\", \"go.property('hp', 100)\"}
+})
+```"}
          {:name "editor.delete_directory"
           :type :function
           :parameters [resource-path-param]
@@ -290,12 +328,22 @@ editor.command({
           :type :function
           :parameters [node-param property-param]
           :returnvalues [transaction-step-param]
-          :description "Create a transaction step that will deletes all items from node's list property when transacted with `editor.transact()`."}
+          :description "Create a transaction step that will remove all items from node's list property when transacted with `editor.transact()`."}
          {:name "editor.tx.remove"
           :type :function
           :parameters [node-param property-param (assoc node-param :name "child_node")]
           :returnvalues [transaction-step-param]
           :description "Create a transaction step that will remove a child node from the node's list property when transacted with `editor.transact()`."}
+         {:name "editor.tx.reorder"
+          :type :function
+          :parameters [node-param property-param {:name "child_nodes" :types ["table"] :doc "array of child nodes (the same as returned by <code>editor.get(node, property)</code>) in new order"}]
+          :returnvalues [transaction-step-param]
+          :description "Create a transaction step that reorders child nodes in a node list defined by the property if supported (see <code>editor.can_reorder()</code>)"}
+         {:name "editor.tx.reset"
+          :type :function
+          :parameters [node-param property-param]
+          :returnvalues [transaction-step-param]
+          :description "Create a transaction step that will reset an overridden property to its default value when transacted with `editor.transact()`."}
          {:name "editor.version"
           :type :variable
           :description "A string, version name of Defold"}
@@ -710,6 +758,74 @@ http.server.route(
                                                                           {:name "build_report" :types ["boolean"]}
                                                                           {:name "liveupdate" :types ["boolean"]}
                                                                           {:name "contentless" :types ["boolean"]}]))}]}])
+        (let [tiles-param {:name "tiles" :types ["tiles"] :doc "unbounded 2d grid of tiles"}
+              x-param {:name "x" :types ["integer"] :doc "x coordinate of a tile"}
+              y-param {:name "y" :types ["integer"] :doc "y coordinate of a tile"}
+              tile-doc "1-indexed tile index of a tilemap's tilesource"
+              info-doc (str "full tile information table with the following keys:"
+                            (lua-completion/args-doc-html
+                              [{:name "index" :types ["integer"] :doc tile-doc}
+                               {:name "h_flip" :types ["boolean"] :doc "horizontal flip"}
+                               {:name "v_flip" :types ["boolean"] :doc "vertical flip"}
+                               {:name "rotate_90" :types ["boolean"] :doc "whether the tile is rotated 90 degrees clockwise"}]))
+              tile-param {:name "tile_index" :types ["integer"] :doc tile-doc}
+              info-param {:name "info" :types ["table"] :doc info-doc}]
+          [{:name "tilemap"
+            :type :module
+            :description "Module for manipulating tilemaps"}
+           {:name "tilemap.tiles"
+            :type :module
+            :description "Module for manipulating tiles on a tilemap layer"}
+           {:name "tilemap.tiles.new"
+            :type :function
+            :description "Create a new unbounded 2d grid data structure for storing tilemap layer tiles"
+            :parameters []
+            :returnvalues [tiles-param]}
+           {:name "tilemap.tiles.get_tile"
+            :type :function
+            :description "Get a tile index at a particular coordinate"
+            :parameters [tiles-param x-param y-param]
+            :returnvalues [tile-param]}
+           {:name "tilemap.tiles.get_info"
+            :type :function
+            :description "Get full information from a tile at a particular coordinate"
+            :parameters [tiles-param x-param y-param]
+            :returnvalues [info-param]}
+           {:name "tilemap.tiles.iterator"
+            :type :function
+            :description "Create an iterator over all tiles in a tiles data structure\n\nWhen iterating using for loop, each iteration returns x, y and tile index of a tile in a tile map"
+            :parameters [tiles-param]
+            :returnvalues [{:name "iter" :types ["function"] :doc "iterator"}]
+            :examples "Iterate over all tiles in a tile map:
+```
+local layers = editor.get(\"/level.tilemap\", \"layers\")
+for i = 1, #layers do
+  local tiles = editor.get(layers[i], \"tiles\")
+  for x, y, i in tilemap.tiles.iterator(tiles) do
+    print(x, y, i)
+  end
+end
+```"}
+           {:name "tilemap.tiles.clear"
+            :type :function
+            :description "Remove all tiles"
+            :parameters [tiles-param]
+            :returnvalues [tiles-param]}
+           {:name "tilemap.tiles.set"
+            :type :function
+            :description "Set a tile at a particular coordinate"
+            :parameters [tiles-param
+                         x-param
+                         y-param
+                         {:name "tile_or_info"
+                          :types ["integer" "table"]
+                          :doc (str "Either " tile-doc " or " info-doc)}]
+            :returnvalues [tiles-param]}
+           {:name "tilemap.tiles.remove"
+            :type :function
+            :description "Remove a tile at a particular coordinate"
+            :parameters [tiles-param x-param y-param]
+            :returnvalues [tiles-param]}])
         [{:name "zip"
           :type :module
           :description "Module for manipulating zip archives"}
@@ -765,6 +881,50 @@ zip.pack(\"build.zip\", {
   {\"../secrets/auth-key.txt\", \"auth-key.txt\"}
 })
 ```"})
+         {:name "zip.unpack"
+          :type :function
+          :parameters [{:name "archive_path"
+                        :types ["string"]
+                        :doc "zip file path, resolved against project root if relative"}
+                       {:name "[target_path]"
+                        :types ["string"]
+                        :doc "target path for extraction, defaults to parent of <code>archive_path</code> if omitted"}
+                       {:name "[opts]"
+                        :types ["table"]
+                        :doc (str "extraction options, a table with the following keys:"
+                                  (lua-completion/args-doc-html
+                                    [{:name "on_conflict"
+                                      :types ["string"]
+                                      :doc "conflict resolution strategy, defaults to <code>zip.ON_CONFLICT.ERROR</code>"}]))}
+                       {:name "[paths]"
+                        :types ["table"]
+                        :doc "entries to extract, relative string paths"}]
+          :description "Extract a ZIP archive"
+          :examples "Extract everything to a build dir:
+```lua
+zip.unpack(\"build/dev/resources.zip\")
+```
+Extract to a different directory:
+```lua
+zip.unpack(
+  \"build/dev/resources.zip\",
+  \"build/dev/tmp\",
+)
+```
+Extract while overwriting existing files on conflict:
+```lua
+zip.unpack(
+  \"build/dev/resources.zip\",
+  {on_conflict = zip.ON_CONFLICT.OVERWRITE}
+)
+```
+Extract a single file:
+```lua
+zip.unpack(
+  \"build/dev/resources.zip\",
+  {\"config.json\"}
+)
+```"}
          {:name "zip.METHOD"
           :type :module
           :description "Constants for zip compression methods"}
@@ -773,4 +933,16 @@ zip.pack(\"build.zip\", {
           :description "<code>\"deflated\"</code> compression method"}
          {:name "zip.METHOD.STORED"
           :type :constant
-          :description "<code>\"stored\"</code> compression method, i.e. no compression"}]))))
+          :description "<code>\"stored\"</code> compression method, i.e. no compression"}
+         {:name "zip.ON_CONFLICT"
+          :type :module
+          :description "Constants defining conflict resolution strategies for zip archive extraction"}
+         {:name "zip.ON_CONFLICT.ERROR"
+          :type :constant
+          :description "`\"error\"`, any conflict aborts extraction"}
+         {:name "zip.ON_CONFLICT.SKIP"
+          :type :constant
+          :description "`\"skip\"`, existing file is preserved"}
+         {:name "zip.ON_CONFLICT.OVERWRITE"
+          :type :constant
+          :description "`\"skip\"`, existing file is overwritten"}]))))

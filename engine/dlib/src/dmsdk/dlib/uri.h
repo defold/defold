@@ -24,7 +24,6 @@
  * @document
  * @name URI
  * @namespace dmURI
- * @path engine/dlib/src/dmsdk/dlib/uri.h
  * @language C++
  */
 

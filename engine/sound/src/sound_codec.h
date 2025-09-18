@@ -152,6 +152,7 @@ namespace dmSoundCodec
     Result Reset(HCodecContext context, HDecoder decoder);
 
     const char* ResultToString(Result result);
+    const char* FormatToString(Format format);
 
     // Unit tests
     int64_t GetInternalPos(HCodecContext context, HDecoder decoder);

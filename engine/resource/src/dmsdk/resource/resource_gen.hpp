@@ -31,7 +31,6 @@
  * @language C++
  * @name Resource
  * @namespace dmResource
- * @path engine/resource/src/dmsdk/resource/resource_gen.hpp
  */
 
 #include <stdint.h>
@@ -130,7 +129,6 @@ namespace dmResource
      * Function called when a resource has been reloaded.
      * @name FReloadedCallback
      * @language C++
-     * @param  params Parameters
      */
     typedef FResourceReloadedCallback FReloadedCallback;
 
@@ -349,7 +347,6 @@ namespace dmResource
  * Function called when a resource has been reloaded.
  * @name FResourceReloadedCallback
  * @language C
- * @param  params Parameters
  */
 
 /*# 

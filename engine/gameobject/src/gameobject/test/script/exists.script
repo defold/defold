@@ -23,8 +23,6 @@ function init(self)
     if pcall(go.exists, nil) then
         assert(false, "Error expected when calling go.exists with nil")
     end
-    if pcall(go.exists, "foo:/bar") then
-        assert(false, "Error expected when calling go.exists with another collection")
-    end
+    assert(not go.exists("foo:/bar"), "Expected go 'foo:/bar' (non-existent collection) to not exist")
     assert(go.exists(), "Object itself always exists")
 end

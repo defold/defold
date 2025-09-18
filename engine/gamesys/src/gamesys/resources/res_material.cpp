@@ -181,6 +181,9 @@ namespace dmGameSystem
         // Set all vertex attributes
         dmRender::SetMaterialProgramAttributes(material, ddf->m_Attributes.m_Data, ddf->m_Attributes.m_Count);
 
+        // PBR parameters
+        dmRender::SetMaterialPBRParameters(material, &ddf->m_PbrParameters);
+
         dmRenderDDF::MaterialDesc::Sampler* sampler = ddf->m_Samplers.m_Data;
 
         uint32_t sampler_unit = 0;

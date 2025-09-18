@@ -254,9 +254,11 @@ namespace dmRender
         float cache_cell_width_ratio  = 0.0;
         float cache_cell_height_ratio = 0.0;
 
-        if (font_map->m_Texture) {
-            float cache_width  = (float) dmGraphics::GetTextureWidth(font_map->m_Texture);
-            float cache_height = (float) dmGraphics::GetTextureHeight(font_map->m_Texture);
+        if (font_map->m_Texture)
+        {
+            dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+            float cache_width  = (float) dmGraphics::GetTextureWidth(graphics_context, font_map->m_Texture);
+            float cache_height = (float) dmGraphics::GetTextureHeight(graphics_context, font_map->m_Texture);
 
             im_recip /= cache_width;
             ih_recip /= cache_height;

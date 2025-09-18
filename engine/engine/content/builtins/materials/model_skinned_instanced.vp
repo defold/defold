@@ -17,7 +17,7 @@ in mediump vec4 bone_indices;
 // https://defold.com/manuals/material/#instancing
 in mediump mat4 mtx_world;
 in mediump mat4 mtx_normal;
-in mediump vec4 animation_data;
+in highp vec4 animation_data;
 
 out highp vec4 var_position;
 out mediump vec3 var_normal;

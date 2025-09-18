@@ -17,6 +17,7 @@
             [editor.build-target :as bt]
             [editor.graph-util :as gu]
             [editor.protobuf :as protobuf]
+            [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
@@ -77,7 +78,10 @@
   {:navigation false
    :sections
    [{:title "Display Profiles"
-     :fields [{:path [:profiles]
+     :fields [{:path [:auto-layout-selection]
+               :label "Auto Layout Selection"
+               :type :boolean}
+              {:path [:profiles]
                :label "Profile"
                :type :2panel
                :panel-key {:path [:name] :type :string :default "New Display Profile"}
@@ -99,7 +103,11 @@
                                                    :type :string}]}]}]}}]}]})
 
 (g/defnk produce-form-data [_node-id form-data-desc form-values]
-  (assoc form-data-desc :values form-values))
+  (-> form-data-desc
+      (assoc :values form-values)
+      (assoc :form-ops {:user-data {:node-id _node-id}
+                        :set protobuf-forms-util/set-form-op
+                        :clear protobuf-forms-util/clear-form-op})))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)
@@ -123,13 +131,18 @@
 
 (g/defnode DisplayProfilesNode
   (inherits resource-node/ResourceNode)
+  (property auto-layout-selection g/Bool (default true)
+            (dynamic visible (g/constantly false)))
 
   (input profile-msgs g/Any :array)
-  (output save-value g/Any :cached (g/fnk [profile-msgs]
+  (output save-value g/Any :cached (g/fnk [profile-msgs auto-layout-selection]
                                      (protobuf/make-map-without-defaults Render$DisplayProfiles
-                                       :profiles profile-msgs)))
+                                       :profiles profile-msgs
+                                       :auto-layout-selection (boolean auto-layout-selection))))
   (input profile-form-values g/Any :array)
-  (output form-values g/Any (g/fnk [profile-form-values] {[:profiles] profile-form-values}))
+  (output form-values g/Any (g/fnk [profile-form-values auto-layout-selection]
+                                   {[:profiles] profile-form-values
+                                    [:auto-layout-selection] (boolean auto-layout-selection)}))
   (output form-data-desc g/Any :cached produce-form-data-desc)
   (output form-data g/Any :cached produce-form-data)
 
@@ -140,9 +153,12 @@
 (defn load-display-profiles [_project self _resource display-profiles]
   {:pre [(map? display-profiles)]} ; Render$DisplayProfiles in map format.
   ;; Inject any missing defaults into the stripped pb-map for form-view editing.
-  (let [with-defaults (protobuf/inject-defaults Render$DisplayProfiles display-profiles)]
-    (for [display-profile (:profiles with-defaults)]
-      (add-profile self (:name display-profile) (:qualifiers display-profile)))))
+  (let [with-defaults (protobuf/inject-defaults Render$DisplayProfiles display-profiles)
+        auto-layout (boolean (:auto-layout-selection with-defaults true))]
+    (concat
+      [(g/set-property self :auto-layout-selection auto-layout)]
+      (for [display-profile (:profiles with-defaults)]
+        (add-profile self (:name display-profile) (:qualifiers display-profile))))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

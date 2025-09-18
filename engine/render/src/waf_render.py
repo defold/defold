@@ -32,8 +32,13 @@ waflib.Task.task_factory('material_shaderbuilder', '${JAVA} -classpath ${CLASSPA
                       before='c cxx',
                       shell=False)
 
+GENERATOR_ID = 0
+
 @extension('.material')
 def material_file(self, node):
+    global GENERATOR_ID
+    GENERATOR_ID = GENERATOR_ID + 1
+
     import google.protobuf.text_format
     import render.material_ddf_pb2
     import dlib
@@ -54,15 +59,12 @@ def material_file(self, node):
 
     if shader_name == None:
         shader_hash = dlib.dmHashBuffer64(msg.vertex_program + msg.fragment_program)
-        shader_name = 'shader_%d%s' % (shader_hash, '.spc')
+        # make sure the name is unique, as each task requires unique outputs
+        shader_name = 'shader_%d_%d_%s' % (shader_hash, GENERATOR_ID, '.spc')
 
     material.env['CLASSPATH']    = os.pathsep.join(classpath)
     material.env['CONTENT_ROOT'] = material.generator.content_root
     material.env['SHADER_NAME']  = shader_name
-
-    material.set_inputs(node)
-    material_node = node.change_ext('.materialc')
-    material.set_outputs(material_node)
 
     shader = self.create_task('material_shaderbuilder')
     shader.env['CLASSPATH'] = os.pathsep.join(classpath)
@@ -70,12 +72,17 @@ def material_file(self, node):
     shader.env['VP'] = material.generator.content_root + msg.vertex_program
     shader.env['CONTENT_ROOT'] = material.generator.content_root
 
-    shader.set_inputs(material_node)
-
     shader_node = node.parent.get_bld().make_node(shader_name)
     shader.set_outputs(shader_node)
 
-waflib.Task.task_factory('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${CONTENT_ROOT} ${TGT}',
+    # Material task depends on shader output
+    material.set_inputs([node, shader_node])
+    material_node = node.change_ext('.materialc')
+    material.set_outputs(material_node)
+    # Ensure shader runs first, material builders depend on reflection data from shaders
+    material.set_run_after(shader)
+
+waflib.Task.task_factory('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${TGT} ${CONTENT_ROOT} ${DYNAMIC}',
                          color='PINK',
                          after='proto_gen_py',
                          before='c cxx',
@@ -86,8 +93,12 @@ def font_file(self, node):
     classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
     fontmap = self.create_task('fontmap')
 
-    fontmap.env['CLASSPATH'] = os.pathsep.join(classpath)
+    fontmap.env['CLASSPATH']    = os.pathsep.join(classpath)
     fontmap.env['CONTENT_ROOT'] = fontmap.generator.content_root
+    fontmap.env['DYNAMIC']      = 'false'
+    if hasattr(fontmap.generator, 'dynamic_fonts'):
+        fontmap.env['DYNAMIC']  = 'true' if node.name in fontmap.generator.dynamic_fonts else 'false'
+
     fontmap.set_inputs(node)
     obj_ext = '.fontc'
     out = node.change_ext(obj_ext)
