@@ -2,7 +2,6 @@
   (:require [camel-snake-kebab :as camel]
             [clojure.java.io :as io]
             [clojure.string :as string]
-            [dynamo.graph :as g]
             [editor.code.lang.java-properties :as java-properties]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
@@ -14,13 +13,14 @@
             [util.coll :as coll]
             [util.defonce :as defonce]
             [util.eduction :as e])
-  (:import [clojure.lang AFn IFn]
+  (:import [clojure.lang AFn Agent IFn IRef]
            [com.ibm.icu.text DateFormat ListFormatter ListFormatter$Type ListFormatter$Width MessageFormat]
            [com.ibm.icu.util ULocale]
            [java.nio.file StandardWatchEventKinds WatchEvent$Kind]
            [java.util Collection WeakHashMap]
            [javafx.application Platform]
-           [javafx.scene.control Labeled]
+           [javafx.beans.value WritableValue]
+           [javafx.scene.control Labeled Tab]
            [javafx.scene.text Text]
            [org.apache.commons.io FilenameUtils]))
 
@@ -30,7 +30,7 @@
 ;; Implementation note. Localization system uses an agent with different
 ;; executors used for different tasks:
 ;; - reload of localization is performed using a send-off (potentially blocking)
-;;   executor because it requires reading files from the file system
+;;   executor because it might require reading files from the file system
 ;; - refresh of listeners is performed using javafx executor because the
 ;;   listeners are expected to be JavaFX nodes.
 ;; Localization data shape:
@@ -42,7 +42,7 @@
 ;;    ;; - current locale selection, e.g. "en" or "en_US"; settable
 ;;    :locale "en"
 ;;    ;; - a map of localization bundles; settable
-;;    :bundles {bundle-key {resource-path-str fn:evaluation-context->java.io.Reader}}
+;;    :bundles {bundle-key {resource-path-str java.io.Reader-fn}}
 ;;    ;; - a WeakHashMap (objects are weakly referenced: no need to clean up listeners)
 ;;    :listeners {object MessagePattern}
 ;;
@@ -69,6 +69,12 @@
   Text
   (apply-localization [text str]
     (.setText text str))
+  Tab
+  (apply-localization [tab str]
+    (.setText tab str))
+  WritableValue
+  (apply-localization [tab str]
+    (.setValue tab str))
   Object
   (apply-localization [unknown _]
     (throw (IllegalArgumentException. (format "%s does not implement Localizable protocol" unknown))))
@@ -99,12 +105,11 @@
                                     #(ULocale/createCanonical (FilenameUtils/getBaseName (key %)))
                                     val))
         ;; messages
-        evaluation-context (g/make-auto-or-fake-evaluation-context)
         messages (->> u-locale-chain
                       (e/mapcat (fn [u-locale]
                                   (when-let [reader-fns (u-locale->reader-fns u-locale)]
                                     (->> reader-fns
-                                         (e/mapcat #(java-properties/parse (% evaluation-context)))
+                                         (e/mapcat #(java-properties/parse (%)))
                                          (e/map #(vector u-locale (key %) (val %)))))))
                       (reduce
                         (fn [acc [^ULocale u-locale k ^String v]]
@@ -126,10 +131,6 @@
                                                   v)))))))
                         (transient {}))
                       persistent!)]
-    (when-not (:fake evaluation-context)
-      (if (Platform/isFxApplicationThread)
-        (g/update-cache-from-evaluation-context! evaluation-context)
-        (ui/run-later (g/update-cache-from-evaluation-context! evaluation-context))))
     (assoc state
       :messages messages
       :date (DateFormat/getDateInstance DateFormat/SHORT u-locale)
@@ -141,7 +142,14 @@
                               (sort)
                               (vec)))))
 
-(defonce/type Localization [agent]
+(defonce/type Localization [^Agent agent]
+  IRef
+  (deref [_] @agent)
+  (setValidator [_ vf] (.setValidator agent vf))
+  (getValidator [_] (.getValidator agent))
+  (getWatches [_] (.getWatches agent))
+  (addWatch [_ key callback] (.addWatch agent key callback))
+  (removeWatch [_ key] (.removeWatch agent key))
   IFn
   (invoke [_ v]
     (if (message-pattern? v)
@@ -169,6 +177,11 @@
   (.put ^WeakHashMap (:listeners state) object message-pattern)
   state)
 
+(defn- impl-unlocalize! [state object]
+  (assert (Platform/isFxApplicationThread))
+  (.remove ^WeakHashMap (:listeners state) object)
+  state)
+
 (defn- refresh-listeners! [state]
   (assert (Platform/isFxApplicationThread))
   (.forEach ^WeakHashMap (:listeners state) #(apply-localization %1 (.localize ^MessagePattern %2 state)))
@@ -178,30 +191,48 @@
   "Get a list of available locales that have translations
 
   Args:
-    localization    the localization instance created with [[make]]"
-  [^Localization localization]
-  {:pre [(localization? localization)]}
-  (:available-locales @(.-agent localization)))
+    state    localization state (dereferenced localization)"
+  [state]
+  {:pre [(map? state)]}
+  (:available-locales state))
 
 (defn current-locale
   "Get current locale (a string)
 
   Args:
-    localization    the localization instance created with [[make]]"
-  [^Localization localization]
-  {:pre [(localization? localization)]}
-  (:locale @(.-agent localization)))
+    state    localization state (dereferenced localization)"
+  [state]
+  {:pre [(map? state)]}
+  (:locale state))
 
-(defn localize
-  "Produce a localized string from a pattern; same as invoking localization
+(defn defines-message-key?
+  "Checks if the message bundle contains a particular message key
 
   Args:
-    localization    the localization instance created with [[make]]
-    pattern         any value, but preferably a MessagePattern instance, created
-                    with e.g. [[message]] or [[list-and]]"
-  [localization pattern]
-  {:pre [(localization? localization)]}
-  (localization pattern))
+    state          localization state (dereferenced localization)
+    message-key    message key for [[message]] fn"
+  [state message-key]
+  {:pre [(map? state) (string? message-key)]}
+  (contains? (:messages state) message-key))
+
+(defn localize
+  "Localize the message pattern
+
+  Args:
+    state      localization state (dereferenced localization)
+    pattern    a MessagePattern instance, created with, e.g., [[message]]"
+  [state pattern]
+  {:pre [(map? state) (message-pattern? pattern)]}
+  (.localize ^MessagePattern pattern state))
+
+(defn- send-without-thread-binding-reset [executor ^Agent agent f & args]
+  ;; By default, send-via/send/send-off wrap sent functions using
+  ;; binding-conveyor-fn which resets the thread bindings on invocation. This
+  ;; means that previous binding stack will be discarded on that thread. The
+  ;; expectation seems to be that agent executors don't care about the binding
+  ;; stack. This may be okay for Clojure's default agent executors, but it's not
+  ;; good for the JavaFX application thread where we use bindings.
+  (.dispatch agent f args executor))
 
 (defn set-bundle!
   "Asynchronously update localization bundle
@@ -209,13 +240,13 @@
   Args:
     localization    the localization instance created with [[make]]
     bundle-key      bundle identifier, e.g. a keyword
-    bundle          the bundle map, a map from localization file paths to 1-arg
-                    functions that receive evaluation context and return a
-                    reader for java properties file"
+    bundle          the bundle map, a map from localization file paths to 0-arg
+                    functions that produce a java.io.Reader for java properties
+                    file"
   [^Localization localization bundle-key bundle]
   {:pre [(localization? localization)]}
   (send-off (.-agent localization) impl-set-bundle! bundle-key bundle)
-  (send-via ui/javafx-executor (.-agent localization) refresh-listeners!))
+  (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) refresh-listeners!))
 
 (defn set-locale!
   "Asynchronously det the active locale and notify listeners
@@ -229,7 +260,7 @@
   [^Localization localization locale]
   {:pre [(localization? localization) (string? locale)]}
   (send-off (.-agent localization) impl-set-locale! locale)
-  (send-via ui/javafx-executor (.-agent localization) refresh-listeners!))
+  (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) refresh-listeners!))
 
 (defn localize!
   "Localize an object that implements Localizable protocol
@@ -244,12 +275,30 @@
   Args:
     object          target object, will be stored in a weak reference
     localization    the localization instance created with [[make]]
-    pattern         a MessagePattern instance, created with e.g. [[message]]"
+    pattern         a MessagePattern instance, created with, e.g., [[message]]"
   ([object ^Localization localization pattern]
    {:pre [(some? object) (localization? localization) (message-pattern? pattern)]}
    (apply-localization object (localization pattern))
-   (send-via ui/javafx-executor (.-agent localization) impl-localize! object pattern)
+   (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) impl-localize! object pattern)
    object))
+
+(defn unlocalize!
+  "Stop localizing an object that was previously [[localize!]]-d
+
+  Generally, un-localizing is not necessary for objects that are no longer used
+  since they are stored in a weak reference in localization; use this function
+  only when you intend to keep the reference to the object, but no longer want
+  it be localized
+
+  Returns the passed object
+
+  Args:
+    object          target object that was previously [[localize!]]-d
+    localization    the localization instance created with [[make]]"
+  [object ^Localization localization]
+  {:pre [(some? object) (localization? localization)]}
+  (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) impl-unlocalize! object)
+  object)
 
 (defn make
   "Create a localization instance (agent) with initial bundle
@@ -258,8 +307,8 @@
     prefs                  preferences handle used to persist locale selection
     initial-bundle-key     identifier for the initial bundle (e.g. a keyword)
     initial-bundle         initial bundle map, a map from localization file
-                           paths to 1-arg functions that receive evaluation
-                           context and return a reader for java properties file
+                           paths to 0-arg functions that produce
+                           a java.io.Reader for java properties file
 
   Returns a localization system agent"
   [prefs initial-bundle-key initial-bundle]
@@ -287,8 +336,7 @@
                      ;; during reload. Converting path to a URL allows reading
                      ;; from the zip file later.
                      (let [url (.toURL (.toUri (fs/path path)))]
-                       (fn [_evaluation-context]
-                         (io/reader url)))))))]
+                       #(io/reader url))))))]
     (let [resource-dir "localization"
           localization (make prefs ::editor (get-bundle resource-dir))]
       (when (system/defold-dev?)
@@ -430,18 +478,13 @@
     @p))
 
 ;; TODO list
-;;  - in-project localization
+;;  - prefs dialog
 ;;  - editor.progress
 ;;  - loading project dialog
 ;;  - editor script localization
 
-(comment
-
-  ((message "bar" {"a" 1 "v" (or-list
-                               [(message "foo")
-                                "a"
-                                "b"])})
-   @(make (dev/prefs) ::editor {"/en.txt" (constantly (java.io.StringReader. "bar = {a} with v = {v}\nfoo = Ohh mammaaa"))}))
-
-  #__)
-
+;; 1. initial delivery
+;;    - language picker in prefs
+;; 2. prefs dialog
+;; 3. editor scripts and menus
+;; 4. missed things

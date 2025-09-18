@@ -745,8 +745,8 @@
      (ui/set-main-stage stage)
 
      ;; Init language selector
-     (.setAll (.getItems language-selector) ^Collection (localization/available-locales localization))
-     (.setValue language-selector (localization/current-locale localization))
+     (.setAll (.getItems language-selector) ^Collection (localization/available-locales @localization))
+     (.setValue language-selector (localization/current-locale @localization))
      (.addListener (.valueProperty language-selector) ^ChangeListener #(localization/set-locale! localization %3))
 
      ;; Install pending update check.

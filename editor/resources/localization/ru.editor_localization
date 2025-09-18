@@ -122,3 +122,74 @@ time.vague.a-day-ago = День назад
 
 # Common dialogs
 dialog.button.close = Закрыть
+
+# Editor panes
+
+pane.assets = Ресурсы
+pane.changed-files = Изменённые Файлы
+pane.outline = Структура
+pane.properties = Свойства
+pane.console = Консоль
+pane.curve-editor = Редактор Кривых
+pane.build-errors = Ошибки Сборки
+pane.search-results = Результаты Поиска
+
+# Console
+
+console.clear = Очистить
+console.filter = Фильтры
+console.filter.enable-filtering = Включить фильтрацию
+console.filter.add-filter = Новый фильтр ("текст" или "!убрать")
+console.search = Поиск
+
+# Changes view
+
+changes-view.diff = Сравнить
+changes-view.revert = Откатить
+
+# Prefs
+
+prefs.tab.general = Общие
+prefs.tab.code = Код
+prefs.tab.extensions = Расширения
+prefs.tab.tools = Инструменты
+prefs.tab.dev = Разработка
+prefs.tab.keymap = Клавиши
+
+# General tab
+prefs.workflow.load-external-changes-on-app-focus = Загружать изменения при фокусе
+prefs.bundle.open-output-directory = Открывать папку сборки
+prefs.build.open-html5-build = Открывать браузер после HTML5-сборки
+prefs.build.texture-compression = Сжатие текстур
+prefs.run.quit-on-escape = Escape закрывает игру
+prefs.asset-browser.track-active-tab = Фокусировать активный ресурс
+prefs.build.lint-code = Проверять код при сборке
+prefs.window.locale = Язык редактора
+prefs.run.engine-arguments = Аргументы движка
+prefs.run.engine-arguments.prompt = По одному аргументу на строку
+prefs.run.engine-arguments.description = Аргументы, которые будут переданы исполняемым файлам dmengine при сборке и запуске редактора.\nИспользуйте по одному аргументу на строку. Например:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan
+
+# Code tab
+prefs.code.custom-editor = Внешний редактор
+prefs.code.open-file = Открыть файл
+prefs.code.open-file-at-line = Открыть файл на строке
+prefs.code.font.name = Шрифт кода (требуется перезапуск)
+prefs.code.zoom-on-scroll = Масштаб колесом мышки
+prefs.code.hover = Подсказки при наведении
+prefs.code.hover.description = Показывать документацию кода при наведении
+prefs.code.auto-closing-parens = Авто-закрытие скобок
+
+# Extensions tab
+prefs.extensions.build-server = Сервер сборки
+prefs.extensions.build-server-username = Логин сервера
+prefs.extensions.build-server-password = Пароль сервера
+prefs.extensions.build-server-headers = HTTP-заголовки сервера
+
+# Tools
+prefs.tools.adb-path = Путь к ADB
+prefs.tools.adb-path.description = Путь к команде ADB, которая может использоваться для установки и запуска Android-приложения после сборки
+prefs.tools.ios-deploy-path = Путь к ios-deploy
+prefs.tools.ios-deploy-path.description = Путь к команде ios-deploy, которая может использоваться для установки и запуска iOS-приложения после сборки
+
+# Dev tab
+prefs.dev.custom-engine = Свой движок

@@ -10,7 +10,7 @@
 (defn- bundle [locale->content]
   (coll/pair-map-by
     #(str (key %) ".editor_localization")
-    #(fn [_] (StringReader. (val %)))
+    #(fn [] (StringReader. (val %)))
     locale->content))
 
 (defn- make
@@ -51,10 +51,10 @@
       (is (= "8/5/25" (localization (localization/date (LocalDate/of 2025 8 5))))))))
 
 (deftest available-locales-test
-  (is (= [] (localization/available-locales (make))))
-  (is (= ["en"] (localization/available-locales (make {"en" ""}))))
-  (is (= ["en" "sv"] (localization/available-locales (make {"sv" "" "en" ""}))))
-  (is (= ["en_US"] (localization/available-locales (make {"en-us" ""})))))
+  (is (= [] (localization/available-locales @(make))))
+  (is (= ["en"] (localization/available-locales @(make {"en" ""}))))
+  (is (= ["en" "sv"] (localization/available-locales @(make {"sv" "" "en" ""}))))
+  (is (= ["en_US"] (localization/available-locales @(make {"en-us" ""})))))
 
 (deftest listener-test
   (let [localization (make {"en" "hello = Hello, {name}."})

@@ -26,7 +26,6 @@
             [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
-            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]

@@ -33,6 +33,7 @@
             [editor.disk :as disk]
             [editor.disk-availability :as disk-availability]
             [editor.editor-extensions :as extensions]
+            [editor.editor-localization-bundle :as editor-localization-bundle]
             [editor.engine :as engine]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.engine.native-extensions :as native-extensions]
@@ -50,6 +51,7 @@
             [editor.icons :as icons]
             [editor.keymap :as keymap]
             [editor.live-update-settings :as live-update-settings]
+            [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
             [editor.menu-items :as menu-items]
@@ -605,8 +607,8 @@
       (set-pane-visible! scene pane-kw false))))
 
 (handler/defhandler :app.preferences :global
-  (run [workspace prefs app-view]
-    (prefs-dialog/open! prefs)
+  (run [workspace prefs app-view localization]
+    (prefs-dialog/open! prefs localization)
     (workspace/update-build-settings! workspace prefs)
     (let [new-keymap (keymap/from-prefs prefs)]
       (when-not (= new-keymap (g/raw-property-value (g/now) app-view :keymap))
@@ -2009,7 +2011,7 @@ If you do not specifically require different script states, consider changing th
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
         (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))
 
-(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs]
+(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
@@ -2033,12 +2035,20 @@ If you do not specifically require different script states, consider changing th
 
       (ui/register-menubar app-scene menu-bar ::menubar)
 
-      (let [refresh-timer (ui/->timer
+      (let [prev-localization-bundle (volatile! nil)
+            refresh-timer (ui/->timer
                             "refresh-app-view"
                             (fn [_ elapsed dt]
                               (when-not (ui/ui-disabled?)
                                 (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)]
                                   (when refresh-requested?
+                                    (g/with-auto-evaluation-context evaluation-context
+                                      (let [localization-bundle (-> project
+                                                                    (project/editor-localization-bundle evaluation-context)
+                                                                    (editor-localization-bundle/bundle evaluation-context))]
+                                        (when-not (identical? @prev-localization-bundle localization-bundle)
+                                          (vreset! prev-localization-bundle localization-bundle)
+                                          (localization/set-bundle! localization ::project localization-bundle))))
                                     (ui/user-data! app-scene ::ui/refresh-requested? false)
                                     (refresh-menus-and-toolbars! app-view app-scene)
                                     (refresh-views! app-view))

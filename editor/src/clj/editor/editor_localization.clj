@@ -17,21 +17,25 @@
             [editor.code.data :as data]
             [editor.code.lang.java-properties :as java-properties]
             [editor.code.resource :as r]
+            [editor.defold-project :as project]
             [editor.resource :as resource]
             [util.coll :as coll]))
 
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
+
 (g/defnode EditorLocalizationNode
   (inherits r/CodeEditorResourceNode)
-  (output locale+k->v g/Any :cached
+  (output resource-path+reader-fn g/Any :cached
           (g/fnk [resource lines]
-            ;; todo probably wrong, we probably want to produce resource path + fn that takes
-            ;;      evaluation context and returns a reader, and parse it in another place...
-            ;;      or maybe not? maybe take evaluation context and return parsed data... but
-            ;;      the parser should be used both here and in editor.localization! move the
-            ;;      parser to java-properties ns?
             (coll/pair
-              (resource/base-name resource)
-              (java-properties/parse (data/lines-reader lines))))))
+              (resource/proj-path resource)
+              #(data/lines-reader lines)))))
+
+(defn- additional-load-fn [project self _resource]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [bundle (project/editor-localization-bundle project evaluation-context)]
+      (g/connect self :resource-path+reader-fn bundle :resource-path+reader-fns))))
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type
@@ -41,5 +45,6 @@
     :label "Editor Localization"
     :icon "icons/32/Icons_05-Project-info.png"
     :language "properties"
+    :additional-load-fn additional-load-fn
     :view-types [:code :default]
     :view-opts {:code {:grammar java-properties/grammar}}))
