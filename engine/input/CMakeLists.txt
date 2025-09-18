@@ -72,6 +72,8 @@ if(BUILD_TESTS)
         target_link_libraries(test_input PRIVATE Threads::Threads dl)
     endif()
 
+    defold_target_link_graphics(test_input "${TARGET_PLATFORM}" PRIVATE)
+    defold_target_link_platform(test_input "${TARGET_PLATFORM}" PRIVATE)
 
     # Group target to build all executables together
     add_custom_target(build_test

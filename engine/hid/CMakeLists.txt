@@ -84,7 +84,7 @@ if(BUILD_TESTS)
         set(_DM_USE_OPENGLES ON)
 
     elseif (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
-        target_link_libraries(test_app_hid PRIVATE "-framework IOKit" "-framework CoreVideo" "-framework QuartzCore")
+        target_link_libraries(test_app_hid PRIVATE "-framework IOKit")
 
     elseif (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
         target_link_libraries(test_app_hid PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo")
