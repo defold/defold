@@ -522,7 +522,7 @@ namespace dmGraphics
     void            FlushResourcesToDestroy(VulkanContext* context, ResourcesToDestroyList* resource_list);
     void            ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
     VkCommandBuffer BeginSingleTimeCommands(VkDevice device, VkCommandPool cmd_pool);
-    VkResult        SubtmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkCommandPool cmd_pool, VkFence* fence_out);
+    VkResult        SubtmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkFence* fence_out);
 
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the

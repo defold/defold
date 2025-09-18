@@ -522,7 +522,7 @@ namespace dmGraphics
         TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
         VkFence fence;
-        VkResult res = SubtmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, vk_command_pool, &fence);
+        VkResult res = SubtmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence);
 
         // Wait for the copy command to finish
         vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
@@ -641,7 +641,7 @@ namespace dmGraphics
         return cmd_buffer;
     }
 
-    VkResult SubtmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkCommandPool cmd_pool, VkFence* fence_out)
+    VkResult SubtmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkFence* fence_out)
     {
         DM_PROFILE(__FUNCTION__);
 
@@ -759,7 +759,6 @@ namespace dmGraphics
 
         bufferOut->m_MemorySize = (size_t) vk_buffer_memory_req.size;
         bufferOut->m_Destroyed  = 0;
-        // bufferOut->m_Handle.m_LastUsedFrame = 0xff; // not used
 
         return VK_SUCCESS;
 bail:

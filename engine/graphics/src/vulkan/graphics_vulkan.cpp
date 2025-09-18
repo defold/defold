@@ -712,9 +712,6 @@ namespace dmGraphics
         CHECK_VK_ERROR(res);
         context->m_CurrentRenderTarget = context->m_MainRenderTarget;
 
-        //context->m_MainCommandBuffers.SetCapacity(num_swap_chain_images);
-        //context->m_MainCommandBuffers.SetSize(num_swap_chain_images);
-
         res = CreateCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, DM_ARRAY_SIZE(context->m_MainCommandBuffers), context->m_MainCommandBuffers);
         CHECK_VK_ERROR(res);
 
@@ -739,13 +736,6 @@ namespace dmGraphics
         //         grow, this is just a starting point.
         const uint16_t descriptor_count_per_pool = 512;
         const uint32_t buffer_size               = 256 * descriptor_count_per_pool;
-
-        /*
-        context->m_MainScratchBuffers.SetCapacity(num_swap_chain_images);
-        context->m_MainScratchBuffers.SetSize(num_swap_chain_images);
-        context->m_MainDescriptorAllocators.SetCapacity(num_swap_chain_images);
-        context->m_MainDescriptorAllocators.SetSize(num_swap_chain_images);
-        */
 
         res = CreateMainScratchBuffers(context->m_PhysicalDevice.m_Device, vk_device, DM_MAX_FRAMES_IN_FLIGHT, buffer_size, descriptor_count_per_pool, context->m_MainDescriptorAllocators, context->m_MainScratchBuffers);
         CHECK_VK_ERROR(res);
@@ -2150,7 +2140,7 @@ bail:
     {
         VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture_handle);
 
-        if (!texture)
+        if (texture == 0x0)
         {
             texture = GetDefaultTexture(context, binding->m_Type.m_ShaderType);
         }
@@ -3969,7 +3959,6 @@ bail:
             context->m_LogicalDevice.m_Device,
             context->m_LogicalDevice.m_GraphicsQueue,
             vk_command_buffer,
-            context->m_LogicalDevice.m_CommandPool,
             &submit_fence);
         CHECK_VK_ERROR(res);
 
@@ -4298,7 +4287,7 @@ bail:
             TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
 
             VkFence fence;
-            VkResult res = SubtmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, cmd_buffer, context->m_LogicalDevice.m_CommandPoolWorker, &fence);
+            VkResult res = SubtmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, cmd_buffer, &fence);
             CHECK_VK_ERROR(res);
 
             if (!is_memoryless)
@@ -4674,14 +4663,8 @@ bail:
             1, &vk_copy_region);
 
         VkFence fence;
-        VkFenceCreateInfo fence_info = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
-        vkCreateFence(context->m_LogicalDevice.m_Device, &fence_info, NULL, &fence);
-
-        VkSubmitInfo submit_info = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
-        submit_info.commandBufferCount = 1;
-        submit_info.pCommandBuffers = &vk_command_buffer;
-
-        vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submit_info, fence);
+        res = SubtmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, &fence);
+        CHECK_VK_ERROR(res);
 
         // Wait for the copy command to finish
         vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
