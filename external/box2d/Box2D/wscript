@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+# wscript
 
 import os, sys, re, run, shutil
 from waflib import Build
@@ -6,95 +7,112 @@ from waflib import Build
 VERSION = '3.1.0'
 APPNAME = 'box2d'
 
+
 def configure(conf):
-    pass
+    print("Configuring Box2D...")
+    plat = conf.env.PLATFORM
+    if not plat:
+        conf.fatal('Pass --platform=...')
+
+    conf.env.CFLAGS_SIMD = []
+    conf.env.CXXFLAGS_SIMD = []
+    conf.env.DEFINES_NOSIMD = ['BOX2D_DISABLE_SIMD']
+
+    if plat in ('win32', 'x86_64-win32'):
+        conf.env.STLIB_ST = 'lib%s.lib'
+        conf.env.cstlib_PATTERN = 'lib%s.lib'
+        conf.env.cxxstlib_PATTERN = 'lib%s.lib'
+        conf.env.append_unique('CFLAGS', ['/std:c11'])
+
+    if plat == 'armv7-android':
+        neon_flags = ['-mfpu=neon']
+        conf.env.CFLAGS_SIMD += neon_flags
+        conf.env.CXXFLAGS_SIMD += neon_flags
+
+    if plat in ('wasm-web', 'wasm_pthread-web'):
+        simd_flags = ['-matomics', '-mbulk-memory', '-msimd128', '-msse2']
+        conf.env.CFLAGS_SIMD += simd_flags
+        conf.env.CXXFLAGS_SIMD += simd_flags
+
+    elif plat == 'js-web':
+        pass
+
 
 def build(bld):
-    box2d = bld.stlib(features = 'c',
-                      includes = '.. include',
-                      source = bld.path.ant_glob('**/*.c'),
-                      target = 'box2d')
+    srcs = bld.path.ant_glob('**/*.c')
+    incs = '.. include'
 
-    name = "%s-%s" % (APPNAME, VERSION)
-    packagedir = '.'
+    name = f"{APPNAME}-{VERSION}"
+    plat = bld.env.PLATFORM
+    install_dir = '${PREFIX}/%s/lib/%s/' % (name, plat)
 
-    if bld.env.PLATFORM in ('win32', 'x86_64-win32'):
-        bld.env.STLIB_ST         = 'lib%s.lib'
-        bld.env.cstlib_PATTERN   = 'lib%s.lib'
-        bld.env.cxxstlib_PATTERN = 'lib%s.lib'
+    if plat != 'js-web':
+        bld.stlib(
+            features='c',
+            includes=incs,
+            source=srcs,
+            target='box2d',
+            use='SIMD'
+        )
+        bld.install_files(install_dir, bld.env.cxxstlib_PATTERN % 'box2d')
 
-        box2d.env.append_unique('CFLAGS', '/std:c11') # for _Static_assert
+    bld.stlib(
+        features='c',
+        includes=incs,
+        source=srcs,
+        target='box2d_nosimd',
+        use='NOSIMD'
+    )
+    bld.install_files(install_dir, bld.env.cxxstlib_PATTERN % 'box2d_nosimd')
 
-    bld.install_files('${PREFIX}/%s/lib/%s/' % (name, bld.env.PLATFORM), bld.env.cxxstlib_PATTERN % 'box2d')
-    bld.install_files('${PREFIX}/%s' % (name),
-                        bld.path.ant_glob('include/**/*.h'),
-                        relative_base=bld.path.find_dir('.'),
-                        relative_trick=True)
-    bld.install_files('${PREFIX}/%s/include/box2d' % (name),
-                        bld.path.ant_glob('src/**/*.h'),
-                        relative_base=bld.path.find_dir('.'),
-                        relative_trick=True)
+    if plat == 'js-web':
+        simd_name = bld.env.cxxstlib_PATTERN % 'box2d'
+        nosimd_name = bld.env.cxxstlib_PATTERN % 'box2d_nosimd'
+        nosimd_node = bld.path.get_bld().make_node(nosimd_name)
+        bld.install_as(install_dir + simd_name, nosimd_node)
+
+    bld.install_files(
+        '${PREFIX}/%s' % (name),
+        bld.path.ant_glob('include/**/*.h'),
+        relative_base=bld.path.find_dir('.'),
+        relative_trick=True
+    )
+    bld.install_files(
+        '${PREFIX}/%s/include/box2d' % (name),
+        bld.path.ant_glob('src/**/*.h'),
+        relative_base=bld.path.find_dir('.'),
+        relative_trick=True
+    )
 
     if isinstance(bld, Build.InstallContext):
-
-        bld.add_group() # make sure the previous install step is done before we create the archive
+        bld.add_group()
 
         output_dir = '%s/%s' % (bld.env.PREFIX, name)
-
         try:
-            # Delete the old build result first (this is a bit smelly)
             shutil.rmtree(output_dir)
-        except Exception as e:
+        except Exception:
             pass
 
-        target_tar = '%s-%s.tar.gz' % (name, bld.env.PLATFORM)
-
-        pkg = bld(rule=create_package,
-                  cwd=output_dir,
-                  target=target_tar,
-                  always=True)
-
-        target_tar = '%s-common.tar.gz' % name
-
-        pkg = bld(rule=create_package,
-                  cwd=output_dir,
-                  target=target_tar,
-                  always=True)
+        bld(rule=create_package, cwd=output_dir,
+            target=f'{name}-{plat}.tar.gz', always=True)
+        bld(rule=create_package, cwd=output_dir,
+            target=f'{name}-common.tar.gz', always=True)
 
 
-## NOTE!
-## This seems a bit hacky, and it sure is. We leave a folder behind in the packages folder now,
-## so when using this to build external libraries, make sure to NOT commit that folder. We can
-## potentially solve it by running some sort of cleanup task after the other package tasks perhaps.
-## I tried with bld.add_groups() after the package tasks, but it was not working.
 def create_package(self):
     target = self.outputs[0].abspath()
     name = self.outputs[0].name
 
-    dirs = []
-    dirs_search = ['lib', 'sdk', 'share']
+    dirs_search = ['include'] if '-common' in name else ['lib', 'sdk', 'share']
+    dirs = [x for x in dirs_search if os.path.exists(os.path.join(self.cwd, x))]
 
-    # Create the common package with includes
-    if target.find("-common") > 0:
-        dirs_search = ['include']
-
-    print("SELF.CWD", self.cwd)
-    for x in dirs_search:
-        try_path = os.path.join(self.cwd, x)
-        if os.path.exists(try_path):
-            dirs.append(x)
-
-    args = ['tar', 'zcvf', os.path.normpath(target)] + dirs
-
-    run.command(args, cwd=self.cwd)
+    run.command(['tar', 'zcvf', os.path.normpath(target)] + dirs, cwd=self.cwd)
     print("Wrote", target)
 
-    # copy to the defold package path
-    source = target
-    target = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'packages', name))
-    shutil.copy2(source, target)
-    print("Installed to", target)
+    dest = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'packages', name))
+    shutil.copy2(target, dest)
+    print("Installed to", dest)
+
 
 def package(package):
     pass
-
