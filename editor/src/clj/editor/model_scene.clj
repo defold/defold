@@ -24,6 +24,7 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.graphics :as graphics]
+            [editor.graphics.types :as graphics.types]
             [editor.math :as math]
             [editor.model-loader :as model-loader]
             [editor.render :as render]
@@ -36,6 +37,7 @@
             [editor.workspace :as workspace]
             [internal.graph.error-values :as error-values]
             [util.coll :as coll]
+            [util.eduction :as e]
             [util.num :as num])
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
@@ -563,10 +565,13 @@
 
         _ (assert (map? shader-location->element-type)) ; TODO(instancing)
 
-        make-render-arg-binding
-        (fn make-render-arg-binding [render-arg-key ^long shader-location]
-          (let [element-type (shader-location->element-type shader-location)]
-            (attribute/make-render-arg-binding render-arg-key element-type shader-location)))
+        make-render-arg-bindings
+        (fn make-render-arg-bindings [render-arg-key shader-locations]
+          (e/map
+            (fn [^long shader-location]
+              (let [element-type (shader-location->element-type shader-location)]
+                (attribute/make-render-arg-binding render-arg-key element-type shader-location)))
+            shader-locations))
 
         attribute-bindings
         (->> semantic-type->shader-locations
@@ -574,19 +579,23 @@
                (fn [[semantic-type shader-locations]]
                  (case semantic-type
                    :semantic-type-world-matrix
-                   (map #(make-render-arg-binding :world ^long %)
-                        shader-locations)
+                   (make-render-arg-bindings :world shader-locations)
 
                    :semantic-type-normal-matrix
-                   (map #(make-render-arg-binding :normal ^long %)
-                        shader-locations)
+                   (make-render-arg-bindings :normal shader-locations)
 
                    ;; else
                    (let [attribute-buffers (semantic-type->attribute-buffers semantic-type)]
-                     (map (fn [attribute-buffer ^long shader-location]
-                            (attribute/make-buffer-binding attribute-buffer shader-location))
-                          attribute-buffers
-                          shader-locations)))))
+                     (e/map-indexed
+                       (fn [^long index ^long shader-location]
+                         ;; Use attribute buffers from the mesh when we can,
+                         ;; otherwise fall back on default values.
+                         (if-some [attribute-buffer (get attribute-buffers index)]
+                           (attribute/make-buffer-binding attribute-buffer shader-location)
+                           (let [element-type (shader-location->element-type shader-location)
+                                 value-array (graphics.types/default-attribute-value-array semantic-type element-type)]
+                             (attribute/make-value-binding value-array element-type shader-location))))
+                       shader-locations)))))
              (sort-by :base-location)
              (vec))
 

@@ -37,37 +37,6 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(def ^:private scalar-zero (vector-of :double 0.0))
-(def ^:private scalar-one (vector-of :double 1.0))
-
-(def ^:private vec2-zero (vector-of :double 0.0 0.0))
-(def ^:private vec2-one (vector-of :double 1.0 1.0))
-
-(def ^:private vec3-zero (vector-of :double 0.0 0.0 0.0))
-(def ^:private vec3-one (vector-of :double 1.0 1.0 1.0))
-
-(def ^:private vec4-zero (vector-of :double 0.0 0.0 0.0 0.0))
-(def ^:private vec4-one (vector-of :double 1.0 1.0 1.0 1.0))
-(def ^:private vec4-xyz-zero-w-one (vector-of :double 0.0 0.0 0.0 1.0))
-
-(def ^:private mat2-identity
-  (vector-of :double
-    1.0 0.0
-    0.0 1.0))
-
-(def ^:private mat3-identity
-  (vector-of :double
-    1.0 0.0 0.0
-    0.0 1.0 0.0
-    0.0 0.0 1.0))
-
-(def ^:private mat4-identity
-  (vector-of :double
-    1.0 0.0 0.0 0.0
-    0.0 1.0 0.0 0.0
-    0.0 0.0 1.0 0.0
-    0.0 0.0 0.0 1.0))
-
 (def default-attribute-data-type (protobuf/default Graphics$VertexAttribute :data-type))
 
 (def default-attribute-semantic-type (protobuf/default Graphics$VertexAttribute :semantic-type))
@@ -102,8 +71,6 @@
     :double-values
     (attribute-data-type->attribute-value-keyword attribute-data-type)))
 
-(declare default-attribute-doubles)
-
 (defn attribute->doubles [attribute]
   (let [data-type (:data-type attribute default-attribute-data-type)
         source-values (if (or (:normalize attribute)
@@ -111,7 +78,7 @@
                         (:v (:double-values attribute))
                         (:v (:long-values attribute)))]
     (if (coll/empty? source-values)
-      (default-attribute-doubles
+      (types/default-attribute-doubles
         (:semantic-type attribute default-attribute-semantic-type)
         (:vector-type attribute default-attribute-vector-type))
       (into (vector-of :double)
@@ -232,35 +199,15 @@
     :float-mat3 :vector-type-mat3
     :float-mat4 :vector-type-mat4))
 
-(defn default-attribute-doubles [semantic-type vector-type]
-  (case vector-type
-    :vector-type-scalar (case semantic-type
-                          :semantic-type-color scalar-one
-                          scalar-zero)
-    :vector-type-vec2 (case semantic-type
-                        :semantic-type-color vec2-one
-                        vec2-zero)
-    :vector-type-vec3 (case semantic-type
-                        :semantic-type-color vec3-one
-                        vec3-zero)
-    :vector-type-vec4 (case semantic-type
-                        :semantic-type-position vec4-xyz-zero-w-one
-                        :semantic-type-color vec4-one
-                        :semantic-type-tangent vec4-xyz-zero-w-one
-                        vec4-zero)
-    :vector-type-mat2 mat2-identity
-    :vector-type-mat3 mat3-identity
-    :vector-type-mat4 mat4-identity))
-
 (defn- semantic-type->w [semantic-type]
-  (nth (default-attribute-doubles semantic-type :vector-type-vec4) 3))
+  (nth (types/default-attribute-doubles semantic-type :vector-type-vec4) 3))
 
 (defn convert-double-values [double-values semantic-type old-vector-type new-vector-type]
   {:pre [(types/semantic-type? semantic-type)
          (or (nil? old-vector-type) (types/vector-type? old-vector-type))
          (types/vector-type? new-vector-type)]}
   (if (coll/empty? double-values)
-    (default-attribute-doubles semantic-type new-vector-type)
+    (types/default-attribute-doubles semantic-type new-vector-type)
     (case (or old-vector-type
               (guess-old-vector-type (count double-values) new-vector-type))
 
@@ -448,7 +395,7 @@
     attribute-bytes))
 
 (defn- default-attribute-bytes-raw [semantic-type attribute-data-type vector-type normalize]
-  (let [default-values (default-attribute-doubles semantic-type vector-type)]
+  (let [default-values (types/default-attribute-doubles semantic-type vector-type)]
     (make-attribute-bytes attribute-data-type normalize default-values)))
 
 (def default-attribute-bytes (memoize default-attribute-bytes-raw))
@@ -595,7 +542,7 @@
     (into {}
           (map (fn [{:keys [data-type name normalize semantic-type vector-type] :as attribute}]
                  (let [attribute-key (types/attribute-name-key name)
-                       values (default-attribute-doubles semantic-type vector-type)
+                       values (types/default-attribute-doubles semantic-type vector-type)
                        bytes (default-attribute-bytes semantic-type data-type vector-type normalize)
                        attribute-info (assoc attribute
                                         :name-key attribute-key

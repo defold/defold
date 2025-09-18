@@ -285,7 +285,7 @@
    ^int base-location]
 
   GlBind
-  (bind [_this gl render-args]
+  (bind [_this gl _render-args]
     (gl.buffer/assign-attribute! attribute-buffer-lifecycle gl base-location))
 
   (unbind [_this gl _render-args]

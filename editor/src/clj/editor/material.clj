@@ -295,7 +295,7 @@
    {:path [:values]
     :label "Value"
     :type (vector-type->form-field-type graphics/default-attribute-vector-type)
-    :default (graphics/default-attribute-doubles graphics/default-attribute-semantic-type graphics/default-attribute-vector-type)}
+    :default (graphics.types/default-attribute-doubles graphics/default-attribute-semantic-type graphics/default-attribute-vector-type)}
    {:path [:normalize]
     :label "Normalize"
     :type :boolean
@@ -343,7 +343,7 @@
                 (let [semantic-type (:semantic-type selected-attribute graphics/default-attribute-semantic-type)
                       vector-type (:vector-type selected-attribute graphics/default-attribute-vector-type)
                       type (vector-type->form-field-type vector-type)
-                      default (graphics/default-attribute-doubles semantic-type vector-type)]
+                      default (graphics.types/default-attribute-doubles semantic-type vector-type)]
                   {:path [:values]
                    :label "Value"
                    :type type
