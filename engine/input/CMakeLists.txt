@@ -41,7 +41,6 @@ endif()
 
 if(BUILD_TESTS)
     add_executable(test_input "${INPUT_SRC_DIR}/test/test_input.cpp")
-    set_target_properties(test_input PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
     target_include_directories(input PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
 
@@ -49,9 +48,9 @@ if(BUILD_TESTS)
         dlib
         mbedtls
         ddf
-        platform
+        platform_null
         profile_null
-        hid
+        hid_null
         input
         testmain
     )
@@ -79,14 +78,8 @@ if(BUILD_TESTS)
         target_link_libraries(test_input PRIVATE Threads::Threads dl)
     endif()
 
-    defold_target_link_graphics(test_input "${TARGET_PLATFORM}" PRIVATE)
-    defold_target_link_platform(test_input "${TARGET_PLATFORM}" PRIVATE)
-
-    # Group target to build all executables together
-    add_custom_target(build_test
-        DEPENDS test_input
-        COMMENT "Building tests"
-    )
+    # Register into global build_tests and run_tests
+    defold_register_test_target(test_input)
 endif()
 
 # ===================== Install =====================

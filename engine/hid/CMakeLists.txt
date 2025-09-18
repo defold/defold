@@ -60,6 +60,9 @@ if(BUILD_TESTS)
         target_link_libraries(test_hid PRIVATE glfw3 Threads::Threads dl)
     endif()
 
+    # Register into global build_tests and run_tests
+    defold_register_test_target(test_hid)
+
 endif()
 
 # Optional interactive test app (creates a tiny window and logs input)
@@ -106,26 +109,8 @@ if(BUILD_TESTS)
     defold_target_link_graphics(test_app_hid "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_platform(test_app_hid "${TARGET_PLATFORM}" PRIVATE)
 
-endif()
-
-if(BUILD_TESTS)
-
-    # Group target to build all executables together
-    add_custom_target(build_test
-        DEPENDS test_hid test_app_hid
-        COMMENT "Building tests"
-    )
-    set_target_properties(build_test PROPERTIES EXCLUDE_FROM_ALL TRUE)
-
-    # Convenience target to run tests with stdout passthrough
-    # This runs the test binaries directly so all output is visible in the console.
-    add_custom_target(test
-        COMMAND $<TARGET_FILE:test_hid>
-        DEPENDS build_test
-        USES_TERMINAL
-        COMMENT "Running unit tests"
-    )
-    set_target_properties(test PROPERTIES EXCLUDE_FROM_ALL TRUE)
+    # Register into global build_tests and run_tests
+    defold_register_test_target(test_app_hid FALSE)
 
 endif()
 

@@ -521,6 +521,92 @@ class Configuration(object):
 
         self._create_common_dirs()
 
+    def make_solution(self, target_platform=None, build_dir=None):
+        """
+        Generate an IDE solution from the top-level CMakeLists.txt for the given target platform.
+
+        - macOS/iOS: Xcode
+        - Windows: Visual Studio 2022
+        - Android: Prints guidance to open CMakeLists.txt in Android Studio
+        - Other platforms: falls back to Ninja/Unix Makefiles by default
+        """
+        tp = target_platform or self.target_platform
+        if not tp:
+            raise RuntimeError('make_solution: target_platform must be specified')
+
+        # Android guidance
+        if 'android' in tp:
+            self._log('Android: Open the top-level CMakeLists.txt directly in Android Studio to create a project.')
+            return
+
+        # Choose generator
+        generator = None
+        arch_args = []
+
+        if tp.endswith('-macos') or tp.endswith('-ios'):
+            generator = 'Xcode'
+        elif 'win32' in tp:
+            generator = 'Visual Studio 17 2022'
+            # Map architecture
+            if tp == 'x86_64-win32':
+                arch_args = ['-A', 'x64']
+            elif tp == 'win32':
+                arch_args = ['-A', 'Win32']
+
+        # Build directory per target platform
+        if not build_dir:
+            build_dir = os.path.join(self.defold_root, f'cmake-build-{tp}')
+        self._mkdirs(build_dir)
+
+        cmake_cmd = ['cmake', '-S', self.defold_root, '-B', build_dir, f'-DTARGET_PLATFORM={tp}']
+        if generator:
+            cmake_cmd += ['-G', generator]
+        if arch_args:
+            cmake_cmd += arch_args
+
+        # Generate solution
+        self._log('Generating solution with command: %s' % ' '.join(cmake_cmd))
+        run.env_command(self._form_env(), cmake_cmd)
+
+        # Report absolute path to the generated solution files
+        old_project_name = 'defold_components'
+        solution_build_dir = os.path.abspath(build_dir)
+
+        target_name = f"Defold-{tp}"
+        final_path = solution_build_dir
+
+        if generator == 'Xcode':
+            # Default name from CMake project()
+            old_path = os.path.join(solution_build_dir, f"{old_project_name}.xcodeproj")
+            new_path = os.path.join(solution_build_dir, f"{target_name}.xcodeproj")
+            if os.path.exists(old_path):
+                try:
+                    if os.path.exists(new_path):
+                        shutil.rmtree(new_path)
+                    shutil.move(old_path, new_path)
+                    final_path = new_path
+                except Exception as e:
+                    self._log(f"Warning: Failed to rename Xcode project: {e}. Keeping default name: {old_path}")
+                    final_path = old_path
+            else:
+                final_path = new_path
+        elif generator and generator.startswith('Visual Studio'):
+            old_path = os.path.join(solution_build_dir, f"{old_project_name}.sln")
+            new_path = os.path.join(solution_build_dir, f"{target_name}.sln")
+            if os.path.exists(old_path):
+                try:
+                    if os.path.exists(new_path):
+                        os.remove(new_path)
+                    shutil.move(old_path, new_path)
+                    final_path = new_path
+                except Exception as e:
+                    self._log(f"Warning: Failed to rename solution: {e}. Keeping default name: {old_path}")
+                    final_path = old_path
+            else:
+                final_path = new_path
+
+        self._log(f'Solution generated: {final_path}')
+
     def __del__(self):
         if len(self.futures) > 0:
             print('ERROR: Pending futures (%d)' % len(self.futures))
@@ -1397,7 +1483,8 @@ class Configuration(object):
         libdir = join(directory, lib)
         builddir = join(libdir, 'build')
 
-        supports_tests = self._can_run_tests()
+        build_tests = '--skip-build-tests' not in self.waf_options
+        supports_tests = build_tests and self._can_run_tests()
 
         if not self.incremental:
             self._remove_tree(builddir) # distclean
@@ -1410,13 +1497,11 @@ class Configuration(object):
 
         is_verbose = ('-v' in self.waf_options) or ('--verbose' in self.waf_options)
         verbose = '-v' if is_verbose else ''
-        test = '' if (self.skip_tests or not supports_tests) else 'test'
-        build_test = 'build_test'
-        if '--skip-build-tests' in self.waf_options:
-            build_test = ''
+        test = '' if (self.skip_tests or not supports_tests) else 'run_tests'
+        build_test = 'build_tests' if build_tests else ''
         install = 'install'
 
-        cmake_configure_args = f"cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE={build_type} -DTARGET_PLATFORM={platform}".split()
+        cmake_configure_args = f"cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE={build_type} -DTARGET_PLATFORM={platform} -DBUILD_TESTS=ON".split()
         run.env_command(self._form_env(), cmake_configure_args, cwd = libdir)
 
         ninja_build_args = f"ninja all {build_test} {test} {install} {verbose}".split()

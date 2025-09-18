@@ -15,6 +15,54 @@ endif()
 
 message(STATUS "TARGET_PLATFORM: ${TARGET_PLATFORM}")
 
+# Global empty target to aggregate test build dependencies across subprojects
+if(NOT TARGET build_tests)
+  add_custom_target(build_tests)
+endif()
+
+# Function to register a test target: adds it as a dependency of build_tests
+# and records it in a global list so run_tests can invoke it.
+function(defold_register_test_target target_name)
+  if(NOT TARGET ${target_name})
+    message(FATAL_ERROR "defold_register_test_target: target '${target_name}' does not exist")
+  endif()
+  # Build aggregation
+  add_dependencies(build_tests ${target_name})
+
+  # Should this test be runnable via run_tests? default: ON
+  set(_RUN_TEST ON)
+  if(ARGC GREATER 1)
+    set(_RUN_TEST "${ARGV1}")
+  endif()
+  string(TOUPPER "${_RUN_TEST}" _RUN_TEST_UPPER)
+  if(_RUN_TEST_UPPER STREQUAL "0" OR _RUN_TEST_UPPER STREQUAL "OFF" OR _RUN_TEST_UPPER STREQUAL "FALSE" OR _RUN_TEST_UPPER STREQUAL "NO")
+    set(_RUN_TEST FALSE)
+  else()
+    set(_RUN_TEST TRUE)
+  endif()
+
+  if(_RUN_TEST)
+    # Create a per-test run target
+    set(_run_target "run_${target_name}")
+    if(NOT TARGET ${_run_target})
+      add_custom_target(${_run_target}
+        COMMAND $<TARGET_FILE:${target_name}>
+        DEPENDS ${target_name}
+        USES_TERMINAL
+        COMMENT "Running ${target_name}")
+    endif()
+
+    # Ensure run_tests exists and depends on the per-test run target
+    if(NOT TARGET run_tests)
+      add_custom_target(run_tests)
+    endif()
+    add_dependencies(run_tests ${_run_target})
+  endif()
+endfunction()
+
+# Global target to run all registered tests
+# run_tests is created via defold_register_test_target when tests register
+
 #**************************************************************************
 # Common compile settings
 set(CMAKE_CXX_STANDARD 11)
