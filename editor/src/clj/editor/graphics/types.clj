@@ -83,278 +83,22 @@
     :vector-type-mat3 mat3-doubles-identity
     :vector-type-mat4 mat4-doubles-identity))
 
-(defonce ^:private vec1-byte-array-zero (byte-array vec1-doubles-zero))
-(defonce ^:private vec1-byte-array-one (byte-array vec1-doubles-one))
-(defonce ^:private vec1-byte-array-normalized-one (byte-array (mapv num/normalized->byte vec1-doubles-one)))
-(defonce ^:private vec1-byte-array-normalized-unsigned-one (byte-array (mapv num/normalized->ubyte vec1-doubles-one)))
+(defn- default-attribute-value-array-raw [semantic-type ^ElementType element-type]
+  (let [[array-fn normalize-fn]
+        (case (.-data-type element-type)
+          :type-byte [byte-array num/normalized->byte]
+          :type-unsigned-byte [byte-array num/normalized->ubyte]
+          :type-short [short-array num/normalized->short]
+          :type-unsigned-short [short-array num/normalized->ushort]
+          :type-int [int-array num/normalized->int]
+          :type-unsigned-int [int-array num/normalized->uint]
+          :type-float [float-array identity])
 
-(defonce ^:private vec2-byte-array-zero (byte-array vec2-doubles-zero))
-(defonce ^:private vec2-byte-array-one (byte-array vec2-doubles-one))
-(defonce ^:private vec2-byte-array-normalized-one (byte-array (mapv num/normalized->byte vec2-doubles-one)))
-(defonce ^:private vec2-byte-array-normalized-unsigned-one (byte-array (mapv num/normalized->ubyte vec2-doubles-one)))
+        doubles (default-attribute-doubles semantic-type (.-vector-type element-type))
+        array-values (cond->> doubles (.-normalize element-type) (mapv normalize-fn))]
+    (array-fn array-values)))
 
-(defonce ^:private vec3-byte-array-zero (byte-array vec3-doubles-zero))
-(defonce ^:private vec3-byte-array-one (byte-array vec3-doubles-one))
-(defonce ^:private vec3-byte-array-normalized-one (byte-array (mapv num/normalized->byte vec3-doubles-one)))
-(defonce ^:private vec3-byte-array-normalized-unsigned-one (byte-array (mapv num/normalized->ubyte vec3-doubles-one)))
-
-(defonce ^:private vec4-byte-array-zero (byte-array vec4-doubles-zero))
-(defonce ^:private vec4-byte-array-one (byte-array vec4-doubles-one))
-(defonce ^:private vec4-byte-array-normalized-one (byte-array (mapv num/normalized->byte vec4-doubles-one)))
-(defonce ^:private vec4-byte-array-normalized-unsigned-one (byte-array (mapv num/normalized->ubyte vec4-doubles-one)))
-(defonce ^:private vec4-byte-array-xyz-zero-w-one (byte-array vec4-doubles-xyz-zero-w-one))
-(defonce ^:private vec4-byte-array-normalized-xyz-zero-w-one (byte-array (mapv num/normalized->byte vec4-doubles-xyz-zero-w-one)))
-(defonce ^:private vec4-byte-array-normalized-unsigned-xyz-zero-w-one (byte-array (mapv num/normalized->ubyte vec4-doubles-xyz-zero-w-one)))
-
-(defonce ^:private mat2-byte-array-identity (byte-array mat2-doubles-identity))
-(defonce ^:private mat2-byte-array-normalized-identity (byte-array (mapv num/normalized->byte mat2-doubles-identity)))
-(defonce ^:private mat2-byte-array-normalized-unsigned-identity (byte-array (mapv num/normalized->ubyte mat2-doubles-identity)))
-(defonce ^:private mat3-byte-array-identity (byte-array mat3-doubles-identity))
-(defonce ^:private mat3-byte-array-normalized-identity (byte-array (mapv num/normalized->byte mat3-doubles-identity)))
-(defonce ^:private mat3-byte-array-normalized-unsigned-identity (byte-array (mapv num/normalized->ubyte mat3-doubles-identity)))
-(defonce ^:private mat4-byte-array-identity (byte-array mat4-doubles-identity))
-(defonce ^:private mat4-byte-array-normalized-identity (byte-array (mapv num/normalized->byte mat4-doubles-identity)))
-(defonce ^:private mat4-byte-array-normalized-unsigned-identity (byte-array (mapv num/normalized->ubyte mat4-doubles-identity)))
-
-(defn default-attribute-byte-array
-  ^bytes [semantic-type vector-type normalize]
-  (case vector-type
-    :vector-type-scalar (case semantic-type
-                          :semantic-type-color (if normalize vec1-byte-array-normalized-one vec1-byte-array-one)
-                          vec1-byte-array-zero)
-    :vector-type-vec2 (case semantic-type
-                        :semantic-type-color (if normalize vec2-byte-array-normalized-one vec2-byte-array-one)
-                        vec2-byte-array-zero)
-    :vector-type-vec3 (case semantic-type
-                        :semantic-type-color (if normalize vec3-byte-array-normalized-one vec3-byte-array-one)
-                        vec3-byte-array-zero)
-    :vector-type-vec4 (case semantic-type
-                        :semantic-type-position (if normalize vec4-byte-array-normalized-xyz-zero-w-one vec4-byte-array-xyz-zero-w-one)
-                        :semantic-type-color (if normalize vec4-byte-array-normalized-one vec4-byte-array-one)
-                        :semantic-type-tangent (if normalize vec4-byte-array-normalized-xyz-zero-w-one vec4-byte-array-xyz-zero-w-one)
-                        vec4-byte-array-zero)
-    :vector-type-mat2 (if normalize mat2-byte-array-normalized-identity mat2-byte-array-identity)
-    :vector-type-mat3 (if normalize mat3-byte-array-normalized-identity mat3-byte-array-identity)
-    :vector-type-mat4 (if normalize mat4-byte-array-normalized-identity mat4-byte-array-identity)))
-
-(defn default-attribute-unsigned-byte-array
-  ^bytes [semantic-type vector-type normalize]
-  (case vector-type
-    :vector-type-scalar (case semantic-type
-                          :semantic-type-color (if normalize vec1-byte-array-normalized-unsigned-one vec1-byte-array-one)
-                          vec1-byte-array-zero)
-    :vector-type-vec2 (case semantic-type
-                        :semantic-type-color (if normalize vec2-byte-array-normalized-unsigned-one vec2-byte-array-one)
-                        vec2-byte-array-zero)
-    :vector-type-vec3 (case semantic-type
-                        :semantic-type-color (if normalize vec3-byte-array-normalized-unsigned-one vec3-byte-array-one)
-                        vec3-byte-array-zero)
-    :vector-type-vec4 (case semantic-type
-                        :semantic-type-position (if normalize vec4-byte-array-normalized-unsigned-xyz-zero-w-one vec4-byte-array-xyz-zero-w-one)
-                        :semantic-type-color (if normalize vec4-byte-array-normalized-unsigned-one vec4-byte-array-one)
-                        :semantic-type-tangent (if normalize vec4-byte-array-normalized-unsigned-xyz-zero-w-one vec4-byte-array-xyz-zero-w-one)
-                        vec4-byte-array-zero)
-    :vector-type-mat2 (if normalize mat2-byte-array-normalized-unsigned-identity mat2-byte-array-identity)
-    :vector-type-mat3 (if normalize mat3-byte-array-normalized-unsigned-identity mat3-byte-array-identity)
-    :vector-type-mat4 (if normalize mat4-byte-array-normalized-unsigned-identity mat4-byte-array-identity)))
-
-(defonce ^:private vec1-short-array-zero (short-array vec1-doubles-zero))
-(defonce ^:private vec1-short-array-one (short-array vec1-doubles-one))
-(defonce ^:private vec1-short-array-normalized-one (short-array (mapv num/normalized->short vec1-doubles-one)))
-(defonce ^:private vec1-short-array-normalized-unsigned-one (short-array (mapv num/normalized->ushort vec1-doubles-one)))
-
-(defonce ^:private vec2-short-array-zero (short-array vec2-doubles-zero))
-(defonce ^:private vec2-short-array-one (short-array vec2-doubles-one))
-(defonce ^:private vec2-short-array-normalized-one (short-array (mapv num/normalized->short vec2-doubles-one)))
-(defonce ^:private vec2-short-array-normalized-unsigned-one (short-array (mapv num/normalized->ushort vec2-doubles-one)))
-
-(defonce ^:private vec3-short-array-zero (short-array vec3-doubles-zero))
-(defonce ^:private vec3-short-array-one (short-array vec3-doubles-one))
-(defonce ^:private vec3-short-array-normalized-one (short-array (mapv num/normalized->short vec3-doubles-one)))
-(defonce ^:private vec3-short-array-normalized-unsigned-one (short-array (mapv num/normalized->ushort vec3-doubles-one)))
-
-(defonce ^:private vec4-short-array-zero (short-array vec4-doubles-zero))
-(defonce ^:private vec4-short-array-one (short-array vec4-doubles-one))
-(defonce ^:private vec4-short-array-normalized-one (short-array (mapv num/normalized->short vec4-doubles-one)))
-(defonce ^:private vec4-short-array-normalized-unsigned-one (short-array (mapv num/normalized->ushort vec4-doubles-one)))
-(defonce ^:private vec4-short-array-xyz-zero-w-one (short-array vec4-doubles-xyz-zero-w-one))
-(defonce ^:private vec4-short-array-normalized-xyz-zero-w-one (short-array (mapv num/normalized->short vec4-doubles-xyz-zero-w-one)))
-(defonce ^:private vec4-short-array-normalized-unsigned-xyz-zero-w-one (short-array (mapv num/normalized->ushort vec4-doubles-xyz-zero-w-one)))
-
-(defonce ^:private mat2-short-array-identity (short-array mat2-doubles-identity))
-(defonce ^:private mat2-short-array-normalized-identity (short-array (mapv num/normalized->short mat2-doubles-identity)))
-(defonce ^:private mat2-short-array-normalized-unsigned-identity (short-array (mapv num/normalized->ushort mat2-doubles-identity)))
-(defonce ^:private mat3-short-array-identity (short-array mat3-doubles-identity))
-(defonce ^:private mat3-short-array-normalized-identity (short-array (mapv num/normalized->short mat3-doubles-identity)))
-(defonce ^:private mat3-short-array-normalized-unsigned-identity (short-array (mapv num/normalized->ushort mat3-doubles-identity)))
-(defonce ^:private mat4-short-array-identity (short-array mat4-doubles-identity))
-(defonce ^:private mat4-short-array-normalized-identity (short-array (mapv num/normalized->short mat4-doubles-identity)))
-(defonce ^:private mat4-short-array-normalized-unsigned-identity (short-array (mapv num/normalized->ushort mat4-doubles-identity)))
-
-(defn default-attribute-short-array
-  ^shorts [semantic-type vector-type normalize]
-  (case vector-type
-    :vector-type-scalar (case semantic-type
-                          :semantic-type-color (if normalize vec1-short-array-normalized-one vec1-short-array-one)
-                          vec1-short-array-zero)
-    :vector-type-vec2 (case semantic-type
-                        :semantic-type-color (if normalize vec2-short-array-normalized-one vec2-short-array-one)
-                        vec2-short-array-zero)
-    :vector-type-vec3 (case semantic-type
-                        :semantic-type-color (if normalize vec3-short-array-normalized-one vec3-short-array-one)
-                        vec3-short-array-zero)
-    :vector-type-vec4 (case semantic-type
-                        :semantic-type-position (if normalize vec4-short-array-normalized-xyz-zero-w-one vec4-short-array-xyz-zero-w-one)
-                        :semantic-type-color (if normalize vec4-short-array-normalized-one vec4-short-array-one)
-                        :semantic-type-tangent (if normalize vec4-short-array-normalized-xyz-zero-w-one vec4-short-array-xyz-zero-w-one)
-                        vec4-short-array-zero)
-    :vector-type-mat2 (if normalize mat2-short-array-normalized-identity mat2-short-array-identity)
-    :vector-type-mat3 (if normalize mat3-short-array-normalized-identity mat3-short-array-identity)
-    :vector-type-mat4 (if normalize mat4-short-array-normalized-identity mat4-short-array-identity)))
-
-(defn default-attribute-unsigned-short-array
-  ^shorts [semantic-type vector-type normalize]
-  (case vector-type
-    :vector-type-scalar (case semantic-type
-                          :semantic-type-color (if normalize vec1-short-array-normalized-unsigned-one vec1-short-array-one)
-                          vec1-short-array-zero)
-    :vector-type-vec2 (case semantic-type
-                        :semantic-type-color (if normalize vec2-short-array-normalized-unsigned-one vec2-short-array-one)
-                        vec2-short-array-zero)
-    :vector-type-vec3 (case semantic-type
-                        :semantic-type-color (if normalize vec3-short-array-normalized-unsigned-one vec3-short-array-one)
-                        vec3-short-array-zero)
-    :vector-type-vec4 (case semantic-type
-                        :semantic-type-position (if normalize vec4-short-array-normalized-unsigned-xyz-zero-w-one vec4-short-array-xyz-zero-w-one)
-                        :semantic-type-color (if normalize vec4-short-array-normalized-unsigned-one vec4-short-array-one)
-                        :semantic-type-tangent (if normalize vec4-short-array-normalized-unsigned-xyz-zero-w-one vec4-short-array-xyz-zero-w-one)
-                        vec4-short-array-zero)
-    :vector-type-mat2 (if normalize mat2-short-array-normalized-unsigned-identity mat2-short-array-identity)
-    :vector-type-mat3 (if normalize mat3-short-array-normalized-unsigned-identity mat3-short-array-identity)
-    :vector-type-mat4 (if normalize mat4-short-array-normalized-unsigned-identity mat4-short-array-identity)))
-
-(defonce ^:private vec1-int-array-zero (int-array vec1-doubles-zero))
-(defonce ^:private vec1-int-array-one (int-array vec1-doubles-one))
-(defonce ^:private vec1-int-array-normalized-one (int-array (mapv num/normalized->int vec1-doubles-one)))
-(defonce ^:private vec1-int-array-normalized-unsigned-one (int-array (mapv num/normalized->uint vec1-doubles-one)))
-
-(defonce ^:private vec2-int-array-zero (int-array vec2-doubles-zero))
-(defonce ^:private vec2-int-array-one (int-array vec2-doubles-one))
-(defonce ^:private vec2-int-array-normalized-one (int-array (mapv num/normalized->int vec2-doubles-one)))
-(defonce ^:private vec2-int-array-normalized-unsigned-one (int-array (mapv num/normalized->uint vec2-doubles-one)))
-
-(defonce ^:private vec3-int-array-zero (int-array vec3-doubles-zero))
-(defonce ^:private vec3-int-array-one (int-array vec3-doubles-one))
-(defonce ^:private vec3-int-array-normalized-one (int-array (mapv num/normalized->int vec3-doubles-one)))
-(defonce ^:private vec3-int-array-normalized-unsigned-one (int-array (mapv num/normalized->uint vec3-doubles-one)))
-
-(defonce ^:private vec4-int-array-zero (int-array vec4-doubles-zero))
-(defonce ^:private vec4-int-array-one (int-array vec4-doubles-one))
-(defonce ^:private vec4-int-array-normalized-one (int-array (mapv num/normalized->int vec4-doubles-one)))
-(defonce ^:private vec4-int-array-normalized-unsigned-one (int-array (mapv num/normalized->uint vec4-doubles-one)))
-(defonce ^:private vec4-int-array-xyz-zero-w-one (int-array vec4-doubles-xyz-zero-w-one))
-(defonce ^:private vec4-int-array-normalized-xyz-zero-w-one (int-array (mapv num/normalized->int vec4-doubles-xyz-zero-w-one)))
-(defonce ^:private vec4-int-array-normalized-unsigned-xyz-zero-w-one (int-array (mapv num/normalized->uint vec4-doubles-xyz-zero-w-one)))
-
-(defonce ^:private mat2-int-array-identity (int-array mat2-doubles-identity))
-(defonce ^:private mat2-int-array-normalized-identity (int-array (mapv num/normalized->int mat2-doubles-identity)))
-(defonce ^:private mat2-int-array-normalized-unsigned-identity (int-array (mapv num/normalized->uint mat2-doubles-identity)))
-(defonce ^:private mat3-int-array-identity (int-array mat3-doubles-identity))
-(defonce ^:private mat3-int-array-normalized-identity (int-array (mapv num/normalized->int mat3-doubles-identity)))
-(defonce ^:private mat3-int-array-normalized-unsigned-identity (int-array (mapv num/normalized->uint mat3-doubles-identity)))
-(defonce ^:private mat4-int-array-identity (int-array mat4-doubles-identity))
-(defonce ^:private mat4-int-array-normalized-identity (int-array (mapv num/normalized->int mat4-doubles-identity)))
-(defonce ^:private mat4-int-array-normalized-unsigned-identity (int-array (mapv num/normalized->uint mat4-doubles-identity)))
-
-(defn default-attribute-int-array
-  ^ints [semantic-type vector-type normalize]
-  (case vector-type
-    :vector-type-scalar (case semantic-type
-                          :semantic-type-color (if normalize vec1-int-array-normalized-one vec1-int-array-one)
-                          vec1-int-array-zero)
-    :vector-type-vec2 (case semantic-type
-                        :semantic-type-color (if normalize vec2-int-array-normalized-one vec2-int-array-one)
-                        vec2-int-array-zero)
-    :vector-type-vec3 (case semantic-type
-                        :semantic-type-color (if normalize vec3-int-array-normalized-one vec3-int-array-one)
-                        vec3-int-array-zero)
-    :vector-type-vec4 (case semantic-type
-                        :semantic-type-position (if normalize vec4-int-array-normalized-xyz-zero-w-one vec4-int-array-xyz-zero-w-one)
-                        :semantic-type-color (if normalize vec4-int-array-normalized-one vec4-int-array-one)
-                        :semantic-type-tangent (if normalize vec4-int-array-normalized-xyz-zero-w-one vec4-int-array-xyz-zero-w-one)
-                        vec4-int-array-zero)
-    :vector-type-mat2 (if normalize mat2-int-array-normalized-identity mat2-int-array-identity)
-    :vector-type-mat3 (if normalize mat3-int-array-normalized-identity mat3-int-array-identity)
-    :vector-type-mat4 (if normalize mat4-int-array-normalized-identity mat4-int-array-identity)))
-
-(defn default-attribute-unsigned-int-array
-  ^ints [semantic-type vector-type normalize]
-  (case vector-type
-    :vector-type-scalar (case semantic-type
-                          :semantic-type-color (if normalize vec1-int-array-normalized-unsigned-one vec1-int-array-one)
-                          vec1-int-array-zero)
-    :vector-type-vec2 (case semantic-type
-                        :semantic-type-color (if normalize vec2-int-array-normalized-unsigned-one vec2-int-array-one)
-                        vec2-int-array-zero)
-    :vector-type-vec3 (case semantic-type
-                        :semantic-type-color (if normalize vec3-int-array-normalized-unsigned-one vec3-int-array-one)
-                        vec3-int-array-zero)
-    :vector-type-vec4 (case semantic-type
-                        :semantic-type-position (if normalize vec4-int-array-normalized-unsigned-xyz-zero-w-one vec4-int-array-xyz-zero-w-one)
-                        :semantic-type-color (if normalize vec4-int-array-normalized-unsigned-one vec4-int-array-one)
-                        :semantic-type-tangent (if normalize vec4-int-array-normalized-unsigned-xyz-zero-w-one vec4-int-array-xyz-zero-w-one)
-                        vec4-int-array-zero)
-    :vector-type-mat2 (if normalize mat2-int-array-normalized-unsigned-identity mat2-int-array-identity)
-    :vector-type-mat3 (if normalize mat3-int-array-normalized-unsigned-identity mat3-int-array-identity)
-    :vector-type-mat4 (if normalize mat4-int-array-normalized-unsigned-identity mat4-int-array-identity)))
-
-(defonce ^:private vec1-float-array-zero (float-array vec1-doubles-zero))
-(defonce ^:private vec1-float-array-one (float-array vec1-doubles-one))
-
-(defonce ^:private vec2-float-array-zero (float-array vec2-doubles-zero))
-(defonce ^:private vec2-float-array-one (float-array vec2-doubles-one))
-
-(defonce ^:private vec3-float-array-zero (float-array vec3-doubles-zero))
-(defonce ^:private vec3-float-array-one (float-array vec3-doubles-one))
-
-(defonce ^:private vec4-float-array-zero (float-array vec4-doubles-zero))
-(defonce ^:private vec4-float-array-one (float-array vec4-doubles-one))
-(defonce ^:private vec4-float-array-xyz-zero-w-one (float-array vec4-doubles-xyz-zero-w-one))
-
-(defonce ^:private mat2-float-array-identity (float-array mat2-doubles-identity))
-(defonce ^:private mat3-float-array-identity (float-array mat3-doubles-identity))
-(defonce ^:private mat4-float-array-identity (float-array mat4-doubles-identity))
-
-(defn default-attribute-float-array
-  ^floats [semantic-type vector-type]
-  (case vector-type
-    :vector-type-scalar (case semantic-type
-                          :semantic-type-color vec1-float-array-one
-                          vec1-float-array-zero)
-    :vector-type-vec2 (case semantic-type
-                        :semantic-type-color vec2-float-array-one
-                        vec2-float-array-zero)
-    :vector-type-vec3 (case semantic-type
-                        :semantic-type-color vec3-float-array-one
-                        vec3-float-array-zero)
-    :vector-type-vec4 (case semantic-type
-                        :semantic-type-position vec4-float-array-xyz-zero-w-one
-                        :semantic-type-color vec4-float-array-one
-                        :semantic-type-tangent vec4-float-array-xyz-zero-w-one
-                        vec4-float-array-zero)
-    :vector-type-mat2 mat2-float-array-identity
-    :vector-type-mat3 mat3-float-array-identity
-    :vector-type-mat4 mat4-float-array-identity))
-
-(defn default-attribute-value-array [semantic-type ^ElementType element-type]
-  (case (.-data-type element-type)
-    :type-byte (default-attribute-byte-array semantic-type (.-vector-type element-type) (.-normalize element-type))
-    :type-unsigned-byte (default-attribute-unsigned-byte-array semantic-type (.-vector-type element-type) (.-normalize element-type))
-    :type-short (default-attribute-short-array semantic-type (.-vector-type element-type) (.-normalize element-type))
-    :type-unsigned-short (default-attribute-unsigned-short-array semantic-type (.-vector-type element-type) (.-normalize element-type))
-    :type-int (default-attribute-int-array semantic-type (.-vector-type element-type) (.-normalize element-type))
-    :type-unsigned-int (default-attribute-unsigned-int-array semantic-type (.-vector-type element-type) (.-normalize element-type))
-    :type-float (default-attribute-float-array semantic-type (.-vector-type element-type))))
+(def ^{:arglists '([semantic-type ^ElementType element-type])} default-attribute-value-array (fn/memoize default-attribute-value-array-raw))
 
 (defonce buffer-data-types
   #{:byte
@@ -407,7 +151,7 @@
     :type-unsigned-byte Graphics$VertexAttribute$DataType/TYPE_UNSIGNED_BYTE_VALUE
     :type-short Graphics$VertexAttribute$DataType/TYPE_SHORT_VALUE
     :type-unsigned-short Graphics$VertexAttribute$DataType/TYPE_UNSIGNED_SHORT_VALUE
-    :type-int  Graphics$VertexAttribute$DataType/TYPE_INT_VALUE
+    :type-int Graphics$VertexAttribute$DataType/TYPE_INT_VALUE
     :type-unsigned-int Graphics$VertexAttribute$DataType/TYPE_UNSIGNED_INT_VALUE
     :type-float Graphics$VertexAttribute$DataType/TYPE_FLOAT_VALUE))
 
