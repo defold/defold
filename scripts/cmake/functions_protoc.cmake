@@ -93,3 +93,79 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
     endif()
 
 endfunction()
+
+# Generate Python bindings from a .proto file using protoc.
+#
+# Usage:
+#   defold_protoc_gen_py(
+#     "${CMAKE_CURRENT_BINARY_DIR}/input/input_ddf_pb2.py"
+#     "${CMAKE_CURRENT_SOURCE_DIR}/proto/input/input_ddf.proto"
+#     INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/proto" "${DEFOLD_SDK_ROOT}/share/proto"
+#   )
+#
+# Notes:
+# - OUT_PY is the desired output module path, typically ending with _pb2.py.
+# - The actual generated file name from protoc is <name>_pb2.py. If OUT_PY
+#   does not match that, a copy step is added.
+# - An empty __init__.py is also created in the output directory so that
+#   Python treats it as a package (mirroring waf_ddf.py behavior).
+
+function(defold_protoc_gen_py OUT_PY SRC_PROTO)
+    set(options)
+    set(oneValueArgs)
+    set(multiValueArgs INCLUDES)
+    cmake_parse_arguments(DPP "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    if(NOT OUT_PY OR NOT SRC_PROTO)
+        message(FATAL_ERROR "defold_protoc_gen_py: require OUT_PY and SRC_PROTO")
+    endif()
+
+    get_filename_component(_out_dir "${OUT_PY}" DIRECTORY)
+    get_filename_component(_src_abs "${SRC_PROTO}" ABSOLUTE)
+    get_filename_component(_src_name_we "${SRC_PROTO}" NAME_WE)
+
+    set(_gen_py "${_out_dir}/${_src_name_we}_pb2.py")
+    set(_init_py "${_out_dir}/__init__.py")
+
+    # Build include flags: user-specified + SDK defaults + proto's parent dir
+    get_filename_component(_src_dir "${_src_abs}" DIRECTORY)
+    set(_inc_dirs ${_src_dir})
+    if(DPP_INCLUDES)
+        list(APPEND _inc_dirs ${DPP_INCLUDES})
+    endif()
+    if(DEFOLD_SDK_ROOT)
+        list(APPEND _inc_dirs "${DEFOLD_SDK_ROOT}/share/proto" "${DEFOLD_SDK_ROOT}/ext/include")
+    endif()
+    list(REMOVE_DUPLICATES _inc_dirs)
+
+    set(_inc_flags)
+    foreach(_inc IN LISTS _inc_dirs)
+        list(APPEND _inc_flags -I "${_inc}")
+    endforeach()
+
+    file(MAKE_DIRECTORY "${_out_dir}")
+
+    # Generate both _pb2.py and ensure __init__.py in one rule so either output triggers it
+    add_custom_command(
+        OUTPUT "${_gen_py}" "${_init_py}"
+        COMMAND protoc --python_out=${_out_dir} ${_inc_flags} ${_src_abs}
+        COMMAND ${CMAKE_COMMAND} -E touch "${_init_py}"
+        DEPENDS "${_src_abs}"
+        VERBATIM
+        COMMENT "Generating Python from ${SRC_PROTO} and ensuring package __init__.py"
+    )
+    set_source_files_properties("${_gen_py}" "${_init_py}" PROPERTIES GENERATED TRUE)
+
+    # Optional copy if OUT_PY differs from protoc default
+    if(NOT "${OUT_PY}" STREQUAL "${_gen_py}")
+        add_custom_command(
+            OUTPUT "${OUT_PY}"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_gen_py}" "${OUT_PY}"
+            DEPENDS "${_gen_py}"
+            VERBATIM
+            COMMENT "Copying ${_gen_py} to ${OUT_PY}"
+        )
+        set_source_files_properties("${OUT_PY}" PROPERTIES GENERATED TRUE)
+    endif()
+
+endfunction()
