@@ -419,9 +419,10 @@ namespace dmGraphics
         return vk_count_bits[dmMath::Min<uint8_t>(sample_count_index_requested, sample_count_index_max)];
     }
 
-    struct LayoutTransitionInfo {
-        VkAccessFlags accessMask;
-        VkPipelineStageFlags stageMask;
+    struct LayoutTransitionInfo
+    {
+        VkAccessFlags        m_AccessMask;
+        VkPipelineStageFlags m_StageMask;
     };
 
     static LayoutTransitionInfo GetAccessMaskAndStage(VkImageLayout layout)
@@ -489,13 +490,13 @@ namespace dmGraphics
         barrier.subresourceRange.levelCount     = 1;
         barrier.subresourceRange.baseArrayLayer = 0;
         barrier.subresourceRange.layerCount     = layer_count;
-        barrier.srcAccessMask                   = src.accessMask;
-        barrier.dstAccessMask                   = dst.accessMask;
+        barrier.srcAccessMask                   = src.m_AccessMask;
+        barrier.dstAccessMask                   = dst.m_AccessMask;
 
         vkCmdPipelineBarrier(
             vk_command_buffer,
-            src.stageMask,
-            dst.stageMask,
+            src.m_StageMask,
+            dst.m_StageMask,
             0,
             0, nullptr,
             0, nullptr,
@@ -519,13 +520,12 @@ namespace dmGraphics
         TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
         VkFence fence;
-        VkResult res = SubtmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence);
+        VkResult res = SubmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence);
 
         // Wait for the copy command to finish
         vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
-
-        vkFreeCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
         vkDestroyFence(vk_device, fence, NULL);
+        vkFreeCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
 
         return VK_SUCCESS;
     }
@@ -638,7 +638,7 @@ namespace dmGraphics
         return cmd_buffer;
     }
 
-    VkResult SubtmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkFence* fence_out)
+    VkResult SubmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkFence* fence_out)
     {
         VkResult res = vkEndCommandBuffer(cmd);
         if (res != VK_SUCCESS)
@@ -658,8 +658,6 @@ namespace dmGraphics
         res = vkQueueSubmit(queue, 1, &submit_info, fence);
         if (res != VK_SUCCESS)
         {
-            dmLogError("SubtmitCommandBuffer: vkQueueSubmit failed!");
-
             return res;
         }
 

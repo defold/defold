@@ -2131,12 +2131,7 @@ bail:
         return (VkDescriptorType) -1;
     }
 
-    static void UpdateImageDescriptor(
-        VulkanContext* context,
-        HTexture texture_handle,
-        ShaderResourceBinding* binding,
-        VkDescriptorImageInfo& vk_image_info,
-        VkWriteDescriptorSet& vk_write_desc_info)
+    static void UpdateImageDescriptor(VulkanContext* context, HTexture texture_handle, ShaderResourceBinding* binding, VkDescriptorImageInfo& vk_image_info, VkWriteDescriptorSet& vk_write_desc_info)
     {
         VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture_handle);
 
@@ -3955,7 +3950,7 @@ bail:
             layer_count);
 
         VkFence submit_fence;
-        res = SubtmitCommandBuffer(
+        res = SubmitCommandBuffer(
             context->m_LogicalDevice.m_Device,
             context->m_LogicalDevice.m_GraphicsQueue,
             vk_command_buffer,
@@ -4287,7 +4282,7 @@ bail:
             TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
 
             VkFence fence;
-            VkResult res = SubtmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, cmd_buffer, &fence);
+            VkResult res = SubmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, cmd_buffer, &fence);
             CHECK_VK_ERROR(res);
 
             if (!is_memoryless)
@@ -4663,7 +4658,7 @@ bail:
             1, &vk_copy_region);
 
         VkFence fence;
-        res = SubtmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, &fence);
+        res = SubmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, &fence);
         CHECK_VK_ERROR(res);
 
         // Wait for the copy command to finish
