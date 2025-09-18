@@ -4154,7 +4154,7 @@ bail:
                 texture);
             CHECK_VK_ERROR(res);
 
-            dmLogInfo("CreateTexture: 0x%llx, 0x%llx", texture->m_Handle.m_Image, texture->m_DeviceBuffer.m_Handle.m_Memory);
+            // dmLogInfo("CreateTexture: 0x%llx, 0x%llx", texture->m_Handle.m_Image, texture->m_DeviceBuffer.m_Handle.m_Memory);
         }
 
         if (!memoryless)
