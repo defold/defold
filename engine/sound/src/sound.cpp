@@ -1098,6 +1098,66 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    static inline uint32_t GetSkipStrideBytes(const dmSoundCodec::Info& info)
+    {
+        // Match stride logic used in mixing when calling Decode/Skip
+        // If decoder delivers float non-interleaved (or mono), use sizeof(float) per frame
+        // Otherwise use interleaved stride: channels * (bits/8)
+        if (info.m_BitsPerSample == 32 && (!info.m_IsInterleaved || info.m_Channels == 1))
+            return (uint32_t)sizeof(float);
+        return (uint32_t)(info.m_Channels * (info.m_BitsPerSample / 8));
+    }
+
+    static Result SkipToStartFrameNoLock(HSoundInstance sound_instance, uint64_t start_frame)
+    {
+        DM_PROFILE(__FUNCTION__);
+        dmSoundCodec::Info info;
+        dmSoundCodec::GetInfo(g_SoundSystem->m_CodecContext, sound_instance->m_Decoder, &info);
+
+        uint64_t total_bytes = start_frame * (uint64_t)GetSkipStrideBytes(info);
+        while (total_bytes > 0)
+        {
+            uint32_t skipped = 0;
+            dmSoundCodec::Result r = dmSoundCodec::Skip(g_SoundSystem->m_CodecContext, sound_instance->m_Decoder, total_bytes, &skipped);
+            if (r == dmSoundCodec::RESULT_END_OF_STREAM)
+            {
+                break;
+            }
+            if (r != dmSoundCodec::RESULT_OK)
+            {
+                return RESULT_INVALID_STREAM_DATA;
+            }
+            if (skipped == 0)
+            {
+                break;
+            }
+            total_bytes -= skipped;
+        }
+        return RESULT_OK;
+    }
+
+    Result SetStartFrame(HSoundInstance sound_instance, uint32_t start_frame)
+    {
+        if (!g_SoundSystem)
+            return RESULT_OK;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+        return SkipToStartFrameNoLock(sound_instance, (uint64_t)start_frame);
+    }
+
+    Result SetStartTime(HSoundInstance sound_instance, float start_time_seconds)
+    {
+        if (!g_SoundSystem)
+            return RESULT_OK;
+        if (start_time_seconds <= 0.0f)
+            return RESULT_OK;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+
+        dmSoundCodec::Info info;
+        dmSoundCodec::GetInfo(g_SoundSystem->m_CodecContext, sound_instance->m_Decoder, &info);
+        uint64_t start_frame = (uint64_t)((double)start_time_seconds * (double)info.m_Rate);
+        return SkipToStartFrameNoLock(sound_instance, start_frame);
+    }
+
     static inline void PrepTempBufferState(SoundInstance* instance, uint32_t channels)
     {
         if (instance->m_FrameCount > 0)
