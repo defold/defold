@@ -3559,6 +3559,14 @@ WGPUQueue dmGraphics::WebGPUGetQueue(HContext context)
     return ((WebGPUContext*)context)->m_Queue;
 }
 
+WGPUTexture dmGraphics::WebGPUGetTexture(HContext _context, HTexture _texture)
+{
+    WebGPUContext* context = (WebGPUContext*) _context;
+    WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(context->m_AssetHandleContainer, _texture);
+    assert(texture);
+    return texture->m_Texture;
+}
+
 WGPUTextureView dmGraphics::WebGPUGetTextureView(HContext _context, HTexture _texture)
 {
     WebGPUContext* context = (WebGPUContext*) _context;
