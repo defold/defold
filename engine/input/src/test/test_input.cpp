@@ -27,6 +27,7 @@
 
 #include "../input.h"
 #include "../input_private.h"
+#include "dmsdk/hid/hid.h"
 
 #include <input/input_ddf.h>
 
@@ -849,6 +850,50 @@ TEST_F(InputTest, TestRepeat)
     dmInput::DeleteBinding(binding);
 }
 #endif // DM_HAVE_KEYBOARD_SUPPORT
+
+TEST_F(InputTest, ActionAndTouchStructSizesAndTotalArraySize)
+{
+    const size_t baseline_action_size = 952;
+    const size_t baseline_touch_size = 44;
+    const size_t baseline_action_count = 256;
+    const size_t baseline_touch_count = 11;
+
+    size_t current_action_size = sizeof(dmInput::Action);
+    size_t current_touch_size = sizeof(dmHID::Touch);
+    const size_t ACTION_COUNT = 256;
+    const size_t TOUCHES_PER_ACTION = dmHID::MAX_TOUCH_COUNT;
+
+    printf("[Struct Sizes]\n");
+    printf("sizeof(dmInput::Action): %zu bytes (baseline: %zu, diff: %+zd)\n",
+        current_action_size, baseline_action_size,
+        (ssize_t)current_action_size - (ssize_t)baseline_action_size);
+
+    printf("sizeof(dmHID::Touch):    %zu bytes (baseline: %zu, diff: %+zd)\n",
+        current_touch_size, baseline_touch_size,
+        (ssize_t)current_touch_size - (ssize_t)baseline_touch_size);
+
+    size_t current_total_action_array_size = current_action_size * ACTION_COUNT;
+    size_t baseline_total_action_array_size = baseline_action_size * baseline_action_count;
+
+    size_t current_total_touch_array_size = current_touch_size * TOUCHES_PER_ACTION * ACTION_COUNT;
+    size_t baseline_total_touch_array_size = baseline_touch_size * baseline_touch_count * baseline_action_count;
+
+    printf("Total Action array size: %zu bytes (baseline: %zu, diff: %+zd)\n",
+        current_total_action_array_size, baseline_total_action_array_size,
+        (ssize_t)current_total_action_array_size - (ssize_t)baseline_total_action_array_size);
+
+    printf("Total Touch array size: %zu bytes (baseline: %zu, diff: %+zd)\n",
+        current_total_touch_array_size, baseline_total_touch_array_size,
+        (ssize_t)current_total_touch_array_size - (ssize_t)baseline_total_touch_array_size);
+
+    printf("[End Struct Sizes]\n");
+
+    ASSERT_LT(current_action_size, baseline_action_size);
+    ASSERT_LT(current_touch_size, baseline_touch_size);
+
+    ASSERT_LT(current_total_action_array_size, baseline_total_action_array_size);
+    ASSERT_LT(current_total_touch_array_size, baseline_total_touch_array_size);
+}
 
 int main(int argc, char **argv)
 {
