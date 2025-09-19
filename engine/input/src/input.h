@@ -35,11 +35,12 @@ namespace dmInput
         float m_AccX;
         float m_AccY;
         float m_AccZ;
-        dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
-        int16_t      m_TouchCount;
-        /// Contains text input if m_HasText, and gamepad name if m_GamepadConnected
-        char         m_Text[dmHID::MAX_CHAR_COUNT];
-        uint16_t     m_TextCount;
+        union {
+            dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
+            char         m_Text[dmHID::MAX_CHAR_COUNT];
+        };
+        /// Text or touch count
+        int16_t      m_Count;
         uint16_t     m_GamepadIndex;
         uint16_t     m_UserID;
         dmHID::GamepadPacket m_GamepadPacket;

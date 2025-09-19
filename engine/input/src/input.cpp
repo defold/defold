@@ -551,8 +551,7 @@ namespace dmInput
         action->m_Value = 0.0f;
         action->m_PositionSet = 0;
         action->m_AccelerationSet = 0;
-        action->m_TouchCount = 0;
-        action->m_TextCount = 0;
+        action->m_Count = 0;
         action->m_HasText = 0;
         action->m_GamepadDisconnected = 0;
         action->m_GamepadConnected = 0;
@@ -635,8 +634,8 @@ namespace dmInput
                             for (uint32_t i = 0; i < text_packet->m_Size; ++i) {
                                 action->m_Text[i] = text_packet->m_Text[i];
                             }
-                            action->m_TextCount = text_packet->m_Size;
-                            action->m_HasText = action->m_TextCount > 0;
+                            action->m_Count = text_packet->m_Size;
+                            action->m_HasText = action->m_Count > 0;
                         }
                     }
                 }
@@ -657,8 +656,8 @@ namespace dmInput
                             for (uint32_t i = 0; i < marked_packet->m_Size; ++i) {
                                 action->m_Text[i] = marked_packet->m_Text[i];
                             }
-                            action->m_TextCount = marked_packet->m_Size;
-                            action->m_HasText = marked_packet->m_HasText || action->m_TextCount > 0;
+                            action->m_Count = marked_packet->m_Size;
+                            action->m_HasText = marked_packet->m_HasText || action->m_Count > 0;
                         }
                     }
                 }
@@ -815,7 +814,7 @@ namespace dmInput
                                         char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
                                         GetGamepadConfig(binding, gamepad, device_name_out);
 
-                                        action->m_TextCount = dmStrlCpy(action->m_Text, device_name_out, sizeof(action->m_Text));
+                                        action->m_Count = dmStrlCpy(action->m_Text, device_name_out, sizeof(action->m_Text));
                                         action->m_UserID = 0;
                                         dmHID::GetGamepadUserId(binding->m_Context->m_HidContext, gamepad_binding->m_Gamepad, &action->m_UserID);
                                     }
@@ -906,7 +905,7 @@ namespace dmInput
                             }
                         }
                         UpdateActionPressedReleasedRepeated(action, binding->m_Context, dt);
-                        action->m_TouchCount = packet->m_TouchCount;
+                        action->m_Count = packet->m_TouchCount;
                     }
                 }
                 *prev_packet = *packet;
@@ -1018,7 +1017,7 @@ namespace dmInput
 
     void ForEachActiveCallback(CallbackData* data, const dmhash_t* key, Action* action)
     {
-        bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released || action->m_TouchCount > 0;
+        bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released || action->m_Count > 0;
         active = active || action->m_GamepadConnected || action->m_GamepadDisconnected;
         active = active || action->m_Dirty; // e.g. for analog stick action being released
         active = active || action->m_HasGamepadPacket; // Raw gamepad data

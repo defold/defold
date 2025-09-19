@@ -1693,8 +1693,8 @@ bail:
         input_action.m_AccY = action->m_AccY;
         input_action.m_AccZ = action->m_AccZ;
 
-        input_action.m_TouchCount = action->m_TouchCount;
-        int tc = action->m_TouchCount;
+        input_action.m_TouchCount = action->m_Count;
+        int tc = action->m_Count;
         for (int i = 0; i < tc; ++i) {
             dmHID::Touch& a = action->m_Touch[i];
             dmHID::Touch& ia = input_action.m_Touch[i];
@@ -1710,9 +1710,9 @@ bail:
             ia.m_ScreenDY = -a.m_DY;
         }
 
-        input_action.m_TextCount = action->m_TextCount;
+        input_action.m_TextCount = action->m_Count;
         input_action.m_HasText = action->m_HasText;
-        tc = action->m_TextCount;
+        tc = action->m_Count;
         for (int i = 0; i < tc; ++i) {
             input_action.m_Text[i] = action->m_Text[i];
         }

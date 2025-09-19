@@ -130,11 +130,11 @@ TEST_F(InputTest, Text) {
     dmInput::ForEachActive(binding, TextInputCallback, (void*)&actions);
 
     dmInput::Action** text_action = actions.Get(dmHashString64("text"));
-    ASSERT_EQ(7, (*text_action)->m_TextCount);
+    ASSERT_EQ(7, (*text_action)->m_Count);
     ASSERT_STREQ("testओ", (*text_action)->m_Text);
 
     dmInput::Action** marked_text_action = actions.Get(dmHashString64("marked_text"));
-    ASSERT_EQ(11, (*marked_text_action)->m_TextCount);
+    ASSERT_EQ(11, (*marked_text_action)->m_Count);
     ASSERT_STREQ("marked text", (*marked_text_action)->m_Text);
 
     dmInput::DeleteBinding(binding);
@@ -445,7 +445,7 @@ TEST_F(InputTest, GamepadStickEventNotContainsGamepadName)
     ASSERT_FALSE(dmInput::Released(binding->m_GamepadBindings[0], action_id));
     ASSERT_FALSE(binding->m_GamepadBindings[0]->m_Actions.Get(action_id)->m_GamepadConnected);
     ASSERT_STREQ(binding->m_GamepadBindings[0]->m_Actions.Get(action_id)->m_Text, "");
-    ASSERT_EQ(binding->m_GamepadBindings[0]->m_Actions.Get(action_id)->m_TextCount, 0);
+    ASSERT_EQ(binding->m_GamepadBindings[0]->m_Actions.Get(action_id)->m_Count, 0);
 
     dmInput::DeleteBinding(binding);
 }
@@ -589,7 +589,7 @@ TEST_F(InputTest, TouchPhases)
     const dmInput::Action* action = dmInput::GetAction(binding, touch_action_id);
     ASSERT_NE((void*)0, (void*)action);
     ASSERT_EQ(0.0f, action->m_Value);
-    ASSERT_EQ(0, action->m_TouchCount);
+    ASSERT_EQ(0, action->m_Count);
     ASSERT_FALSE(action->m_PositionSet);
 
     // Step 1: Both touches began
@@ -601,7 +601,7 @@ TEST_F(InputTest, TouchPhases)
 
     action = dmInput::GetAction(binding, touch_action_id);
     ASSERT_EQ(1.0f, action->m_Value);
-    ASSERT_EQ(2, action->m_TouchCount);
+    ASSERT_EQ(2, action->m_Count);
     ASSERT_TRUE(action->m_Pressed);
     ASSERT_FALSE(action->m_Released);
     ASSERT_TRUE(action->m_Repeated);
@@ -638,7 +638,7 @@ TEST_F(InputTest, TouchPhases)
 
     action = dmInput::GetAction(binding, touch_action_id);
     ASSERT_EQ(1.0f, action->m_Value);
-    ASSERT_EQ(2, action->m_TouchCount);
+    ASSERT_EQ(2, action->m_Count);
     ASSERT_FALSE(action->m_Pressed);
     ASSERT_FALSE(action->m_Released);
     ASSERT_TRUE(action->m_PositionSet);
@@ -669,7 +669,7 @@ TEST_F(InputTest, TouchPhases)
 
     action = dmInput::GetAction(binding, touch_action_id);
     ASSERT_EQ(0.0f, action->m_Value);
-    ASSERT_EQ(1, action->m_TouchCount);
+    ASSERT_EQ(1, action->m_Count);
     ASSERT_FALSE(action->m_Pressed);
     ASSERT_TRUE(action->m_Released);
     ASSERT_TRUE(action->m_PositionSet);
@@ -689,7 +689,7 @@ TEST_F(InputTest, TouchPhases)
 
     action = dmInput::GetAction(binding, touch_action_id);
     ASSERT_EQ(0.0f, action->m_Value);
-    ASSERT_EQ(0, action->m_TouchCount);
+    ASSERT_EQ(0, action->m_Count);
     ASSERT_FALSE(action->m_Pressed);
     ASSERT_FALSE(action->m_Released);
     ASSERT_FALSE(action->m_PositionSet);
