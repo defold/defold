@@ -2959,7 +2959,7 @@ static HTexture WebGPUNewTexture(HContext _context, const TextureCreationParams&
     return StoreAssetInContainer(context->m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
 }
 
-static void WebGPUDeleteTexture(HTexture _texture)
+static void WebGPUDeleteTexture(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
@@ -2977,21 +2977,21 @@ static HandleResult WebGPUGetTextureHandle(HTexture texture, void** out_handle)
     return HANDLE_RESULT_NOT_AVAILABLE;
 }
 
-static void WebGPUSetTextureParams(HTexture _texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+static void WebGPUSetTextureParams(HContext context, HTexture _texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
     WebGPUSetTextureParamsInternal(texture, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
 }
 
-static void WebGPUSetTexture(HTexture _texture, const TextureParams& params)
+static void WebGPUSetTexture(HContext context, HTexture _texture, const TextureParams& params)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
     WebGPUSetTextureInternal(texture, params);
 }
 
-static uint32_t WebGPUGetTextureResourceSize(HTexture _texture)
+static uint32_t WebGPUGetTextureResourceSize(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
@@ -3009,28 +3009,28 @@ static uint32_t WebGPUGetTextureResourceSize(HTexture _texture)
     return size_total + sizeof(*texture);
 }
 
-static uint16_t WebGPUGetTextureWidth(HTexture _texture)
+static uint16_t WebGPUGetTextureWidth(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
     return texture->m_Width;
 }
 
-static uint16_t WebGPUGetTextureHeight(HTexture _texture)
+static uint16_t WebGPUGetTextureHeight(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
     return texture->m_Height;
 }
 
-static uint16_t WebGPUGetOriginalTextureWidth(HTexture _texture)
+static uint16_t WebGPUGetOriginalTextureWidth(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
     return texture->m_OriginalWidth;
 }
 
-static uint16_t WebGPUGetOriginalTextureHeight(HTexture _texture)
+static uint16_t WebGPUGetOriginalTextureHeight(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
@@ -3159,19 +3159,20 @@ static HRenderTarget WebGPUNewRenderTarget(HContext _context, uint32_t buffer_ty
 static void WebGPUDestroyRenderTarget(WebGPURenderTarget *rt)
 {
     TRACE_CALL;
+    HContext context = (HContext)g_WebGPUContext;
     for (size_t i = 0; i < rt->m_ColorBufferCount; ++i)
     {
         if (rt->m_TextureColor[i])
-            WebGPUDeleteTexture(rt->m_TextureColor[i]);
+            WebGPUDeleteTexture(context, rt->m_TextureColor[i]);
         if (rt->m_TextureResolve[i])
-            WebGPUDeleteTexture(rt->m_TextureResolve[i]);
+            WebGPUDeleteTexture(context, rt->m_TextureResolve[i]);
     }
     if (rt->m_TextureDepthStencil)
-        WebGPUDeleteTexture(rt->m_TextureDepthStencil);
+        WebGPUDeleteTexture(context, rt->m_TextureDepthStencil);
     delete rt;
 }
 
-static void WebGPUDeleteRenderTarget(HRenderTarget _rt)
+static void WebGPUDeleteRenderTarget(HContext context, HRenderTarget _rt)
 {
     TRACE_CALL;
     WebGPURenderTarget* rt = GetAssetFromContainer<WebGPURenderTarget>(g_WebGPUContext->m_AssetHandleContainer, _rt);
@@ -3190,7 +3191,7 @@ static void WebGPUSetRenderTarget(HContext _context, HRenderTarget _rt, uint32_t
     context->m_CurrentRenderTarget = rt ? rt : context->m_MainRenderTarget;
 }
 
-static HTexture WebGPUGetRenderTargetTexture(HRenderTarget _rt, BufferType buffer_type)
+static HTexture WebGPUGetRenderTargetTexture(HContext context, HRenderTarget _rt, BufferType buffer_type)
 {
     TRACE_CALL;
     WebGPURenderTarget* rt = GetAssetFromContainer<WebGPURenderTarget>(g_WebGPUContext->m_AssetHandleContainer, _rt);
@@ -3201,7 +3202,7 @@ static HTexture WebGPUGetRenderTargetTexture(HRenderTarget _rt, BufferType buffe
     return NULL;
 }
 
-static void WebGPUGetRenderTargetSize(HRenderTarget _rt, BufferType buffer_type, uint32_t& width, uint32_t& height)
+static void WebGPUGetRenderTargetSize(HContext context, HRenderTarget _rt, BufferType buffer_type, uint32_t& width, uint32_t& height)
 {
     TRACE_CALL;
     WebGPURenderTarget* rt = GetAssetFromContainer<WebGPURenderTarget>(g_WebGPUContext->m_AssetHandleContainer, _rt);
@@ -3209,7 +3210,7 @@ static void WebGPUGetRenderTargetSize(HRenderTarget _rt, BufferType buffer_type,
     height                 = rt->m_Height;
 }
 
-static void WebGPUSetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
+static void WebGPUSetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
 {
     TRACE_CALL;
     assert(false);
@@ -3253,11 +3254,11 @@ static void WebGPUSetColorMask(HContext _context, bool red, bool green, bool blu
         context->m_CurrentPipelineState.m_WriteColorMask |= DM_GRAPHICS_STATE_WRITE_A;
 }
 
-static void WebGPUSetDepthMask(HContext context, bool mask)
+static void WebGPUSetDepthMask(HContext context, bool enable_mask)
 {
     TRACE_CALL;
     assert(context);
-    ((WebGPUContext*)context)->m_CurrentPipelineState.m_WriteDepth = mask;
+    ((WebGPUContext*)context)->m_CurrentPipelineState.m_WriteDepth = enable_mask;
 }
 
 static void WebGPUSetDepthFunc(HContext context, CompareFunc func)
@@ -3391,15 +3392,15 @@ static PipelineState WebGPUGetPipelineState(HContext context)
     return ((WebGPUContext*)context)->m_CurrentPipelineState;
 }
 
-static void WebGPUSetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
+static void WebGPUSetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
 {
     TRACE_CALL;
-    WebGPUSetTexture(texture, params);
+    WebGPUSetTexture(context, texture, params);
     if (callback)
         callback(texture, user_data);
 }
 
-static uint32_t WebGPUGetTextureStatusFlags(HTexture texture)
+static uint32_t WebGPUGetTextureStatusFlags(HContext context, HTexture texture)
 {
     TRACE_CALL;
     return 0;
@@ -3411,7 +3412,7 @@ static bool WebGPUIsExtensionSupported(HContext context, const char* extension)
     return true;
 }
 
-static TextureType WebGPUGetTextureType(HTexture _texture)
+static TextureType WebGPUGetTextureType(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
@@ -3430,13 +3431,13 @@ static const char* WebGPUGetSupportedExtension(HContext context, uint32_t index)
     return "";
 }
 
-static uint8_t WebGPUGetNumTextureHandles(HTexture texture)
+static uint8_t WebGPUGetNumTextureHandles(HContext context, HTexture texture)
 {
     TRACE_CALL;
     return 1;
 }
 
-static uint32_t WebGPUGetTextureUsageHintFlags(HTexture _texture)
+static uint32_t WebGPUGetTextureUsageHintFlags(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
@@ -3457,14 +3458,14 @@ static bool WebGPUIsContextFeatureSupported(HContext _context, ContextFeature fe
     return (context->m_ContextFeatures & (1 << feature)) != 0;
 }
 
-static uint16_t WebGPUGetTextureDepth(HTexture _texture)
+static uint16_t WebGPUGetTextureDepth(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);
     return texture->m_Depth;
 }
 
-static uint8_t WebGPUGetTextureMipmapCount(HTexture _texture)
+static uint8_t WebGPUGetTextureMipmapCount(HContext context, HTexture _texture)
 {
     TRACE_CALL;
     WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(g_WebGPUContext->m_AssetHandleContainer, _texture);

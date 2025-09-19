@@ -77,6 +77,8 @@ namespace dmRender
      */
     typedef struct NamedConstantBuffer* HNamedConstantBuffer;
 
+    typedef struct Sampler*                 HSampler;
+
     /*#
      * @enum
      * @name Result
@@ -630,6 +632,98 @@ namespace dmRender
      * @param ctx [type: void*] the callback context
      */
     void IterateNamedConstants(HNamedConstantBuffer buffer, IterateNamedConstantsFn callback, void* ctx);
+
+    /*#
+     * @name GetViewMatrix
+     * @param render_context [type:dmRender::HRenderContext] Render context
+     * @return view_matrix [type:const dmVMath::Matrix4&]
+     */
+    const dmVMath::Matrix4& GetViewMatrix(HRenderContext render_context);
+
+    /*#
+     * @name NewMaterial
+     * @param render_context [type:dmRender::HContext] Render context
+     * @param program [type:dmGraphics::HProgram]
+     * @return new_material [type:dmRender::HMaterial]
+     */
+    HMaterial NewMaterial(HRenderContext render_context, dmGraphics::HProgram program);
+
+    /*#
+     * @name DeleteMaterial
+     * @param render_context [type:dmRender::HRenderContext] Render context
+     * @param material [type:dmRender::Material]
+     */
+    void DeleteMaterial(HRenderContext render_context, HMaterial material);
+
+    /*#
+     * @name ClearMaterialTags
+     * @param material [type:dmRender::HMaterial]
+     */
+    void ClearMaterialTags(HMaterial material);
+
+    /*#
+     * @name SetMaterialTags
+     * @param material [type:dmRender::Material]
+     * @param tag_count [type:uint32_t]
+     * @param tags [type:const dmhash_t*]
+     */
+    void SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags);
+
+    /*#
+     * @name SetMaterialSampler
+     * @param material [type:dmRender::HMaterial]
+     * @param name_hash [type:dmhash_t]
+     * @param unit [type:uint32_t]
+     * @param u_wrap [type:dmGraphics::TextureWrap]
+     * @param v_wrap [type:dmGraphics::TextureWrap]
+     * @param min_filter [type:dmGraphics::TextureFilter]
+     * @param mag_filter [type:dmGraphics::TextureFilter]
+     * @param max_anisotropy [type:float]
+     * @return is_succeed [type:bool]
+     */
+    bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+
+    /*#
+     * @name GetMaterialSampler
+     */
+    //! TODO: not implemented
+    HSampler GetMaterialSampler(HMaterial material, uint32_t unit);
+
+    /*#
+     * @name GetMaterialSamplerNameHash
+     * @param material [type:dmRender::HMaterial]
+     * @param unit [type:uint32_t]
+     * @return name_hash [type:dmhash_t]
+     */
+    dmhash_t GetMaterialSamplerNameHash(HMaterial material, uint32_t unit);
+
+    /*#
+     * @name GetMaterialSamplerUnit
+     * @param material [type:dmRender::HMaterial]
+     * @param name_hash [type:dmhash_t]
+     * @return sampler_unit [type:uint32_t]
+     */
+    uint32_t GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash);
+
+    /*#
+     * @name ApplyMaterialConstants
+     * @param render_context [type:dmRender::HRenderContext] Render context
+     * @param material [type:dmRender::Material]
+     * @param render_object [type:const dmRender::RenderObject*]
+     */
+    void ApplyMaterialConstants(HRenderContext render_context, HMaterial material, const RenderObject* render_object);
+
+    /*#
+     * @name ApplyMaterialSampler
+     * @param render_context [type:dmRender::HRenderContext]
+     * @param material [type:dmRender::HMaterial]
+     * @param sampler [type:dmRender::HSampler]
+     * @param value_index [type:uint8_t]
+     * @param texture [type:dmGraphics::HTexture]
+     */
+    //! TODO: not implemented
+    void ApplyMaterialSampler(HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t value_index, dmGraphics::HTexture texture);
+
 }
 
 #endif /* DMSDK_RENDER_H */

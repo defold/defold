@@ -12,6 +12,7 @@ def configure(conf):
             print("Setting PREFIX=$DYNAMO_HOME")
 
     conf.load('waf_dynamo')
+    conf.recurse('Box2D')
 
 def build(bld):
     bld.recurse('Box2D')

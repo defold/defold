@@ -278,7 +278,7 @@ PACKAGES_EMSCRIPTEN=[
     "protobuf-3.20.1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "wagyu-37",
+    "wagyu-39",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
@@ -1091,6 +1091,17 @@ class Configuration(object):
                 protodir = os.path.join(self.dynamo_home, d)
                 paths = _findfiles(protodir, ('.proto',))
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            # third-party headers
+            for d in ['ext/include/vulkan', 'ext/include/vk_video']:
+                protodir = os.path.join(self.dynamo_home, d)
+                paths = _findfiles(protodir, ('.h','.hpp', '.hxx', '.idl'))
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            self._add_files_to_zip(zip, [
+                os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3.h'),
+                os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3native.h')
+            ], self.dynamo_home, topfolder)
 
             # C# files
             for d in ['sdk/cs']:

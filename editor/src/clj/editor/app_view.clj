@@ -88,6 +88,7 @@
             [util.fn :as fn]
             [util.http-server :as http-server]
             [util.profiler :as profiler]
+            [util.text-util :as text-util]
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
            [com.defold.editor UIUtil]
@@ -2141,6 +2142,12 @@ If you do not specifically require different script states, consider changing th
           (string/trim)
           (not-empty)))
 
+(defn view-types
+  [resource]
+  (cond->> (:view-types (resource/resource-type resource))
+           (text-util/binary? resource)
+           (e/filter #(not= :code (:id %)))))
+
 (defn open-resource
   ([app-view prefs workspace project resource]
    (open-resource app-view prefs workspace project resource {}))
@@ -2151,7 +2158,7 @@ If you do not specifically require different script states, consider changing th
                                             {})))
          text-view-type (workspace/get-view-type workspace :text)
          view-type      (or (:selected-view-type opts)
-                            (first (:view-types resource-type))
+                            (first (view-types resource))
                             text-view-type)
          view-type-id (:id view-type)
          specific-view-type-selected (some? (:selected-view-type opts))]
@@ -2255,7 +2262,6 @@ If you do not specifically require different script states, consider changing th
                              active-view-type-id (:id (:view-type (g/node-value app-view :active-view-info evaluation-context)))]
                          (pair active-resource active-view-type-id))))
 
-                   resource-type (resource/resource-type resource)
                    is-custom-code-editor-configured (some? (custom-code-editor-executable-path-preference prefs))
 
                    make-option
@@ -2281,7 +2287,7 @@ If you do not specifically require different script states, consider changing th
                                                   :use-custom-editor false})]
                                    [(view-type->option view-type)])))
                        (map view-type->option))
-                     (cond->> (:view-types resource-type)
+                     (cond->> (view-types resource)
 
                               active-view-type-id
                               (e/filter #(not= active-view-type-id (:id %)))))))))

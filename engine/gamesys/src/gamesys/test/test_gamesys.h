@@ -753,7 +753,7 @@ void GamesysTest<T>::WaitForTestsDone(int update_count, bool render, bool* resul
             dmGameObject::Render(m_Collection);
 
             dmRender::RenderListEnd(m_RenderContext);
-            dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+            dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
         }
 
         // check if tests are done
@@ -935,4 +935,3 @@ protected:
 };
 
 #endif // DM_TEST_GAMESYS_H
-

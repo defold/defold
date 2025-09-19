@@ -68,6 +68,7 @@ namespace dmGraphics
         {
             VkBuffer       m_Buffer;
             VkDeviceMemory m_Memory;
+            uint8_t        m_LastUsedFrame;
         };
 
         void*              m_MappedDataPtr;
@@ -88,6 +89,7 @@ namespace dmGraphics
         {
             VkImage     m_Image;
             VkImageView m_ImageView;
+            uint8_t     m_LastUsedFrame;
         };
 
         VulkanHandle      m_Handle;
@@ -171,6 +173,7 @@ namespace dmGraphics
         {
             VkRenderPass  m_RenderPass;
             VkFramebuffer m_Framebuffer;
+            uint8_t       m_LastUsedFrame;
         };
 
         VulkanHandle   m_Handle;
@@ -283,6 +286,7 @@ namespace dmGraphics
             VkDescriptorSetLayout m_DescriptorSetLayouts[MAX_SET_COUNT];
             VkPipelineLayout      m_PipelineLayout;
             uint8_t               m_DescriptorSetLayoutsCount;
+            uint8_t               m_LastUsedFrame;
         };
 
         Program        m_BaseProgram;
