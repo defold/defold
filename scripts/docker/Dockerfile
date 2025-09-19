@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 # Base stuff
 RUN \
@@ -22,16 +22,16 @@ RUN \
   echo "*****************" && \
   echo "Custom /etc/apt/sources.list" && \
   echo "# custom" > /etc/apt/sources.list && \
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal main restricted" >> /etc/apt/sources.list && \
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal-updates main restricted" >> /etc/apt/sources.list && \
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal universe" >> /etc/apt/sources.list && \
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal-updates universe" >> /etc/apt/sources.list && \
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal multiverse" >> /etc/apt/sources.list && \
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal-updates multiverse" >> /etc/apt/sources.list && \
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal-backports main restricted universe multiverse" >> /etc/apt/sources.list && \
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal-security main restricted" >> /etc/apt/sources.list && \
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal-security universe" >> /etc/apt/sources.list && \
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal-security multiverse" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy main restricted" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-updates main restricted" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy universe" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-updates universe" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy multiverse" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-updates multiverse" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-backports main restricted universe multiverse" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-security main restricted" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-security universe" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-security multiverse" >> /etc/apt/sources.list && \
   echo "*****************"
 
 RUN \
@@ -64,10 +64,10 @@ RUN \
 RUN \
   dpkg --add-architecture amd64 && \
   echo "*****************" && \
-  echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] http://archive.ubuntu.com/ubuntu/ focal main restricted universe multiverse" >> /etc/apt/sources.list.d/docker.list && \
-  echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] http://archive.ubuntu.com/ubuntu/ focal-updates main restricted universe multiverse" >> /etc/apt/sources.list.d/docker.list && \
-  echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] http://archive.ubuntu.com/ubuntu/ focal-backports main restricted universe multiverse" >> /etc/apt/sources.list.d/docker.list && \
-  echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] http://archive.ubuntu.com/ubuntu/ focal-security main restricted universe multiverse" >> /etc/apt/sources.list.d/docker.list && \
+  echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] http://archive.ubuntu.com/ubuntu/ jammy main restricted universe multiverse" >> /etc/apt/sources.list.d/docker.list && \
+  echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] http://archive.ubuntu.com/ubuntu/ jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list.d/docker.list && \
+  echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] http://archive.ubuntu.com/ubuntu/ jammy-backports main restricted universe multiverse" >> /etc/apt/sources.list.d/docker.list && \
+  echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] http://archive.ubuntu.com/ubuntu/ jammy-security main restricted universe multiverse" >> /etc/apt/sources.list.d/docker.list && \
   echo "*****************" && \
   echo "apt-key" && \
   apt-key --keyring /etc/apt/keyrings/docker.asc adv --keyserver keyserver.ubuntu.com --recv-keys 0E98404D386FA1D9 6ED0E7B82643E131 605C66F00D6C9793 && \
@@ -142,20 +142,27 @@ RUN \
 ENV LC_ALL=C.UTF-8
 
 # Java (Temurin OpenJDK 21)
-ENV JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-arm64
+# Install from official Adoptium API tarball to avoid apt signature issues
+ENV JAVA_HOME=/usr/lib/jvm/temurin-21-jdk
 ENV PATH=${JAVA_HOME}/bin:${PATH}
 
-RUN \
-  echo "Installing Temurin OpenJDK 21" && \
-  apt-get update && \
-  install -m 0755 -d /etc/apt/keyrings && \
-  curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /etc/apt/keyrings/adoptium.gpg && \
-  chmod a+r /etc/apt/keyrings/adoptium.gpg && \
-  echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb focal main" > /etc/apt/sources.list.d/adoptium.list && \
-  apt-get update && \
-  apt-get install -y --no-install-recommends temurin-21-jdk && \
-  java -version && \
-  javac -version
+RUN set -eux; \
+  echo "Installing Temurin OpenJDK 21 (tarball)"; \
+  arch="$(dpkg --print-architecture)"; \
+  case "$arch" in \
+    arm64) jarch=aarch64 ;; \
+    amd64) jarch=x64 ;; \
+    *) echo "Unsupported architecture: $arch"; exit 1 ;; \
+  esac; \
+  url="https://api.adoptium.net/v3/binary/latest/21/ga/linux/${jarch}/jdk/hotspot/normal/eclipse?project=jdk"; \
+  echo "Downloading: $url"; \
+  mkdir -p /tmp/java && cd /tmp/java; \
+  curl -fsSL "$url" -o openjdk.tar.gz; \
+  mkdir -p "$JAVA_HOME"; \
+  tar -xzf openjdk.tar.gz --strip-components=1 -C "$JAVA_HOME"; \
+  cd /; rm -rf /tmp/java; \
+  "$JAVA_HOME/bin/java" -version; \
+  "$JAVA_HOME/bin/javac" -version
 
 # cmake
 RUN \
