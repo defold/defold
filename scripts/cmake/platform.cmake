@@ -20,68 +20,8 @@ if(NOT TARGET build_tests)
   add_custom_target(build_tests)
 endif()
 
-# Function to register a test target: adds it as a dependency of build_tests
-# and records it in a global list so run_tests can invoke it.
-function(defold_register_test_target target_name)
-  if(NOT TARGET ${target_name})
-    message(FATAL_ERROR "defold_register_test_target: target '${target_name}' does not exist")
-  endif()
-  # Build aggregation
-  add_dependencies(build_tests ${target_name})
-
-  # Should this test be runnable via run_tests? default: ON
-  set(_RUN_TEST ON)
-  if(ARGC GREATER 1)
-    set(_RUN_TEST "${ARGV1}")
-  endif()
-  string(TOUPPER "${_RUN_TEST}" _RUN_TEST_UPPER)
-  if(_RUN_TEST_UPPER STREQUAL "0" OR _RUN_TEST_UPPER STREQUAL "OFF" OR _RUN_TEST_UPPER STREQUAL "FALSE" OR _RUN_TEST_UPPER STREQUAL "NO")
-    set(_RUN_TEST FALSE)
-  else()
-    set(_RUN_TEST TRUE)
-  endif()
-
-  # Optional working directory for running the test (ARG2)
-  set(_RUN_DIR "")
-  if(ARGC GREATER 2)
-    set(_RUN_DIR "${ARGV2}")
-  endif()
-  # Normalize working directory path (make absolute and resolve . and ..)
-  set(_RUN_DIR_NORM "")
-  if(_RUN_DIR)
-    get_filename_component(_RUN_DIR_NORM "${_RUN_DIR}" ABSOLUTE)
-    get_filename_component(_RUN_DIR_NORM "${_RUN_DIR_NORM}" REALPATH)
-  endif()
-
-  if(_RUN_TEST)
-    # Create a per-test run target
-    set(_run_target "run_${target_name}")
-    if(NOT TARGET ${_run_target})
-      if(_RUN_DIR_NORM)
-        add_custom_target(${_run_target}
-          COMMAND ${CMAKE_COMMAND} -E chdir "${_RUN_DIR_NORM}" $<TARGET_FILE:${target_name}>
-          DEPENDS ${target_name}
-          USES_TERMINAL
-          COMMENT "Running ${target_name} in ${_RUN_DIR_NORM}")
-      else()
-        add_custom_target(${_run_target}
-          COMMAND $<TARGET_FILE:${target_name}>
-          DEPENDS ${target_name}
-          USES_TERMINAL
-          COMMENT "Running ${target_name}")
-      endif()
-    endif()
-
-    # Ensure run_tests exists and depends on the per-test run target
-    if(NOT TARGET run_tests)
-      add_custom_target(run_tests)
-    endif()
-    add_dependencies(run_tests ${_run_target})
-  endif()
-endfunction()
-
-# Global target to run all registered tests
-# run_tests is created via defold_register_test_target when tests register
+# Test utilities (register tests, run targets)
+include(functions_test)
 
 #**************************************************************************
 # Common compile settings
@@ -102,6 +42,7 @@ add_compile_definitions(
   __STDC_LIMIT_MACROS
   DDF_EXPOSE_DESCRIPTORS
   GOOGLE_PROTOBUF_NO_RTTI
+  DM_USE_CMAKE # for some tests, as the build folders change
 )
 
 if (TARGET_PLATFORM MATCHES "^arm64|^x86_64")
