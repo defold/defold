@@ -94,6 +94,97 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
 
 endfunction()
 
+######################################################################
+# Encode a text/binary .proto message file using protoc --encode
+#
+# Usage:
+#   defold_protoc_encode(
+#     "${CMAKE_CURRENT_BINARY_DIR}/build/src/test/test.input_bindingc"  # OUT_FILE
+#     "${CMAKE_CURRENT_SOURCE_DIR}/src/test/test.input_binding"          # SRC_FILE
+#     "${CMAKE_CURRENT_SOURCE_DIR}/proto/input/input_ddf.proto"          # SCHEMA_PROTO
+#     "dmInputDDF.InputBinding"                                          # MESSAGE_NAME
+#     INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/src/test" "${CMAKE_CURRENT_SOURCE_DIR}/proto"
+#   )
+#
+# Notes:
+# - Mirrors engine/input/src/test/wscript:create_protoc_task
+# - Adds DEFOLD_SDK_ROOT/share/proto and DEFOLD_SDK_ROOT/ext/include to -I by default
+# - Uses a CMake script with execute_process(INPUT_FILE/OUTPUT_FILE) so it works cross-platform
+function(defold_protoc_encode OUT_FILE SRC_FILE SCHEMA_PROTO MESSAGE_NAME)
+    set(options)
+    set(oneValueArgs)
+    set(multiValueArgs INCLUDES)
+    cmake_parse_arguments(DPE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    if(NOT OUT_FILE OR NOT SRC_FILE OR NOT SCHEMA_PROTO OR NOT MESSAGE_NAME)
+        message(FATAL_ERROR "defold_protoc_encode: require OUT_FILE, SRC_FILE, SCHEMA_PROTO, MESSAGE_NAME")
+    endif()
+
+    get_filename_component(_src_abs "${SRC_FILE}" ABSOLUTE)
+    get_filename_component(_schema_abs "${SCHEMA_PROTO}" ABSOLUTE)
+    get_filename_component(_out_abs "${OUT_FILE}" ABSOLUTE)
+    get_filename_component(_out_dir "${_out_abs}" DIRECTORY)
+
+    # Build include dirs
+    set(_inc_dirs)
+    if(DPE_INCLUDES)
+        list(APPEND _inc_dirs ${DPE_INCLUDES})
+    endif()
+    if(DEFOLD_SDK_ROOT)
+        list(APPEND _inc_dirs "${DEFOLD_SDK_ROOT}/share/proto" "${DEFOLD_SDK_ROOT}/ext/include")
+    endif()
+    list(REMOVE_DUPLICATES _inc_dirs)
+    # Normalize include paths using REALPATH (removes . and .., resolves symlinks)
+    set(_norm_inc_dirs)
+    foreach(_d IN LISTS _inc_dirs)
+        if(IS_ABSOLUTE "${_d}")
+            get_filename_component(_norm_inc "${_d}" REALPATH)
+        else()
+            get_filename_component(_abs_inc "${_d}" ABSOLUTE)
+            get_filename_component(_norm_inc "${_abs_inc}" REALPATH)
+        endif()
+        list(APPEND _norm_inc_dirs "${_norm_inc}")
+    endforeach()
+    set(_inc_dirs "${_norm_inc_dirs}")
+
+    # Serialize include list into semicolon list for the helper script
+    file(MAKE_DIRECTORY "${_out_dir}")
+
+    # Build shell command to pipe input into protoc --encode and write output
+    # Cross-platform handling for input/output redirection
+    if(WIN32)
+        # Use cmd to type input and redirect to output
+        # Construct include flags string for Windows shell
+        set(_inc_joined "")
+        foreach(_i IN LISTS _inc_dirs)
+            set(_inc_joined "${_inc_joined} -I ${_i}")
+        endforeach()
+        add_custom_command(
+            OUTPUT "${_out_abs}"
+            COMMAND cmd /C "type ${_src_abs} | protoc --encode=${MESSAGE_NAME} ${_inc_joined} ${_schema_abs} > ${_out_abs}"
+            DEPENDS "${_src_abs}" "${_schema_abs}"
+            VERBATIM
+            COMMENT "Encoding ${_src_abs} as ${MESSAGE_NAME} -> ${_out_abs}"
+        )
+    else()
+        # POSIX sh -c with input/output redirection
+        # Build a single string with includes to avoid list splitting issues
+        set(_inc_joined "")
+        foreach(_i IN LISTS _inc_dirs)
+            set(_inc_joined "${_inc_joined} -I ${_i}")
+        endforeach()
+        add_custom_command(
+            OUTPUT "${_out_abs}"
+            COMMAND /bin/sh -c "protoc --encode=${MESSAGE_NAME} ${_inc_joined} ${_schema_abs} < ${_src_abs} > ${_out_abs}"
+            DEPENDS "${_src_abs}" "${_schema_abs}"
+            VERBATIM
+            COMMENT "Encoding ${_src_abs} as ${MESSAGE_NAME} -> ${_out_abs}"
+        )
+    endif()
+
+    set_source_files_properties("${_out_abs}" PROPERTIES GENERATED TRUE)
+endfunction()
+
 # Generate Python bindings from a .proto file using protoc.
 #
 # Usage:

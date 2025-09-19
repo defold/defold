@@ -40,46 +40,7 @@ endif()
 # ===================== Tests (optional) =====================
 
 if(BUILD_TESTS)
-    add_executable(test_input "${INPUT_SRC_DIR}/test/test_input.cpp")
-
-    target_include_directories(input PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
-
-    target_link_libraries(test_input PRIVATE
-        dlib
-        mbedtls
-        ddf
-        platform_null
-        profile_null
-        hid_null
-        input
-        testmain
-    )
-
-    if (_GLFW_VERSION EQUAL 3)
-        target_link_libraries(test_input PRIVATE glfw3)
-    else()
-        target_link_libraries(test_input PRIVATE dmglfw)
-    endif()
-
-    if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
-        #set(_DM_USE_OPENGLES ON)
-
-    elseif (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
-        target_link_libraries(test_input PRIVATE "-framework IOKit")
-
-    elseif (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
-        target_link_libraries(test_input PRIVATE "-framework IOKit")
-
-    elseif (TARGET_PLATFORM MATCHES "x86_64-win32|win32")
-        target_link_libraries(test_input PRIVATE user32 gdi32 shell32)
-
-    elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
-        find_package(Threads REQUIRED)
-        target_link_libraries(test_input PRIVATE Threads::Threads dl)
-    endif()
-
-    # Register into global build_tests and run_tests
-    defold_register_test_target(test_input)
+    add_subdirectory(src/test)
 endif()
 
 # ===================== Install =====================
