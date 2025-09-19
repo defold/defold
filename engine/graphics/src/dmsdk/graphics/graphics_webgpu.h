@@ -46,6 +46,7 @@ namespace dmGraphics
     WGPUDevice              WebGPUGetDevice(HContext context);
     WGPUQueue               WebGPUGetQueue(HContext context);
     WGPUTextureView         WebGPUGetTextureView(HContext context, HTexture texture);
+    WGPUTexture             WebGPUGetTexture(HContext context, HTexture texture);
     HTexture                WebGPUGetActiveSwapChainTexture(HContext context);
     WGPUCommandEncoder      WebGPUGetActiveCommandEncoder(HContext context);
     // Ends the current render passes, letting someone else use the encoder to post new render passes
