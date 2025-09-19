@@ -27,7 +27,7 @@ add_library(input STATIC
     "${CMAKE_CURRENT_BINARY_DIR}/input/input_ddf.pb.cc"
 )
 
-target_include_directories(input PUBLIC "${INPUT_SRC_DIR}")
+target_include_directories(input PUBLIC ${INPUT_SRC_DIR} ${CMAKE_CURRENT_BINARY_DIR})
 # just to make sure the extra dependency is actually built
 add_dependencies(input input_proto_py)
 
