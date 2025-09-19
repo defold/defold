@@ -150,6 +150,8 @@ changes-view.revert = Revert
 
 # Prefs
 
+prefs.dialog.title = Preferences
+
 prefs.tab.general = General
 prefs.tab.code = Code
 prefs.tab.extensions = Extensions
@@ -194,3 +196,20 @@ prefs.tools.ios-deploy-path.description = Path to ios-deploy command that might 
 
 # Dev tab
 prefs.dev.custom-engine = Custom Engine
+
+# Keymap tab
+prefs.keymap.filter.prompt = Filter keymap...
+prefs.keymap.command = Command
+prefs.keymap.shortcuts = Shortcuts
+prefs.keymap.context-menu.new-shortcut = New Shortcut...
+prefs.keymap.context-menu.reset-to-default = Reset to Default
+prefs.keymap.context-menu.remove = Remove {shortcut}
+prefs.keymap.context-menu.add = Add {shortcut}
+prefs.keymap.new-shortcut = New "{shortcut}" Shortcut
+prefs.keymap.new-shortcut.press-desired-combination = Press the desired key combination
+prefs.keymap.new-shortcut.commit = Нажмите {enter}, чтобы подтвердить
+prefs.keymap.new-shortcut.commit-or-cancel = Нажмите {enter}, чтобы подтвердить, {escape} — отменить
+prefs.keymap.warnings = Warnings:{warnings}
+prefs.keymap.warning = \n• {warning}
+prefs.keymap.warning.typable = Typable (may interfere with text inputs)
+prefs.keymap.warning.conflicts = Conflicts with {shortcuts}

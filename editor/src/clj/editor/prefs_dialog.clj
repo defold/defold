@@ -99,23 +99,19 @@
                :selected value
                :on-selected-changed on-value-changed}]})
 
-(defmethod form-input :string [path schema value on-value-changed localization-state _]
-  ;; TODO: build server url tho
-  (let [prompt-key (str "prefs." (coll/join-to-string "." (e/map name path)) ".prompt")
-        {:keys [multiline]} (:ui schema)]
-    (cond-> {:fx/type (if multiline fxui/value-area fxui/value-field)
+(defn- text-input [path value on-value-changed localization-state fx-type]
+  (let [prompt-key (str "prefs." (coll/join-to-string "." (e/map name path)) ".prompt")]
+    (cond-> {:fx/type fx-type
              :value value
              :on-value-changed on-value-changed}
             (localization/defines-message-key? localization-state prompt-key)
             (assoc :prompt-text (localization/localize localization-state (localization/message prompt-key))))))
 
+(defmethod form-input :string [path schema value on-value-changed localization-state _]
+  (text-input path value on-value-changed localization-state (if (:multiline (:ui schema)) fxui/value-area fxui/value-field)))
+
 (defmethod form-input :password [path _ value on-value-changed localization-state _]
-  (let [prompt-key (str "prefs." (coll/join-to-string "." (e/map name path)) ".prompt")]
-    (cond-> {:fx/type fxui/password-value-field
-             :value value
-             :on-value-changed on-value-changed}
-            (localization/defines-message-key? localization-state prompt-key)
-            (assoc :prompt-text (localization/localize localization-state (localization/message prompt-key))))))
+  (text-input path value on-value-changed localization-state fxui/password-value-field))
 
 (defmethod form-input :localization [_ _ _ _ localization-state localization]
   {:fx/type fx.combo-box/lifecycle
@@ -154,16 +150,18 @@
 (defn- warnings-messages [warnings]
   (e/map (fn [[type warnings]]
            (case type
-             :typable "Typable (may interfere with text inputs)"
-             :conflict (str "Conflicts with "
-                            (->> warnings
-                                 (mapv #(-> % :command command-label))
-                                 sort
-                                 (eutil/join-words ", " " and ")))
+             :typable (localization/message "prefs.keymap.warning.typable")
+             :conflict (localization/message
+                         "prefs.keymap.warning.conflicts"
+                         {"shortcuts" (->> warnings
+                                           (mapv #(-> % :command command-label))
+                                           sort
+                                           vec
+                                           localization/and-list)})
              (string/capitalize (name type))))
          (group-by :type warnings)))
 
-(defn- describe-shortcut-cell [keymap command]
+(defn- describe-shortcut-cell [keymap localization-state command]
   (if command
     (let [shortcuts (keymap/shortcuts keymap command)]
       {:graphic
@@ -184,6 +182,7 @@
                            (assoc :pseudo-classes #{:warning}
                                   :tooltip (->> warnings
                                                 warnings-messages
+                                                (e/map #(localization/localize localization-state %))
                                                 (coll/join-to-string "\n"))))))))}})
     {}))
 
@@ -267,7 +266,7 @@
               :initial-state nil
               :key :shortcut
               :swap-key :swap-shortcut}]}
-  [{:keys [keymap command shortcut swap-shortcut swap-state update-keymap]}]
+  [{:keys [keymap command shortcut swap-shortcut swap-state update-keymap localization-state]}]
   (let [warnings (when shortcut
                    (keymap/warnings (keymap/from keymap {command {:add #{(str shortcut)}}}) command shortcut))]
     {:fx/type fxui/vertical
@@ -277,7 +276,7 @@
      (cond->
        [{:fx/type fxui/label
          :alignment :center
-         :text (str "New '" (command-label command) "' Shortcut")}
+         :text (localization/localize localization-state (localization/message "prefs.keymap.new-shortcut" {"shortcut" (command-label command)}))}
         {:fx/type fxui/text-field
          :event-filter #(filter-new-shortcut-text-field-events command shortcut swap-shortcut swap-state update-keymap %)
          :alignment :center
@@ -286,15 +285,24 @@
          :alignment :center
          :text-alignment :center
          :color :hint
-         :text (if (not shortcut)
-                 "Press the desired key combination"
-                 (str
-                   (str "Press " (keymap/shortcut-display-text enter-shortcut) " to commit")
-                   (when (= shortcut escape-shortcut)
-                     (str ", " (keymap/shortcut-display-text escape-shortcut) " again to cancel"))))}]
+         :text (localization/localize
+                 localization-state
+                 (if (not shortcut)
+                   (localization/message "prefs.keymap.new-shortcut.press-desired-combination")
+                   (if (= shortcut escape-shortcut)
+                     (localization/message "prefs.keymap.new-shortcut.commit-or-cancel" {"enter" (keymap/shortcut-display-text enter-shortcut)
+                                                                                         "escape" (keymap/shortcut-display-text escape-shortcut)})
+                     (localization/message "prefs.keymap.new-shortcut.commit" {"enter" (keymap/shortcut-display-text enter-shortcut)}))))}]
        warnings
        (conj {:fx/type fxui/paragraph
-              :text (str "Warnings:\n• " (coll/join-to-string "\n• " (warnings-messages warnings)))}))}))
+              :text (localization/localize
+                      localization-state
+                      (localization/message
+                        "prefs.keymap.warnings"
+                        {"warnings" (->> warnings
+                                         (warnings-messages)
+                                         (e/map #(localization/localize localization-state (localization/message "prefs.keymap.warning" {"warning" %})))
+                                         (coll/join-to-string ""))}))}))}))
 
 (defn- show-new-shortcut-dialog! [swap-state command ^Window window]
   (let [root (.getRoot (.getScene window))
@@ -324,7 +332,7 @@
               :key :handler-state}
              {:fx/type fx/ext-state
               :initial-state {:filter-text ""}}]}
-  [{:keys [update-keymap state swap-state keymap handler-state]}]
+  [{:keys [update-keymap state swap-state keymap handler-state localization-state]}]
   (let [{:keys [filter-text context-menu new-shortcut-popup]} state
         commands (-> (handler/public-commands handler-state)
                      (into (keymap/commands keymap))
@@ -337,7 +345,7 @@
      :spacing :medium
      :children
      [{:fx/type fxui/text-field
-       :prompt-text "Filter keymap..."
+       :prompt-text (localization/localize localization-state (localization/message "prefs.keymap.filter.prompt"))
        :text filter-text
        :on-text-changed #(swap-state assoc :filter-text %)}
       {:fx/type fxui/with-popup-window
@@ -359,6 +367,7 @@
                        [{:fx/type fx.region/lifecycle
                          :style-class "keymap-new-shortcut-background"}
                         {:fx/type new-shortcut-view
+                         :localization-state localization-state
                          :keymap keymap
                          :command command
                          :swap-state swap-state
@@ -377,19 +386,19 @@
             :items (vec
                      (e/cons
                        {:fx/type fx.menu-item/lifecycle
-                        :text "New Shortcut..."
+                        :text (localization/localize localization-state (localization/message "prefs.keymap.context-menu.new-shortcut"))
                         :on-action #(handle-new-shortcut-action swap-state command %)}
                        (e/concat
                          (when (not= shortcuts default-shortcuts)
                            [{:fx/type fx.menu-item/lifecycle
-                             :text "Reset to Default"
+                             :text (localization/localize localization-state (localization/message "prefs.keymap.context-menu.reset-to-default"))
                              :on-action #(handle-reset-shortcuts-action update-keymap command %)}])
                          (->> shortcuts
                               (mapv (coll/pair-fn keymap/shortcut-distinct-display-text))
                               (sort-by key)
                               (e/map (fn [[text shortcut]]
                                        {:fx/type fx.menu-item/lifecycle
-                                        :text (str "Remove " text)
+                                        :text (localization/localize localization-state (localization/message "prefs.keymap.context-menu.remove" {"shortcut" text}))
                                         :on-action #(handle-remove-shortcut-action update-keymap command shortcut %)})))
                          (when default-shortcuts
                            (let [removed-built-in-shortcuts (set/difference default-shortcuts (or shortcuts #{}))]
@@ -398,7 +407,7 @@
                                   (sort-by key)
                                   (e/map (fn [[text shortcut]]
                                            {:fx/type fx.menu-item/lifecycle
-                                            :text (str "Add " text)
+                                            :text (localization/localize localization-state (localization/message "prefs.keymap.context-menu.add" {"shortcut" text}))
                                             :on-action #(handle-add-shortcut-action update-keymap command shortcut %)}))))))))}))
        :desc
        {:fx/type fx.table-view/lifecycle
@@ -408,97 +417,101 @@
         :columns [{:fx/type fx.table-column/lifecycle
                    :reorderable false
                    :sortable false
-                   :text "Command"
+                   :text (localization/localize localization-state (localization/message "prefs.keymap.command"))
                    :cell-value-factory identity
                    :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                                   :describe (fn/partial #'describe-command-cell keymap)}}
                   {:fx/type fx.table-column/lifecycle
                    :reorderable false
                    :sortable false
-                   :text "Shortcuts"
+                   :text (localization/localize localization-state (localization/message "prefs.keymap.shortcuts"))
                    :cell-value-factory identity
                    :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                                  :describe (fn/partial #'describe-shortcut-cell keymap)}}]
+                                  :describe (fn/partial #'describe-shortcut-cell keymap localization-state)}}]
         :on-context-menu-requested #(handle-table-view-context-menu-requested-event swap-state %)
         :on-key-pressed #(handle-table-view-key-pressed swap-state %)
         :on-mouse-clicked #(handle-table-view-mouse-clicked swap-state %)
         :items commands}}]}))
-
-(fxui/defc prefs-tab-pane
-  {:compose [{:fx/type fx/ext-watcher
-              :ref prefs/global-state
-              :key :prefs-state}
-             {:fx/type fx/ext-watcher
-              :ref (:localization props)
-              :key :localization-state}]}
-  [{:keys [prefs prefs-state localization-state localization]}]
-  {:fx/type fx.tab-pane/lifecycle
-   :tab-closing-policy :unavailable
-   :tabs (vec
-           (e/conj
-             (e/map
-               (fn [{:keys [pattern paths]}]
-                 {:fx/type fx.tab/lifecycle
-                  :text (localization/localize localization-state pattern)
-                  :content {:fx/type fxui/grid
-                            :padding :medium
-                            :spacing :medium
-                            :column-constraints [{:fx/type fx.column-constraints/lifecycle}
-                                                 {:fx/type fx.column-constraints/lifecycle
-                                                  :hgrow :always}]
-                            :children (->> paths
-                                           (e/mapcat-indexed
-                                             (fn [row path]
-                                               (let [label-key (str "prefs." (coll/join-to-string "." (e/map name path)))
-                                                     tooltip-key (str label-key ".description")]
-                                                 [(cond->
-                                                    {:fx/type fxui/label
-                                                     :grid-pane/row row
-                                                     :grid-pane/column 0
-                                                     :grid-pane/fill-width false
-                                                     :grid-pane/fill-height false
-                                                     :grid-pane/valignment :top
-                                                     :text (localization/localize localization-state (localization/message label-key))}
-                                                    (localization/defines-message-key? localization-state tooltip-key)
-                                                    (assoc :tooltip (localization/localize localization-state (localization/message tooltip-key))))
-                                                  (assoc
-                                                    (form-input path
-                                                                (prefs/schema prefs-state prefs path)
-                                                                (prefs/get prefs-state prefs path)
-                                                                (fn/partial prefs/set! prefs path)
-                                                                localization-state
-                                                                localization)
-                                                    :grid-pane/row row
-                                                    :grid-pane/column 1)])))
-                                           vec)}})
-               @pages)
-             {:fx/type fx.tab/lifecycle
-              :text (localization/localize localization-state (localization/message "prefs.tab.keymap"))
-              :content {:fx/type keymap-view
-                        :keymap (keymap/from-prefs prefs-state prefs)
-                        :update-keymap (fn/partial prefs/update! prefs [:window :keymap])}}))})
 
 (defn- handle-scene-key-pressed [^KeyEvent e]
   (when (= KeyCode/ESCAPE (.getCode e))
     (.consume e)
     (.hide (.getWindow ^Scene (.getSource e)))))
 
+(fxui/defc dialog-view
+  {:compose [{:fx/type fx/ext-watcher
+              :ref prefs/global-state
+              :key :prefs-state}
+             {:fx/type fx/ext-watcher
+              :ref (:localization props)
+              :key :localization-state}]}
+  [{:keys [prefs prefs-state localization-state localization result-fn]}]
+  {:fx/type fxui/dialog-stage
+   :showing true
+   :on-hidden result-fn
+   :title (localization/localize localization-state (localization/message "prefs.dialog.title"))
+   :resizable true
+   :min-width 650
+   :min-height 500
+   :scene
+   {:fx/type fx.scene/lifecycle
+    :stylesheets [(str (io/resource "dialogs.css"))]
+    :on-key-pressed handle-scene-key-pressed
+    :root
+    {:fx/type fx.tab-pane/lifecycle
+     :tab-closing-policy :unavailable
+     :tabs (vec
+             (e/conj
+               (e/map
+                 (fn [{:keys [pattern paths]}]
+                   {:fx/type fx.tab/lifecycle
+                    :text (localization/localize localization-state pattern)
+                    :content {:fx/type fxui/grid
+                              :padding :medium
+                              :spacing :medium
+                              :column-constraints [{:fx/type fx.column-constraints/lifecycle}
+                                                   {:fx/type fx.column-constraints/lifecycle
+                                                    :hgrow :always}]
+                              :children (->> paths
+                                             (e/mapcat-indexed
+                                               (fn [row path]
+                                                 (let [label-key (str "prefs." (coll/join-to-string "." (e/map name path)))
+                                                       tooltip-key (str label-key ".description")]
+                                                   [(cond->
+                                                      {:fx/type fxui/label
+                                                       :grid-pane/row row
+                                                       :grid-pane/column 0
+                                                       :grid-pane/fill-width false
+                                                       :grid-pane/fill-height false
+                                                       :grid-pane/valignment :top
+                                                       :text (localization/localize localization-state (localization/message label-key))}
+                                                      (localization/defines-message-key? localization-state tooltip-key)
+                                                      (assoc :tooltip (localization/localize localization-state (localization/message tooltip-key))))
+                                                    (assoc
+                                                      (form-input path
+                                                                  (prefs/schema prefs-state prefs path)
+                                                                  (prefs/get prefs-state prefs path)
+                                                                  (fn/partial prefs/set! prefs path)
+                                                                  localization-state
+                                                                  localization)
+                                                      :grid-pane/row row
+                                                      :grid-pane/column 1)])))
+                                             vec)}})
+                 @pages)
+               {:fx/type fx.tab/lifecycle
+                :text (localization/localize localization-state (localization/message "prefs.tab.keymap"))
+                :content {:fx/type keymap-view
+                          :localization-state localization-state
+                          :keymap (keymap/from-prefs prefs-state prefs)
+                          :update-keymap (fn/partial prefs/update! prefs [:window :keymap])}}))}}})
+
 (defn open!
   "Show the prefs dialog and block the thread until the dialog is closed"
   [prefs localization]
   (fxui/show-stateless-dialog-and-await-result!
     (fn [result-fn]
-      {:fx/type fxui/dialog-stage
-       :showing true
-       :on-hidden result-fn
-       :title "Preferences"
-       :resizable true
-       :min-width 650
-       :min-height 500
-       :scene {:fx/type fx.scene/lifecycle
-               :stylesheets [(str (io/resource "dialogs.css"))]
-               :on-key-pressed handle-scene-key-pressed
-               :root {:fx/type prefs-tab-pane
-                      :localization localization
-                      :prefs prefs}}}))
+      {:fx/type dialog-view
+       :result-fn result-fn
+       :localization localization
+       :prefs prefs}))
   nil)

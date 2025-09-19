@@ -149,6 +149,8 @@ changes-view.revert = Откатить
 
 # Prefs
 
+prefs.dialog.title = Настройки
+
 prefs.tab.general = Общие
 prefs.tab.code = Код
 prefs.tab.extensions = Расширения
@@ -193,3 +195,17 @@ prefs.tools.ios-deploy-path.description = Путь к команде ios-deploy,
 
 # Dev tab
 prefs.dev.custom-engine = Свой движок
+
+# Keymap tab
+prefs.keymap.filter.prompt = Фильтр комбинаций клавиш...
+prefs.keymap.command = Команда
+prefs.keymap.shortcuts = Комбинации клавиш
+prefs.keymap.context-menu.new-shortcut = Новая комбинация клавиш...
+prefs.keymap.context-menu.reset-to-default = Восстановить по умолчанию
+prefs.keymap.context-menu.remove = Удалить {shortcut}
+prefs.keymap.context-menu.add = Добавить {shortcut}
+prefs.keymap.new-shortcut = Новая комбинация: «{shortcut}»
+prefs.keymap.new-shortcut.press-desired-combination = Нажмите нужную комбинацию клавиш
+prefs.keymap.warning.typable = Символы вводимы (может мешать текстовым полям)
+prefs.keymap.warning.conflicts = Конфликтует с комбинациями: {shortcuts}
+prefs.keymap.warnings = Предупреждения:{warnings}
