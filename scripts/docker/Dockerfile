@@ -7,6 +7,7 @@ RUN \
     software-properties-common \
     ca-certificates \
     curl \
+    gnupg \
     dirmngr \
     gpg-agent
 
@@ -140,19 +141,36 @@ RUN \
 
 ENV LC_ALL=C.UTF-8
 
-# Java
-ENV JAVA_HOME=/usr/local/jdk-17.0.13+11
+# Java (Temurin OpenJDK 21)
+ENV JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-arm64
 ENV PATH=${JAVA_HOME}/bin:${PATH}
 
 RUN \
-  mkdir -p /usr/local && \
-  wget -q -O - https://aka.ms/download-jdk/microsoft-jdk-17.0.13-linux-aarch64.tar.gz | tar xz -C /usr/local && \
+  echo "Installing Temurin OpenJDK 21" && \
+  apt-get update && \
+  install -m 0755 -d /etc/apt/keyrings && \
+  curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /etc/apt/keyrings/adoptium.gpg && \
+  chmod a+r /etc/apt/keyrings/adoptium.gpg && \
+  echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb focal main" > /etc/apt/sources.list.d/adoptium.list && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends temurin-21-jdk && \
   java -version && \
   javac -version
 
 # cmake
 RUN \
-  wget -qO- "https://cmake.org/files/v3.31/cmake-3.31.0-rc1-linux-aarch64.tar.gz" | tar --strip-components=1 -xz -C /usr/local
+  wget -qO- "https://cmake.org/files/v4.1/cmake-4.1.0-linux-aarch64.tar.gz" | tar --strip-components=1 -xz -C /usr/local
+
+# ninja (latest stable)
+ENV NINJA_VERSION=1.12.1
+RUN \
+  echo "Installing Ninja ${NINJA_VERSION} from source" && \
+  git clone --depth 1 --branch v${NINJA_VERSION} https://github.com/ninja-build/ninja.git /tmp/ninja && \
+  cd /tmp/ninja && \
+  python configure.py --bootstrap && \
+  install -m 0755 ninja /usr/local/bin/ninja && \
+  cd / && rm -rf /tmp/ninja && \
+  ninja --version
 
 # go
 ENV PATH=/usr/local/go/bin:${PATH}
