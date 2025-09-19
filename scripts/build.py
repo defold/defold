@@ -553,9 +553,9 @@ class Configuration(object):
             elif tp == 'win32':
                 arch_args = ['-A', 'Win32']
 
-        # Build directory per target platform
+        # Build directory per target platform inside solutions/<platform>
         if not build_dir:
-            build_dir = os.path.join(self.defold_root, f'cmake-build-{tp}')
+            build_dir = os.path.join(self.defold_root, 'solutions', tp)
         self._mkdirs(build_dir)
 
         cmake_cmd = ['cmake', '-S', self.defold_root, '-B', build_dir, f'-DTARGET_PLATFORM={tp}']
