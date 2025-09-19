@@ -31,10 +31,6 @@
     :jar-file "../com.dynamo.cr/com.dynamo.cr.bob/lib/openmali.jar"
     :version "1.0"}])
 
-;;           baseline: 14_663_227
-;; no icu data at all:  3_206_748
-;;         end result:  4_859_556
-
 (defn- clean-icu4j-data
   ^Path [icu4j-config]
   (let [{:keys [version]} icu4j-config
@@ -87,9 +83,7 @@
                              ;; unicode normalization data
                              (.endsWith p ".nrm")
                              ;; unicode "string preparation"
-                             (.endsWith p ".spp"))))))))
-      #_(println (Files/size jar)))
-    (println (Files/size jar))
+                             (.endsWith p ".spp")))))))))
     jar))
 
 (defn- git-sha1 []

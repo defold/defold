@@ -503,7 +503,6 @@ def create_bundle(options):
 
         print("Creating '%s' bundle from '%s'" % (zipfile, bundle_dir))
         ziptree(bundle_dir, zipfile, tmp_dir)
-        print(f"The file size is: {os.path.getsize(zipfile) / 1048576:.2f} MB")
 
         # create additional tar.gz bundle in case of Linux
         is_linux = 'linux' in platform

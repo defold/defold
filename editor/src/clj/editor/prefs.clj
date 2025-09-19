@@ -43,7 +43,6 @@
     :ui         the ui configuration, a map with the following keys:
                   :multiline      for string inputs: whether to show a multiline
                                   text-area, a boolean
-                  :prompt         for string inputs: prompt text
                   :type           different schema type, the input should
                                   support the value
 
@@ -56,7 +55,6 @@
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
             [cognitect.transit :as transit]
-            [editor.connection-properties :as connection-properties]
             [editor.fs :as fs]
             [editor.os :as os]
             [service.log :as log]
@@ -120,8 +118,7 @@
              :ios-deploy-path {:type :string}}}
     :extensions {:type :object
                  :properties
-                 {:build-server {:type :string
-                                 :ui {:prompt (connection-properties/defold-build-server-url)}}
+                 {:build-server {:type :string}
                   :build-server-username {:type :string}
                   :build-server-password {:type :password}
                   :build-server-headers {:type :string
@@ -316,9 +313,8 @@
   (let [v (:default schema ::not-found)]
     (or (identical? v ::not-found) (valid? schema v))))
 (s/def ::multiline boolean?) ;; for string schemas
-(s/def ::prompt string?) ;; for textual inputs
 (s/def ::ui
-  (s/keys :opt-un [::multiline ::prompt ::type]))
+  (s/keys :opt-un [::multiline ::type]))
 (s/def ::default any?)
 (s/def ::scope #{:global :project})
 (s/def ::type #{:any :boolean :string :password :keyword :integer :number :array :set :object :object-of :enum :tuple})

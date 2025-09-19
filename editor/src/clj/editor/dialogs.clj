@@ -212,7 +212,6 @@
 (def indent-with-bullet (partial str indented-bullet))
 
 (defn make-info-dialog
-  ;; TODO should require localization
   "Shows a dialog with selectable text content and blocks current thread until
   user closes it.
 
