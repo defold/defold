@@ -24,6 +24,7 @@
     typedef int WGPUAdapter;
     typedef int WGPUQueue;
     typedef int WGPUDevice;
+    typedef int WGPUTexture;
     typedef int WGPUTextureView;
     typedef int WGPUCommandEncoder;
     typedef int WGPURenderPassEncoder;
