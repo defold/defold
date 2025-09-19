@@ -41,15 +41,35 @@ function(defold_register_test_target target_name)
     set(_RUN_TEST TRUE)
   endif()
 
+  # Optional working directory for running the test (ARG2)
+  set(_RUN_DIR "")
+  if(ARGC GREATER 2)
+    set(_RUN_DIR "${ARGV2}")
+  endif()
+  # Normalize working directory path (make absolute and resolve . and ..)
+  set(_RUN_DIR_NORM "")
+  if(_RUN_DIR)
+    get_filename_component(_RUN_DIR_NORM "${_RUN_DIR}" ABSOLUTE)
+    get_filename_component(_RUN_DIR_NORM "${_RUN_DIR_NORM}" REALPATH)
+  endif()
+
   if(_RUN_TEST)
     # Create a per-test run target
     set(_run_target "run_${target_name}")
     if(NOT TARGET ${_run_target})
-      add_custom_target(${_run_target}
-        COMMAND $<TARGET_FILE:${target_name}>
-        DEPENDS ${target_name}
-        USES_TERMINAL
-        COMMENT "Running ${target_name}")
+      if(_RUN_DIR_NORM)
+        add_custom_target(${_run_target}
+          COMMAND ${CMAKE_COMMAND} -E chdir "${_RUN_DIR_NORM}" $<TARGET_FILE:${target_name}>
+          DEPENDS ${target_name}
+          USES_TERMINAL
+          COMMENT "Running ${target_name} in ${_RUN_DIR_NORM}")
+      else()
+        add_custom_target(${_run_target}
+          COMMAND $<TARGET_FILE:${target_name}>
+          DEPENDS ${target_name}
+          USES_TERMINAL
+          COMMENT "Running ${target_name}")
+      endif()
     endif()
 
     # Ensure run_tests exists and depends on the per-test run target
