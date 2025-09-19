@@ -72,7 +72,7 @@
 
 ;; All types, for reference:
 
-#_[:any :boolean :string :password :keyword :integer :number :array :set :object :object-of :enum :tuple]
+#_[:any :boolean :string :password :locale :keyword :integer :number :array :set :object :object-of :enum :tuple]
 
 (def default-schema
   {:type :object
@@ -153,9 +153,7 @@
              {:dimensions {:type :any}
               :split-positions {:type :any}
               :hidden-panes {:type :set :item {:type :keyword}}
-              :locale {:type :string
-                       :default "en"
-                       :ui {:type :localization}}
+              :locale {:type :locale}
               :keymap {:type :object-of
                        :key {:type :keyword} ;; command
                        :val {:type :object
@@ -227,6 +225,7 @@
     :boolean (boolean? value)
     :string (string? value)
     :password (string? value)
+    :locale (string? value)
     :keyword (keyword? value)
     :integer (int? value)
     :number (number? value)
@@ -262,6 +261,7 @@
         :boolean false
         :string ""
         :password ""
+        :locale "en"
         :keyword nil
         :integer 0
         :number 0.0
@@ -317,7 +317,7 @@
   (s/keys :opt-un [::multiline ::type]))
 (s/def ::default any?)
 (s/def ::scope #{:global :project})
-(s/def ::type #{:any :boolean :string :password :keyword :integer :number :array :set :object :object-of :enum :tuple})
+(s/def ::type #{:any :boolean :string :password :locale :keyword :integer :number :array :set :object :object-of :enum :tuple})
 (defmulti type-spec :type)
 (s/def ::schema
   (s/and

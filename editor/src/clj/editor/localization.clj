@@ -50,30 +50,31 @@
 ;; - refresh of listeners is performed using javafx executor because the
 ;;   listeners are expected to be JavaFX nodes.
 ;; Localization data shape:
-;; (agent
-;;   {;; prefs, never changes, used for reading/storing selected locale
-;;    :prefs prefs-instance
+;; (Localization.
+;;   ;; prefs, used for reading/storing selected locale
+;;   prefs
+;;   (agent
+;;     (LocalizationState.
+;;       {;; The following fields may be modified using public API:
+;;        ;; - current locale selection, e.g. "en" or "en_US"; settable
+;;        :locale "en"
+;;        ;; - a map of localization bundles; settable
+;;        :bundles {bundle-key {resource-path-str java.io.Reader-fn}}
+;;        ;; - a WeakHashMap (objects are weakly referenced: no need to clean up listeners)
+;;        :listeners {Localizable MessagePattern}
 ;;
-;;    ;; The following fields may be modified using public API:
-;;    ;; - current locale selection, e.g. "en" or "en_US"; settable
-;;    :locale "en"
-;;    ;; - a map of localization bundles; settable
-;;    :bundles {bundle-key {resource-path-str java.io.Reader-fn}}
-;;    ;; - a WeakHashMap (objects are weakly referenced: no need to clean up listeners)
-;;    :listeners {object MessagePattern}
-;;
-;;    ;; The following fields are updated on locale and bundle change:
-;;    ;; - message map for the current locale
-;;    :messages {message-key fn:arg->string}
-;;    ;; - for UI: sorted list of supported locales, sourced from registered
-;;    ;;   bundles
-;;    :available-locales ["en" "sv"]
-;;    ;; - locale-specific formatter of lists like `a, b, and c`
-;;    :list-and com.ibm.icu.text.ListFormatter
-;;    ;; - locale-specific formatter of lists like `a, b, or c`
-;;    :list-or com.ibm.icu.text.ListFormatter
-;;    ;; - locale-specific date formatter (e.g. 2025-09-17 or 9/17/25)
-;;    :date com.ibm.icu.text.DateFormat})
+;;        ;; The following fields are updated on locale and bundle change:
+;;        ;; - message map for the current locale
+;;        :messages {message-key fn:arg->string}
+;;        ;; - for UI: sorted list of supported locales, sourced from registered
+;;        ;;   bundles
+;;        :available-locales ["en" "sv"]
+;;        ;; - locale-specific formatter of lists like `a, b, and c`
+;;        :list-and com.ibm.icu.text.ListFormatter
+;;        ;; - locale-specific formatter of lists like `a, b, or c`
+;;        :list-or com.ibm.icu.text.ListFormatter
+;;        ;; - locale-specific date formatter (e.g. 2025-09-17 or 9/17/25)
+;;        :date com.ibm.icu.text.DateFormat}))))
 
 (defonce/protocol Localizable
   (apply-localization [obj str] "Apply a localization string to object"))
@@ -104,8 +105,21 @@
 (defn- message-pattern? [x]
   (instance? MessagePattern x))
 
-(defn- refresh-messages! [state]
-  (let [u-locale (ULocale/createCanonical ^String (:locale state))
+(defn- impl-localize [state v]
+  (if (message-pattern? v)
+    (.localize ^MessagePattern v state)
+    (str v)))
+
+(defonce/record LocalizationState [locale bundles listeners messages available-locales list-and list-or date]
+  IFn
+  (invoke [this v] (impl-localize this v))
+  (applyTo [this args] (AFn/applyToHelper this args)))
+
+(defn- localization-state? [x]
+  (instance? LocalizationState x))
+
+(defn- refresh-messages! [^LocalizationState state]
+  (let [u-locale (ULocale/createCanonical ^String (.-locale state))
         u-locale-chain (vec
                          (e/distinct
                            (e/conj
@@ -114,7 +128,7 @@
                                   (e/take-while #(not (coll/empty? (str %)))))
                              (ULocale/createCanonical "en"))))
         u-locale->reader-fns (->> state
-                                  :bundles
+                                  .-bundles
                                   (e/mapcat val)
                                   (util/group-into
                                     {} []
@@ -158,12 +172,7 @@
                               (sort)
                               (vec)))))
 
-(defn- impl-localize [state v]
-  (if (message-pattern? v)
-    (.localize ^MessagePattern v state)
-    (str v)))
-
-(defonce/type Localization [^Agent agent]
+(defonce/type Localization [prefs ^Agent agent]
   IRef
   (deref [_] @agent)
   (setValidator [_ vf] (.setValidator agent vf))
@@ -172,10 +181,8 @@
   (addWatch [_ key callback] (.addWatch agent key callback))
   (removeWatch [_ key] (.removeWatch agent key))
   IFn
-  (invoke [_ v]
-    (impl-localize @agent v))
-  (applyTo [this args]
-    (AFn/applyToHelper this args)))
+  (invoke [_ v] (impl-localize @agent v))
+  (applyTo [this args] (AFn/applyToHelper this args)))
 
 (defn- localization? [x]
   (instance? Localization x))
@@ -185,25 +192,25 @@
       (update :bundles assoc key bundle)
       refresh-messages!))
 
-(defn- impl-set-locale! [state locale]
-  (prefs/set! (:prefs state) [:window :locale] locale)
+(defn- impl-set-locale! [state prefs locale]
+  (prefs/set! prefs [:window :locale] locale)
   (-> state
       (assoc :locale locale)
       refresh-messages!))
 
-(defn- impl-localize! [state object message-pattern]
+(defn- impl-localize! [^LocalizationState state object message-pattern]
   (assert (Platform/isFxApplicationThread))
-  (.put ^WeakHashMap (:listeners state) object message-pattern)
+  (.put ^WeakHashMap (.-listeners state) object message-pattern)
   state)
 
-(defn- impl-unlocalize! [state object]
+(defn- impl-unlocalize! [^LocalizationState state object]
   (assert (Platform/isFxApplicationThread))
-  (.remove ^WeakHashMap (:listeners state) object)
+  (.remove ^WeakHashMap (.-listeners state) object)
   state)
 
-(defn- refresh-listeners! [state]
+(defn- refresh-listeners! [^LocalizationState state]
   (assert (Platform/isFxApplicationThread))
-  (.forEach ^WeakHashMap (:listeners state) #(apply-localization %1 (.localize ^MessagePattern %2 state)))
+  (.forEach ^WeakHashMap (.-listeners state) #(apply-localization %1 (.localize ^MessagePattern %2 state)))
   state)
 
 (defn available-locales
@@ -211,18 +218,18 @@
 
   Args:
     state    localization state (dereferenced localization)"
-  [state]
-  {:pre [(map? state)]}
-  (:available-locales state))
+  [^LocalizationState state]
+  {:pre [(localization-state? state)]}
+  (.-available-locales state))
 
 (defn current-locale
   "Get current locale (a string)
 
   Args:
     state    localization state (dereferenced localization)"
-  [state]
-  {:pre [(map? state)]}
-  (:locale state))
+  [^LocalizationState state]
+  {:pre [(localization-state? state)]}
+  (.-locale state))
 
 (defn defines-message-key?
   "Checks if the message bundle contains a particular message key
@@ -230,20 +237,9 @@
   Args:
     state          localization state (dereferenced localization)
     message-key    message key for [[message]] fn"
-  [state message-key]
-  {:pre [(map? state) (string? message-key)]}
-  (contains? (:messages state) message-key))
-
-(defn localize
-  "Localize the message pattern
-
-  Args:
-    state      localization state (dereferenced localization)
-    pattern    any value, but preferably a MessagePattern instance, created
-               with, e.g., [[message]]"
-  [state pattern]
-  {:pre [(map? state)]}
-  (impl-localize state pattern))
+  [^LocalizationState state message-key]
+  {:pre [(localization-state? state) (string? message-key)]}
+  (contains? (.-messages state) message-key))
 
 (defn- send-without-thread-binding-reset [executor ^Agent agent f & args]
   ;; By default, send-via/send/send-off wrap sent functions using
@@ -279,7 +275,7 @@
   registered listeners on the JavaFX thread."
   [^Localization localization locale]
   {:pre [(localization? localization) (string? locale)]}
-  (send-off (.-agent localization) impl-set-locale! locale)
+  (send-off (.-agent localization) impl-set-locale! (.-prefs localization) locale)
   (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) refresh-listeners!))
 
 (defn localize!
@@ -293,7 +289,8 @@
   Returns the passed object
 
   Args:
-    object          target object, will be stored in a weak reference
+    object          target object, must satisfy Localizable, will be stored in
+                    a weak reference
     localization    the localization instance created with [[make]]
     pattern         a MessagePattern instance, created with, e.g., [[message]]"
   ([object ^Localization localization pattern]
@@ -333,12 +330,13 @@
   Returns a localization system agent"
   [prefs initial-bundle-key initial-bundle]
   (->Localization
+    prefs
     (agent
       (impl-set-bundle!
-        {:prefs prefs
-         :locale (prefs/get prefs [:window :locale])
-         :bundles {}
-         :listeners (WeakHashMap.)}
+        (map->LocalizationState
+          {:locale (prefs/get prefs [:window :locale])
+           :bundles {}
+           :listeners (WeakHashMap.)})
         initial-bundle-key initial-bundle)
       :error-handler (fn report-localization-error [_ exception]
                        (error-reporting/report-exception! exception)))))
@@ -386,8 +384,8 @@
                       (.reset watch-key)))))))))
       localization)))
 
-(defn- impl-simple-message [k m state]
-  (if-let [format-fn (get (:messages state) k)]
+(defn- impl-simple-message [k m ^LocalizationState state]
+  (if-let [format-fn (get (.-messages state) k)]
     (format-fn m)
     (if (system/defold-dev?)
       (str "!" k "!")
@@ -412,7 +410,7 @@
 (defn message
   "Create a message pattern
 
-  To actually localize, use [[localize]] or invoke localization with pattern
+  To actually localize, invoke localization (or its state) with pattern
 
   Args:
     k    localization key, a dot-separated string, e.g. \"some-dialog.title\"
@@ -464,7 +462,7 @@
 (defn and-list
   "Create a list message pattern using \"and\" conjunction (e.g., a, b, and c)
 
-  To actually localize, use [[localize]] or invoke localization with pattern
+  To actually localize, invoke localization (or its state) with pattern
 
   Args:
     items    vector of items, either strings, numbers, or other localizable
@@ -476,7 +474,7 @@
 (defn or-list
   "Create a list message pattern using \"or\" conjunction (e.g., a, b, or c)
 
-  To actually localize, use [[localize]] or invoke localization with pattern
+  To actually localize, invoke localization (or its state) with pattern
 
   Args:
     items    vector of items, either strings, numbers, or other localizable
@@ -488,12 +486,12 @@
 (defonce/record Date [date]
   MessagePattern
   (localize [_ state]
-    (.format ^DateFormat (:date state) date)))
+    (.format ^DateFormat (.-date ^LocalizationState state) date)))
 
 (defn date
   "Create a date message pattern (e.g. 2025-09-17 or 09/17/25)
 
-  To actually localize, use [[localize]] or invoke localization with pattern
+  To actually localize, invoke localization (or its state) with pattern
 
   Args:
     date    either Calendar, Date, Number, or Temporal"
@@ -507,9 +505,6 @@
     @p))
 
 ;; TODO:
-;;  - initial touches:
-;;    - make LocalizationState record, similarly called as a function
-;;    - move prefs to Localization class since it's static
 ;;  - editor.progress
 ;;  - loading project dialog
 ;;  - editor scripts localization

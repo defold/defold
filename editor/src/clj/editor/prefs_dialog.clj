@@ -105,7 +105,7 @@
              :value value
              :on-value-changed on-value-changed}
             (localization/defines-message-key? localization-state prompt-key)
-            (assoc :prompt-text (localization/localize localization-state (localization/message prompt-key))))))
+            (assoc :prompt-text (localization-state (localization/message prompt-key))))))
 
 (defmethod form-input :string [path schema value on-value-changed localization-state _]
   (text-input path value on-value-changed localization-state (if (:multiline (:ui schema)) fxui/value-area fxui/value-field)))
@@ -113,7 +113,7 @@
 (defmethod form-input :password [path _ value on-value-changed localization-state _]
   (text-input path value on-value-changed localization-state fxui/password-value-field))
 
-(defmethod form-input :localization [_ _ _ _ localization-state localization]
+(defmethod form-input :locale [_ _ _ _ localization-state localization]
   {:fx/type fx.combo-box/lifecycle
    :value (localization/current-locale localization-state)
    :items (localization/available-locales localization-state)
@@ -182,7 +182,7 @@
                            (assoc :pseudo-classes #{:warning}
                                   :tooltip (->> warnings
                                                 warnings-messages
-                                                (e/map #(localization/localize localization-state %))
+                                                (e/map localization-state)
                                                 (coll/join-to-string "\n"))))))))}})
     {}))
 
@@ -276,7 +276,7 @@
      (cond->
        [{:fx/type fxui/label
          :alignment :center
-         :text (localization/localize localization-state (localization/message "prefs.keymap.new-shortcut" {"shortcut" (command-label command)}))}
+         :text (localization-state (localization/message "prefs.keymap.new-shortcut" {"shortcut" (command-label command)}))}
         {:fx/type fxui/text-field
          :event-filter #(filter-new-shortcut-text-field-events command shortcut swap-shortcut swap-state update-keymap %)
          :alignment :center
@@ -285,8 +285,7 @@
          :alignment :center
          :text-alignment :center
          :color :hint
-         :text (localization/localize
-                 localization-state
+         :text (localization-state
                  (if (not shortcut)
                    (localization/message "prefs.keymap.new-shortcut.press-desired-combination")
                    (if (= shortcut escape-shortcut)
@@ -295,13 +294,12 @@
                      (localization/message "prefs.keymap.new-shortcut.commit" {"enter" (keymap/shortcut-display-text enter-shortcut)}))))}]
        warnings
        (conj {:fx/type fxui/paragraph
-              :text (localization/localize
-                      localization-state
+              :text (localization-state
                       (localization/message
                         "prefs.keymap.warnings"
                         {"warnings" (->> warnings
                                          (warnings-messages)
-                                         (e/map #(localization/localize localization-state (localization/message "prefs.keymap.warning" {"warning" %})))
+                                         (e/map #(localization-state (localization/message "prefs.keymap.warning" {"warning" %})))
                                          (coll/join-to-string ""))}))}))}))
 
 (defn- show-new-shortcut-dialog! [swap-state command ^Window window]
@@ -345,7 +343,7 @@
      :spacing :medium
      :children
      [{:fx/type fxui/text-field
-       :prompt-text (localization/localize localization-state (localization/message "prefs.keymap.filter.prompt"))
+       :prompt-text (localization-state (localization/message "prefs.keymap.filter.prompt"))
        :text filter-text
        :on-text-changed #(swap-state assoc :filter-text %)}
       {:fx/type fxui/with-popup-window
@@ -386,19 +384,19 @@
             :items (vec
                      (e/cons
                        {:fx/type fx.menu-item/lifecycle
-                        :text (localization/localize localization-state (localization/message "prefs.keymap.context-menu.new-shortcut"))
+                        :text (localization-state (localization/message "prefs.keymap.context-menu.new-shortcut"))
                         :on-action #(handle-new-shortcut-action swap-state command %)}
                        (e/concat
                          (when (not= shortcuts default-shortcuts)
                            [{:fx/type fx.menu-item/lifecycle
-                             :text (localization/localize localization-state (localization/message "prefs.keymap.context-menu.reset-to-default"))
+                             :text (localization-state (localization/message "prefs.keymap.context-menu.reset-to-default"))
                              :on-action #(handle-reset-shortcuts-action update-keymap command %)}])
                          (->> shortcuts
                               (mapv (coll/pair-fn keymap/shortcut-distinct-display-text))
                               (sort-by key)
                               (e/map (fn [[text shortcut]]
                                        {:fx/type fx.menu-item/lifecycle
-                                        :text (localization/localize localization-state (localization/message "prefs.keymap.context-menu.remove" {"shortcut" text}))
+                                        :text (localization-state (localization/message "prefs.keymap.context-menu.remove" {"shortcut" text}))
                                         :on-action #(handle-remove-shortcut-action update-keymap command shortcut %)})))
                          (when default-shortcuts
                            (let [removed-built-in-shortcuts (set/difference default-shortcuts (or shortcuts #{}))]
@@ -407,7 +405,7 @@
                                   (sort-by key)
                                   (e/map (fn [[text shortcut]]
                                            {:fx/type fx.menu-item/lifecycle
-                                            :text (localization/localize localization-state (localization/message "prefs.keymap.context-menu.add" {"shortcut" text}))
+                                            :text (localization-state (localization/message "prefs.keymap.context-menu.add" {"shortcut" text}))
                                             :on-action #(handle-add-shortcut-action update-keymap command shortcut %)}))))))))}))
        :desc
        {:fx/type fx.table-view/lifecycle
@@ -417,14 +415,14 @@
         :columns [{:fx/type fx.table-column/lifecycle
                    :reorderable false
                    :sortable false
-                   :text (localization/localize localization-state (localization/message "prefs.keymap.command"))
+                   :text (localization-state (localization/message "prefs.keymap.command"))
                    :cell-value-factory identity
                    :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                                   :describe (fn/partial #'describe-command-cell keymap)}}
                   {:fx/type fx.table-column/lifecycle
                    :reorderable false
                    :sortable false
-                   :text (localization/localize localization-state (localization/message "prefs.keymap.shortcuts"))
+                   :text (localization-state (localization/message "prefs.keymap.shortcuts"))
                    :cell-value-factory identity
                    :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                                   :describe (fn/partial #'describe-shortcut-cell keymap localization-state)}}]
@@ -449,7 +447,7 @@
   {:fx/type fxui/dialog-stage
    :showing true
    :on-hidden result-fn
-   :title (localization/localize localization-state (localization/message "prefs.dialog.title"))
+   :title (localization-state (localization/message "prefs.dialog.title"))
    :resizable true
    :min-width 650
    :min-height 500
@@ -465,7 +463,7 @@
                (e/map
                  (fn [{:keys [pattern paths]}]
                    {:fx/type fx.tab/lifecycle
-                    :text (localization/localize localization-state pattern)
+                    :text (localization-state pattern)
                     :content {:fx/type fxui/grid
                               :padding :medium
                               :spacing :medium
@@ -484,9 +482,9 @@
                                                        :grid-pane/fill-width false
                                                        :grid-pane/fill-height false
                                                        :grid-pane/valignment :top
-                                                       :text (localization/localize localization-state (localization/message label-key))}
+                                                       :text (localization-state (localization/message label-key))}
                                                       (localization/defines-message-key? localization-state tooltip-key)
-                                                      (assoc :tooltip (localization/localize localization-state (localization/message tooltip-key))))
+                                                      (assoc :tooltip (localization-state (localization/message tooltip-key))))
                                                     (assoc
                                                       (form-input path
                                                                   (prefs/schema prefs-state prefs path)
@@ -499,7 +497,7 @@
                                              vec)}})
                  @pages)
                {:fx/type fx.tab/lifecycle
-                :text (localization/localize localization-state (localization/message "prefs.tab.keymap"))
+                :text (localization-state (localization/message "prefs.tab.keymap"))
                 :content {:fx/type keymap-view
                           :localization-state localization-state
                           :keymap (keymap/from-prefs prefs-state prefs)
