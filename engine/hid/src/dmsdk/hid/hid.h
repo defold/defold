@@ -565,7 +565,7 @@ namespace dmHID
      * @param out [type: void**] Platform specific user id data
      * @return result [type: boolean] true if gamepad has a user id data assigned to it
      */
-    bool GetGamepadUserId(HContext context, HGamepad gamepad, uint32_t* out);
+    bool GetGamepadUserId(HContext context, HGamepad gamepad, uint16_t* out);
 
     /*# Adds a touch event touch.
      * @name AddTouch
