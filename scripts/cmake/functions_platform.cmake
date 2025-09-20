@@ -53,5 +53,47 @@ function(defold_target_link_platform target platform)
         endif()
     endif()
 
+    # On Win32, our prebuilt static libs are named with a "lib" prefix (lib*.lib)
+    string(REGEX REPLACE "^[^-]+-" "" _PLAT_OS "${platform}")
+    if(_PLAT_OS STREQUAL "win32")
+        if(NOT _plat_lib MATCHES "^lib")
+            set(_plat_lib "lib${_plat_lib}")
+        endif()
+    endif()
+
     target_link_libraries(${target} ${DPL_SCOPE} ${_plat_lib})
+endfunction()
+
+
+# Adds socket-related system libraries per platform (mirrors waf_dynamo.py LIB_PLATFORM_SOCKET).
+# Usage:
+#   defold_target_link_socket(<target> <platform> [SCOPE <PRIVATE|PUBLIC|INTERFACE>])
+function(defold_target_link_socket target platform)
+    set(options)
+    set(oneValueArgs SCOPE)
+    set(multiValueArgs)
+    cmake_parse_arguments(DPLS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+    if(NOT DPLS_SCOPE)
+        set(DPLS_SCOPE PRIVATE)
+    endif()
+
+    if(NOT platform)
+        message(FATAL_ERROR "functions_platform: platform argument is required for defold_target_link_socket")
+    endif()
+
+    # Derive OS from tuple (e.g., x86_64-win32 -> win32)
+    string(REGEX REPLACE "^[^-]+-" "" _PLAT_OS "${platform}")
+
+    set(_socket_linkopts)
+
+    if(_PLAT_OS STREQUAL "win32")
+        # Based on waf_dynamo.py: WS2_32 Iphlpapi AdvAPI32
+        list(APPEND _socket_linkopts WS2_32.lib Iphlpapi.lib AdvAPI32.lib)
+    else()
+        # Other platforms do not require additional socket libs in waf
+    endif()
+
+    if(_socket_linkopts)
+        target_link_options(${target} ${DPLS_SCOPE} ${_socket_linkopts})
+    endif()
 endfunction()

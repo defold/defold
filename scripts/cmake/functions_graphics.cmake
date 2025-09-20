@@ -123,6 +123,22 @@ function(defold_target_link_graphics target platform)
         set(_STLIB_DMGLFW dmglfw)
     endif()
 
+    # On Windows, our prebuilt static libs use a "lib" prefix (lib*.lib).
+    # Prefix our own graphics library names accordingly to match filenames.
+    if(_PLAT_OS STREQUAL "win32")
+        foreach(_grp IN ITEMS _STLIB_GRAPHICS _STLIB_GRAPHICS_OPENGLES _STLIB_GRAPHICS_VULKAN _STLIB_GRAPHICS_DX12 _STLIB_GRAPHICS_WEBGPU _STLIB_GRAPHICS_NULL _STLIB_DMGLFW)
+            set(_tmp_list)
+            foreach(_name ${${_grp}})
+                if(_name AND NOT _name MATCHES "^lib")
+                    list(APPEND _tmp_list "lib${_name}")
+                else()
+                    list(APPEND _tmp_list "${_name}")
+                endif()
+            endforeach()
+            set(${_grp} ${_tmp_list})
+        endforeach()
+    endif()
+
     # GL/GLES
     unset(OPENGL)
     unset(OPENGLES)

@@ -47,26 +47,33 @@ if(BUILD_TESTS)
     # Do not build test executables by default (optional via explicit target)
     set_target_properties(test_hid PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
+    set(libprefix "")
+    if (TARGET_PLATFORM MATCHES "x86_64-win32|win32")
+        set(libprefix "lib")
+    endif()
+
     target_link_libraries(test_hid PRIVATE
-        dlib
-        profile_null
-        platform_null
-        hid_null
-        testmain
+        ${libprefix}dlib
+        ${libprefix}profile_null
+        ${libprefix}platform_null
+        ${libprefix}hid_null
+        ${libprefix}testmain
     )
 
     if (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
         find_package(Threads REQUIRED)
         target_link_libraries(test_hid PRIVATE glfw3 Threads::Threads dl)
+
+    elseif (TARGET_PLATFORM MATCHES "x86-win32|x86_64-win32")
+        target_link_libraries(test_hid PRIVATE)
     endif()
+
+    defold_target_link_socket(test_hid "${TARGET_PLATFORM}" PRIVATE)
 
     # Register into global build_tests and run_tests
     defold_register_test_target(test_hid)
 
-endif()
-
-# Optional interactive test app (creates a tiny window and logs input)
-if(BUILD_TESTS)
+    # =====================================================================================
 
     defold_get_graphics_symbols(EXPORTED_SYMBOLS ${TARGET_PLATFORM})
 
@@ -101,13 +108,14 @@ if(BUILD_TESTS)
     endif()
 
     target_link_libraries(test_app_hid PRIVATE
-        dlib
-        hid
-        profile_null
+        ${libprefix}dlib
+        ${libprefix}hid
+        ${libprefix}profile_null
     )
 
     defold_target_link_graphics(test_app_hid "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_platform(test_app_hid "${TARGET_PLATFORM}" PRIVATE)
+    defold_target_link_socket(test_app_hid "${TARGET_PLATFORM}" PRIVATE)
 
     # Register into global build_tests and run_tests
     defold_register_test_target(test_app_hid FALSE)

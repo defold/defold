@@ -21,7 +21,7 @@
 
 #include <dlib/log.h>
 #include <dlib/time.h>
-#include <hid.h>
+#include "../hid.h"
 
 #include <graphics/graphics.h>
 #include <platform/platform_window.h>
