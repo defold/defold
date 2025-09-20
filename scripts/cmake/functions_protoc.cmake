@@ -56,22 +56,29 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
     file(MAKE_DIRECTORY "${_out_dir}")
 
     # Resolve DDF plugin path
-    set(_ddf_plugin_path "")
-    if(DEFOLD_SDK_ROOT)
+    if(NOT DEFOLD_SDK_ROOT)
+        message(FATAL_ERROR "defold_protoc_gen_cpp: DEFOLD_SDK_ROOT must be set to locate ddfc_cxx plugin")
+    endif()
+    if(WIN32)
+        set(_ddf_plugin_path "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx.bat")
+    else()
         set(_ddf_plugin_path "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx")
     endif()
-    if(NOT _ddf_plugin_path OR NOT EXISTS "${_ddf_plugin_path}")
-        # Fallback to the absolute path provided by the user request
-        set(_ddf_plugin_path "/Users/mathiaswesterdahl/work/defold/tmp/dynamo_home/bin/ddfc_cxx")
+    if(NOT EXISTS "${_ddf_plugin_path}")
+        message(FATAL_ERROR "defold_protoc_gen_cpp: ddf plugin not found at ${_ddf_plugin_path}. Check DEFOLD_SDK_ROOT.")
     endif()
 
-    if(NOT EXISTS "${_ddf_plugin_path}")
-        message(FATAL_ERROR "defold_protoc_gen_cpp: ddf plugin not found at ${_ddf_plugin_path}. Set DEFOLD_SDK_ROOT or adjust plugin path.")
+    # Build plugin argument as a single token so paths with spaces work.
+    if(WIN32)
+        file(TO_NATIVE_PATH "${_ddf_plugin_path}" _ddf_plugin_native)
+        set(_ddf_plugin_arg "--plugin=protoc-gen-ddf=${_ddf_plugin_native}")
+    else()
+        set(_ddf_plugin_arg "--plugin=protoc-gen-ddf=${_ddf_plugin_path}")
     endif()
 
     add_custom_command(
         OUTPUT "${_out_cc}" "${_out_h}"
-        COMMAND protoc --plugin=protoc-gen-ddf=${_ddf_plugin_path} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
+        COMMAND protoc ${_ddf_plugin_arg} --ddf_out=${_out_dir} ${_inc_flags} ${_src_abs}
         DEPENDS "${_src_abs}"
         VERBATIM
         COMMENT "Generating DDF C++ from ${SRC_PROTO}"
@@ -150,37 +157,34 @@ function(defold_protoc_encode OUT_FILE SRC_FILE SCHEMA_PROTO MESSAGE_NAME)
     # Serialize include list into semicolon list for the helper script
     file(MAKE_DIRECTORY "${_out_dir}")
 
+    # Build a single string with includes to avoid list splitting issues
+    set(_inc_joined)
+    foreach(_i IN LISTS _inc_dirs)
+        list(APPEND _inc_joined -I ${_i})
+    endforeach()
+
     # Build shell command to pipe input into protoc --encode and write output
     # Cross-platform handling for input/output redirection
     if(WIN32)
-        # Use cmd to type input and redirect to output
-        # Construct include flags string for Windows shell
-        set(_inc_joined "")
-        foreach(_i IN LISTS _inc_dirs)
-            set(_inc_joined "${_inc_joined} -I ${_i}")
-        endforeach()
-        add_custom_command(
-            OUTPUT "${_out_abs}"
-            COMMAND cmd /C "type ${_src_abs} | protoc --encode=${MESSAGE_NAME} ${_inc_joined} ${_schema_abs} > ${_out_abs}"
-            DEPENDS "${_src_abs}" "${_schema_abs}"
-            VERBATIM
-            COMMENT "Encoding ${_src_abs} as ${MESSAGE_NAME} -> ${_out_abs}"
-        )
+        # Convert paths to native form and quote them for cmd.exe
+        file(TO_NATIVE_PATH "${_src_abs}" _src_native)
+        file(TO_NATIVE_PATH "${_schema_abs}" _schema_native)
+        file(TO_NATIVE_PATH "${_out_abs}" _out_native)
+
     else()
-        # POSIX sh -c with input/output redirection
-        # Build a single string with includes to avoid list splitting issues
-        set(_inc_joined "")
-        foreach(_i IN LISTS _inc_dirs)
-            set(_inc_joined "${_inc_joined} -I ${_i}")
-        endforeach()
-        add_custom_command(
-            OUTPUT "${_out_abs}"
-            COMMAND /bin/sh -c "protoc --encode=${MESSAGE_NAME} ${_inc_joined} ${_schema_abs} < ${_src_abs} > ${_out_abs}"
-            DEPENDS "${_src_abs}" "${_schema_abs}"
-            VERBATIM
-            COMMENT "Encoding ${_src_abs} as ${MESSAGE_NAME} -> ${_out_abs}"
-        )
+        file(TO_NATIVE_PATH "${_src_abs}" _src_native)
+        file(TO_NATIVE_PATH "${_schema_abs}" _schema_native)
+        file(TO_NATIVE_PATH "${_out_abs}" _out_native)
+
     endif()
+
+    add_custom_command(
+        OUTPUT "${_out_abs}"
+        COMMAND protoc --encode=${MESSAGE_NAME} ${_inc_joined} ${_schema_native} < ${_src_native} > ${_out_native}
+        DEPENDS "${_src_abs}" "${_schema_abs}"
+        VERBATIM
+        COMMENT "Encoding ${_src_abs} as ${MESSAGE_NAME} -> ${_out_abs}"
+    )
 
     set_source_files_properties("${_out_abs}" PROPERTIES GENERATED TRUE)
 endfunction()

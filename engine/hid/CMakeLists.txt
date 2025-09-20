@@ -47,17 +47,12 @@ if(BUILD_TESTS)
     # Do not build test executables by default (optional via explicit target)
     set_target_properties(test_hid PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
-    set(libprefix "")
-    if (TARGET_PLATFORM MATCHES "x86_64-win32|win32")
-        set(libprefix "lib")
-    endif()
-
     target_link_libraries(test_hid PRIVATE
-        ${libprefix}dlib
-        ${libprefix}profile_null
-        ${libprefix}platform_null
-        ${libprefix}hid_null
-        ${libprefix}testmain
+        ${defold_libprefix}dlib
+        ${defold_libprefix}profile_null
+        ${defold_libprefix}platform_null
+        ${defold_libprefix}testmain
+        hid_null
     )
 
     if (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
@@ -108,9 +103,9 @@ if(BUILD_TESTS)
     endif()
 
     target_link_libraries(test_app_hid PRIVATE
-        ${libprefix}dlib
-        ${libprefix}hid
-        ${libprefix}profile_null
+        ${defold_libprefix}dlib
+        ${defold_libprefix}profile_null
+        hid
     )
 
     defold_target_link_graphics(test_app_hid "${TARGET_PLATFORM}" PRIVATE)

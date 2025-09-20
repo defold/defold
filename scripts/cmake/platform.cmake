@@ -122,6 +122,14 @@ else()
     endif()
 endif()
 
+#**************************************************************************
+# WIP: Workaround since we've been using a non-standard way of naming windows libraries with "lib" prefix
+# Goal is to not use that prefix at all.
+set(defold_libprefix "")
+if (TARGET_PLATFORM MATCHES "x86_64-win32|win32")
+    set(defold_libprefix "lib")
+endif()
+
 # message(STATUS "CFLAGS: ${CMAKE_C_FLAGS}")
 # message(STATUS "CXXFLAGS: ${CMAKE_CXX_FLAGS}")
 
