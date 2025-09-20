@@ -57,7 +57,7 @@ RUN \
     zip \
     unzip \
     tree \
-    silversearcher-ag \
+    ripgrep \
     git
 
 
