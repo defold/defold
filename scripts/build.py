@@ -1566,6 +1566,17 @@ class Configuration(object):
         cmd = self._build_engine_cmd_waf(**self._get_build_flags())
         args = cmd.split()
         host = self.host
+
+        cmake_tests = []
+        #cmake_tests = ['hid', 'input']
+        #cmake_tests = ['input']
+        #cmake_tests = ['hid']
+        for lib in cmake_tests:
+            self._build_engine_lib(args, lib, target_platform)
+        if cmake_tests:
+            print("EARLY OUT!")
+            return
+
         # Make sure we build these for the host platform for the toolchain (bob light)
         for lib in HOST_LIBS:
             self._build_engine_lib(args, lib, host)
