@@ -65,23 +65,18 @@ target_include_directories(test_input PRIVATE
 )
 
 target_link_libraries(test_input PRIVATE
-    dlib
-    mbedtls
-    ddf
-    platform_null
-    profile_null
+    ${defold_libprefix}dlib
+    ${defold_libprefix}mbedtls
+    ${defold_libprefix}ddf
+    ${defold_libprefix}profile_null
+    ${defold_libprefix}testmain
     hid_null
     input
-    testmain
 )
 
-# GLFW selection
-defold_get_glfw_version(_GLFW_VERSION "${TARGET_PLATFORM}")
-if (_GLFW_VERSION EQUAL 3)
-    target_link_libraries(test_input PRIVATE glfw3)
-else()
-    target_link_libraries(test_input PRIVATE dmglfw)
-endif()
+defold_target_link_platform(test_input "${TARGET_PLATFORM}" PRIVATE)
+defold_target_link_socket(test_input "${TARGET_PLATFORM}" PRIVATE)
+defold_target_link_glfw(test_input "${TARGET_PLATFORM}" PRIVATE)
 
 # Platform-specific libs
 if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android")

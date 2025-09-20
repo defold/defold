@@ -57,10 +57,6 @@ protected:
             #define BUILD_DIR "build/src/test"
         #endif
 
-        char dir[2048];
-        getcwd(dir, sizeof(dir));
-        printf("CWD: '%s'\n", dir);
-
         dmDDF::Result result = dmDDF::LoadMessageFromFile(HOSTPATH(BUILD_DIR "/test.gamepadsc"), dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps);
 
         (void)result;
