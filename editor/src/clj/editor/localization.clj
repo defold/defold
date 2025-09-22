@@ -100,19 +100,19 @@
     (throw (IllegalArgumentException. "localized object must not be nil"))))
 
 (defonce/interface MessagePattern
-  (localize [state]))
+  (format [state]))
 
 (defn- message-pattern? [x]
   (instance? MessagePattern x))
 
-(defn- impl-localize [state v]
+(defn- impl-format [state v]
   (if (message-pattern? v)
-    (.localize ^MessagePattern v state)
+    (.format ^MessagePattern v state)
     (str v)))
 
 (defonce/record LocalizationState [locale bundles listeners messages available-locales list-and list-or date]
   IFn
-  (invoke [this v] (impl-localize this v))
+  (invoke [this v] (impl-format this v))
   (applyTo [this args] (AFn/applyToHelper this args)))
 
 (defn- localization-state? [x]
@@ -181,7 +181,7 @@
   (addWatch [_ key callback] (.addWatch agent key callback))
   (removeWatch [_ key] (.removeWatch agent key))
   IFn
-  (invoke [_ v] (impl-localize @agent v))
+  (invoke [_ v] (impl-format @agent v))
   (applyTo [this args] (AFn/applyToHelper this args)))
 
 (defn- localization? [x]
@@ -210,7 +210,7 @@
 
 (defn- refresh-listeners! [^LocalizationState state]
   (assert (Platform/isFxApplicationThread))
-  (.forEach ^WeakHashMap (.-listeners state) #(apply-localization %1 (.localize ^MessagePattern %2 state)))
+  (.forEach ^WeakHashMap (.-listeners state) #(apply-localization %1 (.format ^MessagePattern %2 state)))
   state)
 
 (defn available-locales
@@ -393,16 +393,16 @@
 
 (defonce/record SimpleMessage [k m]
   MessagePattern
-  (localize [_ state] (impl-simple-message k m state)))
+  (format [_ state] (impl-simple-message k m state)))
 
 (defonce/record MessageWithNestedPatterns [k m ks]
   MessagePattern
-  (localize [_ state]
+  (format [_ state]
     (impl-simple-message
       k
       (persistent!
         (reduce
-          #(assoc! %1 %2 (.localize ^MessagePattern (m %2) state))
+          #(assoc! %1 %2 (.format ^MessagePattern (m %2) state))
           (transient m)
           ks))
       state)))
@@ -410,7 +410,7 @@
 (defn message
   "Create a message pattern
 
-  To actually localize, invoke localization (or its state) with pattern
+  To actually format, invoke localization (or its state) with pattern
 
   Args:
     k    localization key, a dot-separated string, e.g. \"some-dialog.title\"
@@ -434,16 +434,16 @@
 
 (defonce/record SimpleList [list-k items]
   MessagePattern
-  (localize [_ state] (impl-simple-list list-k items state)))
+  (format [_ state] (impl-simple-list list-k items state)))
 
 (defonce/record ListWithNestedPatterns [list-k items localizable-indices]
   MessagePattern
-  (localize [_ state]
+  (format [_ state]
     (impl-simple-list
       list-k
       (persistent!
         (reduce
-          #(assoc! %1 %2 (.localize ^MessagePattern (items %2) state))
+          #(assoc! %1 %2 (.format ^MessagePattern (items %2) state))
           (transient items)
           localizable-indices))
       state)))
@@ -462,7 +462,7 @@
 (defn and-list
   "Create a list message pattern using \"and\" conjunction (e.g., a, b, and c)
 
-  To actually localize, invoke localization (or its state) with pattern
+  To actually format, invoke localization (or its state) with pattern
 
   Args:
     items    vector of items, either strings, numbers, or other localizable
@@ -474,7 +474,7 @@
 (defn or-list
   "Create a list message pattern using \"or\" conjunction (e.g., a, b, or c)
 
-  To actually localize, invoke localization (or its state) with pattern
+  To actually format, invoke localization (or its state) with pattern
 
   Args:
     items    vector of items, either strings, numbers, or other localizable
@@ -485,13 +485,13 @@
 
 (defonce/record Date [date]
   MessagePattern
-  (localize [_ state]
+  (format [_ state]
     (.format ^DateFormat (.-date ^LocalizationState state) date)))
 
 (defn date
   "Create a date message pattern (e.g. 2025-09-17 or 09/17/25)
 
-  To actually localize, invoke localization (or its state) with pattern
+  To actually format, invoke localization (or its state) with pattern
 
   Args:
     date    either Calendar, Date, Number, or Temporal"
