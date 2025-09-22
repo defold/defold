@@ -1698,7 +1698,7 @@ namespace dmGameSystem
         Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(component->m_Position, component->m_Rotation, 1.0f));
         Matrix4 world = dmGameObject::GetWorldMatrix(component->m_Instance);
         Vector3 size = dmVMath::MulPerElem(component->m_Size, component->m_Scale);
-        size.setZ(1.f);//(component->m_Size.getX() * component->m_Scale.getX(), component->m_Size.getY() * component->m_Scale.getY(), 1);
+        size.setZ(1.f);
         Matrix4 w = dmVMath::AppendScale(world * local, size);
         if (!sub_pixels)
         {
@@ -2388,24 +2388,21 @@ namespace dmGameSystem
                 {
                     // it means that new atlas doesn't contain animation with the same name as it played before
                     const void* data = dmHashReverse64(current_animation, 0);
-                    if (data)
+                    const char* error_message = data != 0 ? (const char*)data : "<unknown>";
+                    dmHashTable64<uint32_t>::Iterator animation_iterator = texture_set->m_AnimationIds.GetIterator();
+                    if (animation_iterator.Next())
                     {
-                        const char* error_message = (const char*)data;
-                        dmHashTable64<uint32_t>::Iterator animation_iterator = texture_set->m_AnimationIds.GetIterator();
-                        if (animation_iterator.Next())
-                        {
-                            current_animation = animation_iterator.GetKey();
-                            anim_id = const_cast<uint32_t*>(&animation_iterator.GetValue());
+                        current_animation = animation_iterator.GetKey();
+                        anim_id = const_cast<uint32_t*>(&animation_iterator.GetValue());
 
-                            const void* new_animation_name = dmHashReverse64(current_animation, 0);
-                            dmLogError("Atlas doesn't contains animation '%s'. Animation '%s' will be used", error_message, new_animation_name != 0 ? (const char*)new_animation_name : "<unknown>");
-                        }
-                        else
-                        {
-                            dmLogError("Atlas doesn't contains animation '%s'. No animation will be used", error_message);
-                        }
-                        // else anim_id still == 0
+                        const void* new_animation_name = dmHashReverse64(current_animation, 0);
+                        dmLogError("Atlas doesn't contains animation '%s'. Animation '%s' will be used", error_message, new_animation_name != 0 ? (const char*)new_animation_name : "<unknown>");
                     }
+                    else
+                    {
+                        dmLogError("Atlas doesn't contains animation '%s'. No animation will be used", error_message);
+                    }
+                    // else anim_id still == 0
                 }
                 if (anim_id)
                 {
