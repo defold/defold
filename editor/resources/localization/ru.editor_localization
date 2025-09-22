@@ -101,6 +101,9 @@ updater.platform-not-supported-dialog.updates-no-longer-provided = Для это
 updater.platform-not-supported-dialog.supported-platforms = Поддерживаемые платформы: 64‑битные Linux, macOS и Windows
 updater.download-dialog.title = Загрузить Обновление?
 updater.download-dialog.newer-version-available = Доступна новая версия Defold!
+updater.update-failed.title = Ошибка обновления
+updater.update-failed.header = Во время установки обновления произошла ошибка
+updater.update-failed.detail = Возможно, потребуется выполнить чистую установку
 updater.dialog.title = Установить Обновление и Перезапустить?
 updater.dialog.header = Установить Загруженное Обновление и Перезапустить?
 updater.dialog.button.not-now = Не Сейчас
@@ -121,7 +124,25 @@ time.vague.hours-ago = {count} {count, plural, one {час} few {часа} other
 time.vague.a-day-ago = День назад
 
 # Common dialogs
+
 dialog.button.close = Закрыть
+dialog.button.quit = Выйти
+dialog.button.open-defold-website = Открыть defold.com
+dialog.button.dismiss = Закрыть
+dialog.button.report = Сообщить об ошибке
+dialog.button.disable-scene-editor = Отключить редактор сцен
+
+# Error Dialog
+dialog.error.title = Ошибка
+dialog.error.header = Произошла ошибка
+dialog.error.footer = Вы можете помочь нам исправить эту проблему, отправив отчёт и указав, что вы делали в момент её возникновения.
+
+# GL support error dialog
+dialog.gl-support.title = Недостаточная поддержка OpenGL
+dialog.gl-support.header = Это очень распространённая проблема. Посмотрите, помогут ли следующие инструкции:
+dialog.gl-support.linux = OpenGL в Linux
+dialog.gl-support.glGenBuffers = glGenBuffers
+dialog.gl-support.disclaimer = Вы можете продолжить работу с отключённым редактором сцен.
 
 # Editor panes
 

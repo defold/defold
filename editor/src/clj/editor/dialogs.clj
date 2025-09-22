@@ -283,21 +283,21 @@
                                                             :height (field-expression/to-int (:height-text state))})))
     :description {:fx/type resolution-dialog}))
 
-(defn make-update-failed-dialog [^Stage owner]
+(defn make-update-failed-dialog [^Stage owner localization]
   (let [result (make-confirmation-dialog
-                 {:title "Update Failed"
+                 {:title (localization (localization/message "updater.update-failed.title"))
                   :owner owner
                   :icon :icon/triangle-error
                   :header {:fx/type fx.v-box/lifecycle
                            :children [{:fx/type fxui/legacy-label
                                        :variant :header
-                                       :text "An error occurred during update installation"}
+                                       :text (localization (localization/message "updater.update-failed.header"))}
                                       {:fx/type fxui/legacy-label
-                                       :text "You probably should perform a fresh install"}]}
-                  :buttons [{:text "Quit"
+                                       :text (localization (localization/message "updater.update-failed.detail"))}]}
+                  :buttons [{:text (localization (localization/message "dialog.button.quit"))
                              :cancel-button true
                              :result false}
-                            {:text "Open defold.com"
+                            {:text (localization (localization/message "dialog.button.open-defold-website"))
                              :default-button true
                              :result true}]})]
     (when result
@@ -363,11 +363,11 @@
                 (format "%s: %s" type-name (or message "Unknown")))))
        (string/join "\n")))
 
-(defn- unexpected-error-dialog [{:keys [ex-map] :as props}]
+(defn- unexpected-error-dialog [{:keys [ex-map localization] :as props}]
   {:fx/type dialog-stage
    :showing (fxui/dialog-showing? props)
    :on-close-request {:result false}
-   :title "Error"
+   :title (localization (localization/message "dialog.error.title"))
    :header {:fx/type fx.h-box/lifecycle
             :style-class "spacing-smaller"
             :alignment :center-left
@@ -375,30 +375,31 @@
                         :type :icon/triangle-sad}
                        {:fx/type fxui/legacy-label
                         :variant :header
-                        :text "An error occurred"}]}
+                        :text (localization (localization/message "dialog.error.header"))}]}
    :content {:fx/type content-text-area
              :text (messages ex-map)}
    :footer {:fx/type fx.v-box/lifecycle
             :style-class "spacing-smaller"
             :children [{:fx/type fxui/legacy-label
-                        :text "You can help us fix this problem by reporting it and providing more information about what you were doing when it happened."}
+                        :text (localization (localization/message "dialog.error.footer"))}
                        {:fx/type dialog-buttons
                         :children [{:fx/type fxui/button
                                     :cancel-button true
                                     :on-action {:result false}
-                                    :text "Dismiss"}
+                                    :text (localization (localization/message "dialog.button.dismiss"))}
                                    {:fx/type fxui/ext-focused-by-default
                                     :desc {:fx/type fxui/button
                                            :variant :primary
                                            :default-button true
                                            :on-action {:result true}
-                                           :text "Report"}}]}]}})
+                                           :text (localization (localization/message "dialog.button.report"))}}]}]}})
 
-(defn make-unexpected-error-dialog [ex-map sentry-id-promise]
+(defn make-unexpected-error-dialog [ex-map sentry-id-promise localization]
   (when (fxui/show-dialog-and-await-result!
           :event-handler (fn [state event]
                            (assoc state ::fxui/result (:result event)))
           :description {:fx/type unexpected-error-dialog
+                        :localization localization
                         :ex-map ex-map})
     (let [sentry-id (deref sentry-id-promise 100 nil)
           fields (if sentry-id
@@ -454,32 +455,32 @@
         (throw ret)
         ret))))
 
-(defn make-gl-support-error-dialog [support-error]
+(defn make-gl-support-error-dialog [support-error localization]
   (make-confirmation-dialog
-    {:title "Insufficient OpenGL Support"
+    {:title (localization (localization/message "dialog.gl-support.title"))
      :header {:fx/type fx.v-box/lifecycle
               :children
               (-> [{:fx/type fxui/legacy-label
                     :variant :header
-                    :text "This is a very common issue. See if any of these instructions help:"}]
+                    :text (localization (localization/message "dialog.gl-support.header"))}]
                   (cond->
                     (os/is-linux?)
                     (conj {:fx/type fx.hyperlink/lifecycle
-                           :text "OpenGL on linux"
+                           :text (localization (localization/message "dialog.gl-support.linux"))
                            :on-action (fn [_] (ui/open-url "https://defold.com/faq/faq/#linux-questions"))}))
                   (conj
                     {:fx/type fx.hyperlink/lifecycle
                      :on-action (fn [_] (ui/open-url (github/glgenbuffers-link)))
-                     :text "glGenBuffers"}
+                     :text (localization (localization/message "dialog.gl-support.glGenBuffers"))}
                     {:fx/type fxui/legacy-label
-                     :text "You can continue with scene editing disabled."}))}
+                     :text (localization (localization/message "dialog.gl-support.disclaimer"))}))}
      :icon :icon/circle-sad
      :content {:fx/type content-text-area
                :text support-error}
-     :buttons [{:text "Quit"
+     :buttons [{:text (localization (localization/message "dialog.button.quit"))
                 :cancel-button true
                 :result :quit}
-               {:text "Disable Scene Editor"
+               {:text (localization (localization/message "dialog.button.disable-scene-editor"))
                 :default-button true
                 :result :continue}]}))
 

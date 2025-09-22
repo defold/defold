@@ -31,17 +31,17 @@
           can-install? (localization/localize! link localization (localization/message "updater.restart-to-update"))
           can-download? (localization/localize! link localization (localization/message "updater.update-available")))))))
 
-(defn- install! [^Stage stage updater]
+(defn- install! [^Stage stage updater localization]
   (try
     (updater/install! updater)
     true
     (catch Exception e
       (log/info :message "Update failed" :exception e)
-      (dialogs/make-update-failed-dialog stage)
+      (dialogs/make-update-failed-dialog stage localization)
       false)))
 
-(defn install-and-restart! [stage updater]
-  (if (install! stage updater)
+(defn install-and-restart! [stage updater localization]
+  (if (install! stage updater localization)
     (updater/restart! updater)
     (Platform/exit)))
 
@@ -50,7 +50,7 @@
     (ui/on-closing! stage
       (fn [_]
         (when (updater/can-install-update? updater)
-          (install! stage updater))
+          (install! stage updater localization))
         true))
     (localization/localize! link localization (localization/message "updater.update-available"))
     (ui/on-action! link

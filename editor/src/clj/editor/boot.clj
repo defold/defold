@@ -90,10 +90,10 @@
                                     (open-project-with-progress-dialog namespace-loader prefs localization cli-options project updater newly-created?)))))
 
 (defn notify-user
-  [ex-map sentry-id-promise]
+  [localization ex-map sentry-id-promise]
   (when (.isShowing (ui/main-stage))
     (ui/run-now
-      (dialogs/make-unexpected-error-dialog ex-map sentry-id-promise))))
+      (dialogs/make-unexpected-error-dialog ex-map sentry-id-promise localization))))
 
 (defn- set-sha1-revisions-from-repo! []
   ;; Use the sha1 of the HEAD commit as the editor revision.
@@ -119,14 +119,6 @@
 (defn main [args namespace-loader]
   (when (system/defold-dev?)
     (set-sha1-revisions-from-repo!))
-  (error-reporting/setup-error-reporting! {:notifier {:notify-fn notify-user}
-                                           :sentry (get connection-properties :sentry)})
-  (disable-imageio-cache!)
-
-  (when-let [support-error (gl/gl-support-error)]
-    (when (= (dialogs/make-gl-support-error-dialog support-error) :quit)
-      (System/exit -1)))
-
   (let [args (Arrays/asList args)
         opts (cli/parse-opts args cli-options)
         cli-options (:options opts)
@@ -135,27 +127,34 @@
                   (prefs/global prefs-path)
                   (doto (prefs/global) prefs/migrate-global-prefs!))
                 keymap/migrate-from-file!)
-        localization (localization/make-editor prefs)
-        updater (updater/start!)
-        analytics-url (get connection-properties :analytics-url)
-        analytics-send-interval 300]
-    (when (some? updater)
-      (updater/delete-backup-files! updater))
-    (analytics/start! analytics-url analytics-send-interval)
-    (Shutdown/addShutdownAction analytics/shutdown!)
-    (try
-      (let [game-project-path (get-in opts [:arguments 0])
-            game-project-file (io/file game-project-path)]
-        (if (and game-project-path
-                 (.exists game-project-file))
-          (open-project-with-progress-dialog namespace-loader prefs localization cli-options (.getAbsolutePath game-project-file) updater false)
-          (select-project-from-welcome namespace-loader prefs localization cli-options updater)))
-      (catch Throwable t
-        (log/error :exception t)
-        (stack/print-stack-trace t)
-        (.flush *out*)
-        ;; note - i'm not sure System/exit is a good idea here. it
-        ;; means that failing to open one project causes the whole
-        ;; editor to quit, maybe losing unsaved work in other open
-        ;; projects.
-        (System/exit -1)))))
+        localization (localization/make-editor prefs)]
+    (error-reporting/setup-error-reporting! {:notifier {:notify-fn (partial notify-user localization)}
+                                             :sentry (get connection-properties :sentry)})
+    (disable-imageio-cache!)
+
+    (when-let [support-error (gl/gl-support-error)]
+      (when (= (dialogs/make-gl-support-error-dialog support-error localization) :quit)
+        (System/exit -1)))
+    (let [updater (updater/start!)
+          analytics-url (get connection-properties :analytics-url)
+          analytics-send-interval 300]
+      (when (some? updater)
+        (updater/delete-backup-files! updater))
+      (analytics/start! analytics-url analytics-send-interval)
+      (Shutdown/addShutdownAction analytics/shutdown!)
+      (try
+        (let [game-project-path (get-in opts [:arguments 0])
+              game-project-file (io/file game-project-path)]
+          (if (and game-project-path
+                   (.exists game-project-file))
+            (open-project-with-progress-dialog namespace-loader prefs localization cli-options (.getAbsolutePath game-project-file) updater false)
+            (select-project-from-welcome namespace-loader prefs localization cli-options updater)))
+        (catch Throwable t
+          (log/error :exception t)
+          (stack/print-stack-trace t)
+          (.flush *out*)
+          ;; note - i'm not sure System/exit is a good idea here. it
+          ;; means that failing to open one project causes the whole
+          ;; editor to quit, maybe losing unsaved work in other open
+          ;; projects.
+          (System/exit -1))))))

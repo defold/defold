@@ -101,6 +101,9 @@ updater.platform-not-supported-dialog.updates-no-longer-provided = Updates are n
 updater.platform-not-supported-dialog.supported-platforms = Supported platforms are 64-bit Linux, macOS and Windows
 updater.download-dialog.title = Download Update?
 updater.download-dialog.newer-version-available = A newer version of Defold is available!
+updater.update-failed.title = Update Failed
+updater.update-failed.header = An error occurred during update installation
+updater.update-failed.detail = You probably should perform a fresh install
 updater.dialog.title = Install Update and Restart?
 updater.dialog.header = Install downloaded update and restart?
 updater.dialog.button.not-now = Not Now
@@ -123,6 +126,25 @@ time.vague.a-day-ago = A day ago
 # Common dialogs
 
 dialog.button.close = Close
+dialog.button.quit = Quit
+dialog.button.open-defold-website = Open defold.com
+dialog.button.dismiss = Dismiss
+dialog.button.report = Report
+dialog.button.disable-scene-editor = Disable Scene Editor
+
+# Error Dialog
+
+dialog.error.title = Error
+dialog.error.header = An error occurred
+dialog.error.footer = You can help us fix this problem by reporting it and providing more information about what you were doing when it happened.
+
+# GL support error dialog
+
+dialog.gl-support.title = Insufficient OpenGL Support
+dialog.gl-support.header = This is a very common issue. See if any of these instructions help:
+dialog.gl-support.linux = OpenGL on linux
+dialog.gl-support.glGenBuffers = glGenBuffers
+dialog.gl-support.disclaimer = You can continue with scene editing disabled.
 
 # Editor panes
 

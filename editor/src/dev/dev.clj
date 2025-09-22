@@ -229,7 +229,7 @@
   (prefs/project (workspace/project-directory (workspace))))
 
 (defn localization []
-  (:localization (:env (first (ui/contexts (ui/main-scene))))))
+  (some #(-> % :env :localization) (ui/contexts (ui/main-scene))))
 
 (declare ^:private exclude-keys-deep-helper)
 
