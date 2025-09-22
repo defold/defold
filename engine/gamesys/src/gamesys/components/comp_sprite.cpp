@@ -2387,16 +2387,15 @@ namespace dmGameSystem
                 if (!anim_id)
                 {
                     // it means that new atlas doesn't contain animation with the same name as it played before
-                    const void* data = dmHashReverse64(current_animation, 0);
-                    const char* error_message = data != 0 ? (const char*)data : "<unknown>";
+                    const char* error_message = dmHashReverseSafe64(current_animation);
                     dmHashTable64<uint32_t>::Iterator animation_iterator = texture_set->m_AnimationIds.GetIterator();
                     if (animation_iterator.Next())
                     {
                         current_animation = animation_iterator.GetKey();
                         anim_id = const_cast<uint32_t*>(&animation_iterator.GetValue());
 
-                        const void* new_animation_name = dmHashReverse64(current_animation, 0);
-                        dmLogError("Atlas doesn't contains animation '%s'. Animation '%s' will be used", error_message, new_animation_name != 0 ? (const char*)new_animation_name : "<unknown>");
+                        const char* new_animation_name = dmHashReverseSafe64(current_animation);
+                        dmLogError("Atlas doesn't contains animation '%s'. Animation '%s' will be used", error_message, new_animation_name);
                     }
                     else
                     {
