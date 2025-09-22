@@ -982,12 +982,13 @@ namespace dmRender
             {
                 uint32_t *idx = context->m_RenderListSortBuffer.Begin() + i;
                 const RenderListEntry *last_entry = &base[*last];
-                const RenderListEntry *current_entry = &base[*idx];
-
                 // continue batch on match, or dispatch
-                if (i < count && (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder))
-                    continue;
-
+                if (i < count)
+                {
+                    const RenderListEntry *current_entry = &base[*idx];                
+                    if (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder)
+                        continue;
+                }
                 if (last_entry->m_Dispatch != RENDERLIST_INVALID_DISPATCH)
                 {
                     assert(last_entry->m_Dispatch < context->m_RenderListDispatch.Size());
