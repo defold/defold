@@ -33,23 +33,15 @@ namespace dmGraphics
     typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
 
     const static uint8_t DM_MAX_FRAMES_IN_FLIGHT = 2; // In flight frames - number of concurrent frames being processed
+    const static uint8_t MAX_FENCE_RESOURCES_TO_DESTROY_PER_ENTRY = 2; // Increase if necessary (or make fully dynamic)
 
     enum VulkanResourceType
     {
-        RESOURCE_TYPE_DEVICE_BUFFER = 0,
-        RESOURCE_TYPE_TEXTURE       = 1,
-        RESOURCE_TYPE_PROGRAM       = 2,
-        RESOURCE_TYPE_RENDER_TARGET = 3,
-    };
-
-    struct OneTimeCommandBuffer
-    {
-        OneTimeCommandBuffer(struct VulkanContext* context) : m_Context(context) {}
-        VkResult Begin();
-        VkResult End();
-
-        struct VulkanContext*  m_Context;
-        VkCommandBuffer        m_CmdBuffer;
+        RESOURCE_TYPE_DEVICE_BUFFER  = 0,
+        RESOURCE_TYPE_TEXTURE        = 1,
+        RESOURCE_TYPE_PROGRAM        = 2,
+        RESOURCE_TYPE_RENDER_TARGET  = 3,
+        RESOURCE_TYPE_COMMAND_BUFFER = 4,
     };
 
     struct DeviceBuffer
@@ -100,6 +92,7 @@ namespace dmGraphics
         VkImageUsageFlags m_UsageFlags;
         DeviceBuffer      m_DeviceBuffer;
         int32_atomic_t    m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
+        HOpaqueHandle     m_PendingUpload;
         uint16_t          m_Width;
         uint16_t          m_Height;
         uint16_t          m_Depth;
@@ -309,16 +302,35 @@ namespace dmGraphics
         const VulkanResourceType GetType();
     };
 
+    struct VulkanCommandBuffer
+    {
+        struct VulkanHandle
+        {
+            VkCommandBuffer m_CommandBuffer;
+            VkCommandPool   m_CommandPool;
+        };
+
+        VulkanHandle m_Handle;
+    };
+
     struct ResourceToDestroy
     {
         union
         {
-            DeviceBuffer::VulkanHandle  m_DeviceBuffer;
-            VulkanTexture::VulkanHandle m_Texture;
-            VulkanProgram::VulkanHandle m_Program;
-            RenderTarget::VulkanHandle  m_RenderTarget;
+            DeviceBuffer::VulkanHandle        m_DeviceBuffer;
+            VulkanTexture::VulkanHandle       m_Texture;
+            VulkanProgram::VulkanHandle       m_Program;
+            RenderTarget::VulkanHandle        m_RenderTarget;
+            VulkanCommandBuffer::VulkanHandle m_CommandBuffer;
         };
         VulkanResourceType m_ResourceType;
+    };
+
+    struct FenceResourcesToDestroy
+    {
+        VkFence           m_Fence;
+        ResourceToDestroy m_Resources[MAX_FENCE_RESOURCES_TO_DESTROY_PER_ENTRY];
+        uint8_t           m_ResourcesCount;
     };
 
     struct SwapChainCapabilities
@@ -392,13 +404,16 @@ namespace dmGraphics
         SetTextureAsyncState               m_SetTextureAsyncState;
         dmMutex::HMutex                    m_AssetHandleContainerMutex;
 
+        // Per-fence resources
+        dmOpaqueHandleContainer<FenceResourcesToDestroy> m_FenceResourcesToDestroy;
+
         // Main device rendering constructs
-        dmArray<VkFramebuffer>          m_MainFrameBuffers;
-        dmArray<VkCommandBuffer>        m_MainCommandBuffers;
+        dmArray<VkFramebuffer>          m_MainFrameBuffers; // One per swap chain image
+        VkCommandBuffer                 m_MainCommandBuffers[DM_MAX_FRAMES_IN_FLIGHT];
         VkCommandBuffer                 m_MainCommandBufferUploadHelper;
-        ResourcesToDestroyList*         m_MainResourcesToDestroy[3];
-        dmArray<ScratchBuffer>          m_MainScratchBuffers;
-        dmArray<DescriptorAllocator>    m_MainDescriptorAllocators;
+        ResourcesToDestroyList*         m_MainResourcesToDestroy[DM_MAX_FRAMES_IN_FLIGHT];
+        ScratchBuffer                   m_MainScratchBuffers[DM_MAX_FRAMES_IN_FLIGHT];
+        DescriptorAllocator             m_MainDescriptorAllocators[DM_MAX_FRAMES_IN_FLIGHT];
         VkRenderPass                    m_MainRenderPass;
         VulkanTexture                   m_MainTextureDepthStencil;
         HRenderTarget                   m_MainRenderTarget;
@@ -500,12 +515,14 @@ namespace dmGraphics
     VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount);
 
     // Misc functions
-    void     TransitionImageLayoutWithCmdBuffer(VkCommandBuffer vk_command_buffer, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t base_mip_level, uint32_t layer_count);
-    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
-    VkResult WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
-    void     DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value);
-    void     FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list);
-    void     ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
+    void            TransitionImageLayoutWithCmdBuffer(VkCommandBuffer vk_command_buffer, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t base_mip_level, uint32_t layer_count);
+    VkResult        TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
+    VkResult        WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
+    void            DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value);
+    void            FlushResourcesToDestroy(VulkanContext* context, ResourcesToDestroyList* resource_list);
+    void            ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
+    VkCommandBuffer BeginSingleTimeCommands(VkDevice device, VkCommandPool cmd_pool);
+    VkResult        SubmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkFence* fence_out);
 
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the

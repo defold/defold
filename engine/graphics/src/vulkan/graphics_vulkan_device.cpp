@@ -247,40 +247,6 @@ namespace dmGraphics
         }
     }
 
-    VkResult OneTimeCommandBuffer::Begin()
-    {
-        assert(m_Context != 0);
-
-        VkCommandBuffer vk_command_buffer;
-        CreateCommandBuffers(m_Context->m_LogicalDevice.m_Device, m_Context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
-        VkCommandBufferBeginInfo vk_command_buffer_begin_info;
-        memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
-
-        vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        VkResult res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
-        m_CmdBuffer = vk_command_buffer;
-        return res;
-    }
-
-    VkResult OneTimeCommandBuffer::End()
-    {
-        vkEndCommandBuffer(m_CmdBuffer);
-
-        VkSubmitInfo vk_submit_info = {};
-        vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        vk_submit_info.commandBufferCount = 1;
-        vk_submit_info.pCommandBuffers    = &m_CmdBuffer;
-
-        VkResult res = vkQueueSubmit(m_Context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
-        vkQueueWaitIdle(m_Context->m_LogicalDevice.m_GraphicsQueue);
-        vkFreeCommandBuffers(m_Context->m_LogicalDevice.m_Device, m_Context->m_LogicalDevice.m_CommandPool, 1, &m_CmdBuffer);
-
-        m_Context   = 0;
-        m_CmdBuffer = VK_NULL_HANDLE;
-        return res;
-    }
-
     VkResult DeviceBuffer::MapMemory(VkDevice vk_device, uint32_t offset, uint32_t size)
     {
         if (m_MappedDataPtr)
@@ -453,137 +419,112 @@ namespace dmGraphics
         return vk_count_bits[dmMath::Min<uint8_t>(sample_count_index_requested, sample_count_index_max)];
     }
 
-    void TransitionImageLayoutWithCmdBuffer(VkCommandBuffer vk_command_buffer, VulkanTexture* texture,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t base_mip_level, uint32_t layer_count)
+    struct LayoutTransitionInfo
     {
-        VkImageLayout vk_from_layout = texture->m_ImageLayout[base_mip_level];
+        VkAccessFlags        m_AccessMask;
+        VkPipelineStageFlags m_StageMask;
+    };
 
-        if (vk_from_layout == vk_to_layout)
+    static LayoutTransitionInfo GetAccessMaskAndStage(VkImageLayout layout)
+    {
+        switch (layout)
         {
+            case VK_IMAGE_LAYOUT_UNDEFINED:
+                return { 0, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
+
+            case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+                return { VK_ACCESS_SHADER_READ_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT };
+
+            case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+                return { VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
+
+            case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+                return { VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
+
+            case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+                return { VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+
+            case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+                return { VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                         VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT };
+
+            case VK_IMAGE_LAYOUT_GENERAL:
+                return { VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }; // conservative
+
+            default:
+                assert(false && "Unsupported VkImageLayout in GetAccessMaskAndStage");
+                // Fallback: allow everything, conservative but safe
+                return { 0, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT };
+        }
+    }
+
+    void TransitionImageLayoutWithCmdBuffer(
+            VkCommandBuffer vk_command_buffer,
+            VulkanTexture* texture,
+            VkImageAspectFlags vk_image_aspect,
+            VkImageLayout new_layout,
+            uint32_t base_mip_level,
+            uint32_t layer_count)
+    {
+        VkImageLayout old_layout = texture->m_ImageLayout[base_mip_level];
+        if (old_layout == new_layout)
             return;
-        }
 
-        VkImageMemoryBarrier vk_memory_barrier            = {};
-        vk_memory_barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        vk_memory_barrier.oldLayout                       = vk_from_layout;
-        vk_memory_barrier.newLayout                       = vk_to_layout;
-        vk_memory_barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        vk_memory_barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        vk_memory_barrier.image                           = texture->m_Handle.m_Image;
-        vk_memory_barrier.subresourceRange.aspectMask     = vk_image_aspect;
-        vk_memory_barrier.subresourceRange.baseMipLevel   = base_mip_level;
-        vk_memory_barrier.subresourceRange.levelCount     = 1;
-        vk_memory_barrier.subresourceRange.baseArrayLayer = 0;
-        vk_memory_barrier.subresourceRange.layerCount     = layer_count;
+        LayoutTransitionInfo src = GetAccessMaskAndStage(old_layout);
+        LayoutTransitionInfo dst = GetAccessMaskAndStage(new_layout);
 
-        VkPipelineStageFlags vk_source_stage      = VK_IMAGE_LAYOUT_UNDEFINED;
-        VkPipelineStageFlags vk_destination_stage = VK_IMAGE_LAYOUT_UNDEFINED;
-
-        // These stage changes are explicit in our case:
-        //   1) undefined -> shader read. This transition is used when uploading texture without a stage buffer.
-        //   2) undefined -> transfer. This transition is used for staging buffers when uploading texture data
-        //   3) transfer  -> shader read. This transition is used when the staging transfer is complete.
-        //   4) undefined -> depth stencil. This transition is used when creating a depth buffer attachment.
-        //   5) undefined -> color attachment. This transition is used when creating a color buffer attachment.
-        if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_HOST_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        }
-        else if ((vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED || vk_from_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && vk_to_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        }
-        else if ((vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED || vk_from_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) && vk_to_layout == VK_IMAGE_LAYOUT_GENERAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        }
-        else
-        {
-            // Transition not supported, so we early out
-            return;
-        }
+        VkImageMemoryBarrier barrier{};
+        barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout                       = old_layout;
+        barrier.newLayout                       = new_layout;
+        barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image                           = texture->m_Handle.m_Image;
+        barrier.subresourceRange.aspectMask     = vk_image_aspect;
+        barrier.subresourceRange.baseMipLevel   = base_mip_level;
+        barrier.subresourceRange.levelCount     = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount     = layer_count;
+        barrier.srcAccessMask                   = src.m_AccessMask;
+        barrier.dstAccessMask                   = dst.m_AccessMask;
 
         vkCmdPipelineBarrier(
             vk_command_buffer,
-            vk_source_stage,
-            vk_destination_stage,
-            0, 0, 0, 0, 0, 1,
-            &vk_memory_barrier);
+            src.m_StageMask,
+            dst.m_StageMask,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &barrier
+        );
 
-        texture->m_ImageLayout[base_mip_level] = vk_to_layout;
+        texture->m_ImageLayout[base_mip_level] = new_layout;
     }
 
-    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout,
-        uint32_t base_mip_level, uint32_t layer_count)
+    VkResult TransitionImageLayout(VkDevice vk_device,
+        VkCommandPool vk_command_pool,
+        VkQueue vk_queue,
+        VulkanTexture* texture,
+        VkImageAspectFlags vk_image_aspect,
+        VkImageLayout vk_to_layout,
+        uint32_t base_mip_level,
+        uint32_t layer_count)
     {
-        // Create a one-time-execute command buffer that will only be used for the transition
-        VkCommandBuffer vk_command_buffer;
-        CreateCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
-
-        VkCommandBufferBeginInfo vk_command_buffer_begin_info = {};
-        vk_command_buffer_begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vk_command_buffer_begin_info.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-        vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
+        VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(vk_device, vk_command_pool);
 
         TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
-        vkEndCommandBuffer(vk_command_buffer);
+        VkFence fence;
+        VkResult res = SubmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence);
 
-        VkSubmitInfo vk_submit_info;
-        memset(&vk_submit_info, 0, sizeof(VkSubmitInfo));
-
-        vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        vk_submit_info.commandBufferCount = 1;
-        vk_submit_info.pCommandBuffers    = &vk_command_buffer;
-
-        vkQueueSubmit(vk_graphics_queue, 1, &vk_submit_info, VK_NULL_HANDLE);
-        vkQueueWaitIdle(vk_graphics_queue);
+        // Wait for the copy command to finish
+        vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
+        vkDestroyFence(vk_device, fence, NULL);
         vkFreeCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
 
         return VK_SUCCESS;
@@ -675,6 +616,54 @@ namespace dmGraphics
         vk_buffers_allocate_info.commandBufferCount = numBuffersToCreate;
 
         return vkAllocateCommandBuffers(vk_device, &vk_buffers_allocate_info, vk_command_buffers_out);
+    }
+
+    VkCommandBuffer BeginSingleTimeCommands(VkDevice device, VkCommandPool cmd_pool)
+    {
+        VkCommandBufferAllocateInfo alloc_info = {};
+        alloc_info.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        alloc_info.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        alloc_info.commandPool                 = cmd_pool;
+        alloc_info.commandBufferCount          = 1;
+
+        VkCommandBuffer cmd_buffer;
+        vkAllocateCommandBuffers(device, &alloc_info, &cmd_buffer);
+
+        VkCommandBufferBeginInfo begin_info = {};
+        begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin_info.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(cmd_buffer, &begin_info);
+
+        return cmd_buffer;
+    }
+
+    VkResult SubmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkFence* fence_out)
+    {
+        VkResult res = vkEndCommandBuffer(cmd);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        VkFenceCreateInfo fence_info = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+        VkFence fence = VK_NULL_HANDLE;
+        res = vkCreateFence(vk_device, &fence_info, NULL, &fence);
+
+        VkSubmitInfo submit_info = {};
+        submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit_info.commandBufferCount = 1;
+        submit_info.pCommandBuffers = &cmd;
+
+        res = vkQueueSubmit(queue, 1, &submit_info, fence);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        *fence_out = fence;
+
+        return res;
     }
 
     VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, ShaderModule* shaderModuleOut)

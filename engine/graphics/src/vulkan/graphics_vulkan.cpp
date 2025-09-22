@@ -145,6 +145,12 @@ namespace dmGraphics
     static inline void TouchResource(VulkanContext* context, T* resource)
     {
         resource->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
+
+        if (resource->GetType() == RESOURCE_TYPE_TEXTURE)
+        {
+            VulkanTexture* texture = (VulkanTexture*) resource;
+            TouchResource(context, &texture->m_DeviceBuffer);
+        }
     }
 
     template <typename T>
@@ -706,22 +712,14 @@ namespace dmGraphics
         CHECK_VK_ERROR(res);
         context->m_CurrentRenderTarget = context->m_MainRenderTarget;
 
-        // Create main command buffers, one for each swap chain image
-        const uint32_t num_swap_chain_images = context->m_SwapChain->m_Images.Size();
-        context->m_MainCommandBuffers.SetCapacity(num_swap_chain_images);
-        context->m_MainCommandBuffers.SetSize(num_swap_chain_images);
-
-        res = CreateCommandBuffers(vk_device,
-            context->m_LogicalDevice.m_CommandPool,
-            context->m_MainCommandBuffers.Size(),
-            context->m_MainCommandBuffers.Begin());
+        res = CreateCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, DM_ARRAY_SIZE(context->m_MainCommandBuffers), context->m_MainCommandBuffers);
         CHECK_VK_ERROR(res);
 
         // Create an additional single-time buffer for device uploading
         CreateCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &context->m_MainCommandBufferUploadHelper);
 
         // Create main resources-to-destroy lists, one for each command buffer
-        for (uint32_t i = 0; i < num_swap_chain_images; ++i)
+        for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
         {
             context->m_MainResourcesToDestroy[i] = new ResourcesToDestroyList;
             context->m_MainResourcesToDestroy[i]->SetCapacity(8);
@@ -739,14 +737,7 @@ namespace dmGraphics
         const uint16_t descriptor_count_per_pool = 512;
         const uint32_t buffer_size               = 256 * descriptor_count_per_pool;
 
-        context->m_MainScratchBuffers.SetCapacity(num_swap_chain_images);
-        context->m_MainScratchBuffers.SetSize(num_swap_chain_images);
-        context->m_MainDescriptorAllocators.SetCapacity(num_swap_chain_images);
-        context->m_MainDescriptorAllocators.SetSize(num_swap_chain_images);
-
-        res = CreateMainScratchBuffers(context->m_PhysicalDevice.m_Device, vk_device,
-            num_swap_chain_images, buffer_size, descriptor_count_per_pool,
-            context->m_MainDescriptorAllocators.Begin(), context->m_MainScratchBuffers.Begin());
+        res = CreateMainScratchBuffers(context->m_PhysicalDevice.m_Device, vk_device, DM_MAX_FRAMES_IN_FLIGHT, buffer_size, descriptor_count_per_pool, context->m_MainDescriptorAllocators, context->m_MainScratchBuffers);
         CHECK_VK_ERROR(res);
 
         context->m_PipelineState = GetDefaultPipelineState();
@@ -871,35 +862,73 @@ namespace dmGraphics
         SynchronizeDevice(vk_device);
     }
 
-    void FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list)
+    static void DestroyResourceImmediatedly(VulkanContext* context, ResourceToDestroy* resource)
+    {
+        switch(resource->m_ResourceType)
+        {
+            case RESOURCE_TYPE_DEVICE_BUFFER:
+                DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &resource->m_DeviceBuffer);
+                break;
+            case RESOURCE_TYPE_TEXTURE:
+                DestroyTexture(context->m_LogicalDevice.m_Device, &resource->m_Texture);
+                break;
+            case RESOURCE_TYPE_PROGRAM:
+                DestroyProgram(context->m_LogicalDevice.m_Device, &resource->m_Program);
+                break;
+            case RESOURCE_TYPE_RENDER_TARGET:
+                DestroyRenderTarget(context->m_LogicalDevice.m_Device, &resource->m_RenderTarget);
+                break;
+            case RESOURCE_TYPE_COMMAND_BUFFER:
+                vkFreeCommandBuffers(
+                    context->m_LogicalDevice.m_Device,
+                    resource->m_CommandBuffer.m_CommandPool,
+                    1, &resource->m_CommandBuffer.m_CommandBuffer);
+                break;
+            default:
+                assert(0);
+                break;
+        }
+    }
+
+    void FlushResourcesToDestroy(VulkanContext* context, ResourcesToDestroyList* resource_list)
     {
         if (resource_list->Size() > 0)
         {
             for (uint32_t i = 0; i < resource_list->Size(); ++i)
             {
-                ResourceToDestroy& resource = resource_list->Begin()[i];
-
-                switch(resource.m_ResourceType)
-                {
-                    case RESOURCE_TYPE_DEVICE_BUFFER:
-                        DestroyDeviceBuffer(vk_device, &resource.m_DeviceBuffer);
-                        break;
-                    case RESOURCE_TYPE_TEXTURE:
-                        DestroyTexture(vk_device, &resource.m_Texture);
-                        break;
-                    case RESOURCE_TYPE_PROGRAM:
-                        DestroyProgram(vk_device, &resource.m_Program);
-                        break;
-                    case RESOURCE_TYPE_RENDER_TARGET:
-                        DestroyRenderTarget(vk_device, &resource.m_RenderTarget);
-                        break;
-                    default:
-                        assert(0);
-                        break;
-                }
+                DestroyResourceImmediatedly(context, &resource_list->Begin()[i]);
             }
 
             resource_list->SetSize(0);
+        }
+    }
+
+    // Note: fence_resources ptr is no longer valid after this call!
+    static void DestroyFenceResourcesImmediately(VulkanContext* context, HOpaqueHandle fence_resource_handle, FenceResourcesToDestroy* fence_resources)
+    {
+        vkDestroyFence(context->m_LogicalDevice.m_Device, fence_resources->m_Fence, NULL);
+
+        for (int j = 0; j < fence_resources->m_ResourcesCount; ++j)
+        {
+            DestroyResourceImmediatedly(context, &fence_resources->m_Resources[j]);
+        }
+
+        context->m_FenceResourcesToDestroy.Release(fence_resource_handle);
+
+        delete fence_resources;
+    }
+
+    void FlushFenceResourcesToDestroy(VulkanContext* context)
+    {
+        uint32_t num_fence_resources = context->m_FenceResourcesToDestroy.Capacity();
+
+        for (int i = 0; i < num_fence_resources; ++i)
+        {
+            FenceResourcesToDestroy* fence_resources = context->m_FenceResourcesToDestroy.GetByIndex(i);
+            if (fence_resources && vkGetFenceStatus(context->m_LogicalDevice.m_Device, fence_resources->m_Fence) == VK_SUCCESS)
+            {
+                DestroyFenceResourcesImmediately(context, context->m_FenceResourcesToDestroy.IndexToHandle(i), fence_resources);
+            }
         }
     }
 
@@ -1201,6 +1230,7 @@ namespace dmGraphics
 
         context->m_PipelineCache.SetCapacity(32,64);
         context->m_TextureSamplers.SetCapacity(4);
+        context->m_FenceResourcesToDestroy.Allocate(8);
 
         context->m_AsyncProcessingSupport = context->m_JobThread != 0x0 && dmThread::PlatformHasThreadSupport();
         if (context->m_AsyncProcessingSupport)
@@ -1393,7 +1423,12 @@ bail:
         // Flush per-swapchain-image resources to destroy
         if (context->m_MainResourcesToDestroy[frameInFlight]->Size() > 0)
         {
-            FlushResourcesToDestroy(vk_device, context->m_MainResourcesToDestroy[frameInFlight]);
+            FlushResourcesToDestroy(context, context->m_MainResourcesToDestroy[frameInFlight]);
+        }
+
+        if (context->m_FenceResourcesToDestroy.Capacity() > 0)
+        {
+            FlushFenceResourcesToDestroy(context);
         }
 
         // Reset per-frame scratch buffer and descriptor pools
@@ -1494,6 +1529,32 @@ bail:
     #endif
     }
 
+    static inline bool FormatHasDepth(VkFormat fmt)
+    {
+        switch (fmt) {
+            case VK_FORMAT_D16_UNORM:
+            case VK_FORMAT_X8_D24_UNORM_PACK32:
+            case VK_FORMAT_D32_SFLOAT:
+            case VK_FORMAT_D16_UNORM_S8_UINT:
+            case VK_FORMAT_D24_UNORM_S8_UINT:
+            case VK_FORMAT_D32_SFLOAT_S8_UINT:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    static inline bool FormatHasStencil(VkFormat fmt) {
+        switch (fmt) {
+            case VK_FORMAT_S8_UINT:
+            case VK_FORMAT_D16_UNORM_S8_UINT:
+            case VK_FORMAT_D24_UNORM_S8_UINT:
+            case VK_FORMAT_D32_SFLOAT_S8_UINT:
+                return true;
+            default:
+                return false;
+        }
+    }
 
     static void VulkanClear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
@@ -1550,21 +1611,36 @@ bail:
         // Clear depth / stencil
         if (has_depth_stencil_texture && clear_depth_stencil)
         {
+            VkFormat depth_stencil_format;
+
+            if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+            {
+                depth_stencil_format = context->m_MainTextureDepthStencil.m_Format;
+            }
+            else
+            {
+                depth_stencil_format = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, current_rt->m_TextureDepthStencil)->m_Format;
+            }
+
             VkImageAspectFlags vk_aspect = 0;
-            if (flags & BUFFER_TYPE_DEPTH_BIT)
+
+            if ((flags & BUFFER_TYPE_DEPTH_BIT) && FormatHasDepth(depth_stencil_format))
             {
                 vk_aspect |= VK_IMAGE_ASPECT_DEPTH_BIT;
             }
 
-            if (flags & BUFFER_TYPE_STENCIL_BIT)
+            if ((flags & BUFFER_TYPE_STENCIL_BIT) && FormatHasStencil(depth_stencil_format))
             {
                 vk_aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
             }
 
-            VkClearAttachment& vk_depth_attachment              = vk_clear_attachments[attachment_count++];
-            vk_depth_attachment.aspectMask                      = vk_aspect;
-            vk_depth_attachment.clearValue.depthStencil.stencil = stencil;
-            vk_depth_attachment.clearValue.depthStencil.depth   = depth;
+            if (vk_aspect != 0)
+            {
+                VkClearAttachment& vk_depth_attachment = vk_clear_attachments[attachment_count++];
+                vk_depth_attachment.aspectMask = vk_aspect;
+                vk_depth_attachment.clearValue.depthStencil.stencil = stencil;
+                vk_depth_attachment.clearValue.depthStencil.depth   = depth;
+            }
         }
 
         vkCmdClearAttachments(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight],
@@ -2057,11 +2133,28 @@ bail:
 
     static void UpdateImageDescriptor(VulkanContext* context, HTexture texture_handle, ShaderResourceBinding* binding, VkDescriptorImageInfo& vk_image_info, VkWriteDescriptorSet& vk_write_desc_info)
     {
-        VulkanTexture* texture  = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture_handle);
+        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture_handle);
 
         if (texture == 0x0)
         {
             texture = GetDefaultTexture(context, binding->m_Type.m_ShaderType);
+        }
+
+        if (texture->m_PendingUpload != INVALID_OPAQUE_HANDLE)
+        {
+            FenceResourcesToDestroy* pending_upload = context->m_FenceResourcesToDestroy.Get(texture->m_PendingUpload);
+
+            // We need this resource now, so we have to wait for the fence to trigger.
+            // If pending_upload is NULL, the request has already been satisfied so we don't have to do anything.
+            if (pending_upload)
+            {
+                vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &pending_upload->m_Fence, VK_TRUE, UINT64_MAX);
+
+                // It's now safe to release the resources held by the fence
+                DestroyFenceResourcesImmediately(context, texture->m_PendingUpload, pending_upload);
+            }
+
+            texture->m_PendingUpload = INVALID_OPAQUE_HANDLE;
         }
 
         TouchResource(context, texture);
@@ -2088,7 +2181,11 @@ bail:
 
         // If the image layout is in the wrong state, we need to transition it to the new layout,
         // otherwise its memory might be getting wrriten to while we are reading from it.
-        if (texture->m_ImageLayout[0] != VK_IMAGE_LAYOUT_GENERAL && image_layout != texture->m_ImageLayout[0])
+        //
+        // TODO: We cannot use the in-frame command buffer here since it's illegal to use barriers while inside a render pass
+        //       So instead we have to use a temporary command buffer that only does the transition.
+        //       It would be better if we could decouple this somehow. Perhaps we can solve it by buffering all render events (with a render graph?)
+        if (texture->m_ImageLayout[0] != image_layout && image_layout != VK_IMAGE_LAYOUT_UNDEFINED)
         {
             VkResult res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
                 context->m_LogicalDevice.m_CommandPool,
@@ -3687,6 +3784,7 @@ bail:
         tex->m_UsageHintFlags = params.m_UsageHintBits;
         tex->m_PageCount      = params.m_LayerCount;
         tex->m_DataState      = 0;
+        tex->m_PendingUpload  = INVALID_OPAQUE_HANDLE;
 
         for (int i = 0; i < DM_ARRAY_SIZE(tex->m_ImageLayout); ++i)
         {
@@ -3727,24 +3825,6 @@ bail:
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanDeleteTextureInternal(GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture));
         g_VulkanContext->m_AssetHandleContainer.Release(texture);
-    }
-
-    static inline uint32_t GetOffsetFromMipmap(VulkanTexture* texture, uint8_t mipmap)
-    {
-        uint8_t bitspp  = GetTextureFormatBitsPerPixel(texture->m_GraphicsFormat);
-        uint32_t width  = texture->m_Width;
-        uint32_t height = texture->m_Height;
-        uint32_t offset = 0;
-
-        for (uint32_t i = 0; i < mipmap; ++i)
-        {
-            offset += width * height * bitspp;
-            width  /= 2;
-            height /= 2;
-        }
-
-        offset /= 8;
-        return offset;
     }
 
     static void CopyToTextureLayerWithtStageBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, VkBufferImageCopy* copy_regions, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t layer_count, uint32_t slice_size)
@@ -3791,117 +3871,105 @@ bail:
         delete[] vk_copy_regions;
     }
 
-    static void CopyToTexture(VulkanContext* context, const TextureParams& params,
-        bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, VulkanTexture* textureOut)
+    static inline HOpaqueHandle DestroyFenceResourcesDeferred(VulkanContext* context, FenceResourcesToDestroy* fence_resources)
     {
+        if (context->m_FenceResourcesToDestroy.Full())
+        {
+            context->m_FenceResourcesToDestroy.Allocate(8);
+        }
+        return context->m_FenceResourcesToDestroy.Put(fence_resources);
+    }
+
+    static void CopyToTexture(VulkanContext* context, const TextureParams& params,
+        bool use_stage_buffer, uint32_t tex_data_size, void* tex_data_ptr, VulkanTexture* texture_out)
+    {
+        DM_PROFILE(__FUNCTION__);
+
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
-        uint8_t layer_count = textureOut->m_LayerCount;
+        uint32_t layer_count = texture_out->m_LayerCount;
         assert(layer_count > 0);
 
-        // TODO There is potentially a bunch of redundancy here.
-        //      * Can we use a single command buffer for these updates,
-        //        and not create a new one in every transition?
-        //      * Should we batch upload all the mipmap levels instead?
-        //        There's a lot of extra work doing all these transitions and image copies
-        //        per mipmap instead of batching in one cmd
-        if (useStageBuffer)
+        uint32_t slice_size = tex_data_size / layer_count;
+
+    #ifdef __MACH__
+        // macOS quirk: stage buffer offsets for layered compressed data must be 8-byte aligned.
+        // For small compressed mips (< 8 bytes per slice), skip upload to avoid validation errors.
+        if (slice_size < 8 && layer_count > 1)
         {
-            uint32_t slice_size = texDataSize / layer_count;
-
-        #ifdef __MACH__
-            // Note: There is an annoying validation issue on osx for layered compressed data that causes a validation error
-            //       due to misalignment of the data when using a stage buffer. The offsets in the stage buffer needs to be
-            //       8 byte aligned but for compressed data that is not the case for the lowest mipmaps.
-            //       This might need some more investigation, but for now we don't want a crash at least...
-            if (slice_size < 8 && layer_count > 1)
-            {
-                return;
-            }
-        #endif
-
-            // Create one-time commandbuffer to carry the copy command
-            VkCommandBuffer vk_command_buffer;
-            CreateCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
-            VkCommandBufferBeginInfo vk_command_buffer_begin_info;
-            memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
-
-            vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-            vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-            VkResult res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
-            CHECK_VK_ERROR(res);
-
-            VkSubmitInfo vk_submit_info;
-            memset(&vk_submit_info, 0, sizeof(vk_submit_info));
-            vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            vk_submit_info.commandBufferCount = 1;
-            vk_submit_info.pCommandBuffers    = &vk_command_buffer;
-
-            // Transition image to transfer dst for the mipmap level we are uploading
-            res = TransitionImageLayout(vk_device,
-                context->m_LogicalDevice.m_CommandPool,
-                context->m_LogicalDevice.m_GraphicsQueue,
-                textureOut,
-                VK_IMAGE_ASPECT_COLOR_BIT,
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                params.m_MipMap,
-                layer_count);
-            CHECK_VK_ERROR(res);
-
-            DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-
-            res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, vk_device, texDataSize,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
-            CHECK_VK_ERROR(res);
-
-            res = WriteToDeviceBuffer(vk_device, texDataSize, 0, texDataPtr, &stage_buffer);
-            CHECK_VK_ERROR(res);
-
-            // NOTE: We should check max layer count in the device properties!
-            VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[layer_count];
-            
-            CopyToTextureLayerWithtStageBuffer(context, vk_command_buffer, vk_copy_regions, &stage_buffer, textureOut, params, layer_count, slice_size);
-
-            res = vkEndCommandBuffer(vk_command_buffer);
-            CHECK_VK_ERROR(res);
-
-            res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
-            CHECK_VK_ERROR(res);
-
-            vkQueueWaitIdle(context->m_LogicalDevice.m_GraphicsQueue);
-
-            res = TransitionImageLayout(vk_device,
-                context->m_LogicalDevice.m_CommandPool,
-                context->m_LogicalDevice.m_GraphicsQueue,
-                textureOut,
-                VK_IMAGE_ASPECT_COLOR_BIT,
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                params.m_MipMap,
-                layer_count);
-            CHECK_VK_ERROR(res);
-
-            DestroyResourceDeferred(context, &stage_buffer);
-
-            vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
-
-            delete[] vk_copy_regions;
+            return;
         }
-        else
-        {
-            uint32_t write_offset = GetOffsetFromMipmap(textureOut, (uint8_t) params.m_MipMap);
+    #endif
 
-            VkResult res = WriteToDeviceBuffer(vk_device, texDataSize, write_offset, texDataPtr, &textureOut->m_DeviceBuffer);
-            CHECK_VK_ERROR(res);
+        // Always allocate a temporary command buffer for the copy, even during a frame
+        VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(
+            context->m_LogicalDevice.m_Device,
+            context->m_LogicalDevice.m_CommandPool);
 
-            res = TransitionImageLayout(vk_device,
-                context->m_LogicalDevice.m_CommandPool,
-                context->m_LogicalDevice.m_GraphicsQueue,
-                textureOut,
-                VK_IMAGE_ASPECT_COLOR_BIT,
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                params.m_MipMap,
-                layer_count);
-            CHECK_VK_ERROR(res);
-        }
+        // Stage buffer path
+        DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+        VkResult res = CreateDeviceBuffer(
+            context->m_PhysicalDevice.m_Device,
+            vk_device,
+            tex_data_size,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            &stage_buffer);
+        CHECK_VK_ERROR(res);
+
+        res = WriteToDeviceBuffer(vk_device, tex_data_size, 0, tex_data_ptr, &stage_buffer);
+        CHECK_VK_ERROR(res);
+
+        TransitionImageLayoutWithCmdBuffer(
+            vk_command_buffer,
+            texture_out,
+            VK_IMAGE_ASPECT_COLOR_BIT,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            params.m_MipMap,
+            layer_count);
+
+        // Copy regions on the stack
+        dmArray<VkBufferImageCopy> copy_regions;
+        copy_regions.SetCapacity(layer_count);
+        copy_regions.SetSize(layer_count);
+
+        CopyToTextureLayerWithtStageBuffer(
+            context,
+            vk_command_buffer,
+            copy_regions.Begin(),
+            &stage_buffer,
+            texture_out,
+            params,
+            layer_count,
+            slice_size);
+
+        TransitionImageLayoutWithCmdBuffer(
+            vk_command_buffer,
+            texture_out,
+            VK_IMAGE_ASPECT_COLOR_BIT,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            params.m_MipMap,
+            layer_count);
+
+        VkFence submit_fence;
+        res = SubmitCommandBuffer(
+            context->m_LogicalDevice.m_Device,
+            context->m_LogicalDevice.m_GraphicsQueue,
+            vk_command_buffer,
+            &submit_fence);
+        CHECK_VK_ERROR(res);
+
+        VulkanCommandBuffer cmd_buffer;
+        cmd_buffer.m_Handle.m_CommandBuffer = vk_command_buffer;
+        cmd_buffer.m_Handle.m_CommandPool   = context->m_LogicalDevice.m_CommandPool;
+
+        FenceResourcesToDestroy* pending_upload        = new FenceResourcesToDestroy();
+        pending_upload->m_Fence                        = submit_fence;
+        pending_upload->m_Resources[0].m_DeviceBuffer  = stage_buffer.m_Handle;
+        pending_upload->m_Resources[0].m_ResourceType  = RESOURCE_TYPE_DEVICE_BUFFER;
+        pending_upload->m_Resources[1].m_CommandBuffer = cmd_buffer.m_Handle;
+        pending_upload->m_Resources[1].m_ResourceType  = RESOURCE_TYPE_COMMAND_BUFFER;
+        pending_upload->m_ResourcesCount               = 2;
+
+        texture_out->m_PendingUpload = DestroyFenceResourcesDeferred(context, pending_upload);
     }
 
     static void VulkanSetTextureInternal(VulkanTexture* texture, const TextureParams& params)
@@ -4099,7 +4167,7 @@ bail:
 
         vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
-        vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_MainCommandBuffers.Size(), context->m_MainCommandBuffers.Begin());
+        vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, DM_ARRAY_SIZE(context->m_MainCommandBuffers), context->m_MainCommandBuffers);
         vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &context->m_MainCommandBufferUploadHelper);
 
         for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
@@ -4112,20 +4180,22 @@ bail:
             DestroyTextureSampler(vk_device, &context->m_TextureSamplers[i]);
         }
 
-        for (uint8_t i=0; i < context->m_MainScratchBuffers.Size(); i++)
+        for (uint8_t i=0; i < DM_ARRAY_SIZE(context->m_MainScratchBuffers); i++)
         {
             DestroyDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer.m_Handle);
         }
 
-        for (uint8_t i=0; i < context->m_MainDescriptorAllocators.Size(); i++)
+        for (uint8_t i=0; i < DM_ARRAY_SIZE(context->m_MainDescriptorAllocators); i++)
         {
             DestroyDescriptorAllocator(vk_device, &context->m_MainDescriptorAllocators[i]);
         }
 
-        for (uint8_t i=0; i < context->m_MainCommandBuffers.Size(); i++)
+        for (uint8_t i=0; i < DM_ARRAY_SIZE(context->m_MainCommandBuffers); i++)
         {
-            FlushResourcesToDestroy(vk_device, context->m_MainResourcesToDestroy[i]);
+            FlushResourcesToDestroy(context, context->m_MainResourcesToDestroy[i]);
         }
+
+        FlushFenceResourcesToDestroy(context);
 
         for (size_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; i++) {
             FrameResource& frame_resource = context->m_FrameResources[i];
@@ -4141,29 +4211,10 @@ bail:
 
     static void VulkanSetTexture(HContext context, HTexture texture, const TextureParams& params)
     {
+        DM_PROFILE(__FUNCTION__);
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         VulkanSetTextureInternal(tex, params);
-    }
-
-    static VkCommandBuffer BeginSingleTimeCommands(VkDevice device, VkCommandPool cmd_pool)
-    {
-        VkCommandBufferAllocateInfo alloc_info = {};
-        alloc_info.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        alloc_info.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        alloc_info.commandPool                 = cmd_pool;
-        alloc_info.commandBufferCount          = 1;
-
-        VkCommandBuffer cmd_buffer;
-        vkAllocateCommandBuffers(device, &alloc_info, &cmd_buffer);
-
-        VkCommandBufferBeginInfo begin_info = {};
-        begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        begin_info.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-        vkBeginCommandBuffer(cmd_buffer, &begin_info);
-
-        return cmd_buffer;
     }
 
     static int AsyncProcessCallback(void* _context, void* data)
@@ -4188,8 +4239,6 @@ bail:
 
         // Async texture uploading
         {
-            VkSemaphore semaphore;
-            VkFence fence;
             VkCommandBuffer cmd_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
 
             uint8_t tex_layer_count   = dmMath::Max(tex->m_LayerCount, ap.m_Params.m_LayerCount);
@@ -4232,33 +4281,18 @@ bail:
 
             TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
 
-            vkEndCommandBuffer(cmd_buffer);
-
-            VkSemaphoreCreateInfo vk_create_semaphore_info = {};
-            vk_create_semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-            vkCreateSemaphore(context->m_LogicalDevice.m_Device, &vk_create_semaphore_info, 0, &semaphore);
-
-            VkFenceCreateInfo vk_create_fence_info = {};
-            vk_create_fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-            vkCreateFence(context->m_LogicalDevice.m_Device, &vk_create_fence_info, 0, &fence);
-
-            VkSubmitInfo submit_info         = {};
-            submit_info.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            submit_info.commandBufferCount   = 1;
-            submit_info.pCommandBuffers      = &cmd_buffer;
-            submit_info.signalSemaphoreCount = 1;
-            submit_info.pSignalSemaphores    = &semaphore;
-
-            vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submit_info, fence);
-            vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
-            vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker, 1, &cmd_buffer);
-
-            vkDestroySemaphore(context->m_LogicalDevice.m_Device, semaphore, 0);
-            vkDestroyFence(context->m_LogicalDevice.m_Device, fence, 0);
+            VkFence fence;
+            VkResult res = SubmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, cmd_buffer, &fence);
+            CHECK_VK_ERROR(res);
 
             if (!is_memoryless)
             {
-                DestroyResourceDeferred(context, &stage_buffer);
+                // We wait for the fence here so we don't keep a bunch of large buffers around.
+                // Waiting for the fence should be fine here anyway, since we have commited the work on a different queue than the "main" graphics queue
+                vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
+                vkDestroyFence(context->m_LogicalDevice.m_Device, fence, NULL);
+                DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &stage_buffer.m_Handle);
+                vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker, 1, &cmd_buffer);
 
                 if (format_orig == TEXTURE_FORMAT_RGB)
                 {
@@ -4591,9 +4625,7 @@ bail:
         // input image must be in VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL or VK_IMAGE_LAYOUT_GENERAL, so we pick the optimal layout
         // otherwise, the validation layers will complain that this is a performance issue and spam errors..
 
-        OneTimeCommandBuffer cmd_buffer(context);
-        res = cmd_buffer.Begin();
-        CHECK_VK_ERROR(res);
+        VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool);
 
         ScopedLock lock(g_VulkanContext->m_AssetHandleContainerMutex);
         VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
@@ -4619,14 +4651,19 @@ bail:
         TouchResource(context, &stage_buffer);
 
         vkCmdCopyImageToBuffer(
-            cmd_buffer.m_CmdBuffer,
+            vk_command_buffer,
             context->m_SwapChain->Image(),
             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             stage_buffer.m_Handle.m_Buffer,
             1, &vk_copy_region);
 
-        res = cmd_buffer.End();
+        VkFence fence;
+        res = SubmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, &fence);
         CHECK_VK_ERROR(res);
+
+        // Wait for the copy command to finish
+        vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
+        vkDestroyFence(context->m_LogicalDevice.m_Device, fence, NULL);
 
         res = stage_buffer.MapMemory(context->m_LogicalDevice.m_Device);
         CHECK_VK_ERROR(res);
