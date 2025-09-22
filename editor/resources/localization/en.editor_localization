@@ -131,6 +131,7 @@ dialog.button.open-defold-website = Open defold.com
 dialog.button.dismiss = Dismiss
 dialog.button.report = Report
 dialog.button.disable-scene-editor = Disable Scene Editor
+dialog.button.cancel = Cancel
 
 # Error Dialog
 
@@ -145,6 +146,21 @@ dialog.gl-support.header = This is a very common issue. See if any of these inst
 dialog.gl-support.linux = OpenGL on linux
 dialog.gl-support.glGenBuffers = glGenBuffers
 dialog.gl-support.disclaimer = You can continue with scene editing disabled.
+
+# New folder
+
+dialog.new-folder.title = New Folder
+dialog.new-folder.header = Enter New Folder Name
+dialog.new-folder.name = Name
+dialog.new-folder.preview = Preview
+dialog.new-folder.button.create-folder = Create Folder
+
+# Target IP dialog
+
+dialog.target-ip.title = Enter Target IP
+dialog.target-ip.header = Enter Target IP Address
+dialog.target-ip.label = Target IP Address
+dialog.target-ip.button.add = Add Target IP
 
 # Editor panes
 

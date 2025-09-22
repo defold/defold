@@ -727,7 +727,7 @@
 (declare sanitize-folder-name)
 
 (defn- new-folder-dialog
-  [{:keys [name validate] :as props}]
+  [{:keys [name validate localization] :as props}]
   (let [sanitized-name ^String (sanitize-folder-name name)
         path-empty (zero? (.length sanitized-name))
         error-msg (validate sanitized-name)
@@ -735,38 +735,39 @@
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
-     :title "New Folder"
+     :title (localization (localization/message "dialog.new-folder.title"))
      :size :small
      :header {:fx/type fxui/legacy-label
               :variant :header
-              :text "Enter New Folder Name"}
+              :text (localization (localization/message "dialog.new-folder.header"))}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
                :children [{:fx/type fxui/legacy-label
-                           :text "Name"}
+                           :text (localization (localization/message "dialog.new-folder.name"))}
                           {:fx/type fxui/legacy-text-field
                            :text ""
                            :variant (if invalid :error :default)
                            :on-text-changed {:event-type :set-folder-name}}
                           {:fx/type fxui/legacy-label
-                           :text "Preview"}
+                           :text (localization (localization/message "dialog.new-folder.preview"))}
                           {:fx/type fxui/legacy-text-field
                            :editable false
                            :text (or error-msg sanitized-name)}]}
      :footer {:fx/type dialog-buttons
               :children [{:fx/type fxui/button
-                          :text "Cancel"
+                          :text (localization (localization/message "dialog.button.cancel"))
                           :cancel-button true
                           :on-action {:event-type :cancel}}
                          {:fx/type fxui/button
                           :disable (or invalid path-empty)
-                          :text "Create Folder"
+                          :text (localization (localization/message "dialog.new-folder.button.create-folder"))
                           :variant :primary
                           :default-button true
                           :on-action {:event-type :confirm}}]}}))
 
 (defn make-new-folder-dialog
-  [^String base-dir {:keys [validate]}]
+  [{:keys [validate localization]}]
+  {:pre [(some? localization)]}
   (fxui/show-dialog-and-await-result!
     :initial-state {:name ""
                     :validate (or validate (constantly nil))}
@@ -775,14 +776,15 @@
                        :set-folder-name (assoc state :name event)
                        :cancel (assoc state ::fxui/result nil)
                        :confirm (assoc state ::fxui/result (sanitize-folder-name (:name state)))))
-    :description {:fx/type new-folder-dialog}))
+    :description {:fx/type new-folder-dialog
+                  :localization localization}))
 
-(defn- target-ip-dialog [{:keys [msg ^String ip] :as props}]
+(defn- target-ip-dialog [{:keys [msg ^String ip localization] :as props}]
   (let [ip-valid (pos? (.length ip))]
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
-     :title "Enter Target IP"
+     :title (localization (localization/message "dialog.target-ip.title"))
      :size :small
      :header {:fx/type fxui/legacy-label
               :variant :header
@@ -790,24 +792,24 @@
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
                :children [{:fx/type fxui/legacy-label
-                           :text "Target IP Address"}
+                           :text (localization (localization/message "dialog.target-ip.label"))}
                           {:fx/type fxui/legacy-text-field
                            :variant (if ip-valid :default :error)
                            :text ip
                            :on-text-changed {:event-type :set-ip}}]}
      :footer {:fx/type dialog-buttons
               :children [{:fx/type fxui/button
-                          :text "Cancel"
+                          :text (localization (localization/message "dialog.button.cancel"))
                           :cancel-button true
                           :on-action {:event-type :cancel}}
                          {:fx/type fxui/button
                           :disable (not ip-valid)
-                          :text "Add Target IP"
+                          :text (localization (localization/message "dialog.target-ip.button.add"))
                           :variant :primary
                           :default-button true
                           :on-action {:event-type :confirm}}]}}))
 
-(defn make-target-ip-dialog [ip msg]
+(defn make-target-ip-dialog [ip msg localization]
   (fxui/show-dialog-and-await-result!
     :initial-state {:ip (or ip "")}
     :event-handler (fn [state {:keys [fx/event event-type]}]
@@ -816,7 +818,8 @@
                        :cancel (assoc state ::fxui/result nil)
                        :confirm (assoc state ::fxui/result (:ip state))))
     :description {:fx/type target-ip-dialog
-                  :msg (or msg "Enter Target IP Address")}))
+                  :localization localization
+                  :msg (or msg (localization (localization/message "dialog.target-ip.header")))}))
 
 (defn- sanitize-common [name]
   (-> name

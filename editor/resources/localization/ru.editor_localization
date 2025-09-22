@@ -131,6 +131,7 @@ dialog.button.open-defold-website = Открыть defold.com
 dialog.button.dismiss = Закрыть
 dialog.button.report = Сообщить об ошибке
 dialog.button.disable-scene-editor = Отключить редактор сцен
+dialog.button.cancel = Отмена
 
 # Error Dialog
 dialog.error.title = Ошибка
@@ -143,6 +144,21 @@ dialog.gl-support.header = Это очень распространённая п
 dialog.gl-support.linux = OpenGL в Linux
 dialog.gl-support.glGenBuffers = glGenBuffers
 dialog.gl-support.disclaimer = Вы можете продолжить работу с отключённым редактором сцен.
+
+# New folder
+
+dialog.new-folder.title = Новая папка
+dialog.new-folder.header = Введите имя новой папки
+dialog.new-folder.name = Имя
+dialog.new-folder.preview = Просмотр
+dialog.new-folder.button.create-folder = Создать папку
+
+# Target IP dialog
+
+dialog.target-ip.title = Введите IP целевого устройства
+dialog.target-ip.header = Введите IP-адрес целевого устройства
+dialog.target-ip.label = IP-адрес
+dialog.target-ip.button.add = Добавить IP-адрес
 
 # Editor panes
 

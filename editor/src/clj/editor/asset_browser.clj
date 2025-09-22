@@ -567,14 +567,15 @@
 
 (handler/defhandler :file.new-folder :asset-browser
   (enabled? [selection] (new-folder? selection))
-  (run [selection workspace asset-browser]
+  (run [selection workspace asset-browser localization]
     (let [parent-resource (first selection)
           parent-path (resource/proj-path parent-resource)
           parent-path (if (= parent-path "/") "" parent-path) ; special case because the project root dir ends in /
           base-folder (fs/to-folder (File. (resource/abs-path parent-resource)))
           project-directory (workspace/project-directory workspace)
-          options {:validate (partial validate-new-folder-name project-directory parent-path)}]
-      (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder options)]
+          options {:validate (partial validate-new-folder-name project-directory parent-path)
+                   :localization localization}]
+      (when-let [new-folder-name (dialogs/make-new-folder-dialog options)]
         (let [^File folder (resolve-sub-folder base-folder new-folder-name)]
           (do (fs/create-directories! folder)
               (workspace/resource-sync! workspace)
@@ -803,7 +804,7 @@
         (ui/succeeding-selection tree-view))))
   (alt-selection [this] []))
 
-(defn- setup-asset-browser [asset-browser workspace ^TreeView tree-view]
+(defn- setup-asset-browser [asset-browser workspace ^TreeView tree-view localization]
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
   (let [selection-provider (SelectionProvider. asset-browser)
         over-handler (ui/event-handler e (drag-over e))
@@ -842,7 +843,7 @@
                              :entered-handler entered-handler
                              :exited-handler exited-handler})))
       (ui/register-context-menu ::resource-menu)
-      (ui/context! :asset-browser {:workspace workspace :asset-browser asset-browser} selection-provider))))
+      (ui/context! :asset-browser {:workspace workspace :asset-browser asset-browser :localization localization} selection-provider))))
 
 (g/defnode AssetBrowser
   (property raw-tree-view TreeView)
@@ -854,12 +855,12 @@
   (output root TreeItem :cached produce-tree-root)
   (output tree-view TreeView :cached produce-tree-view))
 
-(defn make-asset-browser [graph workspace tree-view prefs]
+(defn make-asset-browser [graph workspace tree-view prefs localization]
   (let [asset-browser (first
                         (g/tx-nodes-added
                           (g/transact
                             (g/make-nodes graph
                                           [asset-browser [AssetBrowser :raw-tree-view tree-view :prefs prefs]]
                                           (g/connect workspace :resource-tree asset-browser :resource-tree)))))]
-    (setup-asset-browser asset-browser workspace tree-view)
+    (setup-asset-browser asset-browser workspace tree-view localization)
     asset-browser))
