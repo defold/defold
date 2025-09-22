@@ -138,7 +138,7 @@
 (defn memoize
   "Like core.memoize, but uses an optimized cache based on the number of
   arguments the original function accepts. Also enables you to evict entries
-  from the cache using the dememoize! function."
+  from the cache using the evict-memoized! and clear-memoized! functions."
   [ifn]
   (if (::memoize-cache (meta ifn))
     ifn ; Already memoized.

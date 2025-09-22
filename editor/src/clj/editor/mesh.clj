@@ -298,11 +298,10 @@
      :type (vtx/stream-type->type (:type stream))
      :components (:count stream)
      :normalize false ; TODO: Figure out if this should be configurable.
-     :semantic-type (let [semantic-attribute-key (condp = attribute-key
-                                                   position-stream-name :position
-                                                   normal-stream-name :normal
-                                                   attribute-key)]
-                      (graphics.types/infer-semantic-type semantic-attribute-key))}))
+     :semantic-type (condp = attribute-key
+                      position-stream-name :semantic-type-position
+                      normal-stream-name :semantic-type-normal
+                      (graphics.types/infer-semantic-type attribute-key))}))
 
 (defn- max-stream-length [streams]
   (transduce (map (fn [stream]

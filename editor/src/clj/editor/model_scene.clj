@@ -36,6 +36,7 @@
             [editor.scene-picking :as scene-picking]
             [editor.workspace :as workspace]
             [internal.graph.error-values :as error-values]
+            [internal.util :as util]
             [util.coll :as coll]
             [util.eduction :as e]
             [util.num :as num])
@@ -556,48 +557,72 @@
       (assoc renderable-mesh-set-or-error-value :_node-id _node-id :_label :renderable-mesh-set)
       renderable-mesh-set-or-error-value)))
 
+(defn- make-attribute-render-arg-bindings [render-arg-key attribute-infos]
+  (e/map
+    (fn [{:keys [data-type location normalize vector-type]}]
+      (let [element-type (graphics.types/make-element-type vector-type data-type normalize)]
+        (attribute/make-render-arg-binding render-arg-key element-type location)))
+    attribute-infos))
+
+(defn- make-attribute-bindings [semantic-type->attribute-buffers material-attribute-infos shader-attribute-reflection-infos]
+  ;; Note: The order of the supplied material-attribute-infos and
+  ;; shader-attribute-reflection-infos will dictate the order in which the
+  ;; attribute-buffers will be assigned to attributes that share the same
+  ;; semantic-type.
+  (let [attribute-key->shader-location
+        (coll/pair-map-by :name-key :location shader-attribute-reflection-infos)
+
+        decorated-material-attribute-infos
+        (e/keep (fn [{:keys [name-key] :as material-attribute-info}]
+                  (when-some [shader-location (attribute-key->shader-location name-key)]
+                    (assoc material-attribute-info :location shader-location)))
+                material-attribute-infos)
+
+        semantic-type->attribute-infos
+        (util/group-into
+          {} [] :semantic-type
+          (eduction
+            cat
+            (util/distinct-by :name-key)
+            [decorated-material-attribute-infos
+             shader-attribute-reflection-infos]))]
+
+    (->> semantic-type->attribute-infos
+         (coll/mapcat
+           (fn [[semantic-type attribute-infos]]
+             {:pre [(graphics.types/semantic-type? semantic-type)]}
+             (case semantic-type
+               :semantic-type-world-matrix
+               (make-attribute-render-arg-bindings :world attribute-infos)
+
+               :semantic-type-normal-matrix
+               (make-attribute-render-arg-bindings :normal attribute-infos)
+
+               ;; else
+               (let [attribute-buffers (semantic-type->attribute-buffers semantic-type)]
+                 (e/map-indexed
+                   (fn [^long index {:keys [^long location] :as attribute-info}]
+                     ;; Use attribute buffers from the mesh when we can.
+                     ;; Otherwise, use the attribute value from the
+                     ;; material. Finally, fall back on a default value inferred
+                     ;; from the semantic-type.
+                     (if-some [attribute-buffer (get attribute-buffers index)]
+                       (attribute/make-buffer-binding attribute-buffer location)
+                       (let [{:keys [data-type normalize value-array vector-type]} attribute-info
+                             element-type (graphics.types/make-element-type vector-type data-type normalize)
+                             value-array (or value-array
+                                             (graphics.types/default-attribute-value-array semantic-type element-type))]
+                         (attribute/make-value-binding value-array element-type location))))
+                   attribute-infos)))))
+         (sort-by :base-location)
+         (vec))))
+
 (defn- make-mesh-scene [renderable-mesh shader model-scene-resource-node-id]
   (let [{:keys [aabb material-name renderable-data renderable-buffers]} renderable-mesh
         index-buffer (:index-buffer renderable-buffers)
         semantic-type->attribute-buffers (:attribute-buffers renderable-buffers)
-        semantic-type->shader-locations (:semantic-type->locations shader)
-        shader-location->element-type (:location->element-type shader)
-
-        _ (assert (map? shader-location->element-type)) ; TODO(instancing)
-
-        make-render-arg-bindings
-        (fn make-render-arg-bindings [render-arg-key shader-locations]
-          (e/map
-            (fn [^long shader-location]
-              (let [element-type (shader-location->element-type shader-location)]
-                (attribute/make-render-arg-binding render-arg-key element-type shader-location)))
-            shader-locations))
-
-        attribute-bindings
-        (->> semantic-type->shader-locations
-             (coll/mapcat
-               (fn [[semantic-type shader-locations]]
-                 (case semantic-type
-                   :semantic-type-world-matrix
-                   (make-render-arg-bindings :world shader-locations)
-
-                   :semantic-type-normal-matrix
-                   (make-render-arg-bindings :normal shader-locations)
-
-                   ;; else
-                   (let [attribute-buffers (semantic-type->attribute-buffers semantic-type)]
-                     (e/map-indexed
-                       (fn [^long index ^long shader-location]
-                         ;; Use attribute buffers from the mesh when we can,
-                         ;; otherwise fall back on default values.
-                         (if-some [attribute-buffer (get attribute-buffers index)]
-                           (attribute/make-buffer-binding attribute-buffer shader-location)
-                           (let [element-type (shader-location->element-type shader-location)
-                                 value-array (graphics.types/default-attribute-value-array semantic-type element-type)]
-                             (attribute/make-value-binding value-array element-type shader-location))))
-                       shader-locations)))))
-             (sort-by :base-location)
-             (vec))
+        shader-attribute-reflection-infos (:attribute-reflection-infos shader)
+        attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers nil shader-attribute-reflection-infos)
 
         user-data
         {:mesh-renderable-data renderable-data
@@ -659,7 +684,8 @@
         claimed-scene (scene/claim-child-scene old-node-id new-node-id new-node-outline-key mesh-scene)]
     (if (nil? material-scene-info)
       claimed-scene
-      (let [{:keys [gpu-textures material-attribute-infos shader vertex-attribute-bytes vertex-space]} material-scene-info]
+      (let [{:keys [gpu-textures material-attribute-infos shader vertex-attribute-bytes vertex-space]} material-scene-info
+            shader-attribute-reflection-infos (:attribute-reflection-infos shader)]
         (assert (map? gpu-textures))
         (assert (every? string? (keys gpu-textures)))
         (assert (every? texture/texture-lifecycle? (vals gpu-textures)))
@@ -672,16 +698,19 @@
         (update
           claimed-scene
           :renderable
-          (fn [renderable]
-            (update
-              renderable
-              :user-data
-              assoc
-              :material-attribute-infos material-attribute-infos
-              :shader shader
-              :textures gpu-textures
-              :vertex-attribute-bytes vertex-attribute-bytes
-              :vertex-space vertex-space)))))))
+          update
+          :user-data
+          (fn [user-data]
+            (let [mesh-renderable-buffers (:mesh-renderable-buffers user-data)
+                  semantic-type->attribute-buffers (:attribute-buffers mesh-renderable-buffers)
+                  attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers material-attribute-infos shader-attribute-reflection-infos)]
+              (assoc user-data
+                :attribute-bindings attribute-bindings
+                :material-attribute-infos material-attribute-infos
+                :shader shader
+                :textures gpu-textures
+                :vertex-attribute-bytes vertex-attribute-bytes
+                :vertex-space vertex-space))))))))
 
 (defn- augment-model-scene [model-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info]
   (let [mesh-scenes (:children model-scene)]

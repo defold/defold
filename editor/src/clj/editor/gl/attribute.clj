@@ -19,15 +19,14 @@
             [editor.graphics.types :as types]
             [util.array :as array]
             [util.defonce :as defonce]
-            [util.ensure :as ensure])
+            [util.ensure :as ensure]
+            [util.fn :as fn])
   (:import [com.jogamp.opengl GL2]
            [editor.graphics.types ElementType]
            [javax.vecmath Matrix4d Tuple4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-(def base-location? nat-int?)
 
 (defn- clear-attribute!
   [vector-type ^GL2 gl ^long base-location]
@@ -246,12 +245,14 @@
   (unbind [_this gl _render-args]
     (clear-attribute! (.-vector-type element-type) gl base-location)))
 
-(defn make-render-arg-binding
+(defn make-render-arg-binding-raw
   ^AttributeRenderArgBinding [render-arg-key ^ElementType element-type ^long base-location]
   (ensure/argument render-arg-key keyword? "%s must be a keyword")
   (ensure/argument-type element-type ElementType)
-  (ensure/argument base-location base-location? "%s must be a non-negative integer")
+  (ensure/argument base-location types/location? "%s must be a non-negative integer")
   (->AttributeRenderArgBinding render-arg-key element-type base-location))
+
+(def ^{:arglists '([render-arg-key ^ElementType element-type base-location])} make-render-arg-binding (fn/memoize make-render-arg-binding-raw))
 
 (defonce/record AttributeValueBinding
   [value-array
@@ -277,7 +278,7 @@
   ^AttributeValueBinding [value-array ^ElementType element-type ^long base-location]
   (ensure/argument value-array value-array?)
   (ensure/argument-type element-type ElementType)
-  (ensure/argument base-location base-location? "%s must be a non-negative integer")
+  (ensure/argument base-location types/location? "%s must be a non-negative integer")
   (->AttributeValueBinding value-array element-type base-location))
 
 (defonce/record AttributeBufferBinding
@@ -294,5 +295,5 @@
 (defn make-buffer-binding
   ^AttributeBufferBinding [attribute-buffer-lifecycle ^long base-location]
   (ensure/argument attribute-buffer-lifecycle gl.buffer/attribute-buffer? "%s must be an attribute BufferLifecycle")
-  (ensure/argument base-location base-location? "%s must be a non-negative integer")
+  (ensure/argument base-location types/location? "%s must be a non-negative integer")
   (->AttributeBufferBinding attribute-buffer-lifecycle base-location))

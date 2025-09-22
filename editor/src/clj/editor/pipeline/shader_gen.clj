@@ -112,7 +112,8 @@
   (let [[vector-type data-type] (shader-resource-type->vector-type+data-type (.-type attribute))
         reflected-location (.-location attribute)
         name (.-name attribute)
-        name-key (graphics.types/attribute-name-key name)]
+        name-key (graphics.types/attribute-name-key name)
+        inferred-semantic-type (graphics.types/infer-semantic-type name-key)]
     ;; We want to keep the keys here in sync with the attribute-info maps in the
     ;; editor.graphics module. The idea is that you should be able to amend this
     ;; map with attribute-info keys from the material to get a fully formed
@@ -121,7 +122,9 @@
      :name-key name-key
      :location reflected-location
      :vector-type vector-type
-     :data-type data-type}))
+     :data-type data-type
+     :semantic-type inferred-semantic-type
+     :normalize false})) ; We could infer this using graphics.types/infer-normalize, but the engine doesn't.
 
 (def ^:private transpile-target-pb-shader-language
   ;; Use the old GLES2-compatible shaders for rendering in the editor.
@@ -237,57 +240,41 @@
           (coll/transfer augmented-shader-infos (sorted-set)
             (mapcat :resource-binding-namespaces)))
 
-        [attribute-key->location
-         location->attribute-reflection-info]
-        (transduce
-          (mapcat :attribute-reflection-infos)
-          (fn
-            ([result] result)
-            ([[attribute-key->location
-               location->attribute-reflection-info
-               taken-locations :as result]
-              {:keys [name-key] :as attribute-reflection-info}]
-             ;; Ensure each attribute maps to a specific shader location. We
-             ;; will associate the attribute names with these locations as we
-             ;; link the shader.
-             (if (contains? attribute-key->location name-key)
-               result ; The first encountered shader takes precedence.
-               (let [attribute-count (graphics.types/vector-type-attribute-count (:vector-type attribute-reflection-info))
-                     reflected-location (:location attribute-reflection-info)
-                     base-location (util/first-where
-                                     #(not (contains? taken-locations %))
-                                     (iterate inc reflected-location))
-                     attribute-reflection-info (assoc attribute-reflection-info
-                                                 :location base-location
-                                                 :reflected-location reflected-location) ; For debugging. TODO(instancing): Remove.
-                     attribute-key->location (assoc attribute-key->location name-key base-location)
-                     location->attribute-reflection-info (assoc location->attribute-reflection-info base-location attribute-reflection-info)
-                     location-range (range base-location (+ (long base-location) attribute-count))
-                     taken-locations (into taken-locations location-range)]
-                 [attribute-key->location
-                  location->attribute-reflection-info
-                  taken-locations]))))
-          [{} {} #{}]
-          augmented-shader-infos)
+        attribute-reflection-infos
+        (->> augmented-shader-infos
+             (transduce
+               (comp (mapcat :attribute-reflection-infos)
+                     (util/distinct-by :name-key)) ; The first encountered shader attribute takes precedence.
+               (fn
+                 ([result] result)
+                 ([[attribute-reflection-infos taken-locations] attribute-reflection-info]
+                  ;; Ensure each attribute maps to a specific shader location. We
+                  ;; will associate the attribute names with these locations as we
+                  ;; link the shader.
+                  (let [attribute-count (graphics.types/vector-type-attribute-count (:vector-type attribute-reflection-info))
+                        reflected-location (:location attribute-reflection-info)
+                        base-location (util/first-where
+                                        #(not (contains? taken-locations %))
+                                        (iterate inc reflected-location))
+                        attribute-reflection-infos (conj attribute-reflection-infos
+                                                         (assoc attribute-reflection-info
+                                                           :location base-location
+                                                           :reflected-location reflected-location)) ; For debugging. TODO(instancing): Remove.
+                        location-range (range base-location (+ (long base-location) attribute-count))
+                        taken-locations (into taken-locations location-range)]
+                    [attribute-reflection-infos taken-locations])))
+               (pair [] #{}))
+             (first)
+             (sort-by :location)
+             (vec))
 
         location+attribute-name-pairs
-        (->> location->attribute-reflection-info
-             (keys)
-             (sort)
-             (mapv (fn [location]
-                     (let [attribute-reflection-info (location->attribute-reflection-info location)
-                           attribute-name (:name attribute-reflection-info)]
-                       (pair location attribute-name)))))
-
-        attribute-name->location
-        (coll/transfer location+attribute-name-pairs {}
-          (map coll/flip))]
+        (mapv (coll/pair-fn :location :name)
+              attribute-reflection-infos)]
 
     {:array-sampler-name->slice-sampler-names array-sampler-name->slice-sampler-names
-     :attribute-key->location attribute-key->location
-     :attribute-name->location attribute-name->location
+     :attribute-reflection-infos attribute-reflection-infos
      :location+attribute-name-pairs location+attribute-name-pairs
-     :location->attribute-reflection-info location->attribute-reflection-info
      :max-page-count max-page-count
      :shader-type+source-pairs shader-type+source-pairs
      :strip-resource-binding-namespace-regex-str strip-resource-binding-namespace-regex-str}))
