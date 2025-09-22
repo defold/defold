@@ -1697,7 +1697,8 @@ namespace dmGameSystem
     {
         Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(component->m_Position, component->m_Rotation, 1.0f));
         Matrix4 world = dmGameObject::GetWorldMatrix(component->m_Instance);
-        Vector3 size( component->m_Size.getX() * component->m_Scale.getX(), component->m_Size.getY() * component->m_Scale.getY(), 1);
+        Vector3 size = dmVMath::MulPerElem(component->m_Size, component->m_Scale);
+        size.setZ(1.f);//(component->m_Size.getX() * component->m_Scale.getX(), component->m_Size.getY() * component->m_Scale.getY(), 1);
         Matrix4 w = dmVMath::AppendScale(world * local, size);
         if (!sub_pixels)
         {
@@ -1899,9 +1900,10 @@ namespace dmGameSystem
         uint32_t n = components.Size();
 
         if (n == 0)
+        {
             return dmGameObject::UPDATE_RESULT_OK;
+        }
 
-        SpriteComponent* c = &components[0];
         bool sub_pixels = sprite_context->m_Subpixels;
 
         for (uint32_t i = 0; i < n; ++i)
@@ -2151,13 +2153,7 @@ namespace dmGameSystem
 
     static inline float GetAnimationFrameCount(SpriteComponent* component)
     {
-        // don't use cached m_AnimationFrameCount here because GetAnimationFrameCount
-        // can be called without start playing animation as a result m_AnimationFrameCount is not
-        // updated to actual length of animation
-        TextureSetResource* texture_set                     = GetFirstTextureSet(component);
-        dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
-        dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
-        return (float)(animation_ddf->m_End - animation_ddf->m_Start);
+        return component->m_AnimationFrameCount;
     }
 
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params)
@@ -2386,14 +2382,38 @@ namespace dmGameSystem
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
                 TextureSetResource* texture_set = GetFirstTextureSet(component);
-                uint32_t* anim_id = texture_set ? texture_set->m_AnimationIds.Get(component->m_CurrentAnimation) : 0;
+                dmhash_t current_animation = component->m_CurrentAnimation;
+                uint32_t* anim_id = texture_set ? texture_set->m_AnimationIds.Get(current_animation) : 0;
+                if (!anim_id)
+                {
+                    // it means that new atlas doesn't contain animation with the same name as it played before
+                    const void* data = dmHashReverse64(current_animation, 0);
+                    if (data)
+                    {
+                        const char* error_message = (const char*)data;
+                        dmHashTable64<uint32_t>::Iterator animation_iterator = texture_set->m_AnimationIds.GetIterator();
+                        if (animation_iterator.Next())
+                        {
+                            current_animation = animation_iterator.GetKey();
+                            anim_id = const_cast<uint32_t*>(&animation_iterator.GetValue());
+
+                            const void* new_animation_name = dmHashReverse64(current_animation, 0);
+                            dmLogError("Atlas doesn't contains animation '%s'. Animation '%s' will be used", error_message, new_animation_name != 0 ? (const char*)new_animation_name : "<unknown>");
+                        }
+                        else
+                        {
+                            dmLogError("Atlas doesn't contains animation '%s'. No animation will be used", error_message);
+                        }
+                        // else anim_id still == 0
+                    }
+                }
                 if (anim_id)
                 {
-                    PlayAnimation(component, component->m_CurrentAnimation, GetCursor(component), component->m_PlaybackRate);
+                    PlayAnimation(component, current_animation, GetCursor(component), component->m_PlaybackRate);
                 }
                 else
                 {
-                    component->m_AnimationReHash |= component->m_CurrentAnimation != 0x0 && component->m_CurrentAnimationFrame != 0;
+                    component->m_AnimationReHash |= current_animation != 0x0 && component->m_CurrentAnimationFrame != 0;
                     component->m_AnimationPlayback = dmGameSystemDDF::PLAYBACK_NONE;
                     component->m_IsPlaying = 0;
                     component->m_CurrentAnimation = 0x0;
