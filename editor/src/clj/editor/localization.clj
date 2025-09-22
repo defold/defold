@@ -292,11 +292,13 @@
     object          target object, must satisfy Localizable, will be stored in
                     a weak reference
     localization    the localization instance created with [[make]]
-    pattern         a MessagePattern instance, created with, e.g., [[message]]"
+    pattern         any value, but preferably a MessagePattern instance, created
+                    with, e.g., [[message]]"
   ([object ^Localization localization pattern]
-   {:pre [(some? object) (localization? localization) (message-pattern? pattern)]}
-   (apply-localization object (localization pattern))
-   (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) impl-localize! object pattern)
+   {:pre [(localization? localization)]}
+   (apply-localization object (impl-format @localization pattern))
+   (when (message-pattern? pattern)
+     (send-without-thread-binding-reset ui/javafx-executor (.-agent localization) impl-localize! object pattern))
    object))
 
 (defn unlocalize!
@@ -452,9 +454,7 @@
   (if-let [localizable-indices (when (pos? (count items))
                                  (coll/not-empty
                                    (into []
-                                         (keep-indexed
-                                           (fn [i v]
-                                             (when (message-pattern? v) i)))
+                                         (keep-indexed #(when (message-pattern? %2) %1))
                                          items)))]
     (->ListWithNestedPatterns k items localizable-indices)
     (->SimpleList k items)))
