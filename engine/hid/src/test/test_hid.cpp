@@ -19,7 +19,6 @@
     #include <inttypes.h>
 #else
     // Fallback or define your own types
-    #warning "inttypes.h not found, defining types manually"
     #define PRIu64 "llu"
     #define PRId64 "lld"
 #endif
