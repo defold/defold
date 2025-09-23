@@ -1,0 +1,546 @@
+{
+    "issues": [
+        {
+            "author": "Jhonnyg",
+            "body": "Material properties from a GLTF file are now exposed into shaders via a special hard-coded uniform:\r\n\r\n```glsl\r\nuniform PbrMaterial\r\n{\r\n    // Common properties\r\n    vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit; // R: alphaCutoff (Default=0.5), G: doubleSided (Default=false), B: unlit (Default=false)\r\n    vec4 pbrCommonTextures;                      // R: use normalTexture, G: use occlusionTexture, B: use emissiveTexture\r\n    PbrMetallicRoughness  pbrMetallicRoughness;\r\n    PbrClearCoat pbrClearCoat;\r\n   ... etc.\r\n}\r\n```\r\n\r\nAll properties that are available in our data format is now set in a model components material, if they exist in the shader. Here is the material specification from the engine source, which contains all the fields we currently support:\r\nhttps://github.com/defold/defold/blob/23147f091896d079ec1cdba1e6648f2b31f3e1be/engine/rig/proto/rig/rig_ddf.proto#L154\r\n\r\nTo read more about how this works, head over to the [manual entry](https://defold.com/manuals/).\r\n\r\n**Note: There is currently no PBR shader as part of the builtins. This will be included at a later time, but in the meanwhile you can use the Defold [PBR extension](https://github.com/defold/defold-pbr).**",
+            "closed_issues": [
+                11052
+            ],
+            "duplicate": false,
+            "issue_number": 11052,
+            "labels": [
+                "feature request",
+                "engine",
+                "render",
+                "gltf"
+            ],
+            "mergecommit": "1b04e323c32da7ae984cfa1aa1a019e8f6bb3b90",
+            "pr_number": 11052,
+            "referencecommits": [],
+            "title": "Set PBR properties for shaders",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11052"
+        },
+        {
+            "author": "vlaaad",
+            "body": "",
+            "closed_issues": [
+                11147
+            ],
+            "duplicate": false,
+            "issue_number": 11147,
+            "labels": [
+                "task",
+                "engine",
+                "editor",
+                "bob"
+            ],
+            "mergecommit": "37c7e0f410a2affb6daeb454546682c2789e9a9f",
+            "pr_number": 11152,
+            "referencecommits": [],
+            "title": "Disallow non-top-level go.property calls in scripts",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11152"
+        },
+        {
+            "author": "vlaaad",
+            "body": "We now show a notification when dependencies change:\r\n<img width=\"450\" height=\"184\" alt=\"Screenshot 2025-08-29 at 10 21 09\" src=\"https://github.com/user-attachments/assets/ad9126bf-1452-4233-99eb-022e16ea88d1\" />",
+            "closed_issues": [
+                11159
+            ],
+            "duplicate": false,
+            "issue_number": 11159,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "db8f540235e7217e31030c8fa234c0957d6b9348",
+            "pr_number": 11159,
+            "referencecommits": [],
+            "title": "Suggest fetching libraries when modifying game.project dependencies",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11159"
+        },
+        {
+            "author": "vlaaad",
+            "body": "",
+            "closed_issues": [
+                10601
+            ],
+            "duplicate": false,
+            "issue_number": 10601,
+            "labels": [
+                "feature request",
+                "editor",
+                "good first issue",
+                "quick win?"
+            ],
+            "mergecommit": "2e47634700c1e3e381d71613831d2669ac6befbf",
+            "pr_number": 11148,
+            "referencecommits": [],
+            "title": "Move deleted files into trash bin",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11148"
+        },
+        {
+            "author": "matgis",
+            "body": "We now label user-defined properties in the Property Editor using the literal name the property was declared as.",
+            "closed_issues": [
+                11158
+            ],
+            "duplicate": false,
+            "issue_number": 11158,
+            "labels": [
+                "feature request",
+                "editor",
+                "quick win?"
+            ],
+            "mergecommit": "85489fc5486440eff1edf0561af95e2234b54038",
+            "pr_number": 11170,
+            "referencecommits": [],
+            "title": "Show literal labels for user-defined properties",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11170"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixes the issue where logs in the Editor's console don't work when Simulated Resolution is used (Windows only).",
+            "closed_issues": [
+                11141
+            ],
+            "duplicate": false,
+            "issue_number": 11141,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "29d89a70b5cb824e9d8fc873e6fd1c5805924a0a",
+            "pr_number": 11179,
+            "referencecommits": [],
+            "title": "Fix Console not working when the custom resolution feature is enabled",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11179"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now, it's possible to set properties in the `game.project` file using editor scripts:\r\n```lua\r\neditor.transact({\r\n    editor.tx.set(\"/game.project\", \"project.dependencies\", {\r\n        \"https://github.com/defold/extension-spine/archive/refs/tags/3.10.0.zip\"\r\n    })\r\n})\r\n```\r\n\r\n\ud83d\udea8 **Breaking change** \ud83d\udea8 for extensions that are based on [extension-simpledata](https://github.com/defold/extension-simpledata): Now, the editor expects the code that is invoked when form values are set/cleared to return transaction steps instead of performing a transaction. See [this PR](https://github.com/defold/extension-simpledata/pull/19/files) for the changes you need to make.",
+            "closed_issues": [
+                11163
+            ],
+            "duplicate": false,
+            "issue_number": 11163,
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts",
+                "breaking change"
+            ],
+            "mergecommit": "a51be3e905a818829e81412f206e56b1a0222d49",
+            "pr_number": 11178,
+            "referencecommits": [],
+            "title": "Allow setting game.project properties using editor scripts",
+            "type": "BREAKING CHANGE",
+            "url": "https://github.com/defold/defold/pull/11178"
+        },
+        {
+            "author": "vlaaad",
+            "body": "",
+            "closed_issues": [
+                11189
+            ],
+            "duplicate": false,
+            "issue_number": 11189,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "28f43aa4e3ac29f8585a9ca5f09d3e0125f154de",
+            "pr_number": 11189,
+            "referencecommits": [],
+            "title": "Decrease editor size by 12 MB",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11189"
+        },
+        {
+            "author": "JCash",
+            "body": "",
+            "closed_issues": [
+                11208
+            ],
+            "duplicate": false,
+            "issue_number": 11208,
+            "labels": [
+                "bug",
+                "physics",
+                "box2d"
+            ],
+            "mergecommit": "71ab1a0cbc8eae3f0af0cbc38e197a4d7873dab4",
+            "pr_number": 11209,
+            "referencecommits": [],
+            "title": "Properly calculate new polygon centroid when scaling a collision object shape (Box2d v3)",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11209"
+        },
+        {
+            "author": "AGulev",
+            "body": "",
+            "closed_issues": [
+                11216
+            ],
+            "duplicate": false,
+            "issue_number": 11216,
+            "labels": [
+                "bug"
+            ],
+            "mergecommit": "54d87185df7977c4b9307bcca2aaba8896006924",
+            "pr_number": 11217,
+            "referencecommits": [],
+            "title": "Fix remotery web-profiler connection on macOS",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11217"
+        },
+        {
+            "author": "AGulev",
+            "body": "Added new functions `gui.set_layout()` and `gui.get_layouts()`:\r\n\r\n```lua\r\nlocal ok = gui.set_layout(\"Portrait\")\r\n  if not ok then\r\n      print(\"Portrait layout not found in this scene\")\r\n  end\r\n```\r\n\r\n```lua\r\nlocal layouts = gui.get_layouts()\r\nfor id, size in pairs(layouts) do\r\n    print(id, size.x, size.y)\r\nend\r\n```\r\n\r\nA new checkbox, `Auto Layout Selection`, has been added to Display Profiles. It disables automatic layout detection in the project:  \r\n\r\n![](https://raw.githubusercontent.com/defold/doc/8a8bfa1f08eed87e9683b359407b425f11ab2a32/docs/en/manuals/images/gui-layouts/new_profiles.png)",
+            "closed_issues": [
+                5889
+            ],
+            "duplicate": false,
+            "issue_number": 5889,
+            "labels": [
+                "feature request",
+                "engine",
+                "gui"
+            ],
+            "mergecommit": "5eb6396edeff13472fbb2250137942114595ec43",
+            "pr_number": 11218,
+            "referencecommits": [],
+            "title": "New functions: `gui.set_layout()` and `gui.get_layouts()`",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11218"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Multiple validation errors have been fixed for the Vulkan graphics adapter. This essentially means that the Vulkan backend should be more stable and reliant than before. Please let us know if you encounter more validation errors!\r\n\r\n### Technical Changes\r\n\r\n* We now use the 'current frame in flight'-index when managing resources instead of the swap chain index. This means we can manage these independantly\r\n* Each resource carries a number that indicates which frame-in-flight it was used in, so they can be correctly removed even if they are used outside of the VulkanBegin ... VulkanFlip flow\r\n* Attachments for MSAA now have the correct initial state (clear), so we avoid the 'disco effect' of uninitialized memory\r\n* Resources should be correctly cleaned now",
+            "closed_issues": [
+                11204
+            ],
+            "duplicate": false,
+            "issue_number": 11204,
+            "labels": [
+                "engine",
+                "graphics",
+                "vulkan"
+            ],
+            "mergecommit": "ec8b2606b6fa0bd5712f2991baca2a0e1bb36c0a",
+            "pr_number": 11204,
+            "referencecommits": [],
+            "title": "Vulkan fix validation errors",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11204"
+        },
+        {
+            "author": "AGulev",
+            "body": "You can now use double the number of objects per collection compared to before: 65,534.",
+            "closed_issues": [
+                9302
+            ],
+            "duplicate": false,
+            "issue_number": 9302,
+            "labels": [
+                "feature request",
+                "engine"
+            ],
+            "mergecommit": "8d8ad34198649de8a8c43792b45bb2a067b839cf",
+            "pr_number": 11220,
+            "referencecommits": [],
+            "title": "Doubled the object limit to 65,534 per collection",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11220"
+        },
+        {
+            "author": "AGulev",
+            "body": "New functionality for camera added:\r\n- Added orthographic camera modes: ORTHO_MODE_FIXED, ORTHO_MODE_AUTO_FIT (contain), and ORTHO_MODE_AUTO_COVER (zoom).\r\n- New Camera properties in Editor: \u201cOrthographic Mode\u201d (available only when Orthographic Projection is enabled).\r\n- Lua API: `camera.get_orthographic_mode()` and `camera.set_orthographic_mode()` \r\n\r\n```lua\r\ncamera.get_orthographic_mode(\"#camera\")\r\ncamera.set_orthographic_mode(\"#camera\", camera.ORTHO_MODE_AUTO_FIT)\r\n```",
+            "closed_issues": [
+                6849,
+                10579
+            ],
+            "duplicate": false,
+            "issue_number": 6849,
+            "labels": [
+                "feature request",
+                "engine",
+                "camera"
+            ],
+            "mergecommit": "a8bbd7f09ecf7ea2f74d300c40e5f8d49161193d",
+            "pr_number": 11222,
+            "referencecommits": [],
+            "title": "Added orthographic camera projection modes ",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11222"
+        },
+        {
+            "author": "AGulev",
+            "body": "You can now enable file logging in Release mode.  \r\nThe previous `Write Log` option has been deprecated and replaced with a new `Write Log File` setting, which offers three choices: `Never`, `Debug`, and `Always`.  \r\n\r\n<img width=\"967\" height=\"339\" alt=\"CleanShot 2025-09-12 at 15 22 00@2x\" src=\"https://github.com/user-attachments/assets/b7bd7237-d701-47a3-93a4-d1982cc68690\" />",
+            "closed_issues": [
+                10255
+            ],
+            "duplicate": false,
+            "issue_number": 10255,
+            "labels": [
+                "feature request",
+                "engine"
+            ],
+            "mergecommit": "1d5cba144a06ae0afc50952d596315e69b90bbbb",
+            "pr_number": 11224,
+            "referencecommits": [],
+            "title": "Add support for enabling file logging in release mode  ",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11224"
+        },
+        {
+            "author": "NaakkaDev",
+            "body": "**Describe the bug (REQUIRED)**\nApparently the beta editor builds should use the beta build server by default as long the value is not set in the preferences. That is not my experience as I always had to set the build server to \"https://build-stage.defold.com\" when using beta editors.\n\n**To Reproduce (REQUIRED)**\nSteps to reproduce the behavior:\n1. Go to editor preferences > Extensions in a beta editor.\n2. See the build server input field with placeholder text \"https://build.defold.com\" instead of \"https://build-stage.defold.com\"\n\n**Expected behavior (REQUIRED)**\nBeta editor uses the beta build server when the build server input field is empty (displays the placeholder text).\n\n**Defold version (REQUIRED):**\n  - Version 1.11.0 BETA and earlier.\n\n**Platforms (REQUIRED):**\n - Platforms: Windows /  Linux\n - OS: Windows 10 / Arch Linux\n - Device: PC",
+            "closed_issues": [
+                11174
+            ],
+            "duplicate": false,
+            "issue_number": 11174,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": null,
+            "pr_number": 11174,
+            "referencecommits": [],
+            "title": "Beta editors do not use the beta build server by default",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/issues/11174"
+        },
+        {
+            "author": "AGulev",
+            "body": "You can now choose from the following sort orders when using `render.draw()`:  \r\n- `render.SORT_BACK_TO_FRONT` (default)  \r\n- `render.SORT_FRONT_TO_BACK`  \r\n- `render.SORT_NONE`",
+            "closed_issues": [
+                3625
+            ],
+            "duplicate": false,
+            "issue_number": 3625,
+            "labels": [
+                "feature request",
+                "engine",
+                "render",
+                "community vote"
+            ],
+            "mergecommit": "e5e50e3c0b5868ed0218e0a7494ac53683107f69",
+            "pr_number": 11230,
+            "referencecommits": [],
+            "title": "Added `sort_order` option to `render.draw()` in `render_script`",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11230"
+        },
+        {
+            "author": "JCash",
+            "body": "This helps when other extensions accidentally leave the wrong framebuffer set.\r\n\r\nAlso added `dmGraphics::OpenGLGetDefaultFramebufferId(context)` to `dmSDK`",
+            "closed_issues": [
+                11233
+            ],
+            "duplicate": false,
+            "issue_number": 11233,
+            "labels": [
+                "engine",
+                "graphics",
+                "dmsdk"
+            ],
+            "mergecommit": "61fa42ca4e5bcc879bf55c55f777b921033555d7",
+            "pr_number": 11233,
+            "referencecommits": [],
+            "title": "On opengl the graphics frame start now sets the default framebuffer",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11233"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "Following functions are the part of public SDK now:\r\n```cpp\r\nvoid AddVertexStream(HVertexStreamDeclaration stream_declaration, dmhash_t name_hash, uint32_t size, Type type, bool normalize);\r\nAdapterFamily GetInstalledAdapterFamily();\r\nHTexture NewTexture(HContext context, const TextureCreationParams& params);\r\nvoid DeleteTexture(HContext context, HTexture texture);\r\nvoid SetTexture(HContext context, HTexture texture, const TextureParams& params);\r\nvoid SetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);\r\nvoid SetTextureParams(HContext context, HTexture texture, TextureFilter min_filter, TextureFilter mag_filter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);\r\nuint32_t GetTextureResourceSize(HContext context, HTexture texture);\r\nuint16_t GetTextureWidth(HContext context, HTexture texture);\r\nuint16_t GetTextureHeight(HContext context, HTexture texture);\r\nuint16_t GetTextureDepth(HContext context, HTexture texture);\r\nuint16_t GetOriginalTextureWidth(HContext context, HTexture texture);\r\nuint16_t GetOriginalTextureHeight(HContext context, HTexture texture);\r\nuint8_t GetTextureMipmapCount(HContext context, HTexture texture);\r\nTextureType GetTextureType(HContext context, HTexture texture);\r\nuint8_t GetNumTextureHandles(HContext context, HTexture texture);\r\nuint32_t GetTextureUsageHintFlags(HContext context, HTexture texture);\r\nuint32_t GetTextureStatusFlags(HContext context, HTexture texture);\r\nvoid EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);\r\nvoid DisableTexture(HContext context, uint32_t unit, HTexture texture);\r\nconst char* GetTextureTypeLiteral(TextureType texture_type);\r\nconst char* GetTextureFormatLiteral(TextureFormat format);\r\nuint32_t GetMaxTextureSize(HContext context);\r\n```\r\n\r\nAdded following platform-dependent functions for Vulkan to public SDK:\r\n```cpp\r\nVkDevice VulkanGetDevice(HContext context);\r\nVkPhysicalDevice VulkanGetPhysicalDevice(HContext context);\r\nVkInstance VulkanGetInstance(HContext context);\r\nuint16_t VulkanGetGraphicsQueueFamily(HContext context);\r\nVkQueue VulkanGetGraphicsQueue(HContext context);\r\nVkRenderPass VulkanGetRenderPass(HContext context);\r\nVkCommandBuffer VulkanGetCurrentFrameCommandBuffer(HContext context);\r\nbool VulkanCreateDescriptorPool(VkDevice vk_device, uint16_t max_descriptors, VkDescriptorPool* vk_descriptor_pool_out);\r\n```",
+            "closed_issues": [
+                10590
+            ],
+            "duplicate": false,
+            "issue_number": 10590,
+            "labels": [
+                "task",
+                "engine",
+                "vulkan",
+                "dmsdk"
+            ],
+            "mergecommit": "7b01c5b13f59b064b17f7a96abd256188ce47511",
+            "pr_number": 10707,
+            "referencecommits": [],
+            "title": "Add function to get Vulkan handles to dmsdk",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/10707"
+        },
+        {
+            "author": "AGulev",
+            "body": "New functionality for camera added:\r\n- Added orthographic camera modes: ORTHO_MODE_FIXED, ORTHO_MODE_AUTO_FIT (contain), and ORTHO_MODE_AUTO_COVER (zoom).\r\n- New Camera properties in Editor: \u201cOrthographic Mode\u201d (available only when Orthographic Projection is enabled).\r\n- Lua API: `camera.get_orthographic_mode()` and `camera.set_orthographic_mode()` \r\n\r\n```lua\r\ncamera.get_orthographic_mode(\"#camera\")\r\ncamera.set_orthographic_mode(\"#camera\", camera.ORTHO_MODE_AUTO_FIT)\r\n```",
+            "closed_issues": [
+                10579
+            ],
+            "duplicate": true,
+            "issue_number": 10579,
+            "labels": [
+                "feature request",
+                "engine",
+                "render",
+                "camera"
+            ],
+            "mergecommit": "a8bbd7f09ecf7ea2f74d300c40e5f8d49161193d",
+            "pr_number": 11222,
+            "referencecommits": [],
+            "title": "Added orthographic camera projection modes ",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11222"
+        },
+        {
+            "author": "AGulev",
+            "body": "A new function `go.update_world_transform()` has been added. It recalculates the world transform of an object along with its entire hierarchy up to the root objects.",
+            "closed_issues": [
+                7902,
+                9498
+            ],
+            "duplicate": false,
+            "issue_number": 7902,
+            "labels": [
+                "feature request",
+                "engine"
+            ],
+            "mergecommit": "2a8a6a14fd098a8199b6330f6f49b9bed3a65804",
+            "pr_number": 11226,
+            "referencecommits": [],
+            "title": "Added new function `go.update_world_transform()`",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11226"
+        },
+        {
+            "author": "AGulev",
+            "body": "A new function `go.update_world_transform()` has been added. It recalculates the world transform of an object along with its entire hierarchy up to the root objects.",
+            "closed_issues": [
+                9498
+            ],
+            "duplicate": true,
+            "issue_number": 9498,
+            "labels": [
+                "feature request",
+                "engine"
+            ],
+            "mergecommit": "2a8a6a14fd098a8199b6330f6f49b9bed3a65804",
+            "pr_number": 11226,
+            "referencecommits": [],
+            "title": "Added new function `go.update_world_transform()`",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11226"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "Added new public APIs\r\n\r\n```cpp\r\n// dmGraphics namespace\r\n\r\nuint32_t GetWindowWidth(HContext context);\r\nuint32_t GetWindowHeight(HContext context);\r\nuint32_t GetWidth(HContext context);\r\nuint32_t GetHeight(HContext context);\r\nvoid SetStencilMask(HContext context, uint32_t mask);\r\nvoid SetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask);\r\nvoid SetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask);\r\nvoid SetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass);\r\nvoid SetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass);\r\nvoid EnableState(HContext context, State state);\r\nvoid DisableState(HContext context, State state);\r\nvoid SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);\r\nvoid SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha);\r\nvoid SetDepthMask(HContext context, bool enable_mask);\r\nvoid SetDepthFunc(HContext context, CompareFunc func);\r\nHContext GetInstalledContext();\r\nHRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params);\r\nvoid DeleteRenderTarget(HContext context, HRenderTarget render_target);\r\nvoid SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);\r\nHTexture GetRenderTargetTexture(HContext context, HRenderTarget render_target, BufferType buffer_type);\r\nvoid GetRenderTargetSize(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);\r\nvoid SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height);\r\nPipelineState GetPipelineState(HContext context);\r\nvoid SetCullFace(HContext context, FaceType face_type);\r\nvoid RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);\r\nfloat GetDisplayScaleFactor(HContext context);\r\n```\r\n\r\n```cpp\r\n// dmRender namespace\r\n\r\nconst dmVMath::Matrix4& GetViewMatrix(HRenderContext render_context);\r\nHMaterial NewMaterial(HRenderContext render_context, dmGraphics::HProgram program);\r\nvoid DeleteMaterial(HRenderContext render_context, HMaterial material);\r\nvoid ClearMaterialTags(HMaterial material);\r\nvoid SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags);\r\nbool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);\r\ndmhash_t GetMaterialSamplerNameHash(HMaterial material, uint32_t unit);\r\nuint32_t GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash);\r\nvoid ApplyMaterialConstants(HRenderContext render_context, HMaterial material, const RenderObject* render_object);\r\n```",
+            "closed_issues": [
+                11235
+            ],
+            "duplicate": false,
+            "issue_number": 11235,
+            "labels": [
+                "graphics",
+                "dmsdk"
+            ],
+            "mergecommit": "8b5273bd440ddb13c47e28a32bb73dfa0b7abbd8",
+            "pr_number": 11235,
+            "referencecommits": [],
+            "title": "New public APIs",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11235"
+        },
+        {
+            "author": "matgis",
+            "body": "* Rewrote the fuzzy text matching algorithm to use less memory and perform matches faster.\r\n* Fixed a freeze that could occur in the code editor when attempting to perform a fuzzy text match against very long autocomplete suggestions originating from non-Lua files in some projects.\r\n* Fixed an exception that would occur if a fuzzy text search term included the Turkish capital letter I (`\u0130`) on a machine running under a non-Turkish locale setting.",
+            "closed_issues": [
+                11191
+            ],
+            "duplicate": false,
+            "issue_number": 11191,
+            "labels": [
+                "bug",
+                "editor",
+                "text-editor",
+                "lsp"
+            ],
+            "mergecommit": "7b2666c67e1876709dff66e01c399c5b5e44abbf",
+            "pr_number": 11234,
+            "referencecommits": [],
+            "title": "Fixed code editor freeze when matching against very long strings",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11234"
+        },
+        {
+            "author": "AGulev",
+            "body": "You can now specify `start_time` or `start_frame` (audio frame) when calling `sound.play()`.",
+            "closed_issues": [
+                9291
+            ],
+            "duplicate": false,
+            "issue_number": 9291,
+            "labels": [
+                "feature request",
+                "engine",
+                "sound"
+            ],
+            "mergecommit": "68783295ba39ad4a5b8b65be2047d248ee929736",
+            "pr_number": 11239,
+            "referencecommits": [],
+            "title": "Added `start_time` and `start_frame` parameters for `sound.play()`",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11239"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Performance for dynamic texture uploads have been improved when using the Vulkan backend.",
+            "closed_issues": [
+                10921
+            ],
+            "duplicate": false,
+            "issue_number": 10921,
+            "labels": [
+                "bug",
+                "engine",
+                "macos",
+                "vulkan",
+                "performance",
+                "graphics",
+                "render"
+            ],
+            "mergecommit": "9dc0136cde98fad0159295b87d8fe5c76e5678bf",
+            "pr_number": 11180,
+            "referencecommits": [],
+            "title": "Vulkan improve texture upload performance",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11180"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "Fixed culling for sprites with pivot points. Also implemented some optimization on how geometry data calculated and stored between batches. So no it should be a bit faster in terms of calculation but consume some memory to store cached information.",
+            "closed_issues": [
+                9917
+            ],
+            "duplicate": false,
+            "issue_number": 9917,
+            "labels": [
+                "bug",
+                "engine",
+                "sprite"
+            ],
+            "mergecommit": "dad1780319910783c2e01eb7f15c135fe932150f",
+            "pr_number": 9943,
+            "referencecommits": [],
+            "title": "Fix frustrum culling for sprites with pivot point",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/9943"
+        }
+    ],
+    "timestamp": 1758612510.1622798,
+    "version": "1.11.1"
+}
