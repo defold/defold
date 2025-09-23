@@ -350,3 +350,42 @@ message OneOfMessageSave
     }
 }
 
+message MessageRecursiveA
+{
+    optional int32 val_a = 1;
+    optional MessageRecursiveB my_b = 2;
+}
+
+message MessageRecursiveB
+{
+    optional int32 val_b = 1;
+    optional MessageRecursiveA my_a = 2;
+}
+
+message RecursiveRepeat
+{
+    repeated MessageRecursiveA list_a = 1;
+    optional string string_val = 2;
+    required float float_val = 3;
+    repeated int32 list_numbers = 4;
+}
+
+message TestMessageRecursive
+{
+    // Size 16 (object ptr, name ptr)
+    message Member
+    {
+        required Object obj_val = 1;
+        required string name = 2;
+    }
+
+    // Size 24 (member ptr 8, member count 4, alignment 4 byte, name ptr)
+    message Object
+    {
+        repeated Member members = 1;
+        required string name    = 2;
+    }
+
+    repeated Object objects = 1;
+}
+

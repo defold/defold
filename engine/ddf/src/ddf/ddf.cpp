@@ -1,12 +1,12 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -29,8 +29,14 @@
 #include "ddf_util.h"
 #include "config.h"
 
+#include <dlib/log.h> // TEMP
+
 namespace dmDDF
 {
+    #define DDF_CHECK_RESULT(e) \
+        if (e != RESULT_OK) \
+            return e;
+
     Descriptor* g_FirstDescriptor = 0;
     dmHashTable64<const Descriptor*> g_Descriptors;
 
@@ -81,7 +87,100 @@ namespace dmDDF
         return GetDescriptorFromHash(dmHashString64(name));
     }
 
-    static Result CalculateRepeated(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc)
+    static Result GetDataSizeFromDesc(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, uint32_t* size_out)
+    {
+        *size_out += desc->m_Size;
+
+        while (!ib->Eof())
+        {
+            uint32_t tag;
+            if (ib->ReadVarInt32(&tag))
+            {
+                uint32_t key = tag >> 3;
+                uint32_t type = tag & 0x7;
+
+                if (key == 0)
+                {
+                    return RESULT_WIRE_FORMAT_ERROR;
+                }
+
+                const FieldDescriptor* field = FindField(desc, key, 0);
+
+                if (field != 0)
+                {
+                    dmLogInfo("Desc: %s.%s, cur_size: %d, offset: %d", desc->m_Name, field->m_Name, *size_out, field->m_Offset);
+
+                    if (field->m_Type == TYPE_MESSAGE)
+                    {
+                        // Skip over length
+                        uint32_t length;
+                        ib->ReadVarInt32(&length);
+
+                        if (!field->m_FullyDefinedType)
+                        {
+                            uint32_t ptr_offset = *size_out;
+                            dmLogInfo("Field %s doesn't have a fully defined type. It should point to %d ", field->m_Name, ptr_offset);
+                            load_context->AddDynamicTypeOffset(ptr_offset);
+                        }
+
+                        Result e = GetDataSizeFromDesc(load_context, ib, field->m_MessageDescriptor, size_out);
+                        DDF_CHECK_RESULT(e);
+                    }
+                    else
+                    {
+                        Result e = SkipField(ib, type);
+                        DDF_CHECK_RESULT(e);
+                    }
+                }
+            }
+            else
+            {
+                return RESULT_WIRE_FORMAT_ERROR;
+            }
+        }
+        return RESULT_OK;
+    }
+
+    static bool NeedsSizeResolve(const Descriptor* desc)
+    {
+        bool has_message_ptr = false;
+        for (int i = 0; i < desc->m_FieldCount; ++i)
+        {
+            const FieldDescriptor* field = &desc->m_Fields[i];
+            if (field->m_Label != LABEL_REPEATED && field->m_Type == TYPE_MESSAGE)
+            {
+                if (!field->m_FullyDefinedType)
+                {
+                    return true;
+                }
+                else
+                {
+                    has_message_ptr |= NeedsSizeResolve(field->m_MessageDescriptor);
+                }
+            }
+        }
+        return has_message_ptr;
+    }
+
+    static Result CreateMessage(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, Message* message_out)
+    {
+        if (NeedsSizeResolve(desc))
+        {
+            dmLogInfo("%s needs resolve!", desc->m_Name);
+            uint32_t calculated_size = 0;
+            Result e = GetDataSizeFromDesc(load_context, ib, desc, &calculated_size);
+            DDF_CHECK_RESULT(e);
+            *message_out = load_context->AllocMessageRaw(desc, calculated_size);
+        }
+        else
+        {
+            *message_out = load_context->AllocMessage(desc);
+        }
+
+        return RESULT_OK;
+    }
+
+    static Result CalculateRepeated(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, uint32_t* array_info_hash)
     {
         assert(desc);
 
@@ -103,44 +202,59 @@ namespace dmDDF
                 if (field == 0)
                 {
                     Result e = SkipField(ib, type);
-                    if (e != RESULT_OK)
-                        return e;
+                    DDF_CHECK_RESULT(e);
+                    *array_info_hash = 0;
                 }
                 else
                 {
+                    dmLogInfo("Array member desc: %s.%s, offset: %d", desc->m_Name, field->m_Name, field->m_Offset);
+
                     if (field->m_Label == LABEL_REPEATED)
                     {
-                        load_context->IncreaseArrayCount(start, field->m_Number);
+                        *array_info_hash = load_context->IncreaseArrayCount(start, field->m_Number);
                     }
 
                     if (field->m_Type != TYPE_MESSAGE)
                     {
                         Result e = SkipField(ib, type);
-                        if (e != RESULT_OK)
-                            return e;
+                        DDF_CHECK_RESULT(e);
                     }
                     else
                     {
                         assert(field->m_MessageDescriptor);
                         uint32_t length;
                         if (!ib->ReadVarInt32(&length))
+                        {
                             return RESULT_WIRE_FORMAT_ERROR;
+                        }
 
-                        #if 1
+                    #if 1
                         InputBuffer sub_ib;
                         if (!ib->SubBuffer(length, &sub_ib))
                         {
                             return RESULT_WIRE_FORMAT_ERROR;
                         }
 
-                        Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor);
-                        #else
+                        uint32_t dynamic_offset = 0;
+                        if (field->m_Label != LABEL_REPEATED && *array_info_hash != 0)
+                        {
+                            dynamic_offset = load_context->IncreaseArrayDataSize(*array_info_hash, field->m_MessageDescriptor->m_Size);
+                        }
+
+                        if (!field->m_FullyDefinedType)
+                        {
+                            dmLogInfo("  !! Array member %s.%s is not fully defined! adding offset %d", desc->m_Name, field->m_Name, dynamic_offset);
+                            load_context->AddDynamicTypeOffset(dynamic_offset);
+                        }
+
+                        Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor, array_info_hash);
+                    #else
                         InputBuffer sub_ib = ib;
                         sub_ib->m_End = sub_ib->m_Current + length;
                         Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor);
-                        #endif
-                        if (e != RESULT_OK)
-                            return e;
+                    #endif
+
+                        DDF_CHECK_RESULT(e);
                     }
                 }
             }
@@ -171,15 +285,17 @@ namespace dmDDF
             return RESULT_VERSION_MISMATCH;
 
         LoadContext load_context(0, 0, true, options);
-        Message dry_message = load_context.AllocMessage(desc);
-
         InputBuffer input_buffer((const char*) buffer, buffer_size);
 
-        Result e = CalculateRepeated(&load_context, &input_buffer, desc);
-        if (e != RESULT_OK)
-        {
-            return e;
-        }
+        Message dry_message(0, 0, 0, true);
+        Result e = CreateMessage(&load_context, &input_buffer, desc, &dry_message);
+
+        uint32_t array_info_hash = 0;
+        input_buffer.Seek(0);
+        e = CalculateRepeated(&load_context, &input_buffer, desc, &array_info_hash);
+        DDF_CHECK_RESULT(e);
+
+        dmLogInfo("\nLoadMessage DRY:");
 
         input_buffer.Seek(0);
         e = DoLoadMessage(&load_context, &input_buffer, desc, &dry_message);
@@ -189,14 +305,20 @@ namespace dmDDF
         dmMemory::AlignedMalloc((void**)&message_buffer, 16, message_buffer_size);
         assert(message_buffer);
         load_context.SetMemoryBuffer(message_buffer, message_buffer_size, false);
-        Message message = load_context.AllocMessage(desc);
+        Message message = load_context.AllocMessageRaw(desc, dry_message.GetSize());
+
+        dmLogInfo("\nLoadMessage ACTUAL:");
+
+        load_context.ResetDynamicOffsetCursor();
 
         input_buffer.Seek(0);
         e = DoLoadMessage(&load_context, &input_buffer, desc, &message);
         if ( e == RESULT_OK )
         {
             if (size)
+            {
                 *size = message_buffer_size;
+            }
             *out_message = (void*) message_buffer;
         }
         else
@@ -314,28 +436,6 @@ namespace dmDDF
         return ret;
     }
 
-    Result CopyMessage(const void* message, const dmDDF::Descriptor* desc, void** out)
-    {
-        if (!message)
-            return RESULT_INTERNAL_ERROR;
-
-        dmArray<uint8_t> buffer;
-        dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(message, desc, buffer);
-        if (dmDDF::RESULT_OK != ddf_result)
-        {
-            return ddf_result;
-        }
-
-        ddf_result = dmDDF::LoadMessage((void*)&buffer[0], buffer.Size(), desc, out);
-        if (dmDDF::RESULT_OK != ddf_result)
-        {
-            return ddf_result;
-        }
-
-        return RESULT_OK;
-    }
-
-
     int32_t GetEnumValue(const EnumDescriptor* desc, const char* name)
     {
         assert(desc);
@@ -373,4 +473,6 @@ namespace dmDDF
         assert(message);
         dmMemory::AlignedFree(message);
     }
+
+    #undef DDF_CHECK_RESULT
 }

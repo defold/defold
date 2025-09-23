@@ -1,31 +1,34 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include <string.h>
+#include <dlib/log.h>
 #include "ddf_message.h"
 #include "ddf_load.h"
 #include "ddf_util.h"
 
 namespace dmDDF
 {
-
     Message::Message(const Descriptor* message_descriptor, char* buffer, uint32_t buffer_size, bool dry_run)
     {
         m_MessageDescriptor = message_descriptor;
         m_Start = (uintptr_t)buffer;
         m_End = (uintptr_t)buffer + buffer_size;
         m_DryRun = dry_run;
+
+        if (!dry_run)
+            dmLogInfo("Message::Message: start %lu end %lu (%lu)", m_Start, m_End, m_End - m_Start);
     }
 
     #define READSCALARFIELD_CASE(DDF_TYPE, CPP_TYPE, READ_METHOD) \
@@ -167,8 +170,23 @@ namespace dmDDF
         else
         {
             msg_buf = GetBuffer(field->m_Offset);
-            assert((uintptr_t)msg_buf + field->m_MessageDescriptor->m_Size <= m_End);
+            // assert((uintptr_t)msg_buf + field->m_MessageDescriptor->m_Size <= m_End);
+
+            if (!field->m_FullyDefinedType)
+            {
+                uint32_t dynamic_offset       = load_context->NextDynamicTypeOffset();
+                uintptr_t dynamic_offset_addr = (uintptr_t) msg_buf + dynamic_offset;
+
+                dmLogInfo("Not defined field at %lu has offset %d", (uintptr_t) msg_buf, dynamic_offset);
+
+                if (!load_context->GetIsDryRun())
+                {
+                    memcpy(msg_buf, &dynamic_offset_addr, sizeof(uintptr_t));
+                    msg_buf += dynamic_offset;
+                }
+            }
         }
+
         Message message(field->m_MessageDescriptor, (char*) msg_buf, field->m_MessageDescriptor->m_Size, m_DryRun);
         InputBuffer sub_buffer;
         if (!input_buffer->SubBuffer(length, &sub_buffer))
@@ -370,11 +388,11 @@ namespace dmDDF
         }
     }
 
-    void Message::AllocateRepeatedBuffer(LoadContext* load_context, const FieldDescriptor* field, int element_count)
+    void Message::AllocateRepeatedBuffer(LoadContext* load_context, const FieldDescriptor* field, int element_count, int data_size)
     {
         assert((Label) field->m_Label == LABEL_REPEATED);
 
-        void* buf = load_context->AllocRepeated(field, element_count);
+        void* buf = load_context->AllocRepeated(field, element_count, data_size);
         SetRepeatedBuffer(field, buf);
     }
 
