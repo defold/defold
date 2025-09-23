@@ -7,6 +7,10 @@ import java.util.Locale;
 
 /**
  * Used dynamically in {@link NumberFormat#getShim()}
+ * We remove the original NumberFormatServiceShim class from the ICU package and
+ * replace it with our own to ensure numbers are formatted uniformly in any
+ * localization. Reason: localized number formatting is suitable for currency
+ * contexts, but not for programming contexts.
  */
 public class NumberFormatServiceShim extends NumberFormat.NumberFormatShim {
 

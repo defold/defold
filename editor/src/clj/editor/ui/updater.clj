@@ -28,8 +28,8 @@
             can-download? (updater/can-download-update? updater)]
         (ui/visible! link (or can-install? can-download?))
         (cond
-          can-install? (localization/localize! link localization (localization/message "updater.restart-to-update"))
-          can-download? (localization/localize! link localization (localization/message "updater.update-available")))))))
+          can-install? (localization/localize! link localization (localization/message "updater.button.restart-to-update"))
+          can-download? (localization/localize! link localization (localization/message "updater.button.update-available")))))))
 
 (defn- install! [^Stage stage updater localization]
   (try
@@ -52,7 +52,7 @@
         (when (updater/can-install-update? updater)
           (install! stage updater localization))
         true))
-    (localization/localize! link localization (localization/message "updater.update-available"))
+    (localization/localize! link localization (localization/message "updater.button.update-available"))
     (ui/on-action! link
       (fn [_]
         (let [can-install? (updater/can-install-update? updater)

@@ -1,37 +1,37 @@
 # Localizations of the Welcome dialog
-welcome.open-from-disk-button = Открыть с Диска...
-welcome.open-selected-button = Открыть Проект
-welcome.recent-projects-label = Недавние Проекты
+welcome.button.open-from-disk = Открыть с Диска...
+welcome.button.open-selected = Открыть Проект
+welcome.recent-projects = Недавние Проекты
 welcome.tab.new-project = НОВЫЙ ПРОЕКТ
 welcome.tab.home = ГЛАВНАЯ
-welcome.welcome-text = Добро пожаловать! Как только вы начнёте работать с Defold, все ваши недавние проекты появятся здесь.
+welcome.greeting = Добро пожаловать! Как только вы начнёте работать с Defold, все ваши недавние проекты появятся здесь.
 welcome.button.create-new-project = Создать Проект
-welcome.label.downloading-project = Загрузка шаблона «{template}»...
+welcome.downloading-project = Загружается {template}...
 welcome.button.cancel-download = Отменить Загрузку
 welcome.category.from-template = Из Шаблона
 welcome.category.from-tutorial = Из Туториала
 welcome.category.from-sample = Из Примера
-welcome.new-project-default-name = Мой Проект
-welcome.new-project-title-label = Название
-welcome.new-project-location-label = Расположение
+welcome.new-project.default-name = Мой Проект
+welcome.new-project.title = Название
+welcome.new-project.location = Расположение
 welcome.open-from-disk.dialog.title = Открыть Проект
 welcome.open-from-disk.dialog.filter.defold = Файлы Проектов Defold
 welcome.new-project.location.dialog.title = Выберите Расположение Нового Проекта
-welcome.new-project.error.no-project-title = Нет Названия Проекта
-welcome.new-project.error.description.no-project-title = Необходимо указать название проекта
-welcome.new-project.error.invalid-project-title = Недопустимое Название Проекта
-welcome.new-project.error.description.invalid-project-title = Пробелы в начале и в конце названия проекта не допускаются
-welcome.new-project.error.conflicting-project-location = Конфликт Расположения Проекта
-welcome.new-project.error.description.conflicting-project-location = По указанному пути уже существует непустая папка
+welcome.new-project.error.no-project-title.title = Нет Названия Проекта
+welcome.new-project.error.no-project-title.header = Необходимо указать название проекта
+welcome.new-project.error.invalid-project-title.title = Недопустимое Название Проекта
+welcome.new-project.error.invalid-project-title.header = Пробелы в начале и в конце названия проекта не допускаются
+welcome.new-project.error.conflicting-project-location.title = Конфликт Расположения Проекта
+welcome.new-project.error.conflicting-project-location.header = По указанному пути уже существует непустая папка
 welcome.new-project.error.no-internet-connection = Нет Подключения к Интернету
 welcome.new-project.error.description.no-internet-connection = Для загрузки содержимого проекта требуется подключение к Интернету
 welcome.new-project.error.host-unreachable = Хост Недоступен
 welcome.new-project.error.description.host-unreachable = Возможно, брандмауэр блокирует сетевые соединения
 welcome.new-project.error.host-not-responding = Хост Не Отвечает
 welcome.new-project.error.description.host-not-responding = Время ожидания соединения истекло
-welcome.new-project.error.ssl-connection-error = Ошибка SSL‑соединения
-welcome.new-project.error.ssl-connection-error.description = Не удалось установить SSL‑соединение
-welcome.new-project.error.ssl-connection-error.common-causes = Возможные причины:\n\u00A0\u00A0\u2022\u00A0 Антивирус, настроенный на проверку зашифрованных соединений\n\u00A0\u00A0\u2022\u00A0 Просроченный или некорректно настроенный сертификат сервера\n\u00A0\u00A0\u2022\u00A0 Недоверенный сертификат сервера\n\nСледующий пункт FAQ может быть полезен: 
+welcome.new-project.error.ssl-connection-error.title = Ошибка SSL‑соединения
+welcome.new-project.error.ssl-connection-error.header = Не удалось установить SSL‑соединение
+welcome.new-project.error.ssl-connection-error.common-causes = Возможные причины:\n\u00A0\u00A0\u2022\u00A0Антивирус, настроенный на проверку зашифрованных соединений\n\u00A0\u00A0\u2022\u00A0Просроченный или некорректно настроенный сертификат сервера\n\u00A0\u00A0\u2022\u00A0Недоверенный сертификат сервера\n\nСледующий пункт FAQ может быть полезен:
 welcome.new-project.error.ssl-connection-error.pkix-faq-entry = PKIX path building failed
 
 # Welcome -> New Project -> From Template
@@ -91,16 +91,16 @@ welcome.new-project.lightning-vfx.title = Эффект молнии
 welcome.new-project.lightning-vfx.description = Пример демонстрирует эффект молнии в 2D скроллере и то, как компонент mesh настроен для изменения в процессе игры.
 
 # Updater
-updater.update-available = Доступно Обновление
-updater.restart-to-update = Перезапустить
+updater.button.update-available = Доступно Обновление
+updater.button.restart-to-update = Перезапустить
 updater.download-or-restart-dialog.title = Установить Обновление?
-updater.download-or-restart-dialog.newer-version-available = Обновление готово, но доступна ещё более новая версия
-updater.download-or-restart-dialog.install-or-download = Вы можете установить загруженное обновление или загрузить более новое
+updater.download-or-restart-dialog.header = Обновление готово, но доступна ещё более новая версия
+updater.download-or-restart-dialog.detail = Вы можете установить загруженное обновление или загрузить более новое
 updater.platform-not-supported-dialog.title = Платформа Не Поддерживается
-updater.platform-not-supported-dialog.updates-no-longer-provided = Для этой платформы обновления больше не предоставляются
-updater.platform-not-supported-dialog.supported-platforms = Поддерживаемые платформы: 64‑битные Linux, macOS и Windows
+updater.platform-not-supported-dialog.header = Для этой платформы обновления больше не предоставляются
+updater.platform-not-supported-dialog.detail = Поддерживаемые платформы: 64‑битные Linux, macOS и Windows
 updater.download-dialog.title = Загрузить Обновление?
-updater.download-dialog.newer-version-available = Доступна новая версия Defold!
+updater.download-dialog.header = Доступна новая версия Defold!
 updater.update-failed.title = Ошибка обновления
 updater.update-failed.header = Во время установки обновления произошла ошибка
 updater.update-failed.detail = Возможно, потребуется выполнить чистую установку
@@ -142,22 +142,22 @@ dialog.error.footer = Вы можете помочь нам исправить �
 dialog.gl-support.title = Недостаточная поддержка OpenGL
 dialog.gl-support.header = Это очень распространённая проблема. Посмотрите, помогут ли следующие инструкции:
 dialog.gl-support.linux = OpenGL в Linux
-dialog.gl-support.glGenBuffers = glGenBuffers
-dialog.gl-support.disclaimer = Вы можете продолжить работу с отключённым редактором сцен.
+dialog.gl-support.gl-gen-buffers = glGenBuffers
+dialog.gl-support.detail = Вы можете продолжить работу с отключённым редактором сцен.
 
 # New folder
 
 dialog.new-folder.title = Новая папка
 dialog.new-folder.header = Введите имя новой папки
-dialog.new-folder.name = Имя
-dialog.new-folder.preview = Просмотр
+dialog.new-folder.label.name = Имя
+dialog.new-folder.label.preview = Просмотр
 dialog.new-folder.button.create-folder = Создать папку
 
 # Target IP dialog
 
 dialog.target-ip.title = Введите IP целевого устройства
 dialog.target-ip.header = Введите IP-адрес целевого устройства
-dialog.target-ip.label = IP-адрес
+dialog.target-ip.label.ip = IP-адрес
 dialog.target-ip.button.add = Добавить IP-адрес
 
 # Editor panes
@@ -173,16 +173,16 @@ pane.search-results = Результаты Поиска
 
 # Console
 
-console.clear = Очистить
-console.filter = Фильтры
+console.button.clear = Очистить
+console.button.filter = Фильтры
 console.filter.enable-filtering = Включить фильтрацию
 console.filter.add-filter = Новый фильтр ("текст" или "!убрать")
 console.search = Поиск
 
 # Changes view
 
-changes-view.diff = Сравнить
-changes-view.revert = Откатить
+changes-view.button.diff = Сравнить
+changes-view.button.revert = Откатить
 
 # Prefs
 
@@ -242,6 +242,8 @@ prefs.keymap.context-menu.reset-to-default = Восстановить по ум�
 prefs.keymap.context-menu.remove = Удалить {shortcut}
 prefs.keymap.context-menu.add = Добавить {shortcut}
 prefs.keymap.new-shortcut = Новая комбинация: «{shortcut}»
+prefs.keymap.new-shortcut.commit = Нажмите {enter}, чтобы подтвердить
+prefs.keymap.new-shortcut.commit-or-cancel = Нажмите {enter}, чтобы подтвердить, {escape} — отменить
 prefs.keymap.new-shortcut.press-desired-combination = Нажмите нужную комбинацию клавиш
 prefs.keymap.warning.typable = Символы вводимы (может мешать текстовым полям)
 prefs.keymap.warning.conflicts = Конфликтует с комбинациями: {shortcuts}

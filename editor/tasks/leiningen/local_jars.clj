@@ -23,6 +23,8 @@
            [java.nio.file CopyOption FileSystems FileVisitOption Files LinkOption Path StandardCopyOption]
            [java.nio.file.attribute FileAttribute]))
 
+(set! *warn-on-reflection* true)
+
 (defn dynamo-home [] (get (System/getenv) "DYNAMO_HOME"))
 
 (def ^:private jar-decls
@@ -42,7 +44,7 @@
                            http-cache/download
                            .toPath)
                        jar
-                       (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING])))]
+                       ^"[Ljava.nio.file.CopyOption;" (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING])))]
       (run!
         #(Files/delete %)
         (->> fs

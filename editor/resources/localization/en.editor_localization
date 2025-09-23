@@ -1,37 +1,46 @@
+# Key naming convention:
+# 1. Use dot-separated hierarchy (from broad to specific)
+# 2. Use at least 2 dot-separated elements
+# 3. Use lower-cased kebab-case
+# 4. Avoid suffixes baked into the last path element (e.g., -label, -button)
+# 5. For dialog elements, use consistent names: title, header, detail
+# 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
+# 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
+
 # Localizations of the Welcome dialog
-welcome.open-from-disk-button = Open From Disk...
-welcome.open-selected-button = Open Selected
-welcome.recent-projects-label = Recent Projects
+welcome.button.open-from-disk = Open From Disk...
+welcome.button.open-selected = Open Selected
+welcome.button.create-new-project = Create New Project
+welcome.button.cancel-download = Cancel Download
+welcome.recent-projects = Recent Projects
 welcome.tab.new-project = NEW PROJECT
 welcome.tab.home = HOME
-welcome.welcome-text = Welcome! As soon as you start working with Defold, all your recent projects will appear here.
-welcome.button.create-new-project = Create New Project
-welcome.label.downloading-project = Downloading {template}...
-welcome.button.cancel-download = Cancel Download
+welcome.greeting = Welcome! As soon as you start working with Defold, all your recent projects will appear here.
+welcome.downloading-project = Downloading {template}...
 welcome.category.from-template = From Template
 welcome.category.from-tutorial = From Tutorial
 welcome.category.from-sample = From Sample
-welcome.new-project-default-name = My Project
-welcome.new-project-title-label = Title
-welcome.new-project-location-label = Location
+welcome.new-project.default-name = My Project
+welcome.new-project.title = Title
+welcome.new-project.location = Location
 welcome.open-from-disk.dialog.title = Open Project
 welcome.open-from-disk.dialog.filter.defold = Defold Project Files
 welcome.new-project.location.dialog.title = Select New Project Location
-welcome.new-project.error.no-project-title = No Project Title
-welcome.new-project.error.description.no-project-title = You must specify a title for the project
-welcome.new-project.error.invalid-project-title = Invalid Project Title
-welcome.new-project.error.description.invalid-project-title = Whitespace is not allowed around the project title
-welcome.new-project.error.conflicting-project-location = Conflicting Project Location
-welcome.new-project.error.description.conflicting-project-location = A non-empty folder already exists at the chosen location
+welcome.new-project.error.no-project-title.title = No Project Title
+welcome.new-project.error.no-project-title.header = You must specify a title for the project
+welcome.new-project.error.invalid-project-title.title = Invalid Project Title
+welcome.new-project.error.invalid-project-title.header = Whitespace is not allowed around the project title
+welcome.new-project.error.conflicting-project-location.title = Conflicting Project Location
+welcome.new-project.error.conflicting-project-location.header = A non-empty folder already exists at the chosen location
 welcome.new-project.error.no-internet-connection = No Internet Connection
 welcome.new-project.error.description.no-internet-connection = You must be connected to the internet to download project content
 welcome.new-project.error.host-unreachable = Host Unreachable
 welcome.new-project.error.description.host-unreachable = A firewall might be blocking network connections
 welcome.new-project.error.host-not-responding = Host Not Responding
 welcome.new-project.error.description.host-not-responding = The connection timed out
-welcome.new-project.error.ssl-connection-error = SSL Connection Error
-welcome.new-project.error.ssl-connection-error.description = Could not establish an SSL connection
-welcome.new-project.error.ssl-connection-error.common-causes = Common causes are:\n\u00A0\u00A0\u2022\u00A0 Antivirus software configured to scan encrypted connections\n\u00A0\u00A0\u2022\u00A0 Expired or misconfigured server certificate\n\u00A0\u00A0\u2022\u00A0 Untrusted server certificate\n\nThe following FAQ may apply:
+welcome.new-project.error.ssl-connection-error.title = SSL Connection Error
+welcome.new-project.error.ssl-connection-error.header = Could not establish an SSL connection
+welcome.new-project.error.ssl-connection-error.common-causes = Common causes are:\n\u00A0\u00A0\u2022\u00A0Antivirus software configured to scan encrypted connections\n\u00A0\u00A0\u2022\u00A0Expired or misconfigured server certificate\n\u00A0\u00A0\u2022\u00A0Untrusted server certificate\n\nThe following FAQ may apply:
 welcome.new-project.error.ssl-connection-error.pkix-faq-entry = PKIX path building failed
 
 # Welcome -> New Project -> From Template
@@ -91,16 +100,16 @@ welcome.new-project.lightning-vfx.title = Lightning VFX
 welcome.new-project.lightning-vfx.description = The sample shows a lightning effect in a 2d scrolling shooter and how the mesh component is setup to be manipulated during gameplay.
 
 # Updater
-updater.update-available = Update Available
-updater.restart-to-update = Restart to Update
+updater.button.update-available = Update Available
+updater.button.restart-to-update = Restart to Update
 updater.download-or-restart-dialog.title = Install Update?
-updater.download-or-restart-dialog.newer-version-available = Update is ready, but there is even newer version available
-updater.download-or-restart-dialog.install-or-download = You can install downloaded update or download newer one
+updater.download-or-restart-dialog.header = Update is ready, but there is even newer version available
+updater.download-or-restart-dialog.detail = You can install downloaded update or download newer one
 updater.platform-not-supported-dialog.title = Platform Not Supported
-updater.platform-not-supported-dialog.updates-no-longer-provided = Updates are no longer provided for this platform
-updater.platform-not-supported-dialog.supported-platforms = Supported platforms are 64-bit Linux, macOS and Windows
+updater.platform-not-supported-dialog.header = Updates are no longer provided for this platform
+updater.platform-not-supported-dialog.detail = Supported platforms are 64-bit Linux, macOS and Windows
 updater.download-dialog.title = Download Update?
-updater.download-dialog.newer-version-available = A newer version of Defold is available!
+updater.download-dialog.header = A newer version of Defold is available!
 updater.update-failed.title = Update Failed
 updater.update-failed.header = An error occurred during update installation
 updater.update-failed.detail = You probably should perform a fresh install
@@ -144,22 +153,22 @@ dialog.error.footer = You can help us fix this problem by reporting it and provi
 dialog.gl-support.title = Insufficient OpenGL Support
 dialog.gl-support.header = This is a very common issue. See if any of these instructions help:
 dialog.gl-support.linux = OpenGL on linux
-dialog.gl-support.glGenBuffers = glGenBuffers
-dialog.gl-support.disclaimer = You can continue with scene editing disabled.
+dialog.gl-support.gl-gen-buffers = glGenBuffers
+dialog.gl-support.detail = You can continue with scene editing disabled.
 
 # New folder
 
 dialog.new-folder.title = New Folder
 dialog.new-folder.header = Enter New Folder Name
-dialog.new-folder.name = Name
-dialog.new-folder.preview = Preview
+dialog.new-folder.label.name = Name
+dialog.new-folder.label.preview = Preview
 dialog.new-folder.button.create-folder = Create Folder
 
 # Target IP dialog
 
 dialog.target-ip.title = Enter Target IP
 dialog.target-ip.header = Enter Target IP Address
-dialog.target-ip.label = Target IP Address
+dialog.target-ip.label.ip = Target IP Address
 dialog.target-ip.button.add = Add Target IP
 
 # Editor panes
@@ -175,16 +184,16 @@ pane.search-results = Search Results
 
 # Console
 
-console.clear = Clear
-console.filter = Filter
+console.button.clear = Clear
+console.button.filter = Filter
 console.filter.enable-filtering = Enable filtering
 console.filter.add-filter = Add filter (e.g. text, !exclude)
 console.search = Search
 
 # Changes view
 
-changes-view.diff = Diff
-changes-view.revert = Revert
+changes-view.button.diff = Diff
+changes-view.button.revert = Revert
 
 # Prefs
 
@@ -245,8 +254,8 @@ prefs.keymap.context-menu.remove = Remove {shortcut}
 prefs.keymap.context-menu.add = Add {shortcut}
 prefs.keymap.new-shortcut = New "{shortcut}" Shortcut
 prefs.keymap.new-shortcut.press-desired-combination = Press the desired key combination
-prefs.keymap.new-shortcut.commit = Нажмите {enter}, чтобы подтвердить
-prefs.keymap.new-shortcut.commit-or-cancel = Нажмите {enter}, чтобы подтвердить, {escape} — отменить
+prefs.keymap.new-shortcut.commit = Press {enter} to commit
+prefs.keymap.new-shortcut.commit-or-cancel = Press {enter} to commit, {escape} again to cancel
 prefs.keymap.warnings = Warnings:{warnings}
 prefs.keymap.warning = \n• {warning}
 prefs.keymap.warning.typable = Typable (may interfere with text inputs)

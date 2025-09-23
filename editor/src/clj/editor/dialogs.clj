@@ -312,9 +312,9 @@
      :header {:fx/type fx.v-box/lifecycle
               :children [{:fx/type fxui/legacy-label
                           :variant :header
-                          :text (localization (localization/message "updater.download-or-restart-dialog.newer-version-available"))}
+                          :text (localization (localization/message "updater.download-or-restart-dialog.header"))}
                          {:fx/type fxui/legacy-label
-                          :text (localization (localization/message "updater.download-or-restart-dialog.install-or-download"))}]}
+                          :text (localization (localization/message "updater.download-or-restart-dialog.detail"))}]}
      :buttons [{:text (localization (localization/message "updater.dialog.button.not-now"))
                 :cancel-button true
                 :result :cancel}
@@ -331,9 +331,9 @@
      :header {:fx/type fx.v-box/lifecycle
               :children [{:fx/type fxui/legacy-label
                           :variant :header
-                          :text (localization (localization/message "updater.platform-not-supported-dialog.updates-no-longer-provided"))}
+                          :text (localization (localization/message "updater.platform-not-supported-dialog.header"))}
                          {:fx/type fxui/legacy-label
-                          :text (localization (localization/message "updater.platform-not-supported-dialog.supported-platforms"))}]}
+                          :text (localization (localization/message "updater.platform-not-supported-dialog.detail"))}]}
      :buttons [{:text (localization (localization/message "dialog.button.close"))
                 :cancel-button true
                 :default-button true}]}))
@@ -341,7 +341,7 @@
 (defn make-download-update-dialog [^Stage owner localization]
   (make-confirmation-dialog
     {:title (localization (localization/message "updater.download-dialog.title"))
-     :header (localization (localization/message "updater.download-dialog.newer-version-available"))
+     :header (localization (localization/message "updater.download-dialog.header"))
      :icon :icon/circle-happy
      :owner owner
      :buttons [{:text (localization (localization/message "updater.dialog.button.not-now"))
@@ -471,9 +471,9 @@
                   (conj
                     {:fx/type fx.hyperlink/lifecycle
                      :on-action (fn [_] (ui/open-url (github/glgenbuffers-link)))
-                     :text (localization (localization/message "dialog.gl-support.glGenBuffers"))}
+                     :text (localization (localization/message "dialog.gl-support.gl-gen-buffers"))}
                     {:fx/type fxui/legacy-label
-                     :text (localization (localization/message "dialog.gl-support.disclaimer"))}))}
+                     :text (localization (localization/message "dialog.gl-support.detail"))}))}
      :icon :icon/circle-sad
      :content {:fx/type content-text-area
                :text support-error}
@@ -743,13 +743,13 @@
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
                :children [{:fx/type fxui/legacy-label
-                           :text (localization (localization/message "dialog.new-folder.name"))}
+                           :text (localization (localization/message "dialog.new-folder.label.name"))}
                           {:fx/type fxui/legacy-text-field
                            :text ""
                            :variant (if invalid :error :default)
                            :on-text-changed {:event-type :set-folder-name}}
                           {:fx/type fxui/legacy-label
-                           :text (localization (localization/message "dialog.new-folder.preview"))}
+                           :text (localization (localization/message "dialog.new-folder.label.preview"))}
                           {:fx/type fxui/legacy-text-field
                            :editable false
                            :text (or error-msg sanitized-name)}]}
@@ -792,7 +792,7 @@
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
                :children [{:fx/type fxui/legacy-label
-                           :text (localization (localization/message "dialog.target-ip.label"))}
+                           :text (localization (localization/message "dialog.target-ip.label.ip"))}
                           {:fx/type fxui/legacy-text-field
                            :variant (if ip-valid :default :error)
                            :text ip

@@ -17,7 +17,6 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.code.lang.java-properties :as java-properties]
-            [editor.connection-properties :as connection-properties]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.prefs :as prefs]
@@ -31,7 +30,6 @@
   (:import [clojure.lang AFn Agent IFn IRef]
            [com.ibm.icu.text DateFormat ListFormatter ListFormatter$Type ListFormatter$Width MessageFormat]
            [com.ibm.icu.util ULocale]
-           [java.io StringReader]
            [java.nio.file StandardWatchEventKinds WatchEvent$Kind]
            [java.util Collection WeakHashMap]
            [javafx.application Platform]
@@ -346,26 +344,19 @@
 (defn make-editor
   "Create localization configured for use in the editor"
   [prefs]
-  (letfn [(generated-localization []
-            (->> {"prefs.extensions.build-server.prompt" (connection-properties/defold-build-server-url)}
-                 (e/map #(str (key %) "=" (val %)))
-                 (coll/join-to-string "\n")))
-          (get-bundle [resource-dir]
-            (let [generated (generated-localization)]
-              (->> resource-dir
-                   (fs/class-path-walker java/class-loader)
-                   (e/filter #(.endsWith (str %) ".editor_localization"))
-                   (e/map
-                     (coll/pair-fn
-                       str
-                       (fn [path]
-                         ;; We can read Path only during iteration (because we open
-                         ;; the zip file), but the actual reading is done later,
-                         ;; during reload. Converting path to a URL allows reading
-                         ;; from the zip file later.
-                         (let [url (.toURL (.toUri (fs/path path)))]
-                           #(io/reader url)))))
-                   (into {"generated/en.editor_localization" #(StringReader. generated)}))))]
+  (letfn [(get-bundle [resource-dir]
+            (->> resource-dir
+                 (fs/class-path-walker java/class-loader)
+                 (e/filter #(.endsWith (str %) ".editor_localization"))
+                 (coll/pair-map-by
+                   str
+                   (fn [path]
+                     ;; We can read Path only during iteration (because we open
+                     ;; the zip file), but the actual reading is done later,
+                     ;; during reload. Converting path to a URL allows reading
+                     ;; from the zip file later.
+                     (let [url (.toURL (.toUri (fs/path path)))]
+                       #(io/reader url))))))]
     (let [resource-dir "localization"
           localization (make prefs ::editor (get-bundle resource-dir))]
       (when (system/defold-dev?)

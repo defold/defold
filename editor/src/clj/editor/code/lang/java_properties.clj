@@ -13,8 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.code.lang.java-properties
-  (:require [clojure.string :as string])
-  (:import [java.io BufferedReader]))
+  (:require [clojure.string])
+  (:import [java.io Reader]
+           [java.util Properties]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -35,32 +36,8 @@
                           2 {:name "punctuation.separator.key-value.properties"}
                           3 {:name "string.unquoted.value.properties"}}}]})
 
-(defn- unescape [s]
-  (string/replace
-    s
-    #"\\n|\\t|\\r|\\\\|\\u([0-9a-fA-F]{4})"
-    (fn [[all-match unicode-match]]
-      (str (if unicode-match
-             (char (Integer/parseInt unicode-match 16))
-             (case all-match
-               "\\n" \newline
-               "\\r" \return
-               "\\t" \tab
-               "\\\\" \\))))))
-
 (defn parse
   "Parses a reader of a properties file into a kv map"
-  [reader]
-  (with-open [reader (BufferedReader. reader)]
-    (loop [acc (transient {})]
-      (if-let [l (.readLine reader)]
-        (recur
-          ;; comment?
-          (if (re-find #"^\s*#" l)
-            acc
-            ;; key-value pair?
-            (if-let [[_ k v] (re-find #"^\s*([^=]+)\s*=\s*(.+)$" l)]
-              (assoc! acc (string/trimr k) (unescape v))
-              ;; something else, ignore it
-              acc)))
-        (persistent! acc)))))
+  [^Reader reader]
+  (with-open [reader reader]
+    (into {} (doto (Properties.) (.load reader)))))

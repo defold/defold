@@ -344,8 +344,8 @@
                               ^Button next-console
                               ^Button clear-console
                               filter-console]
-    (localization/localize! clear-console localization (localization/message "console.clear"))
-    (localization/localize! filter-console localization (localization/message "console.filter"))
+    (localization/localize! clear-console localization (localization/message "console.button.clear"))
+    (localization/localize! filter-console localization (localization/message "console.button.filter"))
     (localization/localize! (.promptTextProperty search-console) localization (localization/message "console.search"))
     (init-console-filter! filter-console prefs localization)
     (ui/context! tool-bar :console-tool-bar {:term-field search-console :view-node view-node} nil)

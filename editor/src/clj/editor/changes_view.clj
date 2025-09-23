@@ -172,8 +172,8 @@
         disk-available-listener (reify ChangeListener
                                   (changed [_this _observable _old _new]
                                     (ui/refresh-bound-action-enabled! revert-button)))]
-    (localization/localize! diff-button localization (localization/message "changes-view.diff"))
-    (localization/localize! revert-button localization (localization/message "changes-view.revert"))
+    (localization/localize! diff-button localization (localization/message "changes-view.button.diff"))
+    (localization/localize! revert-button localization (localization/message "changes-view.button.revert"))
     (ui/user-data! list-view :refresh-pending (ref false))
     (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
     (ui/context! parent :changes-view {:async-reload! async-reload! :changes-view view-id :workspace workspace} (ui/->selection-provider list-view)

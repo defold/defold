@@ -382,18 +382,18 @@
                                  ^ButtonBase show-new-project-pane-button
                                  recent-projects-label
                                  welcome-text]
-      (localization/localize! recent-projects-label localization (localization/message "welcome.recent-projects-label"))
-      (localization/localize! welcome-text localization (localization/message "welcome.welcome-text"))
+      (localization/localize! recent-projects-label localization (localization/message "welcome.recent-projects"))
+      (localization/localize! welcome-text localization (localization/message "welcome.greeting"))
       (let [open-selected-project! (fn []
                                      (when-some [recent-project (first (ui/selection recent-projects-list))]
                                        (close-dialog-and-open-project! (:project-file recent-project) false)))]
         (doseq [open-from-disk-button open-from-disk-buttons]
-          (localization/localize! open-from-disk-button localization (localization/message "welcome.open-from-disk-button"))
+          (localization/localize! open-from-disk-button localization (localization/message "welcome.button.open-from-disk"))
           (ui/on-action! open-from-disk-button show-open-from-disk-dialog!))
         (ui/on-action! show-new-project-pane-button (fn [_] (show-new-project-pane!)))
         (localization/localize! show-new-project-pane-button localization (localization/message "welcome.button.create-new-project"))
         (ui/on-action! open-selected-project-button (fn [_] (open-selected-project!)))
-        (localization/localize! open-selected-project-button localization (localization/message "welcome.open-selected-button"))
+        (localization/localize! open-selected-project-button localization (localization/message "welcome.button.open-selected"))
         (b/bind-presence! state-empty-recent-projects-list (b/empty? (.getItems recent-projects-list)))
         (b/bind-presence! state-non-empty-recent-projects-list (b/not (b/empty? (.getItems recent-projects-list))))
         (b/bind-enabled-to-selection! open-selected-project-button recent-projects-list)
@@ -481,9 +481,9 @@
                        ^ListVew template-list
                        new-project-title-label
                        new-project-location-label]
-      (.setText new-project-title-field (localization (localization/message "welcome.new-project-default-name")))
-      (localization/localize! new-project-title-label localization (localization/message "welcome.new-project-title-label"))
-      (localization/localize! new-project-location-label localization (localization/message "welcome.new-project-location-label"))
+      (.setText new-project-title-field (localization (localization/message "welcome.new-project.default-name")))
+      (localization/localize! new-project-title-label localization (localization/message "welcome.new-project.title"))
+      (localization/localize! new-project-location-label localization (localization/message "welcome.new-project.location"))
       (localization/localize! create-new-project-button localization (localization/message "welcome.button.create-new-project"))
       (setup-location-field! new-project-location-field localization "welcome.new-project.location.dialog.title" new-project-location-directory)
       (let [title-text-property (.textProperty new-project-title-field)
@@ -529,24 +529,24 @@
                          (cond
                            (string/blank? project-title)
                            (dialogs/make-info-dialog
-                             {:title (localization (localization/message "welcome.new-project.error.no-project-title"))
+                             {:title (localization (localization/message "welcome.new-project.error.no-project-title.title"))
                               :icon :icon/triangle-error
-                              :header (localization (localization/message "welcome.new-project.error.description.no-project-title"))})
+                              :header (localization (localization/message "welcome.new-project.error.no-project-title.header"))})
 
                            (not= project-title (string/trim project-title))
                            (dialogs/make-info-dialog
-                             {:title (localization (localization/message "welcome.new-project.error.invalid-project-title"))
+                             {:title (localization (localization/message "welcome.new-project.error.invalid-project-title.title"))
                               :icon :icon/triangle-error
                               :size :large
-                              :header (localization (localization/message "welcome.new-project.error.description.invalid-project-title"))})
+                              :header (localization (localization/message "welcome.new-project.error.invalid-project-title.header"))})
 
                            (and (.exists project-location)
                                 (not (fs/empty-directory? project-location)))
                            (dialogs/make-info-dialog
-                             {:title (localization (localization/message "welcome.new-project.error.conflicting-project-location"))
+                             {:title (localization (localization/message "welcome.new-project.error.conflicting-project-location.title"))
                               :icon :icon/triangle-error
                               :size :large
-                              :header (localization (localization/message "welcome.new-project.error.description.conflicting-project-location"))})
+                              :header (localization (localization/message "welcome.new-project.error.conflicting-project-location.header"))})
 
                            :else
                            (download-template! (:name project-template) (:zip-url project-template) (:skip-root? project-template) project-location project-title))))))))
@@ -653,7 +653,7 @@
                                             nil))
          download-template! (fn [template-title zip-url skip-root? dest-directory project-title]
                               (let [cancelled-atom (atom false)
-                                    progress-bar (show-progress! root localization "welcome.label.downloading-project" template-title "welcome.button.cancel-download" #(reset! cancelled-atom true))
+                                    progress-bar (show-progress! root localization "welcome.downloading-project" template-title "welcome.button.cancel-download" #(reset! cancelled-atom true))
                                     progress-callback (fn [^long done ^long total]
                                                         (when (pos? total)
                                                           (let [progress (/ (double done) (double total))]
@@ -682,7 +682,7 @@
                                         (cond
                                           (instance? UnknownHostException error)
                                           (dialogs/make-info-dialog
-                                            {:title (localization (localization/message "welcome.new-project.error.no-internet-connection"))
+                                            {:title (localization (localization/message "welcome.new-project.error.no-internet-connection.title"))
                                              :icon :icon/triangle-error
                                              :header (localization (localization/message "welcome.new-project.error.description.no-internet-connection"))})
 
@@ -702,9 +702,9 @@
 
                                           (instance? SSLException error)
                                           (dialogs/make-info-dialog
-                                            {:title (localization (localization/message "welcome.new-project.error.ssl-connection-error"))
+                                            {:title (localization (localization/message "welcome.new-project.error.ssl-connection-error.title"))
                                              :icon :icon/triangle-error
-                                             :header (localization (localization/message "welcome.new-project.error.ssl-connection-error.description"))
+                                             :header (localization (localization/message "welcome.new-project.error.ssl-connection-error.header"))
                                              :content {:fx/type fx.text-flow/lifecycle
                                                        :style-class "dialog-content-padding"
                                                        :children [{:fx/type fx.text/lifecycle

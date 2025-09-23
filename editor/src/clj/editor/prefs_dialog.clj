@@ -38,7 +38,6 @@
             [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.system :as system]
-            [editor.util :as eutil]
             [util.coll :as coll]
             [util.eduction :as e]
             [util.fn :as fn]
@@ -99,19 +98,22 @@
                :selected value
                :on-selected-changed on-value-changed}]})
 
-(defn- text-input [path value on-value-changed localization-state fx-type]
-  (let [prompt-key (str "prefs." (coll/join-to-string "." (e/map name path)) ".prompt")]
-    (cond-> {:fx/type fx-type
-             :value value
-             :on-value-changed on-value-changed}
-            (localization/defines-message-key? localization-state prompt-key)
-            (assoc :prompt-text (localization-state (localization/message prompt-key))))))
+(defn- text-input [path value on-value-changed localization-state fx-type unlocalizable-prompt]
+  (let [desc {:fx/type fx-type
+              :value value
+              :on-value-changed on-value-changed}]
+    (if unlocalizable-prompt
+      (assoc desc :prompt-text unlocalizable-prompt)
+      (let [prompt-key (str "prefs." (coll/join-to-string "." (e/map name path)) ".prompt")]
+        (cond-> desc
+                (localization/defines-message-key? localization-state prompt-key)
+                (assoc :prompt-text (localization-state (localization/message prompt-key))))))))
 
 (defmethod form-input :string [path schema value on-value-changed localization-state _]
-  (text-input path value on-value-changed localization-state (if (:multiline (:ui schema)) fxui/value-area fxui/value-field)))
+  (text-input path value on-value-changed localization-state (if (:multiline (:ui schema)) fxui/value-area fxui/value-field) (:prompt (:ui schema))))
 
-(defmethod form-input :password [path _ value on-value-changed localization-state _]
-  (text-input path value on-value-changed localization-state fxui/password-value-field))
+(defmethod form-input :password [path schema value on-value-changed localization-state _]
+  (text-input path value on-value-changed localization-state fxui/password-value-field (:prompt (:ui schema))))
 
 (defmethod form-input :locale [_ _ _ _ localization-state localization]
   {:fx/type fx.combo-box/lifecycle
