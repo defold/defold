@@ -33,7 +33,7 @@ function(defold_target_link_platform target platform)
         set(_plat_lib platform)
     else()
         # Platforms using GLFW 3 (same set as waf's platform_glfw_version == 3)
-        set(_glfw3_platforms "x86_64-macos;arm64-macos;x86_64-win32;x86_64-linux;arm64-linux;arm64-nx64")
+        set(_glfw3_platforms "x86_64-macos;arm64-macos;x86_64-win32;x86-win32;x86_64-linux;arm64-linux;arm64-nx64")
 
         list(FIND _glfw3_platforms "${platform}" _idx)
         if(NOT _idx EQUAL -1)

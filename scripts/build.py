@@ -1513,6 +1513,8 @@ class Configuration(object):
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, directory = 'engine'):
         self.build_tracker.start_component(lib, platform)
         if lib in CMAKE_SUPPORT:
+            if platform == 'win32':
+                platform = 'x86-win32'
             self._build_engine_lib_cmake(lib, platform, directory)
         else:
             self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)

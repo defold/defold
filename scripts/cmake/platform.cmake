@@ -46,7 +46,7 @@ elseif (TARGET_PLATFORM MATCHES "js-web|wasm-web|wasm_pthread-web")
         include(platform_html5)
 elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
         include(platform_linux)
-elseif (TARGET_PLATFORM MATCHES "arm64-win32|x86_64-win32")
+elseif (TARGET_PLATFORM MATCHES "arm64-win32|x86_64-win32|x86-win32")
         include(platform_windows)
 endif()
 
@@ -129,7 +129,7 @@ endif()
 # WIP: Workaround since we've been using a non-standard way of naming windows libraries with "lib" prefix
 # Goal is to not use that prefix at all.
 set(defold_libprefix "")
-if (TARGET_PLATFORM MATCHES "x86_64-win32|win32")
+if (TARGET_PLATFORM MATCHES "x86_64-win32|x86-win32")
     set(defold_libprefix "lib")
 endif()
 
