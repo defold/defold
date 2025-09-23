@@ -77,13 +77,16 @@ if(MSVC OR (DEFINED _DEFOLD_MSVC_LIKE AND _DEFOLD_MSVC_LIKE) OR (DEFINED _DEFOLD
     set(_MSVC_SYNTAX ON)
 endif()
 
+message("MAWE _DEFOLD_MSVC_LIKE=${_DEFOLD_MSVC_LIKE}")
+message("MAWE _DEFOLD_MSVC_NATIVE=${_DEFOLD_MSVC_NATIVE}")
+message("MAWE _MSVC_SYNTAX=${_MSVC_SYNTAX}")
 # Treat clang-cl as MSVC-like on Windows
 if(_MSVC_SYNTAX)
     # Disable RTTI; don't force /EH to avoid changing exception model globally
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /GR-")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3")
 
-    if (DEFINED _DEFOLD_MSVC_LIKE AND _DEFOLD_MSVC_LIKE)
+    if (DEFINED _DEFOLD_MSVC_NATIVE AND NOT _DEFOLD_MSVC_NATIVE)
         # for ninja to output colors
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color")
     endif()
