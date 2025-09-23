@@ -207,42 +207,42 @@ prefs.tab.dev = Dev
 prefs.tab.keymap = Keymap
 
 # General tab
-prefs.workflow.load-external-changes-on-app-focus = Load External Changes on App Focus
-prefs.bundle.open-output-directory = Open Bundle Target Folder
-prefs.build.open-html5-build = Open Browser After "Build HTML5"
-prefs.build.texture-compression = Enable Texture Compression
-prefs.run.quit-on-escape = Escape Quits Game
-prefs.asset-browser.track-active-tab = Track Active Tab in Asset Browser
-prefs.build.lint-code = Lint Code on Build
-prefs.window.locale = Editor Language
-prefs.run.engine-arguments = Engine Arguments
-prefs.run.engine-arguments.prompt = One argument per line
-prefs.run.engine-arguments.description = Arguments that will be passed to the dmengine executables when the editor builds and runs.\nUse one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan
+prefs.label.workflow.load-external-changes-on-app-focus = Load External Changes on App Focus
+prefs.label.bundle.open-output-directory = Open Bundle Target Folder
+prefs.label.build.open-html5-build = Open Browser After "Build HTML5"
+prefs.label.build.texture-compression = Enable Texture Compression
+prefs.label.run.quit-on-escape = Escape Quits Game
+prefs.label.asset-browser.track-active-tab = Track Active Tab in Asset Browser
+prefs.label.build.lint-code = Lint Code on Build
+prefs.label.window.locale = Editor Language
+prefs.label.run.engine-arguments = Engine Arguments
+prefs.prompt.run.engine-arguments = One argument per line
+prefs.help.run.engine-arguments = Arguments that will be passed to the dmengine executables when the editor builds and runs.\nUse one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan
 
 # Code tab
-prefs.code.custom-editor = Custom Editor
-prefs.code.open-file = Open File
-prefs.code.open-file-at-line = Open File at Line
-prefs.code.font.name = Code Editor Font (Requires Restart)
-prefs.code.zoom-on-scroll = Zoom on Scroll
-prefs.code.hover = Hover popup
-prefs.code.hover.description = Show code documentation popup on hover
-prefs.code.auto-closing-parens = Auto-insert closing parens
+prefs.label.code.custom-editor = Custom Editor
+prefs.label.code.open-file = Open File
+prefs.label.code.open-file-at-line = Open File at Line
+prefs.label.code.font.name = Code Editor Font (Requires Restart)
+prefs.label.code.zoom-on-scroll = Zoom on Scroll
+prefs.label.code.hover = Hover popup
+prefs.help.code.hover = Show code documentation popup on hover
+prefs.label.code.auto-closing-parens = Auto-insert closing parens
 
 # Extensions tab
-prefs.extensions.build-server = Build Server
-prefs.extensions.build-server-username = Build Server Username
-prefs.extensions.build-server-password = Build Server Password
-prefs.extensions.build-server-headers = Build Server Headers
+prefs.label.extensions.build-server = Build Server
+prefs.label.extensions.build-server-username = Build Server Username
+prefs.label.extensions.build-server-password = Build Server Password
+prefs.label.extensions.build-server-headers = Build Server Headers
 
 # Tools
-prefs.tools.adb-path = ADB path
-prefs.tools.adb-path.description = Path to ADB command that might be used to install and launch the Android app when it's bundled
-prefs.tools.ios-deploy-path = ios-deploy path
-prefs.tools.ios-deploy-path.description = Path to ios-deploy command that might be used to install and launch iOS app when it's bundled
+prefs.label.tools.adb-path = ADB path
+prefs.help.tools.adb-path = Path to ADB command that might be used to install and launch the Android app when it's bundled
+prefs.label.tools.ios-deploy-path = ios-deploy path
+prefs.help.tools.ios-deploy-path = Path to ios-deploy command that might be used to install and launch iOS app when it's bundled
 
 # Dev tab
-prefs.dev.custom-engine = Custom Engine
+prefs.label.dev.custom-engine = Custom Engine
 
 # Keymap tab
 prefs.keymap.filter.prompt = Filter keymap...

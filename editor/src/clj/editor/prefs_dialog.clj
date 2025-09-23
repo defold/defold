@@ -104,7 +104,7 @@
               :on-value-changed on-value-changed}]
     (if unlocalizable-prompt
       (assoc desc :prompt-text unlocalizable-prompt)
-      (let [prompt-key (str "prefs." (coll/join-to-string "." (e/map name path)) ".prompt")]
+      (let [prompt-key (str "prefs.prompt." (coll/join-to-string "." (e/map name path)))]
         (cond-> desc
                 (localization/defines-message-key? localization-state prompt-key)
                 (assoc :prompt-text (localization-state (localization/message prompt-key))))))))
@@ -475,8 +475,9 @@
                               :children (->> paths
                                              (e/mapcat-indexed
                                                (fn [row path]
-                                                 (let [label-key (str "prefs." (coll/join-to-string "." (e/map name path)))
-                                                       tooltip-key (str label-key ".description")]
+                                                 (let [key-suffix (coll/join-to-string "." (e/map name path))
+                                                       label-key (str "prefs.label." key-suffix)
+                                                       tooltip-key (str "prefs.help." key-suffix)]
                                                    [(cond->
                                                       {:fx/type fxui/label
                                                        :grid-pane/row row

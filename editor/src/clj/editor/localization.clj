@@ -495,6 +495,9 @@
     (send (.-agent localization) (fn [a] (deliver p nil) a))
     @p))
 
+;; TODO review fixes:
+;;  - include better language names
+
 ;; TODO:
 ;;  - editor.progress
 ;;  - loading project dialog
