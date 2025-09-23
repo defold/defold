@@ -686,20 +686,20 @@
                                           (dialogs/make-info-dialog
                                             {:title (localization (localization/message "welcome.new-project.error.no-internet-connection.title"))
                                              :icon :icon/triangle-error
-                                             :header (localization (localization/message "welcome.new-project.error.description.no-internet-connection"))})
+                                             :header (localization (localization/message "welcome.new-project.error.no-internet-connection.header"))})
 
                                           (instance? SocketException error)
                                           (dialogs/make-info-dialog
-                                            {:title (localization (localization/message "welcome.new-project.error.host-unreachable"))
+                                            {:title (localization (localization/message "welcome.new-project.error.host-unreachable.title"))
                                              :icon :icon/triangle-error
-                                             :header (localization (localization/message "welcome.new-project.error.description.host-unreachable"))
+                                             :header (localization (localization/message "welcome.new-project.error.host-unreachable.description"))
                                              :content (.getMessage error)})
 
                                           (instance? SocketTimeoutException error)
                                           (dialogs/make-info-dialog
-                                            {:title (localization (localization/message "welcome.new-project.error.host-not-responding"))
+                                            {:title (localization (localization/message "welcome.new-project.error.host-not-responding.title"))
                                              :icon :icon/triangle-error
-                                             :header (localization (localization/message "welcome.new-project.error.description.host-not-responding"))
+                                             :header (localization (localization/message "welcome.new-project.error.host-not-responding.header"))
                                              :content (.getMessage error)})
 
                                           (instance? SSLException error)
