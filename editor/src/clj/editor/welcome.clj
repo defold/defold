@@ -692,7 +692,7 @@
                                           (dialogs/make-info-dialog
                                             {:title (localization (localization/message "welcome.new-project.error.host-unreachable.title"))
                                              :icon :icon/triangle-error
-                                             :header (localization (localization/message "welcome.new-project.error.host-unreachable.description"))
+                                             :header (localization (localization/message "welcome.new-project.error.host-unreachable.header"))
                                              :content (.getMessage error)})
 
                                           (instance? SocketTimeoutException error)
