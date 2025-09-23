@@ -249,6 +249,45 @@
   (* (item-byte-size buffer)
      (item-count buffer)))
 
+(defn as-primitive-array
+  [^ByteBuffer buffer data-type]
+  (case data-type
+    (:double)
+    (let [size (quot (item-count buffer) Double/BYTES)
+          array (double-array size)]
+      (.get (.asDoubleBuffer buffer) array)
+      array)
+
+    (:float)
+    (let [size (quot (item-count buffer) Float/BYTES)
+          array (float-array size)]
+      (.get (.asFloatBuffer buffer) array)
+      array)
+
+    (:long)
+    (let [size (quot (item-count buffer) Long/BYTES)
+          array (long-array size)]
+      (.get (.asLongBuffer buffer) array)
+      array)
+
+    (:int :uint)
+    (let [size (quot (item-count buffer) Integer/BYTES)
+          array (int-array size)]
+      (.get (.asIntBuffer buffer) array)
+      array)
+
+    (:short :ushort)
+    (let [size (quot (item-count buffer) Short/BYTES)
+          array (short-array size)]
+      (.get (.asShortBuffer buffer) array)
+      array)
+
+    (:byte :ubyte)
+    (let [size (item-count buffer)
+          array (byte-array size)]
+      (.get buffer array)
+      array)))
+
 (defn data-hash
   ^long [^Buffer buffer]
   (if (.hasArray buffer)
@@ -429,6 +468,13 @@
                   (.putInt buffer byte-offset (num/normalized->uint n))
                   (+ byte-offset Integer/BYTES))
                 byte-offset
+                numbers)
+
+        :long
+        (reduce (fn [^long byte-offset n]
+                  (.putLong buffer byte-offset (num/normalized->long n))
+                  (+ byte-offset Long/BYTES))
+                byte-offset
                 numbers))
 
       ;; Not normalized.
@@ -487,6 +533,13 @@
                   (.putInt buffer byte-offset (num/uint n))
                   (+ byte-offset Integer/BYTES))
                 byte-offset
+                numbers)
+
+        :long
+        (reduce (fn [^long byte-offset n]
+                  (.putLong buffer byte-offset (long n))
+                  (+ byte-offset Long/BYTES))
+                byte-offset
                 numbers))))
   buffer)
 
@@ -531,7 +584,11 @@
 
       :uint
       (doseq [^double n numbers]
-        (.putInt buffer (num/normalized->uint n))))
+        (.putInt buffer (num/normalized->uint n)))
+
+      :long
+      (doseq [^double n numbers]
+        (.putLong buffer (num/normalized->long n))))
 
     ;; Not normalized.
     (case data-type
@@ -565,5 +622,9 @@
 
       :uint
       (doseq [n numbers]
-        (.putInt buffer (num/uint n)))))
+        (.putInt buffer (num/uint n)))
+
+      :long
+      (doseq [n numbers]
+        (.putLong buffer (long n)))))
   buffer)

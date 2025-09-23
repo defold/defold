@@ -37,6 +37,7 @@
             [editor.workspace :as workspace]
             [internal.graph.error-values :as error-values]
             [internal.util :as util]
+            [service.log :as log]
             [util.coll :as coll]
             [util.eduction :as e]
             [util.num :as num])
@@ -608,9 +609,21 @@
                      ;; from the semantic-type.
                      (if-some [attribute-buffer (get attribute-buffers index)]
                        (attribute/make-buffer-binding attribute-buffer location)
-                       (let [{:keys [data-type normalize value-array vector-type]} attribute-info
+                       (let [{:keys [data-type normalize bytes vector-type]} attribute-info
                              element-type (graphics.types/make-element-type vector-type data-type normalize)
-                             value-array (or value-array
+                             value-array (or (when bytes
+                                               (try
+                                                 (let [byte-buffer (buffers/wrap-byte-array bytes :byte-order/native)
+                                                       buffer-data-type (graphics.types/data-type->buffer-data-type data-type)]
+                                                   (buffers/as-primitive-array byte-buffer buffer-data-type))
+                                                 (catch Exception exception
+                                                   (let [message (format "Vertex attribute '%s' - %s"
+                                                                         (:name attribute-info)
+                                                                         (ex-message exception))]
+                                                     (log/warn :message message
+                                                               :exception exception
+                                                               :ex-data (ex-data exception)))
+                                                   nil)))
                                              (graphics.types/default-attribute-value-array semantic-type element-type))]
                          (attribute/make-value-binding value-array element-type location))))
                    attribute-infos)))))

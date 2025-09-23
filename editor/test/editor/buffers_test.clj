@@ -15,7 +15,8 @@
 (ns editor.buffers-test
   (:require [clojure.test :refer :all]
             [editor.buffers :as b]
-            [support.test-support :refer [array=]])
+            [support.test-support :refer [array=]]
+            [util.num :as num])
   (:import [java.nio ByteBuffer]))
 
 (defn- buffer-with-byte-size
@@ -339,3 +340,20 @@
         (b/push! buf data-type normalize (vector in-max in-max))
         (is (= (* 4 element-byte-size) (.position buf)) "Position advances")
         (is (= (out-data out-min out-min out-max out-max) (buffer->data buf)))))))
+
+(deftest as-primitive-array-test
+  (doseq [[data-type expected-class ^int byte-size expected-vec]
+          [[:byte byte/1 Byte/BYTES (vector-of :byte Byte/MIN_VALUE 0 Byte/MAX_VALUE)]
+           [:ubyte byte/1 Byte/BYTES (into (vector-of :byte) (map num/normalized->ubyte) [0.0 1.0])]
+           [:short short/1 Short/BYTES (vector-of :short Short/MIN_VALUE 0 Short/MAX_VALUE)]
+           [:ushort short/1 Short/BYTES (into (vector-of :short) (map num/normalized->ushort) [0.0 1.0])]
+           [:int int/1 Integer/BYTES (vector-of :int Integer/MIN_VALUE 0 Integer/MAX_VALUE)]
+           [:uint int/1 Integer/BYTES (into (vector-of :int) (map num/normalized->uint) [0.0 1.0])]
+           [:long long/1 Long/BYTES (vector-of :long Long/MIN_VALUE 0 Long/MAX_VALUE)]
+           [:float float/1 Float/BYTES (vector-of :float Float/MIN_VALUE 0.0 Float/MAX_VALUE)]
+           [:double double/1 Double/BYTES (vector-of :double Double/MIN_VALUE 0.0 Double/MAX_VALUE)]]]
+    (let [actual (-> (b/new-byte-buffer (* byte-size (count expected-vec)) :byte-order/native)
+                     (b/put! 0 data-type false expected-vec)
+                     (b/as-primitive-array data-type))]
+      (is (= expected-class (class actual)))
+      (is (= expected-vec (vec actual))))))
