@@ -608,7 +608,7 @@ class Configuration(object):
         self._log(f'Solution generated: {final_path}')
 
     def __del__(self):
-        if len(self.futures) > 0:
+        if len(getattr(self, "futures", [])) > 0:
             print('ERROR: Pending futures (%d)' % len(self.futures))
             os._exit(5)
 
@@ -902,6 +902,8 @@ class Configuration(object):
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SIMULATOR_SDK))
 
         if 'win32' in target_platform or ('win32' in self.host and not has_host_sdk):
+            if self.package_path is None:
+                self.fatal("The package path isn't specified. Either define DM_PACKAGES_URL or use --package-path.")
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
