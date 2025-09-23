@@ -34,6 +34,8 @@
     :version "1.0"}])
 
 (defn- clean-icu4j-data
+  ;; Useful link:
+  ;; https://unicode-org.github.io/icu/userguide/icu_data/buildtool.html#file-slicing-coarse-grained-features
   ^Path [icu4j-config]
   (let [{:keys [version]} icu4j-config
         jar (Files/createTempFile "" "-icu4j.jar" (into-array FileAttribute []))]
@@ -54,7 +56,8 @@
                (remove #(Files/isDirectory % (into-array LinkOption [])))
                (filter (fn [^Path p]
                          (let [p (str p)]
-                           (or                              ;; break iter (identifies word boundaries)
+                           (or
+                             ;; break iter (identifies word boundaries)
                              (.startsWith p "/com/ibm/icu/impl/data/icudata/brkitr")
                              ;; transliteration
                              (.startsWith p "/com/ibm/icu/impl/data/icudata/translit")
@@ -63,8 +66,6 @@
                              ;; time units / measure units
                              (.startsWith p "/com/ibm/icu/impl/data/icudata/unit")
                              (= p "/com/ibm/icu/impl/data/icudata/units.res")
-                             ;; lang data (needed?)
-                             (.startsWith p "/com/ibm/icu/impl/data/icudata/lang/")
                              ;; time zone data
                              (.startsWith p "/com/ibm/icu/impl/data/icudata/zone")
                              (= p "/com/ibm/icu/impl/data/icudata/zoneinfo64.res")
@@ -77,11 +78,8 @@
                              ;; number formatting data
                              (.startsWith p "/com/ibm/icu/impl/data/icudata/rbnf")
                              (= p "/com/ibm/icu/text/NumberFormatServiceShim.class")
-                             ;; region display names
-                             (.startsWith p "/com/ibm/icu/impl/data/icudata/region")
                              ;; unicode character names
                              (= p "/com/ibm/icu/impl/data/icudata/unames.icu")
-                             #_(= p "/com/ibm/icu/impl/data/icudata/supplementalData.res")
                              ;; unicode normalization data
                              (.endsWith p ".nrm")
                              ;; unicode "string preparation"

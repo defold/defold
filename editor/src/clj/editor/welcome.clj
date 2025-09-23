@@ -40,6 +40,7 @@
             [util.net :as net]
             [util.time :as time])
   (:import [clojure.lang ExceptionInfo]
+           [com.defold.control UpdatableListCell]
            [java.io File FileOutputStream PushbackReader]
            [java.net MalformedURLException SocketException SocketTimeoutException URL UnknownHostException]
            [java.time Instant]
@@ -51,11 +52,12 @@
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
            [javafx.scene.control Button ButtonBase ComboBox Hyperlink Label ListView ProgressBar RadioButton TextArea TextField ToggleGroup]
-           [javafx.scene.image ImageView Image]
+           [javafx.scene.image Image ImageView]
            [javafx.scene.input KeyEvent MouseEvent]
            [javafx.scene.layout HBox Priority Region StackPane VBox]
            [javafx.scene.shape Rectangle]
            [javafx.scene.text Text TextFlow]
+           [javafx.util Callback]
            [javax.net.ssl SSLException]
            [org.apache.commons.io FilenameUtils]))
 
@@ -746,7 +748,14 @@
 
      ;; Init language selector
      (.setAll (.getItems language-selector) ^Collection (localization/available-locales @localization))
-     (.setValue language-selector (localization/current-locale @localization))
+     (let [locale (localization/current-locale @localization)
+           ^Callback cell-factory (fn [_]
+                                    (UpdatableListCell.
+                                      (fn [^UpdatableListCell cell locale]
+                                        (.setText cell (localization/locale-display-name locale)))))]
+       (.setValue language-selector locale)
+       (.setButtonCell language-selector (.call cell-factory nil))
+       (.setCellFactory language-selector cell-factory))
      (.addListener (.valueProperty language-selector) ^ChangeListener #(localization/set-locale! localization %3))
 
      ;; Install pending update check.

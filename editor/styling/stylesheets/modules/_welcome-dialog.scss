@@ -414,3 +414,7 @@
     visibility: visible;
   }
 }
+#language-selector {
+    // 115 (defold logo width) + 16 * 2 (defold logo padding) - 24 * 2 (vbox margins)
+    -fx-max-width: 99px;
+}

@@ -28,7 +28,7 @@
             [util.defonce :as defonce]
             [util.eduction :as e])
   (:import [clojure.lang AFn Agent IFn IRef]
-           [com.ibm.icu.text DateFormat ListFormatter ListFormatter$Type ListFormatter$Width MessageFormat]
+           [com.ibm.icu.text DateFormat ListFormatter ListFormatter$Type ListFormatter$Width LocaleDisplayNames MessageFormat]
            [com.ibm.icu.util ULocale]
            [java.nio.file StandardWatchEventKinds WatchEvent$Kind]
            [java.util Collection WeakHashMap]
@@ -495,8 +495,11 @@
     (send (.-agent localization) (fn [a] (deliver p nil) a))
     @p))
 
-;; TODO review fixes:
-;;  - include better language names
+(let [display-names (LocaleDisplayNames/getInstance (ULocale/createCanonical "en"))]
+  (defn locale-display-name
+    "Get display name of a locale"
+    [^String locale]
+    (.localeDisplayName display-names locale)))
 
 ;; TODO:
 ;;  - editor.progress

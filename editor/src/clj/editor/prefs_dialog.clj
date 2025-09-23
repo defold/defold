@@ -17,8 +17,10 @@
             [cljfx.api :as fx]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.combo-box :as fx.combo-box]
+            [cljfx.fx.combo-box-list-cell :as fx.combo-box-list-cell]
             [cljfx.fx.context-menu :as fx.context-menu]
             [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.menu-item :as fx.menu-item]
             [cljfx.fx.popup :as fx.popup]
             [cljfx.fx.region :as fx.region]
@@ -115,10 +117,16 @@
 (defmethod form-input :password [path schema value on-value-changed localization-state _]
   (text-input path value on-value-changed localization-state fxui/password-value-field (:prompt (:ui schema))))
 
+(defn- locale-display-name-cell-factory [s]
+  {:text (localization/locale-display-name s)})
+
 (defmethod form-input :locale [_ _ _ _ localization-state localization]
   {:fx/type fx.combo-box/lifecycle
    :value (localization/current-locale localization-state)
    :items (localization/available-locales localization-state)
+   :button-cell locale-display-name-cell-factory
+   :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                  :describe locale-display-name-cell-factory}
    :on-value-changed #(localization/set-locale! localization %)})
 
 (defn- describe-command-cell [keymap command]
