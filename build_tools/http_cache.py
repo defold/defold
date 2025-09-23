@@ -78,7 +78,7 @@ def download(url, cb = None, cb_count = 10):
     hit = c.get(url)
     headers = {}
     if hit:
-        headers = {'If-None-Match' : '%s' % (hit[1])}
+        headers = {'If-None-Match' : '%s' % (hit[1].decode('utf-8'))}
     req = urllib.request.Request(url, None, headers)
     try:
         response = urllib.request.urlopen(req)

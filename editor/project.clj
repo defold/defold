@@ -58,6 +58,7 @@
 
                      [com.defold.lib/bob                          "1.0"]
                      [com.defold.lib/openmali                     "1.0"]
+                     [com.defold.lib/icu4j                        "1.0"]
 
                      [metosin/reitit-core "0.8.0-alpha1"]
 
@@ -100,6 +101,8 @@
                      [org.snakeyaml/snakeyaml-engine "1.0"]
 
                      [net.objecthunter/exp4j "0.4.8"]]
+
+  :icu4j {:version "77.1"}
 
   :source-paths      ["src/clj"]
 
@@ -227,9 +230,9 @@
                       :portal {:source-paths ["src/portal"]
                                :dependencies [[djblue/portal "0.60.2"]]}
                       :reveal {:source-paths ["src/reveal"]
-                               :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading" "-Dvlaaad.reveal.prefs={:use-eval-file-metadata-namespace,true}"]
+                               :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading"]
                                :injections [(require 'editor.reveal)]
-                               :dependencies [[vlaaad/reveal "1.3.292"]
+                               :dependencies [[vlaaad/reveal "1.3.309"]
                                               [org.openjfx/javafx-web "23.0.1"]]}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :jamm {:dependencies [[com.github.jbellis/jamm "0.4.0"]]

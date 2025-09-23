@@ -33,10 +33,10 @@
             [editor.engine-profiler :as engine-profiler]
             [editor.fxui :as fxui]
             [editor.git :as git]
-            [editor.graph-view :as graph-view]
             [editor.hot-reload :as hot-reload]
             [editor.html-view :as html-view]
             [editor.icons :as icons]
+            [editor.localization :as localization]
             [editor.notifications :as notifications]
             [editor.notifications-view :as notifications-view]
             [editor.os :as os]
@@ -49,7 +49,6 @@
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
             [editor.shared-editor-settings :as shared-editor-settings]
-            [editor.system :as system]
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.ui.updater :as ui.updater]
@@ -72,10 +71,6 @@
 (def ^:dynamic *view-graph*)
 
 (def the-root (atom nil))
-
-;; invoked to control the timing of when the namespaces load
-(defn load-namespaces []
-  (println "loaded namespaces"))
 
 (defn initialize-systems! [prefs]
   (code-view/initialize! prefs))
@@ -110,7 +105,7 @@
   (app-view/remove-invalid-tabs! tab-panes open-views)
   (changes-view/refresh! changes-view))
 
-(defn- init-pending-update-indicator! [^Stage stage link project changes-view updater]
+(defn- init-pending-update-indicator! [^Stage stage link project changes-view updater localization]
   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
         render-save-progress! (app-view/make-render-task-progress :save-all)
         render-download-progress! (app-view/make-render-task-progress :download-update)
@@ -124,10 +119,10 @@
                                  nil ; Use nil for changes-view to skip refresh.
                                  (fn [successful?]
                                    (if successful?
-                                     (ui.updater/install-and-restart! stage updater)
+                                     (ui.updater/install-and-restart! stage updater localization)
                                      (do (ui/enable-ui!)
                                          (changes-view/refresh! changes-view))))))]
-    (ui.updater/init! stage link updater install-and-restart! render-download-progress!)))
+    (ui.updater/init! stage link updater install-and-restart! render-download-progress! localization)))
 
 (defn- show-tracked-internal-files-warning! []
   (dialogs/make-info-dialog
@@ -149,7 +144,7 @@
     MouseEvent/MOUSE_PRESSED
     MouseEvent/MOUSE_RELEASED})
 
-(defn- load-stage! [workspace project prefs project-path cli-options updater newly-created?]
+(defn- load-stage! [workspace project prefs localization project-path cli-options updater newly-created?]
   (let [^StackPane root (ui/load-fxml "editor.fxml")
         stage (ui/make-stage)
         scene (Scene. root)]
@@ -174,11 +169,11 @@
           workbench            (.lookup root "#workbench")
           notifications        (.lookup root "#notifications")
           scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
-          app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs)
+          app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs localization)
           outline-view         (outline-view/make-outline-view *view-graph* project outline app-view)
-          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
+          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
           open-resource        (partial #'app-view/open-resource app-view prefs workspace project)
-          console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs)
+          console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs localization)
           color-dropper-view   (color-dropper/make-color-dropper! *view-graph*)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
@@ -189,14 +184,15 @@
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
           properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* color-dropper-view prefs (.lookup root "#properties"))
-          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs (.lookup root "#changes-container")
+          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs localization (.lookup root "#changes-container")
                                                                (fn [changes-view moved-files]
                                                                  (app-view/async-reload! app-view changes-view workspace moved-files)))
+          curve-tab            (find-tab tool-tabs "curve-editor-tab")
           curve-view           (curve-view/make-view! app-view *view-graph*
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
-                                                      {:tab (find-tab tool-tabs "curve-editor-tab")})
+                                                      {:tab curve-tab})
           debug-view           (debug-view/make-view! app-view *view-graph*
                                                       project
                                                       root
@@ -227,6 +223,14 @@
           port-file (doto (io/file project-path ".internal" "editor.port")
                       (io/make-parents)
                       (spit port-file-content))]
+      (localization/localize! (.lookup root "#assets-pane") localization (localization/message "pane.assets"))
+      (localization/localize! (.lookup root "#changed-files-titled-pane") localization (localization/message "pane.changed-files"))
+      (localization/localize! (.lookup root "#outline-pane") localization (localization/message "pane.outline"))
+      (localization/localize! (.lookup root "#properties-pane") localization (localization/message "pane.properties"))
+      (localization/localize! console-tab localization (localization/message "pane.console"))
+      (localization/localize! curve-tab localization (localization/message "pane.curve-editor"))
+      (localization/localize! (find-tab tool-tabs "build-errors-tab") localization (localization/message "pane.build-errors"))
+      (localization/localize! (find-tab tool-tabs "search-results-tab") localization (localization/message "pane.search-results"))
       (.addShutdownHook
         (Runtime/getRuntime)
         (Thread.
@@ -241,7 +245,7 @@
 
       (when updater
         (let [update-link (.lookup root "#update-link")]
-          (init-pending-update-indicator! stage update-link project changes-view updater)))
+          (init-pending-update-indicator! stage update-link project changes-view updater localization)))
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (os/is-mac-os?)
@@ -307,6 +311,7 @@
                          :project             project
                          :project-graph       (project/graph project)
                          :prefs               prefs
+                         :localization        localization
                          :workspace           (g/node-value project :workspace)
                          :outline-view        outline-view
                          :web-server          web-server
@@ -346,9 +351,6 @@
                             [debug-view :update-available-controls]
                             [debug-view :update-call-stack]]]
             (g/update-property app-view :auto-pulls into auto-pulls))))
-      (if (system/defold-dev?)
-        (graph-view/setup-graph-view root)
-        (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
 
       ;; If sync was in progress when we shut down the editor we offer to resume the sync process.
       (let [git (g/node-value changes-view :git)]
@@ -383,7 +385,7 @@
     root))
 
 (defn open-project!
-  [^File game-project-file prefs cli-options render-progress! updater newly-created?]
+  [^File game-project-file prefs localization cli-options render-progress! updater newly-created?]
   (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
         build-settings (workspace/make-build-settings prefs)
         workspace-config (shared-editor-settings/load-project-workspace-config project-path)
@@ -393,6 +395,6 @@
         project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
     (ui/run-now
       (icons/initialize! workspace)
-      (load-stage! workspace project prefs project-path cli-options updater newly-created?))
+      (load-stage! workspace project prefs localization project-path cli-options updater newly-created?))
     (g/reset-undo! *project-graph*)
     (log/info :message "project loaded")))
