@@ -140,6 +140,7 @@ public class Project {
     private List<String> propertyFiles = new ArrayList<>();
     private List<String> buildServerHeaders = new ArrayList<>();
     private List<String> engineBuildDirs = new ArrayList<>();
+    private List<String> bundleModules = new ArrayList<>();
     private List<String> allResourcePathsCache; // Cache for all resource paths, since Bob doesn't change project files during build
     private BobProjectProperties projectProperties;
     private Publisher publisher;
@@ -693,9 +694,18 @@ public class Project {
         engineBuildDirs.add(dirpath);
     }
 
+    public void addBundleModule(String filepath) {
+        bundleModules.add(filepath);
+    }
+
     // Returns the command line specified property files
     public List<String> getPropertyFiles() {
         return propertyFiles;
+    }
+
+    // Returns the command line specified bundle modules
+    public List<String> getBundleModules() {
+        return bundleModules;
     }
 
     public List<IResource> getPropertyFilesAsResources() {
