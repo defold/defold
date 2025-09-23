@@ -171,6 +171,78 @@ dialog.target-ip.header = Enter Target IP Address
 dialog.target-ip.label.ip = Target IP Address
 dialog.target-ip.button.add = Add Target IP
 
+# Target Discovery Log Dialog
+
+dialog.target-discovery-log.title = Target Discovery Log
+dialog.target-discovery-log.header = Target Discovery Log
+dialog.target-discovery-log.button.clear-log = Clear Log
+dialog.target-discovery-log.button.restart-discovery = Restart Discovery
+
+# Generic file/directory dialog titles
+
+dialog.directory.title.set-path = Set Path
+dialog.directory.title.select = Select Directory
+dialog.file.title.select = Select File
+
+# Set Custom Resolution dialog
+
+dialog.custom-resolution.title = Set Custom Resolution
+dialog.custom-resolution.header = Set custom game resolution
+dialog.custom-resolution.detail = Game window will be resized to this size
+dialog.custom-resolution.label.width = Width
+dialog.custom-resolution.label.height = Height
+dialog.custom-resolution.button.set-resolution = Set Resolution
+
+# Rename dialog
+
+dialog.rename.title = Rename {name}
+dialog.rename.preview = Preview
+dialog.rename.button.rename = Rename
+dialog.rename.label.folder = New Folder Name
+dialog.rename.label.file = New File Name
+dialog.rename.header.folder = Rename Folder
+dialog.rename.header.files = Rename {n, plural, one {File} other {# Files}}
+dialog.rename.error.reserved-name = The name {name} is reserved
+
+# Name conflict dialog (appears on conflict during rename)
+
+dialog.name-conflict.title = Name Conflict
+dialog.name-conflict.header = The destination has {n, plural, one {an entry with the same name} other {# entries with conflicting names}}.
+dialog.name-conflict.button.name-differently = Name Differently
+dialog.name-conflict.button.overwrite-files = Overwrite Files
+
+# New file dialog
+
+dialog.new-file.title.file = New File
+dialog.new-file.title.resource = New {type}
+dialog.new-file.header.file = Enter the File Name
+dialog.new-file.header.resource = Enter {type} File Name
+dialog.new-file.label.name = Name
+dialog.new-file.label.location = Location
+dialog.new-file.label.preview = Preview
+dialog.new-file.button.create.file = Create
+dialog.new-file.button.create.resource = Create {type}
+
+# List dialogs
+
+dialog.select-item.title = Select Item
+dialog.select-item.prompt = Type to filter
+dialog.select-item.button.ok = OK
+dialog.open-assets.title = Open Asset
+dialog.open-assets.button.ok = Open
+dialog.referencing-files.title = Referencing Files
+dialog.referencing-files.button.ok = Open
+dialog.dependencies.title = Dependencies
+dialog.dependencies.button.ok = Open
+dialog.add-atlas-images.title = Select Images
+dialog.select-game-object-file.title = Select Game Object File
+dialog.select-collection-file.title = Select Collection File
+dialog.select-component-file.title = Select Component File
+dialog.select-gui-component.title = Select {type}
+dialog.select-resource.title = Select Resource
+dialog.recent-files.title = Recent Files
+dialog.recent-files.button.ok = Open
+
 # Editor panes
 
 pane.assets = Assets
@@ -260,3 +332,8 @@ prefs.keymap.warnings = Warnings:{warnings}
 prefs.keymap.warning = \n• {warning}
 prefs.keymap.warning.typable = Typable (may interfere with text inputs)
 prefs.keymap.warning.conflicts = Conflicts with {shortcuts}
+
+# Resource views
+
+resource.readonly.detail = This file is part of a library and cannot be saved.
+resource.readonly.button.read-more = Read more…

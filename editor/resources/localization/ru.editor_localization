@@ -160,6 +160,77 @@ dialog.target-ip.header = Введите IP-адрес целевого устр
 dialog.target-ip.label.ip = IP-адрес
 dialog.target-ip.button.add = Добавить IP-адрес
 
+# Target Discovery Log Dialog
+
+dialog.target-discovery-log.title = Журнал обнаружения целевых устройств
+dialog.target-discovery-log.header = Журнал обнаружения целевых устройств
+dialog.target-discovery-log.button.clear-log = Очистить журнал
+dialog.target-discovery-log.button.restart-discovery = Перезапустить обнаружение
+
+# Generic file/directory dialog titles
+
+dialog.directory.title.set-path = Указать путь
+dialog.directory.title.select = Выбор папки
+dialog.file.title.select = Выбор файла
+
+# Set Custom Resolution dialog
+
+dialog.custom-resolution.title = Задать пользовательское разрешение
+dialog.custom-resolution.header = Укажите пользовательское разрешение
+dialog.custom-resolution.detail = Окно игры будет изменено до указанного размера
+dialog.custom-resolution.label.width = Ширина
+dialog.custom-resolution.label.height = Высота
+dialog.custom-resolution.button.set-resolution = Установить разрешение
+
+# Rename dialog
+
+dialog.rename.title = Переименовать {name}
+dialog.rename.preview = Просмотр
+dialog.rename.button.rename = Переименовать
+dialog.rename.label.folder = Новое имя папки
+dialog.rename.label.file = Новое имя файла
+dialog.rename.header.folder = Переименовать папку
+dialog.rename.header.files = Переименовать {n, plural, one {файл} few {# файла} other {# файлов}}
+dialog.rename.error.reserved-name = Имя {name} зарезервировано
+
+# Name conflict dialog (appears on conflict during rename)
+
+dialog.name-conflict.title = Конфликт имён
+dialog.name-conflict.header = В папке назначения {n, plural, one {уже есть объект с таким именем} few {# объекта с конфликтующими именами} other {# объектов с конфликтующими именами}}.
+dialog.name-conflict.button.name-differently = Переименовать
+dialog.name-conflict.button.overwrite-files = Перезаписать файлы
+
+# New file dialog
+
+dialog.new-file.title.file = Новый файл
+dialog.new-file.title.resource = Новый файл ({type})
+dialog.new-file.header.file = Введите имя файла
+dialog.new-file.header.resource = Введите имя файла ({type})
+dialog.new-file.label.name = Имя
+dialog.new-file.label.location = Расположение
+dialog.new-file.label.preview = Просмотр
+dialog.new-file.button.create.file = Создать
+dialog.new-file.button.create.resource = Создать
+
+# List dialogs
+dialog.select-item.title = Выбрать вариант
+dialog.select-item.prompt = Отфильтровать…
+dialog.select-item.button.ok = ОК
+dialog.open-assets.title = Открыть ресурс
+dialog.open-assets.button.ok = Открыть
+dialog.referencing-files.title = Ссылающиеся файлы
+dialog.referencing-files.button.ok = Открыть
+dialog.dependencies.title = Зависимости
+dialog.dependencies.button.ok = Открыть
+dialog.add-atlas-images.title = Выбрать изображения
+dialog.select-game-object-file.title = Выбрать файл игрового объекта
+dialog.select-collection-file.title = Выбрать файл коллекции
+dialog.select-component-file.title = Выбрать файл компонента
+dialog.select-gui-component.title = Выбрать компонент ({type})
+dialog.select-resource.title = Выбрать ресурс
+dialog.recent-files.title = Недавние файлы
+dialog.recent-files.button.ok = Открыть
+
 # Editor panes
 
 pane.assets = Ресурсы
@@ -248,3 +319,8 @@ prefs.keymap.new-shortcut.press-desired-combination = Нажмите нужну�
 prefs.keymap.warning.typable = Символы вводимы (может мешать текстовым полям)
 prefs.keymap.warning.conflicts = Конфликтует с комбинациями: {shortcuts}
 prefs.keymap.warnings = Предупреждения:{warnings}
+
+# Resource views
+
+resource.readonly.detail = Этот файл является частью библиотеки и не может быть сохранен.
+resource.readonly.button.read-more = Подробнее…

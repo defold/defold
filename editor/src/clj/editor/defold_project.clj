@@ -481,7 +481,7 @@
                            :content dialog-message
                            :buttons [{:text "Ignore"
                                       :result false}
-                                     {:text (str "Open Report")
+                                     {:text "Open Report"
                                       :result true}]})]
 
                     (when dialog-result

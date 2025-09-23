@@ -913,6 +913,7 @@ ordinary paths."
   (property unloaded-proj-path? g/Any)
   (property resource-kind-extensions g/Any (default {:atlas ["atlas" "tilesource"]}))
   (property node-attachments g/Any (default {}))
+  (property localization g/Any)
 
   (input code-preprocessors g/NodeID :cascade-delete)
   (input notifications g/NodeID :cascade-delete)
@@ -1031,7 +1032,7 @@ ordinary paths."
    (not= fn/constantly-true
          (g/raw-property-value basis workspace :editable-proj-path?))))
 
-(defn make-workspace [graph project-path build-settings workspace-config]
+(defn make-workspace [graph project-path build-settings workspace-config localization]
   (let [project-directory (.getCanonicalFile (io/file project-path))
         unloaded-proj-path? (resource/defunload-pred project-directory)
         editable-proj-path? (if-some [non-editable-directory-proj-paths (not-empty (:non-editable-directories workspace-config))]
@@ -1048,7 +1049,8 @@ ordinary paths."
                         :resource-listeners (atom [])
                         :build-settings build-settings
                         :editable-proj-path? editable-proj-path?
-                        :unloaded-proj-path? unloaded-proj-path?]
+                        :unloaded-proj-path? unloaded-proj-path?
+                        :localization localization]
              code-preprocessors code.preprocessors/CodePreprocessorsNode
              notifications notifications/NotificationsNode]
             (concat

@@ -843,11 +843,11 @@
                     :check true
                     :user-data {:width 1280
                                 :height 800}}]}]))
-  (run [project prefs user-data]
+  (run [project prefs user-data localization]
     (if (= :custom user-data)
       (let [data (or (prefs/get prefs [:run :simulated-resolution])
                      (project-settings-screen-data project))]
-        (when-let [{:keys [width height]} (dialogs/make-resolution-dialog data)]
+        (when-let [{:keys [width height]} (dialogs/make-resolution-dialog data localization)]
           (prefs/set! prefs [:run :simulated-resolution] {:width width :height height :custom true})
           (change-resolution! prefs width height)))
       (do (prefs/set! prefs [:run :simulated-resolution] user-data)

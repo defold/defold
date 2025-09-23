@@ -30,6 +30,7 @@
             [editor.game-object :as game-object]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -226,6 +227,9 @@
   (prefs/make :scopes {:global shared-test-prefs-file :project shared-test-prefs-file}
               :schemas [:default]))
 
+(def localization
+  (localization/make (make-test-prefs) ::test {}))
+
 (declare resolve-prop)
 
 (defn code-editor-lines [script-id]
@@ -318,7 +322,8 @@
          workspace (workspace/make-workspace graph
                                              project-path
                                              {}
-                                             workspace-config)]
+                                             workspace-config
+                                             localization)]
      (g/transact
        (concat
          (scene/register-view-types workspace)))

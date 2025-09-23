@@ -230,30 +230,30 @@
        (pos? (.length x))
        (every? #(Character/isDigit ^char %) x)))
 
-(defn resolution-dialog [{:keys [width-text height-text] :as props}]
+(defn resolution-dialog [{:keys [width-text height-text localization] :as props}]
   (let [width-valid (digit-string? width-text)
         height-valid (digit-string? height-text)]
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
-     :title "Set Custom Resolution"
+     :title (localization (localization/message "dialog.custom-resolution.title"))
      :size :small
      :header {:fx/type fx.v-box/lifecycle
               :children [{:fx/type fxui/legacy-label
                           :variant :header
-                          :text "Set custom game resolution"}
+                          :text (localization (localization/message "dialog.custom-resolution.header"))}
                          {:fx/type fxui/legacy-label
-                          :text "Game window will be resized to this size"}]}
+                          :text (localization (localization/message "dialog.custom-resolution.detail"))}]}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
                :children [{:fx/type fxui/legacy-label
-                           :text "Width"}
+                           :text (localization (localization/message "dialog.custom-resolution.label.width"))}
                           {:fx/type fxui/legacy-text-field
                            :variant (if width-valid :default :error)
                            :text width-text
                            :on-text-changed {:event-type :set-width}}
                           {:fx/type fxui/legacy-label
-                           :text "Height"}
+                           :text (localization (localization/message "dialog.custom-resolution.label.height"))}
                           {:fx/type fxui/legacy-text-field
                            :variant (if height-valid :default :error)
                            :text height-text
@@ -262,15 +262,15 @@
               :children [{:fx/type fxui/button
                           :cancel-button true
                           :on-action {:event-type :cancel}
-                          :text "Cancel"}
+                          :text (localization (localization/message "dialog.button.cancel"))}
                          {:fx/type fxui/button
                           :variant :primary
                           :disable (or (not width-valid) (not height-valid))
                           :default-button true
-                          :text "Set Resolution"
+                          :text (localization (localization/message "dialog.custom-resolution.button.set-resolution"))
                           :on-action {:event-type :confirm}}]}}))
 
-(defn make-resolution-dialog [data]
+(defn make-resolution-dialog [data localization]
   (fxui/show-dialog-and-await-result!
     :initial-state {:width-text (str (or (:width data) "320"))
                     :height-text (str (or (:height data) "420"))}
@@ -281,7 +281,8 @@
                        :cancel (assoc state ::fxui/result nil)
                        :confirm (assoc state ::fxui/result {:width (field-expression/to-int (:width-text state))
                                                             :height (field-expression/to-int (:height-text state))})))
-    :description {:fx/type resolution-dialog}))
+    :description {:fx/type resolution-dialog
+                  :localization localization}))
 
 (defn make-update-failed-dialog [^Stage owner localization]
   (let [result (make-confirmation-dialog
@@ -539,16 +540,16 @@
                               (.put properties "isDefaultAnchor" true)))))))
 
 (defn- select-list-dialog
-  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner]
+  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner localization]
     :as props}]
   {:fx/type dialog-stage
-   :title title
+   :title (localization title)
    :showing (fxui/dialog-showing? props)
    :owner owner
    :on-close-request {:event-type :cancel}
    :size :large
    :header {:fx/type fxui/legacy-text-field
-            :prompt-text prompt
+            :prompt-text (localization prompt)
             :text filter-term
             :on-text-changed {:event-type :set-filter-term}}
    :root-props {:event-filter {:event-type :filter-root-events}}
@@ -573,7 +574,7 @@
                        {:fx/type dialog-buttons
                         :h-box/hgrow :always
                         :children [{:fx/type fxui/button
-                                    :text ok-label
+                                    :text (localization ok-label)
                                     :variant :primary
                                     :disable (zero? (count filtered-items))
                                     :on-action {:event-type :confirm}
@@ -646,8 +647,10 @@
 
   Supported options keys (all optional):
 
-      :title          dialog title, defaults to \"Select Item\"
-      :ok-label       label on confirmation button, defaults to \"OK\"
+      :title          dialog title, string or MessagePattern, defaults to
+                      \"dialog.select-item.title\" message
+      :ok-label       label on confirmation button, string or MessagePattern,
+                      defaults to \"dialog.select-item.button.ok\" message
       :filter         initial filter term string, defaults to value in
                       :filter-atom, or, if absent, to empty string
       :filter-atom    atom with initial filter term string; if supplied, its
@@ -659,11 +662,12 @@
                       return a filtered coll of items
       :filter-on      if no custom :filter-fn is supplied, use this fn of item
                       to string for default filtering, defaults to str
-      :prompt         filter text field's prompt text
+      :prompt         filter text field's prompt, string or MessagePattern,
+                      defaults to \"dialog.select-item.prompt\" message
       :owner          the owner window, defaults to main stage"
-  ([items]
-   (make-select-list-dialog items {}))
-  ([items options]
+  ([items localization]
+   (make-select-list-dialog items localization {}))
+  ([items localization options]
    (let [cell-fn (wrap-cell-fn (:cell-fn options identity))
          filter-atom (:filter-atom options)
          filter-fn (or (:filter-fn options)
@@ -711,9 +715,13 @@
                   :state-atom state-atom
                   :event-handler event-handler
                   :description {:fx/type select-list-dialog
-                                :title (:title options "Select Item")
-                                :ok-label (:ok-label options "OK")
-                                :prompt (:prompt options "Type to filter")
+                                :localization localization
+                                :title (or (:title options)
+                                           (localization/message "dialog.select-item.title"))
+                                :ok-label (or (:ok-label options)
+                                              (localization/message "dialog.select-item.button.ok"))
+                                :prompt (or (:prompt options)
+                                            (localization/message "dialog.select-item.prompt"))
                                 :cell-fn cell-fn
                                 :owner (or (:owner options) (ui/main-stage))
                                 :selection (:selection options :single)})]
@@ -865,7 +873,7 @@
                        (map sanitize-folder-name))
                      (string/split path #"[\\\/]"))))
 
-(defn- rename-dialog [{:keys [initial-name name title label extensions validate] :as props}]
+(defn- rename-dialog [{:keys [initial-name name title label extensions validate localization] :as props}]
   (let [sanitized (sanitize-against-extensions name extensions)
         validation-msg (when sanitized
                          (some #(validate (apply-extension sanitized %)) extensions))
@@ -873,37 +881,37 @@
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
-     :title title
+     :title (localization title)
      :size :small
      :header {:fx/type fxui/legacy-label
               :variant :header
-              :text (str "Rename " initial-name)}
+              :text (localization (localization/message "dialog.rename.title" {"name" initial-name}))}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
                :children [{:fx/type fx.label/lifecycle
-                           :text label}
+                           :text (localization label)}
                           {:fx/type fxui/legacy-text-field
                            :text name
                            :variant (if invalid :error :default)
                            :on-text-changed {:event-type :set-name}}
                           {:fx/type fx.label/lifecycle
-                           :text "Preview"}
+                           :text (localization (localization/message "dialog.rename.preview"))}
                           {:fx/type fxui/legacy-text-field
                            :editable false
-                           :text (or validation-msg
+                           :text (or (some-> validation-msg localization)
                                      (->> extensions
                                           (map #(apply-extension sanitized %))
                                           (string/join ", ")))}]}
      :footer {:fx/type dialog-buttons
               :children [{:fx/type fxui/button
-                          :text "Cancel"
+                          :text (localization (localization/message "dialog.button.cancel"))
                           :cancel-button true
                           :on-action {:event-type :cancel}}
                          {:fx/type fxui/button
                           :variant :primary
                           :default-button true
                           :disable invalid
-                          :text "Rename"
+                          :text (localization (localization/message "dialog.rename.button.rename"))
                           :on-action {:event-type :confirm}}]}}))
 
 (defn make-rename-dialog
@@ -912,13 +920,14 @@
   Returns either file name that fits all extensions (might be empty!) or nil
 
   Options expect kv-args:
-    :title         dialog title, a string
-    :label         name input label, a string
-    :extensions    non-empty coll of used extension for renamed file(s), where
-                   empty string or nil item means the renamed file will be used
-                   without any extensions
-    :validate      1-arg fn from a sanitized file name to either nil (if valid)
-                   or string (error message)"
+    :localization    a Localization instance
+    :title           dialog title, a MessagePattern
+    :label           name input label, a MessagePattern
+    :extensions      non-empty coll of used extension for renamed file(s), where
+                     empty string or nil item means the renamed file will be
+                     used without any extensions
+    :validate        1-arg fn from a sanitized file name to either nil (if
+                     valid) or MessagePattern (error message)"
   ^String [name & {:as options}]
   (fxui/show-dialog-and-await-result!
     :initial-state {:name name}
@@ -931,6 +940,7 @@
                                                (:name state)
                                                (:extensions options)))))
     :description (assoc options :fx/type rename-dialog
+                                :localization (:localization options)
                                 :initial-name name)))
 
 (defn- relativize [^File base ^File path]
@@ -942,7 +952,7 @@
              (.toString))))))
 
 (defn- new-file-dialog
-  [{:keys [^File base-dir ^File location type ext name] :as props}]
+  [{:keys [^File base-dir ^File location type ext name localization] :as props}]
   (let [sanitized-name (sanitize-file-name ext name)
         empty (empty? sanitized-name)
         relative-path (FilenameUtils/separatorsToUnix (relativize base-dir location))
@@ -951,21 +961,25 @@
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
-     :title (str "New " (or type "File"))
+     :title (if type
+              (localization (localization/message "dialog.new-file.title.resource" {"type" type}))
+              (localization (localization/message "dialog.new-file.title.file")))
      :size :small
      :header {:fx/type fxui/legacy-label
               :variant :header
-              :text (str "Enter " (or type "the") " File Name")}
+              :text (if type
+                      (localization (localization/message "dialog.new-file.header.resource" {"type" type}))
+                      (localization (localization/message "dialog.new-file.header.file")))}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
                :children [{:fx/type fxui/legacy-label
-                           :text "Name"}
+                           :text (localization (localization/message "dialog.new-file.label.name"))}
                           {:fx/type fxui/legacy-text-field
                            :text ""
                            :variant (if empty :error :default)
                            :on-text-changed {:event-type :set-file-name}}
                           {:fx/type fxui/legacy-label
-                           :text "Location"}
+                           :text (localization (localization/message "dialog.new-file.label.location"))}
                           {:fx/type fx.h-box/lifecycle
                            :spacing 4
                            :children [{:fx/type fxui/legacy-text-field
@@ -978,7 +992,7 @@
                                        :on-action {:event-type :pick-location}
                                        :text "…"}]}
                           {:fx/type fxui/legacy-label
-                           :text "Preview"}
+                           :text (localization (localization/message "dialog.new-file.label.preview"))}
                           {:fx/type fxui/legacy-text-field
                            :editable false
                            :text (if valid-input
@@ -986,18 +1000,20 @@
                                    "")}]}
      :footer {:fx/type dialog-buttons
               :children [{:fx/type fxui/button
-                          :text "Cancel"
+                          :text (localization (localization/message "dialog.button.cancel"))
                           :cancel-button true
                           :on-action {:event-type :cancel}}
                          {:fx/type fxui/button
                           :disable (not valid-input)
-                          :text (str "Create " type)
+                          :text (if type
+                                  (localization (localization/message "dialog.new-file.button.create.resource" {"type" type}))
+                                  (localization (localization/message "dialog.new-file.button.create.file")))
                           :variant :primary
                           :default-button true
                           :on-action {:event-type :confirm}}]}}))
 
 (defn make-new-file-dialog
-  [^File base-dir ^File location type ext]
+  [^File base-dir ^File location type ext localization]
   (fxui/show-dialog-and-await-result!
     :initial-state {:name ""
                     :base-dir base-dir
@@ -1014,7 +1030,7 @@
                                                    initial-dir (if (.exists ^File previous-location)
                                                                  previous-location
                                                                  base-dir)
-                                                   path (make-directory-dialog "Set Path" initial-dir window)]
+                                                   path (make-directory-dialog (localization (localization/message "dialog.directory.title.set-path")) initial-dir window)]
                                                (if path
                                                  (io/file base-dir (relativize base-dir path))
                                                  previous-location)))
@@ -1028,24 +1044,22 @@
                                            ;; sensitive unlike the NTFS file
                                            ;; system.
                                            (.getCanonicalFile)))))
-    :description {:fx/type new-file-dialog}))
+    :description {:fx/type new-file-dialog
+                  :localization localization}))
 
 (defn ^:dynamic make-resolve-file-conflicts-dialog
-  [src-dest-pairs]
+  [src-dest-pairs localization]
   (make-confirmation-dialog
     {:icon :icon/circle-question
      :size :large
-     :title "Name Conflict"
-     :header (let [conflict-count (count src-dest-pairs)]
-               (if (= 1 conflict-count)
-                 "The destination has an entry with the same name."
-                 (format "The destination has %d entries with conflicting names." conflict-count)))
-     :buttons [{:text "Cancel"
+     :title (localization (localization/message "dialog.name-conflict.title"))
+     :header (localization (localization/message "dialog.name-conflict.header" {"n" (count src-dest-pairs)}))
+     :buttons [{:text (localization (localization/message "dialog.button.cancel"))
                 :cancel-button true
                 :default-button true}
-               {:text "Name Differently"
+               {:text (localization (localization/message "dialog.name-conflict.button.name-differently"))
                 :result :rename}
-               {:text "Overwrite Files"
+               {:text (localization (localization/message "dialog.name-conflict.button.overwrite-files"))
                 :variant :danger
                 :result :overwrite}]}))
 
@@ -1053,7 +1067,7 @@
   (fx/make-ext-with-props
     {:selection fxui/text-input-selection-prop}))
 
-(defn make-target-log-dialog [log-atom clear! restart!]
+(defn make-target-log-dialog [log-atom clear! restart! localization]
   (let [renderer-ref (volatile! nil)
         renderer (fx/create-renderer
                    :error-handler error-reporting/report-exception!
@@ -1066,13 +1080,13 @@
                    (fx/wrap-map-desc
                      (fn [log]
                        {:fx/type dialog-stage
-                        :title "Target Discovery Log"
+                        :title (localization (localization/message "dialog.target-discovery-log.title"))
                         :modality :none
                         :showing true
                         :size :large
                         :header {:fx/type fxui/legacy-label
                                  :variant :header
-                                 :text "Target discovery log"}
+                                 :text (localization (localization/message "dialog.target-discovery-log.header"))}
                         :content (let [str (string/join "\n" log)]
                                    {:fx/type ext-with-selection-props
                                     :props {:selection [(count str) (count str)]}
@@ -1081,14 +1095,14 @@
                                            :text str}})
                         :footer {:fx/type dialog-buttons
                                  :children [{:fx/type fxui/button
-                                             :text "Close"
+                                             :text (localization (localization/message "dialog.button.close"))
                                              :cancel-button true
                                              :on-action {:event-type :cancel}}
                                             {:fx/type fxui/button
-                                             :text "Clear Log"
+                                             :text (localization (localization/message "dialog.target-discovery-log.button.clear-log"))
                                              :on-action {:event-type :clear}}
                                             {:fx/type fxui/button
-                                             :text "Restart Discovery"
+                                             :text (localization (localization/message "dialog.target-discovery-log.button.restart-discovery"))
                                              :on-action {:event-type :restart}}]}})))]
     (vreset! renderer-ref renderer)
     (fx/mount-renderer log-atom renderer)))

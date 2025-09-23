@@ -23,6 +23,7 @@
             [editor.fs :as fs]
             [editor.handler :as handler]
             [editor.icons :as icons]
+            [editor.localization :as localization]
             [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
@@ -268,12 +269,12 @@
   (ensure-unique-dest-files numbering-name-fn src-dest-pairs))
 
 (defn- resolve-any-conflicts
-  [src-dest-pairs]
+  [localization src-dest-pairs]
   (let [files-by-existence (group-by (fn [[src ^File dest]] (.exists dest)) src-dest-pairs)
         conflicts (get files-by-existence true)
         non-conflicts (get files-by-existence false [])]
     (if (seq conflicts)
-      (when-let [strategy (dialogs/make-resolve-file-conflicts-dialog conflicts)]
+      (when-let [strategy (dialogs/make-resolve-file-conflicts-dialog conflicts localization)]
         (into non-conflicts (resolve-conflicts strategy conflicts)))
       non-conflicts)))
 
@@ -388,7 +389,7 @@
                     (= (count resources) (count (into #{} (map resource/ext) resources))))
          false)))
 
-(defn rename [resources new-base-name]
+(defn rename [resources new-base-name localization]
   {:pre [(string? new-base-name) (rename? resources)]}
   (let [workspace (resource/workspace (first resources))
         project-directory (workspace/project-directory workspace)
@@ -411,7 +412,7 @@
       ;; fs/move! handles this, no need to resolve
       (let [{case-changes true possible-conflicts false}
             (group-by #(fs/same-file? (key %) (val %)) rename-pairs)]
-        (when-let [resolved-conflicts (resolve-any-conflicts possible-conflicts)]
+        (when-let [resolved-conflicts (resolve-any-conflicts localization possible-conflicts)]
           (let [resolved-rename-pairs (into resolved-conflicts case-changes)]
             (when (seq resolved-rename-pairs)
               (workspace/resource-sync!
@@ -426,11 +427,11 @@
 (defn validate-new-resource-name [^File project-directory-file parent-path new-name]
   (let [prospect-path (str parent-path "/" new-name)]
     (when (resource-watch/reserved-proj-path? project-directory-file prospect-path)
-      (format "The name %s is reserved" new-name))))
+      (localization/message "dialog.rename.error.reserved-name" {"name" new-name}))))
 
 (handler/defhandler :edit.rename :asset-browser
   (enabled? [selection] (rename? selection))
-  (run [selection workspace]
+  (run [selection workspace localization]
     (let [first-resource (first selection)
           dir (= :folder (resource/source-type first-resource))
           name (if dir
@@ -441,15 +442,17 @@
           project-directory (workspace/project-directory workspace)]
       (when-let [new-name (dialogs/make-rename-dialog
                             name
-                            :title (cond
-                                     dir "Rename Folder"
-                                     (= 1 (count selection)) "Rename File"
-                                     :else "Rename Files")
-                            :label (if dir "New Folder Name" "New File Name")
+                            :localization localization
+                            :title (if dir
+                                     (localization/message "dialog.rename.header.folder")
+                                     (localization/message "dialog.rename.header.files" {"n" (count selection)}))
+                            :label (if dir
+                                     (localization/message "dialog.rename.label.folder")
+                                     (localization/message "dialog.rename.label.file"))
                             :extensions extensions
                             :validate (fn [file-name]
                                         (some #(validate-new-resource-name project-directory % file-name) parent-paths)))]
-        (rename selection new-name)))))
+        (rename selection new-name localization)))))
 
 (handler/defhandler :edit.delete :asset-browser
   (enabled? [selection] (delete? selection))
@@ -503,7 +506,7 @@
                                                                                 (not= nil (some-> (handler/adapt-single selection resource/Resource)
                                                                                             resource/abs-path)))))
   (enabled? [] (disk-availability/available?))
-  (run [selection user-data asset-browser app-view prefs workspace project]
+  (run [selection user-data asset-browser app-view prefs workspace project localization]
     (let [project-directory (workspace/project-directory workspace)
           base-folder (-> (or (some-> (handler/adapt-every selection resource/Resource)
                                 first
@@ -518,8 +521,9 @@
                                 base-folder
                                 (when-not any-file
                                   (or (:label rt) (:ext rt)))
-                                (:ext rt))]
-        (when-let [[[_ ^File new-file]] (resolve-any-conflicts [[nil desired-file]])]
+                                (:ext rt)
+                                localization)]
+        (when-let [[[_ ^File new-file]] (resolve-any-conflicts localization [[nil desired-file]])]
           (let [rt (if (and any-file (not rt))
                      (when-let [ext (second (re-find #"\.(.+)$" (.getName new-file)))]
                        (workspace/get-resource-type workspace ext))
@@ -531,7 +535,7 @@
                 new-resource-path (resource/file->proj-path project-directory new-file)
                 resource (resource-map new-resource-path)]
             (when (resource/loaded? resource)
-              (app-view/open-resource app-view prefs workspace project resource))
+              (app-view/open-resource app-view prefs localization workspace project resource))
             (select-resource! asset-browser resource))))))
   (options [workspace selection user-data]
     (when (not user-data)
@@ -772,7 +776,7 @@
                     (drag-copy-files dragged-pairs))]
         moved))))
 
-(defn- drag-dropped [^DragEvent e]
+(defn- drag-dropped [^DragEvent e localization]
   (let [db (.getDragboard e)]
     (when (.hasFiles db)
       (let [target (-> e (.getTarget) ^TreeCell (target))
@@ -783,7 +787,7 @@
                        (= (.getTransferMode e) TransferMode/MOVE))
             pairs (->> (.getFiles db)
                        (mapv (fn [^File f] [f (.toFile (.resolve tgt-dir-path (.getName f)))]))
-                       (resolve-any-conflicts)
+                       (resolve-any-conflicts localization)
                        (vec))
             workspace (resource/workspace resource)]
         (when (seq pairs)
@@ -808,7 +812,7 @@
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
   (let [selection-provider (SelectionProvider. asset-browser)
         over-handler (ui/event-handler e (drag-over e))
-        dropped-handler (ui/event-handler e (error-reporting/catch-all! (drag-dropped e)))
+        dropped-handler (ui/event-handler e (error-reporting/catch-all! (drag-dropped e localization)))
         detected-handler (ui/event-handler e (drag-detected e (handler/selection selection-provider)))
         entered-handler (ui/event-handler e (drag-entered e))
         exited-handler (ui/event-handler e (drag-exited e))

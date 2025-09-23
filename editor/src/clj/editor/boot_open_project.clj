@@ -82,8 +82,8 @@
     (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
     (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
 
-(defn- setup-workspace! [project-path build-settings workspace-config]
-  (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings workspace-config)]
+(defn- setup-workspace! [project-path build-settings workspace-config localization]
+  (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings workspace-config localization)]
     (g/transact
       (concat
         (code-view/register-view-types workspace)
@@ -172,7 +172,7 @@
           app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs localization)
           outline-view         (outline-view/make-outline-view *view-graph* project outline app-view)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
-          open-resource        (partial #'app-view/open-resource app-view prefs workspace project)
+          open-resource        (partial #'app-view/open-resource app-view prefs localization workspace project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs localization)
           color-dropper-view   (color-dropper/make-color-dropper! *view-graph*)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications)
@@ -241,7 +241,7 @@
               (.delete port-file)))))
       (.addEventFilter ^StackPane (.lookup root "#overlay") MouseEvent/ANY ui/ignore-event-filter)
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
-      (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs web-server)
+      (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)
 
       (when updater
         (let [update-link (.lookup root "#update-link")]
@@ -389,7 +389,7 @@
   (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
         build-settings (workspace/make-build-settings prefs)
         workspace-config (shared-editor-settings/load-project-workspace-config project-path)
-        workspace (setup-workspace! project-path build-settings workspace-config)
+        workspace (setup-workspace! project-path build-settings workspace-config localization)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
         extensions (extensions/make *project-graph*)
         project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]

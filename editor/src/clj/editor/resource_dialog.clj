@@ -19,6 +19,7 @@
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.ui :as ui]
@@ -146,7 +147,8 @@
                      (into children))})
 
 (defn make [workspace project options]
-  (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
+  (let [localization (g/node-value workspace :localization)
+        exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
         accepted-ext (if (seq exts) (set exts) fn/constantly-true)
         accept-fn    (or (:accept-fn options) fn/constantly-true)
         items        (into []
@@ -159,7 +161,7 @@
         tooltip-gen (:tooltip-gen options)
         special-filter-fns {"refs" (partial refs-filter-fn project)
                             "deps" (partial deps-filter-fn project)}
-        options (-> {:title "Select Resource"
+        options (-> {:title (localization/message "dialog.select-resource.title")
                      :cell-fn (fn cell-fn [r]
                                 (let [text (resource/proj-path r)
                                       icon (workspace/resource-icon r)
@@ -180,4 +182,4 @@
                                         f (get special-filter-fns command fuzzy-resource-filter-fn)]
                                     (f arg items)))}
                     (merge options))]
-    (dialogs/make-select-list-dialog items options)))
+    (dialogs/make-select-list-dialog items localization options)))

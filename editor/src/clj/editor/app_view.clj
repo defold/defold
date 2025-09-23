@@ -2060,10 +2060,10 @@ If you do not specifically require different script states, consider changing th
       (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
       app-view)))
 
-(defn- make-info-box! []
+(defn- make-info-box! [localization]
   (let [info-panel (HBox.)
-        left-label (Label. "This file is part of a library and cannot be saved.  ")
-        right-link (Hyperlink. "Read more…")
+        left-label (doto (Label.) (localization/localize! localization (localization/message "resource.readonly.detail")))
+        right-link (doto (Hyperlink.) (localization/localize! localization (localization/message "resource.readonly.button.read-more")))
         spacer (Region.)]
     (HBox/setHgrow spacer Priority/ALWAYS)
     (.getStyleClass info-panel)
@@ -2074,13 +2074,13 @@ If you do not specifically require different script states, consider changing th
     (.addAll  (.getChildren info-panel) (Arrays/asList (into-array Node [left-label spacer right-link])))
     info-panel))
 
-(defn- make-tab! [app-view prefs workspace project resource resource-node
+(defn- make-tab! [app-view prefs localization workspace project resource resource-node
                   resource-type view-type make-view-fn ^ObservableList tabs
                   open-resource opts]
   (let [parent (AnchorPane.)
         tab-content (if (resource/read-only? resource)
                       (doto (VBox.)
-                        (ui/children! [(make-info-box!)
+                        (ui/children! [(make-info-box! localization)
                                        (doto parent (VBox/setVgrow Priority/ALWAYS))]))
                       parent)
         tab (doto (Tab. (tab-title resource false))
@@ -2093,10 +2093,11 @@ If you do not specifically require different script states, consider changing th
                     (get (:view-opts resource-type) (:id view-type))
                     {:app-view app-view
                      :select-fn select-fn
-                     :open-resource-fn (partial open-resource app-view prefs workspace project)
+                     :open-resource-fn (partial open-resource app-view prefs localization workspace project)
                      :prefs prefs
                      :project project
                      :workspace workspace
+                     :localization localization
                      :tab tab})
         view (make-view-fn view-graph parent resource-node opts)]
     (assert (g/node-instance? view/WorkbenchView view))
@@ -2149,9 +2150,9 @@ If you do not specifically require different script states, consider changing th
            (e/filter #(not= :code (:id %)))))
 
 (defn open-resource
-  ([app-view prefs workspace project resource]
-   (open-resource app-view prefs workspace project resource {}))
-  ([app-view prefs workspace project resource opts]
+  ([app-view prefs localization workspace project resource]
+   (open-resource app-view prefs localization workspace project resource {}))
+  ([app-view prefs localization workspace project resource opts]
    (let [resource-type  (resource/resource-type resource)
          resource-node  (or (project/get-resource-node project resource)
                             (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
@@ -2210,7 +2211,7 @@ If you do not specifically require different script states, consider changing th
                  ^Tab tab (or existing-tab
                               (let [^TabPane active-tab-pane (g/node-value app-view :active-tab-pane)
                                     active-tab-pane-tabs (.getTabs active-tab-pane)]
-                                (make-tab! app-view prefs workspace project resource resource-node
+                                (make-tab! app-view prefs localization workspace project resource resource-node
                                            resource-type view-type make-view-fn active-tab-pane-tabs
                                            open-resource opts)))]
              (when (or (nil? existing-tab) (:select-node opts))
@@ -2242,16 +2243,16 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :file.open-selected :global
   (active? [selection] (not-empty (selection->openable-resources selection)))
   (enabled? [selection] (some resource/exists? (selection->openable-resources selection)))
-  (run [selection app-view prefs workspace project]
+  (run [selection app-view prefs localization workspace project]
     (doseq [resource (filter resource/exists? (selection->openable-resources selection))]
-      (open-resource app-view prefs workspace project resource))))
+      (open-resource app-view prefs localization workspace project resource))))
 
 (handler/defhandler :file.open-as :global
   (active? [app-view selection evaluation-context] (context-openable-resource app-view selection evaluation-context))
   (enabled? [app-view selection evaluation-context] (resource/exists? (context-openable-resource app-view selection evaluation-context)))
-  (run [selection app-view prefs workspace project user-data]
+  (run [selection app-view prefs localization workspace project user-data]
        (let [resource (context-openable-resource app-view selection)]
-         (open-resource app-view prefs workspace project resource user-data)))
+         (open-resource app-view prefs localization workspace project resource user-data)))
   (options [app-view prefs workspace selection user-data]
            (when-not user-data
              (let [[resource active-view-type-id]
@@ -2314,28 +2315,28 @@ If you do not specifically require different script states, consider changing th
                  :command :file.open-recent})))))
 
 (handler/defhandler :private/open-selected-recent-file :global
-  (run [prefs app-view workspace project user-data]
+  (run [prefs localization app-view workspace project user-data]
     (let [[resource view-type] user-data]
-      (open-resource app-view prefs workspace project resource {:selected-view-type view-type
-                                                                :use-custom-editor false}))))
+      (open-resource app-view prefs localization workspace project resource {:selected-view-type view-type
+                                                                             :use-custom-editor false}))))
 
 (handler/defhandler :file.open-recent :global
   (active? [prefs workspace evaluation-context]
     (recent-files/exist? prefs workspace evaluation-context))
-  (run [prefs app-view workspace project]
+  (run [prefs localization app-view workspace project]
     (g/with-auto-evaluation-context evaluation-context
       (doseq [[resource view-type] (recent-files/select prefs workspace evaluation-context)]
-        (open-resource app-view prefs workspace project resource {:selected-view-type view-type
-                                                                  :use-custom-editor false})))))
+        (open-resource app-view prefs localization workspace project resource {:selected-view-type view-type
+                                                                               :use-custom-editor false})))))
 
 (handler/defhandler :file.reopen-recent :global
   (enabled? [prefs workspace evaluation-context app-view]
     (recent-files/exist-closed? prefs workspace app-view evaluation-context))
-  (run [prefs app-view workspace project]
+  (run [prefs localization app-view workspace project]
     (g/with-auto-evaluation-context evaluation-context
       (let [[resource view-type] (recent-files/last-closed prefs workspace app-view evaluation-context)]
-        (open-resource app-view prefs workspace project resource {:selected-view-type view-type
-                                                                  :use-custom-editor false})))))
+        (open-resource app-view prefs localization workspace project resource {:selected-view-type view-type
+                                                                               :use-custom-editor false})))))
 
 (defn- async-save!
   ([app-view changes-view project save-data-fn]
@@ -2491,10 +2492,15 @@ If you do not specifically require different script states, consider changing th
             (when-let [r (context-openable-resource app-view selection evaluation-context)]
               (and (resource/abs-path r)
                    (resource/exists? r))))
-  (run [selection app-view prefs workspace project]
+  (run [selection app-view prefs localization workspace project]
        (when-let [r (context-openable-resource app-view selection)]
-         (let [selected-resources (resource-dialog/make workspace project {:title "Referencing Files" :selection :multiple :ok-label "Open" :filter (format "refs:%s" (resource/proj-path r))})]
-           (run! #(open-resource app-view prefs workspace project %)
+         (let [selected-resources (resource-dialog/make
+                                    workspace project
+                                    {:title (localization/message "dialog.referencing-files.title")
+                                     :selection :multiple
+                                     :ok-label (localization/message "dialog.referencing-files.button.ok")
+                                     :filter (format "refs:%s" (resource/proj-path r))})]
+           (run! #(open-resource app-view prefs localization workspace project %)
                  (e/filter resource/openable-resource? selected-resources))))))
 
 (handler/defhandler :file.show-dependencies :global
@@ -2505,10 +2511,15 @@ If you do not specifically require different script states, consider changing th
               (and (resource/abs-path r)
                    (resource/exists? r)
                    (resource/loaded? r))))
-  (run [selection app-view prefs workspace project]
+  (run [selection app-view prefs localization workspace project]
        (when-let [r (context-openable-resource app-view selection)]
-         (let [selected-resources (resource-dialog/make workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
-           (run! #(open-resource app-view prefs workspace project %)
+         (let [selected-resources (resource-dialog/make
+                                    workspace project
+                                    {:title (localization/message "dialog.dependencies.title")
+                                     :selection :multiple
+                                     :ok-label (localization/message "dialog.dependencies.button.ok")
+                                     :filter (format "deps:%s" (resource/proj-path r))})]
+           (run! #(open-resource app-view prefs localization workspace project %)
                  (e/filter resource/openable-resource? selected-resources))))))
 
 (defn show-override-inspector!
@@ -2697,14 +2708,14 @@ If you do not specifically require different script states, consider changing th
 
 (def ^:private open-assets-term-prefs-key [:open-assets :term])
 
-(defn- query-and-open! [workspace project app-view prefs term]
+(defn- query-and-open! [workspace project app-view prefs localization term]
   (let [prev-filter-term (prefs/get prefs open-assets-term-prefs-key)
         filter-term-atom (atom prev-filter-term)
         selected-resources (resource-dialog/make workspace project
-                                                 (cond-> {:title "Open Assets"
+                                                 (cond-> {:title (localization/message "dialog.open-assets.title")
                                                           :accept-fn resource/editor-openable-resource?
                                                           :selection :multiple
-                                                          :ok-label "Open"
+                                                          :ok-label (localization/message "dialog.open-assets.button.ok")
                                                           :filter-atom filter-term-atom
                                                           :tooltip-gen (partial gen-tooltip workspace project app-view)}
                                                          (some? term)
@@ -2713,10 +2724,11 @@ If you do not specifically require different script states, consider changing th
     (when (not= prev-filter-term filter-term)
       (prefs/set! prefs open-assets-term-prefs-key filter-term))
     (doseq [resource selected-resources]
-      (open-resource app-view prefs workspace project resource))))
+      (open-resource app-view prefs localization workspace project resource))))
 
 (handler/defhandler :private/select-items :global
-  (run [user-data] (dialogs/make-select-list-dialog (:items user-data) (:options user-data))))
+  (run [user-data localization]
+    (dialogs/make-select-list-dialog (:items user-data) localization (:options user-data))))
 
 (defn- get-view-text-selection [{:keys [view-id view-type]}]
   (when-let [text-selection-fn (:text-selection-fn view-type)]
@@ -2744,11 +2756,11 @@ If you do not specifically require different script states, consider changing th
      (throw (IllegalArgumentException. (str "Didn't expect file.open argument to be " x))))))
 
 (handler/defhandler :file.open :global
-  (run [workspace project app-view prefs user-data]
+  (run [workspace project app-view prefs user-data localization]
     (if user-data
-      (run! #(open-resource app-view prefs workspace project %) (file-open-user-data->openable-resources workspace user-data))
+      (run! #(open-resource app-view prefs localization workspace project %) (file-open-user-data->openable-resources workspace user-data))
       (let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
-        (query-and-open! workspace project app-view prefs term)))))
+        (query-and-open! workspace project app-view prefs localization term)))))
 
 (handler/defhandler :file.search :global
   (run [project app-view prefs search-results-view main-stage tool-tab-pane]
@@ -2786,7 +2798,7 @@ If you do not specifically require different script states, consider changing th
       (when-let [handler+context (handler/active command [_context] false)]
         (handler/run handler+context)))))
 
-(defn reload-extensions! [app-view project kind workspace changes-view build-errors-view prefs web-server]
+(defn reload-extensions! [app-view project kind workspace changes-view build-errors-view prefs localization web-server]
   (extensions/reload!
     project kind
     :prefs prefs
@@ -2822,7 +2834,7 @@ If you do not specifically require different script states, consider changing th
                       (let [f (future/make)]
                         (ui/run-later
                           (try
-                            (open-resource app-view prefs workspace project resource)
+                            (open-resource app-view prefs localization workspace project resource)
                             (catch Throwable e (error-reporting/report-exception! e)))
                           (future/complete! f nil))
                         f))
@@ -2861,7 +2873,7 @@ If you do not specifically require different script states, consider changing th
     :web-server web-server)
   (ui/invalidate-menubar-item! ::project/bundle))
 
-(defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs web-server]
+(defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs localization web-server]
   (let [library-uris (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
@@ -2884,53 +2896,53 @@ If you do not specifically require different script states, consider changing th
                   (disk/async-reload! render-install-progress! workspace [] changes-view
                                       (fn [success]
                                         (when success
-                                          (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs web-server)
+                                          (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
                                           (project/update-fetch-libraries-notification! project)))))))))))))
 
 (handler/defhandler :private/add-dependency :global
   (enabled? [] (disk-availability/available?))
-  (run [selection app-view workspace project changes-view user-data build-errors-view prefs web-server]
+  (run [selection app-view workspace project changes-view user-data build-errors-view prefs localization web-server]
     (let [game-project (project/get-resource-node project "/game.project")
           dependencies (game-project/get-setting game-project ["project" "dependencies"])
           dependency-uri (.toURI (URL. (:dep-url user-data)))]
       (when (not-any? (partial = dependency-uri) dependencies)
         (game-project/set-setting! game-project ["project" "dependencies"]
                                    (conj (vec dependencies) dependency-uri))
-        (fetch-libraries app-view workspace project changes-view build-errors-view prefs web-server)))))
+        (fetch-libraries app-view workspace project changes-view build-errors-view prefs localization web-server)))))
 
 (handler/defhandler :project.fetch-libraries :global
   (enabled? [] (disk-availability/available?))
-  (run [app-view workspace project changes-view build-errors-view prefs web-server]
-    (fetch-libraries app-view workspace project changes-view build-errors-view prefs web-server)))
+  (run [app-view workspace project changes-view build-errors-view prefs localization web-server]
+    (fetch-libraries app-view workspace project changes-view build-errors-view prefs localization web-server)))
 
 (handler/defhandler :project.reload-editor-scripts :global
   (enabled? [] (disk-availability/available?))
-  (run [app-view project workspace changes-view build-errors-view prefs web-server]
-    (reload-extensions! app-view project :all workspace changes-view build-errors-view prefs web-server)))
+  (run [app-view project workspace changes-view build-errors-view prefs localization web-server]
+    (reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)))
 
-(defn- ensure-exists-and-open-for-editing! [proj-path app-view changes-view prefs project]
+(defn- ensure-exists-and-open-for-editing! [proj-path app-view changes-view prefs localization project]
   (let [workspace (project/workspace project)
         resource (workspace/resolve-workspace-resource workspace proj-path)]
     (if (resource/exists? resource)
-      (open-resource app-view prefs workspace project resource)
+      (open-resource app-view prefs localization workspace project resource)
       (let [render-reload-progress! (make-render-task-progress :resource-sync)]
         (fs/touch-file! (io/as-file resource))
         (disk/async-reload! render-reload-progress! workspace [] changes-view
                             (fn [successful?]
                               (when successful?
                                 (when-some [created-resource (workspace/find-resource workspace proj-path)]
-                                  (open-resource app-view prefs workspace project created-resource)))))))))
+                                  (open-resource app-view prefs localization workspace project created-resource)))))))))
 
 (handler/defhandler :file.open-liveupdate-settings :global
   (enabled? [] (disk-availability/available?))
-  (run [app-view changes-view prefs workspace project]
+  (run [app-view changes-view prefs localization workspace project]
        (let [live-update-settings-proj-path (live-update-settings/get-live-update-settings-path project)]
-         (ensure-exists-and-open-for-editing! live-update-settings-proj-path app-view changes-view prefs project))))
+         (ensure-exists-and-open-for-editing! live-update-settings-proj-path app-view changes-view prefs localization project))))
 
 (handler/defhandler :file.open-shared-editor-settings :global
   (enabled? [] (disk-availability/available?))
-  (run [app-view changes-view prefs workspace project]
-       (ensure-exists-and-open-for-editing! shared-editor-settings/project-shared-editor-settings-proj-path app-view changes-view prefs project)))
+  (run [app-view changes-view prefs localization workspace project]
+       (ensure-exists-and-open-for-editing! shared-editor-settings/project-shared-editor-settings-proj-path app-view changes-view prefs localization project)))
 
 (defn- get-linux-desktop-entry [launcher-path install-dir]
   (str "[Desktop Entry]\n"
