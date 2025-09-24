@@ -414,15 +414,12 @@
   (case property
     :attributes
     ;; When setting the attributes, coerce the existing values to conform to the
-    ;; updated data and vector type. The attributes cannot be reordered
-    ;; using the form view, so we can assume any existing attribute will be at
-    ;; the same index as the updated attribute.
-    (let [old-attributes (:attributes user-data)]
-      (into []
-            (map-indexed (fn [index new-attribute]
-                           (if-some [old-attribute (get old-attributes index)]
-                             (coerce-attribute new-attribute old-attribute)
-                             new-attribute)))
+    ;; updated data and vector type.
+    (let [old-attributes-by-name (coll/pair-map-by :name (:attributes user-data))]
+      (mapv (fn [new-attribute]
+              (if-some [old-attribute (get old-attributes-by-name (:name new-attribute))]
+                (coerce-attribute new-attribute old-attribute)
+                new-attribute))
             value))
 
     ;; Default case.
