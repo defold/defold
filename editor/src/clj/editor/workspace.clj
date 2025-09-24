@@ -79,6 +79,9 @@ ordinary paths."
   ([workspace evaluation-context]
    (g/node-value workspace :notifications evaluation-context)))
 
+(defn localization [workspace evaluation-context]
+  (g/node-value workspace :localization evaluation-context))
+
 (defn- skip-first-char [path]
   (subs path 1))
 

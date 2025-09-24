@@ -61,7 +61,7 @@
   (let [items (ordered-resource+view-types prefs workspace evaluation-context)]
     (dialogs/make-select-list-dialog
       items
-      (g/node-value workspace :localization evaluation-context)
+      (workspace/localization workspace evaluation-context)
       {:title (localization/message "dialog.recent-files.title")
        :ok-label (localization/message "dialog.recent-files.button.ok")
        :cell-fn (fn [[resource view-type :as item]]

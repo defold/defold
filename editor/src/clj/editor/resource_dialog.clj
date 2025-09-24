@@ -147,7 +147,8 @@
                      (into children))})
 
 (defn make [workspace project options]
-  (let [localization (g/node-value workspace :localization)
+  (let [evaluation-context (g/make-evaluation-context)
+        localization (workspace/localization workspace evaluation-context)
         exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
         accepted-ext (if (seq exts) (set exts) fn/constantly-true)
         accept-fn    (or (:accept-fn options) fn/constantly-true)
@@ -157,7 +158,7 @@
                                          (resource/loaded? %)
                                          (not (resource/internal? %))
                                          (accept-fn %)))
-                           (g/node-value workspace :resource-list))
+                           (g/node-value workspace :resource-list evaluation-context))
         tooltip-gen (:tooltip-gen options)
         special-filter-fns {"refs" (partial refs-filter-fn project)
                             "deps" (partial deps-filter-fn project)}
@@ -182,4 +183,5 @@
                                         f (get special-filter-fns command fuzzy-resource-filter-fn)]
                                     (f arg items)))}
                     (merge options))]
+    (g/update-cache-from-evaluation-context! evaluation-context)
     (dialogs/make-select-list-dialog items localization options)))
