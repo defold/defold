@@ -261,7 +261,7 @@ bool ResourcePreloadHint(HResourcePreloadHintInfo preloader, const char* path);
 ResourceResult ResourceGetPath(HResourceFactory factory, const void* resource, dmhash_t* hash);
 
 /*#
- * Get a resource extension from a path, i.e "resource.ext" will return ".ext". Note the included dot in the output.
+ * Get a resource extension from a path, i.e "resource.ext" will return "ext".
  * @name ResourceGetExtFromPath
  * @param path [type: const char*] The path to the resource
  * @return extension [type: const char*] Pointer to extension string if an extension was found, 0 otherwise
@@ -282,10 +282,11 @@ uint32_t ResourceGetCanonicalPath(const char* path, char* buf, uint32_t buf_len)
 * Creates and inserts a resource into the factory
 * @note The input data pointer is not stored
 * @note The reference count is 1, so make sure it's destruction is handled
+* @name ResourceCreateResource
 * @param factory [type: HResourceFactory] Factory handle
-* @param name [type: dmhash_t] Resource name
-* @param data Resource data
-* @param data_size Resource data size
+* @param name [type: const char*] Resource name
+* @param data [type: void*] Resource data
+* @param data_size [type: uint32_t] Resource data size
 * @param resource [type: void**] (out) Stores the created resource
 * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
 */
@@ -320,7 +321,7 @@ ResourceResult ResourceRemoveFile(HResourceFactory factory, const char* path);
 * @name ResourceGetTypeFromExtension
 * @param factory [type: HResourceFactory] Factory handle
 * @param extension [type: const char*] File extension, without leading "." character. E.g. "ttf"
-* @param type [type: HResourceType*] returned type is successful
+* @param type [type: HResourceType*] (out) returned type if successful
 * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
 */
 ResourceResult ResourceGetTypeFromExtension(HResourceFactory factory, const char* extension, HResourceType* type);
@@ -330,7 +331,7 @@ ResourceResult ResourceGetTypeFromExtension(HResourceFactory factory, const char
 * @name ResourceGetTypeFromExtensionHash
 * @param factory [type: HResourceFactory] Factory handle
 * @param extension_hash [type: const char*] Hash of file extension, without leading "." character. E.g. hash("ttf")
-* @param type [type: HResourceType*] returned type is successful
+* @param type [type: HResourceType*] (out) returned type if successful
 * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
 */
 ResourceResult ResourceGetTypeFromExtensionHash(HResourceFactory factory, dmhash_t extension_hash, HResourceType* type);

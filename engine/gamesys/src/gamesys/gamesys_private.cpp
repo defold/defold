@@ -75,15 +75,15 @@ namespace dmGameSystem
     dmRender::RenderResourceType ResourcePathToRenderResourceType(const char* path)
     {
         const char* path_ext = dmResource::GetExtFromPath(path);
-        if (strcmp(path_ext, ".materialc") == 0)
+        if (strcmp(path_ext, "materialc") == 0)
         {
             return dmRender::RENDER_RESOURCE_TYPE_MATERIAL;
         }
-        else if (strcmp(path_ext, ".render_targetc") == 0)
+        else if (strcmp(path_ext, "render_targetc") == 0)
         {
             return dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET;
         }
-        else if (strcmp(path_ext, ".computec") == 0)
+        else if (strcmp(path_ext, "computec") == 0)
         {
             return dmRender::RENDER_RESOURCE_TYPE_COMPUTE;
         }

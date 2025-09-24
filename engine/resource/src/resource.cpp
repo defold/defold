@@ -746,7 +746,13 @@ Result LoadResource(HFactory factory, const char* path, const char* original_nam
 
 const char* GetExtFromPath(const char* path)
 {
-    return strrchr(path, '.');
+    const char* result = strrchr(path, '.');
+    if (result)
+    {
+        while(result[0] == '.')
+            result++;
+    }
+    return result;
 }
 
 // Assumes m_LoadMutex is already held
@@ -885,9 +891,6 @@ static Result CheckAndGetResourceTypeFromPath(HFactory factory, const char* cano
         dmLogWarning("Unable to load resource: '%s'. Missing file extension.", canonical_path);
         return RESULT_MISSING_FILE_EXTENSION;
     }
-
-    // skip over '.'
-    ext++;
 
     ResourceType* resource_type = FindResourceType(factory, ext);
     if (resource_type == 0)
