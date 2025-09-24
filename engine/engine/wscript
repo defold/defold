@@ -146,9 +146,6 @@ def configure(conf):
     conf.env['STLIB_SOUND'] = sound_lib
     conf.env['STLIB_SOUND_NULL'] = 'sound_null'
     conf.env['LIB_OPENSLES'] = 'OpenSLES'
-    conf.env['STLIB_HID'] = 'hid'
-    conf.env['STLIB_HID_NULL'] = 'hid_null'
-    conf.env['STLIB_INPUT'] = 'input'
     conf.env['STLIB_LIVEUPDATE'] = 'liveupdate'
 
     if target_os != TargetOS.MACOS:
