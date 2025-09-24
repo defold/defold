@@ -81,10 +81,6 @@ if(BUILD_TESTS)
         "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols.cpp"
     )
 
-    # Optional app should not be part of the default build
-    set_target_properties(test_app_hid PROPERTIES EXCLUDE_FROM_ALL TRUE)
-
-
     if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
         set(_DM_USE_OPENGLES ON)
 
