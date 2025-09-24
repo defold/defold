@@ -110,6 +110,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce])
   (:import [com.jogamp.opengl GL2]
+           [java.io FileNotFoundException]
            [java.nio ByteBuffer FloatBuffer IntBuffer]
            [java.nio.charset StandardCharsets]
            [javax.vecmath Matrix4d Point3d Vector4d Vector4f]))
@@ -658,7 +659,9 @@ This must be submitted to the driver for compilation before you can use it. See
 
 (defn classpath-shader-path->source
   ^String [^String shader-path]
-  (slurp (io/resource shader-path)))
+  (if-some [url (io/resource shader-path)]
+    (slurp url)
+    (throw (FileNotFoundException. (format "'%s' was not found on the classpath." shader-path)))))
 
 (defn- parse-opts+shader-paths [maybe-opts-and-shader-paths]
   (let [opts-or-first-shader-path (first maybe-opts-and-shader-paths)]

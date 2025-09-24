@@ -61,6 +61,23 @@
       (assoc :uniforms {"mtx_view" :view
                         "mtx_proj" :projection})))
 
+(def ^:private selection-shader
+  (-> (shader/classpath-shader
+        "shaders/selection-local-space.vp"
+        "shaders/selection-local-space.fp")
+      (assoc :uniforms {"mtx_view" :view
+                        "mtx_proj" :projection})))
+
+(def ^:private selection-shader-id-color-attribute-location
+  (->> selection-shader ; TODO(instancing): Add helper function to shader module.
+       (:attribute-reflection-infos)
+       (some (fn [{:keys [name-key location]}]
+               (when (= :id-color name-key)
+                 location)))))
+
+(assert (graphics.types/location? selection-shader-id-color-attribute-location))
+
+;; TODO(instancing): Remove all of these.
 (vtx/defvertex id-vertex
   (vec3 position)
   (vec2 texcoord0))
@@ -353,7 +370,7 @@
                 vertex-attribute-bytes (assoc :vertex-attribute-bytes vertex-attribute-bytes))]
     (graphics/put-attributes! vbuf [mesh-renderable-data])))
 
-(defn- render-mesh-opaque-impl [^GL2 gl render-args renderable request-prefix override-shader override-vertex-description extra-render-args]
+(defn- old-render-mesh-opaque-impl [^GL2 gl render-args renderable request-prefix override-shader override-vertex-description extra-render-args]
   (let [{:keys [node-id user-data ^Matrix4d world-transform]} renderable
         {:keys [material-attribute-infos material-data mesh-renderable-data textures vertex-attribute-bytes]} user-data
         shader (or override-shader (:shader user-data))
@@ -432,26 +449,52 @@
       (doseq [[_name t] textures]
         (gl/unbind gl t render-args)))))
 
+(defn- render-mesh-opaque-selection [^GL2 gl render-args renderables]
+  ;; TODO(instancing): We should use instanced rendering and put the picking-id
+  ;; as a per-instance attribute.
+  (let [renderable (first renderables)
+        picking-id (:picking-id renderable)
+        user-data (:user-data renderable)
+        {:keys [id-color-selection-attribute-binding-index index-buffer textures]} user-data
+        index-type (gl.buffer/gl-data-type index-buffer)
+        index-count (gl.buffer/vertex-count index-buffer)
+
+        selection-attribute-bindings
+        (assoc-in (:selection-attribute-bindings user-data)
+                  [id-color-selection-attribute-binding-index :value-array]
+                  (scene-picking/picking-id->float-array picking-id))]
+
+    (gl/with-gl-bindings gl render-args [selection-shader selection-attribute-bindings index-buffer]
+      (doseq [[name t] textures]
+        (gl/bind gl t render-args)
+        (shader/set-samplers-by-name selection-shader gl name (:texture-units t)))
+      (gl/gl-disable gl GL/GL_BLEND)
+      (gl/gl-enable gl GL/GL_CULL_FACE)
+      (gl/gl-cull-face gl GL/GL_BACK)
+      (gl/gl-draw-elements gl GL/GL_TRIANGLES index-type 0 index-count)
+      (gl/gl-disable gl GL/GL_CULL_FACE)
+      (gl/gl-enable gl GL/GL_BLEND)
+      (doseq [[_name t] textures]
+        (gl/unbind gl t render-args)))))
+
 (defn- old-render-mesh-opaque [^GL2 gl render-args renderables]
   (let [renderable (first renderables)]
-    (render-mesh-opaque-impl gl render-args renderable ::mesh nil nil nil)))
+    (old-render-mesh-opaque-impl gl render-args renderable ::mesh nil nil nil)))
 
-(defn- render-mesh-opaque-selection [^GL2 gl render-args renderable]
-  ;; TODO(instancing): We should use instanced rendering and put the id as a per-instance attribute.
-  (let [extra-render-args {:id (scene-picking/renderable-picking-id-uniform renderable)}]
-    (render-mesh-opaque-impl gl render-args renderable ::mesh-selection id-shader id-vertex extra-render-args)))
+(defn- old-render-mesh-opaque-selection [^GL2 gl render-args renderables]
+  (let [renderable (first renderables)
+        extra-render-args {:id (scene-picking/renderable-picking-id-uniform renderable)}]
+    (old-render-mesh-opaque-impl gl render-args renderable ::mesh-selection id-shader id-vertex extra-render-args)))
 
 (defn- render-mesh [^GL2 gl render-args renderables rcount]
   ;; TODO(instancing): Batch instanced meshes together and populate an instance-buffer with the per-instance attributes.
   (assert (= 1 rcount) "Batching is disabled in the editor for simplicity.")
-  (let [pass (:pass render-args)
-        renderable (first renderables)]
-    (condp = pass
-      pass/opaque
-      (render-mesh-opaque gl render-args renderables)
+  (condp = (:pass render-args)
+    pass/opaque
+    (render-mesh-opaque gl render-args renderables)
 
-      pass/opaque-selection
-      (render-mesh-opaque-selection gl render-args renderable))))
+    pass/opaque-selection
+    (render-mesh-opaque-selection gl render-args renderables)))
 
 (defn- render-outline [^GL2 gl render-args renderables rcount]
   ;; TODO(instancing): Seems like we could batch these? The :aabb should already be in world-space after flattening, but maybe the issue is selection highlighting?
@@ -782,29 +825,32 @@
          (sort-by :base-location)
          (vec))))
 
-(defn- make-mesh-scene [renderable-mesh shader model-scene-resource-node-id]
+(defn- make-mesh-scene [renderable-mesh model-scene-resource-node-id]
   (let [{:keys [aabb material-data material-name renderable-data renderable-buffers]} renderable-mesh
         index-buffer (:index-buffer renderable-buffers)
         semantic-type->attribute-buffers (:attribute-buffers renderable-buffers)
-        shader-attribute-reflection-infos (:attribute-reflection-infos shader)
-        attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers nil nil shader-attribute-reflection-infos)
+        attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers nil nil (:attribute-reflection-infos preview-shader))
+        selection-attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers nil nil (:attribute-reflection-infos selection-shader))
+        id-color-selection-attribute-binding-index (util/first-index-where #(= selection-shader-id-color-attribute-location (:base-location %)) selection-attribute-bindings)
 
         user-data
         {:mesh-renderable-data renderable-data
          :mesh-renderable-buffers renderable-buffers
          :attribute-bindings attribute-bindings
+         :selection-attribute-bindings selection-attribute-bindings
+         :id-color-selection-attribute-binding-index id-color-selection-attribute-binding-index
          :index-buffer index-buffer
          :vertex-space :vertex-space-local
          :material-data material-data
          :material-name material-name
-         :shader shader
-         :textures {"texture_sampler" @texture/white-pixel}}
+         :shader preview-shader
+         :textures {"tex0" @texture/white-pixel}}
 
         renderable
         {:render-fn render-mesh
          :tags #{:model}
          :batch-key nil ; Batching is disabled in the editor for simplicity.
-         :select-batch-key model-scene-resource-node-id
+         :select-batch-key nil
          :passes [pass/opaque pass/opaque-selection]
          :user-data user-data}]
 
@@ -813,7 +859,7 @@
 
 (defn- make-model-scene [renderable-model model-scene-resource-node-id]
   (let [{:keys [transform aabb renderable-meshes]} renderable-model
-        mesh-scenes (mapv #(make-mesh-scene % preview-shader model-scene-resource-node-id)
+        mesh-scenes (mapv #(make-mesh-scene % model-scene-resource-node-id)
                           renderable-meshes)]
     {:transform transform
      :aabb aabb

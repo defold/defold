@@ -19,7 +19,7 @@ out mediump vec3 var_normal;
 out mediump vec2 var_texcoord0;
 
 void main() {
-    vec4 position = mtx_view * mtx_world * vec4(position.xyz, 1.0);
+    vec4 position = mtx_view * mtx_world * vec4(position, 1.0);
     var_position = position.xyz;
     var_color = vec4(color.rgb * color.a, color.a);
     var_normal = mtx_normal * normal;
