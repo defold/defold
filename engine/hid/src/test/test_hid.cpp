@@ -12,21 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-// TEMP FIX for jc_test.h
-#include <stdint.h>
-#if defined(__INTTYPES_H__) || defined(__ANDROID__)
-    // inttypes.h was included
-    #include <inttypes.h>
-#else
-    // Fallback or define your own types
-    #warning "inttypes.h not found, defining types manually"
-    #define PRIu64 "llu"
-    #define PRId64 "lld"
-#endif
-#define JC_FMT_U64 "%" PRIu64
-#define JC_FMT_I64 "%" PRId64
-// END TEMP FIX for jc_test.h
-
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
