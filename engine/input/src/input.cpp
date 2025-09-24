@@ -88,7 +88,6 @@ namespace dmInput
         Binding* binding = new Binding();
         binding->m_Context = context;
         binding->m_Actions.Clear();
-        binding->m_Actions.SetCapacity(64, 256);
         binding->m_GamepadBindings.SetCapacity(dmHID::MAX_GAMEPAD_COUNT);
 
         binding->m_TextBinding = 0;
@@ -273,7 +272,17 @@ namespace dmInput
 
     void SetBinding(HBinding binding, dmInputDDF::InputBinding* ddf)
     {
+        uint32_t total_actions = ddf->m_KeyTrigger.m_Count +
+            ddf->m_MouseTrigger.m_Count +
+            ddf->m_TouchTrigger.m_Count +
+            ddf->m_TextTrigger.m_Count + 2;
+
+        uint32_t current_capacity = binding->m_Actions.Capacity();
+        uint32_t new_capacity = total_actions > current_capacity ? total_actions : current_capacity;
+        uint32_t bucket_count = dmMath::Max(4u, new_capacity / 4);
+        binding->m_Actions.SetCapacity(bucket_count, new_capacity);
         binding->m_Actions.Clear();
+
         Action action;
         memset(&action, 0, sizeof(Action));
         // add null action for mouse movement
