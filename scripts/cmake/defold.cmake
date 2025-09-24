@@ -43,6 +43,14 @@ set(DEFOLD_DMSDK_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/sdk/include")
 set(DEFOLD_LIB_DIR "${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}")
 set(DEFOLD_EXT_LIB_DIR "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}")
 
+# For 32-bit Windows, search both legacy 'win32' and tuple 'x86-win32' folders
+set(_DEFOLD_PLATFORM_INCLUDE_DIRS "${DEFOLD_EXT_PLATFORM_INCLUDE_DIR}")
+set(_DEFOLD_PLATFORM_LIB_DIRS     "${DEFOLD_LIB_DIR}" "${DEFOLD_EXT_LIB_DIR}")
+if(TARGET_PLATFORM STREQUAL "x86-win32")
+  list(APPEND _DEFOLD_PLATFORM_INCLUDE_DIRS "${DEFOLD_SDK_ROOT}/ext/include/win32")
+  list(APPEND _DEFOLD_PLATFORM_LIB_DIRS "${DEFOLD_SDK_ROOT}/lib/win32" "${DEFOLD_SDK_ROOT}/ext/lib/win32")
+endif()
+
 if(NOT EXISTS "${DEFOLD_SDK_ROOT}")
   message(FATAL_ERROR "Missing folder ${DEFOLD_SDK_ROOT}")
 endif()
@@ -51,13 +59,10 @@ endif()
 include_directories(
     "${DEFOLD_INCLUDE_DIR}"                 # for defold includes (dlib, graphics etc)
     "${DEFOLD_EXT_INCLUDE_DIR}"             # for 3rd party headers
-    "${DEFOLD_EXT_PLATFORM_INCLUDE_DIR}"    # for 3rd party, platform sprcific headers
+    ${_DEFOLD_PLATFORM_INCLUDE_DIRS}         # for 3rd party, platform specific headers (win32 + x86-win32)
     "${DEFOLD_DMSDK_INCLUDE_DIR}"           # for dmsdk public headers
 )
-link_directories(
-    "${DEFOLD_LIB_DIR}"
-    "${DEFOLD_EXT_LIB_DIR}"
-)
+link_directories(${_DEFOLD_PLATFORM_LIB_DIRS})
 
 # Install into DEFOLD_SDK_ROOT
 set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}" CACHE PATH "Install prefix" FORCE)

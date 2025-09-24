@@ -492,6 +492,16 @@ def default_flags(self):
     self.env.append_value('INCLUDES', build_util.get_dynamo_ext('include'))
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
+    # For 32-bit Windows, search both legacy 'win32' and tuple 'x86-win32' folders
+    if build_util.get_target_platform() == 'win32':
+        alias = 'x86-win32' # used by the new/CMake code path
+        # Includes under DYNAMO_HOME and DYNAMO_HOME/ext
+        self.env.append_value('INCLUDES', build_util.get_dynamo_home('include', alias))
+        self.env.append_value('INCLUDES', build_util.get_dynamo_ext('include', alias))
+        # Lib paths under DYNAMO_HOME and DYNAMO_HOME/ext
+        self.env.append_value('LIBPATH', build_util.get_dynamo_home('lib', alias))
+        self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', alias))
+
     # Platform specific paths etc comes after the project specific stuff
 
     if target_os in (TargetOS.MACOS, TargetOS.IOS):
