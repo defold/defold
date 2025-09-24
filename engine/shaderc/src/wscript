@@ -52,6 +52,7 @@ def build(bld):
     shaderc_includes = []
 
     if bld.env.PLATFORM in ('x86_64-win32', 'win32'):
+        shaderc_defines.append('DM_BINARY_HLSL_SUPPORTED')
         shaderc_sources.append('shaderc_hlsl.cpp')
         shaderc_includes.append(build_util.get_dynamo_ext('include', 'directx'))
 

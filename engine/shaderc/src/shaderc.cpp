@@ -110,6 +110,7 @@ namespace dmShaderc
             return CompileSPIRV(context, (ShaderCompilerSPIRV*) compiler, options);
         }
 
+#ifdef DM_BINARY_HLSL_SUPPORTED
         if (compiler->m_Language == SHADER_LANGUAGE_HLSL)
         {
             ShaderCompileResult* result_xcompiled = CompileSPVC(context, (ShaderCompilerSPVC*) compiler, options);
@@ -118,6 +119,7 @@ namespace dmShaderc
             FreeShaderCompileResult(result_xcompiled);
             return result_hlsl;
         }
+#endif
         return CompileSPVC(context, (ShaderCompilerSPVC*) compiler, options);
     }
 
