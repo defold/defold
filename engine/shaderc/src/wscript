@@ -46,11 +46,14 @@ def build(bld):
         'shaderc.cpp',
         'shaderc_jni.cpp',
         'shaderc_spirv.cpp',
-        'shaderc_spvc.cpp',
-        'shaderc_hlsl.cpp']
+        'shaderc_spvc.cpp']
     shaderc_sources_no_jni = []
     shaderc_defines = []
-    shaderc_includes = [build_util.get_dynamo_ext('include', 'directx')]
+    shaderc_includes = []
+
+    if bld.env.PLATFORM in ('x86_64-win32', 'win32'):
+        shaderc_sources.append('shaderc_hlsl.cpp')
+        shaderc_includes.append(build_util.get_dynamo_ext('include', 'directx'))
 
     for x in shaderc_sources:
         if not 'jni' in x:
