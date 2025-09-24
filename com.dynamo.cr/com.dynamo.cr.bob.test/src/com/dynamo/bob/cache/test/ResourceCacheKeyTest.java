@@ -284,6 +284,7 @@ public class ResourceCacheKeyTest {
                 "build-server",
                 "build-server-header",
                 "bundle-format",
+                "bundle-module",
                 "bundle-output",
                 "certificate",
                 "debug",
