@@ -930,8 +930,13 @@ namespace dmEngine
 #if !defined(DM_RELEASE)
         instance_index = dmConfigFile::GetInt(engine->m_Config, "project.instance_index", 0);
 #endif
-        int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
-        if (write_log) {
+        int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0); // Deprecated
+        int write_log_file = dmConfigFile::GetInt(engine->m_Config, "project.write_log_file", 0);
+        // for backward compatibility if write_log_file is 0, but write_log is 1
+        write_log_file = write_log_file == 0 ? write_log : write_log_file;
+        // 0 - no logs, 1 - debug only, 2 - always
+        if ((write_log_file == 2) || (write_log_file == 1 && dLib::IsDebugMode()))
+        {
             uint32_t count = 0;
             char* log_paths[3];
 
@@ -1879,8 +1884,6 @@ bail:
                     }
                 }
 
-                dmSound::Update();
-
                 bool esc_pressed = false;
                 if (engine->m_QuitOnEsc)
                 {
@@ -1924,6 +1927,8 @@ bail:
                 update_context.m_AccumFrameTime = engine->m_AccumFrameTime;
                 dmGameObject::Update(engine->m_MainCollection, &update_context);
 
+                dmSound::Update();
+
                 // Don't render while iconified
                 if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED)
                     && !dmRender::IsRenderPaused(engine->m_RenderContext))
@@ -1962,7 +1967,7 @@ bail:
                                             (float)((engine->m_ClearColor>>16)&0xFF),
                                             (float)((engine->m_ClearColor>>24)&0xFF),
                                             1.0f, 0);
-                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0);
+                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
                     }
                 }
 

@@ -39,6 +39,7 @@
            [java.io File IOException]
            [java.net URI]
            [java.util Collection]
+           [java.util.concurrent Executor]
            [javafx.animation AnimationTimer KeyFrame KeyValue Timeline]
            [javafx.application Platform]
            [javafx.beans InvalidationListener]
@@ -70,6 +71,11 @@
 ;; class requires application to be running, because it sets default platform
 ;; stylesheet, and this requires Application to be running.
 (PlatformImpl/startup (fn []))
+
+(def javafx-executor
+  (reify Executor
+    (execute [_ command]
+      (Platform/runLater command))))
 
 (defonce ^:dynamic *main-stage* (atom nil))
 

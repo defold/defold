@@ -413,9 +413,9 @@
         (throw (ex-info (format "'%s' could not be reached from this host" ip) {}))))))
 
 (handler/defhandler :run.set-target-ip :global
-  (run [prefs]
+  (run [prefs localization]
     (ui/run-later
-      (loop [manual-ip+port (dialogs/make-target-ip-dialog (prefs/get prefs [:run :manual-target-ip+port]) nil)]
+      (loop [manual-ip+port (dialogs/make-target-ip-dialog (prefs/get prefs [:run :manual-target-ip+port]) nil localization)]
         (when (some? manual-ip+port)
           (prefs/set! prefs [:run :manual-target-ip+port] manual-ip+port)
           (let [[manual-ip port] (str/split manual-ip+port #":")
@@ -427,7 +427,7 @@
                 error-msg (or (and (string? target) target)
                               (and (string? device) device))]
             (if error-msg
-              (recur (dialogs/make-target-ip-dialog manual-ip+port error-msg))
+              (recur (dialogs/make-target-ip-dialog manual-ip+port error-msg localization))
               (do
                 (reset! manual-device device)
                 (select-target! prefs target)

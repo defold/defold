@@ -1,0 +1,250 @@
+# Localizations of the Welcome dialog
+welcome.button.open-from-disk = Открыть с Диска...
+welcome.button.open-selected = Открыть Проект
+welcome.recent-projects = Недавние Проекты
+welcome.tab.new-project = НОВЫЙ ПРОЕКТ
+welcome.tab.home = ГЛАВНАЯ
+welcome.greeting = Добро пожаловать! Как только вы начнёте работать с Defold, все ваши недавние проекты появятся здесь.
+welcome.button.create-new-project = Создать Проект
+welcome.downloading-project = Загружается {template}...
+welcome.button.cancel-download = Отменить Загрузку
+welcome.category.from-template = Из Шаблона
+welcome.category.from-tutorial = Из Туториала
+welcome.category.from-sample = Из Примера
+welcome.new-project.default-name = Мой Проект
+welcome.new-project.title = Название
+welcome.new-project.location = Расположение
+welcome.open-from-disk.dialog.title = Открыть Проект
+welcome.open-from-disk.dialog.filter.defold = Файлы Проектов Defold
+welcome.new-project.location.dialog.title = Выберите Расположение Нового Проекта
+welcome.new-project.error.no-project-title.title = Нет Названия Проекта
+welcome.new-project.error.no-project-title.header = Необходимо указать название проекта
+welcome.new-project.error.invalid-project-title.title = Недопустимое Название Проекта
+welcome.new-project.error.invalid-project-title.header = Пробелы в начале и в конце названия проекта не допускаются
+welcome.new-project.error.conflicting-project-location.title = Конфликт Расположения Проекта
+welcome.new-project.error.conflicting-project-location.header = По указанному пути уже существует непустая папка
+welcome.new-project.error.no-internet-connection.title = Нет Подключения к Интернету
+welcome.new-project.error.no-internet-connection.header = Для загрузки содержимого проекта требуется подключение к Интернету
+welcome.new-project.error.host-unreachable.title = Хост Недоступен
+welcome.new-project.error.host-unreachable.header = Возможно, брандмауэр блокирует сетевые соединения
+welcome.new-project.error.host-not-responding.title = Хост Не Отвечает
+welcome.new-project.error.host-not-responding.header = Время ожидания соединения истекло
+welcome.new-project.error.ssl-connection-error.title = Ошибка SSL‑соединения
+welcome.new-project.error.ssl-connection-error.header = Не удалось установить SSL‑соединение
+welcome.new-project.error.ssl-connection-error.common-causes = Возможные причины:\n\u00A0\u00A0\u2022\u00A0Антивирус, настроенный на проверку зашифрованных соединений\n\u00A0\u00A0\u2022\u00A0Просроченный или некорректно настроенный сертификат сервера\n\u00A0\u00A0\u2022\u00A0Недоверенный сертификат сервера\n\nСледующий пункт FAQ может быть полезен:
+welcome.new-project.error.ssl-connection-error.pkix-faq-entry = PKIX path building failed
+
+# Welcome -> New Project -> From Template
+welcome.new-project.empty-project.title = Пустой Проект
+welcome.new-project.empty-project.description = Выберите этот шаблон, если хотите начать с чистого листа.
+welcome.new-project.mobile-game.title = Мобильная Игра
+welcome.new-project.mobile-game.description = Этот шаблон содержит полезные настройки и ресурсы для начала разработки игры для мобильных устройств.
+welcome.new-project.desktop-game.title = Игра для ПК
+welcome.new-project.desktop-game.description = Этот шаблон содержит полезные настройки и ресурсы для создания игры для ПК.
+welcome.new-project.poki-html5-game.title = Игра Poki HTML5
+welcome.new-project.poki-html5-game.description = Этот шаблон включает SDK Poki, предназначенный для настольных и мобильных веб‑игр. Он также предоставляет быстрый экспорт на платформу Poki for Developers.
+welcome.new-project.native-extension.title = Нативное Расширение
+welcome.new-project.native-extension.description = Этот шаблон содержит базовую настройку для создания нативного расширения.
+welcome.new-project.basic-3d-project.title = Базовый 3D‑проект
+welcome.new-project.basic-3d-project.description = Этот шаблон содержит базовую настройку для 3D‑рендеринга.
+welcome.new-project.platformer-game.title = Игра‑платформер
+welcome.new-project.platformer-game.description = Этот шаблон содержит базовую настройку для начала разработки платформера.
+welcome.new-project.rive-project.title = Проект Rive
+welcome.new-project.rive-project.description = Этот шаблон использует расширение rive для быстрого старта.
+
+# Welcome -> New Project -> From Tutorial
+welcome.new-project.side-scroller-tutorial.title = Туториал По Сайд‑Скроллеру
+welcome.new-project.side-scroller-tutorial.description = В этом туториале для начинающих вы познакомитесь с тем, как создать игру в Defold, изменяя простой сайд‑скроллер.
+welcome.new-project.walking-astronaut-tutorial.title = Туториал «Идущий Астронавт»
+welcome.new-project.walking-astronaut-tutorial.description = В этом туториале для начинающих вы научитесь обрабатывать ввод игрока и заставлять персонажа двигаться и анимироваться. Также вы узнаете об основных строительных блоках Defold: игровых объектах, компонентах и коллекциях.
+welcome.new-project.movement-tutorial.title = Туториал по движению
+welcome.new-project.movement-tutorial.description = В этом туториале для начинающих вы научитесь создавать реалистичное движение, используя векторы и простую векторную алгебру.
+welcome.new-project.war-battles-tutorial.title = Туториал «War Battles»
+welcome.new-project.war-battles-tutorial.description = В этом туториале средней сложности вы создадите основу шутера с видом сверху на базе пакета ресурсов «War Battles» RTS.
+welcome.new-project.colorslide-tutorial.title = Туториал «Colorslide»
+welcome.new-project.colorslide-tutorial.description = В этом туториале средней сложности вы создадите внутриигровой интерфейс, экран выбора уровня и стартовый экран для простой многоуровневой мобильной игры.
+
+# Welcome -> New Project -> From Sample
+welcome.new-project.linker-sample-game.title = Пример: Linker
+welcome.new-project.linker-sample-game.description = Это полноценная пример‑игра, где вы соединяете рыбок одного цвета, чтобы удалить их с поля. Длинные цепочки рыбок дают усилители.
+welcome.new-project.roids-sample-game.title = Пример: Roids
+welcome.new-project.roids-sample-game.description = Это полноценная пример‑игра, где вы управляете космическим кораблём и пробиваетесь через поток метеоритов.
+welcome.new-project.pixel-line-platformer.title = Платформер Pixel Line
+welcome.new-project.pixel-line-platformer.description = Это полноценный платформер в современном пиксель‑арт стиле от Kenney.
+welcome.new-project.main-menu-animation.title = Анимация главного меню
+welcome.new-project.main-menu-animation.description = В этом примере мы демонстрируем эффекты для представления главного меню.
+welcome.new-project.parallax.title = Параллакс
+welcome.new-project.parallax.description = В этом примере мы показываем, как использовать эффект параллакса для имитации глубины игрового мира.
+welcome.new-project.hud.title = HUD
+welcome.new-project.hud.description = В этом примере мы демонстрируем эффекты подсчёта очков.
+welcome.new-project.level-complete.title = Уровень завершён
+welcome.new-project.level-complete.description = В этом примере мы демонстрируем эффекты показа подсчёта очков, которые могут отображаться после завершения уровня.
+welcome.new-project.rpg-map-sample.title = Пример RPG‑карты
+welcome.new-project.rpg-map-sample.description = Этот пример показывает, как создать большую карту RPG, прокручивающуюся на один экран за раз по мере продвижения героя.
+welcome.new-project.shadertoy-sample.title = Пример Shadertoy
+welcome.new-project.shadertoy-sample.description = Этот пример содержит шейдер GLSL, взятый с Shadertoy и перенесённый в Defold. Он демонстрирует работу с материалами и шейдерами в Defold.
+welcome.new-project.3d-treasure-scene.title = 3D‑сцена с сокровищем
+welcome.new-project.3d-treasure-scene.description = Этот пример показывает стилизованную 3D‑сцену с анимацией.
+welcome.new-project.perspective-parallax.title = Перспективный параллакс
+welcome.new-project.perspective-parallax.description = Этот пример показывает параллакс с перспективной камерой.
+welcome.new-project.lightning-vfx.title = Эффект молнии
+welcome.new-project.lightning-vfx.description = Пример демонстрирует эффект молнии в 2D скроллере и то, как компонент mesh настроен для изменения в процессе игры.
+
+# Updater
+updater.button.update-available = Доступно Обновление
+updater.button.restart-to-update = Перезапустить
+updater.download-or-restart-dialog.title = Установить Обновление?
+updater.download-or-restart-dialog.header = Обновление готово, но доступна ещё более новая версия
+updater.download-or-restart-dialog.detail = Вы можете установить загруженное обновление или загрузить более новое
+updater.platform-not-supported-dialog.title = Платформа Не Поддерживается
+updater.platform-not-supported-dialog.header = Для этой платформы обновления больше не предоставляются
+updater.platform-not-supported-dialog.detail = Поддерживаемые платформы: 64‑битные Linux, macOS и Windows
+updater.download-dialog.title = Загрузить Обновление?
+updater.download-dialog.header = Доступна новая версия Defold!
+updater.update-failed.title = Ошибка обновления
+updater.update-failed.header = Во время установки обновления произошла ошибка
+updater.update-failed.detail = Возможно, потребуется выполнить чистую установку
+updater.dialog.title = Установить Обновление и Перезапустить?
+updater.dialog.header = Установить Загруженное Обновление и Перезапустить?
+updater.dialog.button.not-now = Не Сейчас
+updater.dialog.button.download = Загрузить Обновление
+updater.dialog.button.install-and-restart = Установить и Перезапустить
+updater.dialog.button.download-newer-version = Загрузить Более Новую Версию
+
+# Time
+time.vague.unknown = Неизвестно
+time.vague.just-now = Только что
+time.vague.a-minute-ago = Минуту назад
+time.vague.a-few-minutes-ago = Несколько минут назад
+time.vague.minutes-ago = {count} {count, plural, one {минуту} few {минуты} other {минут}} назад
+time.vague.half-an-hour-ago = Полчаса назад
+time.vague.an-hour-ago = Час назад
+time.vague.a-few-hours-ago = Несколько часов назад
+time.vague.hours-ago = {count} {count, plural, one {час} few {часа} other {часов}} назад
+time.vague.a-day-ago = День назад
+
+# Common dialogs
+
+dialog.button.close = Закрыть
+dialog.button.quit = Выйти
+dialog.button.open-defold-website = Открыть defold.com
+dialog.button.dismiss = Закрыть
+dialog.button.report = Сообщить об ошибке
+dialog.button.disable-scene-editor = Отключить редактор сцен
+dialog.button.cancel = Отмена
+
+# Error Dialog
+dialog.error.title = Ошибка
+dialog.error.header = Произошла ошибка
+dialog.error.footer = Вы можете помочь нам исправить эту проблему, отправив отчёт и указав, что вы делали в момент её возникновения.
+
+# GL support error dialog
+dialog.gl-support.title = Недостаточная поддержка OpenGL
+dialog.gl-support.header = Это очень распространённая проблема. Посмотрите, помогут ли следующие инструкции:
+dialog.gl-support.linux = OpenGL в Linux
+dialog.gl-support.gl-gen-buffers = glGenBuffers
+dialog.gl-support.detail = Вы можете продолжить работу с отключённым редактором сцен.
+
+# New folder
+
+dialog.new-folder.title = Новая папка
+dialog.new-folder.header = Введите имя новой папки
+dialog.new-folder.label.name = Имя
+dialog.new-folder.label.preview = Просмотр
+dialog.new-folder.button.create-folder = Создать папку
+
+# Target IP dialog
+
+dialog.target-ip.title = Введите IP целевого устройства
+dialog.target-ip.header = Введите IP-адрес целевого устройства
+dialog.target-ip.label.ip = IP-адрес
+dialog.target-ip.button.add = Добавить IP-адрес
+
+# Editor panes
+
+pane.assets = Ресурсы
+pane.changed-files = Изменённые Файлы
+pane.outline = Структура
+pane.properties = Свойства
+pane.console = Консоль
+pane.curve-editor = Редактор Кривых
+pane.build-errors = Ошибки Сборки
+pane.search-results = Результаты Поиска
+
+# Console
+
+console.button.clear = Очистить
+console.button.filter = Фильтры
+console.filter.enable-filtering = Включить фильтрацию
+console.filter.add-filter = Новый фильтр ("текст" или "!убрать")
+console.search = Поиск
+
+# Changes view
+
+changes-view.button.diff = Сравнить
+changes-view.button.revert = Откатить
+
+# Prefs
+
+prefs.dialog.title = Настройки
+
+prefs.tab.general = Общие
+prefs.tab.code = Код
+prefs.tab.extensions = Расширения
+prefs.tab.tools = Инструменты
+prefs.tab.dev = Разработка
+prefs.tab.keymap = Клавиши
+
+# General tab
+prefs.label.workflow.load-external-changes-on-app-focus = Загружать изменения при фокусе
+prefs.label.bundle.open-output-directory = Открывать папку сборки
+prefs.label.build.open-html5-build = Открывать браузер после HTML5-сборки
+prefs.label.build.texture-compression = Сжатие текстур
+prefs.label.run.quit-on-escape = Escape закрывает игру
+prefs.label.asset-browser.track-active-tab = Фокусировать активный ресурс
+prefs.label.build.lint-code = Проверять код при сборке
+prefs.label.window.locale = Язык редактора
+prefs.label.run.engine-arguments = Аргументы движка
+prefs.prompt.run.engine-arguments = По одному аргументу на строку
+prefs.help.run.engine-arguments = Аргументы, которые будут переданы исполняемым файлам dmengine при сборке и запуске редактора.\nИспользуйте по одному аргументу на строку. Например:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan
+
+# Code tab
+prefs.label.code.custom-editor = Внешний редактор
+prefs.label.code.open-file = Открыть файл
+prefs.label.code.open-file-at-line = Открыть файл на строке
+prefs.label.code.font.name = Шрифт кода (требуется перезапуск)
+prefs.label.code.zoom-on-scroll = Масштаб колесом мышки
+prefs.label.code.hover = Подсказки при наведении
+prefs.help.code.hover = Показывать документацию кода при наведении
+prefs.label.code.auto-closing-parens = Авто-закрытие скобок
+
+# Extensions tab
+prefs.label.extensions.build-server = Сервер сборки
+prefs.label.extensions.build-server-username = Логин сервера
+prefs.label.extensions.build-server-password = Пароль сервера
+prefs.label.extensions.build-server-headers = HTTP-заголовки сервера
+
+# Tools
+prefs.label.tools.adb-path = Путь к ADB
+prefs.help.tools.adb-path = Путь к команде ADB, которая может использоваться для установки и запуска Android-приложения после сборки
+prefs.label.tools.ios-deploy-path = Путь к ios-deploy
+prefs.help.tools.ios-deploy-path = Путь к команде ios-deploy, которая может использоваться для установки и запуска iOS-приложения после сборки
+
+# Dev tab
+prefs.label.dev.custom-engine = Свой движок
+
+# Keymap tab
+prefs.keymap.filter.prompt = Фильтр комбинаций клавиш...
+prefs.keymap.command = Команда
+prefs.keymap.shortcuts = Комбинации клавиш
+prefs.keymap.context-menu.new-shortcut = Новая комбинация клавиш...
+prefs.keymap.context-menu.reset-to-default = Восстановить по умолчанию
+prefs.keymap.context-menu.remove = Удалить {shortcut}
+prefs.keymap.context-menu.add = Добавить {shortcut}
+prefs.keymap.new-shortcut = Новая комбинация: «{shortcut}»
+prefs.keymap.new-shortcut.commit = Нажмите {enter}, чтобы подтвердить
+prefs.keymap.new-shortcut.commit-or-cancel = Нажмите {enter}, чтобы подтвердить, {escape} — отменить
+prefs.keymap.new-shortcut.press-desired-combination = Нажмите нужную комбинацию клавиш
+prefs.keymap.warning.typable = Символы вводимы (может мешать текстовым полям)
+prefs.keymap.warning.conflicts = Конфликтует с комбинациями: {shortcuts}
+prefs.keymap.warnings = Предупреждения:{warnings}

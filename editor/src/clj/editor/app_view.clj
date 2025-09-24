@@ -33,6 +33,7 @@
             [editor.disk :as disk]
             [editor.disk-availability :as disk-availability]
             [editor.editor-extensions :as extensions]
+            [editor.editor-localization-bundle :as editor-localization-bundle]
             [editor.engine :as engine]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.engine.native-extensions :as native-extensions]
@@ -50,6 +51,7 @@
             [editor.icons :as icons]
             [editor.keymap :as keymap]
             [editor.live-update-settings :as live-update-settings]
+            [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
             [editor.menu-items :as menu-items]
@@ -86,6 +88,7 @@
             [util.fn :as fn]
             [util.http-server :as http-server]
             [util.profiler :as profiler]
+            [util.text-util :as text-util]
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
            [com.defold.editor UIUtil]
@@ -605,8 +608,8 @@
       (set-pane-visible! scene pane-kw false))))
 
 (handler/defhandler :app.preferences :global
-  (run [workspace prefs app-view]
-    (prefs-dialog/open! prefs)
+  (run [workspace prefs app-view localization]
+    (prefs-dialog/open! prefs localization)
     (workspace/update-build-settings! workspace prefs)
     (let [new-keymap (keymap/from-prefs prefs)]
       (when-not (= new-keymap (g/raw-property-value (g/now) app-view :keymap))
@@ -809,8 +812,19 @@
         (when (not @version-line)
           (when-let [engine-version-line (engine/parse-engine-version-line line)]
             (reset! version-line engine-version-line))))
+      ;; After the version line, wait briefly for stream readiness, then call the callback.
       (when (and @updated-target (= @version-line line))
-        (on-service-url-found @updated-target))
+        (future
+          (let [max-wait-ms 2000
+                step-ms 100
+                deadline (+ (System/currentTimeMillis) max-wait-ms)]
+            (loop []
+              (if (or (console/current-stream? (:log-stream @updated-target))
+                      (>= (System/currentTimeMillis) deadline))
+                (on-service-url-found @updated-target)
+                (do
+                  (Thread/sleep step-ms)
+                  (recur)))))))
       (when (console/current-stream? (:log-stream launched-target))
         (console/append-console-line! line)))))
 
@@ -1998,7 +2012,7 @@ If you do not specifically require different script states, consider changing th
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
         (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))
 
-(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs]
+(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
@@ -2022,12 +2036,20 @@ If you do not specifically require different script states, consider changing th
 
       (ui/register-menubar app-scene menu-bar ::menubar)
 
-      (let [refresh-timer (ui/->timer
+      (let [prev-localization-bundle (volatile! nil)
+            refresh-timer (ui/->timer
                             "refresh-app-view"
                             (fn [_ elapsed dt]
                               (when-not (ui/ui-disabled?)
                                 (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)]
                                   (when refresh-requested?
+                                    (g/with-auto-evaluation-context evaluation-context
+                                      (let [localization-bundle (-> project
+                                                                    (project/editor-localization-bundle evaluation-context)
+                                                                    (editor-localization-bundle/bundle evaluation-context))]
+                                        (when-not (identical? @prev-localization-bundle localization-bundle)
+                                          (vreset! prev-localization-bundle localization-bundle)
+                                          (localization/set-bundle! localization ::project localization-bundle))))
                                     (ui/user-data! app-scene ::ui/refresh-requested? false)
                                     (refresh-menus-and-toolbars! app-view app-scene)
                                     (refresh-views! app-view))
@@ -2120,6 +2142,12 @@ If you do not specifically require different script states, consider changing th
           (string/trim)
           (not-empty)))
 
+(defn view-types
+  [resource]
+  (cond->> (:view-types (resource/resource-type resource))
+           (text-util/binary? resource)
+           (e/filter #(not= :code (:id %)))))
+
 (defn open-resource
   ([app-view prefs workspace project resource]
    (open-resource app-view prefs workspace project resource {}))
@@ -2130,7 +2158,7 @@ If you do not specifically require different script states, consider changing th
                                             {})))
          text-view-type (workspace/get-view-type workspace :text)
          view-type      (or (:selected-view-type opts)
-                            (first (:view-types resource-type))
+                            (first (view-types resource))
                             text-view-type)
          view-type-id (:id view-type)
          specific-view-type-selected (some? (:selected-view-type opts))]
@@ -2234,7 +2262,6 @@ If you do not specifically require different script states, consider changing th
                              active-view-type-id (:id (:view-type (g/node-value app-view :active-view-info evaluation-context)))]
                          (pair active-resource active-view-type-id))))
 
-                   resource-type (resource/resource-type resource)
                    is-custom-code-editor-configured (some? (custom-code-editor-executable-path-preference prefs))
 
                    make-option
@@ -2260,7 +2287,7 @@ If you do not specifically require different script states, consider changing th
                                                   :use-custom-editor false})]
                                    [(view-type->option view-type)])))
                        (map view-type->option))
-                     (cond->> (:view-types resource-type)
+                     (cond->> (view-types resource)
 
                               active-view-type-id
                               (e/filter #(not= active-view-type-id (:id %)))))))))
@@ -2857,7 +2884,8 @@ If you do not specifically require different script states, consider changing th
                   (disk/async-reload! render-install-progress! workspace [] changes-view
                                       (fn [success]
                                         (when success
-                                          (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs web-server)))))))))))))
+                                          (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs web-server)
+                                          (project/update-fetch-libraries-notification! project)))))))))))))
 
 (handler/defhandler :private/add-dependency :global
   (enabled? [] (disk-availability/available?))

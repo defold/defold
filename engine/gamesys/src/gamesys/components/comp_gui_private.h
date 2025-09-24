@@ -104,7 +104,8 @@ namespace dmGameSystem
      * @member m_Render [type: dmRender::HRender] The render context
      * @member m_Contexts [type: dmHashTable64<void*>] Mappings between names and contexts
      */
-    struct CompGuiNodeTypeCtx {
+    struct CompGuiNodeTypeCtx
+    {
         dmConfigFile::HConfig    m_Config;
         dmResource::HFactory     m_Factory;
         dmRender::HRenderContext m_Render;

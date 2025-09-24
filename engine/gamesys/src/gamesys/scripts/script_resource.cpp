@@ -690,7 +690,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
     SetTextureAsyncRequest* request = (SetTextureAsyncRequest*) user_data;
 
     // Swap out the texture
-    dmGraphics::DeleteTexture(request->m_TextureResource->m_Texture);
+    dmGraphics::DeleteTexture(g_ResourceModule.m_GraphicsContext, request->m_TextureResource->m_Texture);
     request->m_TextureResource->m_Texture = texture;
 
     if (dmScript::IsCallbackValid(request->m_CallbackInfo))
@@ -778,7 +778,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
  * - `graphics.TEXTURE_FORMAT_RGB_ETC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_ETC2`
- * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4X4`
  * - `graphics.TEXTURE_FORMAT_RGB_BC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_BC3`
  * - `graphics.TEXTURE_FORMAT_R_BC4`
@@ -986,7 +986,7 @@ static int CreateTexture(lua_State* L)
  * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
  * - `graphics.TEXTURE_FORMAT_RGB_ETC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_ETC2`
- * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4X4`
  * - `graphics.TEXTURE_FORMAT_RGB_BC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_BC3`
  * - `graphics.TEXTURE_FORMAT_R_BC4`
@@ -1027,7 +1027,9 @@ static int CreateTexture(lua_State* L)
  * - `COMPRESSION_TYPE_BASIS_UASTC`
  *
  * @param buffer [type:buffer] optional buffer of precreated pixel data
+ * @param callback [type:function] callback function when texture is created (self, request_id, resource)
  *
+ * @return path [type:hash] The path to the texture resource.
  * @return request_id [type:number] The request id for the async request.
  *
  * [icon:attention] 3D Textures are currently only supported on OpenGL and Vulkan adapters. To check if your device supports 3D textures, use:
@@ -1230,7 +1232,7 @@ static int CreateTextureAsync(lua_State* L)
     }
 
     // Execute the upload, the upload buffer should now be locked by this request
-    dmGraphics::SetTextureAsync(texture_dst, texture_params, HandleRequestCompleted, request);
+    dmGraphics::SetTextureAsync(g_ResourceModule.m_GraphicsContext, texture_dst, texture_params, HandleRequestCompleted, request);
 
     dmScript::PushHash(L, create_params.m_PathHash);
     lua_pushnumber(L, request_handle);
@@ -1300,7 +1302,7 @@ static int ReleaseResource(lua_State* L)
  * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
  * - `graphics.TEXTURE_FORMAT_RGB_ETC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_ETC2`
- * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4X4`
  * - `graphics.TEXTURE_FORMAT_RGB_BC1`
  * - `graphics.TEXTURE_FORMAT_RGBA_BC3`
  * - `graphics.TEXTURE_FORMAT_R_BC4`
@@ -1648,12 +1650,12 @@ static int SetTexture(lua_State* L)
 
 static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
 {
-    uint32_t texture_width               = dmGraphics::GetTextureWidth(texture_handle);
-    uint32_t texture_height              = dmGraphics::GetTextureHeight(texture_handle);
-    uint32_t texture_depth               = dmGraphics::GetTextureDepth(texture_handle);
-    uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(texture_handle);
-    dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture_handle);
-    uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(texture_handle);
+    uint32_t texture_width               = dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture_handle);
+    uint32_t texture_height              = dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture_handle);
+    uint32_t texture_depth               = dmGraphics::GetTextureDepth(g_ResourceModule.m_GraphicsContext, texture_handle);
+    uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(g_ResourceModule.m_GraphicsContext, texture_handle);
+    dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(g_ResourceModule.m_GraphicsContext, texture_handle);
+    uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(g_ResourceModule.m_GraphicsContext, texture_handle);
     uint8_t  page_count                  = dmGraphics::GetTexturePageCount(texture_handle);
 
     lua_pushnumber(L, texture_handle);
@@ -1852,7 +1854,7 @@ static int GetRenderTargetInfo(lua_State* L)
     for (int i = 0; i < DM_ARRAY_SIZE(color_buffer_flags); ++i)
     {
         dmGraphics::BufferType buffer_type = color_buffer_flags[i];
-        dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(rt_handle, buffer_type);
+        dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(g_ResourceModule.m_GraphicsContext, rt_handle, buffer_type);
         if (t)
         {
             lua_pushinteger(L, (lua_Integer) (attachment_count+1));
@@ -2095,8 +2097,8 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
     texture_set_ddf->m_Texture     = 0;
     texture_set_ddf->m_TextureHash = texture_path_hash;
 
-    float tex_width            = dmGraphics::GetTextureWidth(texture);
-    float tex_height           = dmGraphics::GetTextureHeight(texture);
+    float tex_width            = dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture);
+    float tex_height           = dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture);
     uint32_t frame_index_count = 0;
 
     texture_set_ddf->m_Geometries.m_Data  = new dmGameSystemDDF::SpriteGeometry[num_geometries];
@@ -2762,8 +2764,8 @@ static int GetAtlas(lua_State* L)
     dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
     assert(texture_set);
 
-    float tex_width  = (float) dmGraphics::GetTextureWidth(texture_set_res->m_Texture->m_Texture);
-    float tex_height = (float) dmGraphics::GetTextureHeight(texture_set_res->m_Texture->m_Texture);
+    float tex_width  = (float) dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture_set_res->m_Texture->m_Texture);
+    float tex_height = (float) dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture_set_res->m_Texture->m_Texture);
 
     #define SET_LUA_TABLE_FIELD(set_fn, key, val) \
         set_fn(L, val); \
@@ -3615,7 +3617,7 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_ETC1);
 
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_ETC2);
-    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_ASTC_4x4);
+    SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_ASTC_4X4);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_BC1);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_BC3);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R_BC4);

@@ -82,7 +82,9 @@ def configure(conf):
         simd_supported = True
 
     sound_lib = []
-    if simd_supported:
+    if waflib.Options.options.with_openal:
+        sound_lib += ['sound_openal']
+    elif simd_supported:
         sound_lib += ['sound']
     else:
         sound_lib += ['sound_nosimd']
@@ -131,7 +133,10 @@ def configure(conf):
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env['STLIB_RESOURCE'] = 'resource'
     conf.env['STLIB_RENDER'] = 'render render_font_default'.split()
-    conf.env['STLIB_GAMESYS'] = 'gamesys gamesys_model gamesys_rig script_box2d_defold'.split()
+    if 'box2dv3' in waflib.Options.options.enable_features:
+        conf.env['STLIB_GAMESYS'] = 'gamesys gamesys_model gamesys_rig script_box2d'.split()
+    else:
+        conf.env['STLIB_GAMESYS'] = 'gamesys gamesys_model gamesys_rig script_box2d_defold'.split()
     conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
     conf.env['STLIB_SCRIPT'] = 'script'
     conf.env['STLIB_DMGLFW'] = glfw_lib

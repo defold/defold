@@ -1,0 +1,262 @@
+# Key naming convention:
+# 1. Use dot-separated hierarchy (from broad to specific)
+# 2. Use at least 2 dot-separated elements
+# 3. Use lower-cased kebab-case
+# 4. Avoid suffixes baked into the last path element (e.g., -label, -button)
+# 5. For dialog elements, use consistent names: title, header, detail
+# 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
+# 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
+
+# Localizations of the Welcome dialog
+welcome.button.open-from-disk = Open From Disk...
+welcome.button.open-selected = Open Selected
+welcome.button.create-new-project = Create New Project
+welcome.button.cancel-download = Cancel Download
+welcome.recent-projects = Recent Projects
+welcome.tab.new-project = NEW PROJECT
+welcome.tab.home = HOME
+welcome.greeting = Welcome! As soon as you start working with Defold, all your recent projects will appear here.
+welcome.downloading-project = Downloading {template}...
+welcome.category.from-template = From Template
+welcome.category.from-tutorial = From Tutorial
+welcome.category.from-sample = From Sample
+welcome.new-project.default-name = My Project
+welcome.new-project.title = Title
+welcome.new-project.location = Location
+welcome.open-from-disk.dialog.title = Open Project
+welcome.open-from-disk.dialog.filter.defold = Defold Project Files
+welcome.new-project.location.dialog.title = Select New Project Location
+welcome.new-project.error.no-project-title.title = No Project Title
+welcome.new-project.error.no-project-title.header = You must specify a title for the project
+welcome.new-project.error.invalid-project-title.title = Invalid Project Title
+welcome.new-project.error.invalid-project-title.header = Whitespace is not allowed around the project title
+welcome.new-project.error.conflicting-project-location.title = Conflicting Project Location
+welcome.new-project.error.conflicting-project-location.header = A non-empty folder already exists at the chosen location
+welcome.new-project.error.no-internet-connection.title = No Internet Connection
+welcome.new-project.error.no-internet-connection.header = You must be connected to the internet to download project content
+welcome.new-project.error.host-unreachable.title = Host Unreachable
+welcome.new-project.error.host-unreachable.header = A firewall might be blocking network connections
+welcome.new-project.error.host-not-responding.title = Host Not Responding
+welcome.new-project.error.host-not-responding.header = The connection timed out
+welcome.new-project.error.ssl-connection-error.title = SSL Connection Error
+welcome.new-project.error.ssl-connection-error.header = Could not establish an SSL connection
+welcome.new-project.error.ssl-connection-error.common-causes = Common causes are:\n\u00A0\u00A0\u2022\u00A0Antivirus software configured to scan encrypted connections\n\u00A0\u00A0\u2022\u00A0Expired or misconfigured server certificate\n\u00A0\u00A0\u2022\u00A0Untrusted server certificate\n\nThe following FAQ may apply:
+welcome.new-project.error.ssl-connection-error.pkix-faq-entry = PKIX path building failed
+
+# Welcome -> New Project -> From Template
+welcome.new-project.empty-project.title = Empty Project
+welcome.new-project.empty-project.description = Choose this template if you want to start from a completely blank slate.
+welcome.new-project.mobile-game.title = Mobile Game
+welcome.new-project.mobile-game.description = This template contains useful settings and assets if you want to start building a game for mobile devices.
+welcome.new-project.desktop-game.title = Desktop Game
+welcome.new-project.desktop-game.description = This template contains useful settings and assets if you want to start building a game for desktop.
+welcome.new-project.poki-html5-game.title = Poki HTML5 Game
+welcome.new-project.poki-html5-game.description = This template includes the Poki SDK, designed for both desktop and mobile web games. It also provides a quick export option to the Poki for Developers platform.
+welcome.new-project.native-extension.title = Native Extension
+welcome.new-project.native-extension.description = This template contains the basic setup if you want to start creating a native extension.
+welcome.new-project.basic-3d-project.title = Basic 3D Project
+welcome.new-project.basic-3d-project.description = This template contains a basic setup for doing 3D rendering.
+welcome.new-project.platformer-game.title = Platformer Game
+welcome.new-project.platformer-game.description = This template contains a basic setup if you want to start building a platformer game.
+welcome.new-project.rive-project.title = Rive Project
+welcome.new-project.rive-project.description = This template uses the rive extension to get you started.
+
+# Welcome -> New Project -> From Tutorial
+welcome.new-project.side-scroller-tutorial.title = Side Scroller Tutorial
+welcome.new-project.side-scroller-tutorial.description = In this beginner's tutorial you get a taste of how to build a game in Defold by modifying a very simple side scroller game.
+welcome.new-project.walking-astronaut-tutorial.title = Walking Astronaut Tutorial
+welcome.new-project.walking-astronaut-tutorial.description = In this beginner's tutorial you learn how to capture player input and make a character move and animate. You will also learn about the core building blocks in Defold: game objects, components, and collections.
+welcome.new-project.movement-tutorial.title = Movement Tutorial
+welcome.new-project.movement-tutorial.description = In this beginner's tutorial you learn how to make realistic movement using vectors and some simple vector algebra.
+welcome.new-project.war-battles-tutorial.title = War Battles Tutorial
+welcome.new-project.war-battles-tutorial.description = In this medium difficulty tutorial you build the foundation for a top down shooter game based on the "War Battles" RTS asset pack.
+welcome.new-project.colorslide-tutorial.title = Colorslide Tutorial
+welcome.new-project.colorslide-tutorial.description = In this medium difficulty tutorial you build an in-game GUI, a GUI screen for level selection and a start screen for a simple multi level mobile game.
+
+# Welcome -> New Project -> From Sample
+welcome.new-project.linker-sample-game.title = Linker Sample Game
+welcome.new-project.linker-sample-game.description = This is a complete sample game where you click and drag to link fish of the same color to remove them from the board. Long chains of fish yields boosters.
+welcome.new-project.roids-sample-game.title = Roids Sample Game
+welcome.new-project.roids-sample-game.description = This is a complete sample game where you steer a space ship and fire your way through a storm of meteors.
+welcome.new-project.pixel-line-platformer.title = Pixel Line Platformer
+welcome.new-project.pixel-line-platformer.description = This is a complete platformer game with a modern pixel art style created by Kenney.
+welcome.new-project.main-menu-animation.title = Main Menu Animation
+welcome.new-project.main-menu-animation.description = In this sample, we demonstrate effects to present a main menu.
+welcome.new-project.parallax.title = Parallax
+welcome.new-project.parallax.description = In this sample, we demonstrate how to use a parallax effect to simulate depth in the game world.
+welcome.new-project.hud.title = HUD
+welcome.new-project.hud.description = In this sample, we demonstrate effects for score counting.
+welcome.new-project.level-complete.title = Level Complete
+welcome.new-project.level-complete.description = In this sample, we demonstrate effects to show the score counting that could occur when a level has been completed.
+welcome.new-project.rpg-map-sample.title = RPG Map Sample
+welcome.new-project.rpg-map-sample.description = This sample shows how you can create a large RPG map that scrolls one screen at a time as the hero progresses.
+welcome.new-project.shadertoy-sample.title = Shadertoy Sample
+welcome.new-project.shadertoy-sample.description = This sample contains a GLSL shader that was taken from Shadertoy and converted to Defold. It showcases how to work with materials and shaders in Defold.
+welcome.new-project.3d-treasure-scene.title = 3D Treasure Scene
+welcome.new-project.3d-treasure-scene.description = This sample shows a stylized 3D scene with animation.
+welcome.new-project.perspective-parallax.title = Perspective Parallax
+welcome.new-project.perspective-parallax.description = This sample shows a perspective camera parallax effect.
+welcome.new-project.lightning-vfx.title = Lightning VFX
+welcome.new-project.lightning-vfx.description = The sample shows a lightning effect in a 2d scrolling shooter and how the mesh component is setup to be manipulated during gameplay.
+
+# Updater
+updater.button.update-available = Update Available
+updater.button.restart-to-update = Restart to Update
+updater.download-or-restart-dialog.title = Install Update?
+updater.download-or-restart-dialog.header = Update is ready, but there is even newer version available
+updater.download-or-restart-dialog.detail = You can install downloaded update or download newer one
+updater.platform-not-supported-dialog.title = Platform Not Supported
+updater.platform-not-supported-dialog.header = Updates are no longer provided for this platform
+updater.platform-not-supported-dialog.detail = Supported platforms are 64-bit Linux, macOS and Windows
+updater.download-dialog.title = Download Update?
+updater.download-dialog.header = A newer version of Defold is available!
+updater.update-failed.title = Update Failed
+updater.update-failed.header = An error occurred during update installation
+updater.update-failed.detail = You probably should perform a fresh install
+updater.dialog.title = Install Update and Restart?
+updater.dialog.header = Install downloaded update and restart?
+updater.dialog.button.not-now = Not Now
+updater.dialog.button.download = Download Update
+updater.dialog.button.install-and-restart = Install and Restart
+updater.dialog.button.download-newer-version = Download Newer Version
+
+# Time
+time.vague.unknown = Unknown
+time.vague.just-now = Just now
+time.vague.a-minute-ago = A minute ago
+time.vague.a-few-minutes-ago = A few minutes ago
+time.vague.minutes-ago = {count} minutes ago
+time.vague.half-an-hour-ago = Half an hour ago
+time.vague.an-hour-ago = An hour ago
+time.vague.a-few-hours-ago = A few hours ago
+time.vague.hours-ago = {count} hours ago
+time.vague.a-day-ago = A day ago
+
+# Common dialogs
+
+dialog.button.close = Close
+dialog.button.quit = Quit
+dialog.button.open-defold-website = Open defold.com
+dialog.button.dismiss = Dismiss
+dialog.button.report = Report
+dialog.button.disable-scene-editor = Disable Scene Editor
+dialog.button.cancel = Cancel
+
+# Error Dialog
+
+dialog.error.title = Error
+dialog.error.header = An error occurred
+dialog.error.footer = You can help us fix this problem by reporting it and providing more information about what you were doing when it happened.
+
+# GL support error dialog
+
+dialog.gl-support.title = Insufficient OpenGL Support
+dialog.gl-support.header = This is a very common issue. See if any of these instructions help:
+dialog.gl-support.linux = OpenGL on linux
+dialog.gl-support.gl-gen-buffers = glGenBuffers
+dialog.gl-support.detail = You can continue with scene editing disabled.
+
+# New folder
+
+dialog.new-folder.title = New Folder
+dialog.new-folder.header = Enter New Folder Name
+dialog.new-folder.label.name = Name
+dialog.new-folder.label.preview = Preview
+dialog.new-folder.button.create-folder = Create Folder
+
+# Target IP dialog
+
+dialog.target-ip.title = Enter Target IP
+dialog.target-ip.header = Enter Target IP Address
+dialog.target-ip.label.ip = Target IP Address
+dialog.target-ip.button.add = Add Target IP
+
+# Editor panes
+
+pane.assets = Assets
+pane.changed-files = Changed Files
+pane.outline = Outline
+pane.properties = Properties
+pane.console = Console
+pane.curve-editor = Curve Editor
+pane.build-errors = Build Errors
+pane.search-results = Search Results
+
+# Console
+
+console.button.clear = Clear
+console.button.filter = Filter
+console.filter.enable-filtering = Enable filtering
+console.filter.add-filter = Add filter (e.g. text, !exclude)
+console.search = Search
+
+# Changes view
+
+changes-view.button.diff = Diff
+changes-view.button.revert = Revert
+
+# Prefs
+
+prefs.dialog.title = Preferences
+
+prefs.tab.general = General
+prefs.tab.code = Code
+prefs.tab.extensions = Extensions
+prefs.tab.tools = Tools
+prefs.tab.dev = Dev
+prefs.tab.keymap = Keymap
+
+# General tab
+prefs.label.workflow.load-external-changes-on-app-focus = Load External Changes on App Focus
+prefs.label.bundle.open-output-directory = Open Bundle Target Folder
+prefs.label.build.open-html5-build = Open Browser After "Build HTML5"
+prefs.label.build.texture-compression = Enable Texture Compression
+prefs.label.run.quit-on-escape = Escape Quits Game
+prefs.label.asset-browser.track-active-tab = Track Active Tab in Asset Browser
+prefs.label.build.lint-code = Lint Code on Build
+prefs.label.window.locale = Editor Language
+prefs.label.run.engine-arguments = Engine Arguments
+prefs.prompt.run.engine-arguments = One argument per line
+prefs.help.run.engine-arguments = Arguments that will be passed to the dmengine executables when the editor builds and runs.\nUse one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan
+
+# Code tab
+prefs.label.code.custom-editor = Custom Editor
+prefs.label.code.open-file = Open File
+prefs.label.code.open-file-at-line = Open File at Line
+prefs.label.code.font.name = Code Editor Font (Requires Restart)
+prefs.label.code.zoom-on-scroll = Zoom on Scroll
+prefs.label.code.hover = Hover popup
+prefs.help.code.hover = Show code documentation popup on hover
+prefs.label.code.auto-closing-parens = Auto-insert closing parens
+
+# Extensions tab
+prefs.label.extensions.build-server = Build Server
+prefs.label.extensions.build-server-username = Build Server Username
+prefs.label.extensions.build-server-password = Build Server Password
+prefs.label.extensions.build-server-headers = Build Server Headers
+
+# Tools
+prefs.label.tools.adb-path = ADB path
+prefs.help.tools.adb-path = Path to ADB command that might be used to install and launch the Android app when it's bundled
+prefs.label.tools.ios-deploy-path = ios-deploy path
+prefs.help.tools.ios-deploy-path = Path to ios-deploy command that might be used to install and launch iOS app when it's bundled
+
+# Dev tab
+prefs.label.dev.custom-engine = Custom Engine
+
+# Keymap tab
+prefs.keymap.filter.prompt = Filter keymap...
+prefs.keymap.command = Command
+prefs.keymap.shortcuts = Shortcuts
+prefs.keymap.context-menu.new-shortcut = New Shortcut...
+prefs.keymap.context-menu.reset-to-default = Reset to Default
+prefs.keymap.context-menu.remove = Remove {shortcut}
+prefs.keymap.context-menu.add = Add {shortcut}
+prefs.keymap.new-shortcut = New "{shortcut}" Shortcut
+prefs.keymap.new-shortcut.press-desired-combination = Press the desired key combination
+prefs.keymap.new-shortcut.commit = Press {enter} to commit
+prefs.keymap.new-shortcut.commit-or-cancel = Press {enter} to commit, {escape} again to cancel
+prefs.keymap.warnings = Warnings:{warnings}
+prefs.keymap.warning = \n• {warning}
+prefs.keymap.warning.typable = Typable (may interfere with text inputs)
+prefs.keymap.warning.conflicts = Conflicts with {shortcuts}

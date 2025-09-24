@@ -278,7 +278,7 @@ PACKAGES_EMSCRIPTEN=[
     "protobuf-3.20.1",
     "bullet-2.77",
     "glfw-2.7.1",
-    "wagyu-37",
+    "wagyu-39",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2"]
@@ -631,7 +631,7 @@ class Configuration(object):
         if self.package_path is None:
             print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
             sys.exit(1)
-    
+
     def install_waf(self):
         def make_package_path(root, platform, package):
             return join(root, 'packages', package) + '-%s.tar.gz' % platform
@@ -646,7 +646,7 @@ class Configuration(object):
 
         def make_package_paths(root, platform, packages):
             return [make_package_path(root, platform, package) for package in packages]
-        
+
         self.install_waf()
 
         print("Installing common packages")
@@ -1091,6 +1091,17 @@ class Configuration(object):
                 protodir = os.path.join(self.dynamo_home, d)
                 paths = _findfiles(protodir, ('.proto',))
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            # third-party headers
+            for d in ['ext/include/vulkan', 'ext/include/vk_video']:
+                protodir = os.path.join(self.dynamo_home, d)
+                paths = _findfiles(protodir, ('.h','.hpp', '.hxx', '.idl'))
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            self._add_files_to_zip(zip, [
+                os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3.h'),
+                os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3native.h')
+            ], self.dynamo_home, topfolder)
 
             # C# files
             for d in ['sdk/cs']:
@@ -1881,7 +1892,10 @@ class Configuration(object):
 
         args = [SHELL, '-l']
 
-        process = subprocess.Popen(args, env=self._form_env(), shell=True)
+        if os.path.exists("/nix"):
+            args = ["nix-shell", os.path.join("scripts", "nix", "shell.nix"), "--run", " ".join(args)]
+
+        process = subprocess.Popen(args, env=self._form_env())
         try:
             output = process.communicate()[0]
         except KeyboardInterrupt as e:
@@ -2480,7 +2494,7 @@ class Configuration(object):
                     _threads[i].join()
                     self._log('Uploaded #%d %s -> %s' % (i + 1, path, url))
 
-                
+
                 if len(list(mp.parts.all())) == chunkcount:
                     try:
                         parts = []

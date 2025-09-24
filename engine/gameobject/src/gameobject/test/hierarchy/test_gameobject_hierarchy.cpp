@@ -319,6 +319,74 @@ TEST_F(HierarchyTest, TestHierarchy3)
     }
 }
 
+TEST_F(HierarchyTest, TestUpdateTransformsForInstance)
+{
+    // Build a simple three-level hierarchy: parent -> child -> grandchild
+    dmGameObject::HInstance parent      = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance child       = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance grandchild  = dmGameObject::New(m_Collection, "/go.goc");
+
+    // Initial local transforms
+    Point3 parent_pos(1, 2, 0);
+    const float parent_angle = 0.25f;
+    Quat   parent_rot = Quat::rotationZ(parent_angle);
+    Point3 child_pos(3, 0, 0);
+    const float child_angle = 0.5f;
+    Quat   child_rot = Quat::rotationZ(child_angle);
+    Point3 grandchild_pos(0, 4, 0);
+
+    dmGameObject::SetPosition(parent, parent_pos);
+    dmGameObject::SetRotation(parent, parent_rot);
+    dmGameObject::SetPosition(child, child_pos);
+    dmGameObject::SetRotation(child, child_rot);
+    dmGameObject::SetPosition(grandchild, grandchild_pos);
+
+    dmGameObject::SetParent(child, parent);
+    dmGameObject::SetParent(grandchild, child);
+
+    // Initialize world transforms
+    bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_TRUE(ret);
+    ret = dmGameObject::PostUpdate(m_Collection);
+    ASSERT_TRUE(ret);
+
+    // Capture original world positions
+    Point3 child_world_before       = dmGameObject::GetWorldPosition(child);
+    Point3 grandchild_world_before  = dmGameObject::GetWorldPosition(grandchild);
+
+    // Modify parent local transform mid-frame
+    Point3 parent_pos_new(10, 0, 0);
+    dmGameObject::SetPosition(parent, parent_pos_new);
+
+    // Update transforms only for the child chain (parent -> child)
+    dmGameObject::UpdateTransformsForInstance(m_Collection->m_Collection, child);
+
+    // Manually compute expected child world using matrices
+    Matrix4 parent_world = Matrix4::rotationZ(parent_angle);
+    parent_world.setCol3(Vector4(parent_pos_new));
+    Matrix4 child_local = Matrix4::rotationZ(child_angle);
+    child_local.setCol3(Vector4(child_pos));
+    Point3 expected_child_world = Point3((parent_world * child_local).getCol3().getXYZ());
+
+    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(child) - expected_child_world), 0.001f);
+
+    // Parent world should also be updated by the chain update
+    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(parent) - parent_pos_new), 0.001f);
+
+    // Grandchild should still have the old world transform (since descendants aren't updated)
+    ASSERT_NEAR(0.0f, length(dmGameObject::GetWorldPosition(grandchild) - grandchild_world_before), 0.001f);
+
+    // Now update grandchild specifically and verify it changes
+    dmGameObject::UpdateTransformsForInstance(m_Collection->m_Collection, grandchild);
+    Point3 grandchild_world_after = dmGameObject::GetWorldPosition(grandchild);
+    ASSERT_GT(length(grandchild_world_after - grandchild_world_before), 0.0001f);
+
+    // Cleanup
+    dmGameObject::Delete(m_Collection, parent, true);
+    ret = dmGameObject::PostUpdate(m_Collection);
+    ASSERT_TRUE(ret);
+}
+
 TEST_F(HierarchyTest, TestHierarchy4)
 {
     // Test RESULT_MAXIMUM_HIEARCHICAL_DEPTH

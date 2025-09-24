@@ -30,3 +30,4 @@ pom.xml.asc
 /.lsp
 /.portal
 /defunload-issues.txt
+/src/antlr

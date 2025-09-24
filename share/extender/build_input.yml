@@ -297,7 +297,7 @@ platforms:
         cxxLinkShFlags: ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
         libs:           ['clang_rt.osx']
         dynamicLibs:    []
-        symbols:        ["AudioDecoderTremolo", "GraphicsAdapterVulkan"]
+        symbols:        ["AudioDecoderTremolo", "GraphicsAdapterVulkan", "ProfilerRemotery"]
         libStartGroup_replace:  []
         libEndGroup_replace:    []
         osMinVersion:   "{{env.MACOS_VERSION_MIN}}"
@@ -544,7 +544,7 @@ platforms:
   wasm-web:
     context:
         libPaths:   ["{{dynamo_home}}/lib/wasm-web", "{{dynamo_home}}/ext/lib/wasm-web"]
-        emscriptenLinkFlags: ["ALLOW_MEMORY_GROWTH=1", "WASM=1", "WASM_BIGINT=1"]
+        emscriptenLinkFlags: ["ALLOW_MEMORY_GROWTH=1", "WASM=1"]
 
     symbolsPattern:  'dmengine.(js.symbols|wasm.debug.wasm)'
     zipContentPattern: 'dmengine.(wasm|js)'

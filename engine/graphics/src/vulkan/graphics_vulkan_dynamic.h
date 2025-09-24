@@ -134,5 +134,6 @@ extern PFN_vkGetPhysicalDeviceSurfaceFormatsKHR vkGetPhysicalDeviceSurfaceFormat
 extern PFN_vkGetPhysicalDeviceSurfacePresentModesKHR vkGetPhysicalDeviceSurfacePresentModesKHR;
 extern PFN_vkQueuePresentKHR vkQueuePresentKHR;
 extern PFN_vkResetCommandBuffer vkResetCommandBuffer;
+extern PFN_vkGetFenceStatus vkGetFenceStatus;
 
 #endif // __GRAPHICS_VULKAN_DYNAMIC__

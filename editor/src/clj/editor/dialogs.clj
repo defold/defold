@@ -35,6 +35,7 @@
             [editor.field-expression :as field-expression]
             [editor.fxui :as fxui]
             [editor.github :as github]
+            [editor.localization :as localization]
             [editor.os :as os]
             [editor.progress :as progress]
             [editor.ui :as ui]
@@ -282,71 +283,71 @@
                                                             :height (field-expression/to-int (:height-text state))})))
     :description {:fx/type resolution-dialog}))
 
-(defn make-update-failed-dialog [^Stage owner]
+(defn make-update-failed-dialog [^Stage owner localization]
   (let [result (make-confirmation-dialog
-                 {:title "Update Failed"
+                 {:title (localization (localization/message "updater.update-failed.title"))
                   :owner owner
                   :icon :icon/triangle-error
                   :header {:fx/type fx.v-box/lifecycle
                            :children [{:fx/type fxui/legacy-label
                                        :variant :header
-                                       :text "An error occurred during update installation"}
+                                       :text (localization (localization/message "updater.update-failed.header"))}
                                       {:fx/type fxui/legacy-label
-                                       :text "You probably should perform a fresh install"}]}
-                  :buttons [{:text "Quit"
+                                       :text (localization (localization/message "updater.update-failed.detail"))}]}
+                  :buttons [{:text (localization (localization/message "dialog.button.quit"))
                              :cancel-button true
                              :result false}
-                            {:text "Open defold.com"
+                            {:text (localization (localization/message "dialog.button.open-defold-website"))
                              :default-button true
                              :result true}]})]
     (when result
       (ui/open-url "https://www.defold.com/"))))
 
-(defn make-download-update-or-restart-dialog [^Stage owner]
+(defn make-download-update-or-restart-dialog [^Stage owner localization]
   (make-confirmation-dialog
-    {:title "Install Update?"
+    {:title (localization (localization/message "updater.download-or-restart-dialog.title"))
      :icon :icon/circle-info
      :size :large
      :owner owner
      :header {:fx/type fx.v-box/lifecycle
               :children [{:fx/type fxui/legacy-label
                           :variant :header
-                          :text "Update is ready, but there is even newer version available"}
+                          :text (localization (localization/message "updater.download-or-restart-dialog.header"))}
                          {:fx/type fxui/legacy-label
-                          :text "You can install downloaded update or download newer one"}]}
-     :buttons [{:text "Not Now"
+                          :text (localization (localization/message "updater.download-or-restart-dialog.detail"))}]}
+     :buttons [{:text (localization (localization/message "updater.dialog.button.not-now"))
                 :cancel-button true
                 :result :cancel}
-               {:text "Install and Restart"
+               {:text (localization (localization/message "updater.dialog.button.install-and-restart"))
                 :result :restart}
-               {:text "Download Newer Version"
+               {:text (localization (localization/message "updater.dialog.button.download-newer-version"))
                 :result :download}]}))
 
-(defn make-platform-no-longer-supported-dialog [^Stage owner]
+(defn make-platform-no-longer-supported-dialog [^Stage owner localization]
   (make-confirmation-dialog
-    {:title "Platform not supported"
+    {:title (localization (localization/message "updater.platform-not-supported-dialog.title"))
      :icon :icon/circle-sad
      :owner owner
      :header {:fx/type fx.v-box/lifecycle
               :children [{:fx/type fxui/legacy-label
                           :variant :header
-                          :text "Updates are no longer provided for this platform"}
+                          :text (localization (localization/message "updater.platform-not-supported-dialog.header"))}
                          {:fx/type fxui/legacy-label
-                          :text "Supported platforms are 64-bit Linux, macOS and Windows"}]}
-     :buttons [{:text "Close"
+                          :text (localization (localization/message "updater.platform-not-supported-dialog.detail"))}]}
+     :buttons [{:text (localization (localization/message "dialog.button.close"))
                 :cancel-button true
                 :default-button true}]}))
 
-(defn make-download-update-dialog [^Stage owner]
+(defn make-download-update-dialog [^Stage owner localization]
   (make-confirmation-dialog
-    {:title "Download Update?"
-     :header "A newer version of Defold is available!"
+    {:title (localization (localization/message "updater.download-dialog.title"))
+     :header (localization (localization/message "updater.download-dialog.header"))
      :icon :icon/circle-happy
      :owner owner
-     :buttons [{:text "Not Now"
+     :buttons [{:text (localization (localization/message "updater.dialog.button.not-now"))
                 :cancel-button true
                 :result false}
-               {:text "Download Update"
+               {:text (localization (localization/message "updater.dialog.button.download"))
                 :default-button true
                 :result true}]}))
 
@@ -362,11 +363,11 @@
                 (format "%s: %s" type-name (or message "Unknown")))))
        (string/join "\n")))
 
-(defn- unexpected-error-dialog [{:keys [ex-map] :as props}]
+(defn- unexpected-error-dialog [{:keys [ex-map localization] :as props}]
   {:fx/type dialog-stage
    :showing (fxui/dialog-showing? props)
    :on-close-request {:result false}
-   :title "Error"
+   :title (localization (localization/message "dialog.error.title"))
    :header {:fx/type fx.h-box/lifecycle
             :style-class "spacing-smaller"
             :alignment :center-left
@@ -374,30 +375,31 @@
                         :type :icon/triangle-sad}
                        {:fx/type fxui/legacy-label
                         :variant :header
-                        :text "An error occurred"}]}
+                        :text (localization (localization/message "dialog.error.header"))}]}
    :content {:fx/type content-text-area
              :text (messages ex-map)}
    :footer {:fx/type fx.v-box/lifecycle
             :style-class "spacing-smaller"
             :children [{:fx/type fxui/legacy-label
-                        :text "You can help us fix this problem by reporting it and providing more information about what you were doing when it happened."}
+                        :text (localization (localization/message "dialog.error.footer"))}
                        {:fx/type dialog-buttons
                         :children [{:fx/type fxui/button
                                     :cancel-button true
                                     :on-action {:result false}
-                                    :text "Dismiss"}
+                                    :text (localization (localization/message "dialog.button.dismiss"))}
                                    {:fx/type fxui/ext-focused-by-default
                                     :desc {:fx/type fxui/button
                                            :variant :primary
                                            :default-button true
                                            :on-action {:result true}
-                                           :text "Report"}}]}]}})
+                                           :text (localization (localization/message "dialog.button.report"))}}]}]}})
 
-(defn make-unexpected-error-dialog [ex-map sentry-id-promise]
+(defn make-unexpected-error-dialog [ex-map sentry-id-promise localization]
   (when (fxui/show-dialog-and-await-result!
           :event-handler (fn [state event]
                            (assoc state ::fxui/result (:result event)))
           :description {:fx/type unexpected-error-dialog
+                        :localization localization
                         :ex-map ex-map})
     (let [sentry-id (deref sentry-id-promise 100 nil)
           fields (if sentry-id
@@ -453,32 +455,32 @@
         (throw ret)
         ret))))
 
-(defn make-gl-support-error-dialog [support-error]
+(defn make-gl-support-error-dialog [support-error localization]
   (make-confirmation-dialog
-    {:title "Insufficient OpenGL Support"
+    {:title (localization (localization/message "dialog.gl-support.title"))
      :header {:fx/type fx.v-box/lifecycle
               :children
               (-> [{:fx/type fxui/legacy-label
                     :variant :header
-                    :text "This is a very common issue. See if any of these instructions help:"}]
+                    :text (localization (localization/message "dialog.gl-support.header"))}]
                   (cond->
                     (os/is-linux?)
                     (conj {:fx/type fx.hyperlink/lifecycle
-                           :text "OpenGL on linux"
+                           :text (localization (localization/message "dialog.gl-support.linux"))
                            :on-action (fn [_] (ui/open-url "https://defold.com/faq/faq/#linux-questions"))}))
                   (conj
                     {:fx/type fx.hyperlink/lifecycle
                      :on-action (fn [_] (ui/open-url (github/glgenbuffers-link)))
-                     :text "glGenBuffers"}
+                     :text (localization (localization/message "dialog.gl-support.gl-gen-buffers"))}
                     {:fx/type fxui/legacy-label
-                     :text "You can continue with scene editing disabled."}))}
+                     :text (localization (localization/message "dialog.gl-support.detail"))}))}
      :icon :icon/circle-sad
      :content {:fx/type content-text-area
                :text support-error}
-     :buttons [{:text "Quit"
+     :buttons [{:text (localization (localization/message "dialog.button.quit"))
                 :cancel-button true
                 :result :quit}
-               {:text "Disable Scene Editor"
+               {:text (localization (localization/message "dialog.button.disable-scene-editor"))
                 :default-button true
                 :result :continue}]}))
 
@@ -725,7 +727,7 @@
 (declare sanitize-folder-name)
 
 (defn- new-folder-dialog
-  [{:keys [name validate] :as props}]
+  [{:keys [name validate localization] :as props}]
   (let [sanitized-name ^String (sanitize-folder-name name)
         path-empty (zero? (.length sanitized-name))
         error-msg (validate sanitized-name)
@@ -733,38 +735,39 @@
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
-     :title "New Folder"
+     :title (localization (localization/message "dialog.new-folder.title"))
      :size :small
      :header {:fx/type fxui/legacy-label
               :variant :header
-              :text "Enter New Folder Name"}
+              :text (localization (localization/message "dialog.new-folder.header"))}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
                :children [{:fx/type fxui/legacy-label
-                           :text "Name"}
+                           :text (localization (localization/message "dialog.new-folder.label.name"))}
                           {:fx/type fxui/legacy-text-field
                            :text ""
                            :variant (if invalid :error :default)
                            :on-text-changed {:event-type :set-folder-name}}
                           {:fx/type fxui/legacy-label
-                           :text "Preview"}
+                           :text (localization (localization/message "dialog.new-folder.label.preview"))}
                           {:fx/type fxui/legacy-text-field
                            :editable false
                            :text (or error-msg sanitized-name)}]}
      :footer {:fx/type dialog-buttons
               :children [{:fx/type fxui/button
-                          :text "Cancel"
+                          :text (localization (localization/message "dialog.button.cancel"))
                           :cancel-button true
                           :on-action {:event-type :cancel}}
                          {:fx/type fxui/button
                           :disable (or invalid path-empty)
-                          :text "Create Folder"
+                          :text (localization (localization/message "dialog.new-folder.button.create-folder"))
                           :variant :primary
                           :default-button true
                           :on-action {:event-type :confirm}}]}}))
 
 (defn make-new-folder-dialog
-  [^String base-dir {:keys [validate]}]
+  [{:keys [validate localization]}]
+  {:pre [(some? localization)]}
   (fxui/show-dialog-and-await-result!
     :initial-state {:name ""
                     :validate (or validate (constantly nil))}
@@ -773,14 +776,15 @@
                        :set-folder-name (assoc state :name event)
                        :cancel (assoc state ::fxui/result nil)
                        :confirm (assoc state ::fxui/result (sanitize-folder-name (:name state)))))
-    :description {:fx/type new-folder-dialog}))
+    :description {:fx/type new-folder-dialog
+                  :localization localization}))
 
-(defn- target-ip-dialog [{:keys [msg ^String ip] :as props}]
+(defn- target-ip-dialog [{:keys [msg ^String ip localization] :as props}]
   (let [ip-valid (pos? (.length ip))]
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
-     :title "Enter Target IP"
+     :title (localization (localization/message "dialog.target-ip.title"))
      :size :small
      :header {:fx/type fxui/legacy-label
               :variant :header
@@ -788,24 +792,24 @@
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
                :children [{:fx/type fxui/legacy-label
-                           :text "Target IP Address"}
+                           :text (localization (localization/message "dialog.target-ip.label.ip"))}
                           {:fx/type fxui/legacy-text-field
                            :variant (if ip-valid :default :error)
                            :text ip
                            :on-text-changed {:event-type :set-ip}}]}
      :footer {:fx/type dialog-buttons
               :children [{:fx/type fxui/button
-                          :text "Cancel"
+                          :text (localization (localization/message "dialog.button.cancel"))
                           :cancel-button true
                           :on-action {:event-type :cancel}}
                          {:fx/type fxui/button
                           :disable (not ip-valid)
-                          :text "Add Target IP"
+                          :text (localization (localization/message "dialog.target-ip.button.add"))
                           :variant :primary
                           :default-button true
                           :on-action {:event-type :confirm}}]}}))
 
-(defn make-target-ip-dialog [ip msg]
+(defn make-target-ip-dialog [ip msg localization]
   (fxui/show-dialog-and-await-result!
     :initial-state {:ip (or ip "")}
     :event-handler (fn [state {:keys [fx/event event-type]}]
@@ -814,12 +818,13 @@
                        :cancel (assoc state ::fxui/result nil)
                        :confirm (assoc state ::fxui/result (:ip state))))
     :description {:fx/type target-ip-dialog
-                  :msg (or msg "Enter Target IP Address")}))
+                  :localization localization
+                  :msg (or msg (localization (localization/message "dialog.target-ip.header")))}))
 
 (defn- sanitize-common [name]
   (-> name
       (string/replace #"[/\\]" "") ; strip path separators
-      (string/replace #"[\"']" "") ; strip quotes
+      (string/replace #"[\"'«»]" "") ; strip quotes
       (string/replace #"[<>:|?*]" "") ; Additional Windows forbidden characters
       string/trim))
 

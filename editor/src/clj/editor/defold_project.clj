@@ -21,11 +21,13 @@
             [dynamo.graph :as g]
             [editor.code.preprocessors :as code.preprocessors]
             [editor.code.resource :as code.resource]
+            [editor.code.script-annotations :as script-annotations]
             [editor.code.script-intelligence :as si]
             [editor.code.transpilers :as code.transpilers]
             [editor.collision-groups :as collision-groups]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
+            [editor.editor-localization-bundle :as editor-localization-bundle]
             [editor.game-project-core :as gpc]
             [editor.gl :as gl]
             [editor.graph-util :as gu]
@@ -866,6 +868,12 @@
   ([project evaluation-context]
    (g/node-value project :script-intelligence evaluation-context)))
 
+(defn script-annotations [project evaluation-context]
+  (g/node-value project :script-annotations evaluation-context))
+
+(defn editor-localization-bundle [project evaluation-context]
+  (g/node-value project :editor-localization-bundle evaluation-context))
+
 (defn make-node-id+resource-pairs [^long graph-id resources]
   ;; Note: We sort the resources by extension and proj-path to achieve a
   ;; deterministic order for the assigned node-ids.
@@ -1424,6 +1432,54 @@
       (texture.engine/reload-texture-compressors! java/class-loader)
       (workspace/load-clojure-editor-plugins! workspace touched-resources))))
 
+(defn settings
+  ([project]
+   (g/with-auto-evaluation-context evaluation-context
+     (settings project evaluation-context)))
+  ([project evaluation-context]
+   (g/node-value project :settings evaluation-context)))
+
+(defn project-dependencies
+  ([project]
+   (g/with-auto-evaluation-context evaluation-context
+     (project-dependencies project evaluation-context)))
+  ([project evaluation-context]
+   (when-let [settings (settings project evaluation-context)]
+     (settings ["project" "dependencies"]))))
+
+(defn update-fetch-libraries-notification
+  "Create transaction steps for showing or hiding a 'Fetch Libraries' suggestion
+  when the project dependency list differs from the currently installed
+  dependencies in the workspace."
+  [project evaluation-context]
+  (when-let [workspace (workspace project evaluation-context)]
+    (let [ignored-dep (:default (:element (settings-core/get-meta-setting gpc/meta-settings ["project" "dependencies"])))
+          desired-deps (disj (set (project-dependencies project evaluation-context)) ignored-dep)
+          installed-deps (set (workspace/dependencies workspace evaluation-context))
+          notifications (workspace/notifications workspace evaluation-context)
+          notification-id ::dependencies-changed]
+      (if (not= desired-deps installed-deps)
+        (notifications/show
+          notifications
+          {:id notification-id
+           :type :info
+           :text "Project dependencies have changed. Do you want to fetch the libraries now?"
+           :actions [{:text "Fetch Libraries"
+                      :on-action #(ui/execute-command
+                                    (ui/contexts (ui/main-scene))
+                                    :project.fetch-libraries
+                                    nil)}]})
+        (notifications/close notifications notification-id)))))
+
+(defn update-fetch-libraries-notification!
+  "Show or hide a 'Fetch Libraries' suggestion when the project dependency list
+  differs from the currently installed dependencies in the workspace."
+  [project]
+  (g/transact
+    (g/with-auto-evaluation-context evaluation-context
+      (update-fetch-libraries-notification project evaluation-context)))
+  nil)
+
 (defn- handle-resource-changes [project changes render-progress!]
   (reload-plugins! project (set/union (set (:added changes)) (set (:changed changes))))
   (let [[old-nodes-by-path old-node->old-disk-sha256]
@@ -1440,7 +1496,9 @@
     ;; For debugging resource loading / reloading issues:
     ;; (resource-update/print-plan resource-change-plan)
     (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))
-    (lsp/apply-resource-changes! (lsp/get-node-lsp project) changes)))
+    (lsp/apply-resource-changes! (lsp/get-node-lsp project) changes)
+    ;; Suggest fetching libraries if dependencies changed externally.
+    (update-fetch-libraries-notification! project)))
 
 (g/defnk produce-collision-groups-data
   [collision-group-nodes]
@@ -1498,6 +1556,8 @@
 
   (input script-intelligence g/NodeID :cascade-delete)
   (input editor-extensions g/NodeID :cascade-delete)
+  (input script-annotations g/NodeID :cascade-delete)
+  (input editor-localization-bundle g/NodeID :cascade-delete)
   (input all-selected-node-ids g/Any :array)
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
@@ -1573,13 +1633,6 @@
   (let [resource-path-to-node (g/node-value project :nodes-by-resource-path)
         resources        (resource/filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
-
-(defn settings [project]
-  (g/node-value project :settings))
-
-(defn project-dependencies [project]
-  (when-let [settings (settings project)]
-    (settings ["project" "dependencies"])))
 
 (defn shared-script-state? [project]
   (some-> (settings project) (get ["script" "shared_state"])))
@@ -1711,7 +1764,12 @@
             (g/transact
               (g/make-nodes graph
                   [script-intelligence si/ScriptIntelligenceNode
-                   project [Project :workspace workspace-id]]
+                   project [Project :workspace workspace-id]
+                   script-annotations script-annotations/ScriptAnnotations
+                   editor-localization-bundle editor-localization-bundle/EditorLocalizationBundle]
+                (g/connect workspace-id :root script-annotations :root)
+                (g/connect script-annotations :_node-id project :script-annotations)
+                (g/connect editor-localization-bundle :_node-id project :editor-localization-bundle)
                 (g/connect extensions :_node-id project :editor-extensions)
                 (g/connect script-intelligence :_node-id project :script-intelligence)
                 (g/connect workspace-id :build-settings project :build-settings)

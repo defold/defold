@@ -1636,11 +1636,11 @@
                      {:dispatch fx/dispatch-effect
                       :set (fn [[path value] _]
                              (let [ops (:form-ops (g/node-value view-id :form-data))]
-                               (form/set-value! ops path value)))
+                               (g/transact (form/set-value ops path value))))
                       :clear (fn [path _]
                                (let [ops (:form-ops (g/node-value view-id :form-data))]
                                  (when (form/can-clear? ops)
-                                   (form/clear-value! ops path))))
+                                   (g/transact (form/clear-value ops path)))))
                       :set-ui-state (fn [ui-state _]
                                       (g/set-property! view-id :ui-state ui-state))
                       :cancel-edit (fn [x _]

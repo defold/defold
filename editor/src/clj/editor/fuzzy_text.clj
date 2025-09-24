@@ -15,7 +15,8 @@
 (ns editor.fuzzy-text
   (:require [clojure.string :as string]
             [util.bit-set :as bit-set]
-            [util.coll :as coll :refer [pair]]))
+            [util.coll :as coll :refer [pair]])
+  (:import [java.util.concurrent.atomic AtomicInteger]))
 
 ;; Sublime Text-style fuzzy text matching.
 ;;
@@ -61,78 +62,6 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-(defn- case-insensitive-character-indices
-  "Returns a bit-set of the indices where the specified code point exists in the
-  string. Both upper- and lower-case matches are included."
-  [^String string ^long upper-ch ^long lower-ch ^long from-index]
-  (let [upper-ch (int upper-ch)
-        lower-ch (int lower-ch)
-        bits (bit-set/of-capacity (.length string))]
-    (assert (not (Character/isWhitespace upper-ch)))
-    (loop [from-index (int from-index)]
-      (let [upper (.indexOf string upper-ch from-index)
-            lower (.indexOf string lower-ch from-index)]
-        (when-not (and (neg? upper) (neg? lower))
-          (let [index (int (cond (neg? upper) lower
-                                 (neg? lower) upper
-                                 :else (min upper lower)))]
-            (bit-set/set-bit! bits index)
-            (recur (inc index))))))
-    bits))
-
-(defn- whitespace-length
-  "Counts the number of code points that represent whitespace in a string,
-  starting at from-index and counting until the next non-whitespace code point
-  or until it reaches string-length."
-  ^long [^String string ^long string-length ^long from-index]
-  (loop [index from-index
-         whitespace-length 0]
-    (if (or (= string-length index)
-            (not (Character/isWhitespace (.codePointAt string index))))
-      whitespace-length
-      (recur (inc index)
-             (inc whitespace-length)))))
-
-(defn- matching-index-permutations
-  "Returns a sequence of all permutations of indices inside the string where the
-  pattern characters appear in order. I.e. 'abc' appears in 'abbc' as [0 1 3]
-  and [0 2 3]. The matching-indices are returned as bit-sets. The from-index
-  parameter can be used to limit the starting point in the string."
-  [^String upper-pattern ^String lower-pattern ^String string ^long from-index]
-  (when-not (or (.isEmpty string)
-                (string/blank? upper-pattern))
-    (let [pattern-length (.length upper-pattern)
-          string-length (.length string)]
-      (assert (= pattern-length (.length lower-pattern)))
-      (loop [pattern-index (int 1)
-             matching-index-permutations
-             (let [upper-ch (.codePointAt upper-pattern 0)
-                   lower-ch (.codePointAt lower-pattern 0)
-                   bits (case-insensitive-character-indices string upper-ch lower-ch from-index)]
-               (bit-set/transfer bits []
-                 (map #(bit-set/of-capacity string-length %))))]
-        (if (= pattern-length pattern-index)
-          matching-index-permutations
-          (let [pattern-whitespace-length (whitespace-length upper-pattern pattern-length pattern-index)
-                pattern-index (+ pattern-index pattern-whitespace-length)]
-            (recur (inc pattern-index)
-                   (coll/transfer matching-index-permutations []
-                     (mapcat
-                       (fn [matching-indices]
-                         (let [prev-matching-index (bit-set/last-set-bit matching-indices)
-                               from-index (if (pos? pattern-whitespace-length)
-                                            (+ 2 prev-matching-index)
-                                            (inc prev-matching-index))]
-                           (when (not= string-length from-index)
-                             (let [upper-ch (.codePointAt upper-pattern pattern-index)
-                                   lower-ch (.codePointAt lower-pattern pattern-index)
-                                   bits (case-insensitive-character-indices string upper-ch lower-ch from-index)]
-                               (case (bit-set/cardinality bits)
-                                 0 nil
-                                 1 [(bit-set/or-bits! bits matching-indices)] ; Fast case: mutate the bit-set in place.
-                                 (bit-set/transfer bits []
-                                   (map #(bit-set/set-bit matching-indices %)))))))))))))))))
 
 (defn- every-character-is-letter-or-digit?
   "Returns true if every code point within the specified half-open range
@@ -242,31 +171,155 @@
       match-a
       match-b)))
 
+(defn- set-matching-index-bits-in-bit-set!
+  "Sets bits in the supplied bit-set to true at each index where the specified
+  code point is found in the string."
+  [bits ^String string ^long ch ^long from-index]
+  (loop [from-index (int from-index)]
+    (let [index (.indexOf string ch from-index)]
+      (when-not (neg? index)
+        (bit-set/set-bit! bits index)
+        (recur (inc index))))))
+
 (defn- match-impl
-  [^String upper-pattern ^String lower-pattern ^String string ^long from-index]
-  (transduce
-    (map (fn [matching-indices]
-           (pair (score string from-index matching-indices)
-                 matching-indices)))
-    (fn reduce-fn
-      ([best-match] best-match)
-      ([match-a match-b] (best-match match-a match-b)))
-    nil
-    (matching-index-permutations upper-pattern lower-pattern string from-index)))
+  "Performs a fuzzy text match against a string.
+  Returns a two-element vector of [score, matching-indices], or nil if the
+  pattern is empty or there is no match. Lower scores are better. The
+  matching-indices will be a bit-set containing the character indices where
+  either the upper-pattern-chs or the lower-pattern-chs matched the pattern.
+  These are expected to be equal-length sequences of non-whitespace code points.
+  A bit-set of pattern-break-indices should denote the indices between
+  characters where we should expect a run of non-matching characters. The
+  from-index is an index into the pattern-chs vectors and can be used to
+  control where matching begins in the input."
+  [upper-pattern-chs lower-pattern-chs pattern-break-indices ^String string from-index]
+  (let [pattern-length (count upper-pattern-chs)
+        string-length (.length string)]
+    (assert (= pattern-length (count lower-pattern-chs)))
+    (when-not (or (zero? pattern-length)
+                  (zero? string-length))
+      (let [from-index (int from-index)
+            best-score-atomic (AtomicInteger. Integer/MAX_VALUE)
+            best-matching-indices (bit-set/of-capacity string-length)
+            candidate-matching-indices (bit-set/of-capacity string-length)
+            search-start-indices (int-array pattern-length 0)
+
+            per-character-indices
+            (mapv (fn [^long upper-ch ^long lower-ch]
+                    (let [bits (bit-set/of-capacity (.length string))]
+                      (assert (not (Character/isWhitespace upper-ch)))
+                      (set-matching-index-bits-in-bit-set! bits string upper-ch from-index)
+                      (set-matching-index-bits-in-bit-set! bits string lower-ch from-index)
+                      bits))
+                  upper-pattern-chs
+                  lower-pattern-chs)]
+
+        (loop [iteration (int 0)
+               tick-index-in-pattern (int 0)]
+          (cond
+            (= pattern-length tick-index-in-pattern)
+            ;; We have a fully formed candidate.
+            (let [last-matched-index-in-string (bit-set/last-set-bit candidate-matching-indices)
+                  pending-tick-index-in-pattern (dec tick-index-in-pattern)
+                  candidate-score (score string from-index candidate-matching-indices)
+                  best-score (.get best-score-atomic)]
+              (when (< candidate-score best-score)
+                ;; We're the new best match.
+                ;; Register it, but keep searching for a better match at the
+                ;; final position. Yes, the one we found is the closest, but a
+                ;; later match after a word boundary could score even better.
+                (.set best-score-atomic candidate-score)
+                (bit-set/assign! best-matching-indices candidate-matching-indices))
+              (bit-set/clear-bit! candidate-matching-indices last-matched-index-in-string)
+              (recur (inc iteration)
+                     pending-tick-index-in-pattern))
+
+            (or (neg? tick-index-in-pattern)
+                (< 1000000 iteration))
+            ;; We've checked every permutation, or we've taken too long.
+            ;; Return the best result we have.
+            (when-not (bit-set/empty? best-matching-indices)
+              (let [best-score (.get best-score-atomic)]
+                (pair best-score best-matching-indices)))
+
+            :else
+            ;; We're still matching.
+            ;; When the pattern contains whitespace, we expect a run of
+            ;; non-matching characters between the two separated phrases. When
+            ;; preparing the pattern, we remove whitespace characters and
+            ;; instead put all the break indices in a pattern-break-indices
+            ;; bit-set. These are indices between characters in the pattern
+            ;; where we expect to find additional non-matching characters. For
+            ;; example, "a bc d" becomes "abcd" with break indices at 1 and 3.
+            (let [character-indices-in-string (per-character-indices tick-index-in-pattern)
+                  search-start-index (aget search-start-indices tick-index-in-pattern)
+                  matching-index-in-string (bit-set/next-set-bit character-indices-in-string search-start-index)]
+              (if (neg? matching-index-in-string)
+                ;; This is a dead branch.
+                ;; Backtrack by popping the last matched index from the
+                ;; candidate and moving the tick-index back one step.
+                (let [pending-tick-index-in-pattern (dec tick-index-in-pattern)
+                      last-matched-index-in-string (bit-set/last-set-bit candidate-matching-indices)]
+                  (when-not (neg? last-matched-index-in-string)
+                    (bit-set/clear-bit! candidate-matching-indices last-matched-index-in-string))
+                  (aset search-start-indices tick-index-in-pattern (int 0)) ; Not necessary, but leaving the original value can be confusing while debugging.
+                  (recur (inc iteration)
+                         pending-tick-index-in-pattern))
+
+                ;; We matched a character.
+                (let [pending-tick-index-in-pattern (inc tick-index-in-pattern)
+                      next-search-start-index (inc matching-index-in-string)]
+                  (bit-set/set-bit! candidate-matching-indices matching-index-in-string)
+                  (aset search-start-indices tick-index-in-pattern next-search-start-index)
+                  (when (not= pattern-length pending-tick-index-in-pattern)
+                    (let [is-pattern-break (bit-set/bit pattern-break-indices pending-tick-index-in-pattern)
+                          pending-next-search-start-index (cond-> next-search-start-index is-pattern-break inc)]
+                      (aset search-start-indices pending-tick-index-in-pattern pending-next-search-start-index)))
+                  (recur (inc iteration)
+                         pending-tick-index-in-pattern))))))))))
 
 (defn prepare-pattern
   "Given a pattern string, returns a trimmed and case-agnostic prepared-pattern
   for use with the match functions."
   [^String pattern]
-  (let [trimmed-pattern (string/trim pattern)]
-    (pair (string/upper-case trimmed-pattern)
-          (string/lower-case trimmed-pattern))))
+  (let [pattern-break-indices
+        (bit-set/of-capacity (.length pattern))
+
+        non-whitespace-chs
+        (first
+          (stream-reduce!
+            (fn [[non-whitespace-chs state :as result] ^long ch]
+              (if (Character/isWhitespace ch)
+                (case state
+                  (:trim :whitespace) result
+                  (pair non-whitespace-chs :whitespace))
+                (do
+                  (case state
+                    :whitespace (bit-set/set-bit! pattern-break-indices (count non-whitespace-chs))
+                    nil)
+                  (pair (conj non-whitespace-chs ch) :character))))
+            (pair (vector-of :int) :trim)
+            (.codePoints pattern)))
+
+        upper-pattern-chs
+        (into (vector-of :int)
+              (map ^[int] Character/toUpperCase)
+              non-whitespace-chs)
+
+        lower-pattern-chs
+        (into (vector-of :int)
+              (map ^[int] Character/toLowerCase)
+              non-whitespace-chs)]
+
+    [upper-pattern-chs
+     lower-pattern-chs
+     pattern-break-indices]))
 
 (defn empty-prepared-pattern?
   "Returns true if the supplied prepared-pattern is empty."
   [prepared-pattern]
-  (let [^String upper-pattern (key prepared-pattern)]
-    (.isEmpty upper-pattern)))
+  (let [upper-pattern-chs (first prepared-pattern)]
+    (coll/empty? upper-pattern-chs)))
 
 (defn match
   "Performs a fuzzy text match against a string using the prepared-pattern.
@@ -275,8 +328,8 @@
   contain the character indices in the string that matched the pattern in
   sequential order. A lower score represents a better match."
   [prepared-pattern ^String string]
-  (let [[upper-pattern lower-pattern] prepared-pattern]
-    (match-impl upper-pattern lower-pattern string 0)))
+  (let [[upper-pattern-chs lower-pattern-chs pattern-break-indices] prepared-pattern]
+    (match-impl upper-pattern-chs lower-pattern-chs pattern-break-indices string 0)))
 
 (defn- apply-filename-bonus
   "Applies a bonus for a match on the filename part of a path."
@@ -302,12 +355,12 @@
   against the entire path as well as just the file name. We return the
   best-scoring match of the two, or nil if there was no match."
   [prepared-pattern ^String path]
-  (let [[upper-pattern lower-pattern] prepared-pattern]
-    (when-some [path-match (match-impl upper-pattern lower-pattern path 0)]
+  (let [[upper-pattern-chs lower-pattern-chs pattern-break-indices] prepared-pattern]
+    (when-some [path-match (match-impl upper-pattern-chs lower-pattern-chs pattern-break-indices path 0)]
       (if-some [last-slash-index (string/last-index-of path \/)]
-        (let [name-index (inc ^long last-slash-index)]
+        (let [name-index (inc (long last-slash-index))]
           (if-some [name-match
-                    (some->> (match-impl upper-pattern lower-pattern path name-index)
+                    (some->> (match-impl upper-pattern-chs lower-pattern-chs pattern-break-indices path name-index)
                              (apply-filename-bonus path name-index))]
             (best-match name-match path-match)
             path-match))
