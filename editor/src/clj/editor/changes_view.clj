@@ -21,6 +21,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.git :as git]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
             [editor.resource :as resource]
@@ -160,7 +161,7 @@
            :text "Due to a Git error, Git features are not available for this project."})
         nil))))
 
-(defn make-changes-view [view-graph workspace prefs ^Parent parent async-reload!]
+(defn make-changes-view [view-graph workspace prefs localization ^Parent parent async-reload!]
   (assert (fn? async-reload!))
   (let [^ListView list-view     (.lookup parent "#changes")
         diff-button             (.lookup parent "#changes-diff")
@@ -171,6 +172,8 @@
         disk-available-listener (reify ChangeListener
                                   (changed [_this _observable _old _new]
                                     (ui/refresh-bound-action-enabled! revert-button)))]
+    (localization/localize! diff-button localization (localization/message "changes-view.button.diff"))
+    (localization/localize! revert-button localization (localization/message "changes-view.button.revert"))
     (ui/user-data! list-view :refresh-pending (ref false))
     (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
     (ui/context! parent :changes-view {:async-reload! async-reload! :changes-view view-id :workspace workspace} (ui/->selection-provider list-view)

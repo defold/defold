@@ -140,7 +140,7 @@ namespace dmRender
         tex_params.m_Data = malloc(tex_params.m_DataSize);
         memset((void*)tex_params.m_Data, 0, tex_params.m_DataSize);
 
-        dmGraphics::SetTexture(font_map->m_Texture, tex_params);
+        dmGraphics::SetTexture(font_map->m_GraphicsContext, font_map->m_Texture, tex_params);
 
         free((void*)tex_params.m_Data);
     }
@@ -156,7 +156,7 @@ namespace dmRender
 
         if (font_map->m_Texture)
         {
-            dmGraphics::DeleteTexture(font_map->m_Texture);
+            dmGraphics::DeleteTexture(graphics_context, font_map->m_Texture);
         }
         font_map->m_Texture = dmGraphics::NewTexture(graphics_context, tex_create_params);
 
@@ -549,7 +549,7 @@ namespace dmRender
         tex_params.m_Data = data;
 
         // Upload glyph data to GPU
-        dmGraphics::SetTexture(font_map->m_Texture, tex_params);
+        dmGraphics::SetTexture(font_map->m_GraphicsContext, font_map->m_Texture, tex_params);
     }
 
     struct CompareCacheGlyphPred
@@ -660,7 +660,7 @@ namespace dmRender
         // The cache size
         size += font_map->m_CacheCellCount*( (sizeof(CacheGlyph) * sizeof(uint32_t)) );
         // The texture size
-        size += dmGraphics::GetTextureResourceSize(font_map->m_Texture);
+        size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_Texture);
         return size;
     }
 

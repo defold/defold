@@ -27,6 +27,7 @@
             [editor.collision-groups :as collision-groups]
             [editor.core :as core]
             [editor.dialogs :as dialogs]
+            [editor.editor-localization-bundle :as editor-localization-bundle]
             [editor.game-project-core :as gpc]
             [editor.gl :as gl]
             [editor.graph-util :as gu]
@@ -870,6 +871,9 @@
 (defn script-annotations [project evaluation-context]
   (g/node-value project :script-annotations evaluation-context))
 
+(defn editor-localization-bundle [project evaluation-context]
+  (g/node-value project :editor-localization-bundle evaluation-context))
+
 (defn make-node-id+resource-pairs [^long graph-id resources]
   ;; Note: We sort the resources by extension and proj-path to achieve a
   ;; deterministic order for the assigned node-ids.
@@ -1553,6 +1557,7 @@
   (input script-intelligence g/NodeID :cascade-delete)
   (input editor-extensions g/NodeID :cascade-delete)
   (input script-annotations g/NodeID :cascade-delete)
+  (input editor-localization-bundle g/NodeID :cascade-delete)
   (input all-selected-node-ids g/Any :array)
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
@@ -1760,9 +1765,11 @@
               (g/make-nodes graph
                   [script-intelligence si/ScriptIntelligenceNode
                    project [Project :workspace workspace-id]
-                   script-annotations script-annotations/ScriptAnnotations]
+                   script-annotations script-annotations/ScriptAnnotations
+                   editor-localization-bundle editor-localization-bundle/EditorLocalizationBundle]
                 (g/connect workspace-id :root script-annotations :root)
                 (g/connect script-annotations :_node-id project :script-annotations)
+                (g/connect editor-localization-bundle :_node-id project :editor-localization-bundle)
                 (g/connect extensions :_node-id project :editor-extensions)
                 (g/connect script-intelligence :_node-id project :script-intelligence)
                 (g/connect workspace-id :build-settings project :build-settings)

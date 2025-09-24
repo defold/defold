@@ -2,13 +2,13 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Hyperlink?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ProgressBar?>
 <?import javafx.scene.image.ImageView?>
 <?import javafx.scene.image.Image?>
 <?import javafx.scene.layout.*?>
-
 <StackPane id="welcome-dialog" styleClass="df-style" maxHeight="672" maxWidth="1000" minHeight="672" minWidth="1000" prefHeight="672" prefWidth="1000" stylesheets="/editor.css" xmlns="http://javafx.com/javafx/8">
     <HBox id="dialog-contents">
         <VBox id="left-pane">
@@ -21,12 +21,18 @@
             <StackPane>
                 <ProgressBar id="update-progress-bar" styleClass="really-small-progress-bar" visible="false" />
                 <VBox id="update-progress-vbox" alignment="CENTER">
-                    <Hyperlink id="update-link" text="Update Available" alignment="CENTER" visible="false" focusTraversable="false" />
+                    <Hyperlink id="update-link" alignment="CENTER" visible="false" focusTraversable="false" />
                 </VBox>
                 <VBox.margin>
-                    <Insets bottom="28" left="19" right="19" />
+                    <Insets left="19" right="19" />
                 </VBox.margin>
             </StackPane>
+            <VBox>
+                <padding>
+                    <Insets top="24" right="24" bottom="24" left="24" />
+                </padding>
+                <ComboBox id="language-selector" value="en" focusTraversable="false"/>
+            </VBox>
         </VBox>
     </HBox>
 
@@ -34,9 +40,9 @@
         <Region styleClass="background-cover" />
         <VBox alignment="CENTER" maxWidth="-Infinity">
             <VBox alignment="CENTER">
-                <Label id="progress-header" text="Downloading Project" />
+                <Label id="progress-header" />
                 <ProgressBar id="progress-bar" maxWidth="1.7976931348623157E308" styleClass="really-small-progress-bar" />
-                <Button id="progress-cancel-button" styleClass="df-button" text="Cancel Download" focusTraversable="false" />
+                <Button id="progress-cancel-button" styleClass="df-button" focusTraversable="false" />
             </VBox>
         </VBox>
     </StackPane>
