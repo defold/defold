@@ -1912,6 +1912,8 @@ def detect(conf):
         # there's no lib prefix anymore so we need to set our our lib dir first so we don't
         # pick up the wrong hid.lib from the windows sdk
         libdirs.insert(0, build_util.get_dynamo_home('lib', build_util.get_target_platform()))
+        if build_util.get_target_platform() == 'win32':
+            libdirs.insert(1, build_util.get_dynamo_home('lib', 'x86-win32'))
 
         conf.env['PATH']     = bindirs + sys.path + conf.env['PATH']
         conf.env['INCLUDES'] = includes
