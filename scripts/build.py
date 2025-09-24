@@ -114,7 +114,7 @@ PACKAGES_ALL=[
     "defold-robot-0.7.0",
     "bullet-2.77",
     "libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a",
-    "jctest-0.10.2",
+    "jctest-0.12",
     "vulkan-v1.4.307",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
