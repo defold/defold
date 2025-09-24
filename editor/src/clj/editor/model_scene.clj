@@ -565,7 +565,7 @@
         (attribute/make-render-arg-binding render-arg-key element-type location)))
     attribute-infos))
 
-(defn- make-attribute-bindings [semantic-type->attribute-buffers material-attribute-infos shader-attribute-reflection-infos]
+(defn- make-attribute-bindings [semantic-type->attribute-buffers vertex-attribute-bytes material-attribute-infos shader-attribute-reflection-infos]
   ;; Note: The order of the supplied material-attribute-infos and
   ;; shader-attribute-reflection-infos will dictate the order in which the
   ;; attribute-buffers will be assigned to attributes that share the same
@@ -609,11 +609,14 @@
                      ;; from the semantic-type.
                      (if-some [attribute-buffer (get attribute-buffers index)]
                        (attribute/make-buffer-binding attribute-buffer location)
-                       (let [{:keys [data-type normalize bytes vector-type]} attribute-info
+                       (let [{:keys [data-type normalize vector-type]} attribute-info
+                             attribute-key (:name-key attribute-info)
+                             attribute-bytes (or (get vertex-attribute-bytes attribute-key)
+                                                 (:bytes attribute-info))
                              element-type (graphics.types/make-element-type vector-type data-type normalize)
-                             value-array (or (when bytes
+                             value-array (or (when attribute-bytes
                                                (try
-                                                 (let [byte-buffer (buffers/wrap-byte-array bytes :byte-order/native)
+                                                 (let [byte-buffer (buffers/wrap-byte-array attribute-bytes :byte-order/native)
                                                        buffer-data-type (graphics.types/data-type->buffer-data-type data-type)]
                                                    (buffers/as-primitive-array byte-buffer buffer-data-type))
                                                  (catch Exception exception
@@ -635,7 +638,7 @@
         index-buffer (:index-buffer renderable-buffers)
         semantic-type->attribute-buffers (:attribute-buffers renderable-buffers)
         shader-attribute-reflection-infos (:attribute-reflection-infos shader)
-        attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers nil shader-attribute-reflection-infos)
+        attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers nil nil shader-attribute-reflection-infos)
 
         user-data
         {:mesh-renderable-data renderable-data
@@ -716,7 +719,7 @@
           (fn [user-data]
             (let [mesh-renderable-buffers (:mesh-renderable-buffers user-data)
                   semantic-type->attribute-buffers (:attribute-buffers mesh-renderable-buffers)
-                  attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers material-attribute-infos shader-attribute-reflection-infos)]
+                  attribute-bindings (make-attribute-bindings semantic-type->attribute-buffers vertex-attribute-bytes material-attribute-infos shader-attribute-reflection-infos)]
               (assoc user-data
                 :attribute-bindings attribute-bindings
                 :material-attribute-infos material-attribute-infos
