@@ -18,7 +18,7 @@ function(defold_get_glfw_version OUT_VAR PLATFORM)
         x86_64-macos
         arm64-macos
         x86_64-win32
-        win32
+        x86-win32
         x86_64-linux
         arm64-linux)
 
