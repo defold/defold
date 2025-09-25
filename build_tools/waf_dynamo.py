@@ -143,7 +143,7 @@ def platform_graphics_libs_and_symbols(platform):
         graphics_lib_symbols.append('GraphicsAdapterVulkan')
 
     if Options.options.with_dx12 and platform_supports_feature(platform, 'dx12', {}):
-        graphics_libs += ['GRAPHICS_DX12']
+        graphics_libs += ['GRAPHICS_DX12', 'DX12']
         graphics_lib_symbols.append('GraphicsAdapterDX12')
 
     if Options.options.with_webgpu and platform_supports_feature(platform, 'webgpu', {}):
