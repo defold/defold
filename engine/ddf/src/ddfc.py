@@ -272,6 +272,7 @@ def to_cxx_struct(context, pp, message_type, namespace):
             field_ptr_str = ""
 
             if f.type == FieldDescriptor.TYPE_MESSAGE and not context.get_is_message_type_defined(f):
+                #print("Message type %s IS NOT DEFINED!" % f.type_name)
                 field_ptr_str = "*"
 
             p(align_str + context.get_field_type_name(f) + field_ptr_str, field_name)
@@ -368,6 +369,9 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
         tpl = (f.name, f.number, f.type, f.label, one_of_index)
         if f.type ==  FieldDescriptor.TYPE_MESSAGE:
             fully_defined_type = context.get_is_message_type_defined(f)
+
+            #if not fully_defined_type:
+            #    print("Message type %s IS NOT DEFINED!" % f.type_name)
 
             tmp = f.type_name.replace(".", "_")
             if tmp.startswith("_"):
@@ -644,6 +648,19 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
 
     file_desc = proto_file
 
+    # Helper: mark all message types from other proto files as defined
+    def mark_imported_types():
+        for type_name, origin in context.message_type_file.items():
+            if origin != file_to_generate:
+                # Strip leading '.' (proto full names start with dot)
+                clean_name = type_name[1:] if type_name.startswith('.') else type_name
+                # Convert "dmMath.Point3" -> "dmMath::Point3"
+                cxx_type = dot_to_cxx_namespace(clean_name)
+                context.set_message_type_defined(cxx_type)
+
+    # First pass: mark imported types so struct generation uses correct layouts
+    mark_imported_types()
+
     file_h = context.response.file.add()
     file_h.name = base_name + ".h"
 
@@ -707,6 +724,8 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
 
     context.reset_defined_message_types()
 
+    mark_imported_types()
+
     for mt in file_desc.enum_type:
         to_cxx_enum_descriptor(context, pp_cpp, pp_h, mt, [file_desc.package])
 
@@ -733,30 +752,57 @@ class CompilerContext(object):
     def __init__(self, request):
         self.request = request
         self.message_types = {}
+        self.message_type_file = {}
         self.defined_message_types = {}
         self.type_name_to_java_type = {}
         self.type_alias_messages = {}
         self.response = CodeGeneratorResponse()
 
     # TODO: We add enum types as message types. Kind of hack...
-    def add_message_type(self, package, java_package, java_outer_classname, message_type):
-        if message_type.name in self.message_types:
-            return
+    def add_message_type(self, package, java_package, java_outer_classname, message_type, origin_filename):
+        """
+        Register a (possibly nested) message/enum type and record the .proto filename
+        it originates from. 'package' is expected to be the same format you used
+        elsewhere (you currently pass '.' + pf.package for top-level calls).
+        """
+        # Build fully-qualified key exactly like other callers expect:
         n = str(package + '.' + message_type.name)
-        self.message_types[n] = message_type
 
+        # If we've already registered this exact key, stop (prevents duplicates).
+        if n in self.message_types:
+            return
+
+        # Store the message/enum descriptor under the fully-qualified key.
+        self.message_types[n] = message_type
+        self.message_type_file[n] = origin_filename   # store origin filename for pre-marking
+
+        # If the type is aliased, remember that too
         if self.has_type_alias(n):
             self.type_alias_messages[n] = self.type_alias_name(n)
 
-        self.type_name_to_java_type[package[1:] + '.' + message_type.name] = java_package + '.' + java_outer_classname + '.' + message_type.name
+        # Java type mapping (keeps the original logic)
+        # Note: package may start with a dot; original code used package[1:].
+        # Guard small cases where java_package might be '' or None.
+        jp = java_package if java_package is not None else ''
+        jouter = java_outer_classname if java_outer_classname is not None else ''
+        self.type_name_to_java_type[package[1:] + '.' + message_type.name] = jp + '.' + jouter + '.' + message_type.name
 
+        # Recurse nested messages and enums, passing the same origin filename
         if hasattr(message_type, 'nested_type'):
             for mt in message_type.nested_type:
-                # TODO: add something to java_package here?
-                self.add_message_type(package + '.' + message_type.name, java_package, java_outer_classname, mt)
+                self.add_message_type(package + '.' + message_type.name,
+                                      java_package,
+                                      java_outer_classname,
+                                      mt,
+                                      origin_filename)
 
+        if hasattr(message_type, 'enum_type'):
             for et in message_type.enum_type:
-                self.add_message_type(package + '.' + message_type.name, java_package, java_outer_classname, et)
+                self.add_message_type(package + '.' + message_type.name,
+                                      java_package,
+                                      java_outer_classname,
+                                      et,
+                                      origin_filename)
 
     def should_align_field(self, f):
         for x in f.options.ListFields():
@@ -792,7 +838,9 @@ class CompilerContext(object):
         type_name = dot_to_cxx_namespace(f.type_name)
         #print("CHECKING " + type_name)
         if type_name in self.defined_message_types:
+            #print("FOUND " + type_name)
             return True
+        #print("NOT FOUND " + type_name)
         return False
 
     def reset_defined_message_types(self):
@@ -830,11 +878,12 @@ if __name__ == '__main__':
                 java_package = x[1]
 
         for mt in pf.message_type:
-            context.add_message_type('.' + pf.package, java_package, pf.options.java_outer_classname, mt)
+            #context.add_message_type('.' + pf.package, java_package, pf.options.java_outer_classname, mt)
+            context.add_message_type('.' + pf.package, java_package, pf.options.java_outer_classname, mt, pf.name)
 
         for et in pf.enum_type:
             # NOTE: We add enum types as message types. Kind of hack...
-            context.add_message_type('.' + pf.package, java_package, pf.options.java_outer_classname, et)
+            context.add_message_type('.' + pf.package, java_package, pf.options.java_outer_classname, et, pf.name)
 
     for pf in request.proto_file:
         if pf.name == request.file_to_generate[0]:
