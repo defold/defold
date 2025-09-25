@@ -64,10 +64,7 @@ namespace dmDDF
         int element_size = 0;
         if ( field_desc->m_Type == TYPE_MESSAGE )
         {
-            // We need to get the actual size of the field_desc here somehow
-            // element_size = data_size; // field_desc->m_MessageDescriptor->m_Size;
             element_size = field_desc->m_MessageDescriptor->m_Size;
-            // TODO COUNT
         }
         else if ( field_desc->m_Type == TYPE_STRING )
         {

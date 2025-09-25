@@ -972,20 +972,30 @@ TEST(Recursive, Repeated)
     TestDDF::MessageRecursiveB* item_0_b = new TestDDF::MessageRecursiveB();
     TestDDF::MessageRecursiveB* item_1_b = new TestDDF::MessageRecursiveB();
 
+    TestDDF::MessageRecursiveA* item_0_b_a = new TestDDF::MessageRecursiveA();
+
     std::string test_string = "This is a test string!";
 
     msg.add_list_numbers(32768);
+    msg.add_list_numbers(32769);
     msg.set_string_val(test_string);
     msg.set_float_val(0.5f);
 
-    item_0_b->set_val_b(999);
-    item_1_b->set_val_b(2001);
-
     item_0->set_allocated_my_b(item_0_b);
-    item_1->set_allocated_my_b(item_1_b);
-
     item_0->set_val_a(1338);
+    {
+        item_0_b->set_val_b(999);
+        item_0_b->set_allocated_my_a(item_0_b_a);
+        {
+            item_0_b_a->set_val_a(-1337);
+        }
+    }
+
+    item_1->set_allocated_my_b(item_1_b);
     item_1->set_val_a(666);
+    {
+        item_1_b->set_val_b(2001);
+    }
 
     std::string msg_str   = msg.SerializeAsString();
     const char* msg_buf   = msg_str.c_str();
@@ -1000,11 +1010,13 @@ TEST(Recursive, Repeated)
 
     ASSERT_EQ(1338, child_0->m_ValA);
     ASSERT_EQ(999, child_0->m_MyB->m_ValB);
+    ASSERT_EQ(-1337, child_0->m_MyB->m_MyA.m_ValA);
 
     ASSERT_EQ(666, child_1->m_ValA);
     ASSERT_EQ(2001, child_1->m_MyB->m_ValB);
 
     ASSERT_EQ(32768, message->m_ListNumbers[0]);
+    ASSERT_EQ(32769, message->m_ListNumbers[1]);
     ASSERT_NEAR(0.5f, message->m_FloatVal, 0.01f);
     ASSERT_STREQ(test_string.c_str(), message->m_StringVal);
 }

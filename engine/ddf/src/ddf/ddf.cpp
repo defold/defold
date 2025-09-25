@@ -87,6 +87,7 @@ namespace dmDDF
         return GetDescriptorFromHash(dmHashString64(name));
     }
 
+    /*
     static Result GetDataSizeFromDesc(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, uint32_t* size_out)
     {
         *size_out += desc->m_Size;
@@ -140,6 +141,74 @@ namespace dmDDF
         }
         return RESULT_OK;
     }
+    */
+
+    static Result GetDataSizeFromDesc(LoadContext* load_context, InputBuffer* ib, const Descriptor* desc, uint32_t* size_out)
+    {
+        // Always account for this message's fixed size
+        *size_out += desc->m_Size;
+
+        while (!ib->Eof())
+        {
+            uint32_t tag;
+            if (!ib->ReadVarInt32(&tag))
+                return RESULT_WIRE_FORMAT_ERROR;
+
+            uint32_t key  = tag >> 3;
+            uint32_t type = tag & 0x7;
+
+            if (key == 0)
+                return RESULT_WIRE_FORMAT_ERROR;
+
+            const FieldDescriptor* field = FindField(desc, key, 0);
+            if (!field)
+            {
+                // Unknown field, just skip
+                Result e = SkipField(ib, type);
+                DDF_CHECK_RESULT(e);
+                continue;
+            }
+
+            dmLogInfo("Desc: %s.%s, cur_size: %u, field_offset: %u",
+                      desc->m_Name, field->m_Name, *size_out, field->m_Offset);
+
+            if (field->m_Type == TYPE_MESSAGE)
+            {
+                // All submessages are length-delimited
+                uint32_t length;
+                if (!ib->ReadVarInt32(&length))
+                    return RESULT_WIRE_FORMAT_ERROR;
+
+                // Create a view of just this submessage's bytes
+                InputBuffer sub_ib;
+                if (!ib->SubBuffer(length, &sub_ib))
+                    return RESULT_WIRE_FORMAT_ERROR;
+
+                if (!field->m_FullyDefinedType)
+                {
+                    uint32_t ptr_offset = *size_out;
+                    dmLogInfo("Field %s doesn't have a fully defined type. It should point to %d ", field->m_Name, ptr_offset);
+                    load_context->AddDynamicTypeOffset(ptr_offset);
+                }
+
+                // Recurse into the submessage descriptor
+                Result e = GetDataSizeFromDesc(load_context, &sub_ib, field->m_MessageDescriptor, size_out);
+                DDF_CHECK_RESULT(e);
+
+                // Ensure the sub-buffer is fully consumed
+                if (!sub_ib.Eof())
+                    return RESULT_WIRE_FORMAT_ERROR;
+            }
+            else
+            {
+                // Primitive field, just skip its payload
+                Result e = SkipField(ib, type);
+                DDF_CHECK_RESULT(e);
+            }
+        }
+
+        return RESULT_OK;
+    }
 
     static bool NeedsSizeResolve(const Descriptor* desc)
     {
@@ -147,7 +216,7 @@ namespace dmDDF
         for (int i = 0; i < desc->m_FieldCount; ++i)
         {
             const FieldDescriptor* field = &desc->m_Fields[i];
-            if (field->m_Label != LABEL_REPEATED && field->m_Type == TYPE_MESSAGE)
+            if (field->m_Type == TYPE_MESSAGE)
             {
                 if (!field->m_FullyDefinedType)
                 {
@@ -228,7 +297,6 @@ namespace dmDDF
                             return RESULT_WIRE_FORMAT_ERROR;
                         }
 
-                    #if 1
                         InputBuffer sub_ib;
                         if (!ib->SubBuffer(length, &sub_ib))
                         {
@@ -248,11 +316,6 @@ namespace dmDDF
                         }
 
                         Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor, array_info_hash);
-                    #else
-                        InputBuffer sub_ib = ib;
-                        sub_ib->m_End = sub_ib->m_Current + length;
-                        Result e = CalculateRepeated(load_context, &sub_ib, field->m_MessageDescriptor);
-                    #endif
 
                         DDF_CHECK_RESULT(e);
                     }

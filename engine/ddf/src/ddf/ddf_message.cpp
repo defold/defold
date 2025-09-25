@@ -197,6 +197,61 @@ namespace dmDDF
         return DoLoadMessage(load_context, &sub_buffer, field->m_MessageDescriptor, &message);
     }
 
+    /*
+    Result Message::ReadMessageField(LoadContext* load_context,
+                                   WireType wire_type,
+                                   const FieldDescriptor* field,
+                                   InputBuffer* ib)
+    {
+        assert(field->m_Type == TYPE_MESSAGE);
+
+        uint32_t length;
+        if (!ib->ReadVarInt32(&length))
+            return RESULT_WIRE_FORMAT_ERROR;
+
+        InputBuffer sub_ib;
+        if (!ib->SubBuffer(length, &sub_ib))
+            return RESULT_WIRE_FORMAT_ERROR;
+
+        char* msg_buf = GetBuffer(field->m_Offset);
+
+        if (!field->m_FullyDefinedType)
+        {
+            uint32_t dynamic_abs_offset = load_context->NextDynamicTypeOffset();
+            void* dynamic_ptr           = load_context->GetPointer(dynamic_abs_offset);
+
+            dmLogInfo("Not defined field %s: slot @ %p -> dynamic offset %u (%p)",
+                      field->m_Name, (void*)msg_buf, dynamic_abs_offset, dynamic_ptr);
+
+            if (!load_context->GetIsDryRun())
+            {
+                if (load_context->GetOptions() & OPTION_OFFSET_POINTERS)
+                {
+                    // Store offset in slot
+                    uint32_t off = dynamic_abs_offset;
+                    memcpy(msg_buf, &off, sizeof(uint32_t));
+                }
+                else
+                {
+                    // Store direct pointer in slot
+                    memcpy(msg_buf, &dynamic_ptr, sizeof(void*));
+                }
+            }
+
+            // Redirect parsing into dynamic memory
+            msg_buf = (char*)dynamic_ptr;
+        }
+
+        // Recursively parse the nested message
+        Message sub_msg(field->m_MessageDescriptor,
+                        msg_buf,
+                        field->m_MessageDescriptor->m_Size,
+                        load_context->GetIsDryRun());
+
+        return DoLoadMessage(load_context, &sub_ib, field->m_MessageDescriptor, &sub_msg);
+    }
+    */
+
     Message Message::SubMessage(const FieldDescriptor* field)
     {
         assert(field->m_MessageDescriptor != 0);
