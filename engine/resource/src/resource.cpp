@@ -642,7 +642,7 @@ Result LoadResourceToBufferLocked(HFactory factory, const char* path, const char
     DM_PROFILE(__FUNCTION__);
 
     char normalized_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(path, normalized_path); // normalize the path
+    GetCanonicalPath(path, normalized_path, sizeof(normalized_path)); // normalize the path
 
     // Let's find the resource in the current mounts
 
@@ -746,7 +746,13 @@ Result LoadResource(HFactory factory, const char* path, const char* original_nam
 
 const char* GetExtFromPath(const char* path)
 {
-    return strrchr(path, '.');
+    const char* result = strrchr(path, '.');
+    if (result)
+    {
+        while(result[0] == '.')
+            result++;
+    }
+    return result;
 }
 
 // Assumes m_LoadMutex is already held
@@ -886,9 +892,6 @@ static Result CheckAndGetResourceTypeFromPath(HFactory factory, const char* cano
         return RESULT_MISSING_FILE_EXTENSION;
     }
 
-    // skip over '.'
-    ext++;
-
     ResourceType* resource_type = FindResourceType(factory, ext);
     if (resource_type == 0)
     {
@@ -920,7 +923,7 @@ static Result CreateAndLoadResource(HFactory factory, const char* name, void** r
     DM_PROFILE(__FUNCTION__);
 
     char canonical_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(name, canonical_path);
+    GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
     dmhash_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
     ResourceType* resource_type;
@@ -965,7 +968,7 @@ Result CreateResourcePartial(HFactory factory, HResourceType type, const char* n
     dmMutex::ScopedLock lk(factory->m_LoadMutex);
 
     char canonical_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(name, canonical_path);
+    GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
     dmhash_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
     Result res = CheckAndGetResourceFromPath(factory, canonical_path_hash, resource);
@@ -1074,7 +1077,7 @@ Result InsertResource(HFactory factory, const char* path, uint64_t canonical_pat
     if (factory->m_ResourceHashToFilename)
     {
         char canonical_path[RESOURCE_PATH_MAX];
-        GetCanonicalPath(path, canonical_path);
+        GetCanonicalPath(path, canonical_path, sizeof(canonical_path));
         factory->m_ResourceHashToFilename->Put(canonical_path_hash, strdup(canonical_path));
     }
 
@@ -1101,7 +1104,7 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
     dmMutex::ScopedLock lk(factory->m_LoadMutex);
 
     char canonical_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(name, canonical_path);
+    GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
 
     void* buffer;
     uint32_t buffer_size;
@@ -1121,7 +1124,7 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
 static Result DoReloadResource(HFactory factory, const char* name, HResourceDescriptor* out_descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(name, canonical_path);
+    GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
@@ -1418,7 +1421,7 @@ Result GetDescriptorByHash(HFactory factory, dmhash_t path_hash, HResourceDescri
 Result GetDescriptor(HFactory factory, const char* name, HResourceDescriptor* descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(name, canonical_path);
+    GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
     return GetDescriptorByHash(factory, canonical_path_hash, descriptor);
@@ -1735,6 +1738,21 @@ ResourceResult ResourceGetPath(HResourceFactory factory, const void* resource, d
     return (ResourceResult)dmResource::GetPath(factory, resource, hash);
 }
 
+const char* ResourceGetExtFromPath(const char* path)
+{
+    return dmResource::GetExtFromPath(path);
+}
+
+uint32_t ResourceGetCanonicalPath(const char* path, char* buf, uint32_t buf_len)
+{
+    return dmResource::GetCanonicalPath(path, buf, buf_len);
+}
+
+ResourceResult ResourceCreateResource(HResourceFactory factory, const char* name, void* data, uint32_t data_size, void** resource)
+{
+    return (ResourceResult)dmResource::CreateResource(factory, name, data, data_size, resource);
+}
+
 ResourceResult ResourceAddFile(HResourceFactory factory, const char* path, uint32_t size, const void* resource)
 {
     return (ResourceResult)dmResource::AddFile(factory, path, size, resource);
@@ -1743,4 +1761,14 @@ ResourceResult ResourceAddFile(HResourceFactory factory, const char* path, uint3
 ResourceResult ResourceRemoveFile(HResourceFactory factory, const char* path)
 {
     return (ResourceResult)dmResource::RemoveFile(factory, path);
+}
+
+ResourceResult ResourceGetTypeFromExtension(HResourceFactory factory, const char* extension, HResourceType* type)
+{
+    return (ResourceResult)dmResource::GetTypeFromExtension(factory, extension, type);
+}
+
+ResourceResult ResourceGetTypeFromExtensionHash(HResourceFactory factory, dmhash_t extension_hash, HResourceType* type)
+{
+    return (ResourceResult)dmResource::GetTypeFromExtensionHash(factory, extension_hash, type);
 }

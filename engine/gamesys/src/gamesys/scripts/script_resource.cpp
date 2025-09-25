@@ -310,7 +310,7 @@ static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t 
 static dmhash_t GetCanonicalPathHash(const char* path)
 {
     char canonical_path[dmResource::RESOURCE_PATH_MAX];
-    uint32_t path_len  = dmResource::GetCanonicalPath(path, canonical_path);
+    uint32_t path_len  = dmResource::GetCanonicalPath(path, canonical_path, sizeof(canonical_path));
     return dmHashBuffer64(canonical_path, path_len);
 }
 
@@ -593,7 +593,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     const char* path = luaL_checkstring(L, 1);
 
     dmhash_t path_hash;
-    PreCreateResource(L, path, ".texturec", &path_hash);
+    PreCreateResource(L, path, "texturec", &path_hash);
 
     luaL_checktype(L, 2, LUA_TTABLE);
     dmGraphics::TextureType type     = (dmGraphics::TextureType) CheckTableInteger(L, 2, "type");
@@ -1253,7 +1253,7 @@ static int CreateTextureAsync(lua_State* L)
 static int ReleaseResource(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
-    dmhash_t path_hash                      = dmScript::CheckHashOrString(L, 1);
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
     HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
     if (!rd) {
         return luaL_error(L, "Could not release resource: %s", dmHashReverseSafe64(path_hash));
@@ -2516,7 +2516,7 @@ static int CreateAtlas(lua_State* L)
     DM_LUA_STACK_CHECK(L, 1);
 
     const char* path_str           = luaL_checkstring(L, 1);
-    const char* texturec_ext       = ".texturesetc";
+    const char* texturec_ext       = "texturesetc";
     const char* texture_field_name = "texture";
 
     dmhash_t canonical_path_hash = 0;
@@ -2980,7 +2980,7 @@ static int CreateSoundData(lua_State* L)
     const char* path = luaL_checkstring(L, 1);
     const char* path_ext = dmResource::GetExtFromPath(path);
 
-    const char* exts[]  = {".wav", ".ogg", ".opus", ".wavc", ".oggc", ".opusc"};
+    const char* exts[]  = {"wav", "ogg", "opus", "wavc", "oggc", "opusc"};
 
     dmhash_t canonical_path_hash = 0;
     PreCreateResources(L, path, exts, DM_ARRAY_SIZE(exts), &canonical_path_hash);
@@ -2988,8 +2988,7 @@ static int CreateSoundData(lua_State* L)
     // Find the correct type, as the resource types are registered as .wavc / .oggc / .opusc
     char type_suffix[32];
     {
-        // Skip the '.'
-        int len = dmStrlCpy(type_suffix, path_ext+1, sizeof(type_suffix));
+        int len = dmStrlCpy(type_suffix, path_ext, sizeof(type_suffix));
         if (type_suffix[len-1] != 'c')
         {
             type_suffix[len++] = 'c';
@@ -3140,7 +3139,7 @@ static int CreateBuffer(lua_State* L)
     DM_LUA_STACK_CHECK(L, 1);
 
     const char* path_str     = luaL_checkstring(L, 1);
-    const char* resource_ext = ".bufferc";
+    const char* resource_ext = "bufferc";
 
     dmhash_t canonical_path_hash = 0;
     PreCreateResource(L, path_str, resource_ext, &canonical_path_hash);
