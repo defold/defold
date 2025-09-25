@@ -69,6 +69,7 @@ namespace dmResource
     * Creates and inserts a resource into the factory
     * @note The input data pointer is not stored
     * @note The reference count is 1, so make sure it's destruction is handled
+    * @name CreateResource
     * @param factory [type: dmResource::HFactory] Factory handle
     * @param name [type: dmhash_t] Resource name
     * @param data Resource data

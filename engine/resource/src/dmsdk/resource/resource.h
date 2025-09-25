@@ -330,7 +330,7 @@ ResourceResult ResourceGetTypeFromExtension(HResourceFactory factory, const char
 * Get type from extension hash
 * @name ResourceGetTypeFromExtensionHash
 * @param factory [type: HResourceFactory] Factory handle
-* @param extension_hash [type: const char*] Hash of file extension, without leading "." character. E.g. hash("ttf")
+* @param extension_hash [type: dmhash_t] Hash of file extension, without leading "." character. E.g. hash("ttf")
 * @param type [type: HResourceType*] (out) returned type if successful
 * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
 */
