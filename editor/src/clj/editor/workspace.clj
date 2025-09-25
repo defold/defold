@@ -23,6 +23,7 @@ ordinary paths."
             [editor.code.preprocessors :as code.preprocessors]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
+            [editor.localization :as localization]
             [editor.library :as library]
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
@@ -616,10 +617,12 @@ ordinary paths."
                  :exception e)
       (ui/run-later
         (dialogs/make-info-dialog
-          {:title "Unable to Load Plugin"
+          (g/with-auto-evaluation-context evaluation-context
+            (localization workspace evaluation-context))
+          {:title (localization/message "dialog.plugin-load-error.title")
            :icon :icon/triangle-error
            :always-on-top true
-           :header (format "The editor plugin '%s' is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version." (resource/proj-path resource))}))
+           :header (localization/message "dialog.plugin-load-error.header" {"plugin" (resource/proj-path resource)})}))
       false)))
 
 (defn load-clojure-editor-plugins! [workspace added]

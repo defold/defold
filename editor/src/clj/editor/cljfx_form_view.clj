@@ -1664,15 +1664,17 @@
                                      (case dialog-type
                                        :directory-not-in-project
                                        (dialogs/make-info-dialog
-                                         {:title "Invalid Directory"
+                                         localization
+                                         {:title (localization/message "dialog.form-view.directory-not-in-project.title")
                                           :icon :icon/triangle-error
-                                          :header "The directory must reside within the project."})
+                                          :header (localization/message "dialog.form-view.directory-not-in-project.header")})
 
                                        :file-not-in-project
                                        (dialogs/make-info-dialog
-                                         {:title "Invalid File"
+                                         localization
+                                         {:title (localization/message "dialog.form-view.file-not-in-project.title")
                                           :icon :icon/triangle-error
-                                          :header "The file must reside within the project."})))})
+                                          :header (localization/message "dialog.form-view.file-not-in-project.header")})))})
                    (wrap-force-refresh view-id))}
               (system/defold-dev?)
               (assoc :fx.opt/type->lifecycle (requiring-resolve 'cljfx.dev/type->lifecycle)))

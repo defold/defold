@@ -107,11 +107,12 @@
                                                     :style-class "dialog-without-content-footer"
                                                     :children [footer]}])))})))
 
-(defn- confirmation-dialog-header->fx-desc [header]
-  (if (string? header)
+(defn- confirmation-dialog-header->fx-desc [localization header]
+  {:pre [header]}
+  (if (or (string? header) (localization/message-pattern? header))
     {:fx/type fxui/legacy-label
      :variant :header
-     :text header}
+     :text (localization header)}
     header))
 
 (defn dialog-buttons [props]
@@ -120,13 +121,14 @@
       (util/provide-defaults :alignment :center-right)
       (fxui/add-style-classes "spacing-smaller")))
 
-(defn- confirmation-dialog [{:keys [buttons icon]
+(defn- confirmation-dialog [{:keys [buttons icon localization]
                              :or {icon ::no-icon}
                              :as props}]
   (let [button-descs (mapv (fn [button-props]
                              (let [button-desc (-> button-props
                                                    (assoc :fx/type fxui/button
                                                           :on-action {:result (:result button-props)})
+                                                   (update :text localization)
                                                    (dissoc :result))]
                                (if (:default-button button-props)
                                  {:fx/type fxui/ext-focused-by-default
@@ -139,9 +141,10 @@
                :footer {:fx/type dialog-buttons
                         :children button-descs}
                :on-close-request {:result (:result (some #(when (:cancel-button %) %) buttons))})
-        (dissoc :buttons :icon ::fxui/result)
+        (dissoc :buttons :icon ::fxui/result :localization)
+        (update :title localization)
         (update :header (fn [header]
-                          (let [header-desc (confirmation-dialog-header->fx-desc header)]
+                          (let [header-desc (confirmation-dialog-header->fx-desc localization header)]
                             (if (= icon ::no-icon)
                               header-desc
                               {:fx/type fx.h-box/lifecycle
@@ -161,49 +164,55 @@
         :variant :borderless
         :editable false)))
 
-(defn- coerce-dialog-content [content]
+(defn- coerce-dialog-content [content localization]
   (cond
     (:fx/type content)
     content
 
-    (map? content)
-    (assoc content :fx/type content-text-area)
+    (or (string? content) (localization/message-pattern? content))
+    {:fx/type content-text-area
+     :text (localization content)}
 
-    (string? content)
-    {:fx/type content-text-area :text content}))
+    (map? content)
+    (-> content
+        (assoc :fx/type content-text-area)
+        (update :text localization))))
 
 (defn make-confirmation-dialog
   "Shows a dialog and blocks current thread until users selects one option.
 
-  `props` is a prop map to configure the dialog, supports all options from
-  `editor.dialogs/dialog-stage` with these changes:
-  - instead of `:footer` you use `:buttons`.
-  - `:content` can be:
-    * fx description (a map with `:fx/type` key) - used as is
-    * prop map (map without `:fx/type` key) for `editor.fxui/text-area` -
-      readonly by default to allow user select and copy text, `:text` prop is
-      required
-    * string - text for readonly text area
-
-  Additional keys:
-  - `:buttons` (optional) - a coll of button descriptions. Button
-  description is a prop map for `editor.fxui/button` with few caveats:
-    * you don't have to specify `:fx/type`
-    * it should have `:result` key, it's value will be returned from this
-      function (default `nil`)
-    * if you specify `:default-button`, it will be styled as primary and receive
-      focus by default
-    * if you specify `:cancel-button`, closing window using `x` button will
-      return `:result` from that button (and `nil` otherwise)
-  - `:icon` (optional) - a keyword valid as `:type` for `editor.fxui/icon`, if
-    present, will add an icon to the left of a header"
-  [props]
+  props is a prop map to configure the dialog, supports all options from
+  [[dialog-stage]] with these changes:
+    :title      can be a MessagePattern in addition to string
+    :header     can be a string or MessagePattern in addition to cljfx desc
+    :footer     not supported; use :buttons instead
+    :content    can be:
+                  * cljfx description (used as is)
+                  * prop map (map without :fx/type key) for
+                    [[editor.fxui/text-area]] - readonly by default to allow
+                    user select and copy text; :text prop is required, can be a
+                    MessagePattern in addition to string
+                  * string - text or MessagePattern for readonly text area
+    :buttons    use instead of :footer; a coll of button descriptions, where
+                a button description is a prop map for [[editor.fxui/button]]
+                with a few caveats:
+                  * you don't have to specify :fx/type
+                  * it should have :result key; its value will be returned from
+                    this function (default nil)
+                  * if you specify :default-button, it will be styled as primary
+                    and receive focus by default
+                  * if you specify :cancel-button, dismissing the window will
+                    return :result from that button (and nil otherwise)
+                  * :text prop will be localized (can be a MessagePattern in
+                    addition to string)"
+  [localization props]
   (fxui/show-dialog-and-await-result!
     :event-handler (fn [state event]
                      (assoc state ::fxui/result (:result event)))
     :description (-> props
-                     (assoc :fx/type confirmation-dialog)
-                     (update :content coerce-dialog-content))))
+                     (assoc :fx/type confirmation-dialog
+                            :localization localization)
+                     (update :content coerce-dialog-content localization))))
 
 (def ^String indented-bullet
   ;; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
@@ -215,13 +224,14 @@
   "Shows a dialog with selectable text content and blocks current thread until
   user closes it.
 
-  `props` is a map to configure the dialog, supports all options from
-  `editor.dialogs/make-confirmation-dialog` with these changes:
-  - `:buttons` have a close button by default"
-  [props]
+  props is a map to configure the dialog, supports all options from
+  [[make-confirmation-dialog]] with these changes:
+    * :buttons include a close button by default"
+  [localization props]
   (make-confirmation-dialog
+    localization
     (-> props
-        (util/provide-defaults :buttons [{:text "Close"
+        (util/provide-defaults :buttons [{:text (localization/message "dialog.button.close")
                                           :cancel-button true
                                           :default-button true}]))))
 
@@ -286,7 +296,8 @@
 
 (defn make-update-failed-dialog [^Stage owner localization]
   (let [result (make-confirmation-dialog
-                 {:title (localization (localization/message "updater.update-failed.title"))
+                 localization
+                 {:title (localization/message "updater.update-failed.title")
                   :owner owner
                   :icon :icon/triangle-error
                   :header {:fx/type fx.v-box/lifecycle
@@ -295,10 +306,10 @@
                                        :text (localization (localization/message "updater.update-failed.header"))}
                                       {:fx/type fxui/legacy-label
                                        :text (localization (localization/message "updater.update-failed.detail"))}]}
-                  :buttons [{:text (localization (localization/message "dialog.button.quit"))
+                  :buttons [{:text (localization/message "dialog.button.quit")
                              :cancel-button true
                              :result false}
-                            {:text (localization (localization/message "dialog.button.open-defold-website"))
+                            {:text (localization/message "dialog.button.open-defold-website")
                              :default-button true
                              :result true}]})]
     (when result
@@ -306,7 +317,8 @@
 
 (defn make-download-update-or-restart-dialog [^Stage owner localization]
   (make-confirmation-dialog
-    {:title (localization (localization/message "updater.download-or-restart-dialog.title"))
+    localization
+    {:title (localization/message "updater.download-or-restart-dialog.title")
      :icon :icon/circle-info
      :size :large
      :owner owner
@@ -316,17 +328,18 @@
                           :text (localization (localization/message "updater.download-or-restart-dialog.header"))}
                          {:fx/type fxui/legacy-label
                           :text (localization (localization/message "updater.download-or-restart-dialog.detail"))}]}
-     :buttons [{:text (localization (localization/message "updater.dialog.button.not-now"))
+     :buttons [{:text (localization/message "updater.dialog.button.not-now")
                 :cancel-button true
                 :result :cancel}
-               {:text (localization (localization/message "updater.dialog.button.install-and-restart"))
+               {:text (localization/message "updater.dialog.button.install-and-restart")
                 :result :restart}
-               {:text (localization (localization/message "updater.dialog.button.download-newer-version"))
+               {:text (localization/message "updater.dialog.button.download-newer-version")
                 :result :download}]}))
 
 (defn make-platform-no-longer-supported-dialog [^Stage owner localization]
   (make-confirmation-dialog
-    {:title (localization (localization/message "updater.platform-not-supported-dialog.title"))
+    localization
+    {:title (localization/message "updater.platform-not-supported-dialog.title")
      :icon :icon/circle-sad
      :owner owner
      :header {:fx/type fx.v-box/lifecycle
@@ -335,20 +348,21 @@
                           :text (localization (localization/message "updater.platform-not-supported-dialog.header"))}
                          {:fx/type fxui/legacy-label
                           :text (localization (localization/message "updater.platform-not-supported-dialog.detail"))}]}
-     :buttons [{:text (localization (localization/message "dialog.button.close"))
+     :buttons [{:text (localization/message "dialog.button.close")
                 :cancel-button true
                 :default-button true}]}))
 
 (defn make-download-update-dialog [^Stage owner localization]
   (make-confirmation-dialog
-    {:title (localization (localization/message "updater.download-dialog.title"))
-     :header (localization (localization/message "updater.download-dialog.header"))
+    localization
+    {:title (localization/message "updater.download-dialog.title")
+     :header (localization/message "updater.download-dialog.header")
      :icon :icon/circle-happy
      :owner owner
-     :buttons [{:text (localization (localization/message "updater.dialog.button.not-now"))
+     :buttons [{:text (localization/message "updater.dialog.button.not-now")
                 :cancel-button true
                 :result false}
-               {:text (localization (localization/message "updater.dialog.button.download"))
+               {:text (localization/message "updater.dialog.button.download")
                 :default-button true
                 :result true}]}))
 
@@ -458,7 +472,8 @@
 
 (defn make-gl-support-error-dialog [support-error localization]
   (make-confirmation-dialog
-    {:title (localization (localization/message "dialog.gl-support.title"))
+    localization
+    {:title (localization/message "dialog.gl-support.title")
      :header {:fx/type fx.v-box/lifecycle
               :children
               (-> [{:fx/type fxui/legacy-label
@@ -478,10 +493,10 @@
      :icon :icon/circle-sad
      :content {:fx/type content-text-area
                :text support-error}
-     :buttons [{:text (localization (localization/message "dialog.button.quit"))
+     :buttons [{:text (localization/message "dialog.button.quit")
                 :cancel-button true
                 :result :quit}
-               {:text (localization (localization/message "dialog.button.disable-scene-editor"))
+               {:text (localization/message "dialog.button.disable-scene-editor")
                 :default-button true
                 :result :continue}]}))
 
@@ -1050,16 +1065,17 @@
 (defn ^:dynamic make-resolve-file-conflicts-dialog
   [src-dest-pairs localization]
   (make-confirmation-dialog
+    localization
     {:icon :icon/circle-question
      :size :large
-     :title (localization (localization/message "dialog.name-conflict.title"))
-     :header (localization (localization/message "dialog.name-conflict.header" {"n" (count src-dest-pairs)}))
-     :buttons [{:text (localization (localization/message "dialog.button.cancel"))
+     :title (localization/message "dialog.name-conflict.title")
+     :header (localization/message "dialog.name-conflict.header" {"n" (count src-dest-pairs)})
+     :buttons [{:text (localization/message "dialog.button.cancel")
                 :cancel-button true
                 :default-button true}
-               {:text (localization (localization/message "dialog.name-conflict.button.name-differently"))
+               {:text (localization/message "dialog.name-conflict.button.name-differently")
                 :result :rename}
-               {:text (localization (localization/message "dialog.name-conflict.button.overwrite-files"))
+               {:text (localization/message "dialog.name-conflict.button.overwrite-files")
                 :variant :danger
                 :result :overwrite}]}))
 

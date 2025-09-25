@@ -77,7 +77,7 @@
         (log/info :message "Finished loading editor namespaces." :namespace-counter @namespace-counter)
 
         ;; Initialize the system and load the project.
-        (let [system-config ((resolve `editor.shared-editor-settings/load-project-system-config) project-dir)]
+        (let [system-config ((resolve `editor.shared-editor-settings/load-project-system-config) project-dir localization)]
           ((resolve `editor.boot-open-project/initialize-systems!) project-prefs)
           ((resolve `editor.boot-open-project/initialize-project!) system-config)
           ((resolve `editor.boot-open-project/open-project!) project-file project-prefs localization cli-options render-project-progress! updater newly-created?))))))

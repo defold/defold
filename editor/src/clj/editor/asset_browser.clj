@@ -31,7 +31,8 @@
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [util.coll :as coll :refer [pair]])
+            [util.coll :as coll :refer [pair]]
+            [util.eduction :as e])
   (:import [com.defold.control TreeCell]
            [editor.resource FileResource]
            [java.io File]
@@ -320,7 +321,7 @@
          (and (resource/editable? target-resource)
               (not (resource/read-only? target-resource))))))
 
-(defn paste! [workspace target-resource src-files select-files!]
+(defn paste! [workspace target-resource src-files select-files! localization]
   (let [^File tgt-dir (reduce (fn [^File tgt ^File src]
                                 (if (= tgt src)
                                   (.getParentFile ^File tgt)
@@ -330,11 +331,12 @@
         project-directory (workspace/project-directory workspace)]
     (if-let [illegal (illegal-copy-move-pairs project-directory prospect-pairs)]
       (dialogs/make-info-dialog
-        {:title "Cannot Paste"
+        localization
+        {:title (localization/message "dialog.asset-paste-reserved.title")
          :icon :icon/triangle-error
-         :header "There are reserved target directories"
-         :content (str "Following target directories are reserved:\n"
-                       (string/join "\n" (map (comp (partial resource/file->proj-path project-directory) second) illegal)))})
+         :header (localization/message "dialog.asset-paste-reserved.header")
+         :content (localization/message "dialog.asset-paste-reserved.content"
+                                        {"directories" (string/join "\n" (map (comp (partial resource/file->proj-path project-directory) second) illegal))})})
       (let [pairs (ensure-unique-dest-files (fn [_ basename] (str basename "_copy")) prospect-pairs)]
         (doseq [[^File src-file ^File tgt-file] pairs]
           (fs/copy! src-file tgt-file {:target :merge}))
@@ -343,7 +345,7 @@
 
 (handler/defhandler :edit.paste :asset-browser
   (enabled? [selection] (paste? (.hasFiles (Clipboard/getSystemClipboard)) selection))
-  (run [selection workspace asset-browser]
+  (run [selection workspace asset-browser localization]
        (let [tree-view (g/node-value asset-browser :tree-view)
              resource (first selection)
              src-files (.getFiles (Clipboard/getSystemClipboard))
@@ -360,7 +362,7 @@
                {:type :error
                 :id ::asset-circular-paste
                 :text (str "Cannot paste folder '" dest-proj-path "' into its subfolder '" res-proj-path "'")}))
-           (paste! workspace resource src-files (partial select-files! workspace tree-view))))))
+           (paste! workspace resource src-files (partial select-files! workspace tree-view) localization)))))
 
 (defn- moved-files
   [^File src-file ^File dest-file files]
@@ -456,36 +458,41 @@
 
 (handler/defhandler :edit.delete :asset-browser
   (enabled? [selection] (delete? selection))
-  (run [selection asset-browser selection-provider]
+  (run [selection asset-browser selection-provider localization]
     (let [next (-> (handler/succeeding-selection selection-provider)
                    (handler/adapt-single resource/Resource))]
       (when (if (= 1 (count selection))
               (dialogs/make-confirmation-dialog
-                {:title "Delete File?"
+                localization
+                {:title (localization/message "dialog.asset-delete-single.title")
                  :icon :icon/circle-question
-                 :header (format "Are you sure you want to delete %s?"
-                                 (resource/resource-name (first selection)))
-                 :buttons [{:text "Cancel"
+                 :header (localization/message "dialog.asset-delete-single.header"
+                                               {"name" (resource/resource-name (first selection))})
+                 :buttons [{:text (localization/message "dialog.button.cancel")
                             :cancel-button true
                             :default-button true
                             :result false}
-                           {:text "Delete"
+                           {:text (localization/message "dialog.button.delete")
                             :variant :danger
                             :result true}]})
               (dialogs/make-info-dialog
-                {:title "Delete Files?"
+                localization
+                {:title (localization/message "dialog.asset-delete-multiple.title")
                  :icon :icon/circle-question
-                 :header "Are you sure you want to delete these files?"
-                 :content {:text (str "You are about to delete:\n"
-                                      (->> selection
-                                           (map #(str "\u00A0\u00A0\u2022\u00A0"
-                                                      (resource/resource-name %)))
-                                           (string/join "\n")))}
-                 :buttons [{:text "Cancel"
+                 :header (localization/message "dialog.asset-delete-multiple.header")
+                 :content {:text (localization/message
+                                   "dialog.asset-delete-multiple.content"
+                                   {"items" (->> selection
+                                                 (e/map
+                                                   #(localization
+                                                      (localization/message "dialog.asset-delete-multiple.content.item"
+                                                                            {"name" (resource/resource-name %)})))
+                                                 (coll/join-to-string))})}
+                 :buttons [{:text (localization/message "dialog.button.cancel")
                             :cancel-button true
                             :default-button true
                             :result false}
-                           {:text "Delete"
+                           {:text (localization/message "dialog.button.delete")
                             :variant :danger
                             :result true}]}))
         (when (and (delete selection) next)

@@ -900,35 +900,39 @@
             (launch-new-engine!))))
       (catch Exception e
         (log/warn :exception e)
-        (dialogs/make-info-dialog
-          {:title "Launch Failed"
-           :icon :icon/triangle-error
-           :header {:fx/type fx.v-box/lifecycle
-                    :children [{:fx/type fxui/legacy-label
-                                :variant :header
-                                :text (format "Launching %s failed"
-                                              (if (some? selected-target)
-                                                (targets/target-message-label selected-target)
-                                                "New Local Engine"))}
-                               {:fx/type fxui/legacy-label
-                                :text "If the engine is already running, shut down the process manually and retry"}]}
-           :content (.getMessage e)})))))
+        (let [localization (g/with-auto-evaluation-context evaluation-context
+                             (workspace/localization (project/workspace project evaluation-context) evaluation-context))]
+          (dialogs/make-info-dialog
+            localization
+            {:title (localization/message "dialog.launch-failed.title")
+             :icon :icon/triangle-error
+             :header {:fx/type fx.v-box/lifecycle
+                      :children [{:fx/type fxui/legacy-label
+                                  :variant :header
+                                  :text (localization
+                                          (localization/message
+                                            "dialog.launch-failed.header"
+                                            {"target" (if (some? selected-target)
+                                                        (targets/target-message-label selected-target)
+                                                        (localization/message "dialog.launch-failed.target.new-local-engine"))}))}
+                                 {:fx/type fxui/legacy-label
+                                  :text (localization (localization/message "dialog.launch-failed.detail"))}]}
+             :content (.getMessage e)}))))))
 
-(defn- get-cycle-detected-help-message [node-id]
-  (let [basis (g/now)
-        proj-path (some-> (resource-node/owner-resource basis node-id) resource/proj-path)
+(defn- get-cycle-detected-help-message [basis node-id]
+  (let [proj-path (some-> (resource-node/owner-resource basis node-id) resource/proj-path)
         resource-path (or proj-path "'unknown'")]
     (case (g/node-type-kw basis node-id)
       :editor.collection/CollectionNode
-      (format "This is caused by a two or more collections referenced in a loop from either collection proxies or collection factories. One of the resources is: %s." resource-path)
+      (localization/message "dialog.build-error.cycle.detail.collection" {"resource" resource-path})
 
       :editor.game-object/GameObjectNode
-      (format "This is caused by two or more game objects referenced in a loop from game object factories. One of the resources is: %s." resource-path)
+      (localization/message "dialog.build-error.cycle.detail.game-object" {"resource" resource-path})
 
       :editor.code.script/ScriptNode
-      (format "This is caused by two or more Lua modules required in a loop. One of the resources is: %s." resource-path)
+      (localization/message "dialog.build-error.cycle.detail.script" {"resource" resource-path})
 
-      (format "This is caused by two or more resources referenced in a loop. One of the resources is: %s." resource-path))))
+      (localization/message "dialog.build-error.cycle.detail.generic" {"resource" resource-path}))))
 
 (defn- ex-root-cause [exception]
   (if-let [cause (ex-cause exception)]
@@ -949,7 +953,9 @@
                       error)
               cause (ex-root-cause error)
               cause-ex-data (ex-data cause)
-              ex-type (:ex-type cause-ex-data)]
+              ex-type (:ex-type cause-ex-data)
+              basis (:basis evaluation-context)
+              localization (workspace/localization (project/workspace project evaluation-context) evaluation-context)]
           (case ex-type
             :task-cancelled
             nil ; We'll just produce an error signaling that the build was cancelled below.
@@ -957,12 +963,12 @@
             :cycle-detected
             (ui/run-later
               (dialogs/make-info-dialog
-                {:title "Build Error"
+                localization
+                {:title (localization/message "dialog.build-error.title")
                  :icon :icon/triangle-error
-                 :header "Cyclic resource dependency detected"
-                 :content {:fx/type fxui/legacy-label
-                           :style-class "dialog-content-padding"
-                           :text (get-cycle-detected-help-message (-> cause-ex-data :endpoint gt/endpoint-node-id))}}))
+                 :header (localization/message "dialog.build-error.cycle.header")
+                 :content {:wrap-text true
+                           :text (get-cycle-detected-help-message basis (-> cause-ex-data :endpoint gt/endpoint-node-id))}}))
 
             ;; Default case.
             (error-reporting/report-exception! error))
@@ -973,7 +979,11 @@
 
                     (= :cycle-detected ex-type)
                     {:severity :fatal
-                     :message (str "Cyclic resource dependency detected. " (get-cycle-detected-help-message (-> cause-ex-data :endpoint gt/endpoint-node-id)))}
+                     :message (localization
+                                (localization/message
+                                  "dialog.build-error.cycle.message"
+                                  {"header" (localization/message "dialog.build-error.cycle.header")
+                                   "detail" (get-cycle-detected-help-message basis (-> cause-ex-data :endpoint gt/endpoint-node-id))}))}
 
                     (pipeline/decorated-build-exception? error)
                     (let [{:keys [node-id owner-resource-node-id]} (ex-data error)]
@@ -1319,18 +1329,16 @@
        (prefs/get prefs [:run :instance-count]))))
 
 (defn- debugging-supported?
-  [project]
+  [project localization]
   (if (project/shared-script-state? project)
     true
     (do (dialogs/make-info-dialog
-          {:title "Debugging Not Supported"
+          localization
+          {:title (localization/message "dialog.debugging-not-supported.title")
            :icon :icon/triangle-error
-           :header "This project cannot be used with the debugger"
-           :content {:fx/type fxui/legacy-label
-                     :style-class "dialog-content-padding"
-                     :text "It is configured to disable shared script state.
-
-If you do not specifically require different script states, consider changing the script.shared_state property in game.project."}})
+           :header (localization/message "dialog.debugging-not-supported.header")
+           :content {:wrap-text true
+                     :text (localization/message "dialog.debugging-not-supported.content")}})
         false)))
 
 (defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
@@ -1375,8 +1383,8 @@ If you do not specifically require different script states, consider changing th
   (active? [debug-view evaluation-context]
            (not (debug-view/debugging? debug-view evaluation-context)))
   (enabled? [] (not (build-in-progress?)))
-  (run [project workspace prefs web-server build-errors-view console-view debug-view main-stage tool-tab-pane]
-    (when (debugging-supported? project)
+  (run [project workspace prefs web-server build-errors-view console-view debug-view main-stage tool-tab-pane localization]
+    (when (debugging-supported? project localization)
       (let [main-scene (.getScene ^Stage main-stage)
             render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
         (build-errors-view/clear-build-errors build-errors-view)
@@ -1385,20 +1393,20 @@ If you do not specifically require different script states, consider changing th
           (run-with-debugger! workspace project prefs debug-view render-build-error! web-server))))))
 
 (def ^:private clean-build-dialog-info
-  {:title "Perform Clean Project Build?"
+  {:title (localization/message "dialog.clean-build.title")
    :icon :icon/circle-question
-   :header "Are you sure you want to perform a clean project build?"
-   :buttons [{:text "Cancel"
+   :header (localization/message "dialog.clean-build.header")
+   :buttons [{:text (localization/message "dialog.button.cancel")
               :cancel-button true
               :result false}
-             {:text "Clean Build"
+             {:text (localization/message "dialog.clean-build.button.clean")
               :default-button true
               :result true}]})
 
 (handler/defhandler :project.clean-build :global
   (enabled? [] (not (build-in-progress?)))
-  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane]
-    (when (dialogs/make-confirmation-dialog clean-build-dialog-info)
+  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane localization]
+    (when (dialogs/make-confirmation-dialog localization clean-build-dialog-info)
       (debug-view/detach! debug-view)
       (workspace/clear-build-cache! workspace)
       (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane))))
@@ -1429,8 +1437,8 @@ If you do not specifically require different script states, consider changing th
                                (.close out))))))
 
 (handler/defhandler :project.clean-build-html5 :global
-  (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
-       (when (dialogs/make-confirmation-dialog clean-build-dialog-info)
+  (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane localization]
+       (when (dialogs/make-confirmation-dialog localization clean-build-dialog-info)
          (build-html5! project prefs web-server build-errors-view changes-view main-stage tool-tab-pane
                        bob/clean-build-html5-bob-commands))))
 
@@ -1472,6 +1480,8 @@ If you do not specifically require different script states, consider changing th
   (let [main-scene (.getScene ^Stage main-stage)
         target (targets/selected-target prefs)
         workspace (project/workspace project)
+        localization (g/with-auto-evaluation-context evaluation-context
+                       (workspace/localization workspace evaluation-context))
         old-etags (workspace/etags workspace)
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
         [render-progress! task-cancelled?] (begin-task-progress! :build)]
@@ -1508,6 +1518,7 @@ If you do not specifically require different script states, consider changing th
                                          (engine/reload-build-resources! target updated-build-resources)))
                                      (catch Exception e
                                        (dialogs/make-info-dialog
+                                         localization
                                          {:title "Hot Reload Failed"
                                           :icon :icon/triangle-error
                                           :header (format "Failed to reload resources on '%s'"
@@ -2166,16 +2177,20 @@ If you do not specifically require different script states, consider changing th
      (cond
        (not (resource/loaded? resource))
        (do (dialogs/make-info-dialog
-             {:title "Resource Excluded from Loading"
+             localization
+             {:title (localization/message "dialog.open-resource.excluded.title")
               :icon :icon/triangle-error
-              :header (format "Unable to open '%s', since it was excluded from loading by the '.defunload' file." (resource/proj-path resource))})
+              :header (localization/message "dialog.open-resource.excluded.header"
+                                           {"resource" (resource/proj-path resource)})})
            false)
 
        (g/defective? resource-node)
        (do (dialogs/make-info-dialog
-             {:title "Unable to Open Resource"
+             localization
+             {:title (localization/message "dialog.open-resource.unrecognized.title")
               :icon :icon/triangle-error
-              :header (format "Unable to open '%s', since it contains unrecognizable data. Could the project be missing a required extension?" (resource/proj-path resource))})
+              :header (localization/message "dialog.open-resource.unrecognized.header"
+                                           {"resource" (resource/proj-path resource)})})
            false)
 
        :else
@@ -2234,10 +2249,14 @@ If you do not specifically require different script states, consider changing th
              (ui/open-file f (fn [msg]
                                (ui/run-later
                                  (dialogs/make-info-dialog
-                                   {:title "Could Not Open File"
+                                   localization
+                                   {:title (localization/message "dialog.open-resource.open-file-failed.title")
                                     :icon :icon/triangle-error
-                                    :header (format "Could not open '%s'" (.getName f))
-                                    :content (str "This can happen if the file type is not mapped to an application in your OS.\n\nUnderlying error from the OS:\n" msg)}))))
+                                    :header (localization/message "dialog.open-resource.open-file-failed.header"
+                                                                  {"resource" (.getName f)})
+                                    :content {:wrap-text true
+                                              :text (localization/message "dialog.open-resource.open-file-failed.detail"
+                                                                          {"error" msg})}}))))
              false)))))))
 
 (handler/defhandler :file.open-selected :global
@@ -2357,26 +2376,22 @@ If you do not specifically require different script states, consider changing th
                            (callback! successful? render-reload-progress! render-save-progress!)))))))
 
 (defn- make-version-control-info-dialog-content
-  ([] (make-version-control-info-dialog-content nil))
-  ([^String preamble]
+  ([localization]
+   (make-version-control-info-dialog-content localization nil))
+  ([localization preamble]
    {:fx/type fx.text-flow/lifecycle
     :style-class "dialog-content-padding"
     :children [{:fx/type fx.text/lifecycle
-                :text (cond->> (str "A project under Version Control "
-                                    "keeps a history of changes and "
-                                    "enables you to collaborate with "
-                                    "others by pushing changes to a "
-                                    "server.\n\nYou can read about "
-                                    "how to configure Version Control "
-                                    "in the ")
-                               (not (string/blank? preamble))
-                               (str preamble "\n\n"))}
+                :text (let [intro-text (localization (localization/message "dialog.save-and-upgrade.version-control.info.before-manual"))]
+                        (if preamble
+                          (str (localization preamble) "\n\n" intro-text)
+                          intro-text))}
                {:fx/type fx.hyperlink/lifecycle
-                :text "Defold Manual"
+                :text (localization (localization/message "dialog.save-and-upgrade.version-control.info.manual-link"))
                 :on-action (fn [_]
                              (ui/open-url "https://www.defold.com/manuals/version-control/"))}
                {:fx/type fx.text/lifecycle
-                :text "."}]}))
+                :text (localization (localization/message "dialog.save-and-upgrade.version-control.info.after-manual"))}]}))
 
 (handler/defhandler :file.save-all :global
   (enabled? [] (not (bob/build-in-progress?)))
@@ -2385,7 +2400,7 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :file.save-and-upgrade-all :global
   (enabled? [] (not (bob/build-in-progress?)))
-  (run [app-view changes-view project workspace]
+  (run [app-view changes-view project workspace localization]
        (let [git (g/node-value changes-view :git)]
          (when (and
 
@@ -2395,16 +2410,19 @@ If you do not specifically require different script states, consider changing th
                  ;; The user can opt to proceed with the upgrade anyway.
                  (or (some? git)
                      (dialogs/make-confirmation-dialog
-                       {:title "Not Safe to Upgrade File Formats"
+                       localization
+                       {:title (localization/message "dialog.save-and-upgrade.title.not-safe")
                         :size :default
                         :icon :icon/triangle-error
-                        :header "Version Control Recommended"
-                        :content (make-version-control-info-dialog-content "Due to potential data-loss concerns, file format upgrades should only be performed on projects under Version Control.")
-                        :buttons [{:text "Abort"
+                        :header (localization/message "dialog.save-and-upgrade.version-control.header")
+                        :content (make-version-control-info-dialog-content
+                                   localization
+                                   (localization/message "dialog.save-and-upgrade.version-control.preamble"))
+                        :buttons [{:text (localization/message "dialog.save-and-upgrade.button.abort")
                                    :cancel-button true
                                    :default-button true
                                    :result false}
-                                  {:text "Proceed Anyway"
+                                  {:text (localization/message "dialog.save-and-upgrade.button.proceed-anyway")
                                    :variant :danger
                                    :result true}]}))
 
@@ -2416,18 +2434,19 @@ If you do not specifically require different script states, consider changing th
                  (or (nil? git)
                      (not (git/has-local-changes? git))
                      (dialogs/make-confirmation-dialog
-                       {:title "Not Safe to Upgrade File Formats"
+                       localization
+                       {:title (localization/message "dialog.save-and-upgrade.title.not-safe")
                         :size :default
                         :icon :icon/triangle-error
-                        :header "Uncommitted changes detected"
+                        :header (localization/message "dialog.save-and-upgrade.uncommitted.header")
                         :content {:fx/type fxui/legacy-label
                                   :style-class "dialog-content-padding"
-                                  :text "Due to potential data-loss concerns, file format upgrades should start from a clean working directory.\n\nWe recommend you commit your local changes before retrying the operation."}
-                        :buttons [{:text "Abort"
+                                  :text (localization (localization/message "dialog.save-and-upgrade.uncommitted.content"))}
+                        :buttons [{:text (localization/message "dialog.save-and-upgrade.button.abort")
                                    :cancel-button true
                                    :default-button true
                                    :result false}
-                                  {:text "Proceed Anyway"
+                                  {:text (localization/message "dialog.save-and-upgrade.button.proceed-anyway")
                                    :variant :danger
                                    :result true}]})))
 
@@ -2435,28 +2454,29 @@ If you do not specifically require different script states, consider changing th
            ;; the user has chosen to ignore our warnings. Show one last
            ;; confirmation dialog before proceeding.
            (let [workspace-has-non-editable-directories (workspace/has-non-editable-directories? workspace)
-                 buttons (cond-> [{:text "Cancel"
+                 buttons (cond-> [{:text (localization/message "dialog.button.cancel")
                                    :cancel-button true
                                    :default-button true
                                    :result nil}
-                                  {:text (if workspace-has-non-editable-directories
-                                           "Upgrade Editable Files"
-                                           "Upgrade Project Files")
+                                  {:text (localization/message (if workspace-has-non-editable-directories
+                                                                 "dialog.save-and-upgrade.button.upgrade-editable-files"
+                                                                 "dialog.save-and-upgrade.button.upgrade-project-files"))
                                    :variant :danger
                                    :result :upgrade-editable-files}]
 
                                  workspace-has-non-editable-directories
-                                 (conj {:text "Upgrade All Files"
+                                 (conj {:text (localization/message "dialog.save-and-upgrade.button.upgrade-all-files")
                                         :variant :danger
                                         :result :upgrade-all-files}))
                  result (dialogs/make-confirmation-dialog
-                          {:title "Save and Upgrade File Formats?"
+                          localization
+                          {:title (localization/message "dialog.save-and-upgrade.confirm.title")
                            :size :large
                            :icon :icon/circle-question
-                           :header "Re-save all files in the latest file format?"
+                           :header (localization/message "dialog.save-and-upgrade.confirm.header")
                            :content {:fx/type fxui/legacy-label
                                      :style-class "dialog-content-padding"
-                                     :text "Files in the project will be re-saved in the latest file format. This operation cannot be undone.\n\nDue to the potentially large number of affected files, you should coordinate with your project lead before doing this."}
+                                     :text (localization (localization/message "dialog.save-and-upgrade.confirm.content"))}
                            :buttons buttons})
                  save-data-fn (case result
                                 :upgrade-editable-files (partial project/upgraded-file-formats-save-data false)
@@ -2878,12 +2898,12 @@ If you do not specifically require different script states, consider changing th
         hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
       (dialogs/make-info-dialog
-        {:title "Fetch Failed"
+        localization
+        {:title (localization/message "dialog.fetch-libraries.host-unreachable.title")
          :icon :icon/triangle-error
          :size :large
-         :header "Fetch was aborted because a host could not be reached"
-         :content (str "Unreachable host: " first-unreachable-host
-                       "\n\nPlease verify internet connection and try again.")})
+         :header (localization/message "dialog.fetch-libraries.host-unreachable.header")
+         :content (localization/message "dialog.fetch-libraries.host-unreachable.content" {"host" first-unreachable-host})})
       (future
         (error-reporting/catch-all!
           (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
@@ -2966,29 +2986,28 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :file.create-desktop-entry :global
   (active? [] (some? @xdg-desktop-menu-path))
   (enabled? [] (and (system/defold-resourcespath) (system/defold-launcherpath)))
-  (run []
-       (let [xdg-desktop-menu @xdg-desktop-menu-path
-             install-dir (.getCanonicalFile (io/file (system/defold-resourcespath)))
-             launcher-path (.getCanonicalFile (io/file (system/defold-launcherpath)))
-             desktop-entry (get-linux-desktop-entry launcher-path install-dir)
-             desktop-entry-file (io/file install-dir "defold-editor.desktop")]
-         (try
-           (spit desktop-entry-file desktop-entry)
-           (process/exec! xdg-desktop-menu "install" "--mode" "user" (str desktop-entry-file))
-           (fs/delete! desktop-entry-file)
-           (dialogs/make-confirmation-dialog
-             {:title "Desktop Entry Created"
-              :header "Desktop Entry Has Been Created!"
-              :icon :icon/circle-happy
-              :content {:fx/type fxui/legacy-label
-                        :style-class "dialog-content-padding"
-                        :text "You may now launch the Defold editor from the system menu."}
-              :buttons [{:text "Close"
-                         :cancel-button true
-                         :default-button true}]})
-           (catch Exception e
-             (dialogs/make-info-dialog
-               {:title "Desktop Entry Creation Failed"
-                :header "Desktop Entry Couldn't Be Created!"
-                :icon :icon/triangle-error
-                :content (.getMessage e)}))))))
+  (run [localization]
+    (let [xdg-desktop-menu @xdg-desktop-menu-path
+          install-dir (.getCanonicalFile (io/file (system/defold-resourcespath)))
+          launcher-path (.getCanonicalFile (io/file (system/defold-launcherpath)))
+          desktop-entry (get-linux-desktop-entry launcher-path install-dir)
+          desktop-entry-file (io/file install-dir "defold-editor.desktop")]
+      (try
+        (spit desktop-entry-file desktop-entry)
+        (process/exec! xdg-desktop-menu "install" "--mode" "user" (str desktop-entry-file))
+        (fs/delete! desktop-entry-file)
+        (dialogs/make-info-dialog
+          localization
+          {:title (localization/message "dialog.desktop-entry.created.title")
+           :header (localization/message "dialog.desktop-entry.created.header")
+           :icon :icon/circle-happy
+           :content {:wrap-text true
+                     :text (localization/message "dialog.desktop-entry.created.content")}})
+        (catch Exception e
+          (dialogs/make-info-dialog
+            localization
+            {:title (localization/message "dialog.desktop-entry.creation-failed.title")
+             :header (localization/message "dialog.desktop-entry.creation-failed.header")
+             :icon :icon/triangle-error
+             :content {:wrap-text true
+                       :text (localization/message "dialog.desktop-entry.creation-failed.content" {"error" (.getMessage e)})}}))))))

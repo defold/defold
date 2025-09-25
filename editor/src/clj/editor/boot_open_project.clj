@@ -124,18 +124,16 @@
                                          (changes-view/refresh! changes-view))))))]
     (ui.updater/init! stage link updater install-and-restart! render-download-progress! localization)))
 
-(defn- show-tracked-internal-files-warning! []
+(defn- show-tracked-internal-files-warning! [localization]
   (dialogs/make-info-dialog
-    {:title "Internal Files Under Version Control"
+    localization
+    {:title (localization/message "dialog.tracked-internal-files.title")
      :size :large
      :icon :icon/triangle-error
-     :header "Internal files were placed under version control"
+     :header (localization/message "dialog.tracked-internal-files.header")
      :content {:pref-row-count 6
                :wrap-text true
-               :text (str "It looks like internal files such as downloaded dependencies or build output were placed under version control.\n"
-                          "This can happen if a commit was made when the .gitignore file was not properly configured.\n"
-                          "\n"
-                          "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")}}))
+               :text (localization/message "dialog.tracked-internal-files.content")}}))
 
 (def ^:private interaction-event-types
   #{DragEvent/DRAG_DONE
@@ -280,15 +278,16 @@
       (ui/on-closing! stage (fn [_]
                               (let [result (or (empty? (project/dirty-save-data project))
                                                (dialogs/make-confirmation-dialog
-                                                 {:title "Quit Defold?"
+                                                 localization
+                                                 {:title (localization/message "dialog.quit-defold.title")
                                                   :icon :icon/circle-question
                                                   :size :large
-                                                  :header "Unsaved changes exist, are you sure you want to quit?"
-                                                  :buttons [{:text "Cancel and Keep Working"
+                                                  :header (localization/message "dialog.quit-defold.header")
+                                                  :buttons [{:text (localization/message "dialog.quit-defold.button.cancel")
                                                              :default-button true
                                                              :cancel-button true
                                                              :result false}
-                                                            {:text "Quit Without Saving"
+                                                            {:text (localization/message "dialog.quit-defold.button.quit")
                                                              :variant :danger
                                                              :result true}]}))]
                                 (when result
@@ -367,18 +366,17 @@
             (do (changes-view/refresh! changes-view)
                 (ui/run-later
                   (dialogs/make-info-dialog
-                    {:title "Updated .gitignore File"
+                    localization
+                    {:title (localization/message "dialog.gitignore-updated.title")
                      :icon :icon/circle-info
-                     :header "Updated .gitignore file"
-                     :content {:fx/type fxui/legacy-label
-                               :style-class "dialog-content-padding"
-                               :text (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
-                                          "You should include it along with your changes the next time you synchronize.")}})
+                     :header (localization/message "dialog.gitignore-updated.header")
+                     :content {:wrap-text true
+                               :text (localization/message "dialog.gitignore-updated.content")}})
                   (when internal-files-are-tracked?
-                    (show-tracked-internal-files-warning!))))
+                    (show-tracked-internal-files-warning! localization))))
             (when internal-files-are-tracked?
               (ui/run-later
-                (show-tracked-internal-files-warning!)))))))
+                (show-tracked-internal-files-warning! localization)))))))
 
     (reset! the-root root)
     (ui/run-later (slog/smoke-log "stage-loaded"))
@@ -388,7 +386,7 @@
   [^File game-project-file prefs localization cli-options render-progress! updater newly-created?]
   (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
         build-settings (workspace/make-build-settings prefs)
-        workspace-config (shared-editor-settings/load-project-workspace-config project-path)
+        workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
         workspace (setup-workspace! project-path build-settings workspace-config localization)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
         extensions (extensions/make *project-graph*)

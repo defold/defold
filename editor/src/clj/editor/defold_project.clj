@@ -28,6 +28,7 @@
             [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.editor-localization-bundle :as editor-localization-bundle]
+            [editor.localization :as localization]
             [editor.game-project-core :as gpc]
             [editor.gl :as gl]
             [editor.graph-util :as gu]
@@ -416,12 +417,16 @@
   (let [[^File report-file we-created-report-file] (resource/defunload-issues-file)
         report-file-path (.getPath report-file)
         is-appending (not we-created-report-file)
+        localization (g/with-auto-evaluation-context evaluation-context
+                       (workspace/localization workspace evaluation-context))
 
         unsafe-references-report-lines
         (coll/transfer (sort-by key unsafe-dependency-proj-paths-by-referencing-proj-path) []
           (map (fn [[referencing-proj-path unsafe-dependency-proj-paths]]
                  (e/cons
-                   (format "%s - refers to unloaded resources:" referencing-proj-path)
+                   (localization
+                     (localization/message "dialog.defunload-issues.report-line"
+                                           {"resource" referencing-proj-path}))
                    (e/map dialogs/indent-with-bullet
                           (sort unsafe-dependency-proj-paths)))))
           (interpose [""])
@@ -433,35 +438,35 @@
                 *flush-on-newline* false]
         (when is-appending
           (newline))
-        (println "### Loading Resources ###")
+        (println (localization (localization/message "dialog.defunload-issues.report.section-loading-resources")))
         (when-not (coll/empty? unsafe-dependency-proj-paths-by-referencing-proj-path)
           (newline)
           (doseq [line unsafe-references-report-lines]
             (println (string/replace line dialogs/indented-bullet "  * "))))
         (when-not (coll/empty? loaded-undesired-proj-paths)
           (newline)
-          (println "The following resources matching `.defunload` patterns were loaded out of necessity:")
+          (println (localization (localization/message "dialog.defunload-issues.report.loaded-undesired")))
           (doseq [proj-path (sort loaded-undesired-proj-paths)]
             (println (str "  * " proj-path))))))
 
     ;; Also log and show a warning notification if any of the loaded resources
     ;; contain unsafe references to defunloaded resources.
     (when-not (coll/empty? unsafe-references-report-lines)
-      (let [preamble-lines
-            ["One or more resources have unsafe references to resources unloaded by `.defunload` patterns."
-             "Please fix the patterns in the `.defunload` file to avoid loading unwanted resources."
-             ""
-             "The full report has been written to:"
-             report-file-path]
+      (let [summary-line (localization (localization/message "dialog.defunload-issues.summary"))
+            advice-line (localization (localization/message "dialog.defunload-issues.advice"))
+            header-message (localization/message "dialog.defunload-issues.header")
+            preamble-lines [summary-line
+                            advice-line
+                            ""
+                            (localization (localization/message "dialog.defunload-issues.report-path"))
+                            report-file-path]
+            short-message (localization header-message)]
 
-            log-message
-            (string/join " " (e/take-while coll/not-empty preamble-lines))]
-
-        (log/warn :message log-message :report-file-path report-file-path)
+        (log/warn :message summary-line
+                  :detail advice-line
+                  :report-file-path report-file-path)
         (ui/run-later
-          (let [short-message "Found unsafe references to unloaded resources."
-
-                show-details-dialog!
+          (let [show-details-dialog!
                 (fn show-details-dialog! []
                   (let [dialog-lines
                         (e/concat
@@ -474,14 +479,15 @@
 
                         dialog-result
                         (dialogs/make-confirmation-dialog
-                          {:title "Revise .defunload Patterns"
+                          localization
+                          {:title (localization/message "dialog.defunload-issues.title")
                            :size :large
                            :icon :icon/triangle-warning
-                           :header short-message
+                           :header header-message
                            :content dialog-message
-                           :buttons [{:text "Ignore"
+                           :buttons [{:text (localization/message "dialog.defunload-issues.button.ignore")
                                       :result false}
-                                     {:text "Open Report"
+                                     {:text (localization/message "dialog.defunload-issues.button.open-report")
                                       :result true}]})]
 
                     (when dialog-result
@@ -492,7 +498,7 @@
               {:id ::defunload-issues
                :type :warning
                :text short-message
-               :actions [{:text "Show Details..."
+               :actions [{:text (localization (localization/message "notification.defunload-issues.action.show-details"))
                           :on-action show-details-dialog!}]})))))))
 
 (defn- node-id+resource-pair->proj-path
@@ -1424,12 +1430,13 @@
 (defn reload-plugins! [project touched-resources]
   (g/with-auto-evaluation-context evaluation-context
     (let [workspace (workspace project evaluation-context)
+          localization (workspace/localization workspace evaluation-context)
           code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
           code-transpilers (code-transpilers project)]
       (workspace/unpack-editor-plugins! workspace touched-resources)
-      (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader)
-      (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader)
-      (texture.engine/reload-texture-compressors! java/class-loader)
+      (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader localization)
+      (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader localization)
+      (texture.engine/reload-texture-compressors! java/class-loader localization)
       (workspace/load-clojure-editor-plugins! workspace touched-resources))))
 
 (defn settings

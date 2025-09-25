@@ -318,7 +318,7 @@
   ([graph]
    (setup-workspace! graph project-path))
   ([graph project-path]
-   (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path)
+   (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
          workspace (workspace/make-workspace graph
                                              project-path
                                              {}
