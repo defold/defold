@@ -518,8 +518,6 @@ namespace dmShaderc
         }
         else if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_HLSL)
         {
-            assert(options.m_Version > 50);
-
             spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_HLSL_SHADER_MODEL, options.m_Version);
 
             if (context->m_Stage == SHADER_STAGE_COMPUTE)
