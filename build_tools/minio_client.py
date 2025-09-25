@@ -13,9 +13,6 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-from minio import Minio
-from minio.error import S3Error
-from minio.sse import SseCustomerKey
 import os.path, sys
 
 class DownloadProgress:
@@ -54,6 +51,8 @@ class MinioClient:
             self.__is_local_path = True
             self.__base_dir = self.__base_url
         else:
+            from minio import Minio
+            from minio.sse import SseCustomerKey
             self.__is_local_path = False
             self.__client = Minio(self.__base_url, access_key=self.__access_key, secret_key=self.__access_secret)
             self.__encryption_key = SseCustomerKey(bytes.fromhex(self.__encryption_key)) if self.__encryption_key else None
@@ -69,6 +68,7 @@ class MinioClient:
 
 
     def download_package(self, package_name, progress_cb):
+        from minio.error import S3Error
         if self.__client is None:
             self.__initialize()
         if self.__is_local_path:
