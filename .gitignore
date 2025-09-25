@@ -74,3 +74,5 @@ editor/.lsp/sqlite.db
 /com.dynamo.cr/com.dynamo.cr.bob.test/test/proj/build/
 /com.dynamo.cr/test_resources/
 /build_times.json
+
+.packages_downloads/
