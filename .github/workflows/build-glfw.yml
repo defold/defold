@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
 
 env:
-  DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
+  DM_PACKAGES_BASE_URL: ${{ secrets.DM_PACKAGES_BASE_URL }}
+  DM_PACKAGES_BUCKET: ${{ secrets.DM_PACKAGES_BUCKET }}
 
 jobs:
   build-linux:
