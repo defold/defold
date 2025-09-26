@@ -61,7 +61,7 @@ class MinioClient:
 
     def __get_local_package(self, package_name):
         path = os.path.join(self.__base_dir, package_name)
-        if os.path.exists(os.path.join()):
+        if os.path.exists(os.path.join(path)):
             return os.path.normpath(os.path.abspath(path))
         print("Could not find local file:", path)
         sys.exit(1)

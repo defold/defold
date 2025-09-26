@@ -453,8 +453,6 @@ Due to licensing restrictions **the SDKs are not distributed with Defold**. You 
 
 __In order to simplify this process we provide scripts to download and package the SDKs__ [Read more about this process here](/scripts/package/README.md).
 
-The path to the SDKs can either be passed to `build.py` using the `--package-path` option or by setting the `DM_PACKAGES_URL` environment variable.
-
 </p></details>
 
 
