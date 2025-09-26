@@ -16,8 +16,8 @@
 
 
 readonly PRODUCT=jctest
-readonly VERSION=0.10.2
-readonly BASE_URL=https://github.com/JCash/jctest/archive/
+readonly VERSION=0.12
+readonly BASE_URL=https://github.com/JCash/jctest/archive/refs/tags
 readonly FILE_URL=v${VERSION}.tar.gz
 
 export CONF_TARGET=$1
