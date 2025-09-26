@@ -1180,6 +1180,16 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    Result SetStartFrame(HSoundInstance sound_instance, uint32_t start_frame)
+    {
+        return RESULT_UNSUPPORTED;
+    }
+
+    Result SetStartTime(HSoundInstance sound_instance, float start_time_seconds)
+    {
+        return RESULT_UNSUPPORTED;
+    }
+
     static Result UpdateInternal(SoundSystem* sound)
     {
         DM_PROFILE(__FUNCTION__);
