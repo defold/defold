@@ -220,6 +220,7 @@ PACKAGES_LINUX_X86_64=[
     "glslang-ba5c010c",
     "spirv-cross-9040e0d2",
     "spirv-tools-d24a39a7",
+    "vpx-1.7.0",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
@@ -238,6 +239,7 @@ PACKAGES_LINUX_ARM64=[
     "glslang-2fed4fc0",
     "spirv-cross-9040e0d2",
     "spirv-tools-4fab7435",
+    "vpx-1.7.0",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
@@ -694,7 +696,7 @@ class Configuration(object):
         if target_platform in ('x86_64-macos', 'arm64-macos', 'x86_64-win32', 'x86_64-linux'):
             protobuf_packages = filter(lambda x: "protobuf" in x, PACKAGES_HOST)
             package_paths = make_package_paths(self.defold_root, 'x86_64-linux', protobuf_packages)
-            print("Installing %s packages " % 'x86_64-linux')
+            print("Installing %s protobuf packages " % 'x86_64-linux')
             for path in package_paths:
                 self._extract_tgz(path, self.ext)
             installed_packages.update(package_paths)
