@@ -22,36 +22,7 @@ namespace dmLog
 
 void __ios_log_print(LogSeverity severity, const char* str_buf)
 {
-    // https://developer.apple.com/documentation/os/os_log_type_t/os_log_type_default?language=objc
-    os_log_type_t log_type;
-    switch (severity)
-    {
-        case LOG_SEVERITY_DEBUG:
-        case LOG_SEVERITY_USER_DEBUG:
-            log_type = OS_LOG_TYPE_DEBUG;
-            break;
-
-        case LOG_SEVERITY_INFO:
-            log_type = OS_LOG_TYPE_INFO;
-            break;
-
-        case LOG_SEVERITY_WARNING:
-            log_type = OS_LOG_TYPE_DEFAULT;
-            break;
-
-        case LOG_SEVERITY_ERROR:
-            log_type = OS_LOG_TYPE_ERROR;
-            break;
-
-        case LOG_SEVERITY_FATAL:
-            log_type = OS_LOG_TYPE_FAULT;
-            break;
-
-        default:
-            log_type = OS_LOG_TYPE_INFO;
-            break;
-    }
-    os_log_with_type(OS_LOG_DEFAULT, log_type, "%{public}s", str_buf);
+    os_log_with_type(OS_LOG_DEFAULT, OS_LOG_TYPE_DEFAULT, "%{public}s", str_buf);
 }
 
 } //namespace dmLog
