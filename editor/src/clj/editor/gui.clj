@@ -2708,7 +2708,7 @@
 ;; SDK api
 (defn query-and-add-resources! [resources-type-label resource-exts taken-ids project select-fn make-node-fn]
   (when-let [resources (browse
-                         (localization/message "dialog.select-gui-component.title" {"type" resources-type-label})
+                         (localization/message "dialog.select-gui-component.title" {"component" resources-type-label})
                          project
                          resource-exts)]
     (let [names (id/resolve-all (map resource->id resources) taken-ids)

@@ -1069,7 +1069,7 @@
     {:icon :icon/circle-question
      :size :large
      :title (localization/message "dialog.name-conflict.title")
-     :header (localization/message "dialog.name-conflict.header" {"n" (count src-dest-pairs)})
+     :header (localization/message "dialog.name-conflict.header" {"count" (count src-dest-pairs)})
      :buttons [{:text (localization/message "dialog.button.cancel")
                 :cancel-button true
                 :default-button true}

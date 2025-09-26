@@ -356,7 +356,7 @@ dialog.rename.error.reserved-name = Имя {name} зарезервировано
 # Name conflict dialog (appears on conflict during rename)
 
 dialog.name-conflict.title = Конфликт имён
-dialog.name-conflict.header = В папке назначения {n, plural, one {уже есть объект с таким именем} few {# объекта с конфликтующими именами} other {# объектов с конфликтующими именами}}.
+dialog.name-conflict.header = В папке назначения {count, plural, one {уже есть объект с таким именем} few {# объекта с конфликтующими именами} other {# объектов с конфликтующими именами}}.
 dialog.name-conflict.button.name-differently = Переименовать
 dialog.name-conflict.button.overwrite-files = Перезаписать файлы
 
@@ -386,7 +386,7 @@ dialog.add-atlas-images.title = Выбрать изображения
 dialog.select-game-object-file.title = Выбрать файл игрового объекта
 dialog.select-collection-file.title = Выбрать файл коллекции
 dialog.select-component-file.title = Выбрать файл компонента
-dialog.select-gui-component.title = Выбрать компонент ({type})
+dialog.select-gui-component.title = Выбрать компонент ({component})
 dialog.select-resource.title = Выбрать ресурс
 dialog.recent-files.title = Недавние файлы
 dialog.recent-files.button.ok = Открыть

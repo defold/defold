@@ -367,7 +367,7 @@ dialog.rename.error.reserved-name = The name {name} is reserved
 # Name conflict dialog (appears on conflict during rename)
 
 dialog.name-conflict.title = Name Conflict
-dialog.name-conflict.header = The destination has {n, plural, one {an entry with the same name} other {# entries with conflicting names}}.
+dialog.name-conflict.header = The destination has {count, plural, one {an entry with the same name} other {# entries with conflicting names}}.
 dialog.name-conflict.button.name-differently = Name Differently
 dialog.name-conflict.button.overwrite-files = Overwrite Files
 
@@ -398,7 +398,7 @@ dialog.add-atlas-images.title = Select Images
 dialog.select-game-object-file.title = Select Game Object File
 dialog.select-collection-file.title = Select Collection File
 dialog.select-component-file.title = Select Component File
-dialog.select-gui-component.title = Select {type}
+dialog.select-gui-component.title = Select {component}
 dialog.select-resource.title = Select Resource
 dialog.recent-files.title = Recent Files
 dialog.recent-files.button.ok = Open
