@@ -22,13 +22,13 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (defonce/record Progress
-  [message
+  [^MessagePattern message
    ^long size
    ^long pos
    cancel-state])
 
 (defn ->progress
-  ^Progress [message ^long size ^long pos cancel-state]
+  ^Progress [^MessagePattern message ^long size ^long pos cancel-state]
   {:pre [(localization/message-pattern? message)
          (nat-int? size) ; size 0 means indeterminate.
          (nat-int? pos)
