@@ -53,7 +53,7 @@ void __ios_log_print(LogSeverity severity, const char* str_buf)
                 log_type = OS_LOG_TYPE_INFO;
                 break;
         }
-        os_log_with_type(OS_LOG_DEFAULT, log_type, "%s", str_buf);
+        os_log_with_type(OS_LOG_DEFAULT, log_type, "%{public}s", str_buf);
     }
     else
     {
