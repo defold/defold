@@ -100,7 +100,7 @@
 (defonce/interface MessagePattern
   (format [state]))
 
-(defn- message-pattern? [x]
+(defn message-pattern? [x]
   (instance? MessagePattern x))
 
 (defn- impl-format [state v]
@@ -502,10 +502,10 @@
     (.localeDisplayName display-names locale)))
 
 ;; TODO:
+;;  - notifications
 ;;  - editor.progress
 ;;  - loading project dialog
 ;;  - editor scripts localization
 ;;  - menus
-;;  - all dialogs
 ;;  - all properties
 ;;  - missed things...

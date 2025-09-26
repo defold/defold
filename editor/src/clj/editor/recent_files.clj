@@ -17,6 +17,7 @@
             [cljfx.fx.region :as fx.region]
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
+            [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
@@ -60,8 +61,9 @@
   (let [items (ordered-resource+view-types prefs workspace evaluation-context)]
     (dialogs/make-select-list-dialog
       items
-      {:title "Recent Files"
-       :ok-label "Open"
+      (workspace/localization workspace evaluation-context)
+      {:title (localization/message "dialog.recent-files.title")
+       :ok-label (localization/message "dialog.recent-files.button.ok")
        :cell-fn (fn [[resource view-type :as item]]
                   {:style-class (into ["list-cell"] (resource/style-classes resource))
                    :graphic {:fx/type resource-dialog/matched-list-item-view

@@ -31,6 +31,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.id :as id]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -705,14 +706,14 @@
         (make-ref-go coll-node resource id nil parent nil select-fn)))))
 
 (defn- select-go-file [workspace project]
-  (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"})))
+  (first (resource-dialog/make workspace project {:ext "go" :title (localization/message "dialog.select-game-object-file.title")})))
 
 (handler/defhandler :edit.add-referenced-component :workbench
   (active? [selection] (selection->collection selection))
   (label [selection] "Add Game Object File")
   (run [workspace project app-view selection]
        (let [collection (selection->collection selection)]
-         (when-let [resource (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"}))]
+         (when-let [resource (first (resource-dialog/make workspace project {:ext "go" :title (localization/message "dialog.select-game-object-file.title")}))]
            (add-referenced-game-object! collection collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
 
 (defn- connect-embedded-go [node-type resource-node go-node]
@@ -813,7 +814,7 @@
                                    (resource-dialog/make
                                      workspace project
                                      {:ext ext
-                                      :title "Select Collection File"
+                                      :title (localization/message "dialog.select-collection-file.title")
                                       :accept-fn #(not (contains-resource? project coll-node % evaluation-context))})))]
              (let [base (resource/base-name resource)
                    id (gen-instance-id coll-node base)

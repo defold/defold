@@ -434,8 +434,8 @@
                 (invalidate-target-menu!)))))))))
 
 (handler/defhandler :run.show-target-log :global
-  (run []
-    (dialogs/make-target-log-dialog event-log #(reset! event-log []) restart)))
+  (run [localization]
+    (dialogs/make-target-log-dialog event-log #(reset! event-log []) restart localization)))
 
 (handler/defhandler :run.stop :global
   (enabled? [app-view] (launched-targets?))

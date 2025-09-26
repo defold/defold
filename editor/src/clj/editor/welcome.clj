@@ -531,24 +531,27 @@
                          (cond
                            (string/blank? project-title)
                            (dialogs/make-info-dialog
-                             {:title (localization (localization/message "welcome.new-project.error.no-project-title.title"))
+                             localization
+                             {:title (localization/message "welcome.new-project.error.no-project-title.title")
                               :icon :icon/triangle-error
-                              :header (localization (localization/message "welcome.new-project.error.no-project-title.header"))})
+                              :header (localization/message "welcome.new-project.error.no-project-title.header")})
 
                            (not= project-title (string/trim project-title))
                            (dialogs/make-info-dialog
-                             {:title (localization (localization/message "welcome.new-project.error.invalid-project-title.title"))
+                             localization
+                             {:title (localization/message "welcome.new-project.error.invalid-project-title.title")
                               :icon :icon/triangle-error
                               :size :large
-                              :header (localization (localization/message "welcome.new-project.error.invalid-project-title.header"))})
+                              :header (localization/message "welcome.new-project.error.invalid-project-title.header")})
 
                            (and (.exists project-location)
                                 (not (fs/empty-directory? project-location)))
                            (dialogs/make-info-dialog
-                             {:title (localization (localization/message "welcome.new-project.error.conflicting-project-location.title"))
+                             localization
+                             {:title (localization/message "welcome.new-project.error.conflicting-project-location.title")
                               :icon :icon/triangle-error
                               :size :large
-                              :header (localization (localization/message "welcome.new-project.error.conflicting-project-location.header"))})
+                              :header (localization/message "welcome.new-project.error.conflicting-project-location.header")})
 
                            :else
                            (download-template! (:name project-template) (:zip-url project-template) (:skip-root? project-template) project-location project-title))))))))
@@ -684,29 +687,33 @@
                                         (cond
                                           (instance? UnknownHostException error)
                                           (dialogs/make-info-dialog
-                                            {:title (localization (localization/message "welcome.new-project.error.no-internet-connection.title"))
+                                            localization
+                                            {:title (localization/message "welcome.new-project.error.no-internet-connection.title")
                                              :icon :icon/triangle-error
-                                             :header (localization (localization/message "welcome.new-project.error.no-internet-connection.header"))})
+                                             :header (localization/message "welcome.new-project.error.no-internet-connection.header")})
 
                                           (instance? SocketException error)
                                           (dialogs/make-info-dialog
-                                            {:title (localization (localization/message "welcome.new-project.error.host-unreachable.title"))
+                                            localization
+                                            {:title (localization/message "welcome.new-project.error.host-unreachable.title")
                                              :icon :icon/triangle-error
-                                             :header (localization (localization/message "welcome.new-project.error.host-unreachable.header"))
+                                             :header (localization/message "welcome.new-project.error.host-unreachable.header")
                                              :content (.getMessage error)})
 
                                           (instance? SocketTimeoutException error)
                                           (dialogs/make-info-dialog
-                                            {:title (localization (localization/message "welcome.new-project.error.host-not-responding.title"))
+                                            localization
+                                            {:title (localization/message "welcome.new-project.error.host-not-responding.title")
                                              :icon :icon/triangle-error
-                                             :header (localization (localization/message "welcome.new-project.error.host-not-responding.header"))
+                                             :header (localization/message "welcome.new-project.error.host-not-responding.header")
                                              :content (.getMessage error)})
 
                                           (instance? SSLException error)
                                           (dialogs/make-info-dialog
-                                            {:title (localization (localization/message "welcome.new-project.error.ssl-connection-error.title"))
+                                            localization
+                                            {:title (localization/message "welcome.new-project.error.ssl-connection-error.title")
                                              :icon :icon/triangle-error
-                                             :header (localization (localization/message "welcome.new-project.error.ssl-connection-error.header"))
+                                             :header (localization/message "welcome.new-project.error.ssl-connection-error.header")
                                              :content {:fx/type fx.text-flow/lifecycle
                                                        :style-class "dialog-content-padding"
                                                        :children [{:fx/type fx.text/lifecycle

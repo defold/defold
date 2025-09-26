@@ -3,7 +3,7 @@
 # 2. Use at least 2 dot-separated elements
 # 3. Use lower-cased kebab-case
 # 4. Avoid suffixes baked into the last path element (e.g., -label, -button)
-# 5. For dialog elements, use consistent names: title, header, detail
+# 5. For dialog elements, use consistent names: title, header, detail, content
 # 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
 # 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
 
@@ -40,7 +40,7 @@ welcome.new-project.error.host-not-responding.title = Host Not Responding
 welcome.new-project.error.host-not-responding.header = The connection timed out
 welcome.new-project.error.ssl-connection-error.title = SSL Connection Error
 welcome.new-project.error.ssl-connection-error.header = Could not establish an SSL connection
-welcome.new-project.error.ssl-connection-error.common-causes = Common causes are:\n\u00A0\u00A0\u2022\u00A0Antivirus software configured to scan encrypted connections\n\u00A0\u00A0\u2022\u00A0Expired or misconfigured server certificate\n\u00A0\u00A0\u2022\u00A0Untrusted server certificate\n\nThe following FAQ may apply:
+welcome.new-project.error.ssl-connection-error.common-causes = Common causes are:\n\u00A0\u00A0\u2022\u00A0Antivirus software configured to scan encrypted connections\n\u00A0\u00A0\u2022\u00A0Expired or misconfigured server certificate\n\u00A0\u00A0\u2022\u00A0Untrusted server certificate\n\nThe following FAQ may apply: 
 welcome.new-project.error.ssl-connection-error.pkix-faq-entry = PKIX path building failed
 
 # Welcome -> New Project -> From Template
@@ -69,7 +69,7 @@ welcome.new-project.walking-astronaut-tutorial.description = In this beginner's 
 welcome.new-project.movement-tutorial.title = Movement Tutorial
 welcome.new-project.movement-tutorial.description = In this beginner's tutorial you learn how to make realistic movement using vectors and some simple vector algebra.
 welcome.new-project.war-battles-tutorial.title = War Battles Tutorial
-welcome.new-project.war-battles-tutorial.description = In this medium difficulty tutorial you build the foundation for a top down shooter game based on the "War Battles" RTS asset pack.
+welcome.new-project.war-battles-tutorial.description = In this medium difficulty tutorial you build the foundation for a top-down shooter game based on the "War Battles" RTS asset pack.
 welcome.new-project.colorslide-tutorial.title = Colorslide Tutorial
 welcome.new-project.colorslide-tutorial.description = In this medium difficulty tutorial you build an in-game GUI, a GUI screen for level selection and a start screen for a simple multi level mobile game.
 
@@ -141,12 +141,57 @@ dialog.button.dismiss = Dismiss
 dialog.button.report = Report
 dialog.button.disable-scene-editor = Disable Scene Editor
 dialog.button.cancel = Cancel
+dialog.button.delete = Delete
 
 # Error Dialog
 
 dialog.error.title = Error
 dialog.error.header = An error occurred
 dialog.error.footer = You can help us fix this problem by reporting it and providing more information about what you were doing when it happened.
+
+# Build Error Dialog
+
+dialog.build-error.title = Build Error
+dialog.build-error.cycle.header = Cyclic resource dependency detected
+dialog.build-error.cycle.message = {header}. {detail}
+dialog.build-error.cycle.detail.collection = This is caused by two or more collections referenced in a loop from either collection proxies or collection factories. One of the resources is: {resource}.
+dialog.build-error.cycle.detail.game-object = This is caused by two or more game objects referenced in a loop from game object factories. One of the resources is: {resource}.
+dialog.build-error.cycle.detail.script = This is caused by two or more Lua modules required in a loop. One of the resources is: {resource}.
+dialog.build-error.cycle.detail.generic = This is caused by two or more resources referenced in a loop. One of the resources is: {resource}.
+
+# Clean Build Dialog
+
+dialog.clean-build.title = Perform Clean Project Build?
+dialog.clean-build.header = Are you sure you want to perform a clean project build?
+dialog.clean-build.button.clean = Clean Build
+
+# Debugging Not Supported Dialog
+
+dialog.debugging-not-supported.title = Debugging Not Supported
+dialog.debugging-not-supported.header = This project cannot be used with the debugger
+dialog.debugging-not-supported.content = It is configured to disable shared script state.\n\nIf you do not specifically require different script states, consider changing the script.shared_state property in game.project.
+
+# Defunload Issues Dialog
+
+dialog.defunload-issues.title = Revise .defunload Patterns
+dialog.defunload-issues.header = Found unsafe references to unloaded resources.
+dialog.defunload-issues.summary = One or more resources have unsafe references to resources unloaded by `.defunload` patterns.
+dialog.defunload-issues.advice = Please fix the patterns in the `.defunload` file to avoid loading unwanted resources.
+dialog.defunload-issues.report-path = The full report has been written to:
+dialog.defunload-issues.button.ignore = Ignore
+dialog.defunload-issues.button.open-report = Open Report
+dialog.defunload-issues.report-line = {resource} - refers to unloaded resources:
+dialog.defunload-issues.report.section-loading-resources = ### Loading Resources ###
+dialog.defunload-issues.report.loaded-undesired = The following resources matching `.defunload` patterns were loaded out of necessity:
+
+notification.defunload-issues.action.show-details = Show Details...
+
+# Launch Failed Dialog
+
+dialog.launch-failed.title = Launch Failed
+dialog.launch-failed.header = Launching {target} failed
+dialog.launch-failed.detail = If the engine is already running, shut down the process manually and retry
+dialog.launch-failed.target.new-local-engine = New Local Engine
 
 # GL support error dialog
 
@@ -171,6 +216,203 @@ dialog.target-ip.header = Enter Target IP Address
 dialog.target-ip.label.ip = Target IP Address
 dialog.target-ip.button.add = Add Target IP
 
+# Target Discovery Log Dialog
+
+dialog.target-discovery-log.title = Target Discovery Log
+dialog.target-discovery-log.header = Target Discovery Log
+dialog.target-discovery-log.button.clear-log = Clear Log
+dialog.target-discovery-log.button.restart-discovery = Restart Discovery
+
+# Generic file/directory dialog titles
+
+dialog.directory.title.set-path = Set Path
+dialog.directory.title.select = Select Directory
+dialog.file.title.select = Select File
+
+# Set Custom Resolution dialog
+
+dialog.custom-resolution.title = Set Custom Resolution
+dialog.custom-resolution.header = Set custom game resolution
+dialog.custom-resolution.detail = Game window will be resized to this size
+dialog.custom-resolution.label.width = Width
+dialog.custom-resolution.label.height = Height
+dialog.custom-resolution.button.set-resolution = Set Resolution
+
+# Tracked internal files dialog
+
+dialog.tracked-internal-files.title = Internal Files Under Version Control
+dialog.tracked-internal-files.header = Internal files were placed under version control
+dialog.tracked-internal-files.content = It looks like internal files such as downloaded dependencies or build output were placed under version control.\nThis can happen if a commit was made when the .gitignore file was not properly configured.\n\nTo fix this, make a commit where you delete the .internal and build directories, then reopen the project.
+
+# Quit Defold dialog
+
+dialog.quit-defold.title = Quit Defold?
+dialog.quit-defold.header = Unsaved changes exist, are you sure you want to quit?
+dialog.quit-defold.button.cancel = Cancel and Keep Working
+dialog.quit-defold.button.quit = Quit Without Saving
+
+# Save and upgrade file formats dialogs
+
+dialog.save-and-upgrade.title.not-safe = Not Safe to Upgrade File Formats
+dialog.save-and-upgrade.version-control.header = Version Control Recommended
+dialog.save-and-upgrade.version-control.preamble = Due to potential data-loss concerns, file format upgrades should only be performed on projects under Version Control.
+dialog.save-and-upgrade.version-control.info.before-manual = A project under Version Control keeps a history of changes and enables you to collaborate with others by pushing changes to a server.\n\nYou can read about how to configure Version Control in the 
+dialog.save-and-upgrade.version-control.info.manual-link = Defold Manual
+dialog.save-and-upgrade.version-control.info.after-manual = .
+dialog.save-and-upgrade.uncommitted.header = Uncommitted changes detected
+dialog.save-and-upgrade.uncommitted.content = Due to potential data-loss concerns, file format upgrades should start from a clean working directory.\n\nWe recommend you commit your local changes before retrying the operation.
+dialog.save-and-upgrade.confirm.title = Save and Upgrade File Formats?
+dialog.save-and-upgrade.confirm.header = Re-save all files in the latest file format?
+dialog.save-and-upgrade.confirm.content = Files in the project will be re-saved in the latest file format. This operation cannot be undone.\n\nDue to the potentially large number of affected files, you should coordinate with your project lead before doing this.
+dialog.save-and-upgrade.button.abort = Abort
+dialog.save-and-upgrade.button.proceed-anyway = Proceed Anyway
+dialog.save-and-upgrade.button.upgrade-editable-files = Upgrade Editable Files
+dialog.save-and-upgrade.button.upgrade-project-files = Upgrade Project Files
+dialog.save-and-upgrade.button.upgrade-all-files = Upgrade All Files
+
+# Plugin load error dialog
+
+dialog.plugin-load-error.title = Unable to Load Plugin
+dialog.plugin-load-error.header = The editor plugin "{plugin}" is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version.
+
+# Desktop entry dialogs
+
+dialog.desktop-entry.created.title = Desktop Entry Created
+dialog.desktop-entry.created.header = Desktop entry has been created!
+dialog.desktop-entry.created.content = You may now launch the Defold editor from the system menu.
+dialog.desktop-entry.creation-failed.title = Desktop Entry Creation Failed
+dialog.desktop-entry.creation-failed.header = Desktop entry couldn't be created!
+dialog.desktop-entry.creation-failed.content = An error occurred while creating the desktop entry:\n{error}
+
+# Texture compressor error dialog
+
+dialog.texture-compressor-error.title = Unable to Load Plugin
+dialog.texture-compressor-error.header = Failed to initialize texture compressors
+dialog.texture-compressor-error.content = The following classes from editor plugins are not compatible with this version of the editor:\n\n{classes}\n\nThe project might not build without them.\nPlease edit your project dependencies to refer to a suitable version.
+
+# Lua preprocessors error dialog
+
+dialog.lua-preprocessors-error.title = Unable to Load Plugin
+dialog.lua-preprocessors-error.content = The following classes from editor plugins are not compatible with this version of the editor:\n\n{classes}\n\nThe project might not build without them.\nPlease edit your project dependencies to refer to a suitable version.
+dialog.lua-preprocessors-error.construct.header = Failed to construct Lua preprocessors
+dialog.lua-preprocessors-error.initialize.header = Failed to initialize Lua preprocessors
+
+# Lua transpilers error dialog
+
+dialog.lua-transpilers-error.title = Unable to Load Plugin
+dialog.lua-transpilers-error.content = The following classes from editor plugins are not compatible with this version of the editor:\n\n{classes}\n\nThe project might not build without them.\nPlease edit your project dependencies to refer to a suitable version.
+dialog.lua-transpilers-error.construct.header = Failed to construct Lua transpilers
+dialog.lua-transpilers-error.initialize.header = Failed to initialize Lua transpilers
+dialog.lua-transpilers-error.generic.header = Failed to load Lua transpilers
+
+# Diff view dialogs
+
+dialog.diff-view.unchanged.title = The File Is Unchanged
+dialog.diff-view.unchanged.header = The file is unchanged
+dialog.diff-view.binary.title = Unable to Diff Binary Files
+dialog.diff-view.binary.header = Unable to diff binary files
+
+# Fetch libraries dialog
+
+dialog.fetch-libraries.host-unreachable.title = Fetch Failed
+dialog.fetch-libraries.host-unreachable.header = Fetch was aborted because a host could not be reached
+dialog.fetch-libraries.host-unreachable.content = Unreachable host: {host}\n\nPlease verify your internet connection and try again.
+
+# Form view dialogs
+
+dialog.form-view.directory-not-in-project.title = Invalid Directory
+dialog.form-view.directory-not-in-project.header = The directory must reside within the project.
+dialog.form-view.file-not-in-project.title = Invalid File
+dialog.form-view.file-not-in-project.header = The file must reside within the project.
+
+# Shared editor settings load error dialog
+
+dialog.shared-editor-settings.load-error.title = Error Loading Shared Editor Settings
+dialog.shared-editor-settings.load-error.header = Failed to load Shared Editor Settings file.
+dialog.shared-editor-settings.load-error.detail = Falling back to defaults. Your user experience might suffer.
+dialog.shared-editor-settings.load-error.content = File: {file}\n\n{error}
+
+# Updated gitignore dialog
+
+dialog.gitignore-updated.title = Updated .gitignore File
+dialog.gitignore-updated.header = Updated .gitignore file
+dialog.gitignore-updated.content = The .gitignore file was automatically updated to ignore build output and metadata files.\nYou should include it along with your changes the next time you synchronize.
+
+# Asset browser reserved targets dialog
+
+dialog.asset-paste-reserved.title = Cannot Paste
+dialog.asset-paste-reserved.header = Some target directories are reserved
+dialog.asset-paste-reserved.content = The following target directories are reserved:\n{directories}
+
+# Asset deletion dialogs
+
+dialog.asset-delete-single.title = Delete File?
+dialog.asset-delete-single.header = Are you sure you want to delete {name}?
+dialog.asset-delete-multiple.title = Delete Files?
+dialog.asset-delete-multiple.header = Are you sure you want to delete these files?
+dialog.asset-delete-multiple.content = You are about to delete:{items}
+dialog.asset-delete-multiple.content.item = \n\u00A0\u00A0\u2022\u00A0{name}
+
+# Rename dialog
+
+dialog.rename.title = Rename {name}
+dialog.rename.preview = Preview
+dialog.rename.button.rename = Rename
+dialog.rename.label.folder = New Folder Name
+dialog.rename.label.file = New File Name
+dialog.rename.header.folder = Rename Folder
+dialog.rename.header.files = Rename {n, plural, one {File} other {# Files}}
+dialog.rename.error.reserved-name = The name {name} is reserved
+
+# Name conflict dialog (appears on conflict during rename)
+
+dialog.name-conflict.title = Name Conflict
+dialog.name-conflict.header = The destination has {count, plural, one {an entry with the same name} other {# entries with conflicting names}}.
+dialog.name-conflict.button.name-differently = Name Differently
+dialog.name-conflict.button.overwrite-files = Overwrite Files
+
+# New file dialog
+
+dialog.new-file.title.file = New File
+dialog.new-file.title.resource = New {type}
+dialog.new-file.header.file = Enter the File Name
+dialog.new-file.header.resource = Enter {type} File Name
+dialog.new-file.label.name = Name
+dialog.new-file.label.location = Location
+dialog.new-file.label.preview = Preview
+dialog.new-file.button.create.file = Create
+dialog.new-file.button.create.resource = Create {type}
+
+# List dialogs
+
+dialog.select-item.title = Select Item
+dialog.select-item.prompt = Type to filter
+dialog.select-item.button.ok = OK
+dialog.open-assets.title = Open Asset
+dialog.open-assets.button.ok = Open
+dialog.referencing-files.title = Referencing Files
+dialog.referencing-files.button.ok = Open
+dialog.dependencies.title = Dependencies
+dialog.dependencies.button.ok = Open
+dialog.add-atlas-images.title = Select Images
+dialog.select-game-object-file.title = Select Game Object File
+dialog.select-collection-file.title = Select Collection File
+dialog.select-component-file.title = Select Component File
+dialog.select-gui-component.title = Select {component}
+dialog.select-resource.title = Select Resource
+dialog.recent-files.title = Recent Files
+dialog.recent-files.button.ok = Open
+
+# Open resource dialogs
+
+dialog.open-resource.excluded.title = Resource Excluded from Loading
+dialog.open-resource.excluded.header = Unable to open "{resource}", since it was excluded from loading by the ".defunload" file.
+dialog.open-resource.unrecognized.title = Unable to Open Resource
+dialog.open-resource.unrecognized.header = Unable to open "{resource}", since it contains unrecognizable data. Could the project be missing a required extension?
+dialog.open-resource.open-file-failed.title = Could Not Open File
+dialog.open-resource.open-file-failed.header = Could not open "{resource}"
+dialog.open-resource.open-file-failed.detail = This can happen if the file type is not mapped to an application in your OS.\n\nUnderlying error from the OS:\n{error}
+
 # Editor panes
 
 pane.assets = Assets
@@ -194,6 +436,9 @@ console.search = Search
 
 changes-view.button.diff = Diff
 changes-view.button.revert = Revert
+dialog.changes-revert.title = Revert Changes?
+dialog.changes-revert.header = Are you sure you want to revert changes on selected files?
+dialog.changes-revert.button.revert-changes = Revert Changes
 
 # Prefs
 
@@ -260,3 +505,8 @@ prefs.keymap.warnings = Warnings:{warnings}
 prefs.keymap.warning = \n• {warning}
 prefs.keymap.warning.typable = Typable (may interfere with text inputs)
 prefs.keymap.warning.conflicts = Conflicts with {shortcuts}
+
+# Resource views
+
+resource.readonly.detail = This file is part of a library and cannot be saved.
+resource.readonly.button.read-more = Read more…
