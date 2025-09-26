@@ -14,15 +14,16 @@
 
 (ns editor.notifications
   (:require [clojure.spec.alpha :as s]
-            [dynamo.graph :as g]))
+            [dynamo.graph :as g]
+            [editor.localization :as localization]))
 
 (s/def ::type #{:info :warning :error})
 (s/def ::id any?)
-(s/def ::text string?)
+(s/def ::message localization/message-pattern?)
 (s/def ::on-action ifn?)
-(s/def ::action (s/keys :req-un [::text ::on-action]))
+(s/def ::action (s/keys :req-un [::message ::on-action]))
 (s/def ::actions (s/coll-of ::action))
-(s/def ::notification (s/keys :req-un [::type ::text]
+(s/def ::notification (s/keys :req-un [::type ::message]
                               :opt-un [::id ::actions]))
 
 (g/defnode NotificationsNode
@@ -36,12 +37,13 @@
     notifications-node    node id of NotificationsNode type
     notification          map with the following keys:
                             :type       required, :info, :warning or :error
-                            :text       required, notification text string
+                            :message    required, notification MessagePattern
                             :id         optional id, anything; submitting
                                         notification a second time with the same
                                         id will overwrite the first one
-                            :actions    optional vector of maps with :text
-                                        strings and :on-action 0-arg callbacks"
+                            :actions    optional vector of maps with :message
+                                        MessagePatterns and :on-action
+                                        0-arg callbacks"
   [notifications-node notification]
   {:pre [(s/valid? ::notification notification)]}
   (g/update-property
@@ -61,12 +63,13 @@
     notifications-node    node id of NotificationsNode type
     notification          map with the following keys:
                             :type       required, :info, :warning or :error
-                            :text       required, notification text string
+                            :message    required, notification MessagePattern
                             :id         optional id, anything; submitting
                                         notification a second time with the same
                                         id will overwrite the first one
-                            :actions    optional vector of maps with :text
-                                        strings and :on-action 0-arg callbacks"
+                            :actions    optional vector of maps with :message
+                                        MessagePatterns and :on-action
+                                        0-arg callbacks"
   [notifications-node notification]
   (g/transact (show notifications-node notification))
   nil)
@@ -96,24 +99,24 @@
     (show! (g/node-value 0 :notifications)
            {:type :info
             :id ::updatable
-            :text (str "Updatable " (rand-int 10000))}))
+            :message (localization/message "dialog.desktop-entry.creation-failed.content" {"error" (rand-int 10000)})}))
 
   (editor.ui/run-now
     (show! (g/node-value 0 :notifications)
            {:type :error
-            :text "An error occurred"}))
+            :message (localization/message "dialog.button.close")}))
 
   (editor.ui/run-now
     (show! (g/node-value 0 :notifications)
            {:type :warning
-            :text "!"}))
+            :message (localization/message "dialog.button.close")}))
 
   (editor.ui/run-now
     (show!
       (g/node-value 0 :notifications)
       {:type :warning
-       :text "Folder /defold-rive shadows a folder with the same name defined in a dependency: https://github.com/defold/extension-rive/archive/refs/tags/1.0.zip"
-       :actions [{:text "Suppress warning for this folder"
+       :message (localization/message "dialog.button.close")
+       :actions [{:message (localization/message "dialog.button.close")
                   :on-action #(tap> :suppress)}]}))
 
   ,)

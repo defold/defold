@@ -674,10 +674,12 @@
           show-progress-hbox? (boolean (and (not= key :main)
                                             progress
                                             (not (progress/done? progress))))
+          localization (ui/user-data (.getScene (ui/main-stage)) :localization)
           {:keys [progress-bar progress-hbox progress-percentage-label status-label progress-cancel-button]} @status-bar-controls-delay]
       (ui/render-progress-message!
         (if key progress (@task-progress-snapshot :main))
-        status-label)
+        status-label
+        localization)
       ;; The bottom right of the status bar can show either the progress-hbox
       ;; or the update-link, or both. The progress-hbox will cover
       ;; the update-link if both are visible.
@@ -686,7 +688,7 @@
         (do
           (ui/visible! progress-hbox true)
           (ui/render-progress-bar! progress progress-bar)
-          (ui/render-progress-percentage! progress progress-percentage-label)
+          (ui/render-progress-percentage! progress progress-percentage-label localization)
           (if (progress/cancellable? progress)
             (doto progress-cancel-button
               (ui/visible! true)
@@ -774,7 +776,7 @@
 
 (defn- launch-engine! [engine-descriptor project-directory prefs debug?]
   (try
-    (report-build-launch-progress! "Launching engine...")
+    (report-build-launch-progress! (localization/message "progress.launching-engine"))
     (let [engine (engine/install-engine! project-directory engine-descriptor)
           count (prefs/get prefs [:run :instance-count])
           pause-ms 100
@@ -792,11 +794,11 @@
       (if (= count 1)
         (targets/select-target! prefs last-launched-target)
         (targets/select-target! prefs {:id :all-launched-targets}))
-      (report-build-launch-progress! (format "Launched %s" (targets/target-message-label last-launched-target)))
+      (report-build-launch-progress! (localization/message "progress.launched-engine" {"engine" (targets/target-message-label last-launched-target)}))
       launched-targets)
     (catch Exception e
       (targets/kill-launched-targets!)
-      (report-build-launch-progress! "Launch failed")
+      (report-build-launch-progress! (localization/message "progress.engine-launch-failed"))
       (throw e))))
 
 (defn- make-launched-log-sink [launched-target on-service-url-found]
@@ -830,12 +832,14 @@
 
 (defn- reboot-engine! [target web-server debug?]
   (try
-    (report-build-launch-progress! (format "Rebooting %s..." (targets/target-message-label target)))
+    (report-build-launch-progress!
+      (localization/message "progress.rebooting-engine" {"engine" (targets/target-message-label target)}))
     (engine/reboot! target (local-url target web-server) debug?)
-    (report-build-launch-progress! (format "Rebooted %s" (targets/target-message-label target)))
+    (report-build-launch-progress!
+      (localization/message "progress.rebooted-engine" {"engine" (targets/target-message-label target)}))
     target
     (catch Exception e
-      (report-build-launch-progress! "Reboot failed")
+      (report-build-launch-progress! (localization/message "progress.engine-reboot-failed"))
       (throw e))))
 
 (defn- on-launched-hook! [project process url]
@@ -1118,7 +1122,7 @@
         (fn phase-7-await-lint! [project-build-results]
           (if lint
             (do
-              (render-progress! (progress/make-indeterminate "Linting code..."))
+              (render-progress! (progress/make-indeterminate (localization/message "progress.linting")))
               (run-on-background-thread!
                 (fn await-lint-on-background-thread! []
                   (deref lint-promise))
@@ -1161,7 +1165,7 @@
             (if (nil? engine-build-future)
               (phase-7-await-lint! project-build-results)
               (do
-                (render-progress! (progress/make-indeterminate "Fetching engine..."))
+                (render-progress! (progress/make-indeterminate (localization/message "progress.fetching-engine")))
                 (run-on-background-thread!
                   (fn run-engine-build-on-background-thread! []
                     (deref engine-build-future))
@@ -1176,7 +1180,7 @@
 
         phase-5-run-post-build-hook!
         (fn phase-5-run-post-build-hook! [project-build-results]
-          (render-progress! (progress/make-indeterminate "Executing post-build hooks..."))
+          (render-progress! (progress/make-indeterminate (localization/message "progress.executing-post-build-hooks")))
           (let [platform (engine/current-platform)
                 project-build-successful (nil? (:error project-build-results))]
             (run-on-background-thread!
@@ -1201,7 +1205,7 @@
           ;; risk evicting the previous build targets as the cache fills up.
           (assert (ui/on-ui-thread?))
           (let [evaluation-context (g/make-evaluation-context)]
-            (render-progress! (progress/make "Building project..." 1))
+            (render-progress! (progress/make (localization/message "progress.building-project") 1))
             (run-on-background-thread!
               (fn run-project-build-on-background-thread! []
                 (let [extra-build-targets
@@ -1229,7 +1233,7 @@
 
         phase-2-run-pre-build-hook!
         (fn phase-2-run-pre-build-hook! []
-          (render-progress! (progress/make-indeterminate "Executing pre-build hooks..."))
+          (render-progress! (progress/make-indeterminate (localization/message "progress.executing-pre-build-hooks")))
           (let [platform (engine/current-platform)]
             (run-on-background-thread!
               (fn run-pre-build-hook-on-background-thread! []
@@ -1241,7 +1245,7 @@
                   ;; with the project build. But we still want to report the build
                   ;; failure to any post-build hooks that might need to know.
                   (when (some? extension-error)
-                    (render-progress! (progress/make-indeterminate "Executing post-build hooks..."))
+                    (render-progress! (progress/make-indeterminate (localization/message "progress.executing-post-build-hooks")))
                     @(extensions/execute-hook! project
                                                :on_build_finished
                                                {:success false :platform platform}
@@ -2910,7 +2914,7 @@
             (when (workspace/dependencies-reachable? library-uris)
               (let [lib-states (workspace/fetch-and-validate-libraries workspace library-uris render-fetch-progress!)
                     render-install-progress! (make-render-task-progress :resource-sync)]
-                (render-install-progress! (progress/make "Installing updated libraries..."))
+                (render-install-progress! (progress/make (localization/message "progress.installing-updated-libraries")))
                 (ui/run-later
                   (workspace/install-validated-libraries! workspace lib-states)
                   (disk/async-reload! render-install-progress! workspace [] changes-view

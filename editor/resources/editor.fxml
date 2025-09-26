@@ -188,7 +188,7 @@
       </StackPane>
       <HBox id="status-bar">
         <children>
-          <Label id="status-label" text="Ready" HBox.hgrow="ALWAYS" maxWidth="1.7976931348623157E308" />
+          <Label id="status-label" HBox.hgrow="ALWAYS" maxWidth="1.7976931348623157E308" />
           <StackPane id="status-pane">
             <Hyperlink id="update-link" text="Update Available" visible="false" StackPane.alignment="CENTER_RIGHT" />
             <HBox id="progress-hbox" visible="false">

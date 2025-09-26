@@ -159,7 +159,7 @@
         (notifications/show!
           (workspace/notifications workspace)
           {:type :warning
-           :text "Due to a Git error, Git features are not available for this project."})
+           :message (localization/message "notification.changes-view.git-error")})
         nil))))
 
 (defn make-changes-view [view-graph workspace prefs localization ^Parent parent async-reload!]

@@ -20,6 +20,7 @@
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
             [editor.process :as process]
@@ -323,13 +324,13 @@
 
 (defn- show-error-message [exception workspace]
   (ui/run-later
-    (let [msg (str (ex-message exception) "\n\n"
-                   "The target you have chosen isn't available")]
-      (notifications/show!
-        (workspace/notifications workspace)
-        {:type :error
-         :id ::target-connection-error
-         :text msg}))))
+    (notifications/show!
+      (workspace/notifications workspace)
+      {:type :error
+       :id ::target-connection-error
+       :message (localization/message
+                  "notification.targets.selected-target-unavailable.error"
+                  {"error" (or (ex-message exception) (.getSimpleName (class exception)))})})))
 
 (defn select-target! [prefs target]
   (reset! selected-target-atom target)

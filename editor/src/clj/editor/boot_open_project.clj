@@ -146,6 +146,7 @@
   (let [^StackPane root (ui/load-fxml "editor.fxml")
         stage (ui/make-stage)
         scene (Scene. root)]
+    (ui/user-data! scene :localization localization)
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -173,7 +174,7 @@
           open-resource        (partial #'app-view/open-resource app-view prefs localization workspace project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs localization)
           color-dropper-view   (color-dropper/make-color-dropper! *view-graph*)
-          _                    (notifications-view/init! (g/node-value workspace :notifications) notifications)
+          _                    (notifications-view/init! (g/node-value workspace :notifications) notifications localization)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource selected-node-ids opts]
                                                                            (when (open-resource resource opts)
@@ -212,10 +213,11 @@
                            (notifications/show!
                              (workspace/notifications workspace)
                              {:type :warning
-                              :text (format "Failed to start a server on port %s (%s). Using port %s instead."
-                                            server-port
-                                            (.getMessage e)
-                                            (http-server/port server))})
+                              :message (localization/message
+                                         "notification.web-server.port-fallback.warning"
+                                         {"requested" server-port
+                                          "reason" (.getMessage e)
+                                          "fallback" (http-server/port server)})})
                            server)))
           port-file-content (str (http-server/port web-server))
           port-file (doto (io/file project-path ".internal" "editor.port")
@@ -225,10 +227,12 @@
       (localization/localize! (.lookup root "#changed-files-titled-pane") localization (localization/message "pane.changed-files"))
       (localization/localize! (.lookup root "#outline-pane") localization (localization/message "pane.outline"))
       (localization/localize! (.lookup root "#properties-pane") localization (localization/message "pane.properties"))
+      (localization/localize! (.lookup root "#status-label") localization (localization/message "progress.ready"))
       (localization/localize! console-tab localization (localization/message "pane.console"))
       (localization/localize! curve-tab localization (localization/message "pane.curve-editor"))
       (localization/localize! (find-tab tool-tabs "build-errors-tab") localization (localization/message "pane.build-errors"))
       (localization/localize! (find-tab tool-tabs "search-results-tab") localization (localization/message "pane.search-results"))
+
       (.addShutdownHook
         (Runtime/getRuntime)
         (Thread.

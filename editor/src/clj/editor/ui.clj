@@ -23,6 +23,7 @@
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.keymap :as keymap]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.os :as os]
             [editor.progress :as progress]
@@ -39,7 +40,6 @@
            [java.io File IOException]
            [java.net URI]
            [java.util Collection]
-           [java.util.concurrent Executor]
            [javafx.animation AnimationTimer KeyFrame KeyValue Timeline]
            [javafx.application Platform]
            [javafx.beans InvalidationListener]
@@ -71,11 +71,6 @@
 ;; class requires application to be running, because it sets default platform
 ;; stylesheet, and this requires Application to be running.
 (PlatformImpl/startup (fn []))
-
-(def javafx-executor
-  (reify Executor
-    (execute [_ command]
-      (Platform/runLater command))))
 
 (defonce ^:dynamic *main-stage* (atom nil))
 
@@ -2040,21 +2035,18 @@
       (double fraction)
       -1.0)))
 
-(defn render-progress-message! [progress ^Label label]
-  (text! label (progress/message progress)))
+(defn render-progress-message! [progress ^Label label localization]
+  (localization/localize! label localization (progress/message progress)))
 
-(defn render-progress-percentage! [progress ^Label label]
-  (text!
+(defn render-progress-percentage! [progress ^Label label localization]
+  (localization/localize!
     label
+    localization
     (if (progress/cancelled? progress)
-      "Aborting..."
+      (localization/message "progress.aborting")
       (if-some [percentage (progress/percentage progress)]
-        (str percentage "%")
-        ""))))
-
-(defn render-progress-controls! [progress ^ProgressBar bar ^Label label]
-  (when bar (render-progress-bar! progress bar))
-  (when label (render-progress-message! progress label)))
+        (localization/message "progress.percentage" {"percentage" percentage})
+        (localization/message "progress.empty")))))
 
 (defmacro with-progress [bindings & body]
   `(let ~bindings

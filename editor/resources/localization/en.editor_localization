@@ -318,6 +318,45 @@ dialog.fetch-libraries.host-unreachable.title = Fetch Failed
 dialog.fetch-libraries.host-unreachable.header = Fetch was aborted because a host could not be reached
 dialog.fetch-libraries.host-unreachable.content = Unreachable host: {host}\n\nPlease verify your internet connection and try again.
 
+# Fetch libraries notification
+
+notification.fetch-libraries.dependencies-changed.prompt = Project dependencies have changed. Do you want to fetch the libraries now?
+notification.fetch-libraries.dependencies-changed.action.fetch = Fetch Libraries
+notification.fetch-libraries.dependencies-missing.warning = The following dependencies are missing:\n{dependencies}\nThe project might not work without them.\nTo download, connect to the internet and fetch libraries.
+notification.fetch-libraries.dependencies-error.error = Couldn't install the following dependencies:\n{dependencies}
+notification.fetch-libraries.dependencies-error.action.open-game-project = Open game.project
+
+# Language server notification
+
+notification.lsp.language-server-missing.prompt = Cannot perform this action because there is no Language Server running for the {language} language.
+notification.lsp.language-server-missing.action.about = About LSP in Defold
+
+# Asset browser notifications
+
+notification.asset-browser.circular-paste.error = Cannot paste folder {source} into its subfolder {target}.
+
+# Workspace notifications
+
+notification.resource-collision.directory.warning = Folder "{resource}" is shadowing a folder with the same name
+notification.resource-collision.builtins.warning = Folder "{resource}" is shadowing a folder with the same name in builtins
+notification.resource-collision.library.warning = Folder "{resource}" is shadowing a folder with the same name in a project dependency: {library}
+
+# Web server notifications
+
+notification.web-server.port-fallback.warning = Failed to start a server on the requested port {requested} ({reason}). Using fallback port {fallback} instead.
+
+# Changes view notifications
+
+notification.changes-view.git-error = Due to a Git error, Git features are not available for this project.
+
+# Debug view notifications
+
+notification.debug-view.connect-failed.error = {error}\n\nCheck that the game is running and is reachable over the network.
+
+# Target notifications
+
+notification.targets.selected-target-unavailable.error = {error}\n\nThe target you have chosen isn't available.
+
 # Form view dialogs
 
 dialog.form-view.directory-not-in-project.title = Invalid Directory
@@ -413,6 +452,10 @@ dialog.open-resource.open-file-failed.title = Could Not Open File
 dialog.open-resource.open-file-failed.header = Could not open "{resource}"
 dialog.open-resource.open-file-failed.detail = This can happen if the file type is not mapped to an application in your OS.\n\nUnderlying error from the OS:\n{error}
 
+# Loading project dialog
+
+dialog.loading-project.header = Loading project
+
 # Editor panes
 
 pane.assets = Assets
@@ -505,6 +548,61 @@ prefs.keymap.warnings = Warnings:{warnings}
 prefs.keymap.warning = \n• {warning}
 prefs.keymap.warning.typable = Typable (may interfere with text inputs)
 prefs.keymap.warning.conflicts = Conflicts with {shortcuts}
+
+# Progress
+
+progress.ready = Ready
+progress.writing = Writing {resource}
+progress.empty =
+progress.linting = Linting code...
+progress.fetching-engine = Fetching engine...
+progress.executing-pre-build-hooks = Executing pre-build hooks...
+progress.executing-post-build-hooks = Executing post-build hooks...
+progress.executing-bundle-hook = Executing bundle hook...
+progress.building-project = Building project...
+progress.installing-updated-libraries = Installing updated libraries...
+progress.initializing-editor = Initializing editor {lib}
+progress.loading-editor = Loading editor
+progress.loading = Loading
+progress.loading-resource = Loading {resource}
+progress.resolving-resource = Resolving {resource}
+progress.reading-resource = Reading {resource}
+progress.finalizing = Finalizing
+progress.saving = Saving...
+progress.compiling = Compiling...
+progress.compiling-resource = Compiling {resource}...
+progress.updating-dependencies = Updating dependencies...
+progress.syncing-resources = Syncing resources...
+progress.loading-project = Loading project...
+progress.loading-external-changes = Loading external changes...
+progress.writing-files = Writing files...
+progress.caching-save-results = Caching save results...
+progress.reading-timestamps = Reading timestamps...
+progress.building = Building...
+progress.building-resource = Building {resource}
+progress.fetching = Fetching {uri}
+progress.downloading-update = Downloading update
+progress.extracting-update = Extracting update
+progress.waiting = Waiting
+progress.bundling = Bundling...
+progress.building-engine = Building engine...
+progress.cleaning-engine = Cleaning engine...
+progress.downloading-symbols = Downloading symbols...
+progress.transpiling-to-lua = Transpiling to Lua...
+progress.reading-tasks = Reading tasks...
+progress.cleaning = Cleaning...
+progress.generating-report = Generating report...
+progress.working = Working...
+progress.reading-classes = Reading classes...
+progress.downloading-archives = Downloading archives...
+progress.launching-engine = Launching engine...
+progress.launched-engine = Launched {engine}
+progress.engine-launch-failed = Launch failed
+progress.rebooting-engine = Rebooting {engine}...
+progress.rebooted-engine = Rebooted {engine}
+progress.engine-reboot-failed = Reboot failed
+progress.aborting = Aborting...
+progress.percentage = {percentage}%
 
 # Resource views
 

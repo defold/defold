@@ -40,6 +40,7 @@ ordinary paths."
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
+            [util.eduction :as e]
             [util.fn :as fn])
   (:import [clojure.lang DynamicClassLoader]
            [editor.resource FileResource]
@@ -553,9 +554,10 @@ ordinary paths."
         notifications
         {:id ::dependencies-missing
          :type :warning
-         :text (format "The following dependencies are missing:\n%s\nThe project might not work without them.\nTo download, connect to the internet and fetch libraries."
-                       (string/join "\n" (map dialogs/indent-with-bullet missing)))
-         :actions [{:text "Fetch Libraries"
+         :message (localization/message
+                    "notification.fetch-libraries.dependencies-missing.warning"
+                    {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet missing))})
+         :actions [{:message (localization/message "notification.fetch-libraries.dependencies-changed.action.fetch")
                     :on-action #(ui/execute-command
                                   (ui/contexts (ui/main-scene))
                                   :project.fetch-libraries
@@ -566,9 +568,10 @@ ordinary paths."
         notifications
         {:id ::dependencies-error
          :type :error
-         :text (format "Couldn't install following dependencies:\n%s"
-                       (string/join "\n" (map dialogs/indent-with-bullet error)))
-         :actions [{:text "Open game.project"
+         :message (localization/message
+                    "notification.fetch-libraries.dependencies-error.error"
+                    {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet error))})
+         :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
                     :on-action #(ui/execute-command
                                   (ui/contexts (ui/main-scene))
                                   :file.open
@@ -787,12 +790,13 @@ ordinary paths."
             notifications-node
             {:type :warning
              :id (collision-notification-id resource-path)
-             :text (str "Folder '" resource-path "' is shadowing a folder with the same name"
+             :message (localization/message
                         (case source
-                          :library (str " in a project dependency: " (:library status))
-                          :builtins " in builtins"
-                          :directory ""
-                          ""))}))))))
+                          :library "notification.resource-collision.library.warning"
+                          :builtins "notification.resource-collision.builtins.warning"
+                          "notification.resource-collision.directory.warning")
+                        {"resource" resource-path
+                         "library" (:library status)})}))))))
 
 (defn resource-sync!
   ([workspace]
@@ -867,7 +871,7 @@ ordinary paths."
            (let [listeners @(g/node-value workspace :resource-listeners)
                  total-progress-size (transduce (map first) + 0 listeners)]
              (loop [listeners listeners
-                    parent-progress (progress/make "" total-progress-size)]
+                    parent-progress (progress/make (localization/message "progress.empty") total-progress-size)]
                (when-some [[progress-span listener] (first listeners)]
                  (resource/handle-changes listener changes-with-moved
                                           (progress/nest-render-progress render-progress! parent-progress progress-span))

@@ -21,6 +21,7 @@
             [editor.engine.native-extensions :as native-extensions]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
+            [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -32,7 +33,7 @@
             [util.coll :as coll]
             [util.fn :as fn]
             [util.http-server :as http-server])
-  (:import [com.dynamo.bob Bob Bob$CommandLineOption Bob$CommandLineOption$ArgCount Bob$CommandLineOption$ArgType IProgress TaskResult]
+  (:import [com.dynamo.bob Bob Bob$CommandLineOption Bob$CommandLineOption$ArgCount Bob$CommandLineOption$ArgType IProgress IProgress$Task TaskResult]
            [com.dynamo.bob.logging LogHelper]
            [java.io File OutputStream PrintStream PrintWriter]
            [java.nio.charset StandardCharsets]
@@ -57,10 +58,25 @@
      (setCanceled [_this _canceled])
      (subProgress [_this _work-claimed-from-this]
        (->progress render-progress! task-cancelled? msg-stack-atom))
-     (beginTask [_this name _steps]
+     (beginTask [_this task _steps]
        (error-reporting/catch-all!
-         (swap! msg-stack-atom conj name)
-         (render-progress! (progress/make-cancellable-indeterminate name))))
+         (let [message (localization/message
+                         (condp identical? task
+                           IProgress$Task/BUNDLING "progress.bundling"
+                           IProgress$Task/BUILDING_ENGINE "progress.building-engine"
+                           IProgress$Task/CLEANING_ENGINE "progress.cleaning-engine"
+                           IProgress$Task/DOWNLOADING_SYMBOLS "progress.downloading-symbols"
+                           IProgress$Task/TRANSPILING_TO_LUA "progress.transpiling-to-lua"
+                           IProgress$Task/READING_TASKS "progress.reading-tasks"
+                           IProgress$Task/BUILDING "progress.building"
+                           IProgress$Task/CLEANING "progress.cleaning"
+                           IProgress$Task/GENERATING_REPORT "progress.generating-report"
+                           IProgress$Task/WORKING "progress.working"
+                           IProgress$Task/READING_CLASSES "progress.reading-classes"
+                           IProgress$Task/DOWNLOADING_ARCHIVES "progress.downloading-archives"
+                           "progress.empty"))]
+           (swap! msg-stack-atom conj message)
+           (render-progress! (progress/make-cancellable-indeterminate message)))))
      (worked [_this _amount]
        ;; Bob reports misleading progress amounts.
        ;; We report only "busy" and the name of the task.
