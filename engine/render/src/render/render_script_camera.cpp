@@ -30,6 +30,29 @@ namespace dmRender
 
     #define RENDER_SCRIPT_CAMERA_LIB_NAME "camera"
 
+    /*# fixed orthographic zoom mode
+     * Uses the manually set orthographic zoom value (camera.set_orthographic_zoom).
+     *
+     * @name camera.ORTHO_MODE_FIXED
+     * @constant
+     */
+
+    /*# auto-fit orthographic zoom mode
+     * Computes zoom so the original display area (game.project width/height) fits inside the window
+     * while preserving aspect ratio. Equivalent to using min(window_width/width, window_height/height).
+     *
+     * @name camera.ORTHO_MODE_AUTO_FIT
+     * @constant
+     */
+
+    /*# auto-cover orthographic zoom mode
+     * Computes zoom so the original display area covers the entire window while preserving aspect ratio.
+     * Equivalent to using max(window_width/width, window_height/height).
+     *
+     * @name camera.ORTHO_MODE_AUTO_COVER
+     * @constant
+     */
+
     struct RenderScriptCameraModule
     {
         dmRender::HRenderContext m_RenderContext;
@@ -264,6 +287,37 @@ namespace dmRender
     */
     SET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_tonumber);
 
+    /*# get orthographic zoom mode
+    *
+    * @name camera.get_orthographic_mode
+    * @param camera [type:url|number|nil] camera id
+    * @return mode [type:number] one of camera.ORTHO_MODE_FIXED, camera.ORTHO_MODE_AUTO_FIT or
+    * camera.ORTHO_MODE_AUTO_COVER
+    */
+    GET_CAMERA_DATA_PROPERTY_FN(OrthographicMode, lua_pushnumber);
+
+    // Helper for enum parameter validation used by macro setter
+    static uint8_t LuaCheckOrthoZoomMode(lua_State* L, int index)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        int mode = luaL_checkinteger(L, index);
+        if (mode != ORTHO_MODE_FIXED &&
+            mode != ORTHO_MODE_AUTO_FIT &&
+            mode != ORTHO_MODE_AUTO_COVER)
+        {
+            return (uint8_t) DM_LUA_ERROR("Invalid orthographic zoom mode: %d", mode);
+        }
+        return (uint8_t) mode;
+    }
+
+    /*# set orthographic zoom mode
+    *
+    * @name camera.set_orthographic_mode
+    * @param camera [type:url|number|nil] camera id
+    * @param mode [type:number] camera.ORTHO_MODE_FIXED, camera.ORTHO_MODE_AUTO_FIT or camera.ORTHO_MODE_AUTO_COVER
+    */
+    SET_CAMERA_DATA_PROPERTY_FN(OrthographicMode, LuaCheckOrthoZoomMode);
+
     /*# get auto aspect ratio
     * Returns whether auto aspect ratio is enabled. When enabled, the camera automatically
     * calculates aspect ratio from render target dimensions. When disabled, uses the
@@ -324,6 +378,8 @@ namespace dmRender
         {"set_orthographic_zoom",   RenderScriptCamera_SetOrthographicZoom},
         {"get_auto_aspect_ratio",   RenderScriptCamera_GetAutoAspectRatio},
         {"set_auto_aspect_ratio",   RenderScriptCamera_SetAutoAspectRatio},
+        {"get_orthographic_mode",   RenderScriptCamera_GetOrthographicMode},
+        {"set_orthographic_mode",   RenderScriptCamera_SetOrthographicMode},
         {0, 0}
     };
 
@@ -333,6 +389,17 @@ namespace dmRender
         DM_LUA_STACK_CHECK(L, 0);
 
         luaL_register(L, RENDER_SCRIPT_CAMERA_LIB_NAME, RenderScriptCamera_Methods);
+
+        // Add constants: camera.ORTHO_MODE_FIXED/AUTO_FIT/AUTO_COVER
+        #define SETCONSTANT(name, val) \
+            lua_pushnumber(L, (lua_Number) (val)); \
+            lua_setfield(L, -2, #name);
+
+        SETCONSTANT(ORTHO_MODE_FIXED,      dmRender::ORTHO_MODE_FIXED);
+        SETCONSTANT(ORTHO_MODE_AUTO_FIT,   dmRender::ORTHO_MODE_AUTO_FIT);
+        SETCONSTANT(ORTHO_MODE_AUTO_COVER, dmRender::ORTHO_MODE_AUTO_COVER);
+
+        #undef SETCONSTANT
 
         lua_pop(L, 1);
 

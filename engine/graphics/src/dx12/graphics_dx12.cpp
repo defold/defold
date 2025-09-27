@@ -370,7 +370,7 @@ namespace dmGraphics
             case TEXTURE_FORMAT_R_ETC2:                  return DXGI_FORMAT_UNKNOWN;
             case TEXTURE_FORMAT_RG_ETC2:                 return DXGI_FORMAT_UNKNOWN;
             case TEXTURE_FORMAT_RGBA_ETC2:               return DXGI_FORMAT_UNKNOWN;
-            case TEXTURE_FORMAT_RGBA_ASTC_4x4:           return DXGI_FORMAT_UNKNOWN;
+            case TEXTURE_FORMAT_RGBA_ASTC_4X4:           return DXGI_FORMAT_UNKNOWN;
 
             case TEXTURE_FORMAT_RGB_BC1:                 return DXGI_FORMAT_BC1_UNORM;
             case TEXTURE_FORMAT_RGBA_BC3:                return DXGI_FORMAT_BC3_UNORM;
@@ -2496,12 +2496,12 @@ namespace dmGraphics
 
     static bool DX12IsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
     {
-        return language == ShaderDesc::LANGUAGE_HLSL;
+        return language == ShaderDesc::LANGUAGE_HLSL_51 || language == ShaderDesc::LANGUAGE_HLSL_50;
     }
 
     static ShaderDesc::Language DX12GetProgramLanguage(HProgram program)
     {
-        return ShaderDesc::LANGUAGE_HLSL;
+        return ShaderDesc::LANGUAGE_HLSL_51;
     }
 
     static void DX12EnableProgram(HContext context, HProgram program)
@@ -2766,7 +2766,7 @@ namespace dmGraphics
         return StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
-    static void DX12DeleteRenderTarget(HRenderTarget render_target)
+    static void DX12DeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
     }
 
@@ -2778,7 +2778,7 @@ namespace dmGraphics
         BeginRenderPass(context, render_target != 0x0 ? render_target : context->m_MainRenderTarget);
     }
 
-    static HTexture DX12GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
+    static HTexture DX12GetRenderTargetTexture(HContext context, HRenderTarget render_target, BufferType buffer_type)
     {
         DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(g_DX12Context->m_AssetHandleContainer, render_target);
 
@@ -2793,7 +2793,7 @@ namespace dmGraphics
         return 0;
     }
 
-    static void DX12GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
+    static void DX12GetRenderTargetSize(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
         DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(g_DX12Context->m_AssetHandleContainer, render_target);
         TextureParams* params = 0;
@@ -2817,7 +2817,7 @@ namespace dmGraphics
         height = params->m_Height;
     }
 
-    static void DX12SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
+    static void DX12SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
     }
 
@@ -2863,7 +2863,7 @@ namespace dmGraphics
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
-    static void DX12DeleteTexture(HTexture texture)
+    static void DX12DeleteTexture(HContext context, HTexture texture)
     {
     }
 
@@ -3015,13 +3015,13 @@ namespace dmGraphics
         }
     }
 
-    static void DX12SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    static void DX12SetTextureParams(HContext context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         DX12Texture* tex = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture);
         DX12SetTextureParamsInternal(g_DX12Context, tex, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
 
-    static void DX12SetTexture(HTexture texture, const TextureParams& params)
+    static void DX12SetTexture(HContext context, HTexture texture, const TextureParams& params)
     {
         // Same as graphics_opengl.cpp
         switch (params.m_Format)
@@ -3101,27 +3101,27 @@ namespace dmGraphics
         }
     }
 
-    static uint32_t DX12GetTextureResourceSize(HTexture texture)
+    static uint32_t DX12GetTextureResourceSize(HContext context, HTexture texture)
     {
         return 0;
     }
 
-    static uint16_t DX12GetTextureWidth(HTexture texture)
+    static uint16_t DX12GetTextureWidth(HContext context, HTexture texture)
     {
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_Width;
     }
 
-    static uint16_t DX12GetTextureHeight(HTexture texture)
+    static uint16_t DX12GetTextureHeight(HContext context, HTexture texture)
     {
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_Height;
     }
 
-    static uint16_t DX12GetOriginalTextureWidth(HTexture texture)
+    static uint16_t DX12GetOriginalTextureWidth(HContext context, HTexture texture)
     {
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_OriginalWidth;
     }
 
-    static uint16_t DX12GetOriginalTextureHeight(HTexture texture)
+    static uint16_t DX12GetOriginalTextureHeight(HContext context, HTexture texture)
     {
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_OriginalHeight;
     }
@@ -3189,9 +3189,9 @@ namespace dmGraphics
         g_DX12Context->m_PipelineState.m_WriteColorMask = write_mask;
     }
 
-    static void DX12SetDepthMask(HContext context, bool mask)
+    static void DX12SetDepthMask(HContext context, bool enable_mask)
     {
-        g_DX12Context->m_PipelineState.m_WriteDepth = mask;
+        g_DX12Context->m_PipelineState.m_WriteDepth = enable_mask;
     }
 
     static void DX12SetDepthFunc(HContext context, CompareFunc func)
@@ -3277,16 +3277,16 @@ namespace dmGraphics
         return ((DX12Context*) context)->m_PipelineState;
     }
 
-    static void DX12SetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
+    static void DX12SetTextureAsync(HContext context, HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
-        SetTexture(texture, params);
+        SetTexture(context, texture, params);
         if (callback)
         {
             callback(texture, user_data);
         }
     }
 
-    static uint32_t DX12GetTextureStatusFlags(HTexture texture)
+    static uint32_t DX12GetTextureStatusFlags(HContext context, HTexture texture)
     {
         return TEXTURE_STATUS_OK;
     }
@@ -3296,12 +3296,12 @@ namespace dmGraphics
         return true;
     }
 
-    static TextureType DX12GetTextureType(HTexture texture)
+    static TextureType DX12GetTextureType(HContext context, HTexture texture)
     {
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_Type;
     }
 
-    static uint32_t DX12GetTextureUsageHintFlags(HTexture texture)
+    static uint32_t DX12GetTextureUsageHintFlags(HContext context, HTexture texture)
     {
         return 0;
         // return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_UsageHintFlags;
@@ -3326,7 +3326,7 @@ namespace dmGraphics
         return "";
     }
 
-    static uint8_t DX12GetNumTextureHandles(HTexture texture)
+    static uint8_t DX12GetNumTextureHandles(HContext context, HTexture texture)
     {
         return 1;
     }
@@ -3336,12 +3336,12 @@ namespace dmGraphics
         return true;
     }
 
-    static uint16_t DX12GetTextureDepth(HTexture texture)
+    static uint16_t DX12GetTextureDepth(HContext context, HTexture texture)
     {
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_Depth;
     }
 
-    static uint8_t DX12GetTextureMipmapCount(HTexture texture)
+    static uint8_t DX12GetTextureMipmapCount(HContext context, HTexture texture)
     {
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_MipMapCount;
     }

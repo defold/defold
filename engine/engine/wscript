@@ -82,7 +82,9 @@ def configure(conf):
         simd_supported = True
 
     sound_lib = []
-    if simd_supported:
+    if waflib.Options.options.with_openal:
+        sound_lib += ['sound_openal']
+    elif simd_supported:
         sound_lib += ['sound']
     else:
         sound_lib += ['sound_nosimd']

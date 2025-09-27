@@ -77,3 +77,7 @@ editor/.lsp/sqlite.db
 
 # generated solutions
 /solutions
+/CMakeLists.txt
+
+# ChatGPT
+AGENTS.md

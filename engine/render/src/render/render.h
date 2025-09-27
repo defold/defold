@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/render/render.h>
+#include <dmsdk/graphics/graphics.h>
 
 #include <dlib/hash.h>
 #include <script/script.h>
@@ -50,7 +51,6 @@ namespace dmRender
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
-    typedef struct Sampler*                 HSampler;
     typedef struct RenderScript*            HRenderScript;
     typedef struct RenderScriptInstance*    HRenderScriptInstance;
     typedef struct Predicate*               HPredicate;
@@ -110,6 +110,14 @@ namespace dmRender
         CONTEXT_RESTORED = 1
     };
 
+    enum SortOrder
+    {
+        SORT_UNSPECIFIED   = 0,
+        SORT_BACK_TO_FRONT = 1,
+        SORT_FRONT_TO_BACK = 2,
+        SORT_NONE          = 3
+    };
+
     struct Predicate
     {
         static const uint32_t MAX_TAG_COUNT = 32;
@@ -155,6 +163,15 @@ namespace dmRender
         uint32_t                        m_MaxDebugVertexCount;
     };
 
+    // NOTE: These enum values are duplicated in gamesys camera DDF (camera_ddf.proto)
+    // Don't forget to change dmGamesysDDF::OrthoZoomMode if you change here
+    enum OrthoZoomMode
+    {
+        ORTHO_MODE_FIXED        = 0,
+        ORTHO_MODE_AUTO_FIT     = 1,
+        ORTHO_MODE_AUTO_COVER   = 2,
+    };
+
     struct RenderCameraData
     {
         dmVMath::Vector4 m_Viewport;
@@ -163,8 +180,10 @@ namespace dmRender
         float            m_NearZ;
         float            m_FarZ;
         float            m_OrthographicZoom;
+        // These bitfields are packed into a single byte
         uint8_t          m_AutoAspectRatio        : 1;
         uint8_t          m_OrthographicProjection : 1;
+        uint8_t          m_OrthographicMode   : 2; // dmRender::OrthoZoomMode
     };
 
     struct MaterialProgramAttributeInfo
@@ -189,7 +208,6 @@ namespace dmRender
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context);
 
     const dmVMath::Matrix4& GetViewProjectionMatrix(HRenderContext render_context);
-    const dmVMath::Matrix4& GetViewMatrix(HRenderContext render_context);
     dmVMath::Matrix4 GetNormalMatrix(HRenderContext render_context, const dmVMath::Matrix4& world_matrix);
 
     void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
@@ -201,7 +219,7 @@ namespace dmRender
 
     // Takes the contents of the render list, sorts by view and inserts all the objects in the
     // render list, unless they already are in place from a previous call.
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options);
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order);
 
     Result Draw(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
     Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options);
@@ -269,14 +287,6 @@ namespace dmRender
     void                    OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance);
 
     // Material
-    HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HProgram program); // dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
-    void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
-    HSampler                        GetMaterialSampler(HMaterial material, uint32_t unit);
-    dmhash_t                        GetMaterialSamplerNameHash(HMaterial material, uint32_t unit);
-    uint32_t                        GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash);
-    void                            ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro);
-    void                            ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t value_index, dmGraphics::HTexture texture);
-
     dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
@@ -321,15 +331,12 @@ namespace dmRender
 
     void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, dmVMath::Vector4* constant, uint32_t count);
     dmGraphics::HUniformLocation    GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
-    bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer);
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HComputeProgram program, HNamedConstantBuffer buffer);
-
-    void                            ClearMaterialTags(HMaterial material);
-    void                            SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags);
 
     HPredicate                      NewPredicate();
     void                            DeletePredicate(HPredicate predicate);

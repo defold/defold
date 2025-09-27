@@ -350,6 +350,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/crypt.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dalloca.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dlib.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/double_linked_list.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')

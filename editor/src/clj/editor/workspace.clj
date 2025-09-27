@@ -24,6 +24,7 @@ ordinary paths."
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.library :as library]
+            [editor.localization :as localization]
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -78,6 +79,9 @@ ordinary paths."
      (notifications workspace evaluation-context)))
   ([workspace evaluation-context]
    (g/node-value workspace :notifications evaluation-context)))
+
+(defn localization [workspace evaluation-context]
+  (g/node-value workspace :localization evaluation-context))
 
 (defn- skip-first-char [path]
   (subs path 1))
@@ -613,10 +617,12 @@ ordinary paths."
                  :exception e)
       (ui/run-later
         (dialogs/make-info-dialog
-          {:title "Unable to Load Plugin"
+          (g/with-auto-evaluation-context evaluation-context
+            (localization workspace evaluation-context))
+          {:title (localization/message "dialog.plugin-load-error.title")
            :icon :icon/triangle-error
            :always-on-top true
-           :header (format "The editor plugin '%s' is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version." (resource/proj-path resource))}))
+           :header (localization/message "dialog.plugin-load-error.header" {"plugin" (resource/proj-path resource)})}))
       false)))
 
 (defn load-clojure-editor-plugins! [workspace added]
@@ -913,6 +919,7 @@ ordinary paths."
   (property unloaded-proj-path? g/Any)
   (property resource-kind-extensions g/Any (default {:atlas ["atlas" "tilesource"]}))
   (property node-attachments g/Any (default {}))
+  (property localization g/Any)
 
   (input code-preprocessors g/NodeID :cascade-delete)
   (input notifications g/NodeID :cascade-delete)
@@ -1031,7 +1038,7 @@ ordinary paths."
    (not= fn/constantly-true
          (g/raw-property-value basis workspace :editable-proj-path?))))
 
-(defn make-workspace [graph project-path build-settings workspace-config]
+(defn make-workspace [graph project-path build-settings workspace-config localization]
   (let [project-directory (.getCanonicalFile (io/file project-path))
         unloaded-proj-path? (resource/defunload-pred project-directory)
         editable-proj-path? (if-some [non-editable-directory-proj-paths (not-empty (:non-editable-directories workspace-config))]
@@ -1048,7 +1055,8 @@ ordinary paths."
                         :resource-listeners (atom [])
                         :build-settings build-settings
                         :editable-proj-path? editable-proj-path?
-                        :unloaded-proj-path? unloaded-proj-path?]
+                        :unloaded-proj-path? unloaded-proj-path?
+                        :localization localization]
              code-preprocessors code.preprocessors/CodePreprocessorsNode
              notifications notifications/NotificationsNode]
             (concat

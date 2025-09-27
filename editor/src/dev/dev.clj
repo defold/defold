@@ -228,6 +228,9 @@
 (defn prefs []
   (prefs/project (workspace/project-directory (workspace))))
 
+(defn localization []
+  (some #(-> % :env :localization) (ui/contexts (ui/main-scene))))
+
 (declare ^:private exclude-keys-deep-helper)
 
 (defn- exclude-keys-deep-value-helper [excluded-map-entry? value]
@@ -1105,72 +1108,6 @@
                        (conj (subvec verts 0 (min 3 (count verts)))
                              '...)))))
 
-(defn- vecmath-matrix-dim
-  ^long [matrix]
-  (condp instance? matrix
-    Matrix3d 3
-    Matrix3f 3
-    Matrix4d 4
-    Matrix4f 4))
-
-(defmulti ^:private vecmath-matrix-row (fn [matrix ^long _row-index] (class matrix)))
-
-(defmethod vecmath-matrix-row Matrix3d [^Matrix3d matrix ^long row-index]
-  (let [row (double-array 3)]
-    (.getRow matrix row-index row)
-    row))
-
-(defmethod vecmath-matrix-row Matrix3f [^Matrix3f matrix ^long row-index]
-  (let [row (float-array 3)]
-    (.getRow matrix row-index row)
-    row))
-
-(defmethod vecmath-matrix-row Matrix4d [^Matrix4d matrix ^long row-index]
-  (let [row (double-array 4)]
-    (.getRow matrix row-index row)
-    row))
-
-(defmethod vecmath-matrix-row Matrix4f [^Matrix4f matrix ^long row-index]
-  (let [row (float-array 4)]
-    (.getRow matrix row-index row)
-    row))
-
-(defn vecmath-matrix-pprint-strings [matrix]
-  (let [dim (vecmath-matrix-dim matrix)
-        fmt-num #(eutil/format* "%.3f" %)
-        num-strs (coll/transfer (range dim) []
-                   (mapcat (fn [^long row-index]
-                             (let [row (vecmath-matrix-row matrix row-index)]
-                               (map fmt-num row)))))
-        first-col-width (transduce (comp (take-nth dim)
-                                         (map count))
-                                   max
-                                   0
-                                   num-strs)
-        rest-col-width (transduce (map count)
-                                  max
-                                  0
-                                  num-strs)
-        first-col-width-fmt (str \% first-col-width \s)
-        rest-col-width-fmt (str \% rest-col-width \s)
-        fmt-col (fn [^long index num-str]
-                  (let [fmt (if (zero? (rem index dim))
-                              first-col-width-fmt
-                              rest-col-width-fmt)]
-                    (eutil/format* fmt num-str)))]
-    (coll/transfer num-strs []
-      (partition-all dim)
-      (map (partial into [] (map-indexed fmt-col))))))
-
-(defn zero-vecmath-matrix-col-str? [^String col-str]
-  (let [last-index (.lastIndexOf col-str "0.000")]
-    (case last-index
-      -1 false
-      0 true
-      (case (.charAt col-str (dec last-index))
-        (\space \-) true
-        false))))
-
 (def pretty-printer
   (let [fmt-doc puget.printer/format-doc
         col-doc puget.color/document
@@ -1247,10 +1184,10 @@
                       (object-data-pprint-handler nil math/vecmath->clj printer tuple))
 
                     (vecmath-matrix-pprint-handler [printer matrix]
-                      (let [row-col-strs (vecmath-matrix-pprint-strings matrix)
+                      (let [row-col-strs (math/vecmath-matrix-pprint-strings matrix)
                             fmt-col (fn [^String num-str]
                                       ;; Colorize zero values differently.
-                                      (let [element (if (zero-vecmath-matrix-col-str? num-str)
+                                      (let [element (if (math/zero-vecmath-matrix-col-str? num-str)
                                                       :number
                                                       :string)]
                                         (col-txt printer element num-str)))

@@ -1291,16 +1291,16 @@ TEST_F(dmGraphicsTest, TestTexture)
     params.m_Height = HEIGHT;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
-    dmGraphics::SetTexture(texture, params);
+    dmGraphics::SetTexture(m_Context, texture, params);
 
     delete [] (char*)params.m_Data;
-    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(texture));
-    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(texture));
-    ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(texture));
-    ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
+    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(m_Context, texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(m_Context, texture));
+    ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(m_Context, texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(m_Context, texture));
     dmGraphics::EnableTexture(m_Context, 0, 0, texture);
     dmGraphics::DisableTexture(m_Context, 0, texture);
-    dmGraphics::DeleteTexture(texture);
+    dmGraphics::DeleteTexture(m_Context, texture);
 }
 
 #if defined(DM_HAS_THREADS)
@@ -1342,7 +1342,7 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     for (int i = 0; i < TEXTURE_COUNT; ++i)
     {
         textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
-        dmGraphics::SetTextureAsync(textures[i], params, TestTextureAsyncCallback, (void*) (values + i));
+        dmGraphics::SetTextureAsync(m_Context, textures[i], params, TestTextureAsyncCallback, (void*) (values + i));
     }
 
     uint64_t stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
@@ -1365,13 +1365,13 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
 
     for (int i = 0; i < TEXTURE_COUNT; ++i)
     {
-        ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(textures[i]));
-        ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(textures[i]));
-        ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(textures[i]));
-        ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(textures[i]));
+        ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(m_Context, textures[i]));
+        ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(m_Context, textures[i]));
+        ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(m_Context, textures[i]));
+        ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(m_Context, textures[i]));
         dmGraphics::EnableTexture(m_Context, 0, 0, textures[i]);
         dmGraphics::DisableTexture(m_Context, 0, textures[i]);
-        dmGraphics::DeleteTexture(textures[i]);
+        dmGraphics::DeleteTexture(m_Context, textures[i]);
     }
 
     all_complete = false;
@@ -1413,7 +1413,7 @@ static bool WaitUntilSyncronizedTextures(dmGraphics::HContext graphics_context, 
         all_complete = true;
         for (int i = 0; i < texture_count; ++i)
         {
-            if (cond == WAIT_CONDITION_UPLOAD && dmGraphics::GetTextureStatusFlags(textures[i]) != dmGraphics::TEXTURE_STATUS_OK)
+            if (cond == WAIT_CONDITION_UPLOAD && dmGraphics::GetTextureStatusFlags(graphics_context, textures[i]) != dmGraphics::TEXTURE_STATUS_OK)
                 all_complete = false;
             else if (cond == WAIT_CONDITION_DELETE && dmGraphics::IsAssetHandleValid(graphics_context, textures[i]))
                 all_complete = false;
@@ -1452,10 +1452,10 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
-            dmGraphics::SetTextureAsync(textures[i], params, 0, 0);
+            dmGraphics::SetTextureAsync(m_Context, textures[i], params, 0, 0);
 
             // Immediately delete, so we simulate putting them on a post-delete-queue
-            dmGraphics::DeleteTexture(textures[i]);
+            dmGraphics::DeleteTexture(m_Context, textures[i]);
         }
 
         // Trigger a flush of the post deletion textures by issuing a flip
@@ -1483,14 +1483,14 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
-            dmGraphics::SetTextureAsync(textures[i], params, 0, 0);
+            dmGraphics::SetTextureAsync(m_Context, textures[i], params, 0, 0);
         }
 
         ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobThread, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_UPLOAD));
 
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
-            dmGraphics::DeleteTexture(textures[i]);
+            dmGraphics::DeleteTexture(m_Context, textures[i]);
         }
 
         ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobThread, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_DELETE));
@@ -1531,7 +1531,7 @@ TEST_F(dmGraphicsSynchronousTest, TestSetTextureBounds)
     params.m_Y         = HEIGHT / 2;
 
     dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
-    ASSERT_DEATH(dmGraphics::SetTexture(texture, params),"");
+    ASSERT_DEATH(dmGraphics::SetTexture(m_Context, texture, params),"");
 
     delete [] (char*)params.m_Data;
 
@@ -1542,11 +1542,11 @@ TEST_F(dmGraphicsSynchronousTest, TestSetTextureBounds)
     params.m_DataSize  = params.m_Width * params.m_Height;
     params.m_Data      = new char[params.m_DataSize];
 
-    ASSERT_DEATH(dmGraphics::SetTexture(texture, params),"");
+    ASSERT_DEATH(dmGraphics::SetTexture(m_Context, texture, params),"");
 
     delete [] (char*)params.m_Data;
 
-    dmGraphics::DeleteTexture(texture);
+    dmGraphics::DeleteTexture(m_Context, texture);
 }
 
 TEST_F(dmGraphicsTest, TestMaxTextureSize)
@@ -1568,16 +1568,16 @@ TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimension)
     params.m_Height = HEIGHT;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
-    dmGraphics::SetTexture(texture, params);
+    dmGraphics::SetTexture(m_Context, texture, params);
 
     delete [] (char*)params.m_Data;
-    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(texture));
-    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(texture));
-    ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(texture));
-    ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
+    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(m_Context, texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(m_Context, texture));
+    ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(m_Context, texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(m_Context, texture));
     dmGraphics::EnableTexture(m_Context, 0, 0, texture);
     dmGraphics::DisableTexture(m_Context, 0, texture);
-    dmGraphics::DeleteTexture(texture);
+    dmGraphics::DeleteTexture(m_Context, texture);
 }
 
 static inline dmGraphics::RenderTargetCreationParams InitializeRenderTargetParams(uint32_t w, uint32_t h)
@@ -1628,16 +1628,16 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     data_size = sizeof(uint32_t) * width * height;
     data = new char[data_size];
     memset(data, 1, data_size);
-    dmGraphics::SetRenderTargetSize(target, width, height);
+    dmGraphics::SetRenderTargetSize(m_Context, target, width, height);
 
     uint32_t target_width, target_height;
-    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
+    GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
-    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_DEPTH_BIT, target_width, target_height);
+    GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
-    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_STENCIL_BIT, target_width, target_height);
+    GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_STENCIL_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
 
@@ -1646,7 +1646,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     delete [] data;
 
     dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
-    dmGraphics::DeleteRenderTarget(target);
+    dmGraphics::DeleteRenderTarget(m_Context, target);
 
     // Test multiple color attachments
     params.m_ColorBufferParams[1].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
@@ -1665,7 +1665,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     width = WIDTH;
     height = HEIGHT;
 
-    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
+    GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
 
@@ -1688,7 +1688,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     delete [] data_color2;
 
     dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
-    dmGraphics::DeleteRenderTarget(target);
+    dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
 TEST_F(dmGraphicsTest, TestGetRTAttachment)
@@ -1704,13 +1704,13 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
     dmGraphics::SetRenderTarget(m_Context, target, 0);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
-    dmGraphics::HTexture texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_DEPTH);
+    dmGraphics::HTexture texture = dmGraphics::GetRenderTargetAttachment(m_Context, target, dmGraphics::ATTACHMENT_DEPTH);
     ASSERT_EQ((dmGraphics::HTexture)0x0, texture);
 
-    texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_STENCIL);
+    texture = dmGraphics::GetRenderTargetAttachment(m_Context, target, dmGraphics::ATTACHMENT_STENCIL);
     ASSERT_EQ((dmGraphics::HTexture)0x0, texture);
 
-    texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_COLOR);
+    texture = dmGraphics::GetRenderTargetAttachment(m_Context, target, dmGraphics::ATTACHMENT_COLOR);
     ASSERT_NE((dmGraphics::HTexture)0x0, texture);
 
     char* texture_data = 0x0;
@@ -1728,7 +1728,7 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
     delete [] data;
 
     dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
-    dmGraphics::DeleteRenderTarget(target);
+    dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
 TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
@@ -1748,7 +1748,7 @@ TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
 
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, depth_value, stencil_value);
 
-    dmGraphics::HTexture depth_texture = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
+    dmGraphics::HTexture depth_texture = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
     ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, depth_texture));
     {
         float* texture_data = 0x0;
@@ -1762,7 +1762,7 @@ TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
         }
     }
 
-    dmGraphics::HTexture stencil_texture = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_STENCIL_BIT);
+    dmGraphics::HTexture stencil_texture = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_STENCIL_BIT);
     ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, stencil_texture));
     {
         uint32_t* texture_data = 0x0;
@@ -1776,7 +1776,7 @@ TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
     }
 
     dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
-    dmGraphics::DeleteRenderTarget(target);
+    dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
 TEST_F(dmGraphicsTest, TestMasks)
@@ -1885,13 +1885,13 @@ TEST_F(dmGraphicsTest, TestGetTextureParams)
         //     we only allocate data for _this_ SetTexture call and not reallocate the buffer
         //     depending on the actual data size..
         params.m_MipMap = 127;
-        dmGraphics::SetTexture(texture, params);
+        dmGraphics::SetTexture(m_Context, texture, params);
 
-        ASSERT_EQ(1,                                         dmGraphics::GetTextureDepth(texture));
-        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D,               dmGraphics::GetTextureType(texture));
-        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(texture));
+        ASSERT_EQ(1,                                         dmGraphics::GetTextureDepth(m_Context, texture));
+        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D,               dmGraphics::GetTextureType(m_Context, texture));
+        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(m_Context, texture));
 
-        dmGraphics::DeleteTexture(texture);
+        dmGraphics::DeleteTexture(m_Context, texture);
     }
     // Texture cube
     {
@@ -1909,13 +1909,13 @@ TEST_F(dmGraphicsTest, TestGetTextureParams)
         // JG: We don't really do bounds check for the depth either in graphics_null
         params.m_MipMap = 127;
         params.m_Depth  = 6;
-        dmGraphics::SetTexture(texture, params);
+        dmGraphics::SetTexture(m_Context, texture, params);
 
-        ASSERT_EQ(params.m_Depth,                            dmGraphics::GetTextureDepth(texture));
-        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_CUBE_MAP,         dmGraphics::GetTextureType(texture));
-        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(texture));
+        ASSERT_EQ(params.m_Depth,                            dmGraphics::GetTextureDepth(m_Context, texture));
+        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_CUBE_MAP,         dmGraphics::GetTextureType(m_Context, texture));
+        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(m_Context, texture));
 
-        dmGraphics::DeleteTexture(texture);
+        dmGraphics::DeleteTexture(m_Context, texture);
     }
 
     // Texture 2D array
@@ -1934,13 +1934,13 @@ TEST_F(dmGraphicsTest, TestGetTextureParams)
         // JG: We don't really do bounds check for the depth either in graphics_null
         params.m_MipMap = 127;
         params.m_Depth  = 1337;
-        dmGraphics::SetTexture(texture, params);
+        dmGraphics::SetTexture(m_Context, texture, params);
 
-        ASSERT_EQ(params.m_Depth,                            dmGraphics::GetTextureDepth(texture));
-        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D_ARRAY,         dmGraphics::GetTextureType(texture));
-        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(texture));
+        ASSERT_EQ(params.m_Depth,                            dmGraphics::GetTextureDepth(m_Context, texture));
+        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D_ARRAY,         dmGraphics::GetTextureType(m_Context, texture));
+        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(m_Context, texture));
 
-        dmGraphics::DeleteTexture(texture);
+        dmGraphics::DeleteTexture(m_Context, texture);
     }
 }
 
@@ -1964,7 +1964,7 @@ TEST_F(dmGraphicsTest, TestGraphicsHandles)
 
         dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture));
-        dmGraphics::DeleteTexture(texture);
+        dmGraphics::DeleteTexture(m_Context, texture);
 
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, texture));
 
@@ -1989,16 +1989,16 @@ TEST_F(dmGraphicsTest, TestGraphicsHandles)
 
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, target));
 
-        dmGraphics::HTexture color0 = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+        dmGraphics::HTexture color0 = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, color0));
 
-        dmGraphics::HTexture color1 = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_COLOR1_BIT);
+        dmGraphics::HTexture color1 = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR1_BIT);
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, color1));
 
-        dmGraphics::HTexture color2_not_exist = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_COLOR2_BIT);
+        dmGraphics::HTexture color2_not_exist = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR2_BIT);
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, color2_not_exist));
 
-        dmGraphics::DeleteRenderTarget(target);
+        dmGraphics::DeleteRenderTarget(m_Context, target);
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, target));
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, color0));
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, color1));

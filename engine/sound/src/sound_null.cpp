@@ -256,6 +256,18 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    Result SetStartFrame(HSoundInstance sound_instance, uint32_t start_frame)
+    {
+        (void)sound_instance; (void)start_frame;
+        return RESULT_OK;
+    }
+
+    Result SetStartTime(HSoundInstance sound_instance, float start_time_seconds)
+    {
+        (void)sound_instance; (void)start_time_seconds;
+        return RESULT_OK;
+    }
+
     bool IsMusicPlaying()
     {
         return false;

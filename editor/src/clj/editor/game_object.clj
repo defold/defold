@@ -14,7 +14,6 @@
 
 (ns editor.game-object
   (:require [clojure.set :as set]
-            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.attachment :as attachment]
@@ -28,6 +27,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.id :as id]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -506,7 +506,11 @@
         (add-component go-id resource id nil nil select-fn)))))
 
 (defn add-component-handler [workspace project go-id select-fn]
-  (when-let [resources (resource-dialog/make workspace project {:ext (get-all-comp-exts workspace) :title "Select Component File" :selection :multiple})]
+  (when-let [resources (resource-dialog/make
+                         workspace project
+                         {:ext (get-all-comp-exts workspace)
+                          :title (localization/message "dialog.select-component-file.title")
+                          :selection :multiple})]
     (doseq [resource resources]
       (add-referenced-component! go-id resource select-fn))))
 

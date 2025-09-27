@@ -177,7 +177,7 @@
           project-graph (g/make-graph! :history true :volatility 1)
           view-graph (g/make-graph! :history false :volatility 2)
           resource-node (apply g/make-node! project-graph NumericPropertiesNode (mapcat identity property-values))
-          view-node (cljfx-form-view/make-form-view-node! view-graph form-view-parent resource-node nil nil)
+          view-node (cljfx-form-view/make-form-view-node! view-graph form-view-parent resource-node nil nil test-util/localization)
           form-data (g/node-value view-node :form-data)
           fields (->> form-data
                       (:sections)

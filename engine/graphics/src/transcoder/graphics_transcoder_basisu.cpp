@@ -36,7 +36,7 @@ namespace dmGraphics
         case dmGraphics::TEXTURE_FORMAT_R_ETC2:             out = basist::transcoder_texture_format::cTFETC2_EAC_R11; return true;
         case dmGraphics::TEXTURE_FORMAT_RG_ETC2:            out = basist::transcoder_texture_format::cTFETC2_EAC_RG11; return true;
         case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:          out = basist::transcoder_texture_format::cTFETC2_RGBA; return true;
-        case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:      out = basist::transcoder_texture_format::cTFASTC_4x4_RGBA; return true;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4X4:      out = basist::transcoder_texture_format::cTFASTC_4x4_RGBA; return true;
         case dmGraphics::TEXTURE_FORMAT_RGB_BC1:            out = basist::transcoder_texture_format::cTFBC1_RGB; return true;
         case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:           out = basist::transcoder_texture_format::cTFBC3_RGBA; return true;
         case dmGraphics::TEXTURE_FORMAT_R_BC4:              out = basist::transcoder_texture_format::cTFBC4_R; return true;
@@ -66,7 +66,7 @@ namespace dmGraphics
                 case dmGraphics::TEXTURE_FORMAT_R_ETC2: return "TEXTURE_FORMAT_R_ETC2";
                 case dmGraphics::TEXTURE_FORMAT_RG_ETC2: return "TEXTURE_FORMAT_RG_ETC2";
                 case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2: return "TEXTURE_FORMAT_RGBA_ETC2";
-                case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4: return "TEXTURE_FORMAT_RGBA_ASTC_4x4";
+                case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4X4: return "TEXTURE_FORMAT_RGBA_ASTC_4X4";
                 case dmGraphics::TEXTURE_FORMAT_RGB_BC1: return "TEXTURE_FORMAT_RGB_BC1";
                 case dmGraphics::TEXTURE_FORMAT_RGBA_BC3: return "TEXTURE_FORMAT_RGBA_BC3";
                 case dmGraphics::TEXTURE_FORMAT_R_BC4: return "TEXTURE_FORMAT_R_BC4";

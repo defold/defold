@@ -355,39 +355,43 @@ def parse_github_project(version):
             "duplicate": duplicate,
         }
         # strip from match to end of file
-        entry["body"] = re.sub(r"## PR checklist.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub(r"#* Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub(r"Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub(r"Technical notes.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub(r"#* Technical details.*", "", entry["body"], flags=re.DOTALL).strip()
+        flags = re.DOTALL|re.IGNORECASE
+        entry["body"] = re.sub(r"## PR checklist.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"#* Technical changes.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Technical changes.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Technical notes.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"#* Technical details.*", "", entry["body"], flags=flags).strip()
 
         # Remove closing keywords
-        entry["body"] = re.sub(r"Resolves https.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Resolves #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Resolved https.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Resolved #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Resolve https.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Resolve #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Closes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Closes #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Closed https.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Closed #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Close https.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Close #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Fixes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Fixes #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Fixed https.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Fixed #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Fix https.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Fix #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        flags = re.IGNORECASE
+        entry["body"] = re.sub(r"Resolves https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolves #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolved https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolved #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolve https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolve #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Closes https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Closes #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Closed https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Closed #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Close https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Close #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fixes https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fixes #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fixed https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fixed #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fix https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fix #\d*.*", "", entry["body"], flags=flags).strip()
 
         # Remove other common ways to reference issues
-        entry["body"] = re.sub(r"Also related to #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub(r"Related to #\d*.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        flags = re.IGNORECASE
+        entry["body"] = re.sub(r"Also related to #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Related to #\d*.*", "", entry["body"], flags=flags).strip()
 
         # Remove "user facing changes" header
-        entry["body"] = re.sub("User-facing changes.", "", entry["body"], flags=re.IGNORECASE).strip()
-        entry["body"] = re.sub("### User-facing changes", "", entry["body"], flags=re.IGNORECASE).strip()
+        flags = re.IGNORECASE
+        entry["body"] = re.sub("User-facing changes.", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub("### User-facing changes", "", entry["body"], flags=flags).strip()
 
         issues.append(entry)
         green("OK")

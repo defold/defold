@@ -24,6 +24,7 @@
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
@@ -32,7 +33,7 @@
             [internal.java :as java]
             [internal.util :as util]
             [service.log :as log]
-            [util.coll :refer [pair pair-map-by]]
+            [util.coll :as coll :refer [pair pair-map-by]]
             [util.fn :as fn])
   (:import [com.defold.extension.pipeline ILuaTranspiler ILuaTranspiler$Issue ILuaTranspiler$Severity]
            [com.dynamo.bob ClassLoaderScanner]
@@ -149,22 +150,20 @@
 (g/defnode SourceNode
   (inherits r/CodeEditorResourceNode))
 
-(defn- report-error! [error-message faulty-class-names]
+(defn- report-error! [header-key faulty-class-names localization]
   (ui/run-later
     (dialogs/make-info-dialog
-      {:title "Unable to Load Plugin"
+      localization
+      {:title (localization/message "dialog.lua-transpilers-error.title")
        :size :large
        :icon :icon/triangle-error
        :always-on-top true
-       :header error-message
-       :content (string/join "\n"
-                             (concat
-                               ["The following classes from editor plugins are not compatible with this version of the editor:"
-                                ""]
-                               (mapv dialogs/indent-with-bullet (sort faulty-class-names))
-                               [""
-                                "The project might not build without them."
-                                "Please edit your project dependencies to refer to a suitable version."]))})))
+       :header (localization/message header-key)
+       :content (localization/message "dialog.lua-transpilers-error.content"
+                                      {"classes" (->> faulty-class-names
+                                                      sort
+                                                      (mapv dialogs/indent-with-bullet)
+                                                      (coll/join-to-string "\n"))})})))
 
 (defn- initialize-lua-transpiler-classes [^ClassLoader class-loader]
   (let [{:keys [classes faulty-class-names]}
@@ -184,7 +183,9 @@
                        (pair :faulty-class-names class-name))))))
              (util/group-into {} #{} key val))]
     (when faulty-class-names
-      (throw (ex-info "Failed to initialize Lua transpiler plugins" {:faulty-class-names faulty-class-names})))
+      (throw (ex-info "Failed to initialize Lua transpiler plugins"
+                      {:faulty-class-names faulty-class-names
+                       :localization-key "dialog.lua-transpilers-error.initialize.header"})))
     (or classes #{})))
 
 (defn- create-lua-transpilers [transpiler-classes]
@@ -211,10 +212,12 @@
                             (pair :faulty-class-names class-name)))))))
              (util/group-into {} [] key val))]
     (when faulty-class-names
-      (throw (ex-info "Failed to create Lua transpiler plugins" {:faulty-class-names faulty-class-names})))
+      (throw (ex-info "Failed to create Lua transpiler plugins"
+                      {:faulty-class-names faulty-class-names
+                       :localization-key "dialog.lua-transpilers-error.construct.header"})))
     transpilers))
 
-(defn reload-lua-transpilers! [code-transpilers workspace class-loader]
+(defn reload-lua-transpilers! [code-transpilers workspace class-loader localization]
   (try
     (let [old-transpiler-class->node-id (pair-map-by
                                           #(-> % :instance class)
@@ -247,7 +250,11 @@
                 (g/connect transpiler :build-output code-transpilers :build-outputs))))))
       nil)
     (catch Exception e
-      (report-error! (ex-message e) (:faulty-class-names (ex-data e))))))
+      (let [data (ex-data e)]
+        (report-error!
+          (:localization-key data "dialog.lua-transpilers-error.generic.header")
+          (:faulty-class-names data)
+          localization)))))
 
 (defn make-resource-load-tx-data-fn [code-transpilers evaluation-context]
   (if-let [build-file-proj-path->transpiler-node-id (g/tx-cached-node-value! code-transpilers :build-file-proj-path->transpiler-node-id evaluation-context)]

@@ -21,9 +21,9 @@
             [clojure.core.async.impl.channels]
             [clojure.main :as m]
             [clojure.string :as str]
-            [dev]
             [dynamo.graph :as g]
             [editor.code.data]
+            [editor.math :as math]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
@@ -43,6 +43,9 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(defn workspace []
+  0)
 
 (defn- node-value-or-err [ec node-id label]
   (try
@@ -223,7 +226,7 @@
     (r/raw-string "]" {:fill :object})))
 
 (defn- read-file-resource [str-expr]
-  `(workspace/resolve-workspace-resource (dev/workspace) ~str-expr))
+  `(workspace/resolve-workspace-resource (workspace) ~str-expr))
 
 (r/defstream FileResource [resource]
   (r/horizontal
@@ -232,7 +235,7 @@
     (r/stream (resource/proj-path resource))))
 
 (defn- read-zip-resource [str-expr]
-  `(workspace/find-resource (dev/workspace) ~str-expr))
+  `(workspace/find-resource (workspace) ~str-expr))
 
 (r/defstream ZipResource [resource]
   (r/horizontal
@@ -337,7 +340,7 @@
                                        :value state}]})})})))
 
 (defn- vecmath-matrix-sf [matrix]
-  (let [row-col-strs (dev/vecmath-matrix-pprint-strings matrix)]
+  (let [row-col-strs (math/vecmath-matrix-pprint-strings matrix)]
     (r/horizontal
       (r/raw-string "#v/" {:fill :object})
       (r/raw-string (.getSimpleName (class matrix)) {:fill :object})
@@ -350,7 +353,7 @@
                    r/horizontal
                    (coll/transfer col-strs :eduction
                      (map (fn [col-str]
-                            (let [style (if (dev/zero-vecmath-matrix-col-str? col-str)
+                            (let [style (if (math/zero-vecmath-matrix-col-str? col-str)
                                           {:fill :util}
                                           {:fill :scalar})]
                               (r/raw-string col-str style))))
