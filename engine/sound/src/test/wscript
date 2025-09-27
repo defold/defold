@@ -173,6 +173,14 @@ def build(bld):
         for f in ['CFLAGS', 'CXXFLAGS']:
             test.env.append_value(f, ['-msimd128', '-msse4.2', '-DDM_SOUND_DSP_IMPL=WASM'])
 
+    # making sure we test link the openal backend
+    test_sound_libs = [x for x in test.use if x != 'sound'] # keep the libraries in sync
+    bld.program(features = 'cxx embed test skip_test',
+                    includes = '../../src .',
+                    use = ['sound_openal'] + test_sound_libs,
+                    exported_symbols = exported_symbols,
+                    target = 'test_sound_openal',
+                    source = 'test_sound.cpp')
 
     # test that the linkage doesn't break again
     exported_symbols = 'NullSoundDevice TestNullDevice'
