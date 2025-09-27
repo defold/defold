@@ -365,10 +365,19 @@ namespace dmDDF
 
         int message_buffer_size = load_context.GetMemoryUsage();
         char* message_buffer = 0;
+
+        fprintf(stderr, "DRY: dry_message.GetSize()=%u, calculated message_buffer_size=%d\n",
+                dry_message.GetSize(), message_buffer_size);
+        assert(message_buffer_size >= (int)dry_message.GetSize());
+
         dmMemory::AlignedMalloc((void**)&message_buffer, 16, message_buffer_size);
         assert(message_buffer);
         load_context.SetMemoryBuffer(message_buffer, message_buffer_size, false);
-        Message message = load_context.AllocMessageRaw(desc, dry_message.GetSize());
+
+        dmLogInfo("\nAllocMessageRaw getsize = %d vs message_buffer_size = %d", dry_message.GetSize(), message_buffer_size);
+
+        //Message message = load_context.AllocMessageRaw(desc, message_buffer_size);
+        Message message = load_context.AllocMessage(desc);
 
         dmLogInfo("\nLoadMessage ACTUAL:");
 

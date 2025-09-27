@@ -85,6 +85,9 @@ namespace dmDDF
     {
         uintptr_t b = m_Current;
         m_Current += length;
+
+        dmLogInfo("AllocString: length=%d, m_Current=%p, m_End=%p\n", length, (void*)m_Current, (void*)m_End);
+
         assert(m_DryRun || m_Current <= m_End);
 
         return (char*)b;

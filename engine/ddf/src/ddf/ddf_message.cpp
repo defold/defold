@@ -99,6 +99,8 @@ namespace dmDDF
         const char* str_buf;
         if (input_buffer->Read(length, &str_buf))
         {
+            dmLogInfo("ReadStringField: field %s length=%u\n", field->m_Name, length);
+
             if (field->m_Label == LABEL_REPEATED)
             {
                 AddString(load_context, field, str_buf, length);
