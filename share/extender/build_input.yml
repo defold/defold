@@ -625,8 +625,8 @@ platforms:
         engineLibs:     ["engine", "engine_service", "mbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record", "gameobject", "ddf", "font", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "glfw3", "gui", "crashext", "liveupdate", "sound", "tremolo", "vpx", "decoder_wav", "decoder_ogg"]
         defines:        ["DM_PLATFORM_LINUX", "__STDC_LIMIT_MACROS"]
         flags:          ["-g", "-O2", "-D__STDC_LIMIT_MACROS", "-Wall", "-Werror=format", "-fno-exceptions", "-fPIC", "-fvisibility=hidden"]
-        linkFlags:      ["-g", "-O2"]
-        cxxLinkShFlags: ["-g", "-O2"]
+        linkFlags:      ["-g", "-O2", "-fuse-ld=lld"]
+        cxxLinkShFlags: ["-g", "-O2", "-fuse-ld=lld"]
         libs:           []
         # this happens to contain some dynamic engine libs too (openal)
         dynamicLibs: ["openal","Xext","X11","Xi","pthread","m","dl"]
