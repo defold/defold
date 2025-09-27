@@ -723,39 +723,48 @@ namespace dmScript
         return type_hash;
     }
 
-
-    uint32_t RegisterUserTypeLocal(lua_State* L, const char* name, const luaL_reg meta[])
-    {
-        DM_LUA_STACK_CHECK(L, 0);
-
-        luaL_newmetatable(L, name);
-        uint32_t type_hash = SetUserType(L, -1, name);
-
-        luaL_register (L, 0, meta);
-        lua_pushvalue(L, -1);
-        lua_setfield(L, -1, "__index");
-        lua_pop(L, 1);
-
-        return type_hash;
-    }
-
-
     uint32_t RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]) {
         DM_LUA_STACK_CHECK(L, 0);
 
-        luaL_register(L, name, methods);   // create methods table, add it to the globals
+        luaL_register(L, name, methods); // create methods table, add it to the globals
         int methods_idx = lua_gettop(L);
-        luaL_newmetatable(L, name);                         // create metatable for ScriptInstance, add it to the Lua registry
+        // [-1] lua module
+
+        luaL_newmetatable(L, name);      // create metatable for ScriptInstance, add it to the Lua registry
+        int metatable_idx = lua_gettop(L);
+        // [-1] meta table
+        // [-2] lua module
+
+        lua_pushvalue(L, methods_idx);
+        // [-1] methods table
+        // [-2] meta table
+        // [-3] lua module
+
+        lua_setfield(L, -2, "__index"); // Add the methods table to the meta table, as "__index"
+        // [-1] meta table
+        // [-2] lua module
 
         uint32_t type_hash = SetUserType(L, -1, name);
+        // [-1] meta table
+        // [-2] lua module
 
-        int metatable_idx = lua_gettop(L);
-        luaL_register(L, 0, meta);                   // fill metatable
+        luaL_register(L, 0, meta);       // fill metatable
+        // [-1] meta table
+        // [-2] lua module
 
-        lua_pushliteral(L, "__metatable");
-        lua_pushvalue(L, methods_idx);                       // dup methods table
-        lua_settable(L, metatable_idx);
+        // Make sure the meta table is protected, and refer to the methods table
+        lua_pushvalue(L, methods_idx);   // dup methods table
+        // [-1] methods table
+        // [-2] meta table
+        // [-3] lua module
+
+        // Add the methods table to the meta table, as "__metatable"
+        lua_setfield(L, metatable_idx, "__metatable");
+        // [-1] meta table
+        // [-2] lua module
+
         lua_pop(L, 2);
+        // - empty stack -
 
         return type_hash;
     }
