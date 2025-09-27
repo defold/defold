@@ -62,7 +62,7 @@ def build(bld):
     if waflib.Options.options.skip_build_tests:
         return
 
-    build_util = create_build_utility(self.env)
+    build_util = create_build_utility(bld.env)
     target_os = build_util.get_target_os()
 
     platform = bld.env['PLATFORM']
