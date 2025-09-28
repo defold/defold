@@ -1494,10 +1494,22 @@ class Configuration(object):
         plf_args = ['--platform=%s' % platform]
         run.env_command(self._form_env(), args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
 
+    def _find_cmake_build_type(self, options):
+        opt_level = 2
+        for x in options:
+            if '--opt-level=' in x:
+                opt_level = x.replace('--opt-level=', '')
+                opt_level = int(opt_level)
+                break
+        if opt_level < 2:
+            return 'Debug'
+        return 'Release'
+
     def _build_engine_lib_cmake(self, lib, platform, directory):
         libdir = join(directory, lib)
         builddir = join(libdir, 'build')
 
+        build_type = self._find_cmake_build_type(self.waf_options)
         build_tests = '--skip-build-tests' not in self.waf_options
         supports_tests = build_tests and self._can_run_tests()
 
@@ -1508,7 +1520,6 @@ class Configuration(object):
             os.makedirs(builddir)
 
         env = self._form_env()
-        build_type = 'Release'
 
         is_verbose = ('-v' in self.waf_options) or ('--verbose' in self.waf_options)
         verbose = '-v' if is_verbose else ''
@@ -1516,9 +1527,11 @@ class Configuration(object):
         build_test = 'build_tests' if build_tests else ''
         install = 'install'
 
+        # generate the build script
         cmake_configure_args = f"cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE={build_type} -DTARGET_PLATFORM={platform} -DBUILD_TESTS=ON".split()
         run.env_command(self._form_env(), cmake_configure_args, cwd = libdir)
 
+        # execute the build
         ninja_build_args = f"ninja all {build_test} {test} {install} {verbose}".split()
         run.env_command(self._form_env(), ninja_build_args, cwd = builddir)
 
