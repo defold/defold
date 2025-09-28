@@ -11,6 +11,25 @@ include(functions_graphics)
 include(functions_platform)
 include(functions_glfw)
 
+# Collect packaged toolchain roots given DEFOLD_SDK_ROOT/ext/SDKs.
+# Adds the directory itself and its immediate child directories.
+# Usage:
+#   defold_collect_packaged_roots("${DEFOLD_SDK_ROOT}/ext/SDKs" OUT_LIST)
+function(defold_collect_packaged_roots SDKS_DIR OUT_LIST)
+    set(_roots)
+    if(SDKS_DIR AND EXISTS "${SDKS_DIR}")
+        list(APPEND _roots "${SDKS_DIR}")
+        file(GLOB _child_paths "${SDKS_DIR}/*")
+        foreach(_p IN LISTS _child_paths)
+            if(IS_DIRECTORY "${_p}")
+                list(APPEND _roots "${_p}")
+            endif()
+        endforeach()
+        list(REMOVE_DUPLICATES _roots)
+    endif()
+    set(${OUT_LIST} "${_roots}" PARENT_SCOPE)
+endfunction()
+
 # Create a C++ file implementing dmExportedSymbols() that calls a list of
 # exported C symbols provided via the CMake list.
 # The file content is generated from exported_symbols.in.cpp.
