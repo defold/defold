@@ -34,164 +34,77 @@ set(_FOUND_PACKAGED_TOOLCHAIN FALSE)
 
 # Helper to pick latest directory path from a list of paths
 
-# 1) Packaged SDKs in DEFOLD_SDK_ROOT/ext/SDKs (prefer MSVC over LLVM)
+#############################################
+# Unified Visual Studio roots and detection
+set(_VS_CANDIDATE_ROOTS "")
 if(DEFINED DEFOLD_SDK_ROOT)
     set(_SDKS_DIR "${DEFOLD_SDK_ROOT}/ext/SDKs")
     if(EXISTS "${_SDKS_DIR}")
-        # Use shared helper to gather roots (SDK dir + its immediate children)
-        defold_collect_packaged_roots("${_SDKS_DIR}" _sdk_search_roots)
-
-        foreach(_sdk_root IN LISTS _sdk_search_roots)
-            file(GLOB _vs_roots
-                "${_sdk_root}/Microsoft Visual Studio/*/*"
-                "${_sdk_root}/MicrosoftVisualStudio*"
-                "${_sdk_root}/VS/*"
-                "${_sdk_root}/BuildTools/*"
-            )
-            if(EXISTS "${_sdk_root}/VC")
-                list(APPEND _vs_roots "${_sdk_root}")
-            endif()
-            if(_vs_roots)
-                list(REMOVE_DUPLICATES _vs_roots)
-                foreach(_vs IN LISTS _vs_roots)
-                    if(NOT _FOUND_MSVC_CL)
-                        _defold_detect_msvc_cl_from_vsroot("${_vs}" "${_DEFOLD_WIN_ARCH}" _cl)
-                        if(_cl)
-                            set(_FOUND_MSVC_CL "${_cl}")
-                        endif()
-                    endif()
-                endforeach()
-            endif()
-        endforeach()
-
-        if(NOT _FOUND_WINSDK_VERSION)
-            foreach(_sdk_root IN LISTS _sdk_search_roots)
-                if(NOT _FOUND_WINSDK_VERSION)
-                    _defold_detect_winsdk_from_root("${_sdk_root}" _ver)
-                    if(_ver)
-                        set(_FOUND_WINSDK_VERSION "${_ver}")
-                    endif()
-                endif()
-            endforeach()
-        endif()
-
-        # Packaged LLVM/Clang (prefer clang-cl if available)
-        if(NOT _FOUND_CLANG_CL)
-            set(_clangcl_cands "")
-            foreach(_sdk_root IN LISTS _sdk_search_roots)
-                file(GLOB _clangcl_candidates
-                    "${_sdk_root}/LLVM*/bin/clang-cl.exe"
-                    "${_sdk_root}/clang*/bin/clang-cl.exe"
-                    "${_sdk_root}/llvm*/bin/clang-cl.exe"
-                )
-                if(_clangcl_candidates)
-                    list(APPEND _clangcl_cands ${_clangcl_candidates})
-                endif()
-            endforeach()
-            if(_clangcl_cands)
-                _defold_pick_latest_dir(_clangcl "${_clangcl_cands}")
-                if(_clangcl)
-                    set(_FOUND_CLANG_CL "${_clangcl}")
-                endif()
-            endif()
-        endif()
-
-        if(NOT _FOUND_CLANG_CL AND NOT _FOUND_MSVC_CL AND NOT _FOUND_LLVM_CLANGXX)
-            set(_clangxx_cands "")
-            foreach(_sdk_root IN LISTS _sdk_search_roots)
-                file(GLOB _clangxx_candidates
-                    "${_sdk_root}/LLVM*/bin/clang++.exe"
-                    "${_sdk_root}/clang*/bin/clang++.exe"
-                    "${_sdk_root}/llvm*/bin/clang++.exe"
-                )
-                if(_clangxx_candidates)
-                    list(APPEND _clangxx_cands ${_clangxx_candidates})
-                endif()
-            endforeach()
-            if(_clangxx_cands)
-                _defold_pick_latest_dir(_clangxx "${_clangxx_cands}")
-                if(_clangxx)
-                    set(_FOUND_LLVM_CLANGXX "${_clangxx}")
-                    get_filename_component(_clang_dir "${_clangxx}" DIRECTORY)
-                    if(EXISTS "${_clang_dir}/clang.exe")
-                        set(_FOUND_LLVM_CLANG "${_clang_dir}/clang.exe")
-                    endif()
-                endif()
-            endif()
-        endif()
-
-        # Mark that we found a packaged toolchain (don’t override with local installs)
-        if(_FOUND_MSVC_CL OR _FOUND_CLANG_CL OR _FOUND_LLVM_CLANGXX)
-            set(_FOUND_PACKAGED_TOOLCHAIN TRUE)
-        endif()
-    else()
-        message(DEBUG "sdk_windows: SDKs directory not found: ${_SDKS_DIR}")
+        defold_collect_packaged_roots("${_SDKS_DIR}" _packaged_vs_roots)
+        list(APPEND _VS_CANDIDATE_ROOTS ${_packaged_vs_roots})
     endif()
-else()
-    message(DEBUG "sdk_windows: DEFOLD_SDK_ROOT not set; skipping packaged SDK detection")
 endif()
 
-# 2) Locally installed Visual Studio (only if no packaged toolchain)
-if(NOT _FOUND_PACKAGED_TOOLCHAIN AND NOT _FOUND_MSVC_CL)
-    # Use vswhere if available
-    find_program(_VSWHERE vswhere HINTS
-        "C:/Program Files (x86)/Microsoft Visual Studio/Installer"
-    )
-    if(_VSWHERE)
-        execute_process(
-            COMMAND "${_VSWHERE}" -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-            OUTPUT_VARIABLE _VS_INSTALL
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            ERROR_QUIET)
-        if(_VS_INSTALL AND EXISTS "${_VS_INSTALL}")
-            _defold_detect_msvc_cl_from_vsroot("${_VS_INSTALL}" "${_DEFOLD_WIN_ARCH}" _cl)
-            if(_cl)
-                set(_FOUND_MSVC_CL "${_cl}")
-            endif()
-            if(NOT _FOUND_CLANG_CL)
-                _defold_detect_clang_cl_from_vsroot("${_VS_INSTALL}" "${_DEFOLD_WIN_ARCH}" _clangcl)
-                if(_clangcl)
-                    set(_FOUND_CLANG_CL "${_clangcl}")
-                endif()
-            endif()
-        endif()
+# Prefer latest from vswhere if available
+find_program(_VSWHERE vswhere HINTS "C:/Program Files (x86)/Microsoft Visual Studio/Installer")
+if(_VSWHERE)
+    execute_process(COMMAND "${_VSWHERE}" -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+                    OUTPUT_VARIABLE _VS_INSTALL
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                    ERROR_QUIET)
+    if(_VS_INSTALL AND EXISTS "${_VS_INSTALL}")
+        list(INSERT _VS_CANDIDATE_ROOTS 0 "${_VS_INSTALL}")
     endif()
+endif()
 
+# Common local fallback roots
+list(APPEND _VS_CANDIDATE_ROOTS
+    "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools"
+    "C:/Program Files (x86)/Microsoft Visual Studio/2022/Community"
+    "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools"
+    "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community")
+list(REMOVE_DUPLICATES _VS_CANDIDATE_ROOTS)
+
+# Scan for MSVC and clang-cl
+foreach(_vs IN LISTS _VS_CANDIDATE_ROOTS)
     if(NOT _FOUND_MSVC_CL)
-        # Common fallback locations
-        set(_VS_FALLBACKS
-            "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools"
-            "C:/Program Files (x86)/Microsoft Visual Studio/2022/Community"
-            "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools"
-            "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community"
-        )
-        foreach(_root IN LISTS _VS_FALLBACKS)
-            if((NOT _FOUND_MSVC_CL OR NOT _FOUND_CLANG_CL) AND EXISTS "${_root}")
-                _defold_detect_msvc_cl_from_vsroot("${_root}" "${_DEFOLD_WIN_ARCH}" _cl)
-                if(_cl)
-                    set(_FOUND_MSVC_CL "${_cl}")
-                endif()
-                if(NOT _FOUND_CLANG_CL)
-                    _defold_detect_clang_cl_from_vsroot("${_root}" "${_DEFOLD_WIN_ARCH}" _clangcl)
-                    if(_clangcl)
-                        set(_FOUND_CLANG_CL "${_clangcl}")
-                    endif()
-                endif()
-            endif()
-        endforeach()
-    endif()
-
-    # Windows SDK version from system install
-    if(NOT _FOUND_WINSDK_VERSION)
-        _defold_detect_winsdk_from_root("C:/Program Files (x86)" _ver)
-        if(_ver)
-            set(_FOUND_WINSDK_VERSION "${_ver}")
+        _defold_detect_msvc_cl_from_vsroot("${_vs}" "${_DEFOLD_WIN_ARCH}" _cl)
+        if(_cl)
+            set(_FOUND_MSVC_CL "${_cl}")
         endif()
     endif()
+    if(NOT _FOUND_CLANG_CL)
+        _defold_detect_clang_cl_from_vsroot("${_vs}" "${_DEFOLD_WIN_ARCH}" _clangcl)
+        if(_clangcl)
+            set(_FOUND_CLANG_CL "${_clangcl}")
+        endif()
+    endif()
+endforeach()
+
+# Detect Windows SDK version from the same roots or system
+if(NOT _FOUND_WINSDK_VERSION)
+    foreach(_root IN LISTS _VS_CANDIDATE_ROOTS)
+        if(NOT _FOUND_WINSDK_VERSION)
+            _defold_detect_winsdk_from_root("${_root}" _ver)
+            if(_ver)
+                set(_FOUND_WINSDK_VERSION "${_ver}")
+            endif()
+        endif()
+    endforeach()
+endif()
+if(NOT _FOUND_WINSDK_VERSION)
+    foreach(_sys IN "C:/Program Files (x86)" "C:/Program Files")
+        if(NOT _FOUND_WINSDK_VERSION)
+            _defold_detect_winsdk_from_root("${_sys}" _ver_sys)
+            if(_ver_sys)
+                set(_FOUND_WINSDK_VERSION "${_ver_sys}")
+            endif()
+        endif()
+    endforeach()
 endif()
 
-# 3) Local LLVM/Clang (clang++) if nothing else found
-if(NOT _FOUND_PACKAGED_TOOLCHAIN AND NOT _FOUND_CLANG_CL AND NOT _FOUND_MSVC_CL AND NOT _FOUND_LLVM_CLANGXX)
+# Local LLVM/Clang (clang++) if nothing else found
+if(NOT _FOUND_CLANG_CL AND NOT _FOUND_MSVC_CL AND NOT _FOUND_LLVM_CLANGXX)
     # Prefer locally installed Visual Studio over LLVM/Clang (handled above)
     # Now look for a local LLVM install (prefer clang-cl)
     find_program(_CLANGCL clang-cl HINTS
