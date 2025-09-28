@@ -39,19 +39,14 @@ target_compile_options(defold_sdk INTERFACE
   $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>
   $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>)
 
-# Link options
-set(_DEFOLD_LINK_OPTS
-    -stdlib=libc++
-    -mmacosx-version-min=${_DEFOLD_MACOS_MIN}
-    -target ${_DEFOLD_TARGET_ARCH}-apple-darwin19
-    
-    # Add common macOS frameworks (use linker-prefixed form to avoid token grouping issues)
-    -Wl,-framework,AppKit
-    -Wl,-framework,Carbon
-    -Wl,-weak_framework,Foundation
-)
-if(_XCODE_TOOLCHAIN)
-  list(APPEND _DEFOLD_LINK_OPTS -isysroot ${CMAKE_OSX_SYSROOT})
-endif()
-
-target_link_options(defold_sdk INTERFACE ${_DEFOLD_LINK_OPTS})
+# Link options (use generator expressions for optional sysroot)
+target_link_options(defold_sdk INTERFACE
+  -stdlib=libc++
+  -mmacosx-version-min=${_DEFOLD_MACOS_MIN}
+  -target ${_DEFOLD_TARGET_ARCH}-apple-darwin19
+  # Frameworks
+  -Wl,-framework,AppKit
+  -Wl,-framework,Carbon
+  -Wl,-weak_framework,Foundation
+  # Always assume Xcode toolchain in use
+  -isysroot ${CMAKE_OSX_SYSROOT})

@@ -44,8 +44,8 @@ target_compile_options(defold_sdk INTERFACE
   $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>
   $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>)
 
-# Link options (mirrors waf_dynamo for iOS)
-set(_DEFOLD_LINK_OPTS
+# Link options (expressed directly)
+target_link_options(defold_sdk INTERFACE
   -stdlib=libc++
   -miphoneos-version-min=${_DEFOLD_IPHONEOS_MIN}
   -dead_strip
@@ -56,7 +56,4 @@ set(_DEFOLD_LINK_OPTS
   -Wl,-weak_framework,Foundation
   # Ensure Objective-C runtime is linked on host builds
   -fobjc-link-runtime
-)
-
-target_link_options(defold_sdk INTERFACE ${_DEFOLD_LINK_OPTS})
-target_link_options(defold_sdk INTERFACE -isysroot ${CMAKE_OSX_SYSROOT})
+  -isysroot ${CMAKE_OSX_SYSROOT})

@@ -36,21 +36,14 @@ if(_DEFOLD_ANDROID_NDK)
       "${_DEFOLD_ANDROID_NDK}/sources/android/cpufeatures")
 endif()
 
-# Link options (mirrors waf_dynamo getAndroidLinkFlags + extras)
-set(_DEFOLD_ANDROID_LINK_OPTS
-    -Wl,--no-undefined
-    -Wl,-z,noexecstack
-    -landroid
-    -llog
-    -z text
-    -Wl,--build-id=uuid
-    -static-libstdc++
-)
-
-if(TARGET_PLATFORM MATCHES "arm64-android")
-    list(APPEND _DEFOLD_ANDROID_LINK_OPTS -Wl,-z,max-page-size=16384)
-else()
-    list(APPEND _DEFOLD_ANDROID_LINK_OPTS -Wl,--fix-cortex-a8)
-endif()
-
-target_link_options(defold_sdk INTERFACE ${_DEFOLD_ANDROID_LINK_OPTS})
+# Link options (with generator expressions for arch-specific flags)
+target_link_options(defold_sdk INTERFACE
+  -Wl,--no-undefined
+  -Wl,-z,noexecstack
+  -landroid
+  -llog
+  -z text
+  -Wl,--build-id=uuid
+  -static-libstdc++
+  $<$<STREQUAL:${TARGET_PLATFORM},arm64-android>:-Wl,-z,max-page-size=16384>
+  $<$<NOT:$<STREQUAL:${TARGET_PLATFORM},arm64-android>>:-Wl,--fix-cortex-a8>)
