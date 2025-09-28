@@ -31,7 +31,7 @@ endif()
 
 # Add NDK helper include paths if available
 if(_DEFOLD_ANDROID_NDK)
-    target_include_directories(defold_sdk INTERFACE
+    target_include_directories(defold_sdk SYSTEM INTERFACE
       "${_DEFOLD_ANDROID_NDK}/sources/android/native_app_glue"
       "${_DEFOLD_ANDROID_NDK}/sources/android/cpufeatures")
 endif()
