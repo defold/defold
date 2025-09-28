@@ -14,9 +14,19 @@ http://localhost:[port]/console
 ```
 
 #### Port Configuration
-Currently, the port is assigned randomly from a broad subrange. If started from a terminal, the editor will log the local endpoint URL.
+Currently, the port is assigned randomly from a broad subrange. Since 1.11.0, the port is written to the `.internal/editor.port` file.
 
-Alternatively, you can provide the `—port <port>` (or `-p`) option to the editor executable to specify a particular port during launch.
+Additionally, since 1.11.0, the editor executable has a command line option `--port` (or `-p`), which allows specifying the port during launch, e.g.:
+```bash
+# on Windows
+.\Defold.exe --port 8181
+
+# on Linux:
+./Defold --port 8181
+
+# on macOS:
+./Defold.app/Contents/MacOS/Defold --port 8181
+```
 
 ### The Command Endpoint
 The command endpoint exposes a subset of the commands available from the editor menu bar. To trigger a command, perform an empty POST request to a URL in the format:
