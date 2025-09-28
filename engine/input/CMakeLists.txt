@@ -1,11 +1,11 @@
 # Minimum CMake version and project
 cmake_minimum_required(VERSION 4.0)
 
+project(defold_input LANGUAGES C CXX)
+
 include(../../scripts/cmake/defold.cmake)
 include(functions_glfw)
 include(functions_protoc)
-
-project(defold_input LANGUAGES C CXX)
 
 # Define log domain for this module
 add_compile_definitions(DLIB_LOG_DOMAIN="INPUT")

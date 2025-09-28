@@ -1,9 +1,9 @@
 # Minimum CMake version and project
 cmake_minimum_required(VERSION 4.0)
 
-include(../../scripts/cmake/defold.cmake)
-
 project(defold_platform LANGUAGES C CXX)
+
+include(../../scripts/cmake/defold.cmake)
 
 # Sources
 set(PLAT_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
