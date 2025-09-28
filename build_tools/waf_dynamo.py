@@ -2100,10 +2100,6 @@ def detect(conf):
         conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
-    conf.env['STLIB_PLATFORM']        = ['platform']
-    conf.env['STLIB_PLATFORM_VULKAN'] = ['platform_vulkan']
-    conf.env['STLIB_PLATFORM_NULL']   = ['platform_null']
-
     conf.env['STLIB_FONT']            = ['font']
 
     if platform_glfw_version(platform) == 3:
@@ -2150,14 +2146,21 @@ def detect(conf):
         conf.env['LINKFLAGS_APP']       = ['user32.lib', 'shell32.lib', 'dbghelp.lib'] + conf.env['LINKFLAGS_DINPUT']
         conf.env['LINKFLAGS_DX12']      = ['D3D12.lib', 'DXGI.lib', 'D3Dcompiler.lib']
 
+
     if conf.env.PLATFORM in ['win32', 'x86_64-win32']:
-        conf.env['LINKFLAGS_HID']      = 'hid.lib'
-        conf.env['LINKFLAGS_HID_NULL'] = 'hid_null.lib'
-        conf.env['LINKFLAGS_INPUT']    = 'input.lib'
+        conf.env['LINKFLAGS_HID']               = ['hid.lib']
+        conf.env['LINKFLAGS_HID_NULL']          = ['hid_null.lib']
+        conf.env['LINKFLAGS_INPUT']             = ['input.lib']
+        conf.env['LINKFLAGS_PLATFORM']          = ['platform.lib']
+        conf.env['LINKFLAGS_PLATFORM_VULKAN']   = ['platform_vulkan.lib']
+        conf.env['LINKFLAGS_PLATFORM_NULL']     = ['platform_null.lib']
     else:
-        conf.env['STLIB_HID']          = 'hid'
-        conf.env['STLIB_HID_NULL']     = 'hid_null'
-        conf.env['STLIB_INPUT']        = 'input'
+        conf.env['STLIB_HID']               = ['hid']
+        conf.env['STLIB_HID_NULL']          = ['hid_null']
+        conf.env['STLIB_INPUT']             = ['input']
+        conf.env['STLIB_PLATFORM']          = ['platform']
+        conf.env['STLIB_PLATFORM_VULKAN']   = ['platform_vulkan']
+        conf.env['STLIB_PLATFORM_NULL']     = ['platform_null']
 
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env['STLIB_SCRIPT'] = 'script'
