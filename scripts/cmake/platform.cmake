@@ -25,9 +25,8 @@ include(functions_test)
 
 #**************************************************************************
 # Common compile settings
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+# Provide the C++ standard via target-level usage requirements
+target_compile_features(defold_sdk INTERFACE cxx_std_11)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)

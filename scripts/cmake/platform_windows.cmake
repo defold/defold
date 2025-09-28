@@ -4,10 +4,8 @@ if(NOT WIN32)
     message(FATAL_ERROR "platform_windows.cmake included on non-Windows host")
 endif()
 
-# Ensure C++11 on Windows builds
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+# Ensure C++ standard on Windows builds via target usage
+target_compile_features(defold_sdk INTERFACE cxx_std_14)
 
 # Detect compiler front-end (prefer inspecting CMAKE_C_COMPILER)
 set(_DEFOLD_MSVC_LIKE OFF)
