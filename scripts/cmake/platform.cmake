@@ -52,8 +52,6 @@ endif()
 #**************************************************************************
 # Common defines
 
-set(CMAKE_CXX_FLAGS_RELEASE "") # remove -DNDEBUG and -O3
-
 # Attach common definitions to defold_sdk target
 target_compile_definitions(defold_sdk INTERFACE
     __STDC_LIMIT_MACROS
