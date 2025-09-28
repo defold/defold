@@ -8,6 +8,10 @@ endif()
 # Prefer colored diagnostics from compilers that support it
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
+# Export compilation database for tooling (clangd, IDEs)
+# -- currently set to off, as it currently interferes with the Waf option
+set(CMAKE_EXPORT_COMPILE_COMMANDS OFF)
+
 get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 
 # Ensure this directory (scripts/cmake) is on CMAKE_MODULE_PATH once
