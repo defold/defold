@@ -571,7 +571,7 @@ class Configuration(object):
         run.env_command(self._form_env(), cmake_cmd)
 
         # Report absolute path to the generated solution files
-        old_project_name = 'defold_components'
+        old_project_name = 'defold_libraries'
         solution_build_dir = os.path.abspath(build_dir)
 
         target_name = f"Defold-{tp}"
