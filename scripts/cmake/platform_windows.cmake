@@ -1,4 +1,4 @@
-message("platform_windows.cmake:")
+defold_log("platform_windows.cmake:")
 
 if(NOT WIN32)
     message(FATAL_ERROR "platform_windows.cmake included on non-Windows host")

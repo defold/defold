@@ -1,4 +1,4 @@
-message("sdk.cmake:")
+defold_log("sdk.cmake:")
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)

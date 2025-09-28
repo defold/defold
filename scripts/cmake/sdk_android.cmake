@@ -1,4 +1,4 @@
-message("sdk_android.cmake:")
+defold_log("sdk_android.cmake:")
 
 # Detect Android NDK toolchain from (in order):
 # 1) Packaged NDK under ${DEFOLD_SDK_ROOT}/ext/SDKs
@@ -95,11 +95,11 @@ if(EXISTS "${_ANDROID_TOOLCHAIN_FILE}")
     endif()
 
     if(_SDKS_DIR AND _ANDROID_TOOLCHAIN_FILE MATCHES "^${_SDKS_DIR}.*")
-        message(STATUS "sdk_android: Using packaged Android NDK: ${_ANDROID_NDK_ROOT}")
+    defold_log("sdk_android: Using packaged Android NDK: ${_ANDROID_NDK_ROOT}")
     else()
-        message(STATUS "sdk_android: Using local Android SDK NDK: ${_ANDROID_NDK_ROOT}")
+    defold_log("sdk_android: Using local Android SDK NDK: ${_ANDROID_NDK_ROOT}")
     endif()
-    message(STATUS "sdk_android: Toolchain file: ${_ANDROID_TOOLCHAIN_FILE}")
+    defold_log("sdk_android: Toolchain file: ${_ANDROID_TOOLCHAIN_FILE}")
 
     if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
         set(CMAKE_TOOLCHAIN_FILE "${_ANDROID_TOOLCHAIN_FILE}" CACHE FILEPATH "Android NDK toolchain file" FORCE)
@@ -124,9 +124,9 @@ else(TARGET_PLATFORM MATCHES "armv7-android")
 
 endif()
 
-message(STATUS "ANDROID_ABI: ${ANDROID_ABI}")
-message(STATUS "ANDROID_NATIVE_API_LEVEL: ${ANDROID_NATIVE_API_LEVEL}")
-message(STATUS "ANDROID_TOOLCHAIN: ${ANDROID_TOOLCHAIN}")
+defold_log("ANDROID_ABI: ${ANDROID_ABI}")
+defold_log("ANDROID_NATIVE_API_LEVEL: ${ANDROID_NATIVE_API_LEVEL}")
+defold_log("ANDROID_TOOLCHAIN: ${ANDROID_TOOLCHAIN}")
 
 # the NDK toolchain uses cmake 3.6
 set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "" FORCE)

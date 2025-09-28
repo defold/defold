@@ -1,4 +1,4 @@
-message("functions_graphics.cmake:")
+defold_log("functions_graphics.cmake:")
 
 # Returns a CMake list of exported graphics adapter symbols for a given
 # TARGET_PLATFORM-like tuple (e.g., x86_64-macos, arm64-linux, x86_64-win32).

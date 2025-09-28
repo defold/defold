@@ -1,4 +1,4 @@
-message("sdk_linux.cmake:")
+defold_log("sdk_linux.cmake:")
 
 # Use the currently installed clang/clang++ from PATH
 
@@ -13,6 +13,5 @@ if(NOT CMAKE_C_COMPILER)
   set(CMAKE_C_COMPILER "${_DEFOLD_CLANG}" CACHE FILEPATH "System clang" FORCE)
 endif()
 
-message(STATUS "sdk_linux: CXX=${CMAKE_CXX_COMPILER}")
-message(STATUS "sdk_linux: CC=${CMAKE_C_COMPILER}")
-
+defold_log("sdk_linux: CXX=${CMAKE_CXX_COMPILER}")
+defold_log("sdk_linux: CC=${CMAKE_C_COMPILER}")

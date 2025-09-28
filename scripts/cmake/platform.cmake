@@ -1,4 +1,4 @@
-message("platform.cmake:")
+defold_log("platform.cmake:")
 
 # Detect host OS/arch and compute HOST_PLATFORM
 include(platform_host)
@@ -13,7 +13,7 @@ if(NOT TARGET_PLATFORM)
     message(FATAL_ERROR "Could not infer TARGET_PLATFORM. Please pass -DTARGET_PLATFORM=<2-tuple> (e.g. x86_64-macos)")
 endif()
 
-message(STATUS "TARGET_PLATFORM: ${TARGET_PLATFORM}")
+defold_log("TARGET_PLATFORM: ${TARGET_PLATFORM}")
 
 # Global empty target to aggregate test build dependencies across subprojects
 if(NOT TARGET build_tests)
@@ -121,5 +121,5 @@ endif()
 # message(STATUS "CFLAGS: ${CMAKE_C_FLAGS}")
 # message(STATUS "CXXFLAGS: ${CMAKE_CXX_FLAGS}")
 
-message(STATUS "CC: ${CMAKE_C_COMPILER}")
-message(STATUS "CXX: ${CMAKE_CXX_COMPILER}")
+defold_log("CC: ${CMAKE_C_COMPILER}")
+defold_log("CXX: ${CMAKE_CXX_COMPILER}")

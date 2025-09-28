@@ -1,4 +1,4 @@
-message("functions.cmake:")
+message(DEBUG "functions.cmake:")
 
 # Remember where the Defold CMake modules live (scripts/cmake)
 # This is evaluated when this file is included, before any toolchain
@@ -7,9 +7,14 @@ if(NOT DEFINED DEFOLD_CMAKE_DIR)
     set(DEFOLD_CMAKE_DIR "${CMAKE_CURRENT_LIST_DIR}" CACHE INTERNAL "Defold CMake modules dir")
 endif()
 
-include(functions_graphics)
-include(functions_platform)
-include(functions_glfw)
+# Verbose logging helper. Uses STATUS when DEFOLD_VERBOSE=ON, else DEBUG.
+function(defold_log MSG)
+    if(DEFOLD_VERBOSE)
+        message(STATUS "${MSG}")
+    else()
+        message(DEBUG "${MSG}")
+    endif()
+endfunction()
 
 # Collect packaged toolchain roots given DEFOLD_SDK_ROOT/ext/SDKs.
 # Adds the directory itself and its immediate child directories.
@@ -88,3 +93,7 @@ function(defold_create_exported_symbols_file OUT_PATH SYMBOL_LIST)
     unset(DM_EXPORTED_SYMBOL_DECLS)
     unset(DM_EXPORTED_SYMBOL_CALLS)
 endfunction()
+
+include(functions_graphics)
+include(functions_platform)
+include(functions_glfw)

@@ -1,4 +1,4 @@
-message("platform_ios.cmake")
+defold_log("platform_ios.cmake")
 
 # Derive arch from TARGET_PLATFORM
 if(TARGET_PLATFORM MATCHES "^arm64-")

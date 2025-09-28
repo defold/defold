@@ -1,4 +1,4 @@
-message("sdk_emscripten.cmake:")
+defold_log("sdk_emscripten.cmake:")
 
 # Detect an Emscripten toolchain file, preferring a packaged SDK in
 # ${DEFOLD_SDK_ROOT}/ext/SDKs, then falling back to locally installed

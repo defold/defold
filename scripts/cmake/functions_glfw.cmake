@@ -1,4 +1,4 @@
-message("functions_glfw.cmake:")
+defold_log("functions_glfw.cmake:")
 
 # Determine GLFW major version (2 or 3) for a given target platform.
 # Mirrors build_tools/waf_dynamo.py: platform_glfw_version(platform)

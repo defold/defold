@@ -1,4 +1,4 @@
-message("platform_linux.cmake:")
+defold_log("platform_linux.cmake:")
 
 # Derive target triple from TARGET_PLATFORM (matches waf_dynamo.py)
 if(TARGET_PLATFORM MATCHES "^arm64-")

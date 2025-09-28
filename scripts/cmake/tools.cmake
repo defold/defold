@@ -1,4 +1,4 @@
-message("tools.cmake:")
+defold_log("tools.cmake:")
 
 include(tools_java)
 include(tools_ninja)

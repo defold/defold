@@ -1,4 +1,4 @@
-message("tools_java.cmake:")
+defold_log("tools_java.cmake:")
 
 # Require Java 21+ (both Runtime and Development components)
 find_package(Java 21 COMPONENTS Runtime Development REQUIRED)
@@ -12,5 +12,5 @@ set(JAVA_VERSION_STRING     "${Java_VERSION}"          CACHE STRING   "Detected 
 string(REGEX MATCH "^[0-9]+" JAVA_VERSION_MAJOR "${Java_VERSION}")
 set(JAVA_VERSION_MAJOR "${JAVA_VERSION_MAJOR}" CACHE STRING "Detected Java major version" FORCE)
 
-message(STATUS "tools_java: java ${Java_VERSION} at ${Java_JAVA_EXECUTABLE}")
-message(STATUS "tools_java: javac at ${Java_JAVAC_EXECUTABLE}")
+defold_log("tools_java: java ${Java_VERSION} at ${Java_JAVA_EXECUTABLE}")
+defold_log("tools_java: javac at ${Java_JAVAC_EXECUTABLE}")

@@ -1,4 +1,4 @@
-message("platform_android.cmake:")
+defold_log("platform_android.cmake:")
 
 # Try to resolve NDK root and sysroot
 set(_DEFOLD_ANDROID_NDK "${ANDROID_NDK}")

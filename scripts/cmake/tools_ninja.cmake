@@ -1,4 +1,4 @@
-message("tools_ninja.cmake:")
+defold_log("tools_ninja.cmake:")
 
 # Check that Ninja is installed and available on PATH
 
@@ -16,8 +16,7 @@ execute_process(
   ERROR_STRIP_TRAILING_WHITESPACE)
 
 if(_ninja_ver)
-  message(STATUS "tools_ninja: ninja ${_ninja_ver} at ${_DEFOLD_NINJA_EXECUTABLE}")
+  defold_log("tools_ninja: ninja ${_ninja_ver} at ${_DEFOLD_NINJA_EXECUTABLE}")
 else()
-  message(STATUS "tools_ninja: ninja found at ${_DEFOLD_NINJA_EXECUTABLE}")
+  defold_log("tools_ninja: ninja found at ${_DEFOLD_NINJA_EXECUTABLE}")
 endif()
-

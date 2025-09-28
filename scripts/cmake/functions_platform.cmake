@@ -1,4 +1,4 @@
-message("functions_platform.cmake:")
+defold_log("functions_platform.cmake:")
 
 # Link the correct platform library for a target and platform tuple.
 # Mirrors waf_dynamo.py platform_get_platform_lib/platform_glfw_version.

@@ -1,4 +1,4 @@
-message("functions_windows.cmake:")
+defold_log("functions_windows.cmake:")
 
 # Helper to pick latest directory path from a list of paths
 function(_defold_pick_latest_dir OUT_VAR)

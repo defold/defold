@@ -1,16 +1,9 @@
-message("defold.cmake:")
+message(DEBUG "defold.cmake:")
 
 # Require CMake 4.x in projects that include these modules
 if(CMAKE_VERSION VERSION_LESS 4.0)
   message(FATAL_ERROR "Defold CMake scripts require CMake >= 4.0 (found ${CMAKE_VERSION})")
 endif()
-
-# Prefer colored diagnostics from compilers that support it
-set(CMAKE_COLOR_DIAGNOSTICS ON)
-
-# Export compilation database for tooling (clangd, IDEs)
-# -- currently set to off, as it currently interferes with the Waf option
-set(CMAKE_EXPORT_COMPILE_COMMANDS OFF)
 
 get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 
@@ -31,8 +24,11 @@ endif()
 #   message(FATAL_ERROR "DEFOLD_SDK_ROOT not set. Run './scripts/build.py shell && ./scripts/build.py install_ext && ./scripts/build.py build_engine' first, or pass -DDEFOLD_SDK_ROOT=/path/to/tmp/dynamo_home")
 # endif()
 
-message(STATUS "DEFOLD_HOME: ${DEFOLD_HOME}")
-message(STATUS "DEFOLD_SDK_ROOT: ${DEFOLD_SDK_ROOT}")
+#include helper functions
+include(functions)
+
+defold_log("DEFOLD_HOME: ${DEFOLD_HOME}")
+defold_log("DEFOLD_SDK_ROOT: ${DEFOLD_SDK_ROOT}")
 
 # Align try_compile configuration with active build configuration
 if(CMAKE_CONFIGURATION_TYPES)
@@ -68,6 +64,13 @@ include(platform)
 
 #include helper functions
 include(functions)
+
+# Prefer colored diagnostics from compilers that support it
+set(CMAKE_COLOR_DIAGNOSTICS ON)
+
+# Export compilation database for tooling (clangd, IDEs)
+# -- currently set to off, as it currently interferes with the Waf option
+set(CMAKE_EXPORT_COMPILE_COMMANDS OFF)
 
 # Common paths
 set(DEFOLD_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/include")
@@ -113,7 +116,7 @@ if(_DEFOLD_IPO_OK)
   # (actual effect applies to real targets compiled/linked)
   set_property(TARGET defold_sdk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 else()
-  message(STATUS "IPO not enabled: ${_DEFOLD_IPO_MSG}")
+  defold_log("IPO not enabled: ${_DEFOLD_IPO_MSG}")
 endif()
 
 # Apply defold_sdk to all targets in this directory and below
@@ -121,4 +124,4 @@ link_libraries(defold_sdk)
 
 # Install into DEFOLD_SDK_ROOT
 set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}" CACHE PATH "Install prefix" FORCE)
-message(STATUS "Install prefix set to DEFOLD_SDK_ROOT: ${CMAKE_INSTALL_PREFIX}")
+defold_log("Install prefix set to DEFOLD_SDK_ROOT: ${CMAKE_INSTALL_PREFIX}")

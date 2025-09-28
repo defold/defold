@@ -1,4 +1,4 @@
-message("platform_macos.cmake")
+defold_log("platform_macos.cmake")
 
 # Derive arch from TARGET_PLATFORM
 if(TARGET_PLATFORM MATCHES "^arm64-")

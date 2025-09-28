@@ -1,4 +1,4 @@
-message("platform_html5.cmake:")
+defold_log("platform_html5.cmake:")
 
 if(NOT TARGET_PLATFORM MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
   message(FATAL_ERROR "platform_html5.cmake included for non-web TARGET_PLATFORM: ${TARGET_PLATFORM}")

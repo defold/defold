@@ -1,4 +1,4 @@
-message("platform_host.cmake:")
+defold_log("platform_host.cmake:")
 
 # Robust host OS and architecture detection
 

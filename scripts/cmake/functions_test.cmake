@@ -1,4 +1,4 @@
-message("functions_test.cmake:")
+defold_log("functions_test.cmake:")
 
 # Registers a test target with the global build_tests and run_tests targets.
 #

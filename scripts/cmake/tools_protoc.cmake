@@ -1,4 +1,4 @@
-message("tools_protoc.cmake:")
+defold_log("tools_protoc.cmake:")
 
 # Ensure that protoc is the one shipped with the Defold SDK (tmp/dynamo_home)
 # Layout used by Defold packages:
@@ -41,7 +41,7 @@ execute_process(
   OUTPUT_STRIP_TRAILING_WHITESPACE
   ERROR_STRIP_TRAILING_WHITESPACE)
 if(_protoc_ver)
-  message(STATUS "tools_protoc: protoc ${_protoc_ver} at ${_DEFOLD_PROTOC_REAL}")
+  defold_log("tools_protoc: protoc ${_protoc_ver} at ${_DEFOLD_PROTOC_REAL}")
 else()
-  message(STATUS "tools_protoc: protoc at ${_DEFOLD_PROTOC_REAL}")
+  defold_log("tools_protoc: protoc at ${_DEFOLD_PROTOC_REAL}")
 endif()

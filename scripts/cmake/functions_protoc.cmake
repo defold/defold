@@ -1,4 +1,4 @@
-message("functions_protoc.cmake:")
+defold_log("functions_protoc.cmake:")
 
 # Generate C++ sources from a .proto file using protoc with the Defold DDF plugin.
 #
