@@ -42,8 +42,10 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded" CACHE STRING "Use static MSVC run
 # Compiler options for MSVC or clang-cl
 if(_DEFOLD_MSVC_LIKE)
     # /Oy- Disable frame pointer omission (keeps stack traces reliable)
-    # /Z7  Generate debug info in .obj (matches waf_dynamo)
-    target_compile_options(defold_sdk INTERFACE /Oy- /Z7)
+    target_compile_options(defold_sdk INTERFACE /Oy-)
+    # Prefer CMake's MSVC debug info format setting over explicit /Z7
+    # Equivalent to /Z7 (debug info in .obj)
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "Embedded")
 else()
     message(WARNING "platform_windows: Non-MSVC-like compiler detected (${CMAKE_CXX_COMPILER_ID}). Skipping MSVC flags; link libs will still be added.")
 endif()
