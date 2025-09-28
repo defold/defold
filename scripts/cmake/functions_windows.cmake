@@ -4,7 +4,8 @@ message("functions_windows.cmake:")
 function(_defold_pick_latest_dir OUT_VAR)
     set(dirs ${ARGN})
     if(dirs)
-        list(SORT dirs)
+        # Use natural sorting so versioned directory names order correctly
+        list(SORT dirs COMPARE NATURAL)
         list(REVERSE dirs)
         list(GET dirs 0 _latest)
         set(${OUT_VAR} "${_latest}" PARENT_SCOPE)
@@ -191,4 +192,3 @@ function(_defold_locate_winsdk_lib_dirs_in_root ROOT VER ARCH OUT_UM_DIR OUT_UCR
     set(${OUT_UM_DIR} "${_um_dir}" PARENT_SCOPE)
     set(${OUT_UCRT_DIR} "${_ucrt_dir}" PARENT_SCOPE)
 endfunction()
-
