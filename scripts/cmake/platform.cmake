@@ -71,7 +71,8 @@ endif()
 # Common flags
 
 set(_MSVC_SYNTAX OFF)
-if(MSVC OR (DEFINED _DEFOLD_MSVC_LIKE AND _DEFOLD_MSVC_LIKE) OR (DEFINED _DEFOLD_MSVC_NATIVE AND _DEFOLD_MSVC_NATIVE))
+# Treat MSVC or clang-cl (Clang with MSVC frontend) as MSVC syntax
+if(MSVC OR (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC"))
     set(_MSVC_SYNTAX ON)
 endif()
 
@@ -79,8 +80,8 @@ endif()
 if(_MSVC_SYNTAX)
     # Disable RTTI; don't force /EH to avoid changing exception model globally
     target_compile_options(defold_sdk INTERFACE /GR- /W3)
-    if (DEFINED _DEFOLD_MSVC_NATIVE AND NOT _DEFOLD_MSVC_NATIVE)
-        # for ninja to output colors (clang-cl)
+    # If clang-cl, enable color diagnostics for nicer output
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         target_compile_options(defold_sdk INTERFACE -fdiagnostics-color)
     endif()
 else()
