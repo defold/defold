@@ -5,6 +5,9 @@ if(CMAKE_VERSION VERSION_LESS 4.0)
   message(FATAL_ERROR "Defold CMake scripts require CMake >= 4.0 (found ${CMAKE_VERSION})")
 endif()
 
+# Prefer colored diagnostics from compilers that support it
+set(CMAKE_COLOR_DIAGNOSTICS ON)
+
 get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 
 # Ensure this directory (scripts/cmake) is on CMAKE_MODULE_PATH once

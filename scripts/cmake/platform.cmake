@@ -92,8 +92,7 @@ else()
         -fno-exceptions
         $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
         -flto
-        -g
-        -fdiagnostics-color)
+        -g)
 endif()
 
 
