@@ -36,3 +36,5 @@ Note that for e.g. Android, the CMakeLists.txt _is_ the solution.
 ## Folder structures
 
 CMake outputs into different folder structures than before, so make not of any previous assumptions that may be stored in helper scripts etc.
+
+For tests that need to load build content, we have a define `DM_USE_CMAKE` that can be used to fixup the build folder. We may replace that with an actual `DM_TEST_CONTENT_PATH` later.

@@ -1,5 +1,10 @@
 message("defold.cmake:")
 
+# Require CMake 4.x in projects that include these modules
+if(CMAKE_VERSION VERSION_LESS 4.0)
+  message(FATAL_ERROR "Defold CMake scripts require CMake >= 4.0 (found ${CMAKE_VERSION})")
+endif()
+
 get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 
 # Ensure this directory (scripts/cmake) is on CMAKE_MODULE_PATH once
