@@ -1503,7 +1503,7 @@ class Configuration(object):
                 break
         if opt_level < 2:
             return 'Debug'
-        return 'Release'
+        return 'RelWithDebInfo'
 
     def _build_engine_lib_cmake(self, lib, platform, directory):
         libdir = join(directory, lib)
