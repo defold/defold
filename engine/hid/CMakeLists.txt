@@ -6,9 +6,6 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 project(defold_hid LANGUAGES C CXX)
 
-# Options
-#option(BUILD_HID_TESTS "Build HID unit tests" ON)
-
 # ***********************************************************************
 
 # Define log domain for all targets in this directory
@@ -30,7 +27,6 @@ add_library(hid STATIC ${hid_SOURCES})
 
 target_include_directories(hid PUBLIC "${HID_SRC_DIR}") # for dmsdk/hid and local headers
 
-# hid_null (null backend)
 add_library(hid_null STATIC
     "${HID_SRC_DIR}/hid.cpp"
     "${HID_SRC_DIR}/hid_null.cpp"

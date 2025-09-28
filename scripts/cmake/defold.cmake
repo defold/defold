@@ -59,7 +59,7 @@ endif()
 include_directories(
     "${DEFOLD_INCLUDE_DIR}"                 # for defold includes (dlib, graphics etc)
     "${DEFOLD_EXT_INCLUDE_DIR}"             # for 3rd party headers
-    ${_DEFOLD_PLATFORM_INCLUDE_DIRS}         # for 3rd party, platform specific headers (win32 + x86-win32)
+    ${_DEFOLD_PLATFORM_INCLUDE_DIRS}        # for 3rd party, platform specific headers (win32 + x86-win32)
     "${DEFOLD_DMSDK_INCLUDE_DIR}"           # for dmsdk public headers
 )
 link_directories(${_DEFOLD_PLATFORM_LIB_DIRS})
