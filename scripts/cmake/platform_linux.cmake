@@ -8,14 +8,10 @@ else()
 endif()
 
 # Defines
-add_compile_definitions(
-  DM_PLATFORM_LINUX
-)
+target_compile_definitions(defold_sdk INTERFACE DM_PLATFORM_LINUX)
 
 # Compile options
-add_compile_options(
-  --target=${_DEFOLD_CLANG_TRIPLE}
-)
+target_compile_options(defold_sdk INTERFACE --target=${_DEFOLD_CLANG_TRIPLE})
 
 # C++ specific flags are set globally in platform.cmake (-fno-rtti, etc.)
 
@@ -24,4 +20,3 @@ add_link_options(
   --target=${_DEFOLD_CLANG_TRIPLE}
   -fuse-ld=lld
 )
-

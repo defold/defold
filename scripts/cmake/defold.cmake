@@ -27,6 +27,11 @@ endif()
 message(STATUS "DEFOLD_HOME: ${DEFOLD_HOME}")
 message(STATUS "DEFOLD_SDK_ROOT: ${DEFOLD_SDK_ROOT}")
 
+# Ensure the INTERFACE target exists early so platform modules can attach options
+if(NOT TARGET defold_sdk)
+  add_library(defold_sdk INTERFACE)
+endif()
+
 # verify our list of tools (e.g. java, ninja etc)
 include(tools)
 
@@ -60,22 +65,17 @@ if(NOT EXISTS "${DEFOLD_SDK_ROOT}")
   message(FATAL_ERROR "Missing folder ${DEFOLD_SDK_ROOT}")
 endif()
 
-# Define INTERFACE target that carries SDK include and lib search paths
-if(NOT TARGET defold_sdk)
-  add_library(defold_sdk INTERFACE)
-  # Core include dirs (non-system)
-  target_include_directories(defold_sdk INTERFACE
-    "${DEFOLD_INCLUDE_DIR}"
-    "${DEFOLD_DMSDK_INCLUDE_DIR}"
-  )
-  # External/platform include dirs as SYSTEM to reduce warnings
-  target_include_directories(defold_sdk SYSTEM INTERFACE
-    "${DEFOLD_EXT_INCLUDE_DIR}"
-    ${_DEFOLD_PLATFORM_INCLUDE_DIRS}
-  )
-  # Library search directories
-  target_link_directories(defold_sdk INTERFACE ${_DEFOLD_PLATFORM_LIB_DIRS})
-endif()
+# Attach SDK include/lib search paths to defold_sdk INTERFACE
+# Core include dirs (non-system)
+target_include_directories(defold_sdk INTERFACE
+  "${DEFOLD_INCLUDE_DIR}"
+  "${DEFOLD_DMSDK_INCLUDE_DIR}")
+# External/platform include dirs as SYSTEM to reduce warnings
+target_include_directories(defold_sdk SYSTEM INTERFACE
+  "${DEFOLD_EXT_INCLUDE_DIR}"
+  ${_DEFOLD_PLATFORM_INCLUDE_DIRS})
+# Library search directories
+target_link_directories(defold_sdk INTERFACE ${_DEFOLD_PLATFORM_LIB_DIRS})
 
 # Apply defold_sdk to all targets in this directory and below
 link_libraries(defold_sdk)

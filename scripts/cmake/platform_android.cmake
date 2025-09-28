@@ -9,34 +9,31 @@ endif()
 set(_DEFOLD_SYSROOT "${CMAKE_SYSROOT}")
 
 # Common compile definitions and options (mirrors waf_dynamo defaults)
-add_compile_definitions(
-    ANDROID
-)
+target_compile_definitions(defold_sdk INTERFACE ANDROID)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -gdwarf-2")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffunction-sections")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fomit-frame-pointer")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-strict-aliasing")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funwind-tables")
+target_compile_options(defold_sdk INTERFACE
+  -gdwarf-2
+  -ffunction-sections
+  -fstack-protector
+  -fomit-frame-pointer
+  -fno-strict-aliasing
+  -funwind-tables)
 
 if(TARGET_PLATFORM MATCHES "arm64-android")
-    add_compile_definitions(__aarch64__)
-    add_compile_options(-march=armv8-a)
+    target_compile_definitions(defold_sdk INTERFACE __aarch64__)
+    target_compile_options(defold_sdk INTERFACE -march=armv8-a)
 else()
-    add_compile_definitions(
+    target_compile_definitions(defold_sdk INTERFACE
         __ARM_ARCH_5__ __ARM_ARCH_5T__ __ARM_ARCH_5E__ __ARM_ARCH_5TE__
-        GOOGLE_PROTOBUF_NO_RTTI
-    )
-    add_compile_options(-march=armv7-a -mfloat-abi=softfp -fvisibility=hidden)
+        GOOGLE_PROTOBUF_NO_RTTI)
+    target_compile_options(defold_sdk INTERFACE -march=armv7-a -mfloat-abi=softfp -fvisibility=hidden)
 endif()
 
 # Add NDK helper include paths if available
 if(_DEFOLD_ANDROID_NDK)
-    include_directories(
-        "${_DEFOLD_ANDROID_NDK}/sources/android/native_app_glue"
-        "${_DEFOLD_ANDROID_NDK}/sources/android/cpufeatures"
-    )
+    target_include_directories(defold_sdk INTERFACE
+      "${_DEFOLD_ANDROID_NDK}/sources/android/native_app_glue"
+      "${_DEFOLD_ANDROID_NDK}/sources/android/cpufeatures")
 endif()
 
 # Link options (mirrors waf_dynamo getAndroidLinkFlags + extras)

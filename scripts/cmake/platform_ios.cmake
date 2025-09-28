@@ -17,12 +17,10 @@ if(NOT _DEFOLD_IPHONEOS_MIN)
 endif()
 
 # Compile definitions (mirrors waf_dynamo iOS defaults)
-add_compile_definitions(
-  DM_PLATFORM_IOS
-)
+target_compile_definitions(defold_sdk INTERFACE DM_PLATFORM_IOS)
 
 if(_DEFOLD_TARGET_ARCH STREQUAL "x86_64")
-  add_compile_definitions(DM_PLATFORM_IOS_SIMULATOR IOS_SIMULATOR)
+  target_compile_definitions(defold_sdk INTERFACE DM_PLATFORM_IOS_SIMULATOR IOS_SIMULATOR)
   # Guard: Simulator builds must use an iPhoneSimulator SDK
   if(DEFINED CMAKE_OSX_SYSROOT AND NOT CMAKE_OSX_SYSROOT MATCHES ".*iPhoneSimulator.*\.sdk/?$")
     message(FATAL_ERROR "TARGET_PLATFORM=x86_64-ios requires iPhoneSimulator SDK; found: ${CMAKE_OSX_SYSROOT}")
@@ -30,24 +28,21 @@ if(_DEFOLD_TARGET_ARCH STREQUAL "x86_64")
 endif()
 
 # Common iOS compile options
-add_compile_options(
-  -miphoneos-version-min=${_DEFOLD_IPHONEOS_MIN}
-)
+target_compile_options(defold_sdk INTERFACE
+  -miphoneos-version-min=${_DEFOLD_IPHONEOS_MIN})
 
 # Add sysroot to compile flags when available
-add_compile_options(-isysroot ${CMAKE_OSX_SYSROOT})
+target_compile_options(defold_sdk INTERFACE -isysroot ${CMAKE_OSX_SYSROOT})
 
 # Add libc++ include dir and disable default stdlib includes for C++
-add_compile_options(
+target_compile_options(defold_sdk INTERFACE
   $<$<COMPILE_LANGUAGE:CXX>:-isystem>
-  $<$<COMPILE_LANGUAGE:CXX>:${CMAKE_OSX_SYSROOT}/usr/include/c++/v1>
-)
+  $<$<COMPILE_LANGUAGE:CXX>:${CMAKE_OSX_SYSROOT}/usr/include/c++/v1>)
 
 # C++ specific (match waf: libc++, no default stdlib includes)
-add_compile_options(
+target_compile_options(defold_sdk INTERFACE
   $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>
-  $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>
-)
+  $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>)
 
 # Link options (mirrors waf_dynamo for iOS)
 set(_DEFOLD_LINK_OPTS

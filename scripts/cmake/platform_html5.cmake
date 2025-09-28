@@ -5,7 +5,7 @@ if(NOT TARGET_PLATFORM MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
 endif()
 
 # Common compile-time definitions (mirrors waf_dynamo for web)
-add_compile_definitions(
+target_compile_definitions(defold_sdk INTERFACE
   GL_ES_VERSION_2_0
   GOOGLE_PROTOBUF_NO_RTTI
   __STDC_LIMIT_MACROS
@@ -13,18 +13,16 @@ add_compile_definitions(
   DM_NO_SYSTEM_FUNCTION
   JC_TEST_NO_DEATH_TEST
   PTHREADS_DEBUG
-  DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER
-)
+  DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER)
 
 # Common compile options
-add_compile_options(
+target_compile_options(defold_sdk INTERFACE
   -Wall
   -fPIC
   -fno-exceptions
   $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
   -Wno-nontrivial-memcall
-  -sDISABLE_EXCEPTION_CATCHING=1
-)
+  -sDISABLE_EXCEPTION_CATCHING=1)
 
 # Threading: wasm_pthread-web uses pthreads
 set(_DEFOLD_WITH_PTHREAD OFF)
@@ -33,7 +31,7 @@ if(TARGET_PLATFORM STREQUAL "wasm_pthread-web")
 endif()
 
 if(_DEFOLD_WITH_PTHREAD)
-  add_compile_options(-pthread)
+  target_compile_options(defold_sdk INTERFACE -pthread)
 endif()
 
 # Link options base

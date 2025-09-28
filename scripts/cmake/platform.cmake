@@ -55,17 +55,17 @@ endif()
 
 set(CMAKE_CXX_FLAGS_RELEASE "") # remove -DNDEBUG and -O3
 
-add_compile_definitions(
+# Attach common definitions to defold_sdk target
+target_compile_definitions(defold_sdk INTERFACE
     __STDC_LIMIT_MACROS
     DDF_EXPOSE_DESCRIPTORS
     GOOGLE_PROTOBUF_NO_RTTI
-    DM_USE_CMAKE # for some tests, as the build folders change
-)
+    DM_USE_CMAKE)
 
 if (TARGET_PLATFORM MATCHES "^arm64|^x86_64")
-        add_compile_definitions(DM_PLATFORM_64BIT)
+    target_compile_definitions(defold_sdk INTERFACE DM_PLATFORM_64BIT)
 else()
-        add_compile_definitions(DM_PLATFORM_32BIT)
+    target_compile_definitions(defold_sdk INTERFACE DM_PLATFORM_32BIT)
 endif()
 
 #**************************************************************************
@@ -79,28 +79,23 @@ endif()
 # Treat clang-cl as MSVC-like on Windows
 if(_MSVC_SYNTAX)
     # Disable RTTI; don't force /EH to avoid changing exception model globally
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /GR-")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3")
-
+    target_compile_options(defold_sdk INTERFACE /GR- /W3)
     if (DEFINED _DEFOLD_MSVC_NATIVE AND NOT _DEFOLD_MSVC_NATIVE)
-        # for ninja to output colors
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color")
+        # for ninja to output colors (clang-cl)
+        target_compile_options(defold_sdk INTERFACE -fdiagnostics-color)
     endif()
-
 else()
-
-    # Apply per-language flags using separate generator expressions per option
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=format")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -flto")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
-    # for ninja to output colors
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color")
-
+    # Apply per-language flags via target options
+    target_compile_options(defold_sdk INTERFACE
+        -Wall
+        -Werror=format
+        -fPIC
+        -fvisibility=hidden
+        -fno-exceptions
+        $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
+        -flto
+        -g
+        -fdiagnostics-color)
 endif()
 
 
@@ -108,17 +103,14 @@ endif()
 # Optimization flags (after platform detection)
 
 if(_MSVC_SYNTAX)
-    if (CMAKE_BUILD_TYPE MATCHES "Release")
-        add_compile_options(/O2)
-    else()
-        add_compile_options(/Od)
-    endif()
+    # Optimization flags scoped to targets using defold_sdk
+    target_compile_options(defold_sdk INTERFACE
+        $<$<CONFIG:Release>:/O2>
+        $<$<NOT:$<CONFIG:Release>>:/Od>)
 else()
-    if (CMAKE_BUILD_TYPE MATCHES "Release")
-        add_compile_options(-O3)
-    else()
-        add_compile_options(-O0)
-    endif()
+    target_compile_options(defold_sdk INTERFACE
+        $<$<CONFIG:Release>:-O3>
+        $<$<NOT:$<CONFIG:Release>>:-O0>)
 endif()
 
 #**************************************************************************

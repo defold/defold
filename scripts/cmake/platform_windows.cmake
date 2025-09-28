@@ -26,8 +26,8 @@ if(CMAKE_C_COMPILER)
     endif()
 endif()
 
-# Common compile definitions (mirrors waf_dynamo.py for Win32)
-add_compile_definitions(
+# Common compile definitions (attach to defold_sdk INTERFACE)
+target_compile_definitions(defold_sdk INTERFACE
     DM_PLATFORM_WINDOWS
     __STDC_LIMIT_MACROS
     DDF_EXPOSE_DESCRIPTORS
@@ -36,8 +36,7 @@ add_compile_definitions(
     NOMINMAX
     _CRT_SECURE_NO_WARNINGS
     UNICODE
-    _UNICODE
-)
+    _UNICODE)
 
 # Use static multithreaded runtime (/MT) like waf_dynamo
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded" CACHE STRING "Use static MSVC runtime (/MT)" FORCE)
@@ -46,7 +45,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded" CACHE STRING "Use static MSVC run
 if(_DEFOLD_MSVC_LIKE)
     # /Oy- Disable frame pointer omission (keeps stack traces reliable)
     # /Z7  Generate debug info in .obj (matches waf_dynamo)
-    add_compile_options(/Oy- /Z7)
+    target_compile_options(defold_sdk INTERFACE /Oy- /Z7)
 else()
     message(WARNING "platform_windows: Non-MSVC-like compiler detected (${CMAKE_CXX_COMPILER_ID}). Skipping MSVC flags; link libs will still be added.")
 endif()

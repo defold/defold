@@ -18,30 +18,26 @@ if(NOT _DEFOLD_MACOS_MIN)
 endif()
 
 # Common compile options for macOS (mirrors waf_dynamo defaults)
-add_compile_definitions(
+target_compile_definitions(defold_sdk INTERFACE
   DM_PLATFORM_MACOS
   GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED
-  GL_SILENCE_DEPRECATION
-)
+  GL_SILENCE_DEPRECATION)
 
-add_compile_options(
+target_compile_options(defold_sdk INTERFACE
   -mmacosx-version-min=${SDK_VERSION_MACOSX_MIN}
-  -target ${_DEFOLD_TARGET_ARCH}-apple-darwin19
-)
+  -target ${_DEFOLD_TARGET_ARCH}-apple-darwin19)
 
 if(_XCODE_TOOLCHAIN)
   # Add libc++ include dir and disable default stdlib includes for C++
-  add_compile_options(
+  target_compile_options(defold_sdk INTERFACE
     $<$<COMPILE_LANGUAGE:CXX>:-isystem>
-    $<$<COMPILE_LANGUAGE:CXX>:${CMAKE_OSX_SYSROOT}/usr/include/c++/v1>
-  )
+    $<$<COMPILE_LANGUAGE:CXX>:${CMAKE_OSX_SYSROOT}/usr/include/c++/v1>)
 endif()
 
 # C++ specific
-add_compile_options(
+target_compile_options(defold_sdk INTERFACE
   $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>
-  $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>
-)
+  $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>)
 
 # Link options
 set(_DEFOLD_LINK_OPTS
@@ -59,4 +55,3 @@ if(_XCODE_TOOLCHAIN)
 endif()
 
 add_link_options(${_DEFOLD_LINK_OPTS})
-
