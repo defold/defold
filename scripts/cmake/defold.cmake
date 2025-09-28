@@ -60,14 +60,25 @@ if(NOT EXISTS "${DEFOLD_SDK_ROOT}")
   message(FATAL_ERROR "Missing folder ${DEFOLD_SDK_ROOT}")
 endif()
 
-# Add common paths
-include_directories(
-    "${DEFOLD_INCLUDE_DIR}"                 # for defold includes (dlib, graphics etc)
-    "${DEFOLD_EXT_INCLUDE_DIR}"             # for 3rd party headers
-    ${_DEFOLD_PLATFORM_INCLUDE_DIRS}        # for 3rd party, platform specific headers (win32 + x86-win32)
-    "${DEFOLD_DMSDK_INCLUDE_DIR}"           # for dmsdk public headers
-)
-link_directories(${_DEFOLD_PLATFORM_LIB_DIRS})
+# Define INTERFACE target that carries SDK include and lib search paths
+if(NOT TARGET defold_sdk)
+  add_library(defold_sdk INTERFACE)
+  # Core include dirs (non-system)
+  target_include_directories(defold_sdk INTERFACE
+    "${DEFOLD_INCLUDE_DIR}"
+    "${DEFOLD_DMSDK_INCLUDE_DIR}"
+  )
+  # External/platform include dirs as SYSTEM to reduce warnings
+  target_include_directories(defold_sdk SYSTEM INTERFACE
+    "${DEFOLD_EXT_INCLUDE_DIR}"
+    ${_DEFOLD_PLATFORM_INCLUDE_DIRS}
+  )
+  # Library search directories
+  target_link_directories(defold_sdk INTERFACE ${_DEFOLD_PLATFORM_LIB_DIRS})
+endif()
+
+# Apply defold_sdk to all targets in this directory and below
+link_libraries(defold_sdk)
 
 # Install into DEFOLD_SDK_ROOT
 set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}" CACHE PATH "Install prefix" FORCE)
