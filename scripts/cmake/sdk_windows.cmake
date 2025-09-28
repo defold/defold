@@ -437,18 +437,22 @@ if(_FOUND_WINSDK_VERSION)
 
     # Log and add to include search paths
     set(_DEFOLD_INCLUDE_FLAGS "")
+    set(_DEFOLD_INC_DIRS)
     foreach(_dir_var DEFOLD_WINSDK_INCLUDE_SHARED DEFOLD_WINSDK_INCLUDE_UCRT DEFOLD_WINSDK_INCLUDE_UM DEFOLD_WINSDK_INCLUDE_WINRT)
         if(${_dir_var})
             message(STATUS "sdk_windows: WindowsKits include: ${${_dir_var}}")
             list(APPEND CMAKE_INCLUDE_PATH "${${_dir_var}}")
             list(APPEND _DEFOLD_INCLUDE_FLAGS "/I\"${${_dir_var}}\"")
+            list(APPEND _DEFOLD_INC_DIRS "${${_dir_var}}")
         endif()
     endforeach()
 
     if(_DEFOLD_INCLUDE_FLAGS)
         string(JOIN " " _DEFOLD_INCLUDE_FLAGS_STR ${_DEFOLD_INCLUDE_FLAGS})
-        # Apply to this build
-        add_compile_options(${_DEFOLD_INCLUDE_FLAGS})
+        # Apply include directories to targets (SYSTEM to reduce warnings)
+        if(_DEFOLD_INC_DIRS)
+            target_include_directories(defold_sdk SYSTEM INTERFACE ${_DEFOLD_INC_DIRS})
+        endif()
         # Propagate to try_compile checks
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${_DEFOLD_INCLUDE_FLAGS_STR}")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${_DEFOLD_INCLUDE_FLAGS_STR}")
@@ -526,8 +530,8 @@ endif()
 if(DEFOLD_MSVC_INCLUDE_DIR)
     message(STATUS "sdk_windows: MSVC include: ${DEFOLD_MSVC_INCLUDE_DIR}")
     list(APPEND CMAKE_INCLUDE_PATH "${DEFOLD_MSVC_INCLUDE_DIR}")
-    # Add to compile options so build and compiler checks can find headers
-    add_compile_options("/I\"${DEFOLD_MSVC_INCLUDE_DIR}\"")
+    # Target-scoped include
+    target_include_directories(defold_sdk SYSTEM INTERFACE "${DEFOLD_MSVC_INCLUDE_DIR}")
     # Propagate to try_compile
     set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} /I\"${DEFOLD_MSVC_INCLUDE_DIR}\"")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /I\"${DEFOLD_MSVC_INCLUDE_DIR}\"")
