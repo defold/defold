@@ -869,6 +869,13 @@ class Configuration(object):
         if not result:
             self.fatal("Failed sdk check")
 
+        args = ["cmake", f"-DTARGET_PLATFORM={target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
+        if self.verbose:
+            args.insert(1, '-DDEFOLD_VERBOSE=ON')
+
+        output = run.command(args)
+        self._log(output)
+
     def verify_sdk(self):
         was_verbose = self.verbose
         self.verbose = True
