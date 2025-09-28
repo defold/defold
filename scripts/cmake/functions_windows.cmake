@@ -136,10 +136,12 @@ function(_defold_locate_msvc_lib_dir_from_cl CL_PATH ARCH OUT_LIB_DIR)
     if(NOT EXISTS "${CL_PATH}")
         return()
     endif()
-    get_filename_component(_cl_dir "${CL_PATH}" DIRECTORY)            # .../bin/Host*/<arch>
-    get_filename_component(_host_dir "${_cl_dir}" DIRECTORY)          # .../bin/Host*
-    get_filename_component(_bin_dir  "${_host_dir}" DIRECTORY)        # .../bin
-    get_filename_component(_msvc_ver_dir "${_bin_dir}" DIRECTORY)     # .../VC/Tools/MSVC/<ver>
+    # Normalize and walk up to VC/Tools/MSVC/<ver>
+    cmake_path(REAL_PATH "${CL_PATH}" _cl_real)
+    cmake_path(GET _cl_real PARENT_PATH _cl_dir)       # .../bin/Host*/<arch>
+    cmake_path(GET _cl_dir  PARENT_PATH _host_dir)     # .../bin/Host*
+    cmake_path(GET _host_dir PARENT_PATH _bin_dir)     # .../bin
+    cmake_path(GET _bin_dir  PARENT_PATH _msvc_ver_dir)# .../VC/Tools/MSVC/<ver>
 
     set(_candidates
         "${_msvc_ver_dir}/lib/${ARCH}"
@@ -159,10 +161,11 @@ function(_defold_locate_msvc_include_dir_from_cl CL_PATH OUT_INC_DIR)
     if(NOT EXISTS "${CL_PATH}")
         return()
     endif()
-    get_filename_component(_cl_dir "${CL_PATH}" DIRECTORY)            # .../bin/Host*/<arch>
-    get_filename_component(_host_dir "${_cl_dir}" DIRECTORY)          # .../bin/Host*
-    get_filename_component(_bin_dir  "${_host_dir}" DIRECTORY)        # .../bin
-    get_filename_component(_msvc_ver_dir "${_bin_dir}" DIRECTORY)     # .../VC/Tools/MSVC/<ver>
+    cmake_path(REAL_PATH "${CL_PATH}" _cl_real)
+    cmake_path(GET _cl_real PARENT_PATH _cl_dir)       # .../bin/Host*/<arch>
+    cmake_path(GET _cl_dir  PARENT_PATH _host_dir)     # .../bin/Host*
+    cmake_path(GET _host_dir PARENT_PATH _bin_dir)     # .../bin
+    cmake_path(GET _bin_dir  PARENT_PATH _msvc_ver_dir)# .../VC/Tools/MSVC/<ver>
     set(_inc_dir "${_msvc_ver_dir}/include")
     if(EXISTS "${_inc_dir}/vcruntime.h")
         set(${OUT_INC_DIR} "${_inc_dir}" PARENT_SCOPE)
