@@ -16,7 +16,6 @@ target_compile_options(defold_sdk INTERFACE --target=${_DEFOLD_CLANG_TRIPLE})
 # C++ specific flags are set globally in platform.cmake (-fno-rtti, etc.)
 
 # Link options
-add_link_options(
+target_link_options(defold_sdk INTERFACE
   --target=${_DEFOLD_CLANG_TRIPLE}
-  -fuse-ld=lld
-)
+  -fuse-ld=lld)

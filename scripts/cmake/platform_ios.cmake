@@ -58,5 +58,5 @@ set(_DEFOLD_LINK_OPTS
   -fobjc-link-runtime
 )
 
-add_link_options(${_DEFOLD_LINK_OPTS})
-add_link_options(-isysroot ${CMAKE_OSX_SYSROOT})
+target_link_options(defold_sdk INTERFACE ${_DEFOLD_LINK_OPTS})
+target_link_options(defold_sdk INTERFACE -isysroot ${CMAKE_OSX_SYSROOT})

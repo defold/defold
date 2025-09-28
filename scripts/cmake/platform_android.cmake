@@ -53,4 +53,4 @@ else()
     list(APPEND _DEFOLD_ANDROID_LINK_OPTS -Wl,--fix-cortex-a8)
 endif()
 
-add_link_options(${_DEFOLD_ANDROID_LINK_OPTS})
+target_link_options(defold_sdk INTERFACE ${_DEFOLD_ANDROID_LINK_OPTS})

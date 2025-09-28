@@ -85,4 +85,4 @@ if(_DEFOLD_WITH_PTHREAD)
   list(APPEND _DEFOLD_EM_LINK_OPTS -pthread)
 endif()
 
-add_link_options(${_DEFOLD_EM_LINK_OPTS})
+target_link_options(defold_sdk INTERFACE ${_DEFOLD_EM_LINK_OPTS})

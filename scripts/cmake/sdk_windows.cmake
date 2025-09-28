@@ -610,8 +610,8 @@ endif()
 # Apply collected /LIBPATH flags to all linker types so they take effect early (e.g. during compiler checks)
 if(_DEFOLD_LINK_LIBPATH_FLAGS)
     string(JOIN " " _DEFOLD_LINK_LIBPATH_FLAGS_STR ${_DEFOLD_LINK_LIBPATH_FLAGS})
-    # Apply to this build
-    add_link_options(${_DEFOLD_LINK_LIBPATH_FLAGS})
+    # Apply to this build (target-scoped)
+    target_link_options(defold_sdk INTERFACE ${_DEFOLD_LINK_LIBPATH_FLAGS})
     # Propagate to try_compile
     set(CMAKE_EXE_LINKER_FLAGS    "${CMAKE_EXE_LINKER_FLAGS} ${_DEFOLD_LINK_LIBPATH_FLAGS_STR}")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${_DEFOLD_LINK_LIBPATH_FLAGS_STR}")

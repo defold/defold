@@ -54,4 +54,4 @@ if(_XCODE_TOOLCHAIN)
   list(APPEND _DEFOLD_LINK_OPTS -isysroot ${CMAKE_OSX_SYSROOT})
 endif()
 
-add_link_options(${_DEFOLD_LINK_OPTS})
+target_link_options(defold_sdk INTERFACE ${_DEFOLD_LINK_OPTS})
