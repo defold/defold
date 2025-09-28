@@ -77,6 +77,20 @@ target_include_directories(defold_sdk SYSTEM INTERFACE
 # Library search directories
 target_link_directories(defold_sdk INTERFACE ${_DEFOLD_PLATFORM_LIB_DIRS})
 
+# Enable IPO/LTO when supported
+include(CheckIPOSupported)
+check_ipo_supported(RESULT _DEFOLD_IPO_OK OUTPUT _DEFOLD_IPO_MSG)
+if(_DEFOLD_IPO_OK)
+  # Prefer IPO on Release-like configs for targets created after this point
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
+  # Enable IPO on the defold_sdk usage target so consumers default to IPO
+  # (actual effect applies to real targets compiled/linked)
+  set_property(TARGET defold_sdk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+else()
+  message(STATUS "IPO not enabled: ${_DEFOLD_IPO_MSG}")
+endif()
+
 # Apply defold_sdk to all targets in this directory and below
 link_libraries(defold_sdk)
 
