@@ -105,6 +105,22 @@ target_include_directories(defold_sdk SYSTEM INTERFACE
 # Library search directories
 target_link_directories(defold_sdk INTERFACE ${_DEFOLD_PLATFORM_LIB_DIRS})
 
+# Remove -DNDEBUG or /DNDEBUG from Release-like configs to keep asserts if desired
+set(_DEFOLD_CFGS Release RelWithDebInfo MinSizeRel)
+foreach(_cfg IN LISTS _DEFOLD_CFGS)
+  string(TOUPPER "${_cfg}" _CFG_UP)
+  foreach(_lang C CXX)
+    set(_var "CMAKE_${_lang}_FLAGS_${_CFG_UP}")
+    if(DEFINED ${_var})
+      set(_flags "${${_var}}")
+      string(REPLACE "-DNDEBUG" "" _flags "${_flags}")
+      string(REPLACE "/DNDEBUG" "" _flags "${_flags}")
+      string(REGEX REPLACE "  +" " " _flags "${_flags}")
+      set(${_var} "${_flags}" CACHE STRING "${_var}" FORCE)
+    endif()
+  endforeach()
+endforeach()
+
 # Enable IPO/LTO when supported
 include(CheckIPOSupported)
 check_ipo_supported(RESULT _DEFOLD_IPO_OK OUTPUT _DEFOLD_IPO_MSG)
